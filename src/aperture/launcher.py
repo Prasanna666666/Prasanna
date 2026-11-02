@@ -61,6 +61,24 @@ def _run_ok(cmd: list[str]) -> bool:
         return False
 
 
+def _open_browser(url: str) -> None:
+    """Show the page in a browser window and bring it to the front; every attempt is logged."""
+    candidates = [
+        app
+        for app in ("Google Chrome", "Safari", "Microsoft Edge", "Brave Browser", "Firefox")
+        if Path(f"/Applications/{app}.app").is_dir()
+        or Path(f"/System/Volumes/Preboot/Cryptexes/App/System/Applications/{app}.app").is_dir()
+    ]
+    for app in candidates[:1]:
+        ok = _run_ok(["/usr/bin/open", "-a", app, url])
+        print(f"open -a {app!r}: {'ok' if ok else 'failed'}", flush=True)
+        _run(["/usr/bin/osascript", "-e", f'tell application "{app}" to activate'])
+        if ok:
+            return
+    ok = _run_ok(["/usr/bin/open", url])
+    print(f"open default browser: {'ok' if ok else 'failed'}", flush=True)
+
+
 def _notify(text: str, *, alert: bool = False) -> None:
     script = f'display alert "{APP_NAME}" message "{text}"' if alert else f'display notification "{text}" with title "{APP_NAME}"'
     try:
@@ -114,7 +132,7 @@ def run_window(port: int = DEFAULT_PORT) -> int:
         _notify(f"The external drive {paths.drive} is not connected.", alert=True)
         return 1
     if _healthy(port):
-        _run(["/usr/bin/open", url])
+        _open_browser(url)
         return 0
     _notify(f"Starting {APP_NAME}. This can take up to a minute.")
     _free_port(port)
@@ -128,7 +146,7 @@ def run_window(port: int = DEFAULT_PORT) -> int:
         )  # fmt: skip
     for _ in range(360):
         if _healthy(port):
-            _run(["/usr/bin/open", url])
+            _open_browser(url)
             return 0
         if server.poll() is not None:
             break
