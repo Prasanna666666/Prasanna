@@ -86,6 +86,11 @@ if [ ! -d "{paths.drive}" ]; then
   /usr/bin/osascript -e 'display alert "{APP_NAME}" message "The external drive {paths.drive} is not connected."'
   exit 1
 fi
+export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Ollama.app/Contents/Resources:$PATH"
+if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
+  /usr/bin/open -ga Ollama 2>/dev/null || (nohup ollama serve >/dev/null 2>&1 &)
+  for _ in $(seq 1 20); do /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null && break; sleep 1; done
+fi
 exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
 """
     executable = macos / APP_NAME
