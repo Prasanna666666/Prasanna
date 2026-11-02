@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     app.add_argument("--port", type=int, default=8765)
     install = sub.add_parser("install-launcher", help="create Aperture.app in ~/Applications")
     install.add_argument("--dest")
+    sub.add_parser("bench", help="time the app's pages on this machine and show where time goes")
     sub.add_parser("install-service", help="keep Lumo running in the background; prints the address to bookmark")
     return parser
 
@@ -210,6 +211,44 @@ def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0 if reply.kind != "error" else 1
 
 
+def cmd_bench(paths: Paths) -> int:
+    """Time a cold render of the app, the database and the drive; print the slowest steps."""
+    import cProfile
+    import pstats
+    import time
+
+    from streamlit.testing.v1 import AppTest
+
+    from . import launcher
+    from .db import Database
+
+    if _require_drive(paths):
+        return 2
+    t = time.perf_counter()
+    conn = Database(paths.db).connect()
+    n = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+    conn.execute("SELECT COUNT(DISTINCT place) FROM items").fetchone()
+    print(f"database: {n:,} items, opened and queried in {time.perf_counter() - t:.2f}s")
+    t = time.perf_counter()
+    test = AppTest.from_file(str(launcher.ui_script()), default_timeout=300)
+    profiler = cProfile.Profile()
+    profiler.enable()
+    test.run()
+    profiler.disable()
+    print(f"first page render: {time.perf_counter() - t:.2f}s ({len(test.exception)} errors)")
+    stats = pstats.Stats(profiler)
+    rows = sorted(stats.stats.items(), key=lambda kv: kv[1][3], reverse=True)  # type: ignore[attr-defined]
+    print("slowest steps (cumulative seconds):")
+    shown = 0
+    for (file, line, name), (_, calls, _, cum, _) in rows:
+        if "aperture" in file and "site-packages" not in file and cum > 0.05:
+            print(f"  {cum:6.2f}s  {file.split('aperture/')[-1]}:{line} {name} ({calls}x)")
+            shown += 1
+            if shown >= 10:
+                break
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     paths = default_paths()
@@ -236,6 +275,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return launcher.run_window(args.port)
         print(launcher.install_app_bundle(paths, None if not args.dest else __import__("pathlib").Path(args.dest)))
         return 0
+
+    if args.command == "bench":
+        return cmd_bench(paths)
 
     if _require_drive(paths):
         return 2
