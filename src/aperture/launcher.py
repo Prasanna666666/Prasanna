@@ -89,18 +89,31 @@ def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
             f'   /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1 &)\n'
             "fi\n"
         )
+    port = DEFAULT_PORT
     script = f"""#!/bin/bash
 export APERTURE_DRIVE="{paths.drive}"
+LOG="{paths.logs}/app.log"
 if [ ! -d "{paths.drive}" ]; then
   /usr/bin/osascript -e 'display alert "{APP_NAME}" message "The external drive {paths.drive} is not connected."'
   exit 1
 fi
+exec >> "$LOG" 2>&1
+echo "--- $(date) launching {APP_NAME}"
+URL="http://127.0.0.1:{port}"
+healthy() {{ /usr/bin/curl -sf -m 1 "$URL/_stcore/health" >/dev/null; }}
+if healthy; then /usr/bin/open "$URL"; exit 0; fi
 /usr/bin/osascript -e 'display notification "Starting {APP_NAME}. This can take up to a minute." with title "{APP_NAME}"' >/dev/null 2>&1 &
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Ollama.app/Contents/Resources:$PATH"
 if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
   /usr/bin/open -ga Ollama 2>/dev/null || (nohup ollama serve >/dev/null 2>&1 &)
 fi
-{update}exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
+{update}nohup "{sys.executable}" -m aperture ui --port {port} >> "$LOG" 2>&1 &
+for _ in $(seq 1 180); do
+  if healthy; then /usr/bin/open "$URL"; exit 0; fi
+  sleep 1
+done
+/usr/bin/osascript -e 'display alert "{APP_NAME}" message "It did not start. See {paths.logs}/app.log"'
+exit 1
 """
     executable = macos / APP_NAME
     executable.write_text(script)
