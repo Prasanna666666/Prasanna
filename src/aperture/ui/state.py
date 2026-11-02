@@ -17,7 +17,9 @@ from ..safety import drive_problem
 def get_context() -> AppContext:
     paths = default_paths()
     paths.ensure()
-    return AppContext(paths)
+    ctx = AppContext(paths)
+    ctx.warm_up()
+    return ctx
 
 
 def drive_ok(ctx: AppContext) -> str:

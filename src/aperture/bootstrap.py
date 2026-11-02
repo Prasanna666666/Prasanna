@@ -76,6 +76,19 @@ class AppContext:
                     self.embedder_error = str(exc)
             return self._embedder
 
+    def warm_up(self) -> None:
+        """Load everything a first question needs (AI model, search model, index) in the background."""
+        import threading
+
+        def work() -> None:
+            for step in (self.llm().warm, self.search_embedder, self.embedding_index):
+                try:
+                    step()
+                except Exception:
+                    log.debug("warm-up step failed", exc_info=True)
+
+        threading.Thread(target=work, name="warm-up", daemon=True).start()
+
     def embedding_index(self) -> EmbeddingIndex:
         """Cached index, rebuilt automatically when a scan changes embeddings."""
         conn = self.db.connect()
