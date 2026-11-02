@@ -14,6 +14,8 @@ from datetime import date
 import numpy as np
 
 from .agent.executor import Executor
+from .agent.knowledge import answer as answer_question
+from .agent.knowledge import gather_facts
 from .agent.llm import OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
@@ -199,8 +201,18 @@ class AppContext:
                 lines.append(evidence)
             return "\n".join(lines)
 
+        def answerer(question: str, previous: np.ndarray | None) -> str:
+            conn = self.db.connect()
+            try:
+                facts = gather_facts(conn, self.paths, previous)
+            finally:
+                conn.close()
+            return answer_question(self.llm().complete_text, question, facts)
+
         if not self.settings.agentic:
-            return AgentService(Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts)
+            return AgentService(
+                Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts, answerer=answerer
+            )
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

@@ -15,7 +15,7 @@ from ..search.dates import RELATIVE, DateSpec
 from ..search.filters import DAY_TYPES, KINDS, ORIENTATIONS, QUALITIES, TIMES_OF_DAY, TRISTATE, Filters
 
 ENGINES = ("visual", "text", "path", "person", "place")
-INTENTS = ("find", "count", "export", "chat", "clarify")
+INTENTS = ("find", "count", "export", "chat", "clarify", "question")
 SEASONS = ("none", "spring", "summer", "autumn", "winter")
 RELATIVES = ("none", *RELATIVE)
 MAX_CLAUSES = 8

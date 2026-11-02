@@ -77,8 +77,10 @@ class AgentService:
         known_people: Callable[[], list[str]],
         today: Callable[[], date] = date.today,
         library_facts: Callable[[str], str] | None = None,
+        answerer: Callable[[str, np.ndarray | None], str] | None = None,
     ) -> None:
         self._library_facts = library_facts
+        self._answerer = answerer
         self._planner = planner
         self._executor_factory = executor_factory
         self._known_people = known_people
@@ -102,6 +104,13 @@ class AgentService:
 
         if plan.intent == "chat":
             return AgentReply("chat", plan.message or "Ask me to find photos by content, text, people, places or dates.", **base)
+        if plan.intent == "question":
+            if self._answerer is None:
+                return AgentReply("chat", "I can't look that up here yet.", **base)
+            try:
+                return AgentReply("chat", self._answerer(request, previous_ids), **base)
+            except LLMError as exc:
+                return AgentReply("error", str(exc), **base)
         if plan.intent == "clarify" or not plan.has_constraints:
             return AgentReply(
                 "clarify", plan.message or "What should I look for - a subject, text, person, place or date?", **base

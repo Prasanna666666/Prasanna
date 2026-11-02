@@ -40,6 +40,8 @@ RULES
 4. Dates go in "date" using year / month (1-12) / season / relative. NEVER compute dates yourself. Use 0 or "none" or "" for unused fields.
 5. intent: "find" (show photos), "count" (how many), "export" (copy/put/organize into a folder; set folder_name),
    "chat" (greeting or question about what you can do; answer in "message"),
+   "question" (the user asks ABOUT the library or the app instead of asking to see photos: statistics, "how many per year/place/camera",
+   "did the move finish?", "is indexing done?", "what are these photos?", "tell me about my library". Leave clauses empty),
    "clarify" (the request has nothing searchable; ask ONE short question in "message").
 6. scope "previous" ONLY when the user refers to the earlier results ("only those", "of these", "now put them in a folder").
 7. "all_photos": true ONLY if the user explicitly asks for the whole library.
@@ -67,6 +69,8 @@ User: portrait photos of dogs at night
 {"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[{"engines":["visual"],"query":"dog","exclude":false}],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"filters":{"time_of_day":"night","orientation":"portrait"},"folder_name":""}
 User: invoice number 48213
 {"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[{"engines":["text"],"query":"48213","exclude":false}],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
+User: did the move finish? how many photos are in each year?
+{"intent":"question","message":"","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 User: hi, what can you do?
 {"intent":"chat","message":"I can find photos by what they show, text inside them, people, places, dates and folders, and copy results into a folder.","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 """

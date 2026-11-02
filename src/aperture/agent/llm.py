@@ -92,6 +92,21 @@ class OllamaClient:
                 return call("json")
             raise
 
+    def complete_text(self, system: str, user: str) -> str:
+        """Plain-text answer (no JSON), for conversational replies grounded in supplied facts."""
+        body = self._request(
+            "/api/chat",
+            {
+                "model": self.model,
+                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                "stream": False,
+                "keep_alive": self.keep_alive,
+                "options": {"temperature": 0.2, "num_ctx": 4096, "num_predict": 300},
+            },
+        )
+        message = body.get("message")
+        return str(message.get("content", "")) if isinstance(message, dict) else ""
+
 
 class Vision(Protocol):
     def judge(self, image: bytes, question: str) -> tuple[bool, str]:
