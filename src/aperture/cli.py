@@ -52,6 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
     app.add_argument("--port", type=int, default=8765)
     install = sub.add_parser("install-launcher", help="create Aperture.app in ~/Applications")
     install.add_argument("--dest")
+    sub.add_parser("install-service", help="keep Lumo running in the background; prints the address to bookmark")
     return parser
 
 
@@ -218,13 +219,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_environment(paths, online=online)
     enable_offline_guard()  # no-op while fetching models
 
-    if args.command in ("app", "ui", "install-launcher"):
+    if args.command in ("app", "ui", "install-launcher", "install-service"):
         from . import launcher
 
         if args.command == "ui":
             return launcher.run_ui(args.port)
         if _require_drive(paths):
             return 2
+        if args.command == "install-service":
+            url = launcher.install_service(paths)
+            print(
+                f"Lumo is running in the background and starts at every login.\nOpen: {url}\n(also works: http://127.0.0.1:8765)"
+            )
+            return 0
         if args.command == "app":
             return launcher.run_window(args.port)
         print(launcher.install_app_bundle(paths, None if not args.dest else __import__("pathlib").Path(args.dest)))

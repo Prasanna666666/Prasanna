@@ -205,3 +205,48 @@ def _sign(bundle: Path) -> None:
     ):  # fmt: skip
         if Path(cmd[0]).exists():
             subprocess.run(cmd, check=False, capture_output=True)  # noqa: S603
+
+
+SERVICE_LABEL = "local.lumo.server"
+
+
+def install_service(paths: Paths, port: int = DEFAULT_PORT) -> str:
+    """Keep the web UI running in the background from login onwards (a macOS LaunchAgent).
+
+    Also removes the old double-click app bundles.  Returns the address to bookmark."""
+    repo = Path(__file__).resolve().parents[2]
+    pull = f'/usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1 &' if (repo / ".git").is_dir() else ""
+    command = (
+        f'export APERTURE_DRIVE="{paths.drive}" GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/true; '
+        f'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"; '
+        f'if [ ! -d "{paths.drive}" ]; then exit 1; fi; '
+        f"/usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null || /usr/bin/open -ga Ollama; "
+        f"{pull} "
+        f'exec "{sys.executable}" -m aperture ui --port {port}'
+    )
+    agents = Path.home() / "Library" / "LaunchAgents"
+    agents.mkdir(parents=True, exist_ok=True)
+    plist = agents / f"{SERVICE_LABEL}.plist"
+    log = str(paths.logs / "server.log")
+    plist.write_bytes(
+        plistlib.dumps(
+            {
+                "Label": SERVICE_LABEL,
+                "ProgramArguments": ["/bin/bash", "-c", command],
+                "RunAtLoad": True,
+                "KeepAlive": True,
+                "ThrottleInterval": 20,  # retried every 20 s, e.g. until the drive is plugged in
+                "StandardOutPath": log,
+                "StandardErrorPath": log,
+            }
+        )
+    )
+    paths.logs.mkdir(parents=True, exist_ok=True)
+    domain = f"gui/{os.getuid()}"
+    _run(["/bin/launchctl", "bootout", f"{domain}/{SERVICE_LABEL}"])  # replace an older copy
+    _free_port(port)  # clear leftovers from earlier manual starts
+    _run(["/bin/launchctl", "bootstrap", domain, str(plist)])
+    _run(["/bin/launchctl", "kickstart", "-k", f"{domain}/{SERVICE_LABEL}"])
+    for old in (f"{APP_NAME}.app", "Aperture.app"):
+        shutil.rmtree(Path.home() / "Applications" / old, ignore_errors=True)
+    return f"http://{APP_NAME.lower()}.localhost:{port}"
