@@ -65,6 +65,14 @@ _TODO_SQL = {
 }
 
 
+def _params_for(stage: str, values: dict[str, int]) -> dict[str, int]:
+    if stage == STAGE_INDEX:
+        return {"retry": values["retry"], "clip": values["clip"]}
+    if stage == STAGE_OCR:
+        return {"images": values["images"]}
+    return {}
+
+
 class Scanner:
     def __init__(
         self,
@@ -135,6 +143,9 @@ class Scanner:
         conn.commit()
 
     def _run_pass(self, conn, stage: str, opts: ScanOptions, progress: ProgressReporter, summary: ScanSummary) -> None:  # type: ignore[no-untyped-def]
+        precheck = {"retry": int(opts.retry_errors), "clip": int(self.settings.stages.clip), "images": 1}
+        if not conn.execute(_TODO_SQL[stage], _params_for(stage, precheck)).fetchall():
+            return  # nothing to do: do not spend half a minute loading models for it
         svc = self._factory(stage)
         want_clip = self.settings.stages.clip and svc.embedder is not None
         params: dict[str, int] = {}

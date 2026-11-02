@@ -81,7 +81,17 @@ class AppContext:
         import threading
 
         def work() -> None:
-            for step in (self.llm().warm, self.search_embedder, self.embedding_index):
+            import time
+
+            from .indexing.progress import ScanLock
+
+            try:
+                self.llm().warm()
+            except Exception:
+                log.debug("AI warm-up failed", exc_info=True)
+            while ScanLock(self.paths).running():  # a scan needs the memory more: wait for it
+                time.sleep(10)
+            for step in (self.search_embedder, self.embedding_index):
                 try:
                     step()
                 except Exception:
