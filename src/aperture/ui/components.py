@@ -11,11 +11,10 @@ import streamlit as st
 
 from .. import library
 from ..bootstrap import AppContext
+from ..config import DENSITY_COLUMNS
 from ..models import Item
 from ..paging import Page, make_page, page_slice, page_window
 from ..people.repository import faces_in_item
-
-GRID_COLUMNS = 6
 
 
 @contextmanager
@@ -65,7 +64,7 @@ def show_thumb(ctx: AppContext, item: Item) -> None:
     if item.thumb and (ctx.paths.data / item.thumb).is_file():
         st.image(str(ctx.paths.data / item.thumb), caption=item.caption)
     else:
-        st.caption(f"{item.caption} - preview not available yet")
+        st.caption(f"{item.caption} - preview not ready yet")
 
 
 def photo_grid(
@@ -82,13 +81,21 @@ def photo_grid(
         items = library.items_by_ids(conn, page_ids)
     ordered = [items[i] for i in page_ids if i in items]
     notes = snippets(page_ids) if snippets else {}
-    for start in range(0, len(ordered), GRID_COLUMNS):
-        for cell, item in zip(st.columns(GRID_COLUMNS), ordered[start : start + GRID_COLUMNS], strict=False):
-            with cell:
+    per_row = DENSITY_COLUMNS.get(ctx.settings.ui_density, 6)
+    for start in range(0, len(ordered), per_row):
+        row = ordered[start : start + per_row]
+        for cell, item in zip(st.columns(per_row), row, strict=False):
+            with cell, st.container(key=f"tile-{key}-{item.id}"):
                 show_thumb(ctx, item)
                 if item.id in notes:
                     st.markdown(highlight(notes[item.id]), unsafe_allow_html=True)
-                if st.button("Details", key=f"{key}:open:{item.id}", help=f"Open details for {item.name}"):
+                if st.button(
+                    "Open",
+                    key=f"{key}:open:{item.id}",
+                    type="tertiary",
+                    icon=":material/open_in_full:",
+                    help=f"Open details for {item.name}",
+                ):
                     item_dialog(ctx, item.id)
 
 

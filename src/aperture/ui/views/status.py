@@ -20,38 +20,44 @@ def maybe_autostart(ctx: AppContext) -> None:
         start_scan(ctx)
 
 
+def _stage(label: str, done: int, total: int, hint: str) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{label}**")
+        st.progress(min(done / total, 1.0) if total else 0.0, text=f"{done:,} of {total:,}")
+        st.caption(hint)
+
+
 @st.fragment(run_every=3)
 def _live(ctx: AppContext) -> None:
     lock = ScanLock(ctx.paths)
     prog = read_progress(ctx.paths) or {}
-    running = lock.running()
-    if running:
-        total, done = max(1, int(prog.get("total", 1) or 1)), int(prog.get("done", 0) or 0)
-        st.progress(min(done / total, 1.0), text=f"{prog.get('stage', '')}: {done:,} of {total:,} - {prog.get('current', '')}")
-        eta = prog.get("eta")
-        if isinstance(eta, (int, float)) and eta > 0:
-            st.caption(f"About {time.strftime('%H:%M:%S', time.gmtime(eta))} remaining")
-        if st.button("Pause indexing", icon=":material/pause:"):
-            lock.stop()
-    else:
-        st.caption(f"Idle. Last state: {prog.get('state', 'never run')}")
     with connection(ctx) as conn:
         cov = lib.coverage(conn)
-    c = st.columns(5)
-    for cell, (label, val) in zip(
-        c,
-        [
-            ("Files", cov.total),
-            ("Indexed", cov.indexed),
-            ("Visual", cov.embedded),
-            ("Faces", cov.faces_done),
-            ("Text", cov.ocr_done),
-        ],
-        strict=True,
-    ):
-        cell.metric(label, f"{val:,}")
+    if lock.running():
+        eta = prog.get("eta")
+        eta_text = (
+            f" - about {time.strftime('%H:%M:%S', time.gmtime(eta))} left" if isinstance(eta, (int, float)) and eta > 0 else ""
+        )
+        st.info(f"Working on: {prog.get('stage') or 'starting'}{eta_text}. {prog.get('current') or ''}", icon=":material/sync:")
+        if st.button("Pause", icon=":material/pause:"):
+            lock.stop()
+    else:
+        st.caption(f"Idle. Last state: {prog.get('state', 'never run')}.")
+    images = max(1, cov.total)
+    a, b, c = st.columns(3)
+    with a:
+        _stage(
+            "1. Read and describe",
+            cov.indexed,
+            cov.total,
+            "Dates, places, previews and the visual index. Search works as this grows.",
+        )
+    with b:
+        _stage("2. Find faces", cov.faces_done, images, "Lets you search and group by person.")
+    with c:
+        _stage("3. Read text", cov.ocr_done, images, "Finds words in screenshots, receipts and PDFs.")
     if cov.failed:
-        st.warning(f"{cov.failed:,} files could not be read (they are skipped, never altered).")
+        st.warning(f"{cov.failed:,} files could not be read. They are skipped and never altered.")
 
 
 def render(ctx: AppContext) -> None:
@@ -59,13 +65,12 @@ def render(ctx: AppContext) -> None:
     if not ctx.settings.photo_dir:
         st.info("Choose the photo folder in Settings first.")
         return
-    st.caption(f"Reading `{ctx.settings.photo_dir}` (read-only). Progress is saved, so you can stop and resume at any time.")
-    c1, c2, c3 = st.columns(3)
-    if c1.button("Start or resume", type="primary", icon=":material/play_arrow:"):
-        if not start_scan(ctx):
-            st.info("Indexing is already running.")
-    if c2.button("Retry failed files"):
+    st.caption(f"Reading `{ctx.settings.photo_dir}` (never modified). Progress is saved, so you can stop and resume any time.")
+    c1, c2, c3 = st.columns([2, 1, 1])
+    if c1.button("Start or resume", type="primary", icon=":material/play_arrow:") and not start_scan(ctx):
+        st.info("Indexing is already running.")
+    if c2.button("Retry failed files", icon=":material/refresh:"):
         start_scan(ctx, "--retry-errors")
-    if c3.button("Regroup faces"):
+    if c3.button("Regroup faces", icon=":material/group_work:"):
         start_scan(ctx, "--regroup-faces")
     _live(ctx)

@@ -11,3 +11,7 @@
 
 ## 1.3.0
 - Accuracy tooling: `aperture eval-plans`, `aperture eval` (golden set, strictness sweep), fuzz and scale tests.
+
+## 1.4.0
+- Agent loop: the model picks tools step by step, checks results with a vision model, and builds replies from tool facts. Turn off with `agentic=false`.
+- UI redesign: grouped navigation, logo, hero and stat cards, setup checklist, suggestion chips, photo tiles with density setting, "How I found this" timeline, light and dark themes.

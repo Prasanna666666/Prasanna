@@ -120,6 +120,9 @@ class Stages:
     ocr: bool = True
 
 
+DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
+
+
 @dataclass
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
@@ -137,6 +140,8 @@ class Settings:
     clip_pretrained: str = "laion2b_s34b_b79k"
     visual_strictness: str = "balanced"
     page_size: int = 36
+    ui_density: str = "comfortable"  # compact | comfortable | spacious (photos per row)
+    high_contrast: bool = False
     thumb_size: int = 360
     preview_size: int = 1600
     ocr_max_side: int = 3200
@@ -189,6 +194,8 @@ class Settings:
         if s.visual_strictness not in STRICTNESS_LEVELS:
             s.visual_strictness = "balanced"
         s.page_size = _clamp(s.page_size, 6, 200)
+        if s.ui_density not in DENSITY_COLUMNS:
+            s.ui_density = "comfortable"
         s.thumb_size = _clamp(s.thumb_size, 120, 1024)
         s.preview_size = _clamp(s.preview_size, 640, 4096)
         s.ocr_max_side = _clamp(s.ocr_max_side, 1024, 6000)

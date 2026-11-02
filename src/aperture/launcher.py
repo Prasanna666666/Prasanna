@@ -32,7 +32,6 @@ def run_ui(port: int = DEFAULT_PORT) -> int:
         "--server.address", "127.0.0.1", "--server.port", str(port),
         "--server.headless", "true", "--browser.gatherUsageStats", "false",
         "--server.fileWatcherType", "none", "--client.toolbarMode", "minimal",
-        "--theme.base", "light",
     ]  # fmt: skip
     return int(stcli.main() or 0)
 

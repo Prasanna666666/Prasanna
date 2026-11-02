@@ -1,4 +1,4 @@
-"""Validated settings form."""
+"""Validated settings form and health checks."""
 
 from __future__ import annotations
 
@@ -6,34 +6,74 @@ import streamlit as st
 
 from ...agent.llm import LLMError
 from ...bootstrap import AppContext
+from ...config import DENSITY_COLUMNS
+from ...diagnostics import run_checks
 from ...safety import SafetyError, resolve_export_dir, resolve_photo_dir
 from ...search.visual import STRICTNESS
 
 
+def _health(ctx: AppContext) -> None:
+    for check in run_checks(ctx):
+        icon = ":material/check_circle:" if check.ok else (":material/error:" if check.required else ":material/info:")
+        color = "green" if check.ok else ("red" if check.required else "orange")
+        st.markdown(f":{color}[{icon}] **{check.label}** - {check.detail}")
+
+
 def render(ctx: AppContext) -> None:
     st.title("Settings")
+    form_tab, health_tab = st.tabs(["Preferences", "Health check"])
+    with health_tab:
+        _health(ctx)
+    with form_tab:
+        _form(ctx)
+
+
+def _form(ctx: AppContext) -> None:
     s = ctx.settings
+    try:
+        models = ctx.llm().list_models()
+    except LLMError:
+        models = []
     with st.form("settings"):
+        st.subheader("Folders")
         photo = st.text_input("Photo folder (on the external drive)", s.photo_dir)
         export = st.text_input("Export folder (on the external drive, outside the photo folder)", s.export_dir)
-        try:
-            models = ctx.llm().list_models()
-        except LLMError:
-            models = []
+        st.subheader("AI")
         options = models or [s.ollama_model]
         model = st.selectbox(
-            "Ollama model for the agent", options, index=options.index(s.ollama_model) if s.ollama_model in options else 0
+            "Model that understands your requests",
+            options,
+            index=options.index(s.ollama_model) if s.ollama_model in options else 0,
+        )
+        vision_options = models or [s.vision_model]
+        vision = st.selectbox(
+            "Vision model that double-checks results",
+            vision_options,
+            index=vision_options.index(s.vision_model) if s.vision_model in vision_options else 0,
+        )
+        agentic = st.toggle(
+            "Let the AI work step by step (agent mode)",
+            s.agentic,
+            help="Lets the model search, look at results, verify and retry. Off = one-shot planning.",
         )
         strict = st.select_slider(
-            "Visual match strictness",
+            "Default visual match strictness",
             list(STRICTNESS),
             value=s.visual_strictness if s.visual_strictness in STRICTNESS else "balanced",
         )
+        st.subheader("Appearance and access")
+        density = st.segmented_control(
+            "Photos per row",
+            list(DENSITY_COLUMNS),
+            default=s.ui_density,
+            format_func=lambda d: f"{d.title()} ({DENSITY_COLUMNS[d]})",
+        )
         size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
+        contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
         auto = st.checkbox("Resume indexing when Aperture opens", s.auto_scan)
         saved = st.form_submit_button("Save", type="primary")
     if not models:
-        st.warning("Ollama is not reachable at the configured address. Start it with `ollama serve`.")
+        st.warning("Ollama is not reachable. Start it with `ollama serve` (or open the Ollama app).")
     if saved:
         try:
             if photo.strip():
@@ -43,9 +83,10 @@ def render(ctx: AppContext) -> None:
         except (SafetyError, PermissionError, OSError) as exc:
             st.error(str(exc))
             return
-        s.ollama_model, s.visual_strictness, s.page_size, s.auto_scan = model, strict, int(size), auto
+        s.ollama_model, s.vision_model, s.agentic, s.visual_strictness = model, vision, agentic, strict
+        s.page_size, s.auto_scan, s.high_contrast, s.ui_density = int(size), auto, contrast, density or s.ui_density
         s.save(ctx.paths)
         ctx.reload_settings()
         st.success("Saved.")
-    st.divider()
-    st.caption(f"Data lives in `{ctx.paths.root}`. Originals are never modified, moved, renamed or deleted.")
+        st.rerun()
+    st.caption(f"Your data lives in `{ctx.paths.root}`. Originals are never modified, renamed or deleted.")
