@@ -11,10 +11,13 @@ import logging
 import threading
 from datetime import date
 
+import numpy as np
+
 from .agent.executor import Executor
-from .agent.llm import OllamaClient
+from .agent.llm import OllamaClient, OllamaVision
+from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
-from .agent.service import AgentService
+from .agent.service import Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
@@ -130,7 +133,7 @@ class AppContext:
     def llm(self) -> OllamaClient:
         return OllamaClient(self.settings.ollama_url, self.settings.ollama_model)
 
-    def agent(self) -> AgentService:
+    def agent(self) -> Agent:
         def make_executor() -> Executor:
             return Executor(
                 self.db.connect(),
@@ -147,4 +150,14 @@ class AppContext:
             finally:
                 conn.close()
 
-        return AgentService(Planner(self.llm()), make_executor, people_names, today=date.today)
+        if not self.settings.agentic:
+            return AgentService(Planner(self.llm()), make_executor, people_names, today=date.today)
+        vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
+
+        def toolbox(previous: np.ndarray | None) -> Toolbox:
+            return Toolbox(
+                self.db.connect(), self.paths, self.settings, make_executor,
+                self.embedding_index, self.search_embedder, vision, previous,
+            )  # fmt: skip
+
+        return AgentLoop(self.llm(), toolbox, people_names, max_steps=self.settings.agent_max_steps, today=date.today)

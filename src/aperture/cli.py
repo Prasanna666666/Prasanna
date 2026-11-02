@@ -120,10 +120,12 @@ def _stats(conn) -> dict[str, int]:  # type: ignore[no-untyped-def]
 
 
 def cmd_eval_plans(ctx: AppContext) -> int:
+    from .agent.loop import LoopPlanner
     from .agent.planner import Planner
     from .evaluation import TARGET, evaluate_plans
 
-    result = evaluate_plans(Planner(ctx.llm()), on_case=lambda n, t: print(f"\r{n}/{t}", end="", flush=True))
+    planner = LoopPlanner(ctx.llm()) if ctx.settings.agentic else Planner(ctx.llm())
+    result = evaluate_plans(planner, on_case=lambda n, t: print(f"\r{n}/{t}", end="", flush=True))
     print(f"\nplan accuracy with {ctx.settings.ollama_model}: {result.accuracy:.0%} ({result.correct}/{result.total})")
     for request, problems in result.failures:
         print(f"  x {request!r}: {'; '.join(problems)}")

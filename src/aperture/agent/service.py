@@ -11,7 +11,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 import numpy as np
 
@@ -36,6 +36,11 @@ class AgentReply:
     warnings: list[str] = field(default_factory=list)
     folder_name: str = ""  # for kind == "export"
     date_range: str = ""
+    trace: list[dict[str, str]] = field(default_factory=list)  # what the agent did, step by step
+
+
+class Agent(Protocol):
+    def ask(self, request: str, previous_ids: np.ndarray | None = None) -> AgentReply: ...
 
 
 def describe_conditions(plan: Plan, date_range: str) -> str:

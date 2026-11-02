@@ -87,3 +87,46 @@ class OllamaClient:
             if "HTTP 400" in str(exc):  # older server: fall back to plain JSON mode
                 return call("json")
             raise
+
+
+class Vision(Protocol):
+    def judge(self, image: bytes, question: str) -> tuple[bool, str]:
+        """Look at one image and answer a yes/no question: (answer, short reason)."""
+
+
+class OllamaVision(OllamaClient):
+    """A local vision-language model (e.g. llava) used to *check* what retrieval found."""
+
+    _SCHEMA = {
+        "type": "object",
+        "properties": {"answer": {"type": "boolean"}, "reason": {"type": "string"}},
+        "required": ["answer", "reason"],
+    }
+
+    def judge(self, image: bytes, question: str) -> tuple[bool, str]:
+        import base64
+
+        body = self._request(
+            "/api/chat",
+            {
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": f"Look at the photo and answer strictly yes or no. Question: {question}",
+                        "images": [base64.b64encode(image).decode()],
+                    }
+                ],
+                "stream": False,
+                "format": self._SCHEMA,
+                "keep_alive": self.keep_alive,
+                "options": {"temperature": 0, "num_ctx": 2048},
+            },
+        )
+        message = body.get("message")
+        text = str(message.get("content", "")) if isinstance(message, dict) else ""
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return False, "unreadable answer"
+        return bool(data.get("answer")) is True, str(data.get("reason", ""))[:160]

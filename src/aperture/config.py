@@ -129,6 +129,10 @@ class Settings:
     auto_scan: bool = True
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2:3b"
+    vision_model: str = "llava:7b"  # checks retrieved photos; optional
+    agentic: bool = True  # tool-using agent loop (False = single-shot planner)
+    agent_max_steps: int = 8
+    verify_limit: int = 40  # most photos the vision model re-checks in one step
     clip_model: str = "ViT-B-32"
     clip_pretrained: str = "laion2b_s34b_b79k"
     visual_strictness: str = "balanced"
