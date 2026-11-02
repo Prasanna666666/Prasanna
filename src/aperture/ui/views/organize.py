@@ -27,19 +27,9 @@ def _mb(n: int) -> str:
 # Shared pieces
 # --------------------------------------------------------------------------
 def _switch(ctx: AppContext) -> bool:
-    """The master switch.  Off by default: until it is on, nothing can move."""
-    on = st.toggle(
-        "Allow Aperture to move files inside my photo folder",
-        value=ctx.settings.allow_moves,
-        help="Files are only moved (never deleted or overwritten), every move is logged, and each batch can be undone.",
-    )
-    if on != ctx.settings.allow_moves:
-        ctx.settings.allow_moves = on
-        ctx.settings.save(ctx.paths)
-        st.rerun()
-    if not on:
-        st.info("Moving is off, so your photos are exactly as you left them. Turn the switch on to continue.")
-    return on
+    """Moving is always preview-then-confirm, so no separate master switch is needed."""
+    ctx.settings.allow_moves = True
+    return True
 
 
 def _report(report: org.MoveReport) -> None:
