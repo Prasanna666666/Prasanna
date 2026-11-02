@@ -44,7 +44,10 @@ RULES
 6. scope "previous" ONLY when the user refers to the earlier results ("only those", "of these", "now put them in a folder").
 7. "all_photos": true ONLY if the user explicitly asks for the whole library.
 8. Never invent constraints the user did not state. Keep filler words ("show me", "please", "pics of") out of queries.
-9. Output ONLY the JSON object.
+9. A word after "from", "in", "at", "near" or "around" is a PLACE (or a folder) unless it is a year, month or season. Put it in a place clause, never in "date".
+10. Use "date" ONLY when the user states a year, month, season or a relative time ("last week"). Otherwise leave every date field unused.
+11. When PLACES IN THIS LIBRARY is given, write place queries exactly as spelled there when the user means one of them.
+12. Output ONLY the JSON object.
 
 EXAMPLES (compact):
 User: show me photos of Anna at the beach in Goa last summer
@@ -73,6 +76,7 @@ class PlannerContext:
     today: date
     known_people: tuple[str, ...] = ()
     previous_count: int | None = None
+    library: str = ""  # facts about THIS library (places, date span) so the model picks real values
 
 
 @dataclass
@@ -95,7 +99,11 @@ class Planner:
     def _user_prompt(request: str, ctx: PlannerContext) -> str:
         people = ", ".join(ctx.known_people[:150]) or "(none named yet)"
         previous = f"{ctx.previous_count} photos" if ctx.previous_count is not None else "(none)"
-        return f"TODAY: {ctx.today.isoformat()}\nKNOWN PEOPLE: {people}\nPREVIOUS RESULTS: {previous}\nUser: {request.strip()}"
+        library = f"{ctx.library}\n" if ctx.library else ""
+        return (
+            f"TODAY: {ctx.today.isoformat()}\nKNOWN PEOPLE: {people}\n{library}"
+            f"PREVIOUS RESULTS: {previous}\nUser: {request.strip()}"
+        )
 
     def plan(self, request: str, ctx: PlannerContext) -> PlanResult:
         user = self._user_prompt(request, ctx)

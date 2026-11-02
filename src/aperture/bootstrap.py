@@ -173,8 +173,28 @@ class AppContext:
             finally:
                 conn.close()
 
+        def library_facts() -> str:
+            conn = self.db.connect()
+            try:
+                places = [
+                    r[0]
+                    for r in conn.execute(
+                        "SELECT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0 "
+                        "GROUP BY place ORDER BY COUNT(*) DESC LIMIT 60"
+                    )
+                ]
+                first, last = conn.execute("SELECT MIN(taken_at), MAX(taken_at) FROM items WHERE missing=0").fetchone()
+            finally:
+                conn.close()
+            lines = []
+            if places:
+                lines.append("PLACES IN THIS LIBRARY: " + "; ".join(places))
+            if first and last:
+                lines.append(f"PHOTOS SPAN: {str(first)[:10]} to {str(last)[:10]}")
+            return "\n".join(lines)
+
         if not self.settings.agentic:
-            return AgentService(Planner(self.llm()), make_executor, people_names, today=date.today)
+            return AgentService(Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts)
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:
