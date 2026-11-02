@@ -127,13 +127,13 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
-    schema: int = 2  # bumped when a default changed on purpose; older files get the new value
+    schema: int = 3  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
     auto_scan: bool = True
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.2:3b"
-    vision_model: str = "llava:7b"  # checks retrieved photos; optional
+    vision_model: str = "moondream"  # describes photos and checks results; small enough for 8 GB (ollama pull moondream)
     agentic: bool = False  # True = slower tool-using agent loop; False = one fast planning call
     agent_max_steps: int = 8
     verify_limit: int = 40  # most photos the vision model re-checks in one step
@@ -180,8 +180,10 @@ class Settings:
         if isinstance(raw, dict):
             if raw.get("schema", 1) < 2:  # v2: the fast single-call planner is the default
                 raw.pop("agentic", None)
+            if raw.get("schema", 1) < 3:  # v3: a small vision model that fits in 8 GB is the default
+                raw.pop("vision_model", None)
             _overlay(settings, raw)
-            settings.schema = 2
+            settings.schema = 3
         settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 

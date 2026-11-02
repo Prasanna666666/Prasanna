@@ -107,6 +107,24 @@ def highlight(snippet: str) -> str:
     return f"<small>{safe}</small>"
 
 
+def _describe_block(ctx: AppContext, conn, item_id: int) -> None:  # type: ignore[no-untyped-def]
+    """What the vision model sees in this photo (remembered after the first time)."""
+    from ..agent.captions import cached_caption, describe_item
+    from ..agent.llm import LLMError
+
+    known = cached_caption(conn, item_id)
+    if known:
+        st.markdown(f"**What I see:** {known}")
+        return
+    if st.button("Describe this photo", key=f"describe:{item_id}", icon=":material/visibility:"):
+        try:
+            with st.spinner("Looking at the photo..."):
+                text = describe_item(conn, ctx.paths, ctx.describer(), ctx.settings.vision_model, item_id)
+            st.markdown(f"**What I see:** {text or 'Nothing I could describe.'}")
+        except LLMError as exc:
+            st.warning(str(exc))
+
+
 # --------------------------------------------------------------------------
 # Detail dialog
 # --------------------------------------------------------------------------
@@ -142,6 +160,7 @@ def item_dialog(ctx: AppContext, item_id: int) -> None:
                 subprocess.run(["open", "-R", item.path], check=False)  # noqa: S603, S607
             if item.notes:
                 st.caption(f"Note: {item.notes}")
+            _describe_block(ctx, conn, item.id)
         people = faces_in_item(conn, item.id)
         if people:
             st.markdown("**People in this photo**")

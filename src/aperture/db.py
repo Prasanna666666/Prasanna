@@ -115,7 +115,16 @@ _MIGRATION_4 = """
 ALTER TABLE items ADD COLUMN taken_exif INTEGER NOT NULL DEFAULT 0;   -- 1 = taken_at came from the camera (not the file date)
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4]
+_MIGRATION_5 = """
+CREATE TABLE captions(
+    item_id INTEGER PRIMARY KEY,
+    caption TEXT NOT NULL,
+    model   TEXT NOT NULL,
+    created REAL NOT NULL
+);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5]
 
 
 class Database:

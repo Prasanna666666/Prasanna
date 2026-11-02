@@ -13,10 +13,12 @@ from datetime import date
 
 import numpy as np
 
+from .agent.captions import describe_item
 from .agent.executor import Executor
+from .agent.jsonutil import extract_json
 from .agent.knowledge import answer as answer_question
 from .agent.knowledge import gather_facts
-from .agent.llm import OllamaClient, OllamaVision
+from .agent.llm import LLMError, OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
 from .agent.service import Agent, AgentService
@@ -31,6 +33,7 @@ from .search.geo import GeoIndex
 from .search.quick import probe
 
 log = logging.getLogger(__name__)
+MAX_PHOTOS_TO_LOOK_AT = 3  # vision is slow: only look when the question concerns a few photos
 
 
 class ServiceUnavailableError(RuntimeError):
@@ -78,6 +81,23 @@ class AppContext:
                 except ServiceUnavailableError as exc:
                     self.embedder_error = str(exc)
             return self._embedder
+
+    def describer(self) -> OllamaVision:
+        return OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=180.0)
+
+    def needs_to_see(self, question: str) -> bool:
+        """Ask the AI whether this question is about what is visible in the photos themselves."""
+        schema = {"type": "object", "properties": {"needs_to_look": {"type": "boolean"}}, "required": ["needs_to_look"]}
+        system = (
+            "Decide whether answering the user's question requires LOOKING at the picture contents "
+            "(what is shown, colours, objects, people's clothing, mood). Statistics, counts, dates, places, "
+            "file names and move/index status do NOT. Reply as JSON."
+        )
+        try:
+            raw = self.llm().complete_json(system, question, schema)
+            return bool(extract_json(raw).get("needs_to_look"))
+        except Exception:
+            return False
 
     def warm_up(self) -> None:
         """Preload the cheap parts (photo index) in the background.
@@ -205,6 +225,16 @@ class AppContext:
             conn = self.db.connect()
             try:
                 facts = gather_facts(conn, self.paths, previous)
+                if previous is not None and 0 < len(previous) <= MAX_PHOTOS_TO_LOOK_AT and self.needs_to_see(question):
+                    seen = []
+                    for i, item_id in enumerate(previous.tolist(), 1):
+                        try:
+                            seen.append(
+                                f"- photo {i}: {describe_item(conn, self.paths, self.describer(), self.settings.vision_model, int(item_id), question)}"
+                            )
+                        except LLMError as exc:
+                            seen.append(f"- photo {i}: could not look at it ({exc})")
+                    facts += "\nWHAT THE VISION MODEL SAW IN THE PREVIOUS PHOTOS:\n" + "\n".join(seen)
             finally:
                 conn.close()
             return answer_question(self.llm().complete_text, question, facts)

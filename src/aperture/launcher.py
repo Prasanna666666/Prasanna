@@ -30,11 +30,26 @@ def run_ui(port: int = DEFAULT_PORT) -> int:
     from streamlit.web import cli as stcli
 
     sys.argv = [
-        "streamlit", "run", str(ui_script()),
-        "--server.address", "127.0.0.1", "--server.port", str(port),
-        "--server.headless", "true", "--browser.gatherUsageStats", "false",
-        "--server.fileWatcherType", "none", "--client.toolbarMode", "minimal",
-    ]  # fmt: skip
+        "streamlit",
+        "run",
+        str(ui_script()),
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        str(port),
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false",
+        "--server.fileWatcherType",
+        "none",
+        "--client.toolbarMode",
+        "minimal",
+        "--theme.primaryColor",
+        "#4f46e5",
+        "--theme.baseFontSize",
+        "15",
+    ]  # fmt: skip  (the theme is set here too: a config file is only read from the working folder)
     return int(stcli.main() or 0)
 
 

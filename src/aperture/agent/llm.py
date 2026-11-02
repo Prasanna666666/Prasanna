@@ -113,6 +113,11 @@ class Vision(Protocol):
         """Look at one image and answer a yes/no question: (answer, short reason)."""
 
 
+class Describer(Protocol):
+    def describe(self, image: bytes, question: str = "") -> str:
+        """Look at one image and answer in plain text: a description, or the answer to ``question``."""
+
+
 class OllamaVision(OllamaClient):
     """A local vision-language model (e.g. llava) used to *check* what retrieval found."""
 
@@ -121,6 +126,26 @@ class OllamaVision(OllamaClient):
         "properties": {"answer": {"type": "boolean"}, "reason": {"type": "string"}},
         "required": ["answer", "reason"],
     }
+
+    def describe(self, image: bytes, question: str = "") -> str:
+        import base64
+
+        prompt = question.strip() or (
+            "Describe this photo in two or three short sentences: the main subjects, the setting and anything unusual. "
+            "Do not guess names of people."
+        )
+        body = self._request(
+            "/api/chat",
+            {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt, "images": [base64.b64encode(image).decode()]}],
+                "stream": False,
+                "keep_alive": self.keep_alive,
+                "options": {"temperature": 0.2, "num_ctx": 2048, "num_predict": 200},
+            },
+        )
+        message = body.get("message")
+        return str(message.get("content", "")).strip() if isinstance(message, dict) else ""
 
     def judge(self, image: bytes, question: str) -> tuple[bool, str]:
         import base64
