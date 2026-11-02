@@ -227,7 +227,11 @@ def install_service(paths: Paths, port: int = DEFAULT_PORT) -> str:
     agents = Path.home() / "Library" / "LaunchAgents"
     agents.mkdir(parents=True, exist_ok=True)
     plist = agents / f"{SERVICE_LABEL}.plist"
-    log = str(paths.logs / "server.log")
+    log_dir = (
+        Path.home() / "Library" / "Logs" / APP_NAME
+    )  # on the Mac itself: background services cannot write to external drives
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log = str(log_dir / "server.log")
     plist.write_bytes(
         plistlib.dumps(
             {
@@ -241,7 +245,6 @@ def install_service(paths: Paths, port: int = DEFAULT_PORT) -> str:
             }
         )
     )
-    paths.logs.mkdir(parents=True, exist_ok=True)
     domain = f"gui/{os.getuid()}"
     _run(["/bin/launchctl", "bootout", f"{domain}/{SERVICE_LABEL}"])  # replace an older copy
     _free_port(port)  # clear leftovers from earlier manual starts
