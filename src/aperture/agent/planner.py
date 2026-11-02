@@ -46,8 +46,9 @@ RULES
 8. Never invent constraints the user did not state. Keep filler words ("show me", "please", "pics of") out of queries.
 9. A word after "from", "in", "at", "near" or "around" is a PLACE (or a folder) unless it is a year, month or season. Put it in a place clause, never in "date".
 10. Use "date" ONLY when the user states a year, month, season or a relative time ("last week"). Otherwise leave every date field unused.
-11. When PLACES IN THIS LIBRARY is given, write place queries exactly as spelled there when the user means one of them.
-12. Output ONLY the JSON object.
+11. When DATA MATCHES is given, search each matched word with the engine(s) listed there. A word with no match is probably filler or a visual subject.
+12. When PLACES IN THIS LIBRARY is given, write place queries exactly as spelled there when the user means one of them.
+13. Output ONLY the JSON object.
 
 EXAMPLES (compact):
 User: show me photos of Anna at the beach in Goa last summer

@@ -8,6 +8,7 @@ word matches the data, the request is compared with the photos by what they show
 
 from __future__ import annotations
 
+import itertools
 import sqlite3
 from collections.abc import Callable
 
@@ -49,3 +50,29 @@ def quick_ids(
     if model is None or len(idx) == 0:
         return np.zeros(0, np.int64)
     return VisualSearch(idx, model, strictness).search(request).ids
+
+
+def probe(conn: sqlite3.Connection, request: str, people: Callable[[str], int] | None = None) -> str:
+    """Facts about how the request's words relate to THIS library, for the planner.
+
+    Each word and each pair of neighbouring words is tried against places, folders and file
+    names, text found in photos, and (when given) people.  Only hits are reported, with their
+    counts, so the model picks the engine that really holds the word instead of guessing."""
+    words = tokens(request, min_len=2)
+    phrases = list(dict.fromkeys([w for w in words if len(w) >= 3] + [f"{a} {b}" for a, b in itertools.pairwise(words)]))
+    total = conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0] or 1
+    lines: list[str] = []
+    for phrase in phrases[:16]:
+        hits = {
+            "place": len(place_ids(conn, phrase)),
+            "folder/file name": len(path_ids(conn, phrase)),
+            "text in photos": len(search_text_ids(conn, phrase)),
+        }
+        if people is not None:
+            hits["person"] = people(phrase)
+        found = {k: n for k, n in hits.items() if 0 < n <= total * TOO_COMMON}
+        if found:
+            lines.append(f"'{phrase}' -> " + ", ".join(f"{k}: {n:,} photos" for k, n in found.items()))
+    if not lines:
+        return ""
+    return "DATA MATCHES FOR WORDS IN THE REQUEST (a word with no match is not stored as place/name/text):\n" + "\n".join(lines)

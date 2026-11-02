@@ -26,3 +26,17 @@ def test_words_that_match_the_data_narrow_the_result(scanned):
         word = next(w for w in name.replace("/", " ").replace(".", " ").replace("_", " ").split() if len(w) >= 3)
         ids = quick_ids(conn, f"photos of {word}", _empty_index, lambda: None)
         assert len(ids) <= conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0]
+
+
+def test_probe_reports_only_real_hits(scanned):
+    from aperture.search.quick import probe
+
+    ctx = scanned
+    conn = ctx.db.connect()
+    item_id = conn.execute("SELECT id FROM items WHERE missing=0 LIMIT 1").fetchone()[0]
+    conn.execute("UPDATE items SET place='Testville, Nowhere', place_text=' testville nowhere' WHERE id=?", (item_id,))
+    conn.commit()
+    facts = probe(conn, "pics from Testville please")
+    assert "'testville' -> place: 1 photos" in facts
+    assert "pics" not in facts
+    assert probe(conn, "zzzz qqqq") == ""

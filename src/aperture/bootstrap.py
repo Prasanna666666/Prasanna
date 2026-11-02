@@ -23,9 +23,10 @@ from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
 from .indexing.runner import Scanner
 from .ml.protocols import ImageEmbedder
-from .people.repository import named_people
+from .people.repository import named_people, resolve_name
 from .search.embeddings import EmbeddingIndex
 from .search.geo import GeoIndex
+from .search.quick import probe
 
 log = logging.getLogger(__name__)
 
@@ -165,17 +166,28 @@ class AppContext:
             finally:
                 conn.close()
 
-        def library_facts() -> str:
+        def library_facts(request: str) -> str:
             conn = self.db.connect()
             try:
                 places = [
                     r[0]
                     for r in conn.execute(
                         "SELECT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0 "
-                        "GROUP BY place ORDER BY COUNT(*) DESC LIMIT 60"
+                        "GROUP BY place ORDER BY COUNT(*) DESC LIMIT 25"
                     )
                 ]
                 first, last = conn.execute("SELECT MIN(taken_at), MAX(taken_at) FROM items WHERE missing=0").fetchone()
+
+                def person_photos(phrase: str) -> int:
+                    ids = resolve_name(conn, phrase)
+                    if not ids:
+                        return 0
+                    marks = ",".join("?" * len(ids))
+                    return int(
+                        conn.execute(f"SELECT COUNT(DISTINCT item_id) FROM faces WHERE person_id IN ({marks})", ids).fetchone()[0]
+                    )
+
+                evidence = probe(conn, request, person_photos)
             finally:
                 conn.close()
             lines = []
@@ -183,6 +195,8 @@ class AppContext:
                 lines.append("PLACES IN THIS LIBRARY: " + "; ".join(places))
             if first and last:
                 lines.append(f"PHOTOS SPAN: {str(first)[:10]} to {str(last)[:10]}")
+            if evidence:
+                lines.append(evidence)
             return "\n".join(lines)
 
         if not self.settings.agentic:

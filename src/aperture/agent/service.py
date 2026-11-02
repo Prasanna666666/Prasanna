@@ -76,7 +76,7 @@ class AgentService:
         executor_factory: Callable[[], Executor],
         known_people: Callable[[], list[str]],
         today: Callable[[], date] = date.today,
-        library_facts: Callable[[], str] | None = None,
+        library_facts: Callable[[str], str] | None = None,
     ) -> None:
         self._library_facts = library_facts
         self._planner = planner
@@ -91,7 +91,7 @@ class AgentService:
             today=self._today(),
             known_people=tuple(self._known_people()),
             previous_count=None if previous_ids is None else len(previous_ids),
-            library=self._library_facts() if self._library_facts else "",
+            library=self._library_facts(request) if self._library_facts else "",
         )
         try:
             planned = self._planner.plan(request, ctx)
