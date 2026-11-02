@@ -166,7 +166,9 @@ def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
     script = f"""#!/bin/bash
 export APERTURE_DRIVE="{paths.drive}"
 mkdir -p "{paths.logs}" 2>/dev/null
-exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
+nohup "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1 &
+disown
+exit 0
 """
     executable = macos / APP_NAME
     executable.write_text(script)
