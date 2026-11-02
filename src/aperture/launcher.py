@@ -84,9 +84,13 @@ def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
     update = ""
     if (repo / ".git").is_dir():  # source checkout: pick up fixes on launch when online (best effort, optional)
         update = (
-            f'if [ -z "$APERTURE_NO_UPDATE" ] && /usr/bin/curl -sf -m 2 -o /dev/null https://github.com; then\n'
-            f'  /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1\n'
-            f"fi\n"
+            'if [ -z "$APERTURE_NO_UPDATE" ]; then\n'
+            "  export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/true\n"
+            f'  /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1 &\n'
+            "  pid=$!\n"
+            "  for _ in 1 2 3 4 5 6 7 8; do kill -0 $pid 2>/dev/null || break; sleep 1; done\n"
+            "  kill $pid 2>/dev/null\n"
+            "fi\n"
         )
     script = f"""#!/bin/bash
 export APERTURE_DRIVE="{paths.drive}"
