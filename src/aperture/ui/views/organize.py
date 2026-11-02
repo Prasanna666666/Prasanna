@@ -81,26 +81,31 @@ def history(ctx: AppContext) -> None:
 # --------------------------------------------------------------------------
 def move_card(ctx: AppContext, ids: Sequence[int], key: str) -> None:
     """Preview-then-confirm move for any list of photos."""
+    plan_key, done_key = f"{key}:plan", f"{key}:done"
     with st.expander(f"Move these {len(ids):,} photos to a folder"):
         name = st.text_input("Folder name (created inside your photo folder)", value="Sorted by Aperture", key=f"{key}:dest")
-        if not st.button("Preview", key=f"{key}:preview"):
-            return
-        try:
-            with connection(ctx) as conn:
-                plan = org.plan_move(
-                    conn, ctx.paths, ctx.settings, ids, Path(ctx.settings.photo_dir) / name.strip(), keep_structure=False
-                )
-        except SafetyError as exc:
-            st.error(str(exc))
-            return
-        st.write(
-            f"**{plan.count:,}** files ({_mb(plan.total_bytes)}) will move to `{plan.dest_dir}`; {len(plan.skipped)} skipped."
-        )
-        st.session_state[f"{key}:plan"] = plan
-    plan = st.session_state.get(f"{key}:plan")
-    if plan is not None and st.button(f"Confirm: move {plan.count:,} files", key=f"{key}:go", type="primary"):
-        _report(_run_move(ctx, plan, f"Chat selection -> {plan.dest_dir.name}"))
-        st.session_state.pop(f"{key}:plan", None)
+        if st.button("Preview", key=f"{key}:preview"):
+            st.session_state.pop(done_key, None)
+            try:
+                with connection(ctx) as conn:
+                    st.session_state[plan_key] = org.plan_move(
+                        conn, ctx.paths, ctx.settings, ids, Path(ctx.settings.photo_dir) / name.strip(), keep_structure=False
+                    )
+            except SafetyError as exc:
+                st.session_state.pop(plan_key, None)
+                st.error(str(exc))
+        plan = st.session_state.get(plan_key)
+        if plan is not None:
+            st.write(
+                f"**{plan.count:,}** files ({_mb(plan.total_bytes)}) will move to `{plan.dest_dir}`; {len(plan.skipped)} skipped."
+            )
+            if st.button(f"Confirm: move {plan.count:,} files", key=f"{key}:go", type="primary"):
+                st.session_state[done_key] = _run_move(ctx, plan, f"Chat selection -> {plan.dest_dir.name}")
+                st.session_state.pop(plan_key, None)
+                st.rerun()
+        report = st.session_state.get(done_key)
+        if report is not None:
+            _report(report)
 
 
 # --------------------------------------------------------------------------

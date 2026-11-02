@@ -102,3 +102,35 @@ def test_similar_shots_tab_runs(ctx_env):
     next(b for b in app.button if b.label == "Find similar shots").click().run()
     assert not app.exception, [e.value for e in app.exception]
     assert any("KEEP" in m.value for m in app.markdown) and any("KEEP" in m.value for m in app.markdown)
+
+
+def _move_script() -> None:
+    import streamlit as st
+
+    from aperture import library as lib
+    from aperture.ui.components import connection
+    from aperture.ui.state import get_context
+    from aperture.ui.views.organize import move_card
+
+    ctx = get_context()
+    with connection(ctx) as conn:
+        ids = [int(i) for i in lib.item_ids(conn)]
+    st.session_state["ids_seen"] = len(ids)
+    move_card(ctx, ids, key="t")
+
+
+def test_move_card_preview_then_confirm_really_moves(ctx_env):
+    """Regression: Confirm used to do nothing because the page returned early on the second run."""
+    from pathlib import Path
+
+    app = AppTest.from_function(_move_script, default_timeout=30).run()
+    assert not app.exception, [e.value for e in app.exception]
+    app.text_input(key="t:dest").set_value("Moved here").run()
+    next(b for b in app.button if b.label == "Preview").click().run()
+    assert not app.exception, [e.value for e in app.exception]
+    confirm = next(b for b in app.button if b.label.startswith("Confirm"))
+    confirm.click().run()
+    assert not app.exception, [e.value for e in app.exception]
+    assert any("Moved" in s.value for s in app.success), [s.value for s in app.success]
+    dest = Path(ctx_env.settings.photo_dir) / "Moved here"
+    assert dest.is_dir() and any(dest.iterdir())
