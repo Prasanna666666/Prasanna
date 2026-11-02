@@ -49,6 +49,9 @@ class ExecResult:
     universe: int = 0
 
 
+FALLBACK_ENGINES = ("place", "path", "text", "visual")  # cheap, exact ones first; people are never guessed
+
+
 class Executor:
     def __init__(
         self,
@@ -125,7 +128,21 @@ class Executor:
     # ------------------------------------------------------------------
     def _clause_ids(self, clause: Clause, result: ExecResult) -> np.ndarray:
         parts = [self._engine_ids(engine, clause.query, result) for engine in clause.engines]
-        return np.unique(np.concatenate(parts)) if parts else np.zeros(0, np.int64)
+        ids = np.unique(np.concatenate(parts)) if parts else np.zeros(0, np.int64)
+        if len(ids) or not clause.query.strip():
+            return ids
+        # The model may have looked in the wrong place (a city searched by what photos show).
+        # Before declaring this clause empty, try the engines it did not use.
+        for engine in FALLBACK_ENGINES:
+            if engine in clause.engines:
+                continue
+            found = self._engine_ids(engine, clause.query, result)
+            if len(found):
+                result.notes.append(
+                    f"Nothing matched '{clause.query}' as {'/'.join(clause.engines)}, but it matched {len(found):,} photos by {engine}."
+                )
+                return found
+        return ids
 
     def _engine_ids(self, engine: str, query: str, result: ExecResult) -> np.ndarray:
         try:

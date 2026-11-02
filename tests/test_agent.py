@@ -115,3 +115,18 @@ def test_chat_and_empty_requests(scanned):
     svc, _ = service(scanned, plan("chat", message="Hello!"))
     assert svc.ask("hi").kind == "chat"
     assert svc.ask("   ").kind == "clarify"
+
+
+def test_clause_in_the_wrong_engine_falls_back_to_the_right_one(scanned):
+    """A city searched by 'visual' must still find the city: the model picked the wrong engine."""
+    from aperture.agent.schema import Clause, Plan
+
+    ctx = scanned
+    conn = ctx.db.connect()
+    item_id = conn.execute("SELECT id FROM items WHERE missing=0 LIMIT 1").fetchone()[0]
+    conn.execute("UPDATE items SET place='Testville, Nowhere', place_text=' testville nowhere' WHERE id=?", (item_id,))
+    conn.commit()
+    executor = Executor(ctx.db.connect(), ctx.embedding_index, ctx.search_embedder, strictness="strict")
+    result = executor.run(Plan(intent="find", clauses=[Clause(engines=["visual"], query="Testville")]))
+    assert result.ids.tolist() == [item_id]
+    assert any("matched 1 photos by place" in note for note in result.notes)
