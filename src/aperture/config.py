@@ -127,6 +127,7 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
+    schema: int = 2  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
     auto_scan: bool = True
@@ -177,7 +178,10 @@ class Settings:
         except (OSError, ValueError):
             return settings.normalized()
         if isinstance(raw, dict):
+            if raw.get("schema", 1) < 2:  # v2: the fast single-call planner is the default
+                raw.pop("agentic", None)
             _overlay(settings, raw)
+            settings.schema = 2
         return settings.normalized()
 
     def save(self, paths: Paths) -> None:
