@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "pillow>=10", "pillow-heif>=0.16", "pymupdf>=1.24"]
 
 [project.optional-dependencies]
-ml = ["torch>=2.2", "open_clip_torch>=2.24", "onnxruntime>=1.17"]
+ml = ["torch>=2.2", "open_clip_torch>=2.24", "onnxruntime>=1.17", "opencv-python-headless>=4.8"]
 mac = ["pyobjc-framework-Vision>=10", "pyobjc-framework-Quartz>=10", "pywebview>=5"]
 ui = ["streamlit>=1.48"]
 dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
