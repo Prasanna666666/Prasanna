@@ -146,6 +146,8 @@ class Settings:
     face_use_coreml: bool = False
     cluster_threshold: float = 0.40
     export_verify: bool = True
+    allow_moves: bool = False  # the only switch that lets Aperture move files inside the library
+    move_dir: str = ""  # where moved duplicates go (inside the photo folder)
     stages: Stages = field(default_factory=Stages)
 
     # -- construction -----------------------------------------------------

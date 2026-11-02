@@ -8,6 +8,7 @@ from ...bootstrap import AppContext
 from ...export import create_job, read_job
 from ..components import photo_grid
 from ..state import start_export_job
+from .organize import move_card
 
 KEY = "chat:messages"
 
@@ -71,6 +72,7 @@ def _render_message(ctx: AppContext, idx: int, msg: dict) -> None:  # type: igno
         if reply.kind == "export" and len(reply.ids):
             _export_card(ctx, idx, msg)
         if reply.kind in ("results", "export") and len(reply.ids):
+            move_card(ctx, reply.ids.tolist(), key=f"chatmove:{idx}")
             photo_grid(ctx, reply.ids, key=f"chat:{idx}")
 
 

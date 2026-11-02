@@ -76,7 +76,27 @@ CREATE INDEX faces_person ON faces(person_id);
 CREATE INDEX faces_item   ON faces(item_id);
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1]
+_MIGRATION_2 = """
+ALTER TABLE items ADD COLUMN sha256 TEXT;          -- content hash, filled lazily for duplicate detection
+CREATE INDEX items_size ON items(size);
+
+-- Write-ahead journal for the only operation that touches the library: moving files.
+CREATE TABLE move_batches(
+    id TEXT PRIMARY KEY, label TEXT NOT NULL, created REAL NOT NULL, undone INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE moves(
+    id      INTEGER PRIMARY KEY,
+    batch   TEXT NOT NULL REFERENCES move_batches(id) ON DELETE CASCADE,
+    item_id INTEGER NOT NULL,
+    src     TEXT NOT NULL,
+    dst     TEXT NOT NULL,
+    status  TEXT NOT NULL,                          -- pending | done | undone | failed
+    detail  TEXT
+);
+CREATE INDEX moves_batch ON moves(batch);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2]
 
 
 class Database:

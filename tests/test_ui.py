@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest
 
-PAGES = ["chat", "library", "people", "search", "status", "settings"]
+PAGES = ["chat", "library", "people", "search", "status", "settings", "organize"]
 
 
 def _script(page: str) -> None:  # executed by AppTest in its own namespace
@@ -37,3 +37,40 @@ def test_page_renders_without_exception(ctx_env, page):
 def test_library_grid_is_paginated(ctx_env):
     app = AppTest.from_function(_script, args=("library",), default_timeout=30).run()
     assert any("1-5 of 5" in c.value or "of 5" in c.value for c in app.caption)
+
+
+def test_tidy_page_full_flow(ctx_env):
+    ctx_env.settings.allow_moves = True
+    ctx_env.settings.save(ctx_env.paths)
+    from aperture.ui import state
+
+    state.get_context.clear()
+    app = AppTest.from_function(_script, args=("organize",), default_timeout=30).run()
+    assert not app.exception, [e.value for e in app.exception]
+    app.button[0].click().run()  # Find duplicates
+    assert not app.exception, [e.value for e in app.exception]
+    assert any("No exact duplicates" in s.value for s in app.success)
+
+
+def test_tidy_moves_duplicates_and_undo(ctx_env, library):
+    import shutil
+
+    shutil.copy2(library / "Family" / "blue_0.jpg", library / "blue_copy.jpg")
+    from aperture.indexing.runner import Scanner
+    from aperture.ui import state
+
+    from .conftest import fake_services
+
+    Scanner(ctx_env.paths, ctx_env.settings, ctx_env.db, fake_services).run()
+    ctx_env.settings.allow_moves = True
+    ctx_env.settings.save(ctx_env.paths)
+    state.get_context.clear()
+    app = AppTest.from_function(_script, args=("organize",), default_timeout=30).run()
+    next(b for b in app.button if b.label == "Find duplicates").click().run()
+    assert any("MOVE" in m.value for m in app.markdown)
+    app.checkbox(key="tidy:ok").check().run()
+    next(b for b in app.button if b.label.startswith("Move 1 file")).click().run()
+    assert not app.exception, [e.value for e in app.exception]
+    assert sum(1 for p in library.rglob("*.jpg") if "moved duplicates" in str(p)) == 1
+    next(b for b in app.button if b.label == "Undo").click().run()
+    assert not any("moved duplicates" in str(p) for p in library.rglob("*.jpg"))

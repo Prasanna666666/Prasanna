@@ -82,7 +82,10 @@ def make_photo() -> Callable[..., Path]:
     def make(folder: Path, name: str, colour: str, size: tuple[int, int] = (120, 100)) -> Path:
         folder.mkdir(parents=True, exist_ok=True)
         target = folder / name
-        Image.new("RGB", size, COLOURS[colour]).save(target, "JPEG")
+        img = Image.new("RGB", size, COLOURS[colour])
+        tag = sum(map(ord, name)) % 200 + 20  # make every photo's bytes unique
+        img.paste((tag, tag, tag), (size[0] - 16, size[1] - 16, size[0], size[1]))
+        img.save(target, "JPEG")
         return target
 
     return make

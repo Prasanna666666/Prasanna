@@ -111,7 +111,7 @@ def reconcile(conn: sqlite3.Connection, paths: Paths, photo_dir: Path, files: li
             delete_derived(conn, paths, [row["id"]])
             conn.execute(
                 "UPDATE items SET rel_path=?, meta_text=?, kind=?, size=?, mtime=?, meta_done=0, ocr_done=0, "
-                "clip_done=?, faces_done=?, ocr_chars=0, error=NULL, notes=NULL, missing=0 WHERE id=?",
+                "clip_done=?, faces_done=?, ocr_chars=0, error=NULL, notes=NULL, missing=0, sha256=NULL WHERE id=?",
                 (rel, meta_text_for(rel), f.kind, f.size, f.mtime, clip_done, faces_done, row["id"]),
             )
             changed += 1
