@@ -80,6 +80,14 @@ def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
     destination = destination or Path.home() / "Applications" / f"{APP_NAME}.app"
     macos = destination / "Contents" / "MacOS"
     macos.mkdir(parents=True, exist_ok=True)
+    repo = Path(__file__).resolve().parents[2]
+    update = ""
+    if (repo / ".git").is_dir():  # source checkout: pick up fixes on launch when online (best effort, optional)
+        update = (
+            f'if [ -z "$APERTURE_NO_UPDATE" ] && /usr/bin/curl -sf -m 2 -o /dev/null https://github.com; then\n'
+            f'  /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1\n'
+            f"fi\n"
+        )
     script = f"""#!/bin/bash
 export APERTURE_DRIVE="{paths.drive}"
 if [ ! -d "{paths.drive}" ]; then
@@ -91,7 +99,7 @@ if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
   /usr/bin/open -ga Ollama 2>/dev/null || (nohup ollama serve >/dev/null 2>&1 &)
   for _ in $(seq 1 20); do /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null && break; sleep 1; done
 fi
-exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
+{update}exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
 """
     executable = macos / APP_NAME
     executable.write_text(script)
