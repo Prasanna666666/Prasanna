@@ -8,8 +8,10 @@ import json
 import streamlit as st
 
 from ... import library as lib
+from ...agent.service import AgentReply
 from ...bootstrap import AppContext
 from ...export import create_job, read_job
+from ...search.quick import quick_ids
 from .. import theme
 from ..components import connection, photo_grid
 from ..state import start_export_job
@@ -115,6 +117,30 @@ def _render_message(ctx: AppContext, idx: int, msg: dict) -> None:  # type: igno
             photo_grid(ctx, reply.ids, key=f"chat:{idx}")
 
 
+_REPLIES: dict[tuple[str, int, str], AgentReply] = {}
+
+
+def _cache_key(ctx: AppContext, prompt: str, previous: object) -> tuple[str, int, str] | None:
+    """The same question on an unchanged library gets the same answer instantly."""
+    if previous is not None:
+        return None
+    with connection(ctx) as conn:
+        version = lib.coverage(conn).indexed + int(conn.execute("SELECT COALESCE(MAX(id),0) FROM items").fetchone()[0])
+    return (" ".join(prompt.lower().split()), version, f"{ctx.settings.ollama_model}|{ctx.settings.agentic}")
+
+
+def _preview(ctx: AppContext, prompt: str) -> None:
+    """Show instant matches while the AI works out what was meant."""
+    try:
+        with connection(ctx) as conn:
+            ids = quick_ids(conn, prompt, ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness)
+    except Exception:
+        return
+    if len(ids):
+        st.caption(f"Quick matches ({len(ids):,}) while the AI checks your request...")
+        photo_grid(ctx, ids, key="quick")
+
+
 def _welcome(ctx: AppContext) -> None:
     theme.hero(
         "What are you looking for?",
@@ -160,8 +186,14 @@ def render(ctx: AppContext) -> None:
         return
     previous = next((m["reply"].ids for m in reversed(history) if m.get("reply") is not None and len(m["reply"].ids)), None)
     history.append({"role": "user", "text": prompt})
-    with st.status("Working on it...", expanded=False) as status:
-        reply = ctx.agent().ask(prompt, previous)
-        status.update(label="Done", state="complete" if reply.kind != "error" else "error")
+    key = _cache_key(ctx, prompt, previous)
+    reply = _REPLIES.get(key) if key else None
+    if reply is None:
+        _preview(ctx, prompt)
+        with st.status("Checking with the AI...", expanded=False) as status:
+            reply = ctx.agent().ask(prompt, previous)
+            status.update(label="Done", state="complete" if reply.kind != "error" else "error")
+        if key and reply.kind in ("results", "count"):
+            _REPLIES[key] = reply
     history.append({"role": "assistant", "text": reply.text, "reply": reply})
     st.rerun()
