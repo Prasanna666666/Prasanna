@@ -11,7 +11,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from .config import Paths
+from .config import Paths, default_paths
 from .safety import enable_offline_guard
 
 DEFAULT_PORT = 8765
@@ -46,30 +46,95 @@ def _healthy(port: int) -> bool:
         return False
 
 
-def run_window(port: int = DEFAULT_PORT) -> int:
-    """Open Aperture in a native window (falls back to the default browser)."""
-    started: subprocess.Popen[bytes] | None = None
-    if not _healthy(port):
-        started = subprocess.Popen(  # noqa: S603
-            [sys.executable, "-m", "aperture", "ui", "--port", str(port)],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
-        )  # fmt: skip
-        for _ in range(120):
-            if _healthy(port):
-                break
-            time.sleep(0.5)
-    url = f"http://127.0.0.1:{port}"
+def _run(cmd: list[str]) -> str:
+    """Run a macOS helper; a missing or failing tool just yields no output."""
     try:
-        import webview
+        return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout  # noqa: S603
+    except OSError:
+        return ""
 
-        webview.create_window(APP_NAME, url, width=1440, height=900, min_size=(900, 600))
-        webview.start()
-    except Exception:
-        subprocess.run(["open", url], check=False)  # noqa: S603, S607
+
+def _run_ok(cmd: list[str]) -> bool:
+    try:
+        return subprocess.run(cmd, capture_output=True, check=False).returncode == 0  # noqa: S603
+    except OSError:
+        return False
+
+
+def _notify(text: str, *, alert: bool = False) -> None:
+    script = f'display alert "{APP_NAME}" message "{text}"' if alert else f'display notification "{text}" with title "{APP_NAME}"'
+    try:
+        subprocess.Popen(["/usr/bin/osascript", "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603
+    except OSError:
+        pass
+
+
+def _free_port(port: int) -> None:
+    """Remove anything stuck from an earlier run (hung or suspended servers) before starting clean."""
+    pids = set(_run(["/usr/sbin/lsof", "-ti", f"tcp:{port}"]).split())
+    pids |= set(_run(["/usr/bin/pgrep", "-f", "aperture ui"]).split())
+    for pid in pids - {str(os.getpid())}:
+        _run(["/bin/kill", "-9", pid])
+
+
+def _start_ollama() -> None:
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434", timeout=1):
+            return
+    except OSError:
+        pass
+    if _run_ok(["/usr/bin/open", "-ga", "Ollama"]):
+        return
+    env = {**os.environ, "PATH": "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")}
+    try:
+        cmd = ["/usr/bin/env", "ollama", "serve"]
+        subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)  # noqa: S603
+    except OSError:
+        pass
+
+
+def _update_in_background() -> None:
+    """Best-effort ``git pull`` of the source checkout; never waited for, never prompts."""
+    repo = Path(__file__).resolve().parents[2]
+    if os.environ.get("APERTURE_NO_UPDATE") or not (repo / ".git").is_dir():
+        return
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/usr/bin/true"}
+    subprocess.Popen(  # noqa: S603
+        ["/usr/bin/git", "-C", str(repo), "pull", "--ff-only", "-q"],
+        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+    )  # fmt: skip
+
+
+def run_window(port: int = DEFAULT_PORT) -> int:
+    """What a click on the Lumo icon does: start cleanly if needed, then open the app."""
+    paths = default_paths()
+    url = f"http://127.0.0.1:{port}"
+    print(f"--- {time.strftime('%c')} launching {APP_NAME}", flush=True)
+    if not paths.drive.is_dir():
+        _notify(f"The external drive {paths.drive} is not connected.", alert=True)
+        return 1
+    if _healthy(port):
+        _run(["/usr/bin/open", url])
         return 0
-    if started is not None:  # we started the server, so closing the window stops it
-        started.terminate()
-    return 0
+    _notify(f"Starting {APP_NAME}. This can take up to a minute.")
+    _free_port(port)
+    _start_ollama()
+    _update_in_background()
+    paths.logs.mkdir(parents=True, exist_ok=True)
+    with open(paths.logs / "app.log", "a") as log:
+        server = subprocess.Popen(  # noqa: S603
+            [sys.executable, "-m", "aperture", "ui", "--port", str(port)],
+            stdout=log, stderr=log, start_new_session=True,
+        )  # fmt: skip
+    for _ in range(360):
+        if _healthy(port):
+            _run(["/usr/bin/open", url])
+            return 0
+        if server.poll() is not None:
+            break
+        time.sleep(0.5)
+    _notify(f"It did not start. Details: {paths.logs}/app.log", alert=True)
+    return 1
 
 
 def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
@@ -80,40 +145,10 @@ def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
     destination = destination or Path.home() / "Applications" / f"{APP_NAME}.app"
     macos = destination / "Contents" / "MacOS"
     macos.mkdir(parents=True, exist_ok=True)
-    repo = Path(__file__).resolve().parents[2]
-    update = ""
-    if (repo / ".git").is_dir():  # source checkout: pick up fixes on launch when online (best effort, optional)
-        update = (
-            'if [ -z "$APERTURE_NO_UPDATE" ]; then\n'
-            "  (export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/true;\n"
-            f'   /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1 &)\n'
-            "fi\n"
-        )
-    port = DEFAULT_PORT
     script = f"""#!/bin/bash
 export APERTURE_DRIVE="{paths.drive}"
-LOG="{paths.logs}/app.log"
-if [ ! -d "{paths.drive}" ]; then
-  /usr/bin/osascript -e 'display alert "{APP_NAME}" message "The external drive {paths.drive} is not connected."'
-  exit 1
-fi
-exec >> "$LOG" 2>&1
-echo "--- $(date) launching {APP_NAME}"
-URL="http://127.0.0.1:{port}"
-healthy() {{ /usr/bin/curl -sf -m 1 "$URL/_stcore/health" >/dev/null; }}
-if healthy; then /usr/bin/open "$URL"; exit 0; fi
-/usr/bin/osascript -e 'display notification "Starting {APP_NAME}. This can take up to a minute." with title "{APP_NAME}"' >/dev/null 2>&1 &
-export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Ollama.app/Contents/Resources:$PATH"
-if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
-  /usr/bin/open -ga Ollama 2>/dev/null || (nohup ollama serve >/dev/null 2>&1 &)
-fi
-{update}nohup "{sys.executable}" -m aperture ui --port {port} >> "$LOG" 2>&1 &
-for _ in $(seq 1 180); do
-  if healthy; then /usr/bin/open "$URL"; exit 0; fi
-  sleep 1
-done
-/usr/bin/osascript -e 'display alert "{APP_NAME}" message "It did not start. See {paths.logs}/app.log"'
-exit 1
+mkdir -p "{paths.logs}" 2>/dev/null
+exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
 """
     executable = macos / APP_NAME
     executable.write_text(script)
