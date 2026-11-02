@@ -38,6 +38,22 @@ def start_scan(ctx: AppContext, *extra: str) -> bool:
     return True
 
 
+def caption_running() -> bool:
+    out = subprocess.run(["/usr/bin/pgrep", "-f", "aperture caption"], capture_output=True, text=True, check=False)
+    return bool(out.stdout.split())
+
+
+def start_captions(ctx: AppContext) -> bool:
+    """Describe every photo in the background at low priority (slow; searchable text for each photo)."""
+    if caption_running() or ScanLock(ctx.paths).running():
+        return False
+    subprocess.Popen(
+        [sys.executable, "-m", "aperture", "caption"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+    )  # fmt: skip
+    return True
+
+
 def start_export_job(ctx: AppContext, job_id: str) -> None:
     subprocess.Popen(  # noqa: S603
         [sys.executable, "-m", "aperture", "export-job", job_id],

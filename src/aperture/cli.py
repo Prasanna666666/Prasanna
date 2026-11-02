@@ -52,6 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
     app.add_argument("--port", type=int, default=8765)
     install = sub.add_parser("install-launcher", help="create Aperture.app in ~/Applications")
     install.add_argument("--dest")
+    cap = sub.add_parser("caption", help="describe every photo with the vision model, in the background (slow, resumable)")
+    cap.add_argument("--limit", type=int, default=0)
     sub.add_parser("bench", help="time the app's pages on this machine and show where time goes")
     sub.add_parser("install-service", help="keep Lumo running in the background; prints the address to bookmark")
     return parser
@@ -211,6 +213,25 @@ def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0 if reply.kind != "error" else 1
 
 
+def cmd_caption(paths: Paths, limit: int) -> int:
+    from .agent.captions import caption_all
+    from .agent.llm import OllamaVision
+
+    if _require_drive(paths):
+        return 2
+    _setup_logging(paths)
+    ctx = AppContext(paths)
+    os.nice(15)  # never get in the way of searching
+    conn = ctx.db.connect()
+    vision = OllamaVision(ctx.settings.ollama_url, ctx.settings.vision_model, timeout=180.0, keep_alive="2m")
+    described, failed = caption_all(
+        conn, paths, vision, ctx.settings.vision_model, limit=limit,
+        progress=lambda done, total: print(f"\rdescribed {done}/{total}", end="", flush=True),
+    )  # fmt: skip
+    print(f"\nDone: {described} described, {failed} failed.")
+    return 0 if described or not failed else 1
+
+
 def cmd_bench(paths: Paths) -> int:
     """Time a cold render of the app, the database and the drive; print the slowest steps."""
     import cProfile
@@ -278,6 +299,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "bench":
         return cmd_bench(paths)
+    if args.command == "caption":
+        return cmd_caption(paths, args.limit)
 
     if _require_drive(paths):
         return 2

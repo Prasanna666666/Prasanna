@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.0
+
+- Chat answers questions (stats, move status, what is in a photo) from real library facts, in the same single chatbot.
+- Describe a photo; optional background "Describe all photos" makes every photo searchable by content.
+- Search by colour ("blue photos from 2025"), Albums and Places views in Photos.
+- Simplified to five pages.
+
 ## 1.0.0
 - Complete rewrite: src-layout package, SQLite + FTS5, staged resumable indexing, plan-based agent, safe export, Streamlit UI.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from collections.abc import Callable
 
 from ..config import Paths
 from .llm import Describer, LLMError
@@ -38,5 +39,47 @@ def describe_item(conn: sqlite3.Connection, paths: Paths, vision: Describer, mod
             "INSERT OR REPLACE INTO captions(item_id, caption, model, created) VALUES (?,?,?,?)",
             (item_id, text, model, time.time()),
         )
+        # make the description searchable like any other text found in the photo
+        updated = conn.execute("UPDATE fts SET text = text || ' ' || ? WHERE rowid=?", (text, item_id)).rowcount
+        if not updated:  # a photo with no other text has no search row yet
+            conn.execute("INSERT INTO fts(rowid, text) VALUES (?,?)", (item_id, text))
         conn.commit()
     return text
+
+
+def caption_all(
+    conn: sqlite3.Connection,
+    paths: Paths,
+    vision: Describer,
+    model: str,
+    stop: Callable[[], bool] = lambda: False,
+    progress: Callable[[int, int], None] = lambda done, total: None,
+    limit: int = 0,
+) -> tuple[int, int]:
+    """Describe every photo that has no description yet.  Resumable: finished photos are skipped.
+
+    Returns (described, failed).  Gives up after several failures in a row (model missing or not running)."""
+    todo = [
+        r[0]
+        for r in conn.execute(
+            "SELECT id FROM items WHERE missing=0 AND kind='image' AND preview IS NOT NULL "
+            "AND id NOT IN (SELECT item_id FROM captions) ORDER BY taken_at DESC, id"
+        )
+    ]
+    if limit:
+        todo = todo[:limit]
+    described = failed = in_a_row = 0
+    for n, item_id in enumerate(todo, 1):
+        if stop():
+            break
+        try:
+            describe_item(conn, paths, vision, model, item_id)
+            described += 1
+            in_a_row = 0
+        except LLMError:
+            failed += 1
+            in_a_row += 1
+            if in_a_row >= 5:
+                break
+        progress(n, len(todo))
+    return described, failed

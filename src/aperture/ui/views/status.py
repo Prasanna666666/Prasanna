@@ -10,7 +10,7 @@ from ... import library as lib
 from ...bootstrap import AppContext
 from ...indexing.progress import ScanLock, read_progress
 from ..components import connection
-from ..state import start_scan
+from ..state import caption_running, start_captions, start_scan
 
 
 def maybe_autostart(ctx: AppContext) -> None:
@@ -25,6 +25,23 @@ def _stage(label: str, done: int, total: int, hint: str) -> None:
         st.markdown(f"**{label}**")
         st.progress(min(done / total, 1.0) if total else 0.0, text=f"{done:,} of {total:,}")
         st.caption(hint)
+
+
+def _captions(ctx: AppContext) -> None:
+    with connection(ctx) as conn:
+        done = conn.execute("SELECT COUNT(*) FROM captions").fetchone()[0]
+        images = conn.execute("SELECT COUNT(*) FROM items WHERE missing=0 AND kind='image'").fetchone()[0]
+    with st.container(border=True):
+        st.markdown("**4. Describe every photo (optional)**")
+        st.progress(min(done / images, 1.0) if images else 0.0, text=f"{done:,} of {images:,}")
+        st.caption(
+            "A small vision model writes a sentence for each photo, so you can search by what is in it. "
+            "Slow (a few seconds per photo), runs quietly in the background and can be stopped any time."
+        )
+        if caption_running():
+            st.info("Describing photos in the background.", icon=":material/visibility:")
+        elif st.button("Describe all photos", icon=":material/visibility:") and not start_captions(ctx):
+            st.info("Wait until indexing has finished.")
 
 
 @st.fragment(run_every=3)
@@ -42,12 +59,15 @@ def _live(ctx: AppContext) -> None:
         if st.button("Pause", icon=":material/pause:"):
             lock.stop()
     else:
-        st.caption(f"Idle. Last state: {prog.get('state', 'never run')}.")
+        state = prog.get("state", "never run")
+        st.caption(
+            "Idle. The last run stopped early; press Start to continue." if state == "error" else f"Idle. Last run: {state}."
+        )
     images = max(1, cov.total)
     a, b, c = st.columns(3)
     with a:
         _stage(
-            "1. Read and describe",
+            "1. Read photos",
             cov.indexed,
             cov.total,
             "Dates, places, previews and the visual index. Search works as this grows.",
@@ -56,6 +76,7 @@ def _live(ctx: AppContext) -> None:
         _stage("2. Find faces", cov.faces_done, images, "Lets you search and group by person.")
     with c:
         _stage("3. Read text", cov.ocr_done, images, "Finds words in screenshots, receipts and PDFs.")
+    _captions(ctx)
     if cov.failed:
         st.warning(f"{cov.failed:,} files could not be read. They are skipped and never altered.")
 

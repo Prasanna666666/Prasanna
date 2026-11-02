@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aperture-photos"
-version = "1.4.0"
+version = "1.5.0"
 description = "Private, offline, agentic AI photo assistant for macOS (Apple Silicon)"
 readme = "README.md"
 license = { text = "MIT" }
