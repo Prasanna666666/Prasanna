@@ -9,9 +9,11 @@ from __future__ import annotations
 import math
 import sqlite3
 from dataclasses import dataclass, fields
+from typing import Any
 
 import numpy as np
 
+from ..colors import color_clause, ensure_colors
 from .geo import GeoIndex
 
 TIMES_OF_DAY = ("none", "dawn", "morning", "afternoon", "evening", "night")
@@ -41,6 +43,7 @@ class Filters:
     kind: str = "none"
     near: str = ""
     radius_km: int = 0
+    color: str = "none"
 
     @property
     def is_empty(self) -> bool:
@@ -74,6 +77,8 @@ class Filters:
             parts.append("with GPS" if self.has_gps == "yes" else "without GPS")
         if self.kind != "none":
             parts.append(self.kind + "s")
+        if self.color != "none":
+            parts.append(f"mostly {self.color}")
         if self.near:
             parts.append(f"within {self.radius_km or DEFAULT_RADIUS_KM} km of {self.near}")
         return ", ".join(parts)
@@ -92,7 +97,8 @@ def haversine_km(lat: float, lon: float, lats: np.ndarray, lons: np.ndarray) -> 
 def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) -> tuple[np.ndarray, list[str]]:
     """Ids of photos satisfying EVERY set filter, plus notes for the user."""
     notes: list[str] = []
-    where, params = ["missing=0", "meta_done=1"], []
+    where: list[str] = ["missing=0", "meta_done=1"]
+    params: list[Any] = []
     span = f.hours()
     if span:
         lo, hi = span
@@ -117,6 +123,12 @@ def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) ->
         where.append("id IN (SELECT item_id FROM flags WHERE status='defect')")
     elif f.quality == "no_defects":
         where.append("id NOT IN (SELECT item_id FROM flags WHERE status='defect')")
+    if f.color != "none":
+        ensure_colors(conn)  # measured once per photo, from the small preview
+        clause, color_params = color_clause(f.color)
+        where.append(clause)
+        params += color_params
+        notes.append("Colour is the photo's overall dominant colour.")
     if f.has_gps != "none":
         where.append("gps_lat IS NOT NULL" if f.has_gps == "yes" else "gps_lat IS NULL")
     if f.kind == "image":

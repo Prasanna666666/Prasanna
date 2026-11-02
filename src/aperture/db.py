@@ -124,7 +124,13 @@ CREATE TABLE captions(
 );
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5]
+_MIGRATION_6 = """
+ALTER TABLE items ADD COLUMN hue REAL;   -- dominant colour of the preview; NULL = not measured yet, -1 = unreadable
+ALTER TABLE items ADD COLUMN sat REAL;
+ALTER TABLE items ADD COLUMN val REAL;
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6]
 
 
 class Database:

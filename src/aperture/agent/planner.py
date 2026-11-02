@@ -30,6 +30,7 @@ FILTERS (optional "filters" object, set ONLY what the user states; omit the rest
 - day_type: weekend | weekday        - orientation: landscape | portrait | square
 - min_people / max_people: number of faces (group photo: min 3; selfie or single person: min 1,max 1; no people: max 0)
 - quality: defects | no_defects (photos the user labelled as bad)    - has_gps: yes | no
+- color: red|orange|yellow|green|teal|blue|purple|pink|brown|black|white|gray (the photo's overall dominant colour)
 - kind: image | document            - near: a place name, radius_km: distance (default 25)
 Objects and scenes ("dog", "indoors", "snow") are NOT filters: use a visual clause.
 

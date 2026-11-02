@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..colors import COLORS
 from ..search.dates import RELATIVE, DateSpec
 from ..search.filters import DAY_TYPES, KINDS, ORIENTATIONS, QUALITIES, TIMES_OF_DAY, TRISTATE, Filters
 
@@ -72,6 +73,7 @@ _FILTER_PROPS: dict[str, Any] = {
     "kind": {"type": "string", "enum": list(KINDS)},
     "near": {"type": "string"},
     "radius_km": {"type": "integer"},
+    "color": {"type": "string", "enum": list(COLORS)},
 }
 
 PLAN_JSON_SCHEMA: dict[str, Any] = {
@@ -165,6 +167,7 @@ def _filters(raw: Any) -> Filters:
         kind=_choice(raw.get("kind"), KINDS, "none"),
         near=_text(raw.get("near"), 80),
         radius_km=radius if 0 < radius <= 20000 else 0,
+        color=_choice(raw.get("color"), COLORS, "none"),
     )
 
 
