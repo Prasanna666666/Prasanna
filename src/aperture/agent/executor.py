@@ -22,6 +22,8 @@ from ..ml.protocols import ImageEmbedder
 from ..people.repository import named_people, resolve_name
 from ..search.dates import resolve
 from ..search.embeddings import EmbeddingIndex
+from ..search.filters import apply_filters
+from ..search.geo import GeoIndex
 from ..search.metadata import all_ids, date_ids, path_ids, place_ids
 from ..search.text import search_text_ids
 from ..search.visual import VisualSearch
@@ -55,12 +57,14 @@ class Executor:
         embedder_provider: Callable[[], ImageEmbedder | None],
         strictness: str = "balanced",
         today: Callable[[], date] = date.today,
+        geo_provider: Callable[[], GeoIndex | None] = lambda: None,
     ) -> None:
         self._conn = conn
         self._index_provider = index_provider
         self._embedder_provider = embedder_provider
         self._strictness = strictness
         self._today = today
+        self._geo_provider = geo_provider
         self._visual_scores: dict[int, float] = {}
 
     # ------------------------------------------------------------------
@@ -108,6 +112,12 @@ class Executor:
             result.reports.append(ClauseReport(f"date {result.date_range}", len(ids), len(current)))
         elif not plan.date.is_empty:
             result.notes.append("I could not understand the date, so I ignored it.")
+
+        if not plan.filters.is_empty:
+            ids, notes = apply_filters(self._conn, plan.filters, self._geo_provider())
+            current = np.intersect1d(current, ids, assume_unique=True)
+            result.notes.extend(n for n in notes if n not in result.notes)
+            result.reports.append(ClauseReport(f"filters: {plan.filters.describe()}", len(ids), len(current)))
 
         result.ids = self._rank(current)
         return result

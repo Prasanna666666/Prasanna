@@ -96,7 +96,26 @@ CREATE TABLE moves(
 CREATE INDEX moves_batch ON moves(batch);
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2]
+_MIGRATION_3 = """
+ALTER TABLE items ADD COLUMN sharp REAL;           -- sharpness of the sharpest region (higher = sharper)
+ALTER TABLE items ADD COLUMN bright REAL;          -- mean luminance 0-255
+ALTER TABLE items ADD COLUMN contrast REAL;        -- luminance standard deviation
+
+-- User decisions about photo quality.  status 'defect' = labelled bad, 'ok' = reviewed and fine.
+CREATE TABLE flags(
+    item_id INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    status  TEXT NOT NULL,
+    reason  TEXT NOT NULL DEFAULT '',
+    created REAL NOT NULL
+);
+CREATE INDEX flags_status ON flags(status);
+"""
+
+_MIGRATION_4 = """
+ALTER TABLE items ADD COLUMN taken_exif INTEGER NOT NULL DEFAULT 0;   -- 1 = taken_at came from the camera (not the file date)
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4]
 
 
 class Database:

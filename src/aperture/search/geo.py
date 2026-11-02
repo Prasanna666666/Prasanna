@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 
 from ..config import Paths
-from .textnorm import index_text
+from .textnorm import fold, index_text
 
 EARTH_KM = 6371.0
 
@@ -39,8 +39,10 @@ class GeoIndex:
         search: list[str],
         lat: np.ndarray,
         lon: np.ndarray,
+        population: np.ndarray | None = None,
     ) -> None:
         self._names, self._countries, self._search = names, countries, search
+        self._pop = population if population is not None else np.zeros(len(names))
         self._lat = np.radians(lat.astype(np.float64))
         self._lon = np.radians(lon.astype(np.float64))
         self._cos_lat = np.cos(self._lat)
@@ -65,7 +67,7 @@ class GeoIndex:
                     cols = line.split("\t")
                     if len(cols) > 4:
                         country_names[cols[0]] = cols[4]
-        names, countries, search, lats, lons = [], [], [], [], []
+        names, countries, search, lats, lons, pops = [], [], [], [], [], []
         for line in cities.read_text(encoding="utf-8", errors="replace").splitlines():
             cols = line.split("\t")
             if len(cols) < 9:
@@ -82,7 +84,11 @@ class GeoIndex:
             search.append(index_text(*sorted(variants), country, cols[8]))
             lats.append(lat)
             lons.append(lon)
-        return cls(names, countries, search, np.array(lats), np.array(lons))
+            try:
+                pops.append(float(cols[14]))
+            except (IndexError, ValueError):
+                pops.append(0.0)
+        return cls(names, countries, search, np.array(lats), np.array(lons), np.array(pops))
 
     def lookup(self, lat: float, lon: float, max_km: float = 80.0) -> Place | None:
         """Nearest listed city within ``max_km`` (haversine), else ``None``."""
@@ -97,3 +103,19 @@ class GeoIndex:
         if dist[i] > max_km:
             return None
         return Place(self._names[i], self._countries[i], self._search[i], float(dist[i]))
+
+    def find(self, name: str) -> tuple[float, float, str] | None:
+        """Coordinates of the best-known place called ``name`` (largest city wins), or ``None``."""
+        wanted = fold(name)
+        if not wanted:
+            return None
+        exact = [i for i, n in enumerate(self._names) if fold(n) == wanted]
+        pool = exact or [i for i, text in enumerate(self._search) if f" {wanted}" in text]
+        if not pool:
+            return None
+        best = max(pool, key=lambda i: self._pop[i])
+        return (
+            float(np.degrees(self._lat[best])),
+            float(np.degrees(self._lon[best])),
+            f"{self._names[best]}, {self._countries[best]}",
+        )

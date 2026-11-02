@@ -34,6 +34,7 @@ def item_ids(
     year: int | None = None,
     name_like: str = "",
     newest_first: bool = True,
+    hide_defects: bool = False,
 ) -> np.ndarray:
     """Ids of every matching item, sorted by capture date.  No LIMIT."""
     if not kinds:
@@ -45,6 +46,8 @@ def item_ids(
     if name_like.strip():
         where.append("rel_path LIKE ? ESCAPE '\\'")
         params.append(f"%{like_escape(name_like.strip())}%")
+    if hide_defects:
+        where.append("id NOT IN (SELECT item_id FROM flags WHERE status='defect')")
     order = "DESC" if newest_first else "ASC"
     rows = conn.execute(f"SELECT id FROM items WHERE {' AND '.join(where)} ORDER BY taken_at {order}, id", params)
     return np.fromiter((r[0] for r in rows), np.int64)

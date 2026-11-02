@@ -25,6 +25,14 @@ SEARCH ENGINES (a clause lists every engine where its words might live):
 - place  : city / country from GPS data (e.g. Bangalore, Japan).
 - person : a named person. Prefer names from KNOWN PEOPLE.
 
+FILTERS (optional "filters" object, set ONLY what the user states; omit the rest):
+- time_of_day: dawn | morning | afternoon | evening | night   (or hour_from/hour_to, 24-hour clock)
+- day_type: weekend | weekday        - orientation: landscape | portrait | square
+- min_people / max_people: number of faces (group photo: min 3; selfie or single person: min 1,max 1; no people: max 0)
+- quality: defects | no_defects (photos the user labelled as bad)    - has_gps: yes | no
+- kind: image | document            - near: a place name, radius_km: distance (default 25)
+Objects and scenes ("dog", "indoors", "snow") are NOT filters: use a visual clause.
+
 RULES
 1. One clause per distinct constraint. Clauses are combined with AND ("match":"all") unless the user says "or" ("match":"any").
 2. Use several engines in one clause when unsure where a word lives, e.g. a city: ["place","path"].
@@ -49,6 +57,10 @@ User: only the ones from December
 {"intent":"find","message":"","scope":"previous","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":12,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 User: sunsets but not in Bangalore
 {"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[{"engines":["visual"],"query":"sunset","exclude":false},{"engines":["place","path"],"query":"Bangalore","exclude":true}],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
+User: group photos from the weekend evenings within 30 km of Eindhoven
+{"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"filters":{"time_of_day":"evening","day_type":"weekend","min_people":3,"near":"Eindhoven","radius_km":30},"folder_name":""}
+User: portrait photos of dogs at night
+{"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[{"engines":["visual"],"query":"dog","exclude":false}],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"filters":{"time_of_day":"night","orientation":"portrait"},"folder_name":""}
 User: invoice number 48213
 {"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[{"engines":["text"],"query":"48213","exclude":false}],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 User: hi, what can you do?

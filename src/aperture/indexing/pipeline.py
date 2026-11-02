@@ -60,6 +60,7 @@ class WorkResult:
     face_image: Any = None
     error: str | None = None
     note: str | None = None
+    taken_exif: bool = False
 
 
 # --------------------------------------------------------------------------
@@ -94,6 +95,7 @@ def _index(job: Job, svc: Services, st: Settings, paths: Paths, guard: WriteGuar
         thumb.thumbnail((st.thumb_size, st.thumb_size))
         loaders.save_jpeg(guard, thumb, paths.data / thumb_rel(job.id), 82)
         loaders.save_jpeg(guard, preview, paths.data / preview_rel(job.id), 85)
+        out.taken_exif = meta.taken_at is not None
         meta.taken_at = meta.taken_at or loaders.file_date(job.mtime)
         out.meta = meta
         if svc.geo is not None and meta.gps_lat is not None and meta.gps_lon is not None:
@@ -171,11 +173,11 @@ class ResultWriter:
             self.conn.execute(
                 "UPDATE items SET width=?, height=?, taken_at=?, camera=?, lens=?, gps_lat=?, gps_lon=?, "
                 "place=?, place_text=?, meta_text=?, exif_json=?, thumb=?, preview=?, meta_done=1, "
-                "error=NULL, indexed_at=? WHERE id=?",
+                "error=NULL, indexed_at=?, taken_exif=? WHERE id=?",
                 (
                     meta.width, meta.height, meta.taken_at, meta.camera, meta.lens, meta.gps_lat, meta.gps_lon,
                     place_label, place_text, meta_text_for(rel[0] if rel else "", meta.camera, meta.lens),
-                    json.dumps(meta.details, default=str), thumb_rel(job.id), preview_rel(job.id), now, job.id,
+                    json.dumps(meta.details, default=str), thumb_rel(job.id), preview_rel(job.id), now, int(res.taken_exif), job.id,
                 ),
             )  # fmt: skip
         if res.tensor is not None:

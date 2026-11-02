@@ -5,3 +5,6 @@
 
 ## 1.1.0
 - Tidy up: exact-duplicate finder with visual review, opt-in reversible moves, undo history, move-from-chat.
+
+## 1.2.0
+- Similar-shot groups with best-photo suggestion, defect photo suggestions and labels, smart LLM filters (time of day, weekday, orientation, people count, near a place, quality).

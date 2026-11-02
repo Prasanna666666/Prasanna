@@ -35,6 +35,9 @@ class Item:
     error: str | None = None
     notes: str | None = None
     missing: int = 0
+    sharp: float | None = None
+    bright: float | None = None
+    contrast: float | None = None
 
     @classmethod
     def from_row(cls, row: Mapping[str, Any] | Any | None) -> Item:

@@ -10,8 +10,10 @@ import streamlit as st
 
 from ... import library as lib
 from ... import organize as org
+from ... import quality
 from ...bootstrap import AppContext
 from ...safety import SafetyError
+from ...similar import PRESETS, SimilarSettings, find_similar_groups
 from ..components import connection, pager, show_thumb
 
 GROUPS_PER_PAGE = 5
@@ -55,7 +57,6 @@ def _run_move(ctx: AppContext, plan: org.MovePlan, label: str) -> org.MoveReport
             lambda done, total: bar.progress(done / max(1, total), text=f"Moved {done:,} of {total:,}"),
         )  # fmt: skip
     bar.empty()
-    st.session_state.pop("tidy:groups", None)
     return report
 
 
@@ -118,44 +119,101 @@ def move_card(ctx: AppContext, ids: Sequence[int], key: str) -> None:
 # --------------------------------------------------------------------------
 # Duplicates page
 # --------------------------------------------------------------------------
-def _find(ctx: AppContext) -> None:
+def _find_exact(ctx: AppContext) -> None:
     bar = st.progress(0.0, text="Comparing files...")
     with connection(ctx) as conn:
         groups = org.find_exact_duplicates(conn, lambda d, t: bar.progress(d / max(1, t), text=f"Checked {d:,} of {t:,} files"))
     bar.empty()
-    st.session_state["tidy:groups"] = groups
-    st.session_state["tidy:keep"] = {}
+    st.session_state["tidy:exact"] = groups
+    st.session_state["tidy:exact:keep"] = {}
 
 
-def _group_card(ctx: AppContext, index: int, ids: list[int], default_keep: int, items: dict) -> None:  # type: ignore[type-arg]
-    keep_map: dict[int, int] = st.session_state.setdefault("tidy:keep", {})
+def _find_similar(ctx: AppContext, preset: str) -> None:
+    bar = st.progress(0.0, text="Measuring photo quality...")
+    with connection(ctx) as conn:
+        quality.ensure_quality(
+            conn, ctx.paths, None, lambda d, t: bar.progress(d / max(1, t), text=f"Measured {d:,} of {t:,} photos")
+        )
+        bar.progress(1.0, text="Grouping similar shots...")
+        threshold, minutes = PRESETS[preset]
+        groups = find_similar_groups(conn, ctx.embedding_index(), SimilarSettings(threshold, minutes))
+    bar.empty()
+    st.session_state["tidy:similar"] = groups
+    st.session_state["tidy:similar:keep"] = {}
+
+
+def _group_card(
+    ctx: AppContext, scope: str, index: int, ids: list[int], default_keep: set[int], items: dict, show_quality: bool
+) -> None:  # type: ignore[type-arg]
+    """One group, side by side.  Exact copies keep one photo; similar shots may keep several."""
+    keep_map: dict[int, set[int]] = st.session_state.setdefault(f"{scope}:keep", {})
     keep = keep_map.get(index, default_keep)
     with st.container(border=True):
-        st.markdown(f"**Group {index + 1}** - {len(ids)} identical files, {_mb(items[ids[0]].size)} each")
-        for cell, item_id in zip(st.columns(min(len(ids), 6)), ids[:6], strict=False):
+        st.markdown(f"**Group {index + 1}** - {len(ids)} photos")
+        shown = ids[:6]
+        for cell, item_id in zip(st.columns(len(shown)), shown, strict=True):
             item = items[item_id]
             with cell:
                 show_thumb(ctx, item)
-                st.markdown(":green[**KEEP**]" if item_id == keep else ":red[**MOVE**]")
-                st.caption(item.rel_path)
+                st.markdown(":green[**KEEP**]" if item_id in keep else ":red[**MOVE**]")
+                detail = item.rel_path
+                if show_quality:
+                    detail += f" - sharpness {item.sharp:.0f}" if item.sharp is not None else ""
+                st.caption(detail)
         if len(ids) > 6:
             st.caption(f"... and {len(ids) - 6} more")
-        choice = st.selectbox(
-            "Keep this one",
+        picked = st.multiselect(
+            "Keep",
             ids,
-            index=ids.index(keep),
+            default=[i for i in ids if i in keep],
             format_func=lambda i: items[i].rel_path,
-            key=f"tidy:pick:{index}",
+            key=f"{scope}:pick:{index}",
         )
-        if choice != keep:
-            keep_map[index] = choice
+        if set(picked) != keep and picked:
+            keep_map[index] = set(picked)
             st.rerun()
+
+
+def _review_groups(ctx: AppContext, scope: str, groups: list[list[int]], rule: str, dest: str, label: str, best: bool) -> None:
+    with connection(ctx) as conn:
+        items = lib.items_by_ids(conn, [i for g in groups for i in g])
+        groups = [g for g in ([i for i in g if i in items] for g in groups) if len(g) > 1]
+        if best:
+            default = {n: {quality.best_of(conn, g)} for n, g in enumerate(groups)}
+        else:
+            default = {n: {org.choose_keeper([items[i] for i in g], rule)} for n, g in enumerate(groups)}
+    keep_state = st.session_state.get(f"{scope}:keep", {})
+    keepers = {n: keep_state.get(n, default[n]) for n in range(len(groups))}
+    extra = sum(len(g) - len(keepers[n]) for n, g in enumerate(groups))
+    st.markdown(f"**{len(groups):,}** groups - **{extra:,}** photos to move")
+    try:
+        with connection(ctx) as conn:
+            plan = org.plan_duplicate_moves(conn, ctx.paths, ctx.settings, groups, keepers, dest)
+    except SafetyError as exc:
+        st.error(str(exc))
+        plan = None
+    page = pager(scope, len(groups), GROUPS_PER_PAGE)
+    for n in range(page.start, page.end):
+        _group_card(ctx, scope, n, groups[n], default[n], items, best)
+    if plan is None:
+        return
+    st.divider()
+    st.markdown(
+        f"Ready to move **{plan.count:,}** files ({_mb(plan.total_bytes)}) to `{plan.dest_dir}`; their folder layout is kept inside it."
+    )
+    for _, why in plan.skipped[:5]:
+        st.caption(f"Skipped: {why}")
+    if st.checkbox("I have looked at the groups and want to go ahead", key=f"{scope}:ok") and st.button(
+        f"Move {plan.count:,} files", key=f"{scope}:go", type="primary", disabled=plan.count == 0
+    ):
+        _report(_run_move(ctx, plan, label.format(plan.dest_dir.name)))
+        st.session_state.pop(scope, None)
 
 
 def render(ctx: AppContext) -> None:
     st.title("Tidy up")
     st.caption(
-        "Find exact duplicates, see what would happen, then move them to a folder. Nothing is ever deleted, and every batch can be undone."
+        "Find duplicates and similar shots, see what would happen, then move the extras to a folder. Nothing is ever deleted, and every batch can be undone."
     )
     if not _switch(ctx):
         history(ctx)
@@ -163,53 +221,36 @@ def render(ctx: AppContext) -> None:
     if not ctx.settings.photo_dir:
         st.info("Choose the photo folder in Settings first.")
         return
-
-    c1, c2 = st.columns(2)
-    rule = c1.selectbox("Which copy to keep", list(org.KEEP_RULES), format_func=org.KEEP_RULES.get)
-    dest = c2.text_input(
-        "Move the other copies to", value=org.default_move_dir(ctx.settings), help="Must be inside your photo folder."
+    dest = st.text_input(
+        "Move the extra photos to", value=org.default_move_dir(ctx.settings), help="Must be inside your photo folder."
     )
-    if st.button("Find duplicates", type="primary", icon=":material/content_copy:"):
-        _find(ctx)
+    exact_tab, similar_tab = st.tabs(["Exact copies", "Similar shots"])
 
-    groups: list[list[int]] | None = st.session_state.get("tidy:groups")
-    if groups is None:
+    with exact_tab:
+        rule = st.selectbox("Which copy to keep", list(org.KEEP_RULES), format_func=org.KEEP_RULES.get)
+        if st.button("Find exact copies", type="primary", icon=":material/content_copy:"):
+            _find_exact(ctx)
+        groups = st.session_state.get("tidy:exact")
+        if groups is None:
+            st.caption("Lists files with byte-identical content.")
+        elif not groups:
+            st.success("No exact copies found.")
+        else:
+            _review_groups(ctx, "tidy:exact", groups, rule, dest, "Exact copies -> {}", best=False)
+
+    with similar_tab:
         st.caption(
-            "Press 'Find duplicates'. Only files with identical content are listed; similar-looking photos are never touched."
+            "Bursts, retakes and near-identical frames. The sharpest, best-exposed photo is suggested as the one to keep; you can keep more than one."
         )
-    elif not groups:
-        st.success("No exact duplicates found.")
-    else:
-        with connection(ctx) as conn:
-            items = lib.items_by_ids(conn, [i for g in groups for i in g])
-        groups = [[i for i in g if i in items] for g in groups]
-        groups = [g for g in groups if len(g) > 1]
-        default_keep = {n: org.choose_keeper([items[i] for i in g], rule) for n, g in enumerate(groups)}
-        keepers = {n: st.session_state.get("tidy:keep", {}).get(n, default_keep[n]) for n in range(len(groups))}
-        extra = sum(len(g) - 1 for g in groups)
-        freed = sum(items[g[0]].size * (len(g) - 1) for g in groups)
-        st.markdown(
-            f"**{len(groups):,}** groups - **{extra:,}** extra copies - **{_mb(freed)}** that would leave your library folders"
-        )
-
-        try:
-            with connection(ctx) as conn:
-                plan = org.plan_duplicate_moves(conn, ctx.paths, ctx.settings, groups, keepers, dest)
-        except SafetyError as exc:
-            st.error(str(exc))
-            plan = None
-        page = pager("tidy", len(groups), GROUPS_PER_PAGE)
-        for n in range(page.start, page.end):
-            _group_card(ctx, n, groups[n], default_keep[n], items)
-
-        if plan is not None:
-            st.divider()
-            st.markdown(f"Ready to move **{plan.count:,}** files to `{plan.dest_dir}` (their folder layout is kept inside it).")
-            for _, why in plan.skipped[:5]:
-                st.caption(f"Skipped: {why}")
-            if st.checkbox("I have looked at the groups and want to go ahead", key="tidy:ok") and st.button(
-                f"Move {plan.count:,} files", type="primary", disabled=plan.count == 0
-            ):
-                _report(_run_move(ctx, plan, f"Duplicates -> {plan.dest_dir.name}"))
+        preset = st.select_slider("How alike", list(PRESETS), value="Same scene")
+        if st.button("Find similar shots", type="primary", icon=":material/burst_mode:"):
+            _find_similar(ctx, preset)
+        groups = st.session_state.get("tidy:similar")
+        if groups is None:
+            st.caption("Press the button. The first run measures sharpness of every photo; later runs are quick.")
+        elif not groups:
+            st.success("No similar shots found. Try a looser setting.")
+        else:
+            _review_groups(ctx, "tidy:similar", groups, "", dest, "Similar shots -> {}", best=True)
     st.divider()
     history(ctx)

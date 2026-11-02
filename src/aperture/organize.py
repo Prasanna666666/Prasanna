@@ -207,11 +207,18 @@ def plan_duplicate_moves(
     paths: Paths,
     settings: Settings,
     groups: Sequence[Sequence[int]],
-    keepers: dict[int, int],
+    keepers: dict[int, int | set[int]],
     dest_dir: str | Path,
 ) -> MovePlan:
-    """Move every copy except the chosen keeper of each group (``keepers``: group index -> item id)."""
-    to_move = [i for g, ids in enumerate(groups) for i in ids if i != keepers.get(g, ids[0])]
+    """Move every photo except the chosen keeper(s) of each group.
+
+    ``keepers`` maps group index -> item id (or a set of ids to keep several)."""
+
+    def kept(g: int, ids: Sequence[int]) -> set[int]:
+        chosen = keepers.get(g, ids[0])
+        return set(chosen) if isinstance(chosen, set) else {chosen}
+
+    to_move = [i for g, ids in enumerate(groups) for i in ids if i not in kept(g, ids)]
     return plan_move(conn, paths, settings, to_move, dest_dir)
 
 

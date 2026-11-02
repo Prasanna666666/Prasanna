@@ -43,6 +43,8 @@ class AppContext:
         self._index_version: str | None = None
         self._embedder: ImageEmbedder | None = None
         self.embedder_error: str = ""
+        self._geo: GeoIndex | None = None
+        self._geo_tried = False
 
     # -- settings ---------------------------------------------------------
     def reload_settings(self) -> Settings:
@@ -116,6 +118,14 @@ class AppContext:
     def scanner(self, stop: threading.Event | None = None) -> Scanner:
         return Scanner(self.paths, self.settings, self.db, self.services_for_stage, stop)
 
+    def geo(self) -> GeoIndex | None:
+        """Offline place data, loaded once (None until fetched)."""
+        with self._lock:
+            if self._geo is None and not self._geo_tried:
+                self._geo_tried = True
+                self._geo = GeoIndex.load(self.paths)
+            return self._geo
+
     # -- agent ------------------------------------------------------------
     def llm(self) -> OllamaClient:
         return OllamaClient(self.settings.ollama_url, self.settings.ollama_model)
@@ -127,6 +137,7 @@ class AppContext:
                 self.embedding_index,
                 self.search_embedder,
                 strictness=self.settings.visual_strictness,
+                geo_provider=self.geo,
             )
 
         def people_names() -> list[str]:

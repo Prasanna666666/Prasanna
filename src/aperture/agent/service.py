@@ -42,6 +42,8 @@ def describe_conditions(plan: Plan, date_range: str) -> str:
     parts = [c.label for c in plan.clauses]
     if date_range:
         parts.append(f"date {date_range}")
+    if not plan.filters.is_empty:
+        parts.append(plan.filters.describe())
     joiner = " OR " if plan.match == "any" else " AND "
     return joiner.join(parts) if parts else "everything in the library"
 
