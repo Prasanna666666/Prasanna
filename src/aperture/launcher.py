@@ -85,11 +85,8 @@ def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
     if (repo / ".git").is_dir():  # source checkout: pick up fixes on launch when online (best effort, optional)
         update = (
             'if [ -z "$APERTURE_NO_UPDATE" ]; then\n'
-            "  export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/true\n"
-            f'  /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1 &\n'
-            "  pid=$!\n"
-            "  for _ in 1 2 3 4 5 6 7 8; do kill -0 $pid 2>/dev/null || break; sleep 1; done\n"
-            "  kill $pid 2>/dev/null\n"
+            "  (export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/usr/bin/true;\n"
+            f'   /usr/bin/git -C "{repo}" pull --ff-only -q >/dev/null 2>&1 &)\n'
             "fi\n"
         )
     script = f"""#!/bin/bash
@@ -98,10 +95,10 @@ if [ ! -d "{paths.drive}" ]; then
   /usr/bin/osascript -e 'display alert "{APP_NAME}" message "The external drive {paths.drive} is not connected."'
   exit 1
 fi
+/usr/bin/osascript -e 'display notification "Starting {APP_NAME}. This can take up to a minute." with title "{APP_NAME}"' >/dev/null 2>&1 &
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Ollama.app/Contents/Resources:$PATH"
 if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
   /usr/bin/open -ga Ollama 2>/dev/null || (nohup ollama serve >/dev/null 2>&1 &)
-  for _ in $(seq 1 20); do /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null && break; sleep 1; done
 fi
 {update}exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
 """
