@@ -82,9 +82,6 @@ def history(ctx: AppContext) -> None:
 def move_card(ctx: AppContext, ids: Sequence[int], key: str) -> None:
     """Preview-then-confirm move for any list of photos."""
     with st.expander(f"Move these {len(ids):,} photos to a folder"):
-        if not ctx.settings.allow_moves:
-            st.info("Moving is off. Switch it on in the Tidy up page first.")
-            return
         name = st.text_input("Folder name (created inside your photo folder)", value="Sorted by Aperture", key=f"{key}:dest")
         if not st.button("Preview", key=f"{key}:preview"):
             return

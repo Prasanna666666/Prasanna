@@ -182,6 +182,7 @@ class Settings:
                 raw.pop("agentic", None)
             _overlay(settings, raw)
             settings.schema = 2
+        settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 
     def save(self, paths: Paths) -> None:
