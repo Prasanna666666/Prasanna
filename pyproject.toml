@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aperture-photos"
+version = "1.0.0"
+description = "Private, offline, agentic AI photo assistant for macOS (Apple Silicon)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "pillow>=10", "pillow-heif>=0.16", "pymupdf>=1.24"]
+
+[project.optional-dependencies]
+ml = ["torch>=2.2", "open_clip_torch>=2.24", "onnxruntime>=1.17"]
+mac = ["pyobjc-framework-Vision>=10", "pyobjc-framework-Quartz>=10", "pywebview>=5"]
+ui = ["streamlit>=1.48"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
+
+[project.scripts]
+aperture = "aperture.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aperture = ["py.typed"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S", "BLE", "C4", "RUF"]
+ignore = ["S310", "SIM105", "S110", "S104", "SIM102", "S101", "S608", "S311", "BLE001", "E501", "RUF001", "RUF002", "RUF012", "UP046", "UP047"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["needs_models: requires real model files"]
