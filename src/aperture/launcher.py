@@ -101,7 +101,17 @@ exec >> "$LOG" 2>&1
 echo "--- $(date) launching {APP_NAME}"
 URL="http://127.0.0.1:{port}"
 healthy() {{ /usr/bin/curl -sf -m 1 "$URL/_stcore/health" >/dev/null; }}
-if healthy; then /usr/bin/open "$URL"; exit 0; fi
+show() {{
+  for app in "Google Chrome" "Microsoft Edge" "Brave Browser" "Chromium"; do
+    if [ -d "/Applications/$app.app" ]; then
+      /usr/bin/open -na "$app" --args --app="$URL" --window-size=1440,900 \
+        --user-data-dir="$HOME/Library/Application Support/{APP_NAME}/window"
+      return
+    fi
+  done
+  /usr/bin/open "$URL"
+}}
+if healthy; then show; exit 0; fi
 /usr/bin/osascript -e 'display notification "Starting {APP_NAME}. This can take up to a minute." with title "{APP_NAME}"' >/dev/null 2>&1 &
 export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/Ollama.app/Contents/Resources:$PATH"
 if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
@@ -109,7 +119,7 @@ if ! /usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null; then
 fi
 {update}nohup "{sys.executable}" -m aperture ui --port {port} >> "$LOG" 2>&1 &
 for _ in $(seq 1 180); do
-  if healthy; then /usr/bin/open "$URL"; exit 0; fi
+  if healthy; then show; exit 0; fi
   sleep 1
 done
 /usr/bin/osascript -e 'display alert "{APP_NAME}" message "It did not start. See {paths.logs}/app.log"'
