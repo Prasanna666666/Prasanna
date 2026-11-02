@@ -77,25 +77,17 @@ class AppContext:
             return self._embedder
 
     def warm_up(self) -> None:
-        """Load everything a first question needs (AI model, search model, index) in the background."""
+        """Preload the cheap parts (photo index) in the background.
+
+        The AI model (2.6 GB) and the search model (0.6 GB) load on first use: on an 8 GB Mac,
+        loading them eagerly while a scan runs pushes everything into swap."""
         import threading
 
         def work() -> None:
-            import time
-
-            from .indexing.progress import ScanLock
-
             try:
-                self.llm().warm()
+                self.embedding_index()
             except Exception:
-                log.debug("AI warm-up failed", exc_info=True)
-            while ScanLock(self.paths).running():  # a scan needs the memory more: wait for it
-                time.sleep(10)
-            for step in (self.search_embedder, self.embedding_index):
-                try:
-                    step()
-                except Exception:
-                    log.debug("warm-up step failed", exc_info=True)
+                log.debug("warm-up failed", exc_info=True)
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 

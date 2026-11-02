@@ -26,11 +26,11 @@ class LLMClient(Protocol):
 
 
 class OllamaClient:
-    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "30m") -> None:
+    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "5m") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
-        self.keep_alive = keep_alive  # stay loaded between questions: the first load is the slow part
+        self.keep_alive = keep_alive  # 5 min: long enough for a session of questions, short enough to give the 8 GB back
 
     # ------------------------------------------------------------------
     def _request(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
