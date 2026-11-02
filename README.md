@@ -30,6 +30,16 @@ Then `ollama pull llama3.2:3b` (the Ollama app stores weights in `~/.ollama`; se
 
 `make install && make check` (ruff, mypy, pytest with fake ML - no models needed). See `docs/` for architecture, safety and agent design.
 
+## Measuring accuracy
+
+```bash
+aperture eval-plans                 # how well your Ollama model turns 42 varied requests into correct plans
+aperture eval --template golden.json   # then list your own requests and the files that truly match
+aperture eval golden.json --sweep   # precision/recall per visual strictness, with a recommendation
+```
+
+Aim for >= 90% on both. If `eval-plans` is lower, try a larger Ollama model in Settings; if search precision is lower, choose the strictness `--sweep` recommends.
+
 ## Known limits
 
 Visual strictness presets (`strict/balanced/broad`) are tunable defaults; calibrate on your library in Settings. NTFS drives are read-only on macOS and are rejected. First full index of 500 GB takes many hours.

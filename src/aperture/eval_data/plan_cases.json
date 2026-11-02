@@ -1,0 +1,944 @@
+[
+ {
+  "request": "show me photos of Anna",
+  "people": [
+   "Anna"
+  ],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Anna",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "pictures of Anna and Raj together",
+  "people": [
+   "Anna",
+   "Raj"
+  ],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Anna",
+     "exclude": false
+    },
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Raj",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "dogs on the beach",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "dog",
+     "exclude": false
+    },
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "beach",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "sunset photos",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "sunset",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "photos from Goa",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "place",
+      "path"
+     ],
+     "query": "Goa",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "pictures taken in Japan in spring 2019",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "place",
+      "path"
+     ],
+     "query": "Japan",
+     "exclude": false
+    }
+   ],
+   "date": {
+    "year": 2019,
+    "season": "spring"
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "how many photos do I have from 2021?",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "count",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {
+    "year": 2021
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "count my pictures of cats",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "count",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "cat",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "find the receipt that says Starbucks",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "text"
+     ],
+     "query": "Starbucks",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "documents mentioning invoice 48213",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "text"
+     ],
+     "query": "48213",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "screenshots containing the word password",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "text"
+     ],
+     "query": "password",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "put all photos of Anna into a folder called Anna Pics",
+  "people": [
+   "Anna"
+  ],
+  "previous": false,
+  "expect": {
+   "intent": "export",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Anna",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": true
+  }
+ },
+ {
+  "request": "copy my Paris pictures to a folder Paris Trip",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "export",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "place",
+      "path"
+     ],
+     "query": "Paris",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": true
+  }
+ },
+ {
+  "request": "snow photos but not in Switzerland",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "snow",
+     "exclude": false
+    },
+    {
+     "engines": [
+      "place",
+      "path"
+     ],
+     "query": "Switzerland",
+     "exclude": true
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "photos of Anna without Raj",
+  "people": [
+   "Anna",
+   "Raj"
+  ],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Anna",
+     "exclude": false
+    },
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Raj",
+     "exclude": true
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "pictures from last month",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {
+    "relative": "last_month"
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "what did I photograph in December 2020",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {
+    "year": 2020,
+    "month": 12
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "summer 2022 beach pictures",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "beach",
+     "exclude": false
+    }
+   ],
+   "date": {
+    "year": 2022,
+    "season": "summer"
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "only the ones from March",
+  "people": [],
+  "previous": true,
+  "expect": {
+   "intent": "find",
+   "scope": "previous",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {
+    "month": 3
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "of these, just the ones with Anna",
+  "people": [
+   "Anna"
+  ],
+  "previous": true,
+  "expect": {
+   "intent": "find",
+   "scope": "previous",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Anna",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "hi, what can you do?",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "chat",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "hello",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "chat",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "photos taken at night",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "time_of_day": "night"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "evening pictures from the weekend",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "time_of_day": "evening",
+    "day_type": "weekend"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "morning photos of coffee",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "coffee",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {
+    "time_of_day": "morning"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "portrait orientation photos of Anna",
+  "people": [
+   "Anna"
+  ],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "person"
+     ],
+     "query": "Anna",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {
+    "orientation": "portrait"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "landscape photos of mountains",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "mountain",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {
+    "orientation": "landscape"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "group photos with at least 4 people",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "min_people": 4
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "selfies",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "min_people": 1,
+    "max_people": 1
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "photos with nobody in them",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "max_people": 0
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "pictures within 20 km of Eindhoven",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "near": "Eindhoven",
+    "radius_km": 20
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "weekday photos near Amsterdam",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "day_type": "weekday",
+    "near": "Amsterdam"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "show my defect photos",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "quality": "defects"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "beach photos that are not blurry",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "beach",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {
+    "quality": "no_defects"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "PDF documents about taxes",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "text"
+     ],
+     "query": "tax",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {
+    "kind": "document"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "photos without GPS",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {
+    "has_gps": "no"
+   },
+   "folder_name": false
+  }
+ },
+ {
+  "request": "red cars or blue cars",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "any",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "red car",
+     "exclude": false
+    },
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "blue car",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "birthday party pictures from 2023",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "birthday party",
+     "exclude": false
+    }
+   ],
+   "date": {
+    "year": 2023
+   },
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "pizza",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "pizza",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "everything",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": true,
+   "clauses": [],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "find stuff",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "clarify",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [],
+   "date": {},
+   "filters": {},
+   "folder_name": false
+  }
+ },
+ {
+  "request": "night photos of the Eiffel Tower in Paris",
+  "people": [],
+  "previous": false,
+  "expect": {
+   "intent": "find",
+   "scope": "library",
+   "match": "all",
+   "all_photos": false,
+   "clauses": [
+    {
+     "engines": [
+      "visual"
+     ],
+     "query": "Eiffel Tower",
+     "exclude": false
+    },
+    {
+     "engines": [
+      "place",
+      "path"
+     ],
+     "query": "Paris",
+     "exclude": false
+    }
+   ],
+   "date": {},
+   "filters": {
+    "time_of_day": "night"
+   },
+   "folder_name": false
+  }
+ }
+]

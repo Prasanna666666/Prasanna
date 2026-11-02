@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aperture-photos"
-version = "1.2.0"
+version = "1.3.0"
 description = "Private, offline, agentic AI photo assistant for macOS (Apple Silicon)"
 readme = "README.md"
 license = { text = "MIT" }
@@ -24,7 +24,7 @@ aperture = "aperture.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aperture = ["py.typed"]
+aperture = ["py.typed", "eval_data/*.json"]
 
 [tool.ruff]
 line-length = 130

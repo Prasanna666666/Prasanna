@@ -8,3 +8,6 @@
 
 ## 1.2.0
 - Similar-shot groups with best-photo suggestion, defect photo suggestions and labels, smart LLM filters (time of day, weekday, orientation, people count, near a place, quality).
+
+## 1.3.0
+- Accuracy tooling: `aperture eval-plans`, `aperture eval` (golden set, strictness sweep), fuzz and scale tests.

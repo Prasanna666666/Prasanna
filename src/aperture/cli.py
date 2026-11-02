@@ -10,6 +10,7 @@ import signal
 import sys
 import threading
 from collections.abc import Sequence
+from pathlib import Path
 
 from .bootstrap import AppContext, ServiceUnavailableError
 from .config import ENV_ONLINE, Paths, Settings, configure_environment, default_paths
@@ -35,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
     job = sub.add_parser("export-job", help="run a queued export job (used by the UI)")
     job.add_argument("job_id")
     sub.add_parser("stats", help="print library statistics")
+    sub.add_parser("eval-plans", help="measure how accurately the local LLM turns requests into plans (no photos needed)")
+    ev = sub.add_parser("eval", help="measure search precision/recall against your own golden set")
+    ev.add_argument("golden", nargs="?", help="JSON file of requests and the files that truly match")
+    ev.add_argument("--template", metavar="FILE", help="write a starter golden file and exit")
+    ev.add_argument("--sweep", action="store_true", help="try every visual strictness and recommend one")
+    ev.add_argument("--target", type=float, default=0.9)
     cfg = sub.add_parser("settings", help="show or change settings")
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
@@ -112,6 +119,60 @@ def _stats(conn) -> dict[str, int]:  # type: ignore[no-untyped-def]
     }
 
 
+def cmd_eval_plans(ctx: AppContext) -> int:
+    from .agent.planner import Planner
+    from .evaluation import TARGET, evaluate_plans
+
+    result = evaluate_plans(Planner(ctx.llm()), on_case=lambda n, t: print(f"\r{n}/{t}", end="", flush=True))
+    print(f"\nplan accuracy with {ctx.settings.ollama_model}: {result.accuracy:.0%} ({result.correct}/{result.total})")
+    for request, problems in result.failures:
+        print(f"  x {request!r}: {'; '.join(problems)}")
+    return 0 if result.accuracy >= TARGET else 1
+
+
+def cmd_eval(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .evaluation import GOLDEN_TEMPLATE, evaluate_retrieval
+    from .search.visual import STRICTNESS
+
+    if args.template:
+        Path(args.template).write_text(json.dumps(GOLDEN_TEMPLATE, indent=2))
+        print(
+            f"wrote {args.template}: list your own requests and the files that truly match, then run `aperture eval {args.template}`"
+        )
+        return 0
+    if not args.golden:
+        print("error: give a golden file (or --template FILE to create one)", file=sys.stderr)
+        return 2
+    golden = json.loads(Path(args.golden).read_text())
+    photo = Path(ctx.settings.photo_dir)
+
+    def ask(request: str) -> list[str]:
+        reply = ctx.agent().ask(request)
+        conn = ctx.db.connect()
+        try:
+            from .library import items_by_ids
+
+            found = items_by_ids(conn, reply.ids.tolist())
+        finally:
+            conn.close()
+        return [os.path.relpath(i.path, photo) for i in found.values()]
+
+    best: tuple[str, float, float] | None = None
+    for level in list(STRICTNESS) if args.sweep else [ctx.settings.visual_strictness]:
+        ctx.settings.visual_strictness = level
+        result = evaluate_retrieval(ask, golden)
+        print(f"{level:>9}: precision {result.precision:.0%}  recall {result.recall:.0%}  ({len(result.cases)} requests)")
+        if result.precision >= args.target and (best is None or result.recall > best[2]):
+            best = (level, result.precision, result.recall)
+        if not args.sweep:
+            for c in result.cases:
+                if c.precision < 1 or c.recall < 1:
+                    print(f"  {c.request!r}: returned {c.returned}, relevant {c.relevant}, correct {c.true_positive}")
+    if args.sweep:
+        print(f"recommended strictness: {best[0]}" if best else f"no strictness reached {args.target:.0%} precision on your set")
+    return 0 if (best or not args.sweep) else 1
+
+
 def cmd_scan(ctx: AppContext, args: argparse.Namespace) -> int:
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -182,6 +243,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_scan(ctx, args)
     if args.command == "ask":
         return cmd_ask(ctx, args)
+    if args.command == "eval-plans":
+        return cmd_eval_plans(ctx)
+    if args.command == "eval":
+        return cmd_eval(ctx, args)
     if args.command == "export-job":
         conn = ctx.db.connect()
         report = run_job(paths, ctx.settings, conn, args.job_id)
