@@ -13,7 +13,7 @@ from aperture.ui.components import connection
 from aperture.ui.state import drive_ok, get_context
 from aperture.ui.views import chat, defects, library, organize, people, search, settings, status
 
-st.set_page_config(page_title="Aperture", page_icon=":material/photo_camera:", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Lumo", page_icon=":material/photo_camera:", layout="wide", initial_sidebar_state="expanded")
 
 
 def _sidebar_status(ctx) -> None:

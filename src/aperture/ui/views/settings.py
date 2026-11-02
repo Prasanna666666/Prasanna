@@ -70,7 +70,7 @@ def _form(ctx: AppContext) -> None:
         )
         size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
         contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
-        auto = st.checkbox("Resume indexing when Aperture opens", s.auto_scan)
+        auto = st.checkbox("Resume indexing when Lumo opens", s.auto_scan)
         saved = st.form_submit_button("Save", type="primary")
     if not models:
         st.warning("Ollama is not reachable. Start it with `ollama serve` (or open the Ollama app).")

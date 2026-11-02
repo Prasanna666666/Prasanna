@@ -36,7 +36,7 @@ def _suggestions(ctx: AppContext) -> None:
         measured = conn.execute("SELECT COUNT(*) FROM items WHERE sharp IS NOT NULL AND missing=0").fetchone()[0]
         found = quality.suggest_defects(conn, sensitivity)
     if measured == 0:
-        st.info("No photos measured yet. Press 'Measure new photos' (reads only Aperture's own previews, so it is fast).")
+        st.info("No photos measured yet. Press 'Measure new photos' (reads only Lumo's own previews, so it is fast).")
         return
     st.caption(f"{measured:,} photos measured. Photos you already reviewed are not suggested again.")
     if not found:
@@ -104,7 +104,7 @@ def _marked(ctx: AppContext) -> None:
 
 def render(ctx: AppContext) -> None:
     st.title("Defect photos")
-    st.caption("Label blurry, too dark, too bright or blank shots. Labels are notes in Aperture's database: no file is touched.")
+    st.caption("Label blurry, too dark, too bright or blank shots. Labels are notes in Lumo's database: no file is touched.")
     suggestions, marked = st.tabs(["Suggestions", "Labelled defects"])
     with suggestions:
         _suggestions(ctx)

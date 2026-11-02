@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 import time
@@ -14,6 +15,7 @@ from .config import Paths
 from .safety import enable_offline_guard
 
 DEFAULT_PORT = 8765
+APP_NAME = "Lumo"
 
 
 def ui_script() -> Path:
@@ -60,7 +62,7 @@ def run_window(port: int = DEFAULT_PORT) -> int:
     try:
         import webview
 
-        webview.create_window("Aperture", url, width=1440, height=900, min_size=(900, 600))
+        webview.create_window(APP_NAME, url, width=1440, height=900, min_size=(900, 600))
         webview.start()
     except Exception:
         subprocess.run(["open", url], check=False)  # noqa: S603, S607
@@ -71,33 +73,41 @@ def run_window(port: int = DEFAULT_PORT) -> int:
 
 
 def install_app_bundle(paths: Paths, destination: Path | None = None) -> Path:
-    """Create ``Aperture.app``: a double-clickable launcher (no terminal needed).
+    """Create ``Lumo.app``: a double-clickable launcher (no terminal needed).
 
     The bundle holds only a tiny shell script; the Python environment, data and
     models stay on the external drive."""
-    destination = destination or Path.home() / "Applications" / "Aperture.app"
+    destination = destination or Path.home() / "Applications" / f"{APP_NAME}.app"
     macos = destination / "Contents" / "MacOS"
     macos.mkdir(parents=True, exist_ok=True)
     script = f"""#!/bin/bash
 export APERTURE_DRIVE="{paths.drive}"
 if [ ! -d "{paths.drive}" ]; then
-  /usr/bin/osascript -e 'display alert "Aperture" message "The external drive {paths.drive} is not connected."'
+  /usr/bin/osascript -e 'display alert "{APP_NAME}" message "The external drive {paths.drive} is not connected."'
   exit 1
 fi
 exec "{sys.executable}" -m aperture app >> "{paths.logs}/app.log" 2>&1
 """
-    executable = macos / "Aperture"
+    executable = macos / APP_NAME
     executable.write_text(script)
     executable.chmod(0o755)
     info = {
-        "CFBundleName": "Aperture",
-        "CFBundleDisplayName": "Aperture",
+        "CFBundleName": APP_NAME,
+        "CFBundleDisplayName": APP_NAME,
         "CFBundleIdentifier": "local.aperture.app",
         "CFBundleVersion": "1.0",
-        "CFBundleExecutable": "Aperture",
+        "CFBundleExecutable": APP_NAME,
         "CFBundlePackageType": "APPL",
         "LSMinimumSystemVersion": "12.0",
     }
+    from .icon import write_icns
+
+    resources = destination / "Contents" / "Resources"
+    if write_icns(resources / "AppIcon.icns"):
+        info["CFBundleIconFile"] = "AppIcon"
+    old = destination.parent / "Aperture.app"  # earlier name: remove the stale launcher
+    if old.is_dir() and old != destination:
+        shutil.rmtree(old, ignore_errors=True)
     (destination / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     os.utime(destination)
     return destination

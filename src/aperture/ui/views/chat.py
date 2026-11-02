@@ -148,7 +148,7 @@ def render(ctx: AppContext) -> None:
     if not history:
         _welcome(ctx)
     else:
-        st.title("Ask Aperture")
+        st.title("Ask Lumo")
         if st.button("New conversation", icon=":material/add_comment:", type="tertiary"):
             history.clear()
             st.rerun()

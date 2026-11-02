@@ -137,7 +137,7 @@ def item_dialog(ctx: AppContext, item_id: int) -> None:
             for label, value in facts.items():
                 st.markdown(f"**{label}:** {value}")
             st.caption(f"`{item.path}`")
-            st.caption("The original is read-only: Aperture never modifies, moves or deletes it.")
+            st.caption("The original is read-only: Lumo never modifies, moves or deletes it.")
             if st.button("Show in Finder", key=f"reveal:{item.id}", icon=":material/folder_open:"):
                 subprocess.run(["open", "-R", item.path], check=False)  # noqa: S603, S607
             if item.notes:
