@@ -10,6 +10,7 @@ from ...config import DENSITY_COLUMNS
 from ...diagnostics import run_checks
 from ...safety import SafetyError, resolve_export_dir, resolve_photo_dir
 from ...search.visual import STRICTNESS
+from . import status
 
 
 def _health(ctx: AppContext) -> None:
@@ -21,11 +22,11 @@ def _health(ctx: AppContext) -> None:
 
 def render(ctx: AppContext) -> None:
     st.title("Settings")
-    form_tab, health_tab = st.tabs(["Preferences", "Health check"])
-    with health_tab:
+    _form(ctx)
+    st.subheader("Indexing")
+    status.body(ctx)
+    with st.expander("Health check"):
         _health(ctx)
-    with form_tab:
-        _form(ctx)
 
 
 def _form(ctx: AppContext) -> None:
@@ -38,38 +39,38 @@ def _form(ctx: AppContext) -> None:
         st.subheader("Folders")
         photo = st.text_input("Photo folder (on the external drive)", s.photo_dir)
         export = st.text_input("Export folder (on the external drive, outside the photo folder)", s.export_dir)
-        st.subheader("AI")
-        options = models or [s.ollama_model]
-        model = st.selectbox(
-            "Model that understands your requests",
-            options,
-            index=options.index(s.ollama_model) if s.ollama_model in options else 0,
-        )
-        vision_options = models or [s.vision_model]
-        vision = st.selectbox(
-            "Vision model that double-checks results",
-            vision_options,
-            index=vision_options.index(s.vision_model) if s.vision_model in vision_options else 0,
-        )
-        agentic = st.toggle(
-            "Let the AI work step by step (agent mode)",
-            s.agentic,
-            help="Lets the model search, look at results, verify and retry. Off = one-shot planning.",
-        )
-        strict = st.select_slider(
-            "Default visual match strictness",
-            list(STRICTNESS),
-            value=s.visual_strictness if s.visual_strictness in STRICTNESS else "balanced",
-        )
-        st.subheader("Appearance and access")
-        density = st.segmented_control(
-            "Photos per row",
-            list(DENSITY_COLUMNS),
-            default=s.ui_density,
-            format_func=lambda d: f"{d.title()} ({DENSITY_COLUMNS[d]})",
-        )
-        size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
-        contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
+        advanced = st.expander("Advanced: AI models and display")
+        with advanced:
+            options = models or [s.ollama_model]
+            model = st.selectbox(
+                "Model that understands your requests",
+                options,
+                index=options.index(s.ollama_model) if s.ollama_model in options else 0,
+            )
+            vision_options = models or [s.vision_model]
+            vision = st.selectbox(
+                "Vision model that double-checks results",
+                vision_options,
+                index=vision_options.index(s.vision_model) if s.vision_model in vision_options else 0,
+            )
+            agentic = st.toggle(
+                "Let the AI work step by step (agent mode)",
+                s.agentic,
+                help="Lets the model search, look at results, verify and retry. Off = one-shot planning.",
+            )
+            strict = st.select_slider(
+                "Default visual match strictness",
+                list(STRICTNESS),
+                value=s.visual_strictness if s.visual_strictness in STRICTNESS else "balanced",
+            )
+            density = st.segmented_control(
+                "Photos per row",
+                list(DENSITY_COLUMNS),
+                default=s.ui_density,
+                format_func=lambda d: f"{d.title()} ({DENSITY_COLUMNS[d]})",
+            )
+            size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
+            contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
         auto = st.checkbox("Resume indexing when Lumo opens", s.auto_scan)
         saved = st.form_submit_button("Save", type="primary")
     if not models:

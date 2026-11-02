@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("streamlit")
 from streamlit.testing.v1 import AppTest
 
-PAGES = ["chat", "library", "people", "search", "status", "settings", "organize", "defects"]
+PAGES = ["chat", "library", "people", "settings", "organize"]
 
 
 def _script(page: str) -> None:  # executed by AppTest in its own namespace
@@ -80,7 +80,7 @@ def test_defects_page_label_flow(ctx_env):
     from aperture.ui import state
 
     state.get_context.clear()
-    app = AppTest.from_function(_script, args=("defects",), default_timeout=30).run()
+    app = AppTest.from_function(_script, args=("organize",), default_timeout=30).run()  # defects live in a tab of Tidy up
     next(b for b in app.button if b.label == "Measure new photos").click().run()
     assert not app.exception, [e.value for e in app.exception]
     next(b for b in app.button if b.label.startswith("Label 5 as defect")).click().run()

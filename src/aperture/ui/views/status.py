@@ -60,8 +60,7 @@ def _live(ctx: AppContext) -> None:
         st.warning(f"{cov.failed:,} files could not be read. They are skipped and never altered.")
 
 
-def render(ctx: AppContext) -> None:
-    st.title("Indexing")
+def body(ctx: AppContext) -> None:
     if not ctx.settings.photo_dir:
         st.info("Choose the photo folder in Settings first.")
         return

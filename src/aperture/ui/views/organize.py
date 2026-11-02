@@ -207,16 +207,13 @@ def render(ctx: AppContext) -> None:
     st.caption(
         "Find duplicates and similar shots, see what would happen, then move the extras to a folder. Nothing is ever deleted, and every batch can be undone."
     )
-    if not _switch(ctx):
-        history(ctx)
-        return
     if not ctx.settings.photo_dir:
         st.info("Choose the photo folder in Settings first.")
         return
     dest = st.text_input(
         "Move the extra photos to", value=org.default_move_dir(ctx.settings), help="Must be inside your photo folder."
     )
-    exact_tab, similar_tab = st.tabs(["Exact copies", "Similar shots"])
+    exact_tab, similar_tab, bad_tab = st.tabs(["Exact copies", "Similar shots", "Bad shots"])
 
     with exact_tab:
         rule = st.selectbox("Which copy to keep", list(org.KEEP_RULES), format_func=org.KEEP_RULES.get)
@@ -244,5 +241,10 @@ def render(ctx: AppContext) -> None:
             st.success("No similar shots found. Try a looser setting.")
         else:
             _review_groups(ctx, "tidy:similar", groups, "", dest, "Similar shots -> {}", best=True)
+
+    with bad_tab:
+        from . import defects  # imported here: defects also uses move_card from this module
+
+        defects.body(ctx)
     st.divider()
     history(ctx)

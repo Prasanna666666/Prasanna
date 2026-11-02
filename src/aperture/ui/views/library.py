@@ -12,7 +12,7 @@ KINDS = {"Photos": "image", "PDFs": "pdf", "Text files": "text"}
 
 
 def render(ctx: AppContext) -> None:
-    st.title("Library")
+    st.title("Photos")
     with connection(ctx) as conn:
         years = lib.years_available(conn)
         cov = lib.coverage(conn)

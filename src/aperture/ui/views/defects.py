@@ -102,8 +102,7 @@ def _marked(ctx: AppContext) -> None:
     photo_grid(ctx, ids, key="defects:marked")
 
 
-def render(ctx: AppContext) -> None:
-    st.title("Defect photos")
+def body(ctx: AppContext) -> None:
     st.caption("Label blurry, too dark, too bright or blank shots. Labels are notes in Lumo's database: no file is touched.")
     suggestions, marked = st.tabs(["Suggestions", "Labelled defects"])
     with suggestions:
