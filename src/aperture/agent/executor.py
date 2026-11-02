@@ -9,6 +9,7 @@ empty result can explain exactly which constraint eliminated everything.
 
 from __future__ import annotations
 
+import difflib
 import logging
 import sqlite3
 from collections.abc import Callable
@@ -25,6 +26,7 @@ from ..search.embeddings import EmbeddingIndex
 from ..search.filters import apply_filters
 from ..search.geo import GeoIndex
 from ..search.metadata import all_ids, date_ids, path_ids, place_ids
+from ..search.quick import quick_ids
 from ..search.text import search_text_ids
 from ..search.visual import VisualSearch
 from .schema import Clause, Plan
@@ -69,6 +71,7 @@ class Executor:
         self._today = today
         self._geo_provider = geo_provider
         self._visual_scores: dict[int, float] = {}
+        self._vocabulary: list[str] | None = None
 
     # ------------------------------------------------------------------
     def run(self, plan: Plan, previous_ids: np.ndarray | None = None) -> ExecResult:
@@ -142,7 +145,32 @@ class Executor:
                     f"Nothing matched '{clause.query}' as {'/'.join(clause.engines)}, but it matched {len(found):,} photos by {engine}."
                 )
                 return found
-        return ids
+        near = self._similar_place_ids(clause.query, result)
+        return near if len(near) else ids
+
+    def _place_vocabulary(self) -> list[str]:
+        if self._vocabulary is None:
+            words: set[str] = set()
+            for (text,) in self._conn.execute("SELECT DISTINCT place_text FROM items WHERE missing=0 AND place_text IS NOT NULL"):
+                words.update(w for w in text.split() if len(w) >= 5)
+            self._vocabulary = sorted(words)
+        return self._vocabulary
+
+    def _similar_place_ids(self, query: str, result: ExecResult) -> np.ndarray:
+        """A place spelled differently from the library's (Bangalore / Bengaluru, Zurich / Zürich)."""
+        found: list[np.ndarray] = []
+        for word in dict.fromkeys(w for w in query.lower().split() if len(w) >= 5):
+            close = difflib.get_close_matches(word, self._place_vocabulary(), n=1, cutoff=0.66)
+            if close:
+                ids = place_ids(self._conn, close[0])
+                if len(ids):
+                    found.append(ids)
+                    result.notes.append(f"I read '{word}' as the place '{close[0]}' in your library ({len(ids):,} photos).")
+        return np.unique(np.concatenate(found)) if found else np.zeros(0, np.int64)
+
+    def rescue(self, request: str) -> np.ndarray:
+        """Last resort when a plan finds nothing: match the request's own words against the library's data."""
+        return quick_ids(self._conn, request, self._index_provider, self._embedder_provider, self._strictness)
 
     def _engine_ids(self, engine: str, query: str, result: ExecResult) -> np.ndarray:
         try:

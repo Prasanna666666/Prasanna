@@ -64,6 +64,11 @@ def explain_empty(reports: list[ClauseReport]) -> str:
     return "No photo satisfies the request."
 
 
+def _only_plain_clauses(plan: Plan) -> bool:
+    """Rescue ignores dates, filters and exclusions, so it only applies when the plan has none."""
+    return not any(c.exclude for c in plan.clauses) and plan.date.is_empty and plan.filters.is_empty
+
+
 class AgentService:
     def __init__(
         self,
@@ -103,7 +108,22 @@ class AgentService:
             )
 
         try:
-            outcome = self._executor_factory().run(plan, previous_ids)
+            executor = self._executor_factory()
+            outcome = executor.run(plan, previous_ids)
+            if (
+                len(outcome.ids) == 0
+                and plan.intent in ("find", "count", "export")
+                and plan.scope == "library"
+                and _only_plain_clauses(plan)
+                and any(r.matched == 0 for r in outcome.reports)
+            ):
+                rescued = executor.rescue(request)
+                if len(rescued):
+                    outcome.ids = rescued
+                    outcome.notes.append(
+                        "The AI's plan found nothing, so I searched your library for the words you typed. "
+                        "These are the closest matches, so double-check them."
+                    )
         except Exception as exc:
             log.exception("plan execution failed")
             return AgentReply("error", f"Something went wrong while searching: {exc}", **base)

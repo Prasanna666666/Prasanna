@@ -130,3 +130,25 @@ def test_clause_in_the_wrong_engine_falls_back_to_the_right_one(scanned):
     result = executor.run(Plan(intent="find", clauses=[Clause(engines=["visual"], query="Testville")]))
     assert result.ids.tolist() == [item_id]
     assert any("matched 1 photos by place" in note for note in result.notes)
+
+
+def test_misspelled_or_alternate_place_names_find_the_library_spelling(scanned):
+    from aperture.agent.schema import Clause, Plan
+
+    ctx = scanned
+    conn = ctx.db.connect()
+    item_id = conn.execute("SELECT id FROM items WHERE missing=0 LIMIT 1").fetchone()[0]
+    conn.execute("UPDATE items SET place='Bengaluru, India', place_text=' bengaluru india' WHERE id=?", (item_id,))
+    conn.commit()
+    executor = Executor(ctx.db.connect(), ctx.embedding_index, ctx.search_embedder, strictness="strict")
+    result = executor.run(Plan(intent="find", clauses=[Clause(engines=["place"], query="Bangalore")]))
+    assert result.ids.tolist() == [item_id]
+    assert any("bengaluru" in note for note in result.notes)
+
+
+def test_rescue_never_runs_for_plans_with_exclusions_or_dates(scanned):
+    from aperture.agent.schema import Clause, Plan
+    from aperture.agent.service import _only_plain_clauses
+
+    assert _only_plain_clauses(Plan(intent="find", clauses=[Clause(engines=["place"], query="x")]))
+    assert not _only_plain_clauses(Plan(intent="find", clauses=[Clause(engines=["place"], query="x", exclude=True)]))
