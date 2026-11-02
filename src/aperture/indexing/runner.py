@@ -9,6 +9,7 @@ from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 from ..config import Paths, Settings
 from ..db import Database, meta_get, meta_set
@@ -87,6 +88,13 @@ class Scanner:
         self._stop = stop or threading.Event()
         self.guard = WriteGuard(paths)
 
+    def _skipped(self) -> list[Path]:
+        """Folders never scanned: Aperture's own data and the export folder (copies, not originals)."""
+        skip = [self.paths.root]
+        if self.settings.export_dir:
+            skip.append(Path(self.settings.export_dir).expanduser())
+        return skip
+
     # ------------------------------------------------------------------
     def run(self, options: ScanOptions | None = None) -> ScanSummary:
         opts = options or ScanOptions()
@@ -102,7 +110,7 @@ class Scanner:
                 raise FileNotFoundError(f"Photo folder not found: {photo_dir}")
             conn = self.db.connect()
             self._check_embedding_model(conn)
-            found = reconcile(conn, self.paths, photo_dir, discover(photo_dir, skip=self.paths.root))
+            found = reconcile(conn, self.paths, photo_dir, discover(photo_dir, skip=self._skipped()))
             log.info("found %d files (%d new, %d changed)", found.found, found.new, found.changed)
 
             stages = self.settings.stages

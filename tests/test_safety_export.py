@@ -27,10 +27,9 @@ def test_internal_disk_rejected_unless_overridden(tmp_path, monkeypatch):
     assert "internal" in drive_problem(tmp_path)
 
 
-def test_export_dir_must_be_outside_source_and_data(ctx):
+def test_export_dir_may_sit_in_source_but_not_in_data(ctx):
     s = ctx.settings
-    with pytest.raises(PermissionError):
-        resolve_export_dir(ctx.paths, str(s.photo_dir) + "/sub", s.photo_dir)
+    resolve_export_dir(ctx.paths, str(s.photo_dir) + "/sub", s.photo_dir)
     with pytest.raises(PermissionError):
         resolve_export_dir(ctx.paths, str(ctx.paths.root / "x"), s.photo_dir)
     with pytest.raises(PermissionError):
@@ -87,3 +86,13 @@ def test_background_job_roundtrip(scanned):
     run_job(scanned.paths, scanned.settings, conn, job_id)
     job = json.loads((scanned.paths.jobs / f"{job_id}.json").read_text())
     assert job["state"] == "done" and job["done"] == 5
+
+
+def test_scan_skips_export_folder(tmp_path):
+    from aperture.indexing.discovery import discover
+
+    (tmp_path / "exp").mkdir()
+    (tmp_path / "exp" / "copy.jpg").write_bytes(b"x")
+    (tmp_path / "keep.jpg").write_bytes(b"x")
+    names = [f.path.rsplit("/", 1)[-1] for f in discover(tmp_path, skip=[tmp_path / "exp"])]
+    assert names == ["keep.jpg"]

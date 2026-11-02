@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -46,14 +47,15 @@ def classify(filename: str) -> str | None:
     return None
 
 
-def discover(photo_dir: Path, skip: Path | None = None) -> list[FoundFile]:
+def discover(photo_dir: Path, skip: Path | Iterable[Path] | None = None) -> list[FoundFile]:
     """Walk ``photo_dir``.  Hidden files are ignored - that includes the ``._*``
     AppleDouble stubs that exFAT/NTFS drives create next to every photo."""
     found: list[FoundFile] = []
-    skip_str = str(skip) if skip else None
+    skips = [skip] if isinstance(skip, Path) else list(skip or [])
+    skip_strs = {str(x) for x in skips}
     for dirpath, dirnames, filenames in os.walk(photo_dir, followlinks=False):
         dirnames[:] = [
-            d for d in dirnames if not d.startswith(".") and d not in SKIP_DIRS and os.path.join(dirpath, d) != skip_str
+            d for d in dirnames if not d.startswith(".") and d not in SKIP_DIRS and os.path.join(dirpath, d) not in skip_strs
         ]
         for name in filenames:
             if name.startswith("."):

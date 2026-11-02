@@ -70,13 +70,11 @@ def resolve_photo_dir(paths: Paths, candidate: str | Path) -> Path:
 
 
 def resolve_export_dir(paths: Paths, candidate: str | Path, photo_dir: str | Path) -> Path:
-    """Where copies may go: external drive only; never inside the source folder
-    (it would be re-imported as duplicates) nor inside Aperture's own data."""
+    """Where copies may go: external drive only; may sit inside the photo folder
+    (the scanner skips it) but never inside Aperture's own data."""
     path = Path(candidate).expanduser().resolve()
     if not is_inside(path, paths.drive.resolve()):
         raise SafetyError(f"Exports must stay on the external drive ({paths.drive.resolve()})")
-    if is_inside(path, Path(photo_dir).expanduser().resolve()):
-        raise SafetyError("The export folder cannot be inside the source photo folder")
     if is_inside(path, paths.root.resolve()):
         raise SafetyError("The export folder cannot be inside Aperture's own data folder")
     return path
