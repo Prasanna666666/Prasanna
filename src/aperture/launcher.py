@@ -123,4 +123,16 @@ fi
         shutil.rmtree(old, ignore_errors=True)
     (destination / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     os.utime(destination)
+    _sign(destination)
     return destination
+
+
+def _sign(bundle: Path) -> None:
+    """Ad-hoc sign the bundle and clear the download flag so macOS lets a click start it."""
+    for cmd in (
+        ["/usr/bin/xattr", "-cr", str(bundle)],
+        ["/usr/bin/codesign", "--force", "--deep", "--sign", "-", str(bundle)],
+        ["/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", "-f", str(bundle)],
+    ):  # fmt: skip
+        if Path(cmd[0]).exists():
+            subprocess.run(cmd, check=False, capture_output=True)  # noqa: S603
