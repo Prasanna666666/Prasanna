@@ -333,6 +333,12 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     reply = ctx.agent().ask(message, web.previous(conv), history=history)
                     stream = reply.stream
                     text = reply.text
+                    if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words
+                        web.remember(conv, reply.ids)
+                        self._sse("results", {"ids": [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
+                                              "notes": list(reply.notes), "warnings": list(reply.warnings)})
+                    elif reply.notes or reply.warnings:
+                        self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
                     if stream is not None:
                         parts = []
                         for chunk in stream:
@@ -343,12 +349,6 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                         text = "".join(parts) or "..."
                     else:
                         self._sse("reply", {"text": text})
-                if len(reply.ids) and reply.kind in ("results", "export", "count"):
-                    web.remember(conv, reply.ids)
-                    self._sse("results", {"ids": [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
-                                          "notes": list(reply.notes), "warnings": list(reply.warnings)})
-                elif reply.notes or reply.warnings:
-                    self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
                 took = round(time.perf_counter() - started, 2)
                 timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
                 self._sse("done", {"took": took, "kind": reply.kind, "text": text, "timings": timings})

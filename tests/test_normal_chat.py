@@ -69,7 +69,7 @@ def test_complete_chat_sends_the_conversation_and_stays_in_one_context(monkeypat
 
 
 def test_instant_photo_preview_is_off_by_default_and_guarded():
-    assert Settings().quick_preview is True
+    assert Settings().quick_preview is False
     import inspect
 
     from aperture.ui.views import chat
@@ -93,6 +93,7 @@ def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     ctx = AppContext(paths)
+    ctx.settings.brain = "classic"
     agent = ctx.agent()
     assert isinstance(agent, AgentService) and agent._chatter is not None
     sent = []

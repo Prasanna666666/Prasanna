@@ -124,15 +124,8 @@ class OllamaClient:
         message = body.get("message")
         return str(message.get("content", "")).strip() if isinstance(message, dict) else ""
 
-    def stream_chat(self, system: str, messages: list[dict[str, str]], max_tokens: int = 400):
-        """Yield the reply piece by piece as the model writes it, so the first words show up in about a second."""
-        payload = {
-            "model": self.model,
-            "messages": [{"role": "system", "content": system}, *messages],
-            "stream": True,
-            "keep_alive": self.keep_alive,
-            "options": {"temperature": 0.3, "num_ctx": NUM_CTX, "num_predict": max_tokens},
-        }
+    def _stream_chunks(self, payload: dict[str, Any]):
+        """POST a streaming chat request and yield each parsed chunk as the model produces it."""
         request = urllib.request.Request(
             self.base_url + "/api/chat", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
         )
@@ -146,12 +139,10 @@ class OllamaClient:
                         chunk = json.loads(line)
                     except ValueError as exc:
                         raise LLMError("Ollama sent an unreadable response") from exc
-                    message = chunk.get("message") if isinstance(chunk, dict) else None
-                    text = str(message.get("content", "")) if isinstance(message, dict) else ""
-                    if text:
-                        yield text
-                    if isinstance(chunk, dict) and chunk.get("done"):
-                        return
+                    if isinstance(chunk, dict):
+                        yield chunk
+                        if chunk.get("done"):
+                            return
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise LLMError(f"Model '{self.model}' is not installed. Run: ollama pull {self.model}") from exc
@@ -160,6 +151,47 @@ class OllamaClient:
             raise LLMUnavailable(
                 f"Ollama is not reachable at {self.base_url}. Start it with `ollama serve` (or open the Ollama app)."
             ) from exc
+
+    def _chat_payload(self, system: str, messages: list[dict[str, str]], max_tokens: int, tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, *messages],
+            "stream": True,
+            "keep_alive": self.keep_alive,
+            "options": {"temperature": 0.3, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+        }
+        if tools:
+            payload["tools"] = tools
+        return payload
+
+    def stream_chat(self, system: str, messages: list[dict[str, str]], max_tokens: int = 400):
+        """Yield the reply piece by piece as the model writes it, so the first words show up in about a second."""
+        for chunk in self._stream_chunks(self._chat_payload(system, messages, max_tokens)):
+            message = chunk.get("message")
+            text = str(message.get("content", "")) if isinstance(message, dict) else ""
+            if text:
+                yield text
+
+    def chat_events(self, system: str, messages: list[dict[str, str]], tools: list[dict[str, Any]], max_tokens: int = 400):
+        """One streaming call where the model chooses: yield ("delta", text) while it talks, or ("tool", {name, arguments}) when it
+        decides to use one of the tools. This is the heart of an agent: the model decides, our code only carries it out."""
+        for chunk in self._stream_chunks(self._chat_payload(system, messages, max_tokens, tools)):
+            message = chunk.get("message")
+            if not isinstance(message, dict):
+                continue
+            for call in message.get("tool_calls") or []:
+                function = call.get("function") if isinstance(call, dict) else None
+                function = function if isinstance(function, dict) else {}
+                arguments = function.get("arguments")
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                    except ValueError:
+                        arguments = {}
+                yield "tool", {"name": str(function.get("name", "")), "arguments": arguments if isinstance(arguments, dict) else {}}
+            text = str(message.get("content") or "")
+            if text:
+                yield "delta", text
 
     def complete_text(self, system: str, user: str) -> str:
         """Plain-text answer (no JSON), for conversational replies grounded in supplied facts."""

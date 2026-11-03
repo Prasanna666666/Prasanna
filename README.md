@@ -53,6 +53,20 @@ Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with re
 - One model in memory; indexing pauses while you chat and unloads the model when it starts.
 - Measure it all with one command: `aperture check` (seconds per step, routing accuracy). Honest limit: a 3B model writes ~19 words a second and is weak at hard reasoning; a bigger Mac or a home server is the only way past that.
 
+## The agent (how Lumo thinks)
+
+Lumo is a tool-using agent with RAG, written to be read: `src/aperture/agent/toolagent.py` (about 250 lines, no framework).
+
+1. **Retrieve**: facts from your own library that matter for this message (matching places and people, the date span, how much is indexed).
+2. **Decide**: the model sees the conversation, those facts and its tools (`find_photos`, `count_photos`, `library_overview`, `look_up`). It answers in words
+   or calls a tool and fills in the arguments ("last month" becomes `relative="last_month"`). Nobody tells it what the app is: the tools and facts are its world.
+3. **Observe**: our code runs the tool with the real search engines and gives the model the result (how many matched, which dates, notes). It reads it and may
+   look something up or search again (agentic RAG), within a budget of a few steps.
+4. **Answer**: it writes the reply, streamed; the photos it found appear on screen. The code writes no user-facing sentences.
+
+An agent is a goal plus a list of tools (`AgentSpec`); a specialist (a curator, an organiser) is the same loop with a different goal and tools. All tools are read-only.
+Measure the whole agent, not single phrases: `aperture eval-tools` (all plan and routing cases). Switch back to the older pipeline with `aperture settings --brain classic`.
+
 ## Develop
 
 `make install && make check` (ruff, mypy, pytest with fake ML - no models needed). See `docs/` for architecture, safety and agent design.

@@ -42,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("stats", help="print library statistics")
     sub.add_parser("eval-plans", help="measure how accurately the local LLM turns requests into plans (no photos needed)")
     sub.add_parser("check", help="measure every step of a search and a chat on this Mac (seconds) plus the routing accuracy: one command, all the numbers")
+    sub.add_parser("eval-tools", help="measure the tool-using agent over ALL plan and routing test cases (about 2 minutes)")
     sub.add_parser("eval-routes", help="measure how well the AI tells photo requests from ordinary conversation (fast, no photos needed)")
     ev = sub.add_parser("eval", help="measure search precision/recall against your own golden set")
     ev.add_argument("golden", nargs="?", help="JSON file of requests and the files that truly match")
@@ -52,6 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
+    cfg.add_argument("--brain", choices=["tools", "classic"], help="tools = the tool-using agent (default); classic = the older pipeline")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
     sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
     sec.add_argument("--classic", action="store_true", help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app")
@@ -482,6 +484,36 @@ def cmd_check(ctx: AppContext) -> int:
     return 0
 
 
+def cmd_eval_tools(ctx: AppContext) -> int:
+    import time
+
+    from .agent.toolagent import ToolAgent
+    from .evaluation import evaluate_tool_agent, load_plan_cases
+
+    agent = ToolAgent(ctx.llm(), None, lambda request: "")  # only the first decision is measured: nothing is searched
+    seconds: list[float] = []
+
+    def decide(request: str, previous: bool, people: list[str]):
+        facts = ("PEOPLE FOUND: " + ", ".join(people)) if people else ""
+        started = time.perf_counter()
+        first, events = agent.decide(request, previous, None, facts)
+        seconds.append(time.perf_counter() - started)
+        events.close() if hasattr(events, "close") else None
+        if first is not None and first[0] == "tool":
+            return "tool", first[1]["name"], first[1]["arguments"]
+        return "words", first[1] if first else "", {}
+
+    routes = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
+    result = evaluate_tool_agent(decide, load_plan_cases(), routes)
+    print(f"tool agent with {ctx.settings.ollama_model}")
+    print(f"  right tool and right arguments: {result.plan_correct / result.plan_total:.0%} ({result.plan_correct}/{result.plan_total})")
+    print(f"  tool-or-words decision:         {result.route_correct / result.route_total:.0%} ({result.route_correct}/{result.route_total})")
+    print(f"  average time to decide:         {sum(seconds) / max(len(seconds), 1):.1f}s")
+    for request, problems in result.failures[:12]:
+        print(f"  x {request!r}: {'; '.join(problems)}")
+    return 0
+
+
 def cmd_eval_routes(ctx: AppContext) -> int:
     from .evaluation import evaluate_routes
 
@@ -599,6 +631,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_eval_routes(ctx)
     if args.command == "check":
         return cmd_check(ctx)
+    if args.command == "eval-tools":
+        return cmd_eval_tools(ctx)
     if args.command == "eval":
         return cmd_eval(ctx, args)
     if args.command == "export-job":
@@ -617,7 +651,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             s.export_dir = str(resolve_export_dir(paths, args.export_dir, s.photo_dir))
         if args.ollama_model:
             s.ollama_model = args.ollama_model
-        if args.photo_dir or args.export_dir or args.ollama_model:
+        if args.brain:
+            s.brain = args.brain
+        if args.photo_dir or args.export_dir or args.ollama_model or args.brain:
             s.save(paths)
         print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
         return 0

@@ -200,3 +200,61 @@ def evaluate_routes(router, cases: list[dict]) -> tuple[int, list[str], list[str
         else:
             wrong.append(f"{case['message']!r}: sent to {got}, expected {case['expect']}")
     return correct, wrong, slower
+
+
+@dataclass
+class ToolEval:
+    plan_correct: int = 0
+    plan_total: int = 0
+    route_correct: int = 0
+    route_total: int = 0
+    failures: list[tuple[str, list[str]]] = field(default_factory=list)
+
+
+def evaluate_tool_agent(decide, plan_cases: list[dict[str, Any]], route_cases: list[dict[str, Any]]) -> ToolEval:
+    """Score the tool-using agent over whole test sets, not hand-picked phrases.
+
+    `decide(request, previous, people)` returns ("tool", name, arguments) or ("words", text, {}): the model's first decision.
+    Plan cases: did it pick the right tool AND fill in the right arguments (compared with the same expectations as eval-plans)?
+    Route cases: did it call a tool exactly when the message was about photos, and talk otherwise?"""
+    from .agent.toolagent import plan_from_tool
+
+    result = ToolEval()
+    for case in plan_cases:
+        result.plan_total += 1
+        intent = case["expect"]["intent"]
+        try:
+            kind, name, args = decide(case["request"], bool(case["previous"]), list(case["people"]))
+        except Exception as exc:
+            result.failures.append((case["request"], [f"{type(exc).__name__}: {exc}"]))
+            continue
+        problems: list[str] = []
+        if intent in ("chat", "clarify"):
+            if kind == "tool":
+                problems.append(f"called {name} instead of talking")
+        elif intent == "question":
+            if kind == "tool" and name not in ("library_overview", "count_photos", "find_photos"):
+                problems.append(f"called {name}")
+        elif kind != "tool":
+            problems.append("talked instead of using a tool")
+        elif name not in ({"count": ("count_photos",)}.get(intent, ("find_photos",))):
+            problems.append(f"called {name} for a {intent}")
+        else:
+            problems = plan_mismatches(plan_from_tool(name, args), case["expect"])
+        if problems:
+            result.failures.append((case["request"], problems))
+        else:
+            result.plan_correct += 1
+    for case in route_cases:
+        result.route_total += 1
+        try:
+            kind, name, _ = decide(case["message"], bool(case.get("previous")), [])
+        except Exception as exc:
+            result.failures.append((case["message"], [f"{type(exc).__name__}: {exc}"]))
+            continue
+        wants_tool = case["expect"] != "chat"
+        if (kind == "tool") == wants_tool:
+            result.route_correct += 1
+        else:
+            result.failures.append((case["message"], [f"{'called ' + name if kind == 'tool' else 'talked'}, expected {'a tool' if wants_tool else 'words'}"]))
+    return result

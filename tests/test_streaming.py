@@ -91,14 +91,16 @@ def test_chat_reply_carries_a_stream_and_never_runs_a_search():
     assert "".join(reply.stream) == "Sure, happy to help." and seen["history"] == [("user", "hi")]
 
 
-def test_instant_matches_are_on_by_default_and_the_old_choice_resets_once(tmp_path):
+def test_instant_word_matches_are_off_by_default_and_the_old_choice_resets_once(tmp_path):
     paths = Paths(tmp_path)
-    assert Settings().quick_preview is True
+    assert Settings().quick_preview is False and Settings().brain == "tools" and Settings().rescue_search is False
     paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
-    paths.settings_file.write_text(json.dumps({"schema": 6, "quick_preview": False}))
-    assert Settings.load(paths).quick_preview is True
-    paths.settings_file.write_text(json.dumps({"schema": 7, "quick_preview": False}))
-    assert Settings.load(paths).quick_preview is False  # a deliberate choice made after v7 is kept
+    paths.settings_file.write_text(json.dumps({"schema": 7, "quick_preview": True, "brain": "classic", "rescue_search": True}))
+    s = Settings.load(paths)
+    assert (s.quick_preview, s.brain, s.rescue_search) == (False, "tools", False)  # reset once by the v8 migration
+    paths.settings_file.write_text(json.dumps({"schema": 8, "quick_preview": True, "brain": "classic"}))
+    s = Settings.load(paths)
+    assert s.quick_preview is True and s.brain == "classic"  # a deliberate choice made after v8 is kept
 
 
 def test_chat_view_shows_the_message_at_once_and_streams_the_reply():
@@ -122,7 +124,9 @@ def test_the_real_agent_streams_through_the_model(tmp_path, monkeypatch):
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
-    agent = AppContext(paths).agent()
+    ctx = AppContext(paths)
+    ctx.settings.brain = "classic"
+    agent = ctx.agent()
     assert agent._chat_stream is not None
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse(
         ndjson({"message": {"content": "Hi"}}, {"message": {"content": " there"}, "done": True})))

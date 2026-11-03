@@ -130,11 +130,13 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
-    schema: int = 7  # bumped when a default changed on purpose; older files get the new value
+    schema: int = 8  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
+    brain: str = "tools"  # "tools" = one tool-using agent decides (recommended); "classic" = the older router + planner pipeline
+    rescue_search: bool = False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
-    quick_preview: bool = True  # instant photo matches (milliseconds, no AI) while the AI is still planning; only confident matches show
+    quick_preview: bool = False  # instant matches by the typed WORDS (milliseconds, no AI); off: they can show photos that merely contain the words
     auto_scan: bool = False  # indexing competes with the language model for 8 GB of RAM and the external disk: start it on purpose
     ollama_url: str = "http://127.0.0.1:11434"
     # One model for everything, to save disk (a Mac with little space): ollama pull ministral-3:3b. The exact tag could not
@@ -198,10 +200,11 @@ class Settings:
                 raw.pop("workers", None)
             if raw.get("schema", 1) < 6:  # v6: indexing no longer starts by itself every time the app opens
                 raw.pop("auto_scan", None)
-            if raw.get("schema", 1) < 7:  # v7: instant matches are on by default again (milliseconds); a switch lives in Settings
-                raw.pop("quick_preview", None)
+            if raw.get("schema", 1) < 8:  # v8: the tool-using agent is the default brain; word-matching shortcuts are off
+                for key in ("quick_preview", "brain", "rescue_search"):
+                    raw.pop(key, None)
             _overlay(settings, raw)
-            settings.schema = 7
+            settings.schema = 8
         settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 
@@ -218,6 +221,8 @@ class Settings:
         s.stages = Stages(**_to_dict(self.stages))
         if s.visual_strictness not in STRICTNESS_LEVELS:
             s.visual_strictness = "balanced"
+        if s.brain not in ("tools", "classic"):
+            s.brain = "tools"
         s.page_size = _clamp(s.page_size, 6, 200)
         if s.ui_density not in DENSITY_COLUMNS:
             s.ui_density = "comfortable"

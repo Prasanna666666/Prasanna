@@ -15,8 +15,8 @@ def test_indexing_does_not_start_by_itself_and_old_choice_resets_once(tmp_path):
     paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
     paths.settings_file.write_text(json.dumps({"schema": 5, "auto_scan": True, "page_size": 48}))
     s = Settings.load(paths)
-    assert s.auto_scan is False and s.page_size == 48 and s.schema == 7
-    paths.settings_file.write_text(json.dumps({"schema": 7, "auto_scan": True}))
+    assert s.auto_scan is False and s.page_size == 48 and s.schema == 8
+    paths.settings_file.write_text(json.dumps({"schema": 8, "auto_scan": True}))
     assert Settings.load(paths).auto_scan is True  # a deliberate choice made after v6 is kept
 
 

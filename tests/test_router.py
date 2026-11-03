@@ -76,7 +76,9 @@ def _context(tmp_path, monkeypatch):
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
-    return AppContext(paths)
+    ctx = AppContext(paths)
+    ctx.settings.brain = "classic"  # these tests are about the classic router + planner pipeline
+    return ctx
 
 
 @pytest.mark.parametrize("reply,expected", [('{"route": "chat"}', "chat"), ('{"route": "photos"}', "photos"),

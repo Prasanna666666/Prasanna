@@ -212,9 +212,13 @@ class Executor:
         return np.sort(hits.ids)
 
     def _coverage_note(self, result: ExecResult) -> None:
-        total, indexed = self._conn.execute("SELECT COUNT(*), SUM(meta_done) FROM items WHERE missing=0").fetchone()
-        if total and (indexed or 0) < total:
-            result.notes.append(f"Indexing is still in progress: searching {indexed or 0:,} of {total:,} photos so far.")
+        """Only mention photos that are really still waiting. Files that failed to index (unreadable, unsupported) are flagged as
+        errors and will never be indexed: counting them would keep this note on screen forever, even when indexing is finished."""
+        total, pending = self._conn.execute(
+            "SELECT COUNT(*), SUM(meta_done=0 AND error IS NULL) FROM items WHERE missing=0"
+        ).fetchone()
+        if total and (pending or 0) > 0:
+            result.notes.append(f"{pending:,} of {total:,} photos are not indexed yet, so they are not searched.")
 
     def _rank(self, ids: np.ndarray) -> np.ndarray:
         """Best visual match first, otherwise newest first.  Never drops an id."""

@@ -7,6 +7,8 @@ code base testable and replaceable.
 
 from __future__ import annotations
 
+from typing import Any
+
 from collections.abc import Callable
 from functools import lru_cache
 
@@ -24,6 +26,8 @@ from .agent.knowledge import gather_facts
 from .agent.llm import LLMError, OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
+from . import library as lib
+from .agent.toolagent import ToolAgent, close_matches
 from .agent.service import CHAT_MAX_TOKENS, CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
@@ -316,12 +320,61 @@ class AppContext:
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
             return self.llm().stream_chat(_chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS)
 
+        def library_context(request: str) -> str:
+            """RAG: facts from the user's own library that matter for THIS request (matching places and people, the date span)."""
+            lines = [library_facts(request)]
+
+            def count() -> str:
+                conn = self.db.connect()
+                try:
+                    cov = lib.coverage(conn)
+                    return f"{cov.total:,} files, {cov.indexed:,} indexed"
+                finally:
+                    conn.close()
+
+            lines.append("LIBRARY SIZE: " + self.memo("coverage_text", 60.0, count))
+            people = people_names()
+            if people:
+                lines.append("PEOPLE FOUND: " + ", ".join(people[:40]))
+            return "\n".join(line for line in lines if line)
+
+        def overview(previous_ids: Any) -> str:
+            """The library_overview tool: plain facts for the model to read."""
+            conn = self.db.connect()
+            try:
+                return gather_facts(conn, self.paths, previous_ids)
+            finally:
+                conn.close()
+
+        def lookup(kind: str, text: str) -> list[str]:
+            """The look_up tool: which places, people or folders really exist in this library."""
+            def distinct(sql: str) -> list[str]:
+                conn = self.db.connect()
+                try:
+                    return [str(r[0]) for r in conn.execute(sql) if r[0]]
+                finally:
+                    conn.close()
+
+            if kind == "person":
+                return close_matches(people_names(), text)
+            if kind == "place":
+                places = self.memo("all_places", 300.0, lambda: distinct("SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0"))
+                return close_matches(places, text)
+            if kind == "folder":
+                folders = self.memo("all_folders", 300.0, lambda: distinct(
+                    "SELECT DISTINCT substr(rel_path, 1, instr(rel_path, '/') - 1) FROM items WHERE instr(rel_path, '/') > 0 AND missing=0"))
+                return close_matches(folders, text)
+            return []
+
         if not self.settings.agentic:
-            return AgentService(
+            service = AgentService(
                 Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
                 answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
-                fast_search=self.settings.fast_search,
+                fast_search=self.settings.fast_search, rescue=self.settings.rescue_search,
             )
+            if self.settings.brain == "tools":
+                return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup)
+            return service
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

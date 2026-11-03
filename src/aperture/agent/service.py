@@ -116,7 +116,9 @@ class AgentService:
         chat_stream: Callable[[str, list[tuple[str, str]]], Any] | None = None,
         router: Callable[[str, bool], str] | None = None,
         fast_search: bool = True,
+        rescue: bool = True,
     ) -> None:
+        self._rescue = rescue
         self._fast_search = fast_search
         self._router = router
         self._chatter = chatter
@@ -175,10 +177,23 @@ class AgentService:
             except (LLMError, PlanningError) as exc:
                 return AgentReply("error", str(exc))
             timings["plan"] = round(time.perf_counter() - started, 2)
-        plan = planned.plan
+        return self.run_plan(request, planned.plan, previous_ids, history, planned.warnings, timings)
+
+    def run_plan(
+        self,
+        request: str,
+        plan: Plan,
+        previous_ids: np.ndarray | None = None,
+        history: list[tuple[str, str]] | None = None,
+        warnings: list[str] | None = None,
+        timings: dict[str, float] | None = None,
+    ) -> AgentReply:
+        """Carry out a plan (from the planner or from a tool call) and write the reply. Shared by every kind of agent."""
+        timings = {} if timings is None else timings
+        warnings = [] if warnings is None else warnings
         if plan.intent == "count" and not plan.has_constraints and previous_ids is None:
             plan = dataclasses.replace(plan, all_photos=True)  # "how many photos do I have?" means all of them
-        base: dict[str, Any] = {"plan": plan, "warnings": planned.warnings, "timings": timings}
+        base: dict[str, Any] = {"plan": plan, "warnings": warnings, "timings": timings}
 
         if plan.intent == "chat":
             return self._chat_reply(request, history, base, plan.message)
@@ -200,7 +215,8 @@ class AgentService:
             outcome = executor.run(plan, previous_ids)
             timings["search"] = round(time.perf_counter() - started, 2)
             if (
-                len(outcome.ids) == 0
+                self._rescue
+                and len(outcome.ids) == 0
                 and plan.intent in ("find", "count", "export")
                 and plan.scope == "library"
                 and _only_plain_clauses(plan)
