@@ -23,7 +23,7 @@ ollama pull ministral-3:3b                  # the ONLY step that needs internet 
 ./scripts/up.sh                             # creates the database key in your Keychain on first run, then starts everything
 ./scripts/up.sh --show-key                  # print the key ONCE and store it offline: lose the key = lose the data
 ```
-Open http://127.0.0.1:8501. Drop PDFs / CSVs / text into `~/OrbitInbox`; the parser picks them up, then use the Documents page.
+Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` and `ingest` **refuse to run without the encryption key** (so effectively only via Docker); for throwaway fake data use `ORBIT_ALLOW_PLAIN=1 ORBIT_HOME=/tmp/orbit-test orbit ui`. Drop PDFs / CSVs / text into `~/OrbitInbox`; the parser picks them up, then use the Documents page.
 
 ```
  ~/OrbitInbox (read-only) -> [parser: NO network, 1 GB, 128 procs] -> parsed JSON volume -(read-only)-> [app: no internet,
