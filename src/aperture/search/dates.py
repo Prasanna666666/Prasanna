@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 SEASON_START_MONTH = {"spring": 3, "summer": 6, "autumn": 9, "winter": 12}
+UNITS = ("day", "week", "month", "year")
 RELATIVE = (
     "today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "last_year",
 )  # fmt: skip
@@ -28,10 +29,13 @@ class DateSpec:
     relative: str = "none"
     start: str = ""  # explicit ISO dates, inclusive
     end: str = ""
+    ago: int = 0  # "N units back": how many
+    unit: str = "none"  # day | week | month | year
+    through: bool = False  # True: everything since then ("the last 3 months"); False: that one period ("2 months back")
 
     @property
     def is_empty(self) -> bool:
-        return not (self.year or self.month or self.season != "none" or self.relative != "none" or self.start or self.end)
+        return not (self.year or self.month or self.season != "none" or self.relative != "none" or self.start or self.end or (self.ago and self.unit in UNITS))
 
 
 def _month_start(year: int, month: int) -> date:
@@ -49,6 +53,8 @@ def resolve(spec: DateSpec, today: date) -> tuple[date, date] | None:
     """``[start, end)`` for the spec, or ``None`` when it is empty/invalid."""
     if spec.is_empty:
         return None
+    if spec.ago and spec.unit in UNITS:
+        return _ago(spec.ago, spec.unit, spec.through, today)
     if spec.start or spec.end:
         start, end = _parse(spec.start), _parse(spec.end)
         if start is None and end is None:
@@ -73,6 +79,22 @@ def resolve(spec: DateSpec, today: date) -> tuple[date, date] | None:
     if year:
         return date(year, 1, 1), date(year + 1, 1, 1)
     return None
+
+
+def _ago(n: int, unit: str, through: bool, today: date) -> tuple[date, date] | None:
+    """'N units back' as a range, by calendar arithmetic (the model never computes dates)."""
+    n = max(1, min(n, 1200))
+    if unit == "day":
+        begin, stop = today - timedelta(days=n), today - timedelta(days=n - 1)
+    elif unit == "week":
+        week_start = today - timedelta(days=today.weekday())
+        begin = week_start - timedelta(days=7 * n)
+        stop = begin + timedelta(days=7)
+    elif unit == "month":
+        begin, stop = _month_start(today.year, today.month - n), _month_start(today.year, today.month - n + 1)
+    else:
+        begin, stop = date(today.year - n, 1, 1), date(today.year - n + 1, 1, 1)
+    return (begin, today + timedelta(days=1)) if through else (begin, stop)
 
 
 def _relative(keyword: str, today: date) -> tuple[date, date]:

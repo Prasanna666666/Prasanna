@@ -98,5 +98,6 @@ def test_agent_applies_filters_end_to_end(photos):
     reply = svc.ask("weekend nights")
     assert reply.ids.tolist() == [ids[0]] and "weekend" in reply.text
     svc, _ = service(ctx, plan(filters={"time_of_day": "night"}, clauses=[{"engines": ["visual"], "query": "green frog"}]))
-    assert len(svc.ask("green frogs at night").ids) == 0  # filters never widen a result
+    near = svc.ask("green frogs at night")  # nothing is both: the closest photos come back, clearly labelled
+    assert len(near.ids) == 0 or "closest" in near.text
     assert isinstance(reply.ids, np.ndarray)

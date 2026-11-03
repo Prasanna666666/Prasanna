@@ -149,6 +149,9 @@ def _date_spec(raw: Any) -> DateSpec:
         relative=_choice(raw.get("relative"), RELATIVES, "none"),
         start=_text(raw.get("start"), 10),
         end=_text(raw.get("end"), 10),
+        ago=max(0, min(_int(raw.get("ago")), 1200)),
+        unit=_choice(raw.get("unit"), ("day", "week", "month", "year"), "none"),
+        through=raw.get("through") is True,
     )
 
 

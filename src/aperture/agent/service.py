@@ -112,6 +112,8 @@ DATE_SYSTEM = (
     "'pics from last month' -> {\"phrase\": \"last month\", \"relative\": \"last_month\"}\n"
     "'what I shot in August 2019' -> {\"phrase\": \"August 2019\", \"year\": 2019, \"month\": 8}\n"
     "'skiing trip winter 2023' -> {\"phrase\": \"winter 2023\", \"year\": 2023, \"season\": \"winter\"}\n"
+    "'pics from 2 months back' -> {\"phrase\": \"2 months back\", \"ago\": 2, \"unit\": \"month\"}\n"
+    "'photos from the last 3 weeks' -> {\"phrase\": \"the last 3 weeks\", \"ago\": 3, \"unit\": \"week\", \"through\": true}\n"
     "'cats on the sofa' -> {\"phrase\": \"\"}"
 )
 DATE_SCHEMA = {
@@ -119,7 +121,9 @@ DATE_SCHEMA = {
     "properties": {"phrase": {"type": "string"}, "year": {"type": "integer"}, "month": {"type": "integer"},
                    "season": {"type": "string", "enum": ["spring", "summer", "autumn", "winter"]},
                    "relative": {"type": "string", "enum": ["today", "yesterday", "this_week", "last_week", "this_month", "last_month",
-                                                             "this_year", "last_year"]}},
+                                                             "this_year", "last_year"]},
+                   "ago": {"type": "integer"}, "unit": {"type": "string", "enum": ["day", "week", "month", "year"]},
+                   "through": {"type": "boolean"}},
     "required": ["phrase"],
 }
 
@@ -230,7 +234,7 @@ class AgentService:
         """Carry out a plan (from the planner or from a tool call) and write the reply. Shared by every kind of agent."""
         timings = {} if timings is None else timings
         warnings = [] if warnings is None else warnings
-        if self._date_step is not None and plan.intent in ("find", "count", "export") and plan.date.is_empty:
+        if self._date_step is not None and plan.intent in ("find", "count", "export"):  # authoritative: the planner invents dates
             started = time.perf_counter()
             try:  # a small, focused step: is there a time expression the plan missed (or turned into words)?
                 phrase, spec = self._date_step(request)
@@ -312,6 +316,8 @@ class AgentService:
         }
         conditions = describe_conditions(plan, outcome.date_range)
         n = len(outcome.ids)
+        if n and getattr(outcome, "partial", ""):
+            return AgentReply("results", f"Nothing matches everything, so here are the **{n:,}** closest photos.", **common)
         if n == 0:
             return AgentReply("results", f"No photos found. {explain_empty(outcome.reports)}", **common)
         if plan.intent == "count":

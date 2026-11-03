@@ -9,6 +9,7 @@ empty result can explain exactly which constraint eliminated everything.
 
 from __future__ import annotations
 
+import dataclasses
 import difflib
 import logging
 import sqlite3
@@ -49,7 +50,10 @@ class ExecResult:
     notes: list[str] = field(default_factory=list)
     date_range: str = ""
     universe: int = 0
+    partial: str = ""  # set when no photo met every criterion: what the closest photos do match
 
+
+CLOSEST_LIMIT = 200  # how many near matches to return when nothing fits every requirement
 
 FALLBACK_ENGINES = ("place", "path", "text", "visual")  # cheap, exact ones first; people are never guessed
 
@@ -75,6 +79,17 @@ class Executor:
 
     # ------------------------------------------------------------------
     def run(self, plan: Plan, previous_ids: np.ndarray | None = None) -> ExecResult:
+        """Search, then rank. Criteria are soft: if no photo meets all of them, the closest photos are returned."""
+        result = self._run(plan, previous_ids)
+        if len(result.ids) == 0 and plan.scope == "previous" and previous_ids is not None and len(previous_ids):
+            # "Refine the earlier results" is a preference, not a wall: nothing there, so look in the whole library.
+            wider = self._run(dataclasses.replace(plan, scope="library"), None)
+            if len(wider.ids):
+                wider.notes.insert(0, "None of the earlier results matched, so I searched your whole library.")
+                return wider
+        return result
+
+    def _run(self, plan: Plan, previous_ids: np.ndarray | None = None) -> ExecResult:
         result = ExecResult(ids=np.zeros(0, np.int64))
         self._visual_scores = {}
         universe = all_ids(self._conn)
@@ -90,6 +105,7 @@ class Executor:
             result.notes.append("Nothing to search for was given.")
             return result
         current = universe
+        criteria: list[tuple[str, np.ndarray]] = []  # every positive requirement, for closest-match ranking
         positives = [c for c in plan.clauses if not c.exclude]
         negatives = [c for c in plan.clauses if c.exclude]
 
@@ -102,6 +118,7 @@ class Executor:
                     result.reports.append(ClauseReport(clause.label, len(ids), len(current)))
             else:
                 for clause, ids in sets:
+                    criteria.append((clause.label, ids))
                     current = np.intersect1d(current, ids, assume_unique=True)
                     result.reports.append(ClauseReport(clause.label, len(ids), len(current)))
         for clause in negatives:
@@ -115,6 +132,7 @@ class Executor:
             ids = date_ids(self._conn, start.isoformat(), end.isoformat())
             current = np.intersect1d(current, ids, assume_unique=True)
             result.date_range = f"{start.isoformat()} to {(end - timedelta(days=1)).isoformat()}"
+            criteria.append((f"date {result.date_range}", ids))
             result.reports.append(ClauseReport(f"date {result.date_range}", len(ids), len(current)))
         elif not plan.date.is_empty:
             result.notes.append("I could not understand the date, so I ignored it.")
@@ -122,11 +140,44 @@ class Executor:
         if not plan.filters.is_empty:
             ids, notes = apply_filters(self._conn, plan.filters, self._geo_provider())
             current = np.intersect1d(current, ids, assume_unique=True)
+            criteria.append((f"filters: {plan.filters.describe()}", ids))
             result.notes.extend(n for n in notes if n not in result.notes)
             result.reports.append(ClauseReport(f"filters: {plan.filters.describe()}", len(ids), len(current)))
 
+        if len(current) == 0 and plan.match == "all" and len(criteria) >= 2:
+            self._closest(result, universe, criteria, negatives_ids=[self._clause_ids(c, result) for c in negatives])
+            return result
         result.ids = self._rank(current)
         return result
+
+    def _closest(self, result: ExecResult, universe: np.ndarray, criteria: list[tuple[str, np.ndarray]], negatives_ids: list[np.ndarray]) -> None:
+        """No photo meets everything: score each photo by the criteria it meets (rarer criteria count more) and keep the best."""
+        total = max(len(universe), 2)
+        score: dict[int, float] = {}
+        met: dict[int, list[str]] = {}
+        for label, ids in criteria:
+            ids = np.intersect1d(universe, ids, assume_unique=True)
+            if len(ids) == 0:
+                continue
+            weight = float(np.log(total / len(ids))) + 0.1
+            for i in ids.tolist():
+                score[i] = score.get(i, 0.0) + weight
+                met.setdefault(i, []).append(label)
+        for ids in negatives_ids:
+            for i in ids.tolist():
+                score.pop(i, None)
+        if not score:
+            return
+        for i, s in list(score.items()):
+            score[i] = s + 0.5 * max(self._visual_scores.get(i, 0.0), 0.0)
+        best = sorted(score, key=lambda i: -score[i])[:CLOSEST_LIMIT]
+        result.ids = np.array(best, np.int64)
+        top = met[best[0]]
+        result.partial = "; ".join(top)
+        result.notes.append(
+            f"No photo matches everything you asked for. These are the closest: the best of them match {len(top)} of {len(criteria)} "
+            f"requirements ({result.partial})."
+        )
 
     # ------------------------------------------------------------------
     def _clause_ids(self, clause: Clause, result: ExecResult) -> np.ndarray:

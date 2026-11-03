@@ -323,7 +323,8 @@ def test_the_date_step_is_skipped_when_the_plan_has_a_date_or_finds_none_or_fail
     svc = _service_with_dates(step, plans)
     dated = Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),), date=_spec(year=2020))
     svc.run_plan("dogs 2020", dated)
-    assert not calls and plans[0].date.year == 2020  # already has a date: no extra call
+    assert calls == ["dogs 2020"] and plans[0].date.year == 2020  # the date step is checked every time; no phrase found keeps the plan
+    calls.clear()
     svc.run_plan("dogs", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
     assert calls == ["dogs"] and plans[1].date.is_empty  # nothing found: the plan is untouched
 
@@ -381,3 +382,39 @@ def test_an_empty_search_is_reviewed_and_retried_with_a_different_plan():
     reply = svc.run_plan("pics from tokyo", first)
     assert [p.scope for p in seen] == ["previous", "library"]
     assert len(reply.ids) == 2 and "different approach" in " ".join(reply.notes) and "previous" in feedback[0]
+
+
+def test_when_nothing_meets_every_requirement_the_closest_photos_are_returned_and_labelled():
+    import sqlite3
+
+    import numpy as np
+
+    from aperture.agent.executor import Executor
+    from aperture.agent import executor as ex
+
+    conn = sqlite3.connect(":memory:")
+    ex_ = Executor(conn, lambda: None, lambda: None)
+    result = ex.ExecResult(ids=np.zeros(0, np.int64))
+    universe = np.arange(1, 101)
+    criteria = [("place 'Tokyo'", np.array([5, 6])), ("date 2024", np.arange(10, 51)), ("visual 'ramen'", np.array([6, 90]))]
+    ex_._closest(result, universe, criteria, [])
+    assert result.ids[0] == 6 and "2 of 3" in result.notes[0] and result.partial
+
+
+def test_any_n_units_back_is_resolved_by_calendar_code_not_by_the_model():
+    from aperture.search.dates import DateSpec, resolve
+
+    today = date(2026, 11, 3)
+    assert resolve(DateSpec(ago=2, unit="month"), today) == (date(2026, 9, 1), date(2026, 10, 1))
+    assert resolve(DateSpec(ago=1, unit="month"), today) == (date(2026, 10, 1), date(2026, 11, 1))  # same as 'last month'
+    assert resolve(DateSpec(ago=3, unit="week", through=True), today) == (date(2026, 10, 12), date(2026, 11, 4))
+    assert resolve(DateSpec(ago=2, unit="year"), today) == (date(2024, 1, 1), date(2025, 1, 1))
+
+
+def test_a_date_step_answer_overrides_the_dates_the_planner_invented():
+    from aperture.agent.service import apply_dates
+    from aperture.search.dates import DateSpec
+
+    invented = Plan(intent="find", clauses=(Clause(engines=("text",), query="months"),), date=DateSpec(end="2026-08-07"))
+    fixed = apply_dates(invented, "2 months back", DateSpec(ago=2, unit="month"))
+    assert fixed.date.ago == 2 and fixed.date.end == "" and not fixed.clauses
