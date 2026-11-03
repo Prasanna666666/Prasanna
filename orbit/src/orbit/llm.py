@@ -52,7 +52,7 @@ class OllamaClient:
                            f"Run:  ollama pull {preferred}")
 
     def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None) -> dict[str, Any]:
-        body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": "10m",
+        body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": "2m",
                                 "options": {"temperature": 0.2, "num_ctx": 4096}}
         if tools:
             body["tools"] = tools
