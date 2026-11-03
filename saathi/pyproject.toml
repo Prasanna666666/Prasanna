@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saathi"
+version = "0.1.0"
+description = "Private personal assistant: tasks, notes, money, family - one local database, one chat"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+ai = ["anthropic>=0.40"]
+ui = ["streamlit>=1.48"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+saathi = "saathi.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
