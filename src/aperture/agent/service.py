@@ -76,12 +76,15 @@ def _only_plain_clauses(plan: Plan) -> bool:
 
 
 CHAT_SYSTEM = (
-    "You are Lumo, a friendly assistant inside a private photo app. You can talk about anything: answer questions, explain things, "
-    "help with writing, give advice, chat. Be concise and clear, like a thoughtful friend. You run offline on the user's own Mac, so "
-    "you cannot browse the web or know today's news. You can also find photos when asked (for example 'show me beach photos'); "
-    "mention that only when it is relevant. In this reply you are NOT searching photos, so never claim to have found any."
+    "You are Lumo, the assistant inside a private photo app on the user's Mac. Your job is to help them find and understand their photos. "
+    "Reply in one or two short sentences of plain text: no lists, no emojis, no cheerleading. "
+    "For small talk, answer in a few words and steer back to the photos. For a general question, answer it briefly and directly. "
+    "Never offer to brainstorm, give career or relationship advice, play games or write essays, and never list everything you can do. "
+    "You run offline on the user's own Mac, so you cannot browse the web or know today's news. "
+    "You can find photos when asked (for example 'show me beach photos'); mention that only when it is relevant. "
+    "In this reply you are NOT searching photos, so never claim to have found any."
 )
-
+CHAT_MAX_TOKENS = 160  # short answers: it is a photo app, and short answers are also fast
 
 ROUTER_SYSTEM = (
     "You route messages in a private photo app. Reply with JSON: {\"route\": \"simple\"}, {\"route\": \"photos\"} or {\"route\": \"chat\"}.\n"
@@ -99,35 +102,6 @@ ROUTER_SYSTEM = (
 )
 ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["simple", "photos", "chat"]}}, "required": ["route"]}
 MAX_SIMPLE_WORDS = 4
-
-_GREETINGS = {"hi", "hello", "hey", "hi there", "hello there", "hey there", "good morning", "good afternoon", "good evening"}
-_THANKS = {"thanks", "thank you", "thanks a lot", "thank you so much", "thx", "cheers"}
-_BYES = {"bye", "goodbye", "good night", "see you", "see ya"}
-_HOW_ARE_YOU = {"how are you", "how are you doing", "how are you today", "how are you doing today", "hows it going", "how is it going",
-                "whats up", "what is up", "how r u", "how are u", "how do you do"}
-_WHO = {"who are you", "what are you", "what is your name", "whats your name"}
-_HELP = {"help", "what can you do", "what do you do", "what can you do for me"}
-
-
-def instant_reply(request: str) -> str | None:
-    """A ready answer for greetings, thanks, goodbyes and the usual small talk: no AI call, so it appears at once."""
-    cleaned = request.lower().replace("'", "").replace("\u2019", "")
-    text = " ".join("".join(ch if ch.isalnum() or ch.isspace() else " " for ch in cleaned).split())
-    if text in _GREETINGS:
-        return "Hi! I'm Lumo. Ask me to find photos, like 'beach photos from last summer', or just chat."
-    if text in _HOW_ARE_YOU:
-        return "I'm doing well, thanks for asking! Ask me for photos, like 'beach photos from last summer', or just chat."
-    if text in _THANKS:
-        return "You're welcome!"
-    if text in _BYES:
-        return "See you soon!"
-    if text in _WHO:
-        return "I'm Lumo, a private assistant that finds your photos and chats. I run entirely on your Mac."
-    if text in _HELP:
-        return ("I can find photos by what they show, who is in them, where and when, or text written on them; count them; and answer "
-                "questions about your library. I can also just chat. Try 'sunsets from last year' or 'how many photos do I have?'.")
-    return None
-
 
 class AgentService:
     def __init__(
@@ -170,9 +144,6 @@ class AgentService:
     ) -> AgentReply:
         if not request.strip():
             return AgentReply("clarify", "What would you like to find?")
-        quick = instant_reply(request)
-        if quick:
-            return AgentReply("chat", quick)
         timings: dict[str, float] = {}
         route = "photos"
         if self._router is not None:  # a tiny, fast question first: simple search, photo question, or just conversation?

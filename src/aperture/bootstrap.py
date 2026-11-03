@@ -24,7 +24,7 @@ from .agent.knowledge import gather_facts
 from .agent.llm import LLMError, OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
-from .agent.service import CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
+from .agent.service import CHAT_MAX_TOKENS, CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
@@ -310,11 +310,11 @@ class AppContext:
 
         def chatter(request: str, history: list[tuple[str, str]]) -> str:
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
-            return self.llm().complete_chat(_chat_system(), [*turns, {"role": "user", "content": request}])
+            return self.llm().complete_chat(_chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS)
 
         def chat_stream(request: str, history: list[tuple[str, str]]):
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
-            return self.llm().stream_chat(_chat_system(), [*turns, {"role": "user", "content": request}])
+            return self.llm().stream_chat(_chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS)
 
         if not self.settings.agentic:
             return AgentService(

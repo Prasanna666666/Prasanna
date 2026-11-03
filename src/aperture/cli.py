@@ -451,7 +451,6 @@ BUDGET = {"router": 1.5, "first words": 3.0, "AI plan": 6.0, "instant photo matc
 
 def cmd_check(ctx: AppContext) -> int:
     from .agent.planner import Planner, PlannerContext
-    from .agent.service import instant_reply
     from .evaluation import evaluate_routes
     from .search.quick import quick_ids
 
@@ -463,7 +462,6 @@ def cmd_check(ctx: AppContext) -> int:
 
     steps = [
         ("AI model load (cold start)", llm.warm),
-        ("instant greeting (no AI)", lambda: instant_reply("hello")),
         ("router: photos or chat?", lambda: router("tell me a joke", False)),
         ("chat: first words appear", first_words),
         ("photo search: the AI plan", lambda: Planner(llm).plan("sunset photos", PlannerContext(today=date.today()))),

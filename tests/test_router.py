@@ -12,17 +12,8 @@ from aperture.agent import llm as llm_mod
 from aperture.agent.llm import LLMError, OllamaClient
 from aperture.agent.planner import PlanResult
 from aperture.agent.schema import Clause, Plan
-from aperture.agent.service import ROUTER_SCHEMA, AgentService, instant_reply
+from aperture.agent.service import ROUTER_SCHEMA, AgentService
 from aperture.evaluation import evaluate_routes
-
-
-@pytest.mark.parametrize("text,expected", [
-    ("hello", True), ("Hi!", True), ("hey there", True), ("Thanks!", True), ("thank you so much", True), ("bye", True),
-    ("good morning", True),
-    ("hello, how many pics in 2026", False), ("how many pics in 2026", False), ("hi anna photos", False), ("thanks for the beach photos", False),
-])
-def test_instant_replies_only_for_plain_greetings(text, expected):
-    assert (instant_reply(text) is not None) is expected
 
 
 class Planner:
@@ -41,13 +32,7 @@ def service(router, planner=None, executor_called=None, **kw):
     return AgentService(planner or Planner(), make_executor, lambda: [], today=lambda: date(2026, 11, 3), router=router, **kw)
 
 
-def test_greeting_never_calls_the_router_or_the_planner():
-    def router(request, has_previous):
-        raise AssertionError("no AI call for a plain greeting")
 
-    planner = Planner()
-    reply = service(router, planner).ask("hello")
-    assert reply.kind == "chat" and "Lumo" in reply.text and planner.calls == 0
 
 
 def test_chat_route_skips_the_planner_and_streams():
@@ -260,15 +245,6 @@ def test_a_count_after_earlier_results_is_not_widened_to_everything():
     assert reply.kind == "clarify"  # unchanged behaviour: it refers to the earlier set, which the planner did not narrow
 
 
-@pytest.mark.parametrize("text", ["How are you?", "how are you doing today", "What's up", "who are you", "what can you do?", "help"])
-def test_common_small_talk_is_answered_instantly_without_the_ai(text):
-    def router(request, has_previous):
-        raise AssertionError("no AI call for small talk")
-
-    reply = service(router).ask(text)
-    assert reply.kind == "chat" and reply.text and not reply.stream
-
-
 def test_timings_cover_every_step_of_a_photo_question():
     class Planner2:
         def plan(self, request, ctx):
@@ -288,3 +264,15 @@ def test_timings_cover_every_step_of_a_photo_question():
     # timings live on successful replies; check the chat route (no search) carries route time
     chat = service(lambda r, p: "chat", chat_stream=lambda *a: iter(["x"])).ask("tell me about cameras")
     assert set(chat.timings) == {"route"}
+
+
+def test_real_chat_requests_are_short_and_calm(tmp_path, monkeypatch):
+    from aperture.agent.service import CHAT_MAX_TOKENS
+
+    sent = []
+    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "ok"}})
+    agent = _context(tmp_path, monkeypatch).agent()
+    agent._chatter("tell me about cameras", [])
+    p = sent[0]
+    assert CHAT_MAX_TOKENS == 160 and p["options"]["num_predict"] == 160 and p["options"]["temperature"] == 0.3
+    assert "photo app" in p["messages"][0]["content"] and "emojis" in p["messages"][0]["content"]

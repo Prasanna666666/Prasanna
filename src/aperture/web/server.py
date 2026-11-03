@@ -56,12 +56,12 @@ class Web:
         self._cache: dict[str, tuple[float, Any]] = {}
         self.paused_for_chat = False
         self._counts: dict[str, int] = {"photos": 0, "indexed": 0}
-        self._counts_at = 0.0
+        self._counts_at: float | None = None
         self._counting = False
 
     def refresh_counts_async(self, every: float = 120.0) -> None:
         """Counting the library scans a table on the external drive: do it in the background, never while a request waits."""
-        if self._counting or time.monotonic() - self._counts_at < every:
+        if self._counting or (self._counts_at is not None and time.monotonic() - self._counts_at < every):
             return
         self._counting = True
 

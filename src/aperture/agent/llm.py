@@ -118,7 +118,7 @@ class OllamaClient:
                 "messages": [{"role": "system", "content": system}, *messages],
                 "stream": False,
                 "keep_alive": self.keep_alive,
-                "options": {"temperature": 0.6, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+                "options": {"temperature": 0.3, "num_ctx": NUM_CTX, "num_predict": max_tokens},
             },
         )
         message = body.get("message")
@@ -131,7 +131,7 @@ class OllamaClient:
             "messages": [{"role": "system", "content": system}, *messages],
             "stream": True,
             "keep_alive": self.keep_alive,
-            "options": {"temperature": 0.6, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+            "options": {"temperature": 0.3, "num_ctx": NUM_CTX, "num_predict": max_tokens},
         }
         request = urllib.request.Request(
             self.base_url + "/api/chat", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}

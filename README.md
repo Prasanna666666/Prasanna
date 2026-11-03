@@ -37,8 +37,8 @@ aperture --insecure web     # explicit override (not recommended)
 ```
 
 Lumo is a small local web app written for speed: the page opens instantly and "New chat" costs the server nothing; photo matches
-stream in first (milliseconds), then the checked answer, then the reply word by word. Greetings answer instantly, one-subject
-searches skip the AI plan, and everything else goes through a tiny router. It is plain HTML/CSS/JS served by the standard library
+stream in first (milliseconds), then the checked answer, then the reply word by word. One-subject
+searches skip the AI plan, and every message first goes through a tiny model-driven router (no phrase lists anywhere). It is plain HTML/CSS/JS served by the standard library
 (no frameworks, no CDN, no new packages) with a strict Content-Security-Policy, a per-run token, host/origin checks and photos served
 only by number from Aperture's own thumbnail folders. Not in the new app yet: the Photos browser, People, Tidy up, Settings and the
 export/move cards (use `--classic` for those).
@@ -49,7 +49,7 @@ Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with re
 
 ## Best setup for an 8 GB M1 (what this app is built for)
 - The AI model (Ministral 3B) only understands language, with short prompts and tiny outputs. Search, matching and counting are plain code and image search: milliseconds.
-- Plain greetings answer instantly (no AI); a tiny router sends photo questions to the planner and everything else to a streamed chat reply.
+- A tiny model-driven router sends photo questions to the planner and everything else to a short, streamed, photo-focused chat reply.
 - One model in memory; indexing pauses while you chat and unloads the model when it starts.
 - Measure it all with one command: `aperture check` (seconds per step, routing accuracy). Honest limit: a 3B model writes ~19 words a second and is weak at hard reasoning; a bigger Mac or a home server is the only way past that.
 
