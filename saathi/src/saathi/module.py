@@ -23,9 +23,12 @@ class Tool:
 
     def schema(self) -> dict[str, Any]:
         return {
-            "name": self.name,
-            "description": self.description,
-            "input_schema": {"type": "object", "properties": self.properties, "required": list(self.required)},
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {"type": "object", "properties": self.properties, "required": list(self.required)},
+            },
         }
 
 

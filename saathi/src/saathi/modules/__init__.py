@@ -1,10 +1,10 @@
 """Register new features here. Add a module file, append it to ALL - the UI chat and tools pick it up."""
 
 from ..module import Module, Tool
-from . import money, notes, people, tasks
+from . import money, notes, people, tasks, world
 from .today import MODULE as today
 
-ALL: list[Module] = [people.MODULE, tasks.MODULE, notes.MODULE, money.MODULE, today]
+ALL: list[Module] = [people.MODULE, tasks.MODULE, notes.MODULE, money.MODULE, world.MODULE, today]
 
 
 def tools(modules: list[Module] | None = None) -> dict[str, Tool]:

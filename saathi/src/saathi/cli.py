@@ -8,7 +8,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import agent, db
+from . import agent, db, netguard
 from .modules import ALL, tools
 from .modules.today import briefing_for
 
@@ -25,6 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     if cmd == "ui":
         app = Path(__file__).with_name("app.py")
         return subprocess.call([sys.executable, "-m", "streamlit", "run", str(app), *rest])
+    netguard.install()
     conn = open_db()
     if cmd == "brief":
         print(json.dumps(briefing_for(conn, date.today()), indent=2, default=str))
@@ -33,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{name:20} {t.description}")
     elif cmd == "chat":
         history: list[dict] = []
-        client = agent.make_client()
+        client = agent.llm.OllamaClient()
         print("Saathi - Ctrl-D to quit")
         while True:
             try:

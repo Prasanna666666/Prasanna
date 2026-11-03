@@ -6,8 +6,12 @@ from datetime import date
 
 import streamlit as st
 
-from saathi import agent, db
-from saathi.modules import ALL, money, notes, people, tasks
+from saathi import netguard
+
+netguard.install()
+
+from saathi import agent, db, llm
+from saathi.modules import ALL, money, notes, people, tasks, world
 from saathi.modules.today import briefing_for
 
 st.set_page_config(page_title="Saathi", page_icon="🧭", layout="wide")
@@ -66,12 +70,8 @@ elif page == "Chat":
     st.caption("e.g. “remind me to call Amma every Sunday”, “spent 450 on groceries”, “note: dad's BP meds are…”")
     hist = st.session_state.setdefault("history", [])
     for turn in hist:
-        if turn["role"] == "user" and isinstance(turn["content"], str):
-            st.chat_message("user").write(turn["content"])
-        elif turn["role"] == "assistant":
-            text = "".join(b.get("text", "") for b in turn["content"] if b["type"] == "text")
-            if text:
-                st.chat_message("assistant").write(text)
+        if turn["role"] in ("user", "assistant") and turn["content"]:
+            st.chat_message(turn["role"]).write(turn["content"])
     if prompt := st.chat_input("What do you need?"):
         st.chat_message("user").write(prompt)
         try:
@@ -159,9 +159,15 @@ elif page == "People":
 else:
     st.title("Settings")
     new = st.text_input("Currency code", cur)
-    mdl = st.text_input("Claude model", db.get_setting(C, "model", agent.DEFAULT_MODEL))
+    mdl = st.text_input("Local model (Ollama)", db.get_setting(C, "model", llm.DEFAULT_MODEL))
+    oh = st.text_input("Ollama address", db.get_setting(C, "ollama_host", "") or llm.host())
+    city = st.text_input("Home city (for weather)", db.get_setting(C, "home_city", ""))
     if st.button("Save"):
         db.set_setting(C, "currency", new.upper())
         db.set_setting(C, "model", mdl)
+        db.set_setting(C, "ollama_host", oh)
+        db.set_setting(C, "home_city", city)
         st.success("Saved")
-    st.caption(f"Data lives in {db.home()} - nothing leaves your machine except chat messages sent to Claude.")
+    st.caption(f"Data lives in {db.home()}. The model runs locally. The only internet traffic is the public lookups below.")
+    st.subheader("Everything sent to the internet")
+    st.dataframe(world.network_log(C, {"limit": 100}), width="stretch")
