@@ -93,14 +93,14 @@ PLAN_JSON_SCHEMA: dict[str, Any] = {
                     "query": {"type": "string"},
                     "exclude": {"type": "boolean"},
                 },
-                "required": ["engines", "query", "exclude"],
+                "required": ["engines", "query"],  # "exclude" defaults to false
             },
         },
-        "date": {"type": "object", "properties": _DATE_PROPS, "required": list(_DATE_PROPS)},
+        "date": {"type": "object", "properties": _DATE_PROPS},
         "filters": {"type": "object", "properties": _FILTER_PROPS},
         "folder_name": {"type": "string"},
     },
-    "required": ["intent", "message", "scope", "match", "all_photos", "clauses", "date", "folder_name"],
+    "required": ["intent", "clauses"],  # everything else defaults in plan_from_raw: fewer tokens to write = faster
 }
 
 

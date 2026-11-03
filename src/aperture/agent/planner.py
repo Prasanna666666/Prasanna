@@ -15,7 +15,7 @@ from .jsonutil import JSONExtractError, extract_json
 from .llm import LLMClient, LLMError
 from .schema import PLAN_JSON_SCHEMA, Plan, plan_from_raw
 
-SYSTEM_PROMPT = """You are the planning brain of Aperture, a private offline photo assistant.
+_PROMPT_TEXT = """You are the planning brain of Aperture, a private offline photo assistant.
 Convert the user's request into ONE JSON object. You do not search; you only plan.
 
 SEARCH ENGINES (a clause lists every engine where its words might live):
@@ -38,7 +38,7 @@ RULES
 1. One clause per distinct constraint. Clauses are combined with AND ("match":"all") unless the user says "or" ("match":"any").
 2. Use several engines in one clause when unsure where a word lives, e.g. a city: ["place","path"].
 3. "exclude":true means NOT (e.g. "without", "except", "not in").
-4. Dates go in "date" using year / month (1-12) / season / relative. NEVER compute dates yourself. Use 0 or "none" or "" for unused fields.
+4. Dates go in "date" using year / month (1-12) / season / relative. NEVER compute dates yourself. OMIT every field you do not need (only "intent" and "clauses" are required; omitted fields mean: nothing set).
 5. intent: "find" (show photos), "count" (how many), "export" (copy/put/organize into a folder; set folder_name),
    "chat" (greeting or question about what you can do; answer in "message"),
    "question" (the user asks ABOUT the library or the app instead of asking to see photos: statistics, "how many per year/place/camera",
@@ -75,6 +75,30 @@ User: did the move finish? how many photos are in each year?
 User: hi, what can you do?
 {"intent":"chat","message":"I can find photos by what they show, text inside them, people, places, dates and folders, and copy results into a folder.","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 """
+
+# Speed: a 3B model on an 8 GB Mac writes ~19 tokens/s, so every token costs time. The schema parser fills in all defaults, so
+# the examples (and the required fields) keep only what matters: ~35 tokens per plan instead of ~110.
+_DEFAULTS = {"message": "", "scope": "library", "match": "all", "all_photos": False, "folder_name": ""}
+
+
+def slim_plan(obj: dict) -> dict:
+    out = {k: v for k, v in obj.items() if k not in _DEFAULTS or v != _DEFAULTS[k]}
+    date_part = {k: v for k, v in (obj.get("date") or {}).items() if v not in (0, "none", "")}
+    out.pop("date", None)
+    if date_part:
+        out["date"] = date_part
+    out["clauses"] = [{k: v for k, v in c.items() if not (k == "exclude" and v is False)} for c in obj.get("clauses", [])]
+    return out
+
+
+def _slim_examples(text: str) -> str:
+    return "\n".join(
+        json.dumps(slim_plan(json.loads(line)), separators=(",", ":"), ensure_ascii=False) if line.startswith("{") else line
+        for line in text.split("\n")
+    )
+
+
+SYSTEM_PROMPT = _slim_examples(_PROMPT_TEXT)
 
 
 @dataclass(frozen=True)
