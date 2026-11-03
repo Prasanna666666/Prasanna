@@ -54,7 +54,7 @@ services:
   pull-model:
     image: ollama/ollama:0.5.7
     profiles: [setup]
-    entrypoint: ["sh", "-c", "ollama serve >/dev/null 2>&1 & sleep 4 && ollama pull $${MODEL:-llama3.1:8b}"]
+    entrypoint: ["sh", "-c", "ollama serve >/dev/null 2>&1 & sleep 4 && ollama pull $${MODEL:-llama3.2:3b}"]
     volumes: ["ollama-models:/root/.ollama"]
     networks: [outside]
 

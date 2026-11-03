@@ -10,7 +10,7 @@ from typing import Any
 
 from . import netguard
 
-DEFAULT_MODEL = "llama3.1:8b"
+DEFAULT_MODEL = "llama3.2:3b"
 
 
 def host() -> str:
@@ -24,7 +24,7 @@ class OllamaClient:
 
     def chat(self, model: str, messages: list[dict], tools: list[dict]) -> dict[str, Any]:
         body = json.dumps({"model": model, "messages": messages, "tools": tools, "stream": False,
-                           "options": {"temperature": 0.2}}).encode()
+                           "options": {"temperature": 0.2, "num_ctx": 4096}, "keep_alive": "10m"}).encode()
         req = urllib.request.Request(f"{self.base}/api/chat", body, {"Content-Type": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=300) as r:  # noqa: S310 - loopback/local host only

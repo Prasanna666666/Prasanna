@@ -6,7 +6,7 @@ A private personal assistant. One local SQLite database, one chat, small modules
 
 ```bash
 cd saathi && pip install -e ".[ui]"
-ollama pull llama3.1:8b           # the local model used by Chat (any tool-capable Ollama model works)
+ollama pull llama3.2:3b           # the local model used by Chat (any tool-capable Ollama model works)
 saathi ui                         # Today / Chat / Tasks / Notes / Money / People / Settings
 saathi brief | saathi tools | saathi chat
 ```
@@ -21,7 +21,7 @@ Data is in `~/.saathi/saathi.db` (override with `SAATHI_HOME`).
 cd saathi
 docker compose --profile setup run --rm pull-model     # once: downloads the model (only time it touches the internet)
 docker compose up -d --build                           # then open http://127.0.0.1:8501
-# Apple Silicon (native Ollama for GPU speed):  ollama pull llama3.1:8b  &&
+# Apple Silicon (native Ollama for GPU speed):  ollama pull llama3.2:3b  &&
 docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
 ```
 - `app`, `ollama`, `gateway`, `egress` share an **internal** network with no route to the internet.
@@ -31,6 +31,12 @@ docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
   published on 127.0.0.1 only. Data lives in Docker volumes `saathi-data` and `ollama-models`.
 - Disk encryption: Docker volumes are not encrypted by themselves - keep FileVault / BitLocker / LUKS on.
 - Verify isolation: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail.
+
+### Tuning for an 8 GB M1
+- Default model is `llama3.2:3b` (~2 GB, supports tool calls). `qwen2.5:3b` is a good alternative; avoid 7-8B models on 8 GB.
+- Docker Desktop > Settings > Resources: Memory 2 GB (the app, proxy and gateway are tiny; Ollama runs natively).
+- Close heavy apps while chatting; the model unloads itself 10 minutes after the last message.
+- Small models make more mistakes with dates and multi-step requests: check what it saved on the Tasks / Money pages.
 
 ## Privacy model
 - **The model is local** (Ollama). No cloud AI is used anywhere.

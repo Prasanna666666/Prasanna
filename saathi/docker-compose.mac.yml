@@ -1,7 +1,7 @@
 # Apple Silicon: Docker cannot use the GPU, so run Ollama natively (fast, Metal) and let the private network
 # reach it only through a TCP forwarder:
 #   docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d
-# Prereq on the Mac: install Ollama and `ollama pull llama3.1:8b`; it listens on 127.0.0.1:11434 by default.
+# Prereq on the Mac: install Ollama and `ollama pull llama3.2:3b`; it listens on 127.0.0.1:11434 by default.
 services:
   ollama:
     image: alpine/socat:1.8.0.0
