@@ -6,7 +6,7 @@ A private personal assistant. One local SQLite database, one chat, small modules
 
 ```bash
 cd orbit && pip install -e ".[ui]"
-ollama pull llama3.2:3b           # the local model used by Chat (any tool-capable Ollama model works)
+ollama pull ministral-3:3b       # the one local model Orbit uses (check the exact name at ollama.com/library)
 orbit ui                         # Today / Chat / Tasks / Notes / Money / People / Settings
 orbit brief | orbit tools | orbit chat
 ```
@@ -64,7 +64,7 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
   reliable on a 3B model, and a confused agent can only affect its own area. The chat shows which agent answered.
 - **Auto-tagging**: `orbit tag` or the Notes page button tags untagged notes (rules + people names first, then the local
   model, limited to a fixed vocabulary). It never changes tags you set yourself.
-- If the default model is not installed, Orbit uses an installed fallback or tells you the exact `ollama pull` to run.
+- If the model is not installed, Orbit tells you the exact `ollama pull` to run. It never switches to a different model family.
 
 ## Adding a feature
 1. Create `src/orbit/modules/health.py` with a `MODULE = Module(name, migrations, tools)` (see `tasks.py`).

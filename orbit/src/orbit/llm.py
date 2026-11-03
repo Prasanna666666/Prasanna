@@ -10,8 +10,9 @@ from typing import Any
 
 from . import netguard
 
-DEFAULT_MODEL = "ministral-3:3b"  # not verifiable from the build sandbox: resolve() falls back if it is not installed
-FALLBACKS = ("llama3.2:3b", "qwen2.5:3b")
+# The ONLY model Orbit uses (disk space is limited: one model, no fallbacks). The exact tag could not be verified from
+# the build sandbox; resolve() also accepts a single installed model whose name starts with "ministral".
+DEFAULT_MODEL = "ministral-3:3b"
 
 
 def host() -> str:
@@ -36,12 +37,17 @@ class OllamaClient:
         return [m["name"] for m in self._call("/api/tags", timeout=10).get("models", [])]
 
     def resolve(self, preferred: str) -> str:
-        """The preferred model if installed, else the first installed fallback, else a helpful error."""
+        """The configured model if installed; else the one installed Ministral model; else a helpful error."""
         names = self.installed()
         have = set(names) | {n.removesuffix(":latest") for n in names}
-        for cand in (preferred, *FALLBACKS):
-            if cand in have:
-                return cand
+        if preferred in have:
+            return preferred
+        same_family = [n for n in names if n.lower().startswith(preferred.split(":")[0].split("-")[0].lower())]
+        if len(same_family) == 1:
+            return same_family[0]
+        if same_family:
+            raise RuntimeError(f"Several {preferred.split(':')[0]} models are installed ({', '.join(same_family)}): "
+                               "pick one in Settings.")
         raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). "
                            f"Run:  ollama pull {preferred}")
 

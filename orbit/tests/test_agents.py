@@ -85,8 +85,11 @@ class FakeOllama(llm.OllamaClient):
         return self.names
 
 
-def test_model_resolution_falls_back():
+def test_model_resolution_is_mistral_only():
     assert FakeOllama(["ministral-3:3b"]).resolve("ministral-3:3b") == "ministral-3:3b"
-    assert FakeOllama(["llama3.2:3b"]).resolve("ministral-3:3b") == "llama3.2:3b"
-    with pytest.raises(RuntimeError, match="ollama pull"):
-        FakeOllama(["gemma:2b"]).resolve("ministral-3:3b")
+    assert FakeOllama(["ministral-3:3b-instruct-q4"]).resolve("ministral-3:3b") == "ministral-3:3b-instruct-q4"
+    for other in (["llama3.2:3b"], ["qwen2.5:3b", "moondream"], []):  # never falls back to another model family
+        with pytest.raises(RuntimeError, match="ollama pull ministral-3:3b"):
+            FakeOllama(other).resolve("ministral-3:3b")
+    with pytest.raises(RuntimeError, match="Several"):
+        FakeOllama(["ministral-3:3b-a", "ministral-3:3b-b"]).resolve("ministral-3:3b")

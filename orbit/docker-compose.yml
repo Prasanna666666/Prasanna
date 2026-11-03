@@ -5,7 +5,7 @@
 #   gateway / ollama bridge - dumb byte forwarders (UI on 127.0.0.1 only; Ollama on your Mac).
 #
 # Start with ./scripts/up.sh (it keeps the database key in the macOS Keychain and passes it as a Docker secret).
-# Prereq (Mac): Ollama installed natively and `ollama pull ministral-3:3b` (or llama3.2:3b) (needs internet once).
+# Prereq (Mac): Ollama installed natively and `ollama pull ministral-3:3b` (needs internet once).
 name: orbit
 
 x-hardened: &hardened
