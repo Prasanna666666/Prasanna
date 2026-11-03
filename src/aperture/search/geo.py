@@ -119,3 +119,19 @@ class GeoIndex:
             float(np.degrees(self._lon[best])),
             f"{self._names[best]}, {self._countries[best]}",
         )
+
+
+def fill_missing_places(conn, geo: GeoIndex) -> int:
+    """Photos that have GPS but no place name (indexed before the place list was installed): name them now, without reading any file."""
+    rows = conn.execute(
+        "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL AND (place IS NULL OR place='')"
+    ).fetchall()
+    updates = []
+    for row in rows:
+        place = geo.lookup(row[1], row[2])
+        if place is not None:
+            updates.append((place.label, place.search_text, row[0]))
+    if updates:
+        conn.executemany("UPDATE items SET place=?, place_text=? WHERE id=?", updates)
+        conn.commit()
+    return len(updates)

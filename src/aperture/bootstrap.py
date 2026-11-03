@@ -130,6 +130,7 @@ class AppContext:
         def drive_reads() -> None:  # reading the index and the library facts waits on the drive: do it while the model loads
             try:
                 run("photo index", self.embedding_index)
+                run("place names", self._fill_places)
                 run("library facts", self._prime_library_facts)
             finally:
                 reads_done.set()
@@ -141,6 +142,19 @@ class AppContext:
             run("image search model", self.search_embedder)  # the slowest model goes last
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
+
+    def _fill_places(self) -> None:
+        """Name photos that have GPS but no place yet (cheap: no file is read)."""
+        from .search.geo import fill_missing_places
+
+        geo = self.geo()
+        if geo is None:
+            return
+        conn = self.db.connect()
+        try:
+            fill_missing_places(conn, geo)
+        finally:
+            conn.close()
 
     def _prime_library_facts(self) -> None:
         """Run the first, slow library lookups now (while the app warms up) so the first question does not pay for them."""

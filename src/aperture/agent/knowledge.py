@@ -40,6 +40,12 @@ def _library_facts(conn: sqlite3.Connection) -> list[str]:
     kinds = ", ".join(f"{r[0]}: {r[1]:,}" for r in _rows(conn, "SELECT kind, COUNT(*) FROM items WHERE missing=0 GROUP BY kind"))
     if kinds:
         lines.append(f"File types: {kinds}.")
+    gps, placed, exif = conn.execute(
+        "SELECT COALESCE(SUM(gps_lat IS NOT NULL),0), COALESCE(SUM(place IS NOT NULL AND place<>''),0), COALESCE(SUM(taken_exif),0) "
+        "FROM items WHERE missing=0 AND meta_done=1"
+    ).fetchone()
+    lines.append(f"Location and dates: {gps:,} photos have GPS, {placed:,} of them have a place name; {exif:,} have a camera date, "
+                 "the others only a file date.")
     first, last = conn.execute("SELECT MIN(taken_at), MAX(taken_at) FROM items WHERE missing=0").fetchone()
     if first and last:
         lines.append(f"Photos span {str(first)[:10]} to {str(last)[:10]}.")

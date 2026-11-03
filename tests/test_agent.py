@@ -168,3 +168,14 @@ def test_an_empty_best_match_falls_back_to_the_first_reading_and_says_so(scanned
     svc, _ = service(scanned, plan(clauses=clauses))
     reply = svc.ask("italy zzzqqq")
     assert len(reply.ids) and any("No exact match" in n for n in reply.notes)
+
+
+def test_photos_with_gps_but_no_place_name_get_one_without_reading_files(scanned):
+    from aperture.search.geo import GeoIndex, fill_missing_places
+
+    conn = scanned.db.connect()
+    conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76, place=NULL, place_text='' WHERE id=1")
+    geo = GeoIndex(["Shinjuku"], ["Japan"], ["shinjuku tokyo japan"], np.array([35.69]), np.array([139.70]))
+    assert fill_missing_places(conn, geo) == 1
+    assert conn.execute("SELECT place FROM items WHERE id=1").fetchone()[0] == "Shinjuku, Japan"
+    assert fill_missing_places(conn, geo) == 0  # nothing left to name
