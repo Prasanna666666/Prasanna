@@ -17,8 +17,8 @@ import numpy as np
 
 from .executor import ClauseReport, Executor
 from .llm import LLMError
-from .planner import Planner, PlannerContext, PlanningError
-from .schema import Plan
+from .planner import PlannerContext, Planner, PlanResult, PlanningError
+from .schema import Clause, Plan
 
 log = logging.getLogger(__name__)
 
@@ -81,18 +81,21 @@ CHAT_SYSTEM = (
 
 
 ROUTER_SYSTEM = (
-    "You route messages in a private photo app. Reply with JSON: {\"route\": \"photos\"} or {\"route\": \"chat\"}.\n"
-    "photos = the message is about the user's photos or files or library: find, show, count, filter, copy or organize them, "
+    "You route messages in a private photo app. Reply with JSON: {\"route\": \"simple\"}, {\"route\": \"photos\"} or {\"route\": \"chat\"}.\n"
+    "simple = ONE subject to look for in the pictures themselves (an object, animal, food, scene or activity) and nothing else: no "
+    "person's name, place, date or year, count, filter, 'not' or 'without', text written in a picture, and no earlier results. "
+    "At most 4 words.\n"
+    "photos = any other message about the user's photos or files or library: find, show, count, filter, copy or organize them, "
     "refine earlier results, or ask about them (how many, from which year, which people, places, indexing). Words like photos, pics, "
-    "pictures, images, shots, selfies, albums, years and dates about their library mean photos. When in doubt, choose photos. "
-    "A short phrase or single word naming something you could photograph (an object, animal, food, place, person or activity) "
-    "is a photo search, and so is any request to find or look for something.\n"
+    "pictures, images, shots, selfies, albums, years and dates about their library mean photos. When in doubt, choose photos.\n"
     "chat = everything else: greetings, thanks, small talk, general knowledge, explanations, advice, writing help, questions about you.\n"
-    "Examples: 'beach photos from last summer' -> photos; 'only the ones from March' -> photos; 'how many pics from 2019' -> photos; "
-    "'who is in my photos most' -> photos; 'mountains' -> photos; 'birthday cake' -> photos; "
-    "'find the invoice that mentions Acme' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
+    "Examples: 'mountains' -> simple; 'birthday cake' -> simple; 'a cup of coffee' -> simple; 'sailing boats' -> simple; "
+    "'photos of Anna at the beach' -> photos; 'sunset photos from 2023' -> photos; 'beach photos without people' -> photos; "
+    "'find the invoice that mentions Acme' -> photos; 'how many pics from 2019' -> photos; 'only the ones from March' -> photos; "
+    "'who is in my photos most' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
 )
-ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["photos", "chat"]}}, "required": ["route"]}
+ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["simple", "photos", "chat"]}}, "required": ["route"]}
+MAX_SIMPLE_WORDS = 4
 
 _GREETINGS = {"hi", "hello", "hey", "hi there", "hello there", "hey there", "good morning", "good afternoon", "good evening"}
 _THANKS = {"thanks", "thank you", "thanks a lot", "thank you so much", "thx", "cheers"}
@@ -123,7 +126,9 @@ class AgentService:
         chatter: Callable[[str, list[tuple[str, str]]], str] | None = None,
         chat_stream: Callable[[str, list[tuple[str, str]]], Any] | None = None,
         router: Callable[[str, bool], str] | None = None,
+        fast_search: bool = True,
     ) -> None:
+        self._fast_search = fast_search
         self._router = router
         self._chatter = chatter
         self._chat_stream = chat_stream
@@ -153,23 +158,30 @@ class AgentService:
         quick = instant_reply(request)
         if quick:
             return AgentReply("chat", quick)
-        if self._router is not None:  # a tiny, fast question first: is this about the photos or just conversation?
+        route = "photos"
+        if self._router is not None:  # a tiny, fast question first: simple search, photo question, or just conversation?
             try:
                 route = self._router(request, previous_ids is not None)
             except LLMError as exc:
                 return AgentReply("error", str(exc))
             if route == "chat":
                 return self._chat_reply(request, history, {}, "")
-        ctx = PlannerContext(
-            today=self._today(),
-            known_people=tuple(self._known_people()),
-            previous_count=None if previous_ids is None else len(previous_ids),
-            library=self._library_facts(request) if self._library_facts else "",
-        )
-        try:
-            planned = self._planner.plan(request, ctx)
-        except (LLMError, PlanningError) as exc:
-            return AgentReply("error", str(exc))
+        simple = (route == "simple" and self._fast_search and previous_ids is None
+                  and 0 < len(request.split()) <= MAX_SIMPLE_WORDS)
+        if simple:  # one visual subject: skip the AI plan (about 6 s) and search directly
+            subject = request.strip().strip(".!?,;:").lower()
+            planned = PlanResult(plan=Plan(intent="find", clauses=(Clause(engines=("visual",), query=subject, exclude=False),)))
+        else:
+            ctx = PlannerContext(
+                today=self._today(),
+                known_people=tuple(self._known_people()),
+                previous_count=None if previous_ids is None else len(previous_ids),
+                library=self._library_facts(request) if self._library_facts else "",
+            )
+            try:
+                planned = self._planner.plan(request, ctx)
+            except (LLMError, PlanningError) as exc:
+                return AgentReply("error", str(exc))
         plan = planned.plan
         base: dict[str, Any] = {"plan": plan, "warnings": planned.warnings}
 

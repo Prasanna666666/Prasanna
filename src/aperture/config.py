@@ -133,6 +133,7 @@ class Settings:
     schema: int = 7  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
+    fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
     quick_preview: bool = True  # instant photo matches (milliseconds, no AI) while the AI is still planning; only confident matches show
     auto_scan: bool = False  # indexing competes with the language model for 8 GB of RAM and the external disk: start it on purpose
     ollama_url: str = "http://127.0.0.1:11434"

@@ -21,6 +21,7 @@ def _sidebar_status(ctx) -> None:
     cov = cached_coverage(ctx, str(ctx.paths.db))
     if cov.total:
         chips.append(theme.chip(f"{cov.total:,} files", "ok"))
+    chips.append(theme.chip("Search ready" if ctx.search_ready() else "Search warming up", "ok" if ctx.search_ready() else "warn"))
     healthy, _ = ctx.llm().health()
     chips.append(theme.chip("AI ready" if healthy else "AI offline", "ok" if healthy else "bad"))
     with st.sidebar:

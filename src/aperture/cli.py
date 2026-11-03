@@ -472,8 +472,8 @@ def cmd_check(ctx: AppContext) -> int:
         print(f"{seconds:7.2f}s  {label}{flag}  {error}".rstrip())
     conn.close()
     cases = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
-    correct, wrong = evaluate_routes(router, cases)
-    print(f"\nrouting accuracy: {correct / len(cases):.0%} ({correct}/{len(cases)})")
+    correct, wrong, slower = evaluate_routes(router, cases)
+    print(f"\nrouting accuracy: {correct / len(cases):.0%} ({correct}/{len(cases)}); {len(slower)} simple searches took the slower route")
     for line in wrong[:8]:
         print("  x", line)
     return 0
@@ -483,10 +483,12 @@ def cmd_eval_routes(ctx: AppContext) -> int:
     from .evaluation import evaluate_routes
 
     cases = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
-    correct, wrong = evaluate_routes(ctx.router(), cases)
+    correct, wrong, slower = evaluate_routes(ctx.router(), cases)
     print(f"route accuracy with {ctx.settings.ollama_model}: {correct / len(cases):.0%} ({correct}/{len(cases)})")
     for line in wrong:
         print("  x", line)
+    for line in slower:
+        print("  ~", line)
     return 0 if correct / len(cases) >= 0.9 else 1
 
 

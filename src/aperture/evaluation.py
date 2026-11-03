@@ -184,13 +184,19 @@ def evaluate_retrieval(ask: Callable[[str], list[str]], golden: dict[str, Any]) 
     return result
 
 
-def evaluate_routes(router, cases: list[dict]) -> tuple[int, list[str]]:
-    """How many messages the router sends to the right place ('photos' = about the library, 'chat' = conversation)."""
-    correct, wrong = 0, []
+def evaluate_routes(router, cases: list[dict]) -> tuple[int, list[str], list[str]]:
+    """Score the router. Returns (correct, mistakes, slower).
+
+    A mistake sends a message somewhere that gives a wrong answer (photo question to chat, chat to photos, a complex search
+    treated as simple). 'slower' means a simple search that went through the full planner: right answer, just not the fastest."""
+    correct, wrong, slower = 0, [], []
     for case in cases:
         got = router(case["message"], bool(case.get("previous")))
         if got == case["expect"]:
             correct += 1
+        elif case["expect"] == "simple" and got == "photos":
+            correct += 1
+            slower.append(f"{case['message']!r}: used the full planner (works, but slower)")
         else:
             wrong.append(f"{case['message']!r}: sent to {got}, expected {case['expect']}")
-    return correct, wrong
+    return correct, wrong, slower

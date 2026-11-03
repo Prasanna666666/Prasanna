@@ -128,14 +128,18 @@ def test_chat_replies_know_todays_date(tmp_path, monkeypatch):
 
 def test_route_cases_file_is_valid_and_includes_the_real_failure():
     cases = json.loads((Path(llm_mod.__file__).parents[1] / "eval_data" / "route_cases.json").read_text())
-    assert len(cases) >= 30 and {c["expect"] for c in cases} == {"photos", "chat"}
+    assert len(cases) >= 40 and {c["expect"] for c in cases} == {"simple", "photos", "chat"}
     assert {"message": "How many pics in 2026", "previous": False, "expect": "photos"} in cases
 
 
-def test_evaluate_routes_counts_and_explains_mistakes():
-    cases = [{"message": "a", "previous": False, "expect": "photos"}, {"message": "b", "previous": True, "expect": "chat"}]
-    correct, wrong = evaluate_routes(lambda m, prev: "photos", cases)
-    assert correct == 1 and wrong == ["'b': sent to photos, expected chat"]
+def test_evaluate_routes_separates_mistakes_from_merely_slower_answers():
+    cases = [{"message": "a", "previous": False, "expect": "photos"}, {"message": "b", "previous": True, "expect": "chat"},
+             {"message": "dogs", "previous": False, "expect": "simple"}, {"message": "Anna 2019", "previous": False, "expect": "photos"}]
+    answers = {"a": "photos", "b": "photos", "dogs": "photos", "Anna 2019": "simple"}
+    correct, wrong, slower = evaluate_routes(lambda m, prev: answers[m], cases)
+    assert correct == 2  # 'a' and 'dogs' (right answer, slower)
+    assert wrong == ["'b': sent to photos, expected chat", "'Anna 2019': sent to simple, expected photos"]  # a complex search treated as simple is a mistake
+    assert slower == ["'dogs': used the full planner (works, but slower)"]
 
 
 def test_indexing_unloads_the_ai_model_first(monkeypatch):
@@ -156,11 +160,69 @@ def test_unload_sends_keep_alive_zero(monkeypatch):
     assert Clause  # imported for readability of the plan stubs above
 
 
-def test_router_prompt_treats_short_things_and_find_requests_as_photo_searches():
+def test_router_prompt_defines_simple_photos_and_chat_with_examples_that_are_not_test_cases():
     from aperture.agent.service import ROUTER_SYSTEM
 
-    assert "single word naming something you could photograph" in ROUTER_SYSTEM and "any request to find or look for something" in ROUTER_SYSTEM
+    assert "ONE subject" in ROUTER_SYSTEM and "At most 4 words" in ROUTER_SYSTEM and "When in doubt, choose photos" in ROUTER_SYSTEM
     cases = json.loads((Path(llm_mod.__file__).parents[1] / "eval_data" / "route_cases.json").read_text())
     eval_messages = {c["message"].lower() for c in cases}
-    for example in ("mountains", "birthday cake", "find the invoice that mentions Acme"):
-        assert f"'{example}' -> photos" in ROUTER_SYSTEM and example.lower() not in eval_messages  # teaches the principle, not the test
+    for example, route in [("mountains", "simple"), ("birthday cake", "simple"), ("a cup of coffee", "simple"),
+                           ("photos of Anna at the beach", "photos"), ("find the invoice that mentions Acme", "photos"),
+                           ("sunset photos from 2023", "photos")]:
+        assert f"'{example}' -> {route}" in ROUTER_SYSTEM and example.lower() not in eval_messages
+
+# ---------------------------------------------------------------- the simple route: no AI plan for one-subject searches
+def simple_service(route, planner, plans, **kw):
+    """The executor records the plan it was given, then fails on purpose so no real search is needed."""
+    def make_executor():
+        def run(plan, previous):
+            plans.append((plan, previous))
+            raise RuntimeError("stop here")
+        return SimpleNamespace(run=run)
+
+    return AgentService(planner, make_executor, lambda: [], today=lambda: date(2026, 11, 3), router=lambda r, p: route, **kw)
+
+
+def test_simple_route_searches_directly_without_the_ai_plan():
+    planner, plans = Planner(), []
+    simple_service("simple", planner, plans).ask("Sunset photos!")
+    assert planner.calls == 0 and len(plans) == 1
+    plan = plans[0][0]
+    assert plan.intent == "find" and plan.clauses == (Clause(engines=("visual",), query="sunset photos", exclude=False),)
+    assert plan.date.is_empty and plan.filters.is_empty and plans[0][1] is None
+
+
+@pytest.mark.parametrize("request_text,previous,fast", [
+    ("a very long description of a scene", False, True),  # more than 4 words
+    ("dogs", True, True),  # refining earlier results
+    ("dogs", False, False),  # switched off in Settings
+])
+def test_simple_route_is_ignored_when_it_is_not_safe(request_text, previous, fast):
+    import numpy as np
+
+    planner, plans = Planner(), []
+    simple_service("simple", planner, plans, fast_search=fast).ask(request_text, previous_ids=np.array([1]) if previous else None)
+    assert planner.calls == 1  # the full planner handled it
+
+
+def test_router_maps_simple_and_caches_decisions(tmp_path, monkeypatch):
+    sent = []
+    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": '{"route": "simple"}'}})
+    route = _context(tmp_path, monkeypatch).router()
+    assert route("Dogs", False) == "simple" and route("  Dogs ", False) == "simple" and len(sent) == 1  # second call came from the cache
+    assert route("Dogs", True) == "simple" and len(sent) == 2  # earlier results change the question
+
+
+def test_search_readiness_and_settings_switch(tmp_path, monkeypatch):
+    import inspect
+
+    from aperture.config import Settings
+    from aperture.ui import app
+    from aperture.ui.views import settings
+
+    ctx = _context(tmp_path, monkeypatch)
+    assert ctx.search_ready() is False
+    ctx._index, ctx._embedder = object(), object()
+    assert ctx.search_ready() is True
+    assert Settings().fast_search is True
+    assert "fast_search" in inspect.getsource(settings) and "Search warming up" in inspect.getsource(app)

@@ -8,6 +8,7 @@ code base testable and replaceable.
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import lru_cache
 
 import logging
 import threading
@@ -126,6 +127,10 @@ class AppContext:
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 
+    def search_ready(self) -> bool:
+        """True once the photo index and the image-search model are loaded (the first search is then instant)."""
+        return self._index is not None and self._embedder is not None
+
     def embedding_index(self) -> EmbeddingIndex:
         """Cached index, rebuilt automatically when a scan changes embeddings."""
         conn = self.db.connect()
@@ -186,16 +191,17 @@ class AppContext:
     def router(self) -> Callable[[str, bool], str]:
         """Tiny, fast classifier: 'photos' (about the library) or 'chat'. Anything unclear counts as photos."""
 
-        def route(request: str, has_previous: bool) -> str:
-            user = f"EARLIER RESULTS: {'yes' if has_previous else 'no'}\nMessage: {request.strip()}"
+        @lru_cache(maxsize=256)  # the same message is answered instantly the second time
+        def route(message: str, has_previous: bool) -> str:
+            user = f"EARLIER RESULTS: {'yes' if has_previous else 'no'}\nMessage: {message}"
             raw = self.llm().complete_json(ROUTER_SYSTEM, user, ROUTER_SCHEMA, max_tokens=16)
             try:
                 value = extract_json(raw).get("route")
             except Exception:
                 return "photos"
-            return "chat" if value == "chat" else "photos"
+            return value if value in ("chat", "simple") else "photos"
 
-        return route
+        return lambda request, has_previous: route(" ".join(request.split()), has_previous)
 
     def agent(self) -> Agent:
         def make_executor() -> Executor:
@@ -280,6 +286,7 @@ class AppContext:
             return AgentService(
                 Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
                 answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
+                fast_search=self.settings.fast_search,
             )
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 

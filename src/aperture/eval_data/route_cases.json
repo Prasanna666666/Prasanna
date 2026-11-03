@@ -1,5 +1,45 @@
 [
  {
+  "message": "dogs",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "sunset photos",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "show me beach photos",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "cats",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "pizza",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "fireworks",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "a plate of pasta",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
+  "message": "snow",
+  "previous": false,
+  "expect": "simple"
+ },
+ {
   "message": "How many pics in 2026",
   "previous": false,
   "expect": "photos"
@@ -11,16 +51,6 @@
  },
  {
   "message": "pics from 2026",
-  "previous": false,
-  "expect": "photos"
- },
- {
-  "message": "show me beach photos",
-  "previous": false,
-  "expect": "photos"
- },
- {
-  "message": "sunset photos",
   "previous": false,
   "expect": "photos"
  },
@@ -105,17 +135,27 @@
   "expect": "photos"
  },
  {
-  "message": "dogs",
-  "previous": false,
-  "expect": "photos"
- },
- {
   "message": "group photos",
   "previous": false,
   "expect": "photos"
  },
  {
   "message": "how many shots did I take last year",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "vacation photos that are not blurry",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "everything",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "dogs in Goa",
   "previous": false,
   "expect": "photos"
  },
