@@ -8,7 +8,9 @@ This is defence in depth next to the container's own network policy, not a repla
 from __future__ import annotations
 
 import ipaddress
+import os
 import socket
+import urllib.parse
 
 PUBLIC_ALLOW = {"api.open-meteo.com", "geocoding-api.open-meteo.com", "api.frankfurter.app"}
 _local_hosts: set[str] = {"localhost"}
@@ -37,6 +39,9 @@ def install() -> None:
     global _installed
     if _installed:
         return
+    for var in ("HTTPS_PROXY", "https_proxy"):  # in the container, public lookups go via the allowlist proxy
+        if os.environ.get(var):
+            allow_local(urllib.parse.urlparse(os.environ[var]).hostname or "")
     _orig["gai"], _orig["connect"], _orig["connect_ex"] = socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex
 
     def gai(host, *a, **k):

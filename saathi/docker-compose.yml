@@ -1,0 +1,67 @@
+# Saathi: private by construction.
+#   private  - internal network, NO route to the internet: app, ollama, gateway, egress
+#   outside  - normal network, attached ONLY to `egress` (allowlist proxy) and to the one-off model download
+# The app's only way out is egress -> 3 public API hostnames. Your data lives in the `saathi-data` volume.
+name: saathi
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp"]
+  restart: unless-stopped
+
+services:
+  app:
+    <<: *hardened
+    build: .
+    image: saathi:local
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      HTTPS_PROXY: http://egress:3128
+      NO_PROXY: ollama,localhost,127.0.0.1
+    volumes: ["saathi-data:/data"]
+    networks: [private]
+    depends_on: [ollama, egress]
+
+  # Docker cannot publish ports from an internal-only network, so a dumb TCP forwarder exposes the UI
+  # on this computer only (127.0.0.1). It can reach nothing except app:8501.
+  gateway:
+    <<: *hardened
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:8501,fork,reuseaddr TCP:app:8501
+    ports: ["127.0.0.1:8501:8501"]
+    networks: [private, default]
+    depends_on: [app]
+
+  ollama:
+    <<: *hardened
+    read_only: false   # ollama writes under /root/.ollama (the models volume)
+    image: ollama/ollama:0.5.7
+    volumes: ["ollama-models:/root/.ollama"]
+    networks: [private]
+
+  egress:
+    <<: *hardened
+    build: .
+    image: saathi:local
+    entrypoint: ["python", "-m", "saathi.egress"]
+    environment:
+      EGRESS_ALLOW: api.open-meteo.com,geocoding-api.open-meteo.com,api.frankfurter.app
+    networks: [private, outside]
+
+  # One-off: `docker compose --profile setup run --rm pull-model`  (the ONLY time the model touches the internet)
+  pull-model:
+    image: ollama/ollama:0.5.7
+    profiles: [setup]
+    entrypoint: ["sh", "-c", "ollama serve >/dev/null 2>&1 & sleep 4 && ollama pull $${MODEL:-llama3.1:8b}"]
+    volumes: ["ollama-models:/root/.ollama"]
+    networks: [outside]
+
+networks:
+  private: {internal: true}
+  outside: {}
+
+volumes:
+  saathi-data:
+  ollama-models:
