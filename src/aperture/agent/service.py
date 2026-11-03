@@ -84,10 +84,13 @@ ROUTER_SYSTEM = (
     "You route messages in a private photo app. Reply with JSON: {\"route\": \"photos\"} or {\"route\": \"chat\"}.\n"
     "photos = the message is about the user's photos or files or library: find, show, count, filter, copy or organize them, "
     "refine earlier results, or ask about them (how many, from which year, which people, places, indexing). Words like photos, pics, "
-    "pictures, images, shots, selfies, albums, years and dates about their library mean photos. When in doubt, choose photos.\n"
+    "pictures, images, shots, selfies, albums, years and dates about their library mean photos. When in doubt, choose photos. "
+    "A short phrase or single word naming something you could photograph (an object, animal, food, place, person or activity) "
+    "is a photo search, and so is any request to find or look for something.\n"
     "chat = everything else: greetings, thanks, small talk, general knowledge, explanations, advice, writing help, questions about you.\n"
     "Examples: 'beach photos from last summer' -> photos; 'only the ones from March' -> photos; 'how many pics from 2019' -> photos; "
-    "'who is in my photos most' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
+    "'who is in my photos most' -> photos; 'mountains' -> photos; 'birthday cake' -> photos; "
+    "'find the invoice that mentions Acme' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
 )
 ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["photos", "chat"]}}, "required": ["route"]}
 

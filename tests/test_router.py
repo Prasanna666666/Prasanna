@@ -154,3 +154,13 @@ def test_unload_sends_keep_alive_zero(monkeypatch):
     OllamaClient("http://127.0.0.1:11434", "ministral-3:3b").unload()
     assert sent == [("/api/generate", {"model": "ministral-3:3b", "prompt": "", "keep_alive": 0, "stream": False})]
     assert Clause  # imported for readability of the plan stubs above
+
+
+def test_router_prompt_treats_short_things_and_find_requests_as_photo_searches():
+    from aperture.agent.service import ROUTER_SYSTEM
+
+    assert "single word naming something you could photograph" in ROUTER_SYSTEM and "any request to find or look for something" in ROUTER_SYSTEM
+    cases = json.loads((Path(llm_mod.__file__).parents[1] / "eval_data" / "route_cases.json").read_text())
+    eval_messages = {c["message"].lower() for c in cases}
+    for example in ("mountains", "birthday cake", "find the invoice that mentions Acme"):
+        assert f"'{example}' -> photos" in ROUTER_SYSTEM and example.lower() not in eval_messages  # teaches the principle, not the test

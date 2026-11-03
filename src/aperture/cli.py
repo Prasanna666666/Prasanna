@@ -9,7 +9,8 @@ import os
 import signal
 import sys
 import threading
-from collections.abc import Sequence
+from datetime import date
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from .bootstrap import AppContext, ServiceUnavailableError
@@ -40,6 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     job.add_argument("job_id")
     sub.add_parser("stats", help="print library statistics")
     sub.add_parser("eval-plans", help="measure how accurately the local LLM turns requests into plans (no photos needed)")
+    sub.add_parser("check", help="measure every step of a search and a chat on this Mac (seconds) plus the routing accuracy: one command, all the numbers")
     sub.add_parser("eval-routes", help="measure how well the AI tells photo requests from ordinary conversation (fast, no photos needed)")
     ev = sub.add_parser("eval", help="measure search precision/recall against your own golden set")
     ev.add_argument("golden", nargs="?", help="JSON file of requests and the files that truly match")
@@ -306,6 +308,10 @@ def stop_process(pid: int, wait: float = 8.0) -> bool:
     """Ask a process to stop (SIGTERM), then force it if it ignores us. True once it is gone."""
     import time
 
+    try:
+        os.kill(pid, signal.SIGCONT)  # a copy suspended with Ctrl+Z ignores SIGTERM until it is allowed to run again
+    except OSError:
+        pass
     for sig, limit in ((signal.SIGTERM, wait), (signal.SIGKILL, 3.0)):
         try:
             os.kill(pid, sig)
@@ -418,6 +424,61 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
         pid_file.unlink(missing_ok=True)
 
 
+def time_steps(steps: list[tuple[str, Callable[[], object]]]) -> list[tuple[str, float, str]]:
+    """Run each step once and time it. A failing step is reported, not raised."""
+    import time
+
+    rows = []
+    for label, fn in steps:
+        started = time.perf_counter()
+        try:
+            fn()
+            error = ""
+        except Exception as exc:
+            error = f"FAILED: {exc}"[:120]
+        rows.append((label, time.perf_counter() - started, error))
+    return rows
+
+
+# What each step should take on an 8 GB M1 for the app to feel responsive (seconds).
+BUDGET = {"router": 1.5, "first words": 3.0, "AI plan": 6.0, "instant photo matches": 0.5}
+
+
+def cmd_check(ctx: AppContext) -> int:
+    from .agent.planner import Planner, PlannerContext
+    from .agent.service import instant_reply
+    from .evaluation import evaluate_routes
+    from .search.quick import quick_ids
+
+    llm, router = ctx.llm(), ctx.router()
+    conn = ctx.db.connect()
+
+    def first_words() -> None:
+        next(iter(llm.stream_chat("Reply briefly.", [{"role": "user", "content": "Tell me a joke."}], max_tokens=40)))
+
+    steps = [
+        ("AI model load (cold start)", llm.warm),
+        ("instant greeting (no AI)", lambda: instant_reply("hello")),
+        ("router: photos or chat?", lambda: router("tell me a joke", False)),
+        ("chat: first words appear", first_words),
+        ("photo search: the AI plan", lambda: Planner(llm).plan("sunset photos", PlannerContext(today=date.today()))),
+        ("image-search model load", ctx.search_embedder),
+        ("instant photo matches", lambda: quick_ids(conn, "sunset", ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness)),
+    ]
+    print(f"model: {ctx.settings.ollama_model}\n")
+    for label, seconds, error in time_steps(steps):
+        key = next((k for k in BUDGET if k in label), None)
+        flag = "  <- slow" if key and seconds > BUDGET[key] else ""
+        print(f"{seconds:7.2f}s  {label}{flag}  {error}".rstrip())
+    conn.close()
+    cases = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
+    correct, wrong = evaluate_routes(router, cases)
+    print(f"\nrouting accuracy: {correct / len(cases):.0%} ({correct}/{len(cases)})")
+    for line in wrong[:8]:
+        print("  x", line)
+    return 0
+
+
 def cmd_eval_routes(ctx: AppContext) -> int:
     from .evaluation import evaluate_routes
 
@@ -527,6 +588,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_eval_plans(ctx)
     if args.command == "eval-routes":
         return cmd_eval_routes(ctx)
+    if args.command == "check":
+        return cmd_check(ctx)
     if args.command == "eval":
         return cmd_eval(ctx, args)
     if args.command == "export-job":

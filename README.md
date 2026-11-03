@@ -41,6 +41,12 @@ See `docs/safety.md` (items 8-10), including encrypting the drive.
 
 Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with read-only photos; see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
 
+## Best setup for an 8 GB M1 (what this app is built for)
+- The AI model (Ministral 3B) only understands language, with short prompts and tiny outputs. Search, matching and counting are plain code and image search: milliseconds.
+- Plain greetings answer instantly (no AI); a tiny router sends photo questions to the planner and everything else to a streamed chat reply.
+- One model in memory; indexing pauses while you chat and unloads the model when it starts.
+- Measure it all with one command: `aperture check` (seconds per step, routing accuracy). Honest limit: a 3B model writes ~19 words a second and is weak at hard reasoning; a bigger Mac or a home server is the only way past that.
+
 ## Develop
 
 `make install && make check` (ruff, mypy, pytest with fake ML - no models needed). See `docs/` for architecture, safety and agent design.

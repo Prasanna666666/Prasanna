@@ -168,7 +168,7 @@ def test_stop_process_asks_politely_then_forces(monkeypatch):
     monkeypatch.setattr(time, "monotonic", lambda: next(clock) * 5.0)
     monkeypatch.setattr(time, "sleep", lambda s: None)
     assert cli.stop_process(111, wait=8.0) is True
-    assert sent[0] == signal.SIGTERM and signal.SIGKILL in sent
+    assert sent[:2] == [signal.SIGCONT, signal.SIGTERM] and signal.SIGKILL in sent
     sent.clear()
     alive["v"] = False  # already gone
     assert cli.stop_process(111) is True
@@ -260,3 +260,22 @@ def test_browser_opens_once_the_server_answers(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda s: None)
     cli.open_when_ready(8770)
     assert opened == ["http://127.0.0.1:8770"]
+
+
+def test_stop_process_wakes_a_suspended_copy_before_asking_it_to_stop(monkeypatch):
+    import signal
+    import time
+
+    sent, alive = [], {"v": True}
+
+    def fake_kill(pid, sig):
+        sent.append(sig)
+        if sig == signal.SIGTERM:
+            alive["v"] = False
+        if sig == 0 and not alive["v"]:
+            raise ProcessLookupError
+
+    monkeypatch.setattr(cli.os, "kill", fake_kill)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    assert cli.stop_process(5) is True
+    assert sent[:2] == [signal.SIGCONT, signal.SIGTERM]
