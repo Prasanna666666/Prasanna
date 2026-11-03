@@ -93,15 +93,31 @@ PLAN_JSON_SCHEMA: dict[str, Any] = {
                     "query": {"type": "string"},
                     "exclude": {"type": "boolean"},
                 },
-                "required": ["engines", "query"],  # "exclude" defaults to false
+                "required": ["engines", "query", "exclude"],
             },
         },
-        "date": {"type": "object", "properties": _DATE_PROPS},
+        "date": {"type": "object", "properties": _DATE_PROPS, "required": list(_DATE_PROPS)},
         "filters": {"type": "object", "properties": _FILTER_PROPS},
         "folder_name": {"type": "string"},
     },
-    "required": ["intent", "clauses"],  # everything else defaults in plan_from_raw: fewer tokens to write = faster
+    "required": ["intent", "message", "scope", "match", "all_photos", "clauses", "date", "folder_name"],
 }
+
+
+def plan_schema(style: str = "lean") -> dict[str, Any]:
+    """The schema the model must follow. "full" = every field forced (original). "lean" = the same checklist for the fields that
+    carry decisions (scope, match, all_photos, date, filters) but without the empty ones (message, folder_name, exclude:false,
+    date start/end): ~20% fewer tokens to write, which matters at ~19 tokens/s. Measure both with `aperture eval-plans`."""
+    if style == "full":
+        return PLAN_JSON_SCHEMA
+    import copy
+
+    lean = copy.deepcopy(PLAN_JSON_SCHEMA)
+    lean["required"] = ["intent", "scope", "match", "all_photos", "clauses", "date", "filters"]
+    lean["properties"]["clauses"]["items"]["required"] = ["engines", "query"]
+    lean["properties"]["date"]["required"] = ["year", "month", "season", "relative"]
+    lean["properties"]["filters"] = {"type": "object", "properties": _FILTER_PROPS}
+    return lean
 
 
 # --------------------------------------------------------------------------

@@ -8,12 +8,13 @@ and the UI says so; it never guesses with a regex and dumps unrelated photos.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import date
 
 from .jsonutil import JSONExtractError, extract_json
 from .llm import LLMClient, LLMError
-from .schema import PLAN_JSON_SCHEMA, Plan, plan_from_raw
+from .schema import Plan, plan_from_raw, plan_schema
 
 _PROMPT_TEXT = """You are the planning brain of Aperture, a private offline photo assistant.
 Convert the user's request into ONE JSON object. You do not search; you only plan.
@@ -38,7 +39,7 @@ RULES
 1. One clause per distinct constraint. Clauses are combined with AND ("match":"all") unless the user says "or" ("match":"any").
 2. Use several engines in one clause when unsure where a word lives, e.g. a city: ["place","path"].
 3. "exclude":true means NOT (e.g. "without", "except", "not in").
-4. Dates go in "date" using year / month (1-12) / season / relative. NEVER compute dates yourself. OMIT every field you do not need (only "intent" and "clauses" are required; omitted fields mean: nothing set).
+4. Dates go in "date" using year / month (1-12) / season / relative. NEVER compute dates yourself. Use 0 or "none" or "" for unused fields.
 5. intent: "find" (show photos), "count" (how many), "export" (copy/put/organize into a folder; set folder_name),
    "chat" (greeting or question about what you can do; answer in "message"),
    "question" (the user asks ABOUT the library or the app instead of asking to see photos: statistics, "how many per year/place/camera",
@@ -76,18 +77,26 @@ User: hi, what can you do?
 {"intent":"chat","message":"I can find photos by what they show, text inside them, people, places, dates and folders, and copy results into a folder.","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 """
 
-# Speed: a 3B model on an 8 GB Mac writes ~19 tokens/s, so every token costs time. The schema parser fills in all defaults, so
-# the examples (and the required fields) keep only what matters: ~35 tokens per plan instead of ~110.
-_DEFAULTS = {"message": "", "scope": "library", "match": "all", "all_photos": False, "folder_name": ""}
+# Speed: a 3B model on an 8 GB Mac writes ~19 tokens/s, so every token costs time. Two styles (APERTURE_PLAN_STYLE):
+#   full - every field forced (the original; most reliable guidance for a small model)
+#   lean - drops only the empty fields (message, folder_name, exclude:false, date start/end): ~18% fewer tokens; decision fields stay forced.
+# plan_from_raw fills every default either way, so both mean the same plan. Pick with `aperture eval-plans`.
+_DEFAULTS = {"message": "", "folder_name": ""}
+_RULE4_FULL = 'Use 0 or "none" or "" for unused fields.'
+_RULE4_LEAN = 'Use 0 or "none" for unused date fields. Leave out "message" and "folder_name" unless they are needed.'
+
+
+def plan_style() -> str:
+    return "lean" if os.environ.get("APERTURE_PLAN_STYLE", "full").lower() == "lean" else "full"  # full until lean is measured
 
 
 def slim_plan(obj: dict) -> dict:
+    """Lean form of a full example plan: same meaning, without the empty fields."""
     out = {k: v for k, v in obj.items() if k not in _DEFAULTS or v != _DEFAULTS[k]}
-    date_part = {k: v for k, v in (obj.get("date") or {}).items() if v not in (0, "none", "")}
-    out.pop("date", None)
-    if date_part:
-        out["date"] = date_part
     out["clauses"] = [{k: v for k, v in c.items() if not (k == "exclude" and v is False)} for c in obj.get("clauses", [])]
+    if isinstance(obj.get("date"), dict):
+        out["date"] = {k: v for k, v in obj["date"].items() if k not in ("start", "end") or v}
+    out.setdefault("filters", {})
     return out
 
 
@@ -98,7 +107,14 @@ def _slim_examples(text: str) -> str:
     )
 
 
-SYSTEM_PROMPT = _slim_examples(_PROMPT_TEXT)
+def system_prompt(style: str | None = None) -> str:
+    style = style or plan_style()
+    if style == "full":
+        return _PROMPT_TEXT
+    return _slim_examples(_PROMPT_TEXT.replace(_RULE4_FULL, _RULE4_LEAN))
+
+
+SYSTEM_PROMPT = _PROMPT_TEXT  # default-style prompt is built per call by system_prompt()
 
 
 @dataclass(frozen=True)
@@ -148,7 +164,8 @@ class Planner:
                 )
             )
             try:
-                raw_text = self._llm.complete_json(SYSTEM_PROMPT, prompt, PLAN_JSON_SCHEMA)
+                style = plan_style()
+                raw_text = self._llm.complete_json(system_prompt(style), prompt, plan_schema(style))
             except LLMError:
                 raise  # unreachable / missing model: retrying will not help
             try:
