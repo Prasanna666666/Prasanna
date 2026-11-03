@@ -79,7 +79,7 @@ class OllamaClient:
                     "stream": False,
                     "format": fmt,
                     "keep_alive": self.keep_alive,
-                    "options": {"temperature": 0, "num_ctx": 4096, "num_predict": 400},  # a plan is short; cap runaways
+                    "options": {"temperature": 0, "num_ctx": 4096},
                 },
             )
             message = body.get("message")
