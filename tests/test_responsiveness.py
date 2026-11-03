@@ -42,7 +42,7 @@ def _fake_ctx(calls):
 
 def test_warm_up_loads_models_only_when_no_scan_is_running(monkeypatch):
     monkeypatch.setattr(threading, "Thread", _InlineThread)
-    for running, expected in ((False, ["llm", "index", "facts", "clip"]), (True, ["index", "facts"])):
+    for running, expected in ((False, ["index", "facts", "llm", "clip"]), (True, ["index", "facts"])):
         calls = []
         monkeypatch.setattr("aperture.indexing.progress.ScanLock.running", lambda self, verify=False, r=running: r)
         bootstrap.AppContext.warm_up(_fake_ctx(calls))
@@ -56,7 +56,7 @@ def test_warm_up_survives_a_failing_step(monkeypatch):
     ctx = _fake_ctx(calls)
     ctx.search_embedder = lambda: (_ for _ in ()).throw(RuntimeError("no model"))
     bootstrap.AppContext.warm_up(ctx)
-    assert calls == ["llm", "index", "facts"]  # the image-search model failed; the others still loaded
+    assert sorted(calls) == ["facts", "index", "llm"]  # the image-search model failed; the others still loaded
 
 
 def test_searching_pauses_a_running_scan_and_remembers_why(monkeypatch):

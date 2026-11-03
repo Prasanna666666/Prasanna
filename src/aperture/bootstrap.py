@@ -115,32 +115,39 @@ class AppContext:
 
         from .indexing.progress import ScanLock
 
+        reads_done = threading.Event()
+
+        def run(name: str, step) -> None:
+            if name in ("AI model", "image search model") and ScanLock(self.paths).running(verify=True):
+                log.debug("warm-up: scan running, not loading the %s", name)
+                return
+            try:
+                step()
+            except Exception as exc:
+                log.debug("warm-up: %s failed", name, exc_info=True)
+                self.warm_errors[name] = f"{type(exc).__name__}: {exc}"
+
+        def drive_reads() -> None:  # reading the index and the library facts waits on the drive: do it while the model loads
+            try:
+                run("photo index", self.embedding_index)
+                run("library facts", self._prime_library_facts)
+            finally:
+                reads_done.set()
+
         def work() -> None:
-            steps = (  # the AI model first: every message needs it. The image-search model is the slowest, so it goes last
-                ("AI model", lambda: self.llm().warm()),
-                ("photo index", self.embedding_index),
-                ("library facts", self._prime_library_facts),
-                ("image search model", self.search_embedder),
-            )
-            for name, step in steps:
-                if name in ("AI model", "image search model") and ScanLock(self.paths).running(verify=True):
-                    log.debug("warm-up: scan running, not loading the %s", name)
-                    continue
-                try:
-                    step()
-                except Exception as exc:
-                    log.debug("warm-up: %s failed", name, exc_info=True)
-                    self.warm_errors[name] = f"{type(exc).__name__}: {exc}"
+            threading.Thread(target=drive_reads, name="warm-up-drive", daemon=True).start()
+            run("AI model", lambda: self.llm().warm())
+            reads_done.wait()
+            run("image search model", self.search_embedder)  # the slowest model goes last
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 
     def _prime_library_facts(self) -> None:
         """Run the first, slow library lookups now (while the app warms up) so the first question does not pay for them."""
         agent = self.agent()
-        for name, args in (("_library_facts", ("photos",)), ("_known_people", ())):
-            fn = getattr(agent, name, None)
-            if callable(fn):
-                fn(*args)
+        context = getattr(agent, "_context", None)  # the agent's retrieval step: places, years, library size, people
+        if callable(context):
+            context("photos")
 
     def memo(self, key: str, ttl: float, fn):
         """Remember a slow, request-independent lookup (a table scan on the external drive) for `ttl` seconds."""
