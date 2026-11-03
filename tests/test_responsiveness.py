@@ -113,3 +113,42 @@ def test_the_page_says_why_search_is_not_ready(tmp_path, monkeypatch):
     assert "cannot read model" in ctx.warm_problem()
     ctx.embedder_error = "CLIP model unavailable (no weights)"
     assert ctx.warm_problem() == "CLIP model unavailable (no weights)"
+
+
+def test_model_calls_are_recorded_with_what_the_model_saw_and_said(monkeypatch):
+    import json as _json
+    import urllib.request
+
+    from aperture.agent.llm import CALL_LOG, OllamaClient
+
+    class Resp:
+        def __init__(self, lines):
+            self.lines = lines
+
+        def __iter__(self):
+            return iter(self.lines)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"".join(self.lines)
+
+    chunks = [{"message": {"content": "Hi "}}, {"message": {"content": "there", "tool_calls": [{"function": {"name": "find_photos", "arguments": {"what": "dog"}}}]}}, {"done": True}]
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: Resp([_json.dumps(c).encode() + b"\n" for c in chunks]))
+    client = OllamaClient("http://127.0.0.1:11434", "ministral-3:3b")
+    list(client.stream_chat("SYS", [{"role": "user", "content": "hello"}]))  # no log active: nothing is recorded, nothing breaks
+    log = []
+    token = CALL_LOG.set(log)
+    try:
+        list(client.stream_chat("SYS PROMPT", [{"role": "user", "content": "hello"}]))
+        monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: Resp([_json.dumps({"message": {"content": '{"route": "chat"}'}}).encode()]))
+        client.complete_json("ROUTER PROMPT", "Message: hi", {"type": "object"})
+    finally:
+        CALL_LOG.reset(token)
+    assert log[0]["system"] == "SYS PROMPT" and log[0]["output"] == "Hi there" and log[0]["messages"] == [{"role": "user", "text": "hello"}]
+    assert log[0]["tool_calls"] == [{"name": "find_photos", "arguments": {"what": "dog"}}]
+    assert log[1]["system"] == "ROUTER PROMPT" and log[1]["output"] == '{"route": "chat"}'

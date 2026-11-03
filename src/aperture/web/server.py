@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 import numpy as np
 
 from .. import library as lib
+from ..agent.llm import CALL_LOG
 from ..config import preview_rel, thumb_rel
 from ..indexing.progress import ScanLock
 
@@ -44,6 +45,15 @@ ID_PATH = re.compile(r"^/api/photo/(\d{1,12})/(thumb|preview)$")
 ITEM_PATH = re.compile(r"^/api/item/(\d{1,12})$")
 
 
+def build_id() -> str:
+    """Which code is running (the git commit), so 'is it the new version?' is never a guess."""
+    try:
+        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent, capture_output=True, text=True, timeout=5)
+        return out.stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
 class Web:
     """State shared by every request."""
 
@@ -55,6 +65,7 @@ class Web:
         self._convs: OrderedDict[str, np.ndarray] = OrderedDict()
         self._cache: dict[str, tuple[float, Any]] = {}
         self.paused_for_chat = False
+        self.build = build_id()
         self._counts: dict[str, int] = {"photos": 0, "indexed": 0}
         self._counts_at: float | None = None
         self._counting = False
@@ -113,7 +124,7 @@ class Web:
 
         self.refresh_counts_async()
         healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
-        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "brain": ctx.settings.brain,
+        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "brain": ctx.settings.brain, "build": self.build,
                 "search_ready": bool(ctx.search_ready()), "warm_problem": ctx.warm_problem(),
                 "indexing": ScanLock(ctx.paths).running(verify=True),
                 "paused_for_chat": self.paused_for_chat}
@@ -322,6 +333,8 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
             started = time.perf_counter()
             stream = None
             first_words = None
+            calls: list[dict[str, Any]] = []
+            log_token = CALL_LOG.set(calls)  # every model call made for this message is recorded here
             try:
                 self._sse("ack", {})
                 ctx = web.ctx
@@ -352,7 +365,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                         self._sse("reply", {"text": text})
                 took = round(time.perf_counter() - started, 2)
                 timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
-                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "timings": timings})
+                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "timings": timings, "trace": calls})
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the browser left (for example a new chat was started): stop quietly
             except Exception as exc:
@@ -361,6 +374,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                 except OSError:
                     pass
             finally:
+                CALL_LOG.reset(log_token)
                 if stream is not None and hasattr(stream, "close"):
                     stream.close()
 

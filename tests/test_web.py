@@ -150,3 +150,20 @@ def test_bad_requests_are_rejected(app):
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(req)
         assert err.value.code == expected
+
+
+def test_every_answer_carries_how_it_was_answered_and_the_status_says_which_build(app):
+    from aperture.agent.llm import CALL_LOG
+
+    original = app.agent.ask
+
+    def asking_the_model(request, previous_ids=None, history=None):
+        CALL_LOG.get().append({"model": "m", "system": "THE INSTRUCTIONS", "messages": [{"role": "user", "text": request}], "tools": [], "output": "THE ANSWER", "tool_calls": []})
+        return original(request, previous_ids, history)
+
+    app.agent.ask = asking_the_model
+    done = dict(app.chat("tell me about RAW")[1])["done"]
+    assert done["trace"] == [{"model": "m", "system": "THE INSTRUCTIONS", "messages": [{"role": "user", "text": "tell me about RAW"}], "tools": [], "output": "THE ANSWER", "tool_calls": []}]
+    assert dict(app.chat("tell me about RAW again")[1])["done"]["trace"][0]["system"] == "THE INSTRUCTIONS"  # a fresh log per message
+    status = json.loads(app.get("/api/status")[1])
+    assert isinstance(status["build"], str) and status["build"]

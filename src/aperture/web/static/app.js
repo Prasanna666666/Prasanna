@@ -9,7 +9,7 @@
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
 
   const thread = $('#thread'), welcome = $('#welcome'), input = $('#input'), send = $('#send'), form = $('#composer');
-  let conv = uid(), history = [], controller = null, busy = false, stick = true;
+  let conv = uid(), history = [], controller = null, busy = false, stick = true, brain = '';
 
   // ---------------------------------------------------------------- small helpers
   const sparkle = () => { const a = el('div', 'avatar'); a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.3L21 10l-6.8 1.7L12 18l-2.2-6.3L3 10l6.8-1.7z"/></svg>'; return a; };
@@ -142,6 +142,7 @@
       msg.text.classList.remove('streaming');
       if (msg.gallery && !msg.gallery.total) { msg.gallery.root.remove(); msg.gallery = null; }  // a preview that was not confirmed
       if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.text });
+      addTrace(msg, d);
       if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s${breakdown(d)}`));
     }
     if (event === 'results') addNotes(msg, d);
@@ -152,6 +153,19 @@
     if (d.took < 3 || !d.timings) return '';
     const parts = Object.entries(d.timings).filter(([, v]) => v >= 0.1).map(([k, v]) => `${STEP_NAMES[k] || k} ${v.toFixed(1)}s`);
     return parts.length ? `  \u00b7  ${parts.join('  \u00b7  ')}` : '';
+  }
+  function addTrace(msg, d) {                  // "How I answered": exactly what each model call was given and what it returned
+    if (!d.trace || !d.trace.length) return;
+    const box = el('details', 'trace'), head = el('summary', '', `How I answered (${brain || 'brain'}, ${d.trace.length} model call${d.trace.length === 1 ? '' : 's'})`);
+    box.append(head);
+    d.trace.forEach((c, i) => {
+      box.append(el('h4', '', `Model call ${i + 1}${c.tools && c.tools.length ? '  \u00b7  tools: ' + c.tools.join(', ') : ''}`));
+      box.append(el('div', 'lbl', 'Instructions it was given'), el('pre', '', c.system || '(none)'));
+      box.append(el('div', 'lbl', 'Conversation'), el('pre', '', (c.messages || []).map((m) => `${m.role}: ${m.text}`).join('\n')));
+      const out = [c.output, ...(c.tool_calls || []).map((t) => `tool call: ${t.name}(${JSON.stringify(t.arguments)})`)].filter(Boolean).join('\n');
+      box.append(el('div', 'lbl', 'What it answered'), el('pre', '', out || '(nothing)'));
+    });
+    msg.body.append(box);
   }
   function addNotes(msg, d) {
     for (const t of d.notes || []) msg.body.append(el('div', 'note', t));
@@ -231,7 +245,8 @@
       const s = await (await api('/api/status')).json();
       const chips = [chip(s.search_ready ? 'Search ready' : (s.warm_problem ? 'Search unavailable' : 'Search warming up'), s.search_ready ? 'ok' : (s.warm_problem ? 'bad' : 'warn')),
                      chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad'),
-                     chip(s.brain === 'tools' ? 'Brain: agent' : 'Brain: classic', 'ok')];
+                     chip(s.brain === 'tools' ? 'Brain: agent' : 'Brain: classic', 'ok'), chip(`build ${s.build || '?'}`, 'ok')];
+      brain = s.brain;
       if (s.photos) chips.push(chip(`${s.photos.toLocaleString()} photos`, 'ok'));
       if (s.indexing) chips.push(chip('Indexing', 'warn'));
       else if (s.paused_for_chat) chips.push(chip('Indexing paused', 'warn', { text: 'Resume', run: async () => { await api('/api/scan/resume', { method: 'POST' }); refreshStatus(); } }));
