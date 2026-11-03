@@ -130,7 +130,7 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
-    schema: int = 4  # bumped when a default changed on purpose; older files get the new value
+    schema: int = 5  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
     auto_scan: bool = True
@@ -152,8 +152,8 @@ class Settings:
     preview_size: int = 1600
     ocr_max_side: int = 3200
     ocr_max_pdf_pages: int = 60
-    batch_size: int = 16
-    workers: int = 3
+    batch_size: int = 8  # lighter defaults for an 8 GB Mac that also runs the language model (was 16 / 3)
+    workers: int = 2
     face_det_size: int = 640
     face_det_thresh: float = 0.5
     face_min_score: float = 0.6
@@ -191,8 +191,11 @@ class Settings:
             if raw.get("schema", 1) < 4:  # v4: a single Ministral model replaces llama3.2 + moondream
                 raw.pop("ollama_model", None)
                 raw.pop("vision_model", None)
+            if raw.get("schema", 1) < 5:  # v5: lighter indexing defaults (8 GB Mac sharing RAM with the model)
+                raw.pop("batch_size", None)
+                raw.pop("workers", None)
             _overlay(settings, raw)
-            settings.schema = 4
+            settings.schema = 5
         settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 

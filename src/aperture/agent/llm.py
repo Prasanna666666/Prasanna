@@ -25,12 +25,18 @@ class LLMClient(Protocol):
         """Return the model's raw text, constrained to ``schema`` when supported."""
 
 
+# ONE context size for every request (text, plans, photo description, photo checks). Ollama reloads the model whenever
+# num_ctx changes, even for the same model; with a single shared Ministral that would mean a ~3 GB reload on every switch
+# between a search and a photo description (slow, and it makes an 8 GB Mac hang). Do not give any call its own value.
+NUM_CTX = 4096
+
+
 class OllamaClient:
-    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "5m") -> None:
+    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "2m") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
-        self.keep_alive = keep_alive  # 5 min: long enough for a session of questions, short enough to give the 8 GB back
+        self.keep_alive = keep_alive  # 2 min: long enough between questions, short enough to give the RAM back on an 8 GB Mac
 
     # ------------------------------------------------------------------
     def _request(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -79,7 +85,7 @@ class OllamaClient:
                     "stream": False,
                     "format": fmt,
                     "keep_alive": self.keep_alive,
-                    "options": {"temperature": 0, "num_ctx": 4096},
+                    "options": {"temperature": 0, "num_ctx": NUM_CTX},
                 },
             )
             message = body.get("message")
@@ -101,7 +107,7 @@ class OllamaClient:
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 "stream": False,
                 "keep_alive": self.keep_alive,
-                "options": {"temperature": 0.2, "num_ctx": 4096, "num_predict": 300},
+                "options": {"temperature": 0.2, "num_ctx": NUM_CTX, "num_predict": 300},
             },
         )
         message = body.get("message")
@@ -141,7 +147,7 @@ class OllamaVision(OllamaClient):
                 "messages": [{"role": "user", "content": prompt, "images": [base64.b64encode(image).decode()]}],
                 "stream": False,
                 "keep_alive": self.keep_alive,
-                "options": {"temperature": 0.2, "num_ctx": 2048, "num_predict": 200},
+                "options": {"temperature": 0.2, "num_ctx": NUM_CTX, "num_predict": 200},
             },
         )
         message = body.get("message")
@@ -164,7 +170,7 @@ class OllamaVision(OllamaClient):
                 "stream": False,
                 "format": self._SCHEMA,
                 "keep_alive": self.keep_alive,
-                "options": {"temperature": 0, "num_ctx": 2048},
+                "options": {"temperature": 0, "num_ctx": NUM_CTX},
             },
         )
         message = body.get("message")
