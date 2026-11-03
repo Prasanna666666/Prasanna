@@ -40,7 +40,8 @@ case "${1:-}" in
     old="${2:?usage: $0 migrate OLD_DRIVE   (for example /Volumes/Expansion)}"
     [ -d "$old/Aperture" ] || { echo "no $old/Aperture folder"; exit 1; }
     [ -d "$MOUNT" ] || { echo "open the vault first"; exit 1; }
-    rsync -a --info=progress2 "$old/Aperture/" "$MOUNT/Aperture/"
+    echo "copying (this can take a while; macOS rsync is quiet) ..."
+    rsync -a "$old/Aperture/" "$MOUNT/Aperture/"   # plain flags: the rsync that ships with macOS is old
     echo "copied. After you have checked that Aperture works from the vault, remove the old copy yourself:"
     echo "  rm -r \"$old/Aperture\"   (it is unencrypted)"
     ;;
