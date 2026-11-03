@@ -490,26 +490,50 @@ def cmd_eval_tools(ctx: AppContext) -> int:
     from .agent.toolagent import ToolAgent
     from .evaluation import evaluate_tool_agent, load_plan_cases
 
-    agent = ToolAgent(ctx.llm(), None, lambda request: "")  # only the first decision is measured: nothing is searched
+    import numpy as np
+
     seconds: list[float] = []
 
+    class Found(Exception):  # raised at the first real search: we only measure WHAT the agent decided to search for
+        def __init__(self, call: dict) -> None:
+            self.call = call
+
+    class Recording(ToolAgent):
+        def _execute(self, call, request, previous_ids, history, timings):
+            if call["name"] in ("find_photos", "count_photos", "copy_photos"):
+                raise Found(call)
+            return super()._execute(call, request, previous_ids, history, timings)
+
     def decide(request: str, previous: bool, people: list[str]):
-        facts = ("PEOPLE FOUND: " + ", ".join(people)) if people else ""
+        """Runs the REAL loop (look-ups and overviews included) with stand-in tools, up to the first search."""
+        def lookup(kind: str, text: str) -> list[str]:
+            return [p for p in people if text.lower() in p.lower()] if kind == "person" else [text.title()]
+
+        agent = Recording(ctx.llm(), None, lambda r: ("PEOPLE FOUND: " + ", ".join(people)) if people else "",
+                          overview=lambda prev: "LIBRARY FACTS: 10,000 files, all indexed", lookup=lookup)
         started = time.perf_counter()
-        first, events = agent.decide(request, previous, None, facts)
+        try:
+            reply = agent.ask(request, np.array([1]) if previous else None)
+        except Found as found:
+            seconds.append(time.perf_counter() - started)
+            return "tool", found.call["name"], found.call["arguments"]
         seconds.append(time.perf_counter() - started)
-        events.close() if hasattr(events, "close") else None
-        if first is not None and first[0] == "tool":
-            return "tool", first[1]["name"], first[1]["arguments"]
-        return "words", first[1] if first else "", {}
+        words = ""
+        if reply.stream is not None:
+            words = "".join(list(reply.stream)[:3])
+        return "words", words or reply.text, {}
 
     routes = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
     result = evaluate_tool_agent(decide, load_plan_cases(), routes)
     print(f"tool agent with {ctx.settings.ollama_model}")
     print(f"  right tool and right arguments: {result.plan_correct / result.plan_total:.0%} ({result.plan_correct}/{result.plan_total})")
     print(f"  tool-or-words decision:         {result.route_correct / result.route_total:.0%} ({result.route_correct}/{result.route_total})")
-    print(f"  average time to decide:         {sum(seconds) / max(len(seconds), 1):.1f}s")
-    for request, problems in result.failures[:12]:
+    print(f"  average time to decide:         {sum(seconds) / max(len(seconds), 1):.1f}s (the whole loop, up to the first search)")
+    print("\nwrong plans:")
+    for request, problems in result.failures[:10]:
+        print(f"  x {request!r}: {'; '.join(problems)}")
+    print("\nwrong tool-or-words:")
+    for request, problems in result.route_failures[:10]:
         print(f"  x {request!r}: {'; '.join(problems)}")
     return 0
 

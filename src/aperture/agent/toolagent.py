@@ -66,6 +66,9 @@ PARAMS: dict[str, dict[str, Any]] = {
 
 
 def _tool(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
+    optional = " Leave out unless the user said so."
+    properties = {k: (v if k in (required or []) else {**v, "description": v.get("description", "").rstrip(".") + "." + optional})
+                  for k, v in properties.items()}  # a small model fills in every parameter it can see unless told they are optional
     parameters: dict[str, Any] = {"type": "object", "properties": properties}
     if required:
         parameters["required"] = required
@@ -73,14 +76,18 @@ def _tool(name: str, description: str, properties: dict[str, Any], required: lis
 
 
 TOOL_DEFS: dict[str, dict[str, Any]] = {
-    "find_photos": _tool("find_photos", "Search the user's photo library and show the photos that match. Set only the parameters the user "
-                                        "actually mentioned. Returns how many matched and over which dates.", PARAMS),
-    "count_photos": _tool("count_photos", "Count the photos in the user's library that match. With no parameters it counts all photos. "
-                                          "Same parameters as find_photos.", PARAMS),
-    "library_overview": _tool("library_overview", "Facts about the user's photo library: how many photos and files, the years covered, "
-                                                  "common places, people found, and indexing progress.", {}),
-    "look_up": _tool("look_up", "Check which place names, people or folders really exist in the user's library for a word, before searching "
-                                "(for example to find the exact spelling of a place).",
+    "find_photos": _tool("find_photos", "Show the user photos from their photo library that match what they described: what is in them, "
+                                        "who, where, when, or words written in them. Use this for any request to find, show or look for photos. "
+                                        "Fill in ONLY what the user said and leave every other parameter out.", PARAMS),
+    "count_photos": _tool("count_photos", "Count photos. Use ONLY when the user asks how many. With no parameters it counts all photos. "
+                                          "Same parameters as find_photos; leave out anything the user did not say.", PARAMS),
+    "copy_photos": _tool("copy_photos", "Copy the matching photos into a new folder. Use ONLY when the user asks to copy, put, move or organise "
+                                        "photos into a folder. Same parameters as find_photos, plus the folder name.",
+                         {**PARAMS, "folder": {"type": "string", "description": "Name of the folder to copy the photos into."}}, ["folder"]),
+    "library_overview": _tool("library_overview", "General facts about the whole photo library: how many photos and files, the years covered, "
+                                                  "common places, people found, indexing progress. Not for finding photos.", {}),
+    "look_up": _tool("look_up", "Check the exact spelling of a place, person or folder name in the user's library. Use it ONLY when the "
+                                "library facts you were given do not already show the exact name.",
                      {"kind": {"type": "string", "enum": ["place", "person", "folder"]}, "text": {"type": "string", "description": "The word to look for."}},
                      ["kind", "text"]),
 }
@@ -95,7 +102,7 @@ class AgentSpec:
     goal: str = ""
 
 
-ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "library_overview", "look_up"))
+ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "copy_photos", "library_overview", "look_up"))
 TOOLS = [TOOL_DEFS[name] for name in ASSISTANT.tools]
 
 
@@ -114,9 +121,9 @@ def plan_from_tool(name: str, args: dict[str, Any]) -> Plan:
                                   (["text"], "text_in_photo", False), (["visual"], "not_what", True), (["person"], "not_people", True),
                                   (["place", "path"], "not_places", True)):
         clauses += [{"engines": engines, "query": q, "exclude": exclude} for q in _list(args.get(key))]
-    folder = str(args.get("copy_to_folder") or "").strip()
+    folder = str(args.get("folder") or args.get("copy_to_folder") or "").strip()
     raw = {
-        "intent": "count" if name == "count_photos" else ("export" if folder else "find"),
+        "intent": "count" if name == "count_photos" else ("export" if (folder or name == "copy_photos") else "find"),
         "scope": "previous" if args.get("narrow_previous") is True else "library",
         "match": "all",
         "clauses": clauses,
@@ -230,7 +237,7 @@ class ToolAgent:
         name, args = call["name"], call["arguments"]
         if name not in self.spec.tools:
             return json.dumps({"error": f"there is no tool called {name!r}"}), None
-        if name in ("find_photos", "count_photos"):
+        if name in ("find_photos", "count_photos", "copy_photos"):
             plan = plan_from_tool(name, args)
             note = ""
             if plan.scope == "previous" and previous_ids is None:

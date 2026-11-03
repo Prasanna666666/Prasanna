@@ -50,11 +50,11 @@ def test_copying_to_a_folder_is_an_export():
 
 def test_tool_descriptions_are_the_only_identity_and_the_choices_are_clean():
     names = [t["function"]["name"] for t in TOOLS]
-    assert names == ["find_photos", "count_photos", "library_overview", "look_up"]
+    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "look_up"]
     assert "photo library" in TOOLS[0]["function"]["description"]
     assert "last_month" in PARAMS["relative"]["enum"] and "none" not in PARAMS["relative"]["enum"] and "none" not in PARAMS["season"]["enum"]
     assert all(k in PARAMS for k in FILTER_KEYS) and "required" not in TOOLS[0]["function"]["parameters"]
-    assert TOOLS[3]["function"]["parameters"]["required"] == ["kind", "text"]
+    assert TOOLS[4]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
 
 
 # ------------------------------------------------------------------ the agent loop
@@ -331,3 +331,14 @@ def test_a_perfect_agent_scores_perfectly_against_the_expected_plans():
 
     result = evaluate_tool_agent(decide, cases, [])
     assert result.plan_correct == 1 and not result.failures
+
+
+def test_optional_parameters_say_so_and_required_ones_do_not():
+    find = TOOL_DEFS["find_photos"]["function"]["parameters"]["properties"]
+    assert all("Leave out unless the user said so." in v["description"] for v in find.values())
+    look = TOOL_DEFS["look_up"]["function"]["parameters"]["properties"]
+    assert "Leave out" not in json.dumps(look) and look["kind"]["enum"] == ["place", "person", "folder"]
+    assert "Leave out" not in TOOL_DEFS["copy_photos"]["function"]["parameters"]["properties"]["folder"]["description"]
+    assert TOOL_DEFS["copy_photos"]["function"]["parameters"]["required"] == ["folder"]
+    assert plan_from_tool("copy_photos", {"places": ["Paris"], "folder": "Paris Trip"}).intent == "export"
+    assert plan_from_tool("copy_photos", {"places": ["Paris"], "folder": "Paris Trip"}).folder_name == "Paris Trip"
