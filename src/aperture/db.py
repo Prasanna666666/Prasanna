@@ -130,7 +130,19 @@ ALTER TABLE items ADD COLUMN sat REAL;
 ALTER TABLE items ADD COLUMN val REAL;
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6]
+_MIGRATION_7 = """
+-- Everything the file says about itself, read once and kept (EXIF, GPS, XMP, IPTC, colour profile, file facts, fingerprint).
+CREATE TABLE file_metadata(
+    item_id        INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    reader_version INTEGER NOT NULL,
+    sha256         TEXT,
+    data           TEXT NOT NULL,   -- JSON
+    read_at        REAL NOT NULL
+);
+CREATE INDEX file_metadata_sha ON file_metadata(sha256);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7]
 
 
 class Database:

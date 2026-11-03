@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import signal
 import sys
 import threading
@@ -34,6 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--no-ocr", action="store_true")
     scan.add_argument("--retry-errors", action="store_true")
     scan.add_argument("--regroup-faces", action="store_true")
+    deep = sub.add_parser("deepmeta", help="read and store EVERY detail the photos carry (EXIF, GPS, XMP, IPTC, colour profile, fingerprint); resumable")
+    deep.add_argument("--limit", type=int, default=0, help="only this many photos (0 = all that are missing)")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -213,6 +216,27 @@ def cmd_scan(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_deepmeta(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .indexing import deepmeta
+
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+    conn = ctx.db.connect()
+    try:
+        total = len(deepmeta.pending(conn, args.limit))
+        print(f"{total:,} photos to read" + (" (exiftool found: maker notes included)" if shutil.which("exiftool") else " (install exiftool for maker notes: brew install exiftool)"))
+        done, failed = deepmeta.run(conn, args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
+    finally:
+        conn.close()
+    print(f"deepmeta: {done:,} stored, {failed:,} unreadable")
+    return 0
+
+
 def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     reply = ctx.agent().ask(" ".join(args.request))
     print(reply.text)
@@ -250,7 +274,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
-GUARDED = {"ui", "web", "app", "scan", "ask", "caption", "export-job", "install-service", "install-launcher"}
+GUARDED = {"ui", "web", "app", "scan", "deepmeta", "ask", "caption", "export-job", "install-service", "install-launcher"}
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
@@ -645,6 +669,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_doctor(ctx, args.stats)
     if args.command == "scan":
         return cmd_scan(ctx, args)
+    if args.command == "deepmeta":
+        return cmd_deepmeta(ctx, args)
     if args.command == "ask":
         return cmd_ask(ctx, args)
     if args.command == "web":
