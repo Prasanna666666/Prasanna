@@ -22,7 +22,8 @@ from .safety import drive_problem, enable_offline_guard, resolve_export_dir, res
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aperture", description="Private, offline AI photo agent")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("doctor", help="check the drive, models, Ollama and database")
+    doc = sub.add_parser("doctor", help="check the drive, models, Ollama and database")
+    doc.add_argument("--stats", action="store_true", help="also count photos/faces/text (slow on a big library or an external disk)")
     sub.add_parser("fetch-models", help="one-off model download (the only command that uses the network)")
     scan = sub.add_parser("scan", help="index the photo folder (resumable)")
     scan.add_argument("--no-clip", action="store_true")
@@ -75,7 +76,7 @@ def _setup_logging(paths: Paths) -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", handlers=handlers)
 
 
-def cmd_doctor(ctx: AppContext) -> int:
+def cmd_doctor(ctx: AppContext, with_stats: bool = False) -> int:
     ok = True
 
     def line(good: bool, label: str, detail: str = "") -> None:
@@ -106,7 +107,10 @@ def cmd_doctor(ctx: AppContext) -> int:
     line(healthy, "Ollama", detail)
     conn = ctx.db.connect()
     line(True, "database", str(p.db))
-    print(json.dumps(_stats(conn), indent=2))
+    if with_stats:
+        print(json.dumps(_stats(conn), indent=2))
+    else:
+        print("(library counts skipped: they can take minutes on a big library; run `aperture doctor --stats` to include them)")
     return 0 if ok else 1
 
 
@@ -316,7 +320,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         fetch_all(paths, ctx.settings)
         return 0
     if args.command == "doctor":
-        return cmd_doctor(ctx)
+        return cmd_doctor(ctx, args.stats)
     if args.command == "scan":
         return cmd_scan(ctx, args)
     if args.command == "ask":
