@@ -194,6 +194,7 @@ class Executor:
                 ("path", f"In a folder or file named '{term}'"),
                 ("person", f"Photos of {term}"),
                 ("text", f"With '{term}' written in them"),
+                ("tag", f"Tagged '{term}'"),
                 ("visual", f"Looks like '{term}'"),
             )
             for engine, label in wording:
@@ -253,10 +254,25 @@ class Executor:
                 return self._person_ids(query, result)
             if engine == "visual":
                 return self._visual_ids(query, result)
+            if engine == "tag":
+                return self._tag_ids(query)
         except sqlite3.Error as exc:  # a broken engine must not take the whole answer down
             log.exception("engine %s failed", engine)
             result.notes.append(f"The {engine} search failed: {exc}")
         return np.zeros(0, np.int64)
+
+    def _tag_ids(self, query: str) -> np.ndarray:
+        """Photos labelled with this scene, object or landmark (read once from the picture; see `aperture details`)."""
+        word = query.strip().lower()
+        if len(word) < 2:
+            return np.zeros(0, np.int64)
+        try:
+            rows = self._conn.execute(
+                "SELECT DISTINCT item_id FROM photo_labels WHERE label=? OR label LIKE ? ESCAPE '\\'", (word, f"%{word.replace('%', '').replace('_', '')}%")
+            )
+            return np.array(sorted(r[0] for r in rows), np.int64)
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)  # the details pass has not run yet
 
     def _person_ids(self, query: str, result: ExecResult) -> np.ndarray:
         person_ids = resolve_name(self._conn, query)

@@ -142,7 +142,40 @@ CREATE TABLE file_metadata(
 CREATE INDEX file_metadata_sha ON file_metadata(sha256);
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7]
+_MIGRATION_8 = """
+-- What is IN each picture, read once from the stored preview (the original is never opened again).
+CREATE TABLE photo_details(
+    item_id INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    read_at REAL NOT NULL,
+    notes   TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE photo_labels(          -- scene / object / landmark labels, from Apple Vision and from the image embedding
+    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    label   TEXT NOT NULL,
+    score   REAL NOT NULL,
+    source  TEXT NOT NULL
+);
+CREATE INDEX photo_labels_label ON photo_labels(label);
+CREATE INDEX photo_labels_item  ON photo_labels(item_id);
+CREATE TABLE photo_objects(         -- things with a place in the frame (animals, people, salient regions, barcodes); boxes are 0..1
+    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    kind    TEXT NOT NULL,
+    label   TEXT NOT NULL,
+    score   REAL NOT NULL,
+    x1 REAL, y1 REAL, x2 REAL, y2 REAL
+);
+CREATE INDEX photo_objects_item ON photo_objects(item_id);
+CREATE TABLE photo_text(            -- every piece of text with where it sits in the frame
+    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    text    TEXT NOT NULL,
+    score   REAL NOT NULL,
+    x1 REAL, y1 REAL, x2 REAL, y2 REAL
+);
+CREATE INDEX photo_text_item ON photo_text(item_id);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8]
 
 
 class Database:

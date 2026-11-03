@@ -419,6 +419,11 @@ class AppContext:
                     "as_words_written_in_photos": len(search_text_ids(conn, term)),
                     "as_person": len(resolve_name(conn, term)),
                 }
+                try:
+                    counts["as_picture_label"] = conn.execute(
+                        "SELECT COUNT(DISTINCT item_id) FROM photo_labels WHERE label LIKE ?", (f"%{term.strip().lower()}%",)).fetchone()[0]
+                except Exception:
+                    pass
             finally:
                 conn.close()
             out: dict[str, Any] = {"term": term, **counts}

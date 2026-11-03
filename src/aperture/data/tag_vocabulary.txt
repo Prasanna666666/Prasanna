@@ -1,0 +1,163 @@
+# One label per line: objects, scenes, activities, landmarks, document types. Scored against every photo's stored image embedding.
+person
+selfie
+group of people
+child
+baby
+crowd
+dog
+cat
+bird
+horse
+cow
+fish
+insect
+flower
+tree
+forest
+grass
+garden
+mountain
+snow
+beach
+sea
+ocean
+lake
+river
+waterfall
+desert
+sky
+clouds
+sunset
+sunrise
+night sky
+rain
+fog
+city skyline
+street
+road
+bridge
+building
+skyscraper
+house
+church
+temple
+shrine
+mosque
+castle
+palace
+monument
+statue
+museum
+market
+shop
+restaurant
+cafe
+kitchen
+living room
+bedroom
+bathroom
+office
+classroom
+hospital
+airport
+airplane
+train
+railway station
+bus
+car
+taxi
+bicycle
+motorcycle
+boat
+ship
+food
+pizza
+burger
+sushi
+ramen
+noodles
+rice
+salad
+dessert
+cake
+birthday cake
+ice cream
+coffee
+tea
+beer
+wine
+cocktail
+fruit
+vegetables
+breakfast
+barbecue
+wedding
+birthday party
+festival
+fireworks
+concert
+stage
+sports
+football
+cricket
+tennis
+swimming
+running
+hiking
+skiing
+yoga
+gym
+playground
+zoo
+amusement park
+swimming pool
+camping
+road trip
+shopping
+screenshot
+document
+receipt
+invoice
+ticket
+menu
+sign
+poster
+map
+whiteboard
+book
+laptop
+phone
+television
+painting
+sculpture
+architecture
+tower
+Tokyo Tower
+Eiffel Tower
+Big Ben
+Statue of Liberty
+Colosseum
+Taj Mahal
+Great Wall of China
+Mount Fuji
+Shibuya Crossing
+Sensoji Temple
+Fushimi Inari Shrine
+Golden Gate Bridge
+Sydney Opera House
+Burj Khalifa
+Sagrada Familia
+Louvre
+Windmill
+tulip field
+canal
+aurora
+northern lights
+volcano
+glacier
+hot spring
+cherry blossom
+autumn leaves
+night city lights
+neon signs

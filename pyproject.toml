@@ -24,7 +24,7 @@ aperture = "aperture.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aperture = ["py.typed", "eval_data/*.json", "web/static/*"]
+aperture = ["py.typed", "eval_data/*.json", "web/static/*", "data/*.txt"]
 
 [tool.ruff]
 line-length = 130

@@ -37,6 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--regroup-faces", action="store_true")
     deep = sub.add_parser("deepmeta", help="read and store EVERY detail the photos carry (EXIF, GPS, XMP, IPTC, colour profile, fingerprint); resumable")
     deep.add_argument("--limit", type=int, default=0, help="only this many photos (0 = all that are missing)")
+    det = sub.add_parser("details", help="read and store what is IN each picture: scene and object labels, animals and people with boxes, text with boxes, landmark tags; resumable")
+    det.add_argument("--limit", type=int, default=0, help="only this many photos (0 = all that are missing)")
+    det.add_argument("--no-vision", action="store_true", help="skip Apple Vision (only the quick landmark and scene tags)")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -237,6 +240,37 @@ def cmd_deepmeta(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_details(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .indexing import details
+    from .ml.vision_details import VisionDetails, vision_available
+
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    try:
+        os.nice(10)
+    except OSError:
+        pass
+    conn = ctx.db.connect()
+    try:
+        embedder = ctx.search_embedder()
+        if embedder is not None:
+            print("landmark and scene tags from the stored image embeddings ...", flush=True)
+            print(f"  {details.clip_tags(conn, ctx.embedding_index(), embedder):,} tags")
+        if args.no_vision:
+            return 0
+        if not vision_available():
+            print("Apple Vision is not available here (needs macOS with pyobjc-framework-Vision); skipped objects, labels and text boxes.")
+            return 0
+        total = len(details.pending(conn, args.limit))
+        print(f"{total:,} pictures to read", flush=True)
+        done, bad = details.run(conn, ctx.paths.data, VisionDetails(), args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
+        print(f"details: {done:,} stored, {bad:,} unreadable")
+    finally:
+        conn.close()
+    return 0
+
+
 def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     reply = ctx.agent().ask(" ".join(args.request))
     print(reply.text)
@@ -274,7 +308,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
-GUARDED = {"ui", "web", "app", "scan", "deepmeta", "ask", "caption", "export-job", "install-service", "install-launcher"}
+GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "ask", "caption", "export-job", "install-service", "install-launcher"}
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
@@ -669,6 +703,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_doctor(ctx, args.stats)
     if args.command == "scan":
         return cmd_scan(ctx, args)
+    if args.command == "details":
+        return cmd_details(ctx, args)
     if args.command == "deepmeta":
         return cmd_deepmeta(ctx, args)
     if args.command == "ask":
