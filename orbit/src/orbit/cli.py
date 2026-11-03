@@ -1,4 +1,4 @@
-"""saathi ui | chat | brief | tools"""
+"""orbit ui | chat | brief | tools"""
 
 from __future__ import annotations
 
@@ -35,14 +35,14 @@ def main(argv: list[str] | None = None) -> int:
     elif cmd == "chat":
         history: list[dict] = []
         client = agent.llm.OllamaClient()
-        print("Saathi - Ctrl-D to quit")
+        print("Orbit - Ctrl-D to quit")
         while True:
             try:
                 text = input("you> ").strip()
             except EOFError:
                 return 0
             if text:
-                print("saathi>", agent.chat(conn, history, text, client=client))
+                print("orbit>", agent.chat(conn, history, text, client=client))
     else:
         print(__doc__)
         return 2

@@ -1,4 +1,4 @@
-"""Local model access (Ollama). No cloud model is used anywhere in Saathi."""
+"""Local model access (Ollama). No cloud model is used anywhere in Orbit."""
 
 from __future__ import annotations
 

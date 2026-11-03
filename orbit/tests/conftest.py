@@ -1,7 +1,7 @@
 import pytest
 
-from saathi import db
-from saathi.modules import ALL
+from orbit import db
+from orbit.modules import ALL
 
 
 @pytest.fixture

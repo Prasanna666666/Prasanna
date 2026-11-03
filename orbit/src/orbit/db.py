@@ -10,13 +10,13 @@ from .module import Module
 
 
 def home() -> Path:
-    return Path(os.environ.get("SAATHI_HOME", Path.home() / ".saathi"))
+    return Path(os.environ.get("ORBIT_HOME", Path.home() / ".orbit"))
 
 
 def connect(path: str | Path | None = None) -> sqlite3.Connection:
     if path is None:
         home().mkdir(parents=True, exist_ok=True)
-        path = home() / "saathi.db"
+        path = home() / "orbit.db"
     conn = sqlite3.connect(str(path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

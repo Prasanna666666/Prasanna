@@ -2,9 +2,9 @@ from datetime import date
 
 import pytest
 
-from saathi import dates, db
-from saathi.modules import ALL, money, notes, people, tasks, tools
-from saathi.modules.today import briefing_for
+from orbit import dates, db
+from orbit.modules import ALL, money, notes, people, tasks, tools
+from orbit.modules.today import briefing_for
 
 
 def test_migrate_is_idempotent(conn):

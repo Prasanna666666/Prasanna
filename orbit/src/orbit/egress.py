@@ -1,6 +1,6 @@
 """Allowlist egress proxy (HTTP CONNECT only). The ONLY container with a route to the internet.
 
-    python -m saathi.egress          # listens on :3128, allows EGRESS_ALLOW hosts on port 443
+    python -m orbit.egress          # listens on :3128, allows EGRESS_ALLOW hosts on port 443
 
 Everything else gets 403. Hosts that resolve to private/loopback addresses are refused (no SSRF into your LAN).
 It sees only hostnames and byte counts - TLS is end-to-end between the app and the public API.

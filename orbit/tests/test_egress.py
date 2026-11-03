@@ -1,6 +1,6 @@
 import asyncio
 
-from saathi.egress import Proxy
+from orbit.egress import Proxy
 
 
 async def _roundtrip(make_proxy, target_host, target_port=None):

@@ -1,8 +1,8 @@
-# Saathi: private by construction.
+# Orbit: private by construction.
 #   private  - internal network, NO route to the internet: app, ollama, gateway, egress
 #   outside  - normal network, attached ONLY to `egress` (allowlist proxy) and to the one-off model download
-# The app's only way out is egress -> 3 public API hostnames. Your data lives in the `saathi-data` volume.
-name: saathi
+# The app's only way out is egress -> 3 public API hostnames. Your data lives in the `orbit-data` volume.
+name: orbit
 
 x-hardened: &hardened
   read_only: true
@@ -15,12 +15,12 @@ services:
   app:
     <<: *hardened
     build: .
-    image: saathi:local
+    image: orbit:local
     environment:
       OLLAMA_HOST: http://ollama:11434
       HTTPS_PROXY: http://egress:3128
       NO_PROXY: ollama,localhost,127.0.0.1
-    volumes: ["saathi-data:/data"]
+    volumes: ["orbit-data:/data"]
     networks: [private]
     depends_on: [ollama, egress]
 
@@ -44,8 +44,8 @@ services:
   egress:
     <<: *hardened
     build: .
-    image: saathi:local
-    entrypoint: ["python", "-m", "saathi.egress"]
+    image: orbit:local
+    entrypoint: ["python", "-m", "orbit.egress"]
     environment:
       EGRESS_ALLOW: api.open-meteo.com,geocoding-api.open-meteo.com,api.frankfurter.app
     networks: [private, outside]
@@ -63,5 +63,5 @@ networks:
   outside: {}
 
 volumes:
-  saathi-data:
+  orbit-data:
   ollama-models:

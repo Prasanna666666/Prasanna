@@ -6,15 +6,15 @@ from datetime import date
 
 import streamlit as st
 
-from saathi import netguard
+from orbit import netguard
 
 netguard.install()
 
-from saathi import agent, db, llm
-from saathi.modules import ALL, money, notes, people, tasks, world
-from saathi.modules.today import briefing_for
+from orbit import agent, db, llm
+from orbit.modules import ALL, money, notes, people, tasks, world
+from orbit.modules.today import briefing_for
 
-st.set_page_config(page_title="Saathi", page_icon="🧭", layout="wide")
+st.set_page_config(page_title="Orbit", page_icon="🧭", layout="wide")
 
 
 @st.cache_resource
@@ -26,7 +26,7 @@ def conn():
 
 C = conn()
 cur = db.get_setting(C, "currency", "INR")
-page = st.sidebar.radio("Saathi", ["Today", "Chat", "Tasks", "Notes", "Money", "People", "Settings"])
+page = st.sidebar.radio("Orbit", ["Today", "Chat", "Tasks", "Notes", "Money", "People", "Settings"])
 
 
 def person_names() -> dict[int, str]:
@@ -66,7 +66,7 @@ if page == "Today":
                 st.write(f"{r['category']}: {r['spent']:,.0f}")
 
 elif page == "Chat":
-    st.title("Ask Saathi")
+    st.title("Ask Orbit")
     st.caption("e.g. “remind me to call Amma every Sunday”, “spent 450 on groceries”, “note: dad's BP meds are…”")
     hist = st.session_state.setdefault("history", [])
     for turn in hist:
