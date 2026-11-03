@@ -32,6 +32,10 @@ def start_scan(ctx: AppContext, *extra: str) -> bool:
     """Launch the resumable scanner as a separate low-priority process."""
     if ScanLock(ctx.paths).running():
         return False
+    try:
+        ctx.llm().unload()  # free the AI model's RAM before indexing starts
+    except Exception:
+        pass
     subprocess.Popen(  # noqa: S603
         [sys.executable, "-m", "aperture", "scan", *extra],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,

@@ -1,0 +1,182 @@
+[
+ {
+  "message": "How many pics in 2026",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "how many photos do I have from 2021?",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "pics from 2026",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "show me beach photos",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "sunset photos",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "photos of Anna",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "pictures from last month",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "count my pictures of cats",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "find the receipt that says Starbucks",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "only the ones from March",
+  "previous": true,
+  "expect": "photos"
+ },
+ {
+  "message": "of these, just the ones with Anna",
+  "previous": true,
+  "expect": "photos"
+ },
+ {
+  "message": "put my Rome pictures into a folder called Italy",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "selfies",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "photos taken at night",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "how many photos are in each year?",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "is indexing done?",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "who is in my photos the most?",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "show my blurry photos",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "what did I photograph in December 2020",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "photos near Eindhoven",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "any screenshots with the word password",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "dogs",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "group photos",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "how many shots did I take last year",
+  "previous": false,
+  "expect": "photos"
+ },
+ {
+  "message": "tell me a joke",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "what is the difference between RAW and JPEG?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "how are you today?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "explain what a vision model is",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "who won the world cup in 2018?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "write a short birthday message for my mom",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "what can you do?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "what is 17 times 23?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "give me tips for taking better portraits",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "what is the capital of France?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "can you help me plan a trip to Japan?",
+  "previous": false,
+  "expect": "chat"
+ },
+ {
+  "message": "what year did the iPhone come out?",
+  "previous": false,
+  "expect": "chat"
+ }
+]

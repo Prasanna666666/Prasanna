@@ -41,7 +41,7 @@ def test_chat_intent_gets_a_conversational_reply_with_history_and_no_photos():
 
 
 def test_chat_without_a_chatter_falls_back_to_the_plan_message():
-    reply = service(Plan(intent="chat", message="Hi! Ask me for photos.")).ask("hello")
+    reply = service(Plan(intent="chat", message="Hi! Ask me for photos.")).ask("tell me about cameras")
     assert reply.kind == "chat" and reply.text == "Hi! Ask me for photos."
 
 
@@ -49,12 +49,12 @@ def test_chat_model_errors_are_reported_not_raised():
     def chatter(request, history):
         raise LLMError("Ollama is not reachable")
 
-    reply = service(Plan(intent="chat"), chatter).ask("hello")
+    reply = service(Plan(intent="chat"), chatter).ask("tell me about cameras")
     assert reply.kind == "error" and "not reachable" in reply.text
 
 
 def test_empty_chat_reply_uses_the_fallback():
-    assert service(Plan(intent="chat"), lambda r, h: "").ask("hi").text.startswith("Ask me to find photos")
+    assert service(Plan(intent="chat"), lambda r, h: "").ask("tell me about cameras").text.startswith("Ask me to find photos")
 
 
 def test_complete_chat_sends_the_conversation_and_stays_in_one_context(monkeypatch):
@@ -69,7 +69,7 @@ def test_complete_chat_sends_the_conversation_and_stays_in_one_context(monkeypat
 
 
 def test_instant_photo_preview_is_off_by_default_and_guarded():
-    assert Settings().quick_preview is False
+    assert Settings().quick_preview is True
     import inspect
 
     from aperture.ui.views import chat

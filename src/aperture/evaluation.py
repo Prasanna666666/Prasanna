@@ -182,3 +182,15 @@ def evaluate_retrieval(ask: Callable[[str], list[str]], golden: dict[str, Any]) 
         got = {str(Path(p)) for p in ask(str(case["request"]))}
         result.cases.append(CaseScore(str(case["request"]), len(got), len(want), len(want & got)))
     return result
+
+
+def evaluate_routes(router, cases: list[dict]) -> tuple[int, list[str]]:
+    """How many messages the router sends to the right place ('photos' = about the library, 'chat' = conversation)."""
+    correct, wrong = 0, []
+    for case in cases:
+        got = router(case["message"], bool(case.get("previous")))
+        if got == case["expect"]:
+            correct += 1
+        else:
+            wrong.append(f"{case['message']!r}: sent to {got}, expected {case['expect']}")
+    return correct, wrong

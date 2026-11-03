@@ -37,6 +37,7 @@ class AgentReply:
     folder_name: str = ""  # for kind == "export"
     date_range: str = ""
     trace: list[dict[str, str]] = field(default_factory=list)  # what the agent did, step by step
+    stream: Any = field(default=None, repr=False, compare=False)  # chat replies: text arrives piece by piece (consumed by the UI)
 
 
 class Agent(Protocol):
@@ -79,6 +80,34 @@ CHAT_SYSTEM = (
 )
 
 
+ROUTER_SYSTEM = (
+    "You route messages in a private photo app. Reply with JSON: {\"route\": \"photos\"} or {\"route\": \"chat\"}.\n"
+    "photos = the message is about the user's photos or files or library: find, show, count, filter, copy or organize them, "
+    "refine earlier results, or ask about them (how many, from which year, which people, places, indexing). Words like photos, pics, "
+    "pictures, images, shots, selfies, albums, years and dates about their library mean photos. When in doubt, choose photos.\n"
+    "chat = everything else: greetings, thanks, small talk, general knowledge, explanations, advice, writing help, questions about you.\n"
+    "Examples: 'beach photos from last summer' -> photos; 'only the ones from March' -> photos; 'how many pics from 2019' -> photos; "
+    "'who is in my photos most' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
+)
+ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["photos", "chat"]}}, "required": ["route"]}
+
+_GREETINGS = {"hi", "hello", "hey", "hi there", "hello there", "hey there", "good morning", "good afternoon", "good evening"}
+_THANKS = {"thanks", "thank you", "thanks a lot", "thank you so much", "thx", "cheers"}
+_BYES = {"bye", "goodbye", "good night", "see you", "see ya"}
+
+
+def instant_reply(request: str) -> str | None:
+    """A ready answer for a plain greeting, thanks or goodbye: no AI call, so it appears at once."""
+    text = " ".join("".join(ch if ch.isalnum() or ch.isspace() else " " for ch in request.lower()).split())
+    if text in _GREETINGS:
+        return "Hi! I'm Lumo. Ask me to find photos, like 'beach photos from last summer', or just chat."
+    if text in _THANKS:
+        return "You're welcome!"
+    if text in _BYES:
+        return "See you soon!"
+    return None
+
+
 class AgentService:
     def __init__(
         self,
@@ -89,8 +118,12 @@ class AgentService:
         library_facts: Callable[[str], str] | None = None,
         answerer: Callable[[str, np.ndarray | None], str] | None = None,
         chatter: Callable[[str, list[tuple[str, str]]], str] | None = None,
+        chat_stream: Callable[[str, list[tuple[str, str]]], Any] | None = None,
+        router: Callable[[str, bool], str] | None = None,
     ) -> None:
+        self._router = router
         self._chatter = chatter
+        self._chat_stream = chat_stream
         self._library_facts = library_facts
         self._answerer = answerer
         self._planner = planner
@@ -98,11 +131,32 @@ class AgentService:
         self._known_people = known_people
         self._today = today
 
+    def _chat_reply(self, request: str, history: list[tuple[str, str]] | None, base: dict[str, Any], message: str) -> AgentReply:
+        fallback = message or "Ask me to find photos by content, text, people, places or dates."
+        if self._chat_stream is not None:
+            return AgentReply("chat", "", stream=self._chat_stream(request, list(history or [])), **base)
+        if self._chatter is None:
+            return AgentReply("chat", fallback, **base)
+        try:
+            return AgentReply("chat", self._chatter(request, list(history or [])) or fallback, **base)
+        except LLMError as exc:
+            return AgentReply("error", str(exc), **base)
+
     def ask(
         self, request: str, previous_ids: np.ndarray | None = None, history: list[tuple[str, str]] | None = None
     ) -> AgentReply:
         if not request.strip():
             return AgentReply("clarify", "What would you like to find?")
+        quick = instant_reply(request)
+        if quick:
+            return AgentReply("chat", quick)
+        if self._router is not None:  # a tiny, fast question first: is this about the photos or just conversation?
+            try:
+                route = self._router(request, previous_ids is not None)
+            except LLMError as exc:
+                return AgentReply("error", str(exc))
+            if route == "chat":
+                return self._chat_reply(request, history, {}, "")
         ctx = PlannerContext(
             today=self._today(),
             known_people=tuple(self._known_people()),
@@ -117,13 +171,7 @@ class AgentService:
         base: dict[str, Any] = {"plan": plan, "warnings": planned.warnings}
 
         if plan.intent == "chat":
-            fallback = plan.message or "Ask me to find photos by content, text, people, places or dates."
-            if self._chatter is None:
-                return AgentReply("chat", fallback, **base)
-            try:
-                return AgentReply("chat", self._chatter(request, list(history or [])) or fallback, **base)
-            except LLMError as exc:
-                return AgentReply("error", str(exc), **base)
+            return self._chat_reply(request, history, base, plan.message)
         if plan.intent == "question":
             if self._answerer is None:
                 return AgentReply("chat", "I can't look that up here yet.", **base)

@@ -40,6 +40,7 @@ def build_parser() -> argparse.ArgumentParser:
     job.add_argument("job_id")
     sub.add_parser("stats", help="print library statistics")
     sub.add_parser("eval-plans", help="measure how accurately the local LLM turns requests into plans (no photos needed)")
+    sub.add_parser("eval-routes", help="measure how well the AI tells photo requests from ordinary conversation (fast, no photos needed)")
     ev = sub.add_parser("eval", help="measure search precision/recall against your own golden set")
     ev.add_argument("golden", nargs="?", help="JSON file of requests and the files that truly match")
     ev.add_argument("--template", metavar="FILE", help="write a starter golden file and exit")
@@ -417,6 +418,17 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
         pid_file.unlink(missing_ok=True)
 
 
+def cmd_eval_routes(ctx: AppContext) -> int:
+    from .evaluation import evaluate_routes
+
+    cases = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
+    correct, wrong = evaluate_routes(ctx.router(), cases)
+    print(f"route accuracy with {ctx.settings.ollama_model}: {correct / len(cases):.0%} ({correct}/{len(cases)})")
+    for line in wrong:
+        print("  x", line)
+    return 0 if correct / len(cases) >= 0.9 else 1
+
+
 def cmd_bench(paths: Paths) -> int:
     """Time a cold render of the app, the database and the drive; print the slowest steps."""
     import cProfile
@@ -513,6 +525,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_ask(ctx, args)
     if args.command == "eval-plans":
         return cmd_eval_plans(ctx)
+    if args.command == "eval-routes":
+        return cmd_eval_routes(ctx)
     if args.command == "eval":
         return cmd_eval(ctx, args)
     if args.command == "export-job":

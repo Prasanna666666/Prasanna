@@ -9,6 +9,7 @@ import time
 import streamlit as st
 
 from ... import library as lib
+from ...agent.llm import LLMError
 from ...agent.service import AgentReply
 from ...bootstrap import AppContext
 from ...indexing.progress import ScanLock
@@ -202,6 +203,7 @@ def render(ctx: AppContext) -> None:
     previous = next((m["reply"].ids for m in reversed(history) if m.get("reply") is not None and len(m["reply"].ids)), None)
     turns = [(m["role"], m["text"]) for m in history[-8:] if m.get("text")]  # for ordinary conversation
     history.append({"role": "user", "text": prompt})
+    _render_message(ctx, len(history) - 1, history[-1])  # your message shows at once, not after the answer
     started = time.perf_counter()
     key = _cache_key(ctx, prompt, previous)
     reply = _REPLIES.get(key) if key else None
@@ -214,6 +216,14 @@ def render(ctx: AppContext) -> None:
             status.update(label="Done", state="complete" if reply.kind != "error" else "error")
         if key and reply.kind in ("results", "count"):
             _REPLIES[key] = reply
+        if reply.stream is not None:  # a conversational reply: show the words as they are written
+            with st.chat_message("assistant", avatar=":material/auto_awesome:"):
+                st.html('<i class="ap-bot-marker"></i>')
+                try:
+                    reply.text = st.write_stream(reply.stream) or "..."
+                except LLMError as exc:
+                    reply = AgentReply("error", str(exc))
+            reply.stream = None
         took = time.perf_counter() - started
     else:
         took = 0.0

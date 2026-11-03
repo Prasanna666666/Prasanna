@@ -32,11 +32,11 @@ NUM_CTX = 4096
 
 
 class OllamaClient:
-    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "5m") -> None:
+    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "30m") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
-        self.keep_alive = keep_alive  # 5 min: a reload costs seconds on every first question; Aperture also pauses indexing while you search
+        self.keep_alive = keep_alive  # 30 min: a reload costs seconds on every first question. Indexing pauses while you search and unloads the model when it starts
 
     # ------------------------------------------------------------------
     def _request(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -58,6 +58,13 @@ class OllamaClient:
             raise LLMError("Ollama sent an unreadable response") from exc
         return body if isinstance(body, dict) else {}
 
+    def unload(self) -> None:
+        """Free the model's memory now (called before indexing starts, so the two never compete for RAM)."""
+        try:
+            self._request("/api/generate", {"model": self.model, "prompt": "", "keep_alive": 0, "stream": False})
+        except LLMError:
+            pass
+
     def warm(self) -> None:
         """Load the model into memory now, so the first question does not pay for it."""
         self._request("/api/generate", {"model": self.model, "prompt": "", "keep_alive": self.keep_alive, "stream": False})
@@ -75,7 +82,11 @@ class OllamaClient:
             return False, f"Model '{self.model}' is not installed. Installed: {', '.join(models) or 'none'}"
         return True, f"Ollama OK ({self.model})"
 
-    def complete_json(self, system: str, user: str, schema: dict[str, Any]) -> str:
+    def complete_json(self, system: str, user: str, schema: dict[str, Any], max_tokens: int | None = None) -> str:
+        options: dict[str, Any] = {"temperature": 0, "num_ctx": NUM_CTX}
+        if max_tokens:
+            options["num_predict"] = max_tokens
+
         def call(fmt: Any) -> str:
             body = self._request(
                 "/api/chat",
@@ -85,7 +96,7 @@ class OllamaClient:
                     "stream": False,
                     "format": fmt,
                     "keep_alive": self.keep_alive,
-                    "options": {"temperature": 0, "num_ctx": NUM_CTX},
+                    "options": options,
                 },
             )
             message = body.get("message")
@@ -112,6 +123,43 @@ class OllamaClient:
         )
         message = body.get("message")
         return str(message.get("content", "")).strip() if isinstance(message, dict) else ""
+
+    def stream_chat(self, system: str, messages: list[dict[str, str]], max_tokens: int = 400):
+        """Yield the reply piece by piece as the model writes it, so the first words show up in about a second."""
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}, *messages],
+            "stream": True,
+            "keep_alive": self.keep_alive,
+            "options": {"temperature": 0.6, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+        }
+        request = urllib.request.Request(
+            self.base_url + "/api/chat", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                for raw in response:
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except ValueError as exc:
+                        raise LLMError("Ollama sent an unreadable response") from exc
+                    message = chunk.get("message") if isinstance(chunk, dict) else None
+                    text = str(message.get("content", "")) if isinstance(message, dict) else ""
+                    if text:
+                        yield text
+                    if isinstance(chunk, dict) and chunk.get("done"):
+                        return
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise LLMError(f"Model '{self.model}' is not installed. Run: ollama pull {self.model}") from exc
+            raise LLMError(f"Ollama returned HTTP {exc.code}") from exc
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            raise LLMUnavailable(
+                f"Ollama is not reachable at {self.base_url}. Start it with `ollama serve` (or open the Ollama app)."
+            ) from exc
 
     def complete_text(self, system: str, user: str) -> str:
         """Plain-text answer (no JSON), for conversational replies grounded in supplied facts."""

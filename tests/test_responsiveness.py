@@ -15,8 +15,8 @@ def test_indexing_does_not_start_by_itself_and_old_choice_resets_once(tmp_path):
     paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
     paths.settings_file.write_text(json.dumps({"schema": 5, "auto_scan": True, "page_size": 48}))
     s = Settings.load(paths)
-    assert s.auto_scan is False and s.page_size == 48 and s.schema == 6
-    paths.settings_file.write_text(json.dumps({"schema": 6, "auto_scan": True}))
+    assert s.auto_scan is False and s.page_size == 48 and s.schema == 7
+    paths.settings_file.write_text(json.dumps({"schema": 7, "auto_scan": True}))
     assert Settings.load(paths).auto_scan is True  # a deliberate choice made after v6 is kept
 
 
@@ -70,7 +70,7 @@ def test_searching_pauses_a_running_scan_and_remembers_why(monkeypatch):
     assert state.pause_scan_for_chat(ctx) is False and not state.st.session_state
 
 
-def test_keep_alive_is_five_minutes():
+def test_keep_alive_is_thirty_minutes():
     from aperture.agent.llm import OllamaClient
 
-    assert OllamaClient("http://127.0.0.1:11434", "m").keep_alive == "5m"
+    assert OllamaClient("http://127.0.0.1:11434", "m").keep_alive == "30m"

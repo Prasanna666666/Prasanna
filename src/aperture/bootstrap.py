@@ -7,6 +7,8 @@ code base testable and replaceable.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import logging
 import threading
 from datetime import date
@@ -21,7 +23,7 @@ from .agent.knowledge import gather_facts
 from .agent.llm import LLMError, OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
-from .agent.service import CHAT_SYSTEM, Agent, AgentService
+from .agent.service import CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
@@ -181,6 +183,20 @@ class AppContext:
     def llm(self) -> OllamaClient:
         return OllamaClient(self.settings.ollama_url, self.settings.ollama_model)
 
+    def router(self) -> Callable[[str, bool], str]:
+        """Tiny, fast classifier: 'photos' (about the library) or 'chat'. Anything unclear counts as photos."""
+
+        def route(request: str, has_previous: bool) -> str:
+            user = f"EARLIER RESULTS: {'yes' if has_previous else 'no'}\nMessage: {request.strip()}"
+            raw = self.llm().complete_json(ROUTER_SYSTEM, user, ROUTER_SCHEMA, max_tokens=16)
+            try:
+                value = extract_json(raw).get("route")
+            except Exception:
+                return "photos"
+            return "chat" if value == "chat" else "photos"
+
+        return route
+
     def agent(self) -> Agent:
         def make_executor() -> Executor:
             return Executor(
@@ -249,14 +265,21 @@ class AppContext:
                 conn.close()
             return answer_question(self.llm().complete_text, question, facts)
 
+        def _chat_system() -> str:
+            return CHAT_SYSTEM + f" Today's date is {date.today():%A %d %B %Y}."
+
         def chatter(request: str, history: list[tuple[str, str]]) -> str:
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
-            return self.llm().complete_chat(CHAT_SYSTEM, [*turns, {"role": "user", "content": request}])
+            return self.llm().complete_chat(_chat_system(), [*turns, {"role": "user", "content": request}])
+
+        def chat_stream(request: str, history: list[tuple[str, str]]):
+            turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
+            return self.llm().stream_chat(_chat_system(), [*turns, {"role": "user", "content": request}])
 
         if not self.settings.agentic:
             return AgentService(
                 Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
-                answerer=answerer, chatter=chatter,
+                answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
             )
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
