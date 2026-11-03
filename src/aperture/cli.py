@@ -50,7 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
-    sec.add_argument("--port", type=int, default=8765)
+    sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
+    sec.add_argument("--no-browser", action="store_true", help="do not open the page in your browser when it is ready")
     sec.add_argument("--allow-moves", action="store_true", help="let Tidy up move files inside the photo folder (off in the sandbox by default)")
     ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
     ui.add_argument("--port", type=int, default=8765)
@@ -255,6 +256,37 @@ def secure_environment() -> bool:
     return os.environ.get("APERTURE_SANDBOXED") == "1"
 
 
+def port_is_free(port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
+
+
+def first_free_port(start: int = 8765, tries: int = 25) -> int | None:
+    return next((p for p in range(start, start + tries) if port_is_free(p)), None)
+
+
+def open_when_ready(port: int, attempts: int = 90) -> None:
+    """Open the page in the default browser as soon as the server answers (runs in a background thread)."""
+    import time
+    import urllib.request
+    import webbrowser
+
+    for _ in range(attempts):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/_stcore/health", timeout=1):  # noqa: S310 - loopback
+                webbrowser.open(f"http://127.0.0.1:{port}")
+                return
+        except OSError:
+            time.sleep(1)
+
+
 def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     """Start the UI under scripts/aperture-sandboxed.sh using the photo/export folders from the saved settings."""
     import subprocess
@@ -273,14 +305,28 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     if not photo.is_dir():
         print(f"Photo folder not found: {photo}\nSet the right one with:  aperture settings --photo-dir /path/to/photos")
         return 2
+    if args.port is not None:
+        port = args.port
+        if not port_is_free(port):
+            print(f"Port {port} is already in use. Leave out --port and Aperture will pick a free one for you.")
+            return 2
+    else:
+        port = first_free_port()
+        if port is None:
+            print("No free port found between 8765 and 8789. Close some programs and try again.")
+            return 2
+        if port != 8765:
+            print(f"Port 8765 is busy (probably an older Aperture still running), so I am using {port}.")
     cmd = [str(script), str(photo)]
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():
         cmd.append(str(export))
-    cmd += ["--", sys.executable, "-m", "aperture", "ui", "--port", str(args.port)]
+    cmd += ["--", sys.executable, "-m", "aperture", "ui", "--port", str(port)]
     env = dict(os.environ, ALLOW_MOVES="yes" if args.allow_moves else "no", AP_ROOT=str(paths.root))
-    print(f"Starting Aperture in the sandbox on http://127.0.0.1:{args.port}  (photos: read-only"
-          f"{', moves allowed' if args.allow_moves else ''}; no internet)")
+    print(f"Starting Aperture in the sandbox on http://127.0.0.1:{port}  (photos: read-only"
+          f"{', moves allowed' if args.allow_moves else ''}; no internet). Press Ctrl+C to stop.")
+    if not args.no_browser:
+        threading.Thread(target=open_when_ready, args=(port,), daemon=True).start()
     return subprocess.call(cmd, env=env)
 
 

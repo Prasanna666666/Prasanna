@@ -48,12 +48,12 @@ def test_secure_ui_builds_the_sandbox_command(monkeypatch, tmp_path):
     calls = []
     import subprocess
     monkeypatch.setattr(subprocess, "call", lambda cmd, env=None: calls.append((cmd, env)) or 0)
-    assert cli.main(["secure-ui", "--port", "9100"]) == 0
+    assert cli.main(["secure-ui", "--port", "9100", "--no-browser"]) == 0
     cmd, env = calls[0]
     assert cmd[0].endswith("scripts/aperture-sandboxed.sh") and cmd[1] == str(photos) and cmd[2] == str(exports)
     assert cmd[3:] == ["--", cli.sys.executable, "-m", "aperture", "ui", "--port", "9100"]
     assert env["ALLOW_MOVES"] == "no"
-    cli.main(["secure-ui", "--allow-moves"])
+    cli.main(["secure-ui", "--allow-moves", "--no-browser"])
     assert calls[1][1]["ALLOW_MOVES"] == "yes"
 
 
@@ -91,7 +91,7 @@ def test_secure_ui_passes_the_aperture_folder(monkeypatch, tmp_path):
     seen = []
     import subprocess
     monkeypatch.setattr(subprocess, "call", lambda cmd, env=None: seen.append(env) or 0)
-    cli.main(["secure-ui"])
+    cli.main(["secure-ui", "--no-browser"])
     assert seen[0]["AP_ROOT"].endswith("Aperture")
 
 
@@ -109,3 +109,72 @@ def test_drive_check_in_sandbox_needs_only_the_aperture_folder_writable(monkeypa
     assert safety.drive_problem(drive) is None  # sandbox: Aperture's own folder is writable, that is enough
     monkeypatch.setattr(safety.os, "access", lambda p, m: False)
     assert "read-only" in (safety.drive_problem(drive) or "")  # its own folder unwritable too: refused
+
+
+def _secure_setup(monkeypatch, tmp_path):
+    photos = tmp_path / "Photos"
+    photos.mkdir(exist_ok=True)
+    monkeypatch.setattr(cli.sys, "platform", "darwin")
+    monkeypatch.setattr(cli, "_require_drive", lambda paths: 0)
+    monkeypatch.setattr(cli.Settings, "load", classmethod(lambda cls, p: cls(photo_dir=str(photos))))
+    calls = []
+    import subprocess
+    monkeypatch.setattr(subprocess, "call", lambda cmd, env=None: calls.append(cmd) or 0)
+    return calls
+
+
+def test_secure_ui_picks_a_free_port_by_itself(monkeypatch, tmp_path, capsys):
+    import socket
+
+    calls = _secure_setup(monkeypatch, tmp_path)
+    blocker = socket.socket()
+    blocker.bind(("127.0.0.1", 0))
+    busy = blocker.getsockname()[1]
+    monkeypatch.setattr(cli, "first_free_port", lambda start=8765, tries=25: next(
+        p for p in range(busy, busy + 25) if cli.port_is_free(p)))
+    try:
+        assert cli.main(["secure-ui", "--no-browser"]) == 0
+    finally:
+        blocker.close()
+    assert calls[0][-1] == str(busy + 1) and "is busy" in capsys.readouterr().out
+
+
+def test_explicit_busy_port_is_refused_with_a_clear_message(monkeypatch, tmp_path, capsys):
+    import socket
+
+    calls = _secure_setup(monkeypatch, tmp_path)
+    blocker = socket.socket()
+    blocker.bind(("127.0.0.1", 0))
+    try:
+        assert cli.main(["secure-ui", "--port", str(blocker.getsockname()[1]), "--no-browser"]) == 2
+    finally:
+        blocker.close()
+    assert not calls and "Leave out --port" in capsys.readouterr().out
+
+
+def test_browser_opens_once_the_server_answers(monkeypatch):
+    import urllib.request
+    import webbrowser
+
+    opened = []
+    attempts = iter([OSError("not yet"), OSError("not yet"), None])
+
+    class Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    def fake_urlopen(url, timeout=1):
+        outcome = next(attempts)
+        if outcome is not None:
+            raise outcome
+        return Resp()
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(webbrowser, "open", lambda url: opened.append(url))
+    import time
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    cli.open_when_ready(8770)
+    assert opened == ["http://127.0.0.1:8770"]
