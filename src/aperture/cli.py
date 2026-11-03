@@ -21,6 +21,8 @@ from .safety import drive_problem, enable_offline_guard, resolve_export_dir, res
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aperture", description="Private, offline AI photo agent")
+    parser.add_argument("--insecure", action="store_true",
+                        help="run photo commands outside the sandbox/Docker (not recommended; before the command: aperture --insecure ui)")
     sub = parser.add_subparsers(dest="command", required=True)
     doc = sub.add_parser("doctor", help="check the drive, models, Ollama and database")
     doc.add_argument("--stats", action="store_true", help="also count photos/faces/text (slow on a big library or an external disk)")
@@ -47,7 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
-    ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1")
+    sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
+    sec.add_argument("--port", type=int, default=8765)
+    sec.add_argument("--allow-moves", action="store_true", help="let Tidy up move files inside the photo folder (off in the sandbox by default)")
+    ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
     ui.add_argument("--port", type=int, default=8765)
     app = sub.add_parser("app", help="open Aperture in its own window")
     app.add_argument("--port", type=int, default=8765)
@@ -236,6 +241,49 @@ def cmd_caption(paths: Paths, limit: int) -> int:
     return 0 if described or not failed else 1
 
 
+# Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
+GUARDED = {"ui", "app", "scan", "ask", "caption", "export-job", "install-service", "install-launcher"}
+REFUSAL = (
+    "Refusing to run outside the secure environment (no internet, photos read-only).\n"
+    "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
+    "  Or Docker:     docker compose -f docker-compose.aperture.yml up -d\n"
+    "  Override:      aperture --insecure {cmd}   (not recommended)"
+)
+
+
+def secure_environment() -> bool:
+    return os.environ.get("APERTURE_SANDBOXED") == "1"
+
+
+def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
+    """Start the UI under scripts/aperture-sandboxed.sh using the photo/export folders from the saved settings."""
+    import subprocess
+
+    if sys.platform != "darwin":
+        print("secure-ui needs macOS (sandbox-exec). On other systems use Docker: docker-compose.aperture.yml")
+        return 2
+    script = Path(__file__).resolve().parents[2] / "scripts" / "aperture-sandboxed.sh"
+    if not script.exists():
+        print(f"Cannot find {script}. Run this from a git checkout of Aperture (pip install -e .).")
+        return 2
+    if _require_drive(paths):
+        return 2
+    settings = Settings.load(paths)
+    photo = Path(settings.photo_dir).expanduser()
+    if not photo.is_dir():
+        print(f"Photo folder not found: {photo}\nSet the right one with:  aperture settings --photo-dir /path/to/photos")
+        return 2
+    cmd = [str(script), str(photo)]
+    export = Path(settings.export_dir).expanduser() if settings.export_dir else None
+    if export is not None and export.is_dir():
+        cmd.append(str(export))
+    cmd += ["--", sys.executable, "-m", "aperture", "ui", "--port", str(args.port)]
+    env = dict(os.environ, ALLOW_MOVES="yes" if args.allow_moves else "no")
+    print(f"Starting Aperture in the sandbox on http://127.0.0.1:{args.port}  (photos: read-only"
+          f"{', moves allowed' if args.allow_moves else ''}; no internet)")
+    return subprocess.call(cmd, env=env)
+
+
 def cmd_bench(paths: Paths) -> int:
     """Time a cold render of the app, the database and the drive; print the slowest steps."""
     import cProfile
@@ -277,6 +325,9 @@ def cmd_bench(paths: Paths) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     paths = default_paths()
+    if args.command in GUARDED and not (args.insecure or secure_environment()):
+        print(REFUSAL.format(cmd=args.command))
+        return 2
     online = args.command == "fetch-models"
     if online and os.environ.get("APERTURE_NEVER_ONLINE") == "1":
         print("Network access is permanently disabled here (APERTURE_NEVER_ONLINE=1). Fetch models with a normal install "
@@ -287,6 +338,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_environment(paths, online=online)
     enable_offline_guard()  # no-op while fetching models
 
+    if args.command == "secure-ui":
+        return cmd_secure_ui(paths, args)
     if args.command in ("app", "ui", "install-launcher", "install-service"):
         from . import launcher
 

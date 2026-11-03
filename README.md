@@ -26,11 +26,15 @@ Then `ollama pull ministral-3:3b` (the Ollama app stores weights in `~/.ollama`;
 
 `open ~/Applications/Aperture.app`, or `aperture ui`. CLI: `aperture doctor | scan | ask "..." | stats | settings`.
 
-## Extra-safe mode (macOS sandbox)
+## Secure by default (macOS sandbox)
+
+Photo commands (`ui`, `app`, `scan`, `ask`, `caption`, ...) **refuse to run** unless they are inside the sandbox or Docker. The normal way:
 
 ```bash
-scripts/aperture-sandboxed.sh --selftest /Volumes/Drive/Photos     # once: must print three PASS lines
-scripts/aperture-sandboxed.sh /Volumes/Drive/Photos -- aperture ui  # daily use: no internet, originals read-only
+aperture secure-ui          # starts the UI in the sandbox: no internet, photos read-only; uses the folders from your settings
+aperture secure-ui --allow-moves     # only if you want Tidy up to move files inside the photo folder
+scripts/aperture-sandboxed.sh --selftest /path/to/photos    # once: must print three PASS lines
+aperture --insecure ui      # explicit override (not recommended)
 ```
 See `docs/safety.md` (items 8-10), including encrypting the drive.
 
