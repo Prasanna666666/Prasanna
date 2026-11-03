@@ -1,0 +1,62 @@
+# Aperture, sandboxed in Docker. Photos are mounted READ-ONLY; the app has NO route to the internet.
+#   private - internal network: aperture + the Ollama bridge + gateway. No internet.
+#   outside - normal network, used ONLY by the one-off model download (profile "setup").
+# Set the drive path if it is not /Volumes/Expansion:  APERTURE_HOST_DRIVE=/Volumes/MyDrive docker compose -f docker-compose.aperture.yml up -d
+# Prereq (Mac): Ollama installed natively (`ollama pull llama3.2:3b`), listening on 127.0.0.1:11434.
+name: aperture
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+
+x-drive: &drive
+  # The container sees the drive at the same path Aperture expects. A tmpfs is the "drive" root; the real folders
+  # are mounted into it, so nothing else on your drive is visible to the container.
+  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture:/Volumes/Expansion/Aperture
+  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture_Exports:/Volumes/Expansion/Aperture_Exports
+  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos:ro
+
+services:
+  aperture:
+    <<: *hardened
+    build: {context: ., dockerfile: Dockerfile.aperture}
+    image: aperture:local
+    tmpfs: ["/tmp", "/Volumes/Expansion"]
+    volumes: *drive
+    networks: [private]
+    depends_on: [ollama]
+    mem_limit: 5g   # leave room for macOS and Ollama on an 8 GB Mac
+
+  gateway:   # shows the UI on this computer only (127.0.0.1:8765); forwards bytes, runs no app code
+    <<: *hardened
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:8765,fork,reuseaddr TCP:aperture:8765
+    ports: ["127.0.0.1:8765:8765"]
+    networks: [private, default]
+    depends_on: [aperture]
+
+  ollama:    # named `ollama` so Aperture finds it; forwards ONLY to Ollama running on the Mac
+    <<: *hardened
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
+    networks: [private, default]
+
+  # One-off, the ONLY time anything here touches the internet:
+  #   docker compose -f docker-compose.aperture.yml --profile setup run --rm fetch-models
+  fetch-models:
+    <<: *hardened
+    image: aperture:local
+    profiles: [setup]
+    restart: "no"
+    command: ["fetch-models"]
+    environment: {APERTURE_ALLOW_NETWORK: "1"}
+    tmpfs: ["/tmp", "/Volumes/Expansion"]
+    volumes:
+      - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture:/Volumes/Expansion/Aperture
+    networks: [outside]
+
+networks:
+  private: {internal: true}
+  outside: {}

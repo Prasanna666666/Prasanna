@@ -34,6 +34,8 @@ scripts/aperture-sandboxed.sh /Volumes/Drive/Photos -- aperture ui  # daily use:
 ```
 See `docs/safety.md` (items 8-10), including encrypting the drive.
 
+Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with read-only photos; see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
+
 ## Develop
 
 `make install && make check` (ruff, mypy, pytest with fake ML - no models needed). See `docs/` for architecture, safety and agent design.

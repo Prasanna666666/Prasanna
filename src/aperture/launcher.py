@@ -34,7 +34,7 @@ def run_ui(port: int = DEFAULT_PORT) -> int:
         "run",
         str(ui_script()),
         "--server.address",
-        "127.0.0.1",
+        os.environ.get("APERTURE_UI_HOST", "127.0.0.1"),
         "--server.port",
         str(port),
         "--server.headless",

@@ -166,6 +166,7 @@ class Settings:
         return cls(
             photo_dir=str(paths.drive / "Photos"),
             export_dir=str(paths.drive / "Aperture_Exports"),
+            ollama_url=os.environ.get("APERTURE_OLLAMA_URL", cls.ollama_url),
         )
 
     @classmethod

@@ -96,3 +96,21 @@ def test_scan_skips_export_folder(tmp_path):
     (tmp_path / "keep.jpg").write_bytes(b"x")
     names = [f.path.rsplit("/", 1)[-1] for f in discover(tmp_path, skip=[tmp_path / "exp"])]
     assert names == ["keep.jpg"]
+
+
+def test_trusted_hosts_default_empty_and_parse(monkeypatch):
+    from aperture.safety import trusted_hosts
+
+    monkeypatch.delenv("APERTURE_TRUSTED_HOSTS", raising=False)
+    assert trusted_hosts() == set()
+    monkeypatch.setenv("APERTURE_TRUSTED_HOSTS", " Ollama , ,bridge")
+    assert trusted_hosts() == {"ollama", "bridge"}
+
+
+def test_ollama_url_env_and_ui_host_env(monkeypatch, tmp_path):
+    from aperture.config import Paths, Settings
+
+    monkeypatch.setenv("APERTURE_OLLAMA_URL", "http://ollama:11434")
+    assert Settings.defaults(Paths(tmp_path)).ollama_url == "http://ollama:11434"
+    monkeypatch.delenv("APERTURE_OLLAMA_URL")
+    assert Settings.defaults(Paths(tmp_path)).ollama_url == "http://127.0.0.1:11434"
