@@ -406,6 +406,37 @@ class AppContext:
                 out["note"] = "no exact match anywhere: it may be something to look for in the pictures, a date, or a place spelled differently"
             return out
 
+        def inspect_results(ids: list[int]) -> dict[str, Any]:
+            """The inspect_results tool: when (date periods), where (places) and in which folders the given photos were taken."""
+            from collections import Counter
+            from datetime import date as _date, timedelta
+
+            conn = self.db.connect()
+            try:
+                rows: list[tuple[Any, Any, Any]] = []
+                for start in range(0, len(ids), 500):
+                    part = ids[start : start + 500]
+                    rows += conn.execute(
+                        f"SELECT substr(taken_at,1,10), place, rel_path FROM items WHERE id IN ({','.join('?' * len(part))})", part
+                    ).fetchall()
+            finally:
+                conn.close()
+            days = sorted({_date.fromisoformat(d) for d, _, _ in rows if d and len(d) == 10})
+            periods: list[list[Any]] = []
+            for day in days:
+                if periods and day - periods[-1][1] <= timedelta(days=5):
+                    periods[-1][1] = day
+                    periods[-1][2] += 1
+                else:
+                    periods.append([day, day, 1])
+            counts = Counter(d for d, _, _ in rows if d)
+            sized = [{"date_from": a.isoformat(), "date_to": b.isoformat(),
+                      "photos": sum(c for d, c in counts.items() if a.isoformat() <= d <= b.isoformat())} for a, b, _ in periods]
+            sized.sort(key=lambda p: -p["photos"])
+            places = Counter(p for _, p, _ in rows if p)
+            folders = Counter(r.split("/")[0] for _, _, r in rows if r and "/" in r)
+            return {"photos": len(rows), "date_periods": sized[:6], "places": places.most_common(5), "folders": folders.most_common(5)}
+
         def overview(previous_ids: Any) -> str:
             """The library_overview tool: plain facts for the model to read."""
             conn = self.db.connect()
@@ -470,7 +501,7 @@ class AppContext:
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
             self._service = service  # the search executor the agent uses (tests exercise it directly)
-            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term)
+            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results)
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

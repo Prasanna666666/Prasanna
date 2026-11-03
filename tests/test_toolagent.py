@@ -50,12 +50,12 @@ def test_copying_to_a_folder_is_an_export():
 
 def test_tool_descriptions_are_the_only_identity_and_the_choices_are_clean():
     names = [t["function"]["name"] for t in TOOLS]
-    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "probe", "calc_date", "look_up", "read_photo_text", "look_at_photos"]
+    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"]
     assert "photo library" in TOOLS[0]["function"]["description"]
     assert "last_month" in PARAMS["relative"]["enum"] and "none" not in PARAMS["relative"]["enum"] and "none" not in PARAMS["season"]["enum"]
     assert all(k in PARAMS for k in FILTER_KEYS) and "required" not in TOOLS[0]["function"]["parameters"]
-    assert TOOLS[6]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
-    assert TOOLS[8]["function"]["parameters"]["required"] == ["question"]
+    assert TOOLS[7]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
+    assert TOOLS[9]["function"]["parameters"]["required"] == ["question"]
 
 
 # ------------------------------------------------------------------ the agent loop
@@ -124,7 +124,7 @@ def test_the_model_reads_the_search_result_before_it_answers_and_the_photos_stay
     observation = json.loads(second[-1]["content"])
     assert second[-1]["role"] == "tool" and observation["matched"] == 3 and observation["date_range"] == "2026-10-01 to 2026-10-31"
     # the model writes the words; the found photos are attached to the streamed reply
-    assert "".join(reply.stream) == "Found 3 from October." and reply.kind == "results" and list(reply.ids) == [11, 12, 13]
+    assert reply.text.startswith("Found **3**") and reply.kind == "results" and list(reply.ids) == [11, 12, 13]
     assert reply.timings.keys() >= {"context", "decide", "tools", "search"}
 
 
@@ -141,7 +141,7 @@ def test_counting_everything_and_the_overview_tool_feed_the_model_real_data():
     agent, llm, plans = agent_with([[tool("count_photos")], [("delta", "49,743.")]])
     reply = agent.ask("how many pics are there in total")
     assert plans[0][0].all_photos is True and plans[0][0].intent == "count"
-    assert json.loads(llm.calls[1][1][-1]["content"])["matched"] == 3 and "".join(reply.stream) == "49,743."
+    assert json.loads(llm.calls[1][1][-1]["content"])["matched"] == 3 and reply.text.startswith("**3** photos match")
     agent2, llm2, plans2 = agent_with([[tool("library_overview")], [("delta", "A big library.")]], overview=lambda previous: "FACTS: 49,743 files from 2012 to 2025")
     agent2.ask("what is in my library?")
     assert llm2.calls[1][1][-1] == {"role": "tool", "tool_name": "library_overview", "content": "FACTS: 49,743 files from 2012 to 2025"} and not plans2
@@ -192,7 +192,7 @@ def test_iterating_is_bounded_by_time_so_it_never_makes_the_app_slow(monkeypatch
 
     agent, llm, plans = agent_with([slow_turn, [("delta", "Here is what I found.")]])
     reply = agent.ask("dogs")
-    assert len(plans) == 1 and "".join(reply.stream) == "Here is what I found."
+    assert len(plans) == 1 and reply.text.startswith("Found")
     assert llm.calls[1][2] == []  # over budget: no more tools, the model answers with what it has
 
 
@@ -424,10 +424,9 @@ def test_a_perfect_agent_scores_perfectly_against_the_expected_plans():
 
 def test_optional_parameters_say_so_and_required_ones_do_not():
     find = TOOL_DEFS["find_photos"]["function"]["parameters"]["properties"]
-    assert all("Leave out unless the user said so." in v["description"] for v in find.values())
+    assert "optional" in TOOL_DEFS["find_photos"]["function"]["description"] and "optional" not in json.dumps(find)
     look = TOOL_DEFS["look_up"]["function"]["parameters"]["properties"]
     assert "Leave out" not in json.dumps(look) and look["kind"]["enum"] == ["place", "person", "folder"]
-    assert "Leave out" not in TOOL_DEFS["copy_photos"]["function"]["parameters"]["properties"]["folder"]["description"]
     assert TOOL_DEFS["copy_photos"]["function"]["parameters"]["required"] == ["folder"]
     assert plan_from_tool("copy_photos", {"places": ["Paris"], "folder": "Paris Trip"}).intent == "export"
     assert plan_from_tool("copy_photos", {"places": ["Paris"], "folder": "Paris Trip"}).folder_name == "Paris Trip"
@@ -450,3 +449,10 @@ def test_a_tool_call_with_explicit_dates_becomes_that_date_range():
 
     plan = plan_from_tool("find_photos", {"date_from": "2026-09-01", "date_to": "2026-09-30"})
     assert (plan.date.start, plan.date.end) == ("2026-09-01", "2026-09-30")
+
+
+def test_all_tool_definitions_fit_in_a_small_part_of_the_context_window():
+    """The model's context is 4096 tokens. Tool definitions that fill it push the conversation out and the model stops answering."""
+    from aperture.agent.llm import NUM_CTX
+
+    assert len(json.dumps(TOOLS)) / 3.5 < NUM_CTX * 0.75

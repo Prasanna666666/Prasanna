@@ -24,7 +24,7 @@ from ..ml.protocols import ImageEmbedder
 from ..people.repository import named_people, resolve_name
 from ..search.dates import resolve
 from ..search.embeddings import EmbeddingIndex
-from ..search.filters import apply_filters
+from ..search.filters import Filters, apply_filters
 from ..search.geo import GeoIndex
 from ..search.metadata import all_ids, date_ids, path_ids, place_ids
 from ..search.quick import quick_ids
@@ -185,6 +185,11 @@ class Executor:
         ids = np.unique(np.concatenate(parts)) if parts else np.zeros(0, np.int64)
         if len(ids) or not clause.query.strip():
             return ids
+        if "place" in clause.engines:
+            # No photo is labelled with that name, but the photos' GPS may still be there (Tokyo photos are labelled with a district).
+            nearby = self._near_ids(clause.query, result)
+            if len(nearby):
+                return nearby
         # The model may have looked in the wrong place (a city searched by what photos show).
         # Before declaring this clause empty, try the engines it did not use.
         for engine in FALLBACK_ENGINES:
@@ -198,6 +203,19 @@ class Executor:
                 return found
         near = self._similar_place_ids(clause.query, result)
         return near if len(near) else ids
+
+    def _near_ids(self, query: str, result: ExecResult) -> np.ndarray:
+        """Photos whose GPS lies within 25 km of the named place (offline place list)."""
+        geo = self._geo_provider()
+        if geo is None or not query.strip():
+            return np.zeros(0, np.int64)
+        try:
+            ids, notes = apply_filters(self._conn, Filters(near=query), geo)
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)
+        if len(ids):
+            result.notes.append(f"No photo is labelled '{query}', but {len(ids):,} were taken within 25 km of it (GPS).")
+        return ids
 
     def _place_vocabulary(self) -> list[str]:
         if self._vocabulary is None:
