@@ -18,7 +18,7 @@ import numpy as np
 from ..config import preview_rel
 from ..ml.vision_details import Details
 
-VERSION = 1
+VERSION = 2  # 2: all the Vision readers + the perceptual hash; pictures read at version 1 are read again
 CLIP_TOP = 8
 CLIP_MIN_SCORE = 0.22  # cosine between image and "a photo of <label>" below which a tag is noise
 
