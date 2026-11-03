@@ -148,9 +148,10 @@ EXAMPLES = "\n".join([
     "'keep just the ones from May' (results are on screen) -> find_photos(month=5, narrow_previous=true)",
     "'thanks, that helps' -> reply in words, no tool",
     "'what is a RAW file?' -> reply in words, no tool",
-    "'tokyo' -> probe(term=\"tokyo\"), then search the way the counts show it exists in the library",
-    "'pics from 2 months back' -> calc_date(months=-2, period=\"month\"), then find_photos(date_from=..., date_to=...)",
-    "'all the photos I took in Tokyo' -> find_photos(text_in_photo=[\"Tokyo\"]) (these only mention it: clues), then inspect_results, then find_photos for the dates or places they show",
+    "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
+    "'pics from 2 months back' -> use the calc_date tool for the dates, then find_photos with date_from and date_to",
+    "'all the photos I took in Tokyo' -> search the place; if only text mentions it, use inspect_results to learn when and where, then search those dates or places",
+    "Always call tools through the tool interface; never write a tool call out as text.",
     "Only fill in what the user said: 'sunset photos' is find_photos(what=\"sunset\") with no time of day and no kind.",
 ])
 
@@ -273,7 +274,8 @@ class ToolAgent:
             if first is None or (final and first[0] == "tool"):
                 break
             kind, value = first
-            if kind != "tool" and step == 0 and shown is None and not nudged and self._about_photos(request, previous_ids):
+            wrote_a_call = kind != "tool" and any(f"{name}(" in value for name in self.spec.tools)  # a call typed out as text did nothing
+            if kind != "tool" and step == 0 and shown is None and not nudged and (wrote_a_call or self._about_photos(request, previous_ids)):
                 # It started talking, but the message is about the photos: make it act first, then talk.
                 nudged = True
                 messages.append({"role": "assistant", "content": ""})

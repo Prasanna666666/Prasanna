@@ -456,3 +456,14 @@ def test_all_tool_definitions_fit_in_a_small_part_of_the_context_window():
     from aperture.agent.llm import NUM_CTX
 
     assert len(json.dumps(TOOLS)) / 3.5 < NUM_CTX * 0.75
+
+
+def test_a_tool_call_typed_out_as_text_is_not_accepted_the_model_must_really_call_the_tool():
+    agent, llm, plans = agent_with([
+        [("delta", 'probe(term="tokyo") -> No results.')],  # text that looks like a call: it did nothing
+        [tool("find_photos", places=["Tokyo"])],
+        [("delta", "ok")],
+    ])
+    reply = agent.ask("Tokyo")
+    assert len(plans) == 1 and plans[0][0].clauses and list(reply.ids) == [11, 12, 13]
+    assert "never write a tool call" in llm.calls[0][0]
