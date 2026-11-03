@@ -114,3 +114,22 @@ def test_ollama_url_env_and_ui_host_env(monkeypatch, tmp_path):
     assert Settings.defaults(Paths(tmp_path)).ollama_url == "http://ollama:11434"
     monkeypatch.delenv("APERTURE_OLLAMA_URL")
     assert Settings.defaults(Paths(tmp_path)).ollama_url == "http://127.0.0.1:11434"
+
+
+def test_never_online_beats_allow_network(monkeypatch):
+    from aperture.config import ENV_NEVER_ONLINE, ENV_ONLINE, online_allowed
+
+    monkeypatch.setenv(ENV_ONLINE, "1")
+    monkeypatch.delenv(ENV_NEVER_ONLINE, raising=False)
+    assert online_allowed() is True
+    monkeypatch.setenv(ENV_NEVER_ONLINE, "1")
+    assert online_allowed() is False
+
+
+def test_fetch_models_refused_when_locked(monkeypatch, tmp_path, capsys):
+    from aperture.cli import main
+
+    monkeypatch.setenv("APERTURE_NEVER_ONLINE", "1")
+    monkeypatch.setenv("APERTURE_DRIVE", str(tmp_path))
+    assert main(["fetch-models"]) == 2
+    assert "permanently disabled" in capsys.readouterr().out

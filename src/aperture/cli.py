@@ -274,6 +274,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     paths = default_paths()
     online = args.command == "fetch-models"
+    if online and os.environ.get("APERTURE_NEVER_ONLINE") == "1":
+        print("Network access is permanently disabled here (APERTURE_NEVER_ONLINE=1). Fetch models with a normal install "
+              "outside the container/sandbox, then reuse the Aperture/models folder.")
+        return 2
     if online:
         os.environ[ENV_ONLINE] = "1"
     configure_environment(paths, online=online)

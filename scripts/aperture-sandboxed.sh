@@ -5,7 +5,8 @@
 #   scripts/aperture-sandboxed.sh --selftest PHOTO_DIR      # prove the sandbox works on this Mac
 #   ALLOW_MOVES=yes ...                                     # only if you enabled photo moves in Settings
 #
-# Do NOT use this for `aperture fetch-models` (that needs the internet once).
+# Network is locked off twice: by the OS sandbox and by APERTURE_NEVER_ONLINE=1. `aperture fetch-models` is refused here;
+# run it once with the normal install before using the sandbox.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PROFILE="$HERE/aperture-sandbox.sb"
@@ -20,6 +21,7 @@ EXPORT_DIR="/nonexistent-export-dir"
 if [ $# -ge 1 ] && [ "$1" != "--" ]; then EXPORT_DIR="$(cd "$1" && pwd -P)"; shift; fi
 [ "${1:-}" = "--" ] && shift
 
+export APERTURE_NEVER_ONLINE=1
 SB=(sandbox-exec -f "$PROFILE" -D "PHOTO_DIR=$PHOTO_DIR" -D "EXPORT_DIR=$EXPORT_DIR" -D "ALLOW_MOVES=${ALLOW_MOVES:-no}")
 
 if [ "$SELFTEST" = 1 ]; then

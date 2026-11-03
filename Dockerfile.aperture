@@ -9,7 +9,7 @@ COPY src ./src
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir ".[ml,ui]"
 USER 10001
-ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 \
+ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 APERTURE_NEVER_ONLINE=1 \
     APERTURE_DRIVE=/Volumes/Expansion APERTURE_UI_HOST=0.0.0.0 \
     APERTURE_OLLAMA_URL=http://ollama:11434 APERTURE_TRUSTED_HOSTS=ollama \
     STREAMLIT_BROWSER_GATHER_USAGE_STATS=false

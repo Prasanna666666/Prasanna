@@ -17,6 +17,7 @@ from typing import Any
 DEFAULT_DRIVE = Path("/Volumes/Expansion")
 ENV_DRIVE = "APERTURE_DRIVE"
 ENV_ONLINE = "APERTURE_ALLOW_NETWORK"  # set to "1" only while fetching models
+ENV_NEVER_ONLINE = "APERTURE_NEVER_ONLINE"  # "1" = network can NEVER be enabled in this process, even by ENV_ONLINE
 ENV_INTERNAL = "APERTURE_ALLOW_INTERNAL"  # test escape hatch: allow a non-external drive
 
 STRICTNESS_LEVELS = ("strict", "balanced", "broad")
@@ -95,6 +96,8 @@ def default_paths() -> Paths:
 
 
 def online_allowed() -> bool:
+    if os.environ.get(ENV_NEVER_ONLINE) == "1":  # hard lock: wins over everything else
+        return False
     return os.environ.get(ENV_ONLINE) == "1"
 
 

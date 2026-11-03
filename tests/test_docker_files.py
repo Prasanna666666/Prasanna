@@ -15,12 +15,11 @@ def test_aperture_compose_security_properties():
     assert app["read_only"] is True and app["cap_drop"] == ["ALL"]
     photos = [v for v in app["volumes"] if "/Photos" in v]
     assert photos and all(v.endswith(":ro") for v in photos), "photos must be mounted read-only"
-    # only the model-download job may reach the outside network
-    outside = [n for n, s in c["services"].items() if "outside" in (s.get("networks") or [])]
-    assert outside == ["fetch-models"]
+    assert set(c["networks"]) == {"private"}, "no outside network may exist"
+    assert "fetch-models" not in c["services"], "no service may download anything"
     assert c["services"]["gateway"]["ports"] == ["127.0.0.1:8765:8765"]
 
 
 def test_dockerfile_runs_non_root_and_without_mac_extras():
     d = (ROOT / "Dockerfile.aperture").read_text()
-    assert "USER 10001" in d and "[ml,ui]" in d and "mac" not in d.split("pip install")[-1]
+    assert "APERTURE_NEVER_ONLINE=1" in d and "USER 10001" in d and "[ml,ui]" in d and "mac" not in d.split("pip install")[-1]
