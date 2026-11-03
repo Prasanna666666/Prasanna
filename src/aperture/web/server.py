@@ -349,7 +349,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     text = reply.text
                     if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words
                         web.remember(conv, reply.ids)
-                        self._sse("results", {"ids": [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
+                        self._sse("results", {"ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
                                               "notes": list(reply.notes), "warnings": list(reply.warnings)})
                     elif reply.notes or reply.warnings:
                         self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})

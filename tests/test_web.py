@@ -179,3 +179,10 @@ def test_the_page_keeps_internals_out_of_sight():
     import inspect
 
     assert "tool-using agent" not in inspect.getsource(settings)
+
+
+def test_a_count_answer_sends_the_number_not_the_whole_photo_grid():
+    from pathlib import Path
+
+    source = (Path(__file__).parent.parent / "src" / "aperture" / "web" / "server.py").read_text()
+    assert '[] if reply.kind == "count"' in source

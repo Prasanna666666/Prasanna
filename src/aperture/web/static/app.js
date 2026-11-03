@@ -82,7 +82,7 @@
     addTiles(g, d.ids);
     if (g.more) g.more.remove();
     if (g.ids.length < g.total) {
-      g.more = el('button', 'pill more', 'Show more');
+      g.more = el('button', 'pill more', g.ids.length ? 'Show more' : 'Show these photos');
       g.more.type = 'button';
       g.more.addEventListener('click', async () => {
         g.more.disabled = true;
