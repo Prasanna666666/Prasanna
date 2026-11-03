@@ -26,6 +26,14 @@ Then `ollama pull llama3.2:3b` (the Ollama app stores weights in `~/.ollama`; se
 
 `open ~/Applications/Aperture.app`, or `aperture ui`. CLI: `aperture doctor | scan | ask "..." | stats | settings`.
 
+## Extra-safe mode (macOS sandbox)
+
+```bash
+scripts/aperture-sandboxed.sh --selftest /Volumes/Drive/Photos     # once: must print three PASS lines
+scripts/aperture-sandboxed.sh /Volumes/Drive/Photos -- aperture ui  # daily use: no internet, originals read-only
+```
+See `docs/safety.md` (items 8-10), including encrypting the drive.
+
 ## Develop
 
 `make install && make check` (ruff, mypy, pytest with fake ML - no models needed). See `docs/` for architecture, safety and agent design.

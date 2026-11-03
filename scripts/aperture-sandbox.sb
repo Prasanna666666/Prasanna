@@ -1,0 +1,20 @@
+;; macOS Seatbelt profile for Aperture (used by scripts/aperture-sandboxed.sh).
+;; Kernel-enforced, so it holds even if a native library or a dependency tries to bypass Python-level guards.
+;; Parameters: PHOTO_DIR, EXPORT_DIR, ALLOW_MOVES ("yes"/"no").
+;; Later rules win over earlier ones.
+(version 1)
+(allow default)
+
+;; 1. No network at all, except this computer (the web page and a local Ollama).
+(deny network*)
+(allow network* (local ip "localhost:*"))
+(allow network* (remote ip "localhost:*"))
+(allow network* (local unix-socket))
+(allow network* (remote unix-socket))
+
+;; 2. Originals are read-only unless photo moves were explicitly enabled.
+(if (not (string=? (param "ALLOW_MOVES") "yes"))
+    (deny file-write* (subpath (param "PHOTO_DIR"))))
+
+;; 3. The export folder may sit inside the photo folder, so it is allowed again after the rule above.
+(allow file-write* (subpath (param "EXPORT_DIR")))
