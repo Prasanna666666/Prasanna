@@ -201,6 +201,11 @@ class Executor:
                 ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
                 if 0 < len(ids) <= limit:
                     found.append((label, np.sort(ids)))
+        for term in terms:  # a trip: everything shot around the same time as the photos this word finds directly
+            anchors = [ids for label, ids in found if f"'{term}'" in label or term in label]
+            trip = self._trip_ids(np.unique(np.concatenate(anchors))) if anchors else np.zeros(0, np.int64)
+            if 0 < len(trip) <= limit:
+                found.append((f"Same trip or event as the '{term}' photos", np.sort(trip)))
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
         if span is not None:
             ids = date_ids(self._conn, span[0].isoformat(), span[1].isoformat())
@@ -260,6 +265,23 @@ class Executor:
             log.exception("engine %s failed", engine)
             result.notes.append(f"The {engine} search failed: {exc}")
         return np.zeros(0, np.int64)
+
+    def _trip_ids(self, anchors: np.ndarray) -> np.ndarray:
+        """All photos of the trips/events that contain any of these photos (see `aperture scan`, which builds the events)."""
+        if len(anchors) == 0:
+            return np.zeros(0, np.int64)
+        try:
+            events: set[int] = set()
+            for part in chunked(anchors.tolist(), 500):
+                marks = ",".join("?" * len(part))
+                events.update(r[0] for r in self._conn.execute(f"SELECT DISTINCT event_id FROM photo_events WHERE item_id IN ({marks})", part))
+            ids: list[int] = []
+            for part in chunked(sorted(events), 500):
+                marks = ",".join("?" * len(part))
+                ids += [r[0] for r in self._conn.execute(f"SELECT item_id FROM photo_events WHERE event_id IN ({marks})", part)]
+            return np.array(sorted(set(ids)), np.int64)
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)  # the events have not been built yet
 
     def _tag_ids(self, query: str) -> np.ndarray:
         """Photos labelled with this scene, object or landmark (read once from the picture; see `aperture details`)."""

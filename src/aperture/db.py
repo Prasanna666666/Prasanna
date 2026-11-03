@@ -175,7 +175,25 @@ CREATE TABLE photo_text(            -- every piece of text with where it sits in
 CREATE INDEX photo_text_item ON photo_text(item_id);
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8]
+_MIGRATION_9 = """
+ALTER TABLE photo_details ADD COLUMN phash INTEGER;     -- 64-bit perceptual fingerprint: near-duplicates differ in few bits
+CREATE INDEX photo_details_phash ON photo_details(phash);
+CREATE TABLE events(                -- a trip or occasion: photos close in time (and place)
+    id      INTEGER PRIMARY KEY,
+    start   TEXT NOT NULL,
+    stop    TEXT NOT NULL,
+    n       INTEGER NOT NULL,
+    place   TEXT NOT NULL DEFAULT '',
+    country TEXT NOT NULL DEFAULT ''
+);
+CREATE TABLE photo_events(
+    item_id  INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE
+);
+CREATE INDEX photo_events_event ON photo_events(event_id);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9]
 
 
 class Database:

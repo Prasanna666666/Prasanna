@@ -36,7 +36,26 @@ def pending(conn: sqlite3.Connection, limit: int = 0) -> list[int]:
     return [r[0] for r in conn.execute(sql, (VERSION,))]
 
 
-def store(conn: sqlite3.Connection, item_id: int, details: Details) -> None:
+def dhash(data: bytes) -> int | None:
+    """64-bit difference hash of a picture: copies, re-saves and small edits of a photo differ in only a few bits."""
+    try:
+        import io
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as image:
+            small = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
+        pixels = list(small.getdata())
+        bits = 0
+        for row in range(8):
+            for col in range(8):
+                bits = (bits << 1) | (pixels[row * 9 + col] > pixels[row * 9 + col + 1])
+        return bits - (1 << 64) if bits >= (1 << 63) else bits  # SQLite integers are signed 64-bit
+    except Exception:
+        return None
+
+
+def store(conn: sqlite3.Connection, item_id: int, details: Details, phash: int | None = None) -> None:
     for table in ("photo_labels", "photo_objects", "photo_text"):
         conn.execute(f"DELETE FROM {table} WHERE item_id=? " + ("AND source='vision'" if table == "photo_labels" else ""), (item_id,))
     conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'vision')",
@@ -45,7 +64,7 @@ def store(conn: sqlite3.Connection, item_id: int, details: Details) -> None:
                      [(item_id, kind, label, score, *box) for kind, label, score, box in details.objects])
     conn.executemany("INSERT INTO photo_text(item_id, text, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?)",
                      [(item_id, text, score, *box) for text, score, box in details.texts])
-    conn.execute("INSERT OR REPLACE INTO photo_details(item_id, version, read_at) VALUES (?,?,?)", (item_id, VERSION, time.time()))
+    conn.execute("INSERT OR REPLACE INTO photo_details(item_id, version, read_at, phash) VALUES (?,?,?,?)", (item_id, VERSION, time.time(), phash))
 
 
 def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0, stop: Any = None,
@@ -58,7 +77,8 @@ def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0,
             break
         path = data_dir / preview_rel(item_id)
         try:
-            store(conn, item_id, analyser.analyse(path.read_bytes()))
+            data = path.read_bytes()
+            store(conn, item_id, analyser.analyse(data), dhash(data))
             done += 1
         except Exception as exc:  # one unreadable preview must not stop the pass; it is recorded and skipped
             conn.execute("INSERT OR REPLACE INTO photo_details(item_id, version, read_at, notes) VALUES (?,?,?,?)",

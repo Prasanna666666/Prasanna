@@ -216,6 +216,28 @@ def cmd_scan(ctx: AppContext, args: argparse.Namespace) -> int:
     stages.ocr &= not args.no_ocr
     summary = ctx.scanner(stop).run(ScanOptions(args.retry_errors, 0, args.regroup_faces))
     print(f"scan {summary.state}: {summary.processed} processed, {summary.errors} errors, {summary.faces} faces")
+    if stop.is_set():  # stopped on purpose: the next run continues
+        return 0
+    return index_everything_else(ctx, stop)
+
+
+def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
+    """After the photos are indexed: read every remaining detail (full metadata, what is in each picture, flags, trips, duplicates)."""
+    from .indexing import derive
+
+    print("reading the full metadata of every photo ...", flush=True)
+    cmd_deepmeta(ctx, argparse.Namespace(limit=0))
+    if stop.is_set():
+        return 0
+    print("reading what is in every picture ...", flush=True)
+    cmd_details(ctx, argparse.Namespace(limit=0, no_vision=False))
+    if stop.is_set():
+        return 0
+    conn = ctx.db.connect()
+    try:
+        print(f"capture flags: {derive.derive_meta_labels(conn):,}; trips and events: {derive.build_events(conn):,}")
+    finally:
+        conn.close()
     return 0
 
 
