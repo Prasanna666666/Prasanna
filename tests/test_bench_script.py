@@ -56,6 +56,7 @@ def url():
 
 
 def test_benchmark_runs_and_picks_the_faster_model(url, capsys):
+    FakeOllama.loaded = set()
     assert bench.main(["fast:3b", "slow:3b", "missing:3b", "--url", url, "--no-plan"]) == 0
     out = capsys.readouterr().out
     assert "SKIPPED missing:3b" in out and "fast:3b" in out and "slow:3b" in out
@@ -73,3 +74,17 @@ def test_verdict_flags_swapping_and_pressure():
 def test_unreachable_ollama_is_a_clear_message(capsys):
     assert bench.main(["x", "--url", "http://127.0.0.1:9"]) == 2
     assert "Open the Ollama app" in capsys.readouterr().out
+
+
+def test_never_stops_a_model_that_is_already_running(url, capsys):
+    FakeOllama.loaded = {"other:7b"}
+    assert bench.main(["fast:3b", "--url", url, "--no-plan"]) == 3
+    out = capsys.readouterr().out
+    assert "already running: other:7b" in out and "will not stop it" in out
+    assert FakeOllama.loaded == {"other:7b"}  # untouched
+
+
+def test_unload_flag_allows_stopping_and_only_unloads_what_it_loaded(url, capsys):
+    FakeOllama.loaded = {"other:7b"}
+    assert bench.main(["fast:3b", "--url", url, "--no-plan", "--unload"]) == 0
+    assert FakeOllama.loaded == set()

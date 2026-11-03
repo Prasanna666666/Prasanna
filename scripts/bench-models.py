@@ -5,7 +5,10 @@
     python3 scripts/bench-models.py MODEL [MODEL ...]    # any installed models
     python3 scripts/bench-models.py --no-plan            # skip the Aperture search-plan test (no aperture import needed)
 
-For each model (one at a time, the others are unloaded first):
+Safety: it never stops a model that is already running. If one is loaded it tells you and exits (stop it yourself with
+`ollama stop MODEL`, or pass --unload to let this script do it). It only unloads the model it loaded itself.
+
+For each model, one at a time:
   load      seconds to load the model into memory from cold
   tok/s     generation speed (higher is better)
   plan s    average seconds for a real Aperture search plan (3 sample requests; needs `aperture` importable)
@@ -81,9 +84,12 @@ class Poller(threading.Thread):
             self.stop_flag.wait(0.5)
 
 
-def unload_all(url: str) -> None:
-    for m in post(url, "/api/ps").get("models", []):
-        post(url, "/api/generate", {"model": m.get("name") or m.get("model"), "prompt": "", "keep_alive": 0, "stream": False})
+def running_models(url: str) -> list[str]:
+    return [m.get("name") or m.get("model") for m in post(url, "/api/ps").get("models", [])]
+
+
+def unload(url: str, model: str) -> None:
+    post(url, "/api/generate", {"model": model, "prompt": "", "keep_alive": 0, "stream": False})
     time.sleep(2)
 
 
@@ -106,7 +112,6 @@ def plan_seconds(url: str, model: str) -> float | None:
 
 
 def bench(url: str, model: str, with_plan: bool) -> dict:
-    unload_all(url)
     swap0, poller = swap_used_mb(), Poller()
     poller.start()
     t = time.time()
@@ -121,7 +126,7 @@ def bench(url: str, model: str, with_plan: bool) -> dict:
     poller.stop_flag.set()
     poller.join(timeout=2)
     swap1 = swap_used_mb()
-    unload_all(url)
+    unload(url, model)  # only the model this script loaded
     return {"model": model, "load_s": load_s, "tok_s": tok_s, "plan_s": plan_s, "model_mb": model_mb, "peak_mb": poller.peak_mb,
             "swap_mb": (swap1 - swap0) if swap0 is not None and swap1 is not None else None, "min_free": poller.min_free}
 
@@ -162,12 +167,20 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("models", nargs="*", default=DEFAULT_MODELS)
     ap.add_argument("--url", default="http://127.0.0.1:11434")
     ap.add_argument("--no-plan", action="store_true")
+    ap.add_argument("--unload", action="store_true", help="allow stopping models that are already running")
     a = ap.parse_args(argv)
     try:
         installed = {m["name"] for m in post(a.url, "/api/tags").get("models", [])}
     except OSError as e:
         print(f"Cannot reach Ollama at {a.url} ({e}). Open the Ollama app first.")
         return 2
+    busy = running_models(a.url)
+    if busy and not a.unload:
+        print("A model is already running: " + ", ".join(busy) + ".\nI will not stop it (something may be using it, and the "
+              "memory numbers would be wrong).\nStop it yourself with:  ollama stop " + busy[0] + "\n...or run again with --unload.")
+        return 3
+    for m in busy:
+        unload(a.url, m)
     rows = []
     for model in a.models:
         if model not in installed and f"{model}:latest" not in installed:
