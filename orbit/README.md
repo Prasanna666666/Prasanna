@@ -16,27 +16,32 @@ Try in Chat: "remind me to call Amma every Sunday 6pm", "spent 450 on groceries"
 
 Data is in `~/.orbit/orbit.db` (override with `ORBIT_HOME`).
 
-## Run in Docker (offline by design)
-Orbit never uses the internet. Needs Ollama installed natively on the Mac (fast, uses the GPU).
+## Run in Docker (offline, encrypted, split by trust)
+Needs Ollama installed natively on the Mac (fast, uses the GPU) and Docker Desktop.
 ```bash
-ollama pull ministral-3:3b         # the ONLY step that needs internet (once); afterwards you can switch Wi-Fi off
-cd orbit && docker compose up -d --build     # then open http://127.0.0.1:8501
+ollama pull ministral-3:3b                  # the ONLY step that needs internet (once); afterwards Wi-Fi can be off
+./scripts/up.sh                             # creates the database key in your Keychain on first run, then starts everything
+./scripts/up.sh --show-key                  # print the key ONCE and store it offline: lose the key = lose the data
 ```
-- Every container is on an **internal** Docker network with no route to the internet. There is no proxy and no allowlist.
-- `ollama` in the compose file is only a TCP forwarder to Ollama on your Mac; `gateway` forwards the UI to 127.0.0.1 only.
-  Those two also sit on Docker's default network (Docker needs it to publish a port / reach the host); they only forward bytes.
-- All containers: non-root, read-only filesystem, all Linux capabilities dropped, no-new-privileges.
-- In-process guard (`netguard.py`) refuses any DNS lookup or connection except loopback and the Ollama bridge. Tests fail the
-  build if a network library is imported or an internet-capable tool is registered.
-- Not covered by Orbit: Ollama itself (the Mac app can check for updates - turn that off) and macOS. For a hard guarantee,
-  switch Wi-Fi off while using Orbit, or block `ollama` in a firewall such as LuLu / Little Snitch.
-- Disk: Docker volumes are not encrypted by themselves - keep FileVault on.
-- Verify: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail.
+Open http://127.0.0.1:8501. Drop PDFs / CSVs / text into `~/OrbitInbox`; the parser picks them up, then use the Documents page.
 
-## Privacy model
-- **The model is local** (Ollama). No cloud AI. No weather/rates/web tools exist - the assistant is offline.
-- **Egress guard** blocks every non-local connection inside the app; the container network blocks it again outside.
-- Not done yet: encryption of the database file.
+```
+ ~/OrbitInbox (read-only) -> [parser: NO network, 1 GB, 128 procs] -> parsed JSON volume -(read-only)-> [app: no internet,
+                                                                                    encrypted DB, assistant] -> 127.0.0.1:8501
+```
+- **parser**: the only code that opens untrusted files. No network at all (`network_mode: none`), inbox read-only, each file
+  parsed in a throw-away subprocess with CPU/memory/time limits. Outputs plain JSON only.
+- **app**: sees parser output **read-only**, contains no PDF/parsing libraries, internal Docker network (no internet).
+- **Encrypted database** (SQLCipher, AES-256): key in the macOS Keychain, passed as a Docker secret, never written to disk.
+  `ORBIT_REQUIRE_ENCRYPTION=1` makes the app refuse to start without it - no silent plain-text fallback.
+- All containers: non-root, read-only filesystem, all capabilities dropped, no-new-privileges. UI on 127.0.0.1 only.
+- `gateway` and `ollama` are byte forwarders on Docker's default network (needed to show the page and reach Ollama on the Mac).
+- The **documents agent is read-only** and told to ignore instructions inside documents, so a booby-trapped PDF cannot make
+  Orbit change or delete anything.
+- Not covered by Orbit: Ollama itself and macOS (turn off Ollama update checks, or switch Wi-Fi off / use LuLu). Keep FileVault on.
+- Verify: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail;
+  `docker compose exec app sh -c "touch /parsed/x"` must fail (read-only).
+- Untested on a real Mac (no Docker engine where this was written). Send only error text if a step fails.
 
 ## Your data boundary
 - Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).
@@ -67,7 +72,7 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
 3. The tools immediately work in the chat, and you add a page in `app.py`. Migrations are append-only.
 
 ## Roadmap (suggested order)
-0. **Hardening**: encrypted database file.
+0. **Hardening** (done): encrypted DB, isolated parser. Next: OCR for scans (Tesseract in the parser box), approval cards for changes.
 0b. **Mail, offline**: import a Google Takeout .mbox file (no live connection), summarised by the local model.
 1. **Health & parents' care** - medicines with dose schedules, appointments, vitals log, per-parent records.
 2. **Reminders that reach you** - push/WhatsApp/Telegram/email delivery of due items (today they are only shown).

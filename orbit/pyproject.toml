@@ -11,10 +11,13 @@ dependencies = []
 
 [project.optional-dependencies]
 ui = ["streamlit>=1.48"]
+secure = ["sqlcipher3-binary>=0.5"]
+parse = ["pymupdf>=1.24"]
 dev = ["pytest>=8", "ruff>=0.5"]
 
 [project.scripts]
 orbit = "orbit.cli:main"
+orbit-parser = "orbit.parser:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

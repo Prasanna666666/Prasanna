@@ -1,9 +1,11 @@
-# Orbit: offline by design.
-#   private - internal network, NO route to the internet. The app lives ONLY here.
-#   default - Docker's normal network, used only by the two byte-forwarders below (gateway, ollama bridge):
-#             Docker needs it to publish a port and to reach Ollama running on your Mac. They run no app code.
-# There is no proxy and no allowlist: nothing in this stack is meant to reach the internet.
-# Prereq (Mac): install Ollama and run `ollama pull ministral-3:3b` (or llama3.2:3b) (needs internet once).
+# Orbit: offline, encrypted, and split by trust level.
+#
+#   parser  - opens untrusted files. network_mode: none (no network at all), inbox read-only, writes ONLY to `parsed`.
+#   app     - assistant + UI + encrypted database. Internal network (no internet). Sees `parsed` READ-ONLY, has no parser code.
+#   gateway / ollama bridge - dumb byte forwarders (UI on 127.0.0.1 only; Ollama on your Mac).
+#
+# Start with ./scripts/up.sh (it keeps the database key in the macOS Keychain and passes it as a Docker secret).
+# Prereq (Mac): Ollama installed natively and `ollama pull ministral-3:3b` (or llama3.2:3b) (needs internet once).
 name: orbit
 
 x-hardened: &hardened
@@ -14,20 +16,37 @@ x-hardened: &hardened
   restart: unless-stopped
 
 services:
+  parser:
+    <<: *hardened
+    build: {context: ., target: parser}
+    image: orbit-parser:local
+    network_mode: none          # cannot talk to anything, not even the app: the only exchange is files
+    environment: {ORBIT_INBOX: /inbox, ORBIT_PARSED: /parsed}
+    volumes:
+      - ${HOME}/OrbitInbox:/inbox:ro
+      - orbit-parsed:/parsed
+    mem_limit: 1g
+    pids_limit: 128
+    cpus: 1.0
+
   app:
     <<: *hardened
-    build: .
+    build: {context: ., target: app}
     image: orbit:local
     environment:
       OLLAMA_HOST: http://ollama:11434
       ORBIT_INBOX: /inbox
+      ORBIT_PARSED: /parsed
+      ORBIT_DB_KEY_FILE: /run/secrets/orbit_key
+    secrets: [orbit_key]
     volumes:
       - orbit-data:/data
-      - ${HOME}/OrbitInbox:/inbox:ro   # statements/notes you drop here; Orbit can read but never change them
+      - orbit-parsed:/parsed:ro   # parser output, read-only
+      - ${HOME}/OrbitInbox:/inbox:ro
     networks: [private]
     depends_on: [ollama]
+    mem_limit: 1g
 
-  # Exposes the UI on this computer only (127.0.0.1). Can reach nothing except app:8501.
   gateway:
     <<: *hardened
     image: alpine/socat:1.8.0.0
@@ -36,8 +55,7 @@ services:
     networks: [private, default]
     depends_on: [app]
 
-  # Named `ollama` so the app finds it; forwards ONLY to Ollama on the Mac (host.docker.internal:11434).
-  ollama:
+  ollama:   # named `ollama` so the app finds it; forwards ONLY to Ollama on the Mac
     <<: *hardened
     image: alpine/socat:1.8.0.0
     command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
@@ -46,5 +64,10 @@ services:
 networks:
   private: {internal: true}
 
+secrets:
+  orbit_key:
+    environment: ORBIT_DB_KEY    # exported by scripts/up.sh from the Keychain; never written to disk
+
 volumes:
   orbit-data:
+  orbit-parsed:

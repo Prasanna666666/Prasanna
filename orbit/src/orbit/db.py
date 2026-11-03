@@ -13,15 +13,65 @@ def home() -> Path:
     return Path(os.environ.get("ORBIT_HOME", Path.home() / ".orbit"))
 
 
-def connect(path: str | Path | None = None) -> sqlite3.Connection:
+class EncryptionError(RuntimeError):
+    pass
+
+
+def _key() -> str | None:
+    """The database key: from a file (Docker secret) or an env var. Never from a config file or the database itself."""
+    f = os.environ.get("ORBIT_DB_KEY_FILE")
+    if f:
+        try:
+            return Path(f).read_text().strip() or None
+        except OSError as e:
+            raise EncryptionError(f"Cannot read the database key file {f}: {e}") from e
+    return os.environ.get("ORBIT_DB_KEY") or None
+
+
+def connect(path: str | Path | None = None, key: str | None = None) -> sqlite3.Connection:
+    """Open the database. With a key it is encrypted (SQLCipher: AES-256, whole file incl. indexes and WAL).
+
+    ORBIT_REQUIRE_ENCRYPTION=1 (set in the Docker deployment) refuses to run without a key, so a missing
+    secret can never silently fall back to a plain-text database."""
     if path is None:
         home().mkdir(parents=True, exist_ok=True)
         path = home() / "orbit.db"
-    conn = sqlite3.connect(str(path), check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    key = key or _key()
+    if key is None and os.environ.get("ORBIT_REQUIRE_ENCRYPTION") == "1":
+        raise EncryptionError("Encryption is required but no database key was provided (ORBIT_DB_KEY_FILE / ORBIT_DB_KEY).")
+    if key:
+        try:
+            from sqlcipher3 import dbapi2 as cipher
+        except ImportError as e:
+            raise EncryptionError("A key was given but sqlcipher3 is not installed: pip install 'orbit[secure]'") from e
+        conn = cipher.connect(str(path), check_same_thread=False)
+        conn.execute("PRAGMA key = \"x'" + _hexkey(key) + "'\"")  # raw 256-bit key; no passphrase stretching needed
+        try:
+            conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        except cipher.DatabaseError as e:
+            conn.close()
+            raise EncryptionError("Wrong database key (or the file is not encrypted).") from e
+        conn.row_factory = cipher.Row
+    else:
+        conn = sqlite3.connect(str(path), check_same_thread=False)
+        try:
+            conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        except sqlite3.DatabaseError as e:
+            conn.close()
+            raise EncryptionError("This database is encrypted: provide the key (ORBIT_DB_KEY_FILE / ORBIT_DB_KEY).") from e
+        conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
+    if Path(path).exists():
+        os.chmod(path, 0o600)  # owner-only, even without a container
     return conn
+
+
+def _hexkey(key: str) -> str:
+    """Any string -> 64 hex chars (SHA-256), so a base64 key from the Keychain works unchanged."""
+    import hashlib
+
+    return hashlib.sha256(key.encode()).hexdigest()
 
 
 def migrate(conn: sqlite3.Connection, modules: list[Module]) -> None:

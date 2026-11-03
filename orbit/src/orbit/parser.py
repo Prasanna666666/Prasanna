@@ -1,0 +1,145 @@
+"""The isolated parser: turns untrusted files (PDF, CSV, text) into plain JSON. It is the only code that opens them.
+
+Runs in its own container with NO network, the inbox mounted read-only, and a single writable output folder that the
+app mounts read-only. Each file is parsed in a throw-away subprocess with CPU, memory and time limits, so a hostile or
+broken file can at worst fail that one file. Output is JSON only (never pickle), text capped and stripped of control
+characters; the app still treats it as untrusted data.
+
+    orbit-parser --once  [--inbox /inbox --out /parsed]
+    orbit-parser --watch
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+SCHEMA = 1
+MAX_BYTES = 50 * 1024 * 1024
+MAX_TEXT = 2_000_000
+MAX_PAGES = 500
+MAX_CSV_ROWS = 200_000
+TIMEOUT_S = 60
+KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".pdf": "pdf"}
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def clean(text: str) -> str:
+    return _CTRL.sub("", text)[:MAX_TEXT]
+
+
+def extract(path: Path) -> dict:
+    """In-process extraction. Called only inside the limited subprocess (or by tests)."""
+    kind = KINDS.get(path.suffix.lower())
+    meta: dict = {}
+    if kind == "text":
+        text = path.read_text(encoding="utf-8", errors="replace")
+    elif kind == "csv":
+        with path.open(newline="", encoding="utf-8", errors="replace") as f:
+            rows = []
+            for i, row in enumerate(csv.reader(f)):
+                if i >= MAX_CSV_ROWS:
+                    meta["truncated"] = True
+                    break
+                rows.append(row)
+        meta["rows"] = len(rows)
+        meta["columns"] = [clean(c)[:80] for c in rows[0]][:50] if rows else []
+        text = "\n".join(" | ".join(r) for r in rows)
+    elif kind == "pdf":
+        import pymupdf  # only installed in the parser image
+
+        with pymupdf.open(path) as doc:
+            meta["pages"] = doc.page_count
+            text = "\n\n".join(doc[i].get_text() for i in range(min(doc.page_count, MAX_PAGES)))
+            if doc.page_count > MAX_PAGES:
+                meta["truncated"] = True
+    else:
+        raise ValueError(f"unsupported file type: {path.suffix}")
+    return {"kind": kind, "text": clean(text), "meta": meta}
+
+
+def _limits() -> None:  # runs in the child before exec (Linux/macOS)
+    import resource
+
+    resource.setrlimit(resource.RLIMIT_CPU, (TIMEOUT_S, TIMEOUT_S))
+    resource.setrlimit(resource.RLIMIT_AS, (1 << 30, 1 << 30))
+    resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+
+
+def extract_isolated(path: Path, timeout: int = TIMEOUT_S) -> dict:
+    r = subprocess.run([sys.executable, "-I", "-m", "orbit.parser", "--extract-one", str(path)],
+                       capture_output=True, timeout=timeout, preexec_fn=_limits, check=False)  # noqa: PLW1509
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode("utf-8", "replace")[-300:] or f"parser exited {r.returncode}")
+    return json.loads(r.stdout)
+
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def process_inbox(inbox: Path, out: Path, isolated: bool = True) -> dict[str, int]:
+    """Parse every new supported file under inbox into out/<sha256>.json. Same content is never parsed twice."""
+    out.mkdir(parents=True, exist_ok=True)
+    root = inbox.resolve()
+    done = skipped = failed = 0
+    for f in sorted(root.rglob("*")):
+        if not f.is_file() or f.is_symlink() or root not in f.resolve().parents:
+            continue
+        if f.suffix.lower() not in KINDS or f.stat().st_size > MAX_BYTES:
+            skipped += 1
+            continue
+        digest = sha256(f)
+        target = out / f"{digest}.json"
+        if target.exists():
+            continue
+        try:
+            res = extract_isolated(f) if isolated else extract(f)
+        except Exception as e:
+            print(f"FAILED {f.name}: {e}", file=sys.stderr, flush=True)
+            failed += 1
+            continue
+        doc = {"schema": SCHEMA, "sha256": digest, "name": clean(f.name)[:255], "bytes": f.stat().st_size,
+               "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **res}
+        tmp = out / f".{digest}.tmp"
+        tmp.write_text(json.dumps(doc, ensure_ascii=False))
+        os.replace(tmp, target)  # atomic: the app never sees a half-written file
+        done += 1
+    return {"parsed": done, "skipped": skipped, "failed": failed}
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="orbit-parser")
+    ap.add_argument("--inbox", default=os.environ.get("ORBIT_INBOX", str(Path.home() / "OrbitInbox")))
+    ap.add_argument("--out", default=os.environ.get("ORBIT_PARSED", str(Path.home() / "OrbitParsed")))
+    ap.add_argument("--watch", action="store_true")
+    ap.add_argument("--once", action="store_true")
+    ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)
+    a = ap.parse_args(argv)
+    if a.extract_one:
+        sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
+        return 0
+    while True:
+        res = process_inbox(Path(a.inbox), Path(a.out))
+        if res["parsed"] or res["failed"]:
+            print(res, flush=True)
+        if not a.watch:
+            return 0
+        time.sleep(30)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

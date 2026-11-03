@@ -13,7 +13,7 @@ from orbit import netguard
 netguard.install()
 
 from orbit import agent, applenotes, db, llm, tagging
-from orbit.modules import ALL, money, notes, people, tasks
+from orbit.modules import ALL, documents, money, notes, people, tasks
 from orbit.modules.today import briefing_for
 
 st.set_page_config(page_title="Orbit", page_icon="🧭", layout="wide")
@@ -28,7 +28,7 @@ def conn():
 
 C = conn()
 cur = db.get_setting(C, "currency", "INR")
-page = st.sidebar.radio("Orbit", ["Today", "Chat", "Tasks", "Notes", "Money", "People", "Settings"])
+page = st.sidebar.radio("Orbit", ["Today", "Chat", "Tasks", "Notes", "Documents", "Money", "People", "Settings"])
 
 
 def person_names() -> dict[int, str]:
@@ -135,6 +135,17 @@ elif page == "Notes":
             if st.button("Delete", key=f"n{n['id']}"):
                 notes.delete_note(C, {"id": n["id"]})
                 st.rerun()
+
+elif page == "Documents":
+    st.title("Documents")
+    st.caption("Parsed in an isolated, offline box from ~/OrbitInbox (PDF, CSV, text). Read-only here: Orbit cannot change them.")
+    parsed = Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))
+    if st.button("Load newly parsed documents"):
+        st.success(str(documents.ingest_dir(C, parsed))) if parsed.is_dir() else st.error(f"{parsed} not found - start the parser")
+    q = st.text_input("Search documents")
+    for d in documents.search_documents(C, {"query": q, "limit": 25}):
+        with st.expander(f"{d['name']}  ·  {d['kind']}  ·  {d['tags']}"):
+            st.write(d["snippet"])
 
 elif page == "Money":
     st.title("Money")

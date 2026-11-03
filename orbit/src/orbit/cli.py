@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir]"""
+"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir] | ingest [dir]"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from datetime import date
 from pathlib import Path
 
 from . import agent, agents, applenotes, db, netguard, tagging
+from .modules import documents
 from .modules import ALL, tools
 from .modules.today import briefing_for
 
@@ -41,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     elif cmd == "agents":
         for a in agents.AGENTS:
             print(f"{a.name:9} {len(a.tools)} tools: {', '.join(sorted(a.tools))}")
+    elif cmd == "ingest":
+        print(documents.ingest_dir(conn, Path(rest[0]) if rest else Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))))
     elif cmd == "import-notes":
         print(applenotes.import_dir(conn, Path(rest[0]) if rest else inbox))
     elif cmd == "tag":
