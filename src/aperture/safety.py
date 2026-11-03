@@ -33,9 +33,13 @@ def drive_problem(drive: Path) -> str | None:
     if not drive.is_dir():
         return f"{drive} was not found. Connect the external drive and try again."
     if not os.access(drive, os.W_OK):
-        return (
-            f"{drive} is read-only. Drives formatted as NTFS are read-only on a Mac - reformat to APFS or exFAT in Disk Utility."
-        )
+        # In the sandbox the photo folder (possibly the whole drive) is read-only on purpose; Aperture only ever writes inside
+        # its own folder, so that is what must be writable there.
+        own = drive / "Aperture"
+        if not (os.environ.get("APERTURE_SANDBOXED") == "1" and own.is_dir() and os.access(own, os.W_OK)):
+            return (
+                f"{drive} is read-only. Drives formatted as NTFS are read-only on a Mac - reformat to APFS or exFAT in Disk Utility."
+            )
     if os.environ.get(ENV_INTERNAL) != "1":
         try:
             device = os.stat(drive).st_dev

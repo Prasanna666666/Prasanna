@@ -278,7 +278,7 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     if export is not None and export.is_dir():
         cmd.append(str(export))
     cmd += ["--", sys.executable, "-m", "aperture", "ui", "--port", str(args.port)]
-    env = dict(os.environ, ALLOW_MOVES="yes" if args.allow_moves else "no")
+    env = dict(os.environ, ALLOW_MOVES="yes" if args.allow_moves else "no", AP_ROOT=str(paths.root))
     print(f"Starting Aperture in the sandbox on http://127.0.0.1:{args.port}  (photos: read-only"
           f"{', moves allowed' if args.allow_moves else ''}; no internet)")
     return subprocess.call(cmd, env=env)

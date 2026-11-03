@@ -71,3 +71,41 @@ def test_secure_ui_explains_a_missing_photo_folder_or_wrong_os(monkeypatch, tmp_
 def test_sandbox_script_and_docker_mark_the_environment_secure():
     assert "APERTURE_SANDBOXED=1" in (ROOT / "scripts" / "aperture-sandboxed.sh").read_text()
     assert "APERTURE_SANDBOXED=1" in (ROOT / "Dockerfile.aperture").read_text()
+
+
+def test_profile_keeps_aperture_folder_writable_inside_a_read_only_photo_folder():
+    text = (ROOT / "scripts" / "aperture-sandbox.sb").read_text()
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith(";;")]
+    deny = next(i for i, ln in enumerate(lines) if "deny file-write*" in ln)
+    allow_root = next(i for i, ln in enumerate(lines) if 'allow file-write* (subpath (param "AP_ROOT"))' in ln)
+    assert allow_root > deny, "later rules win: the re-allow must come after the deny"
+    assert "AP_ROOT" in (ROOT / "scripts" / "aperture-sandboxed.sh").read_text()
+
+
+def test_secure_ui_passes_the_aperture_folder(monkeypatch, tmp_path):
+    photos = tmp_path / "Photos"
+    photos.mkdir()
+    monkeypatch.setattr(cli.sys, "platform", "darwin")
+    monkeypatch.setattr(cli, "_require_drive", lambda paths: 0)
+    monkeypatch.setattr(cli.Settings, "load", classmethod(lambda cls, p: cls(photo_dir=str(photos))))
+    seen = []
+    import subprocess
+    monkeypatch.setattr(subprocess, "call", lambda cmd, env=None: seen.append(env) or 0)
+    cli.main(["secure-ui"])
+    assert seen[0]["AP_ROOT"].endswith("Aperture")
+
+
+def test_drive_check_in_sandbox_needs_only_the_aperture_folder_writable(monkeypatch, tmp_path):
+    from aperture import safety
+
+    drive = tmp_path / "Expansion"
+    (drive / "Aperture").mkdir(parents=True)
+    monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
+    real_access = safety.os.access
+    monkeypatch.setattr(safety.os, "access", lambda p, m: False if Path(p) == drive else real_access(p, m))
+    monkeypatch.delenv("APERTURE_SANDBOXED", raising=False)
+    assert "read-only" in (safety.drive_problem(drive) or "")  # outside the sandbox: still refused
+    monkeypatch.setenv("APERTURE_SANDBOXED", "1")
+    assert safety.drive_problem(drive) is None  # sandbox: Aperture's own folder is writable, that is enough
+    monkeypatch.setattr(safety.os, "access", lambda p, m: False)
+    assert "read-only" in (safety.drive_problem(drive) or "")  # its own folder unwritable too: refused

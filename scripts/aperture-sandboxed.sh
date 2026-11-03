@@ -4,6 +4,7 @@
 #   scripts/aperture-sandboxed.sh PHOTO_DIR [EXPORT_DIR] -- aperture ui
 #   scripts/aperture-sandboxed.sh --selftest PHOTO_DIR      # prove the sandbox works on this Mac
 #   ALLOW_MOVES=yes ...                                     # only if you enabled photo moves in Settings
+#   AP_ROOT=/Volumes/Drive/Aperture ...                     # Aperture's data folder (kept writable; `aperture secure-ui` sets it)
 #
 # Network is locked off twice: by the OS sandbox and by APERTURE_NEVER_ONLINE=1. `aperture fetch-models` is refused here;
 # run it once with the normal install before using the sandbox.
@@ -22,7 +23,7 @@ if [ $# -ge 1 ] && [ "$1" != "--" ]; then EXPORT_DIR="$(cd "$1" && pwd -P)"; shi
 [ "${1:-}" = "--" ] && shift
 
 export APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1
-SB=(sandbox-exec -f "$PROFILE" -D "PHOTO_DIR=$PHOTO_DIR" -D "EXPORT_DIR=$EXPORT_DIR" -D "ALLOW_MOVES=${ALLOW_MOVES:-no}")
+SB=(sandbox-exec -f "$PROFILE" -D "PHOTO_DIR=$PHOTO_DIR" -D "EXPORT_DIR=$EXPORT_DIR" -D "AP_ROOT=${AP_ROOT:-/nonexistent-aperture-root}" -D "ALLOW_MOVES=${ALLOW_MOVES:-no}")
 
 if [ "$SELFTEST" = 1 ]; then
   exec "${SB[@]}" python3 - "$PHOTO_DIR" <<'PY'

@@ -1,6 +1,6 @@
 ;; macOS Seatbelt profile for Aperture (used by scripts/aperture-sandboxed.sh).
 ;; Kernel-enforced, so it holds even if a native library or a dependency tries to bypass Python-level guards.
-;; Parameters: PHOTO_DIR, EXPORT_DIR, ALLOW_MOVES ("yes"/"no").
+;; Parameters: PHOTO_DIR, EXPORT_DIR, AP_ROOT, ALLOW_MOVES ("yes"/"no").
 ;; Later rules win over earlier ones.
 (version 1)
 (allow default)
@@ -16,5 +16,7 @@
 (if (not (string=? (param "ALLOW_MOVES") "yes"))
     (deny file-write* (subpath (param "PHOTO_DIR"))))
 
-;; 3. The export folder may sit inside the photo folder, so it is allowed again after the rule above.
+;; 3. Aperture's own data folder and the export folder stay writable even when they sit inside the photo folder
+;;    (for example when the photos folder is the whole drive). Allowed again after the rule above.
+(allow file-write* (subpath (param "AP_ROOT")))
 (allow file-write* (subpath (param "EXPORT_DIR")))
