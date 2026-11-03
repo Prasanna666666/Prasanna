@@ -272,6 +272,77 @@ def first_free_port(start: int = 8765, tries: int = 25) -> int | None:
     return next((p for p in range(start, start + tries) if port_is_free(p)), None)
 
 
+def listener_pid(port: int) -> int | None:
+    """PID of the process listening on 127.0.0.1:port (None if nobody)."""
+    import subprocess
+
+    try:
+        out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    pids = [int(x) for x in out.split() if x.isdigit()]
+    return pids[0] if pids else None
+
+
+def command_of(pid: int) -> str:
+    import subprocess
+
+    try:
+        return subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def is_aperture_ui(command: str) -> bool:
+    """True only for Aperture's own web server (never another program that happens to use the port)."""
+    c = command.lower()
+    if "aperture" not in c or "scan" in c.split() or "caption" in c.split():
+        return False
+    return "-m aperture ui" in c or "aperture ui" in c or "aperture/ui/app.py" in c or "aperture-sandboxed" in c
+
+
+def stop_process(pid: int, wait: float = 8.0) -> bool:
+    """Ask a process to stop (SIGTERM), then force it if it ignores us. True once it is gone."""
+    import time
+
+    for sig, limit in ((signal.SIGTERM, wait), (signal.SIGKILL, 3.0)):
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            return True
+        except OSError:
+            return False
+        deadline = time.monotonic() + limit
+        while True:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return True
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+    return False
+
+
+def stop_old_ui(pid_file: Path, port: int) -> list[str]:
+    """Stop an older Aperture web server: the one a previous `secure-ui` recorded, and any Aperture UI on `port`."""
+    said: list[str] = []
+    candidates: list[int] = []
+    try:
+        candidates.append(int(pid_file.read_text().strip()))
+    except (OSError, ValueError):
+        pass
+    on_port = listener_pid(port)
+    if on_port is not None and on_port not in candidates:
+        candidates.append(on_port)
+    for pid in candidates:
+        if pid != os.getpid() and is_aperture_ui(command_of(pid)):
+            said.append(f"Stopped the older Aperture on port {port} (process {pid})." if stop_process(pid)
+                        else f"Could not stop the older Aperture (process {pid}).")
+    pid_file.unlink(missing_ok=True)
+    return said
+
+
 def open_when_ready(port: int, attempts: int = 90) -> None:
     """Open the page in the default browser as soon as the server answers (runs in a background thread)."""
     import time
@@ -305,18 +376,22 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     if not photo.is_dir():
         print(f"Photo folder not found: {photo}\nSet the right one with:  aperture settings --photo-dir /path/to/photos")
         return 2
+    pid_file = paths.data / "ui.pid"
+    wanted = args.port if args.port is not None else 8765
+    for line in stop_old_ui(pid_file, wanted):
+        print(line)
     if args.port is not None:
         port = args.port
         if not port_is_free(port):
-            print(f"Port {port} is already in use. Leave out --port and Aperture will pick a free one for you.")
+            print(f"Port {port} is in use by another program, not Aperture. Leave out --port and I will pick a free one.")
             return 2
     else:
-        port = first_free_port()
+        port = wanted if port_is_free(wanted) else first_free_port(wanted)
         if port is None:
-            print("No free port found between 8765 and 8789. Close some programs and try again.")
+            print("No free port found near 8765. Close some programs and try again.")
             return 2
-        if port != 8765:
-            print(f"Port 8765 is busy (probably an older Aperture still running), so I am using {port}.")
+        if port != wanted:
+            print(f"Port {wanted} is used by another program, so I am using {port}.")
     cmd = [str(script), str(photo)]
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():
@@ -327,7 +402,19 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
           f"{', moves allowed' if args.allow_moves else ''}; no internet). Press Ctrl+C to stop.")
     if not args.no_browser:
         threading.Thread(target=open_when_ready, args=(port,), daemon=True).start()
-    return subprocess.call(cmd, env=env)
+    proc = subprocess.Popen(cmd, env=env)  # noqa: S603
+    try:
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        pid_file.write_text(str(proc.pid))
+    except OSError:
+        pass  # not being able to remember it only means the next start cannot stop this one automatically
+    try:
+        return int(proc.wait() or 0)
+    except KeyboardInterrupt:
+        stop_process(proc.pid)
+        return 0
+    finally:
+        pid_file.unlink(missing_ok=True)
 
 
 def cmd_bench(paths: Paths) -> int:

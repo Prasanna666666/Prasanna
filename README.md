@@ -31,7 +31,8 @@ Then `ollama pull ministral-3:3b` (the Ollama app stores weights in `~/.ollama`;
 Photo commands (`ui`, `app`, `scan`, `ask`, `caption`, ...) **refuse to run** unless they are inside the sandbox or Docker. The normal way:
 
 ```bash
-aperture secure-ui          # starts the UI in the sandbox: no internet, photos read-only; uses the folders from your settings
+aperture secure-ui          # starts the UI in the sandbox: no internet, photos read-only; always http://127.0.0.1:8765
+                            # (stops its own older copy first, opens your browser; Ctrl+C to stop; refresh the page as usual)
 aperture secure-ui --allow-moves     # only if you want Tidy up to move files inside the photo folder
 scripts/aperture-sandboxed.sh --selftest /path/to/photos    # once: must print three PASS lines
 aperture --insecure ui      # explicit override (not recommended)
