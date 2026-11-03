@@ -233,6 +233,17 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
     cmd_details(ctx, argparse.Namespace(limit=0, no_vision=False))
     if stop.is_set():
         return 0
+    embedder = ctx.search_embedder()
+    if embedder is not None and not stop.is_set():
+        from .indexing import faceattrs
+
+        print("reading expression and age group of every face ...", flush=True)
+        conn = ctx.db.connect()
+        try:
+            conn.execute("DELETE FROM photo_labels WHERE source='face'")
+            print(f"  {faceattrs.run(conn, ctx.paths.data, embedder, stop=stop):,} faces")
+        finally:
+            conn.close()
     conn = ctx.db.connect()
     try:
         print(f"capture flags: {derive.derive_meta_labels(conn):,}; trips and events: {derive.build_events(conn):,}")

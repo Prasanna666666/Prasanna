@@ -193,7 +193,17 @@ CREATE TABLE photo_events(
 CREATE INDEX photo_events_event ON photo_events(event_id);
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9]
+_MIGRATION_10 = """
+CREATE TABLE face_attributes(       -- expression and age group of each face, read from its saved crop
+    face_id      INTEGER PRIMARY KEY REFERENCES faces(id) ON DELETE CASCADE,
+    expression   TEXT NOT NULL,
+    expression_p REAL NOT NULL,
+    age          TEXT NOT NULL,
+    age_p        REAL NOT NULL
+);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10]
 
 
 class Database:
