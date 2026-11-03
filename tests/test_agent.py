@@ -129,7 +129,7 @@ def test_clause_in_the_wrong_engine_falls_back_to_the_right_one(scanned):
     executor = Executor(ctx.db.connect(), ctx.embedding_index, ctx.search_embedder, strictness="strict")
     result = executor.run(Plan(intent="find", clauses=[Clause(engines=["visual"], query="Testville")]))
     assert result.ids.tolist() == [item_id]
-    assert any("matched 1 photos by place" in note for note in result.notes)
+    assert any("found by place instead" in note for note in result.notes)
 
 
 def test_misspelled_or_alternate_place_names_find_the_library_spelling(scanned):
@@ -167,4 +167,4 @@ def test_an_empty_best_match_falls_back_to_the_first_reading_and_says_so(scanned
     clauses = [{"engines": ["place"], "query": "italy"}, {"engines": ["text"], "query": "zzzqqq"}]
     svc, _ = service(scanned, plan(clauses=clauses))
     reply = svc.ask("italy zzzqqq")
-    assert len(reply.ids) and any("one reading" in n for n in reply.notes)
+    assert len(reply.ids) and any("No exact match" in n for n in reply.notes)

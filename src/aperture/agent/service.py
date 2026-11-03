@@ -64,11 +64,11 @@ def explain_empty(reports: list[ClauseReport]) -> str:
     """Say which constraint made the result empty."""
     for report in reports:
         if report.matched == 0 and report.note != "excluded":
-            return f"**{report.label}** matches no photos on its own."
+            return f"No photos match **{report.label}**."
     for report in reports:
         if report.remaining == 0:
-            return f"No photo satisfies all conditions together; the set became empty at **{report.label}**."
-    return "No photo satisfies the request."
+            return f"No photo matches all of it; it emptied at **{report.label}**."
+    return "No photo matches."
 
 
 def _only_plain_clauses(plan: Plan) -> bool:
@@ -326,7 +326,7 @@ class AgentService:
         if len(outcome.ids) == 0 and groups:
             label, ids = groups[0]
             outcome.ids = ids
-            outcome.notes.append(f"Nothing fits the whole request, so these are the photos that fit one reading of it: {label.lower()}.")
+            outcome.notes.append(f"No exact match. Showing: {label}.")
         common = {
             **base,
             "groups": groups,
@@ -340,12 +340,12 @@ class AgentService:
         if n == 0:
             return AgentReply("results", f"No photos found. {explain_empty(outcome.reports)}", **common)
         if plan.intent == "count":
-            return AgentReply("count", f"**{n:,}** photo{'s' if n != 1 else ''} match: {conditions}.", **common)
+            return AgentReply("count", f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}", **common)
         if plan.intent == "export":
             return AgentReply(
                 "export",
-                f"Found **{n:,}** photo{'s' if n != 1 else ''} matching {conditions}. Ready to copy them.",
+                f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}. Ready to copy.",
                 folder_name=plan.folder_name,
                 **common,
             )
-        return AgentReply("results", f"Found **{n:,}** photo{'s' if n != 1 else ''} matching: {conditions}.", **common)
+        return AgentReply("results", f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}", **common)

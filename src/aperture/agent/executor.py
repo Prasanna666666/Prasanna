@@ -84,7 +84,7 @@ class Executor:
             # "Refine the earlier results" is a preference, not a wall: nothing there, so look in the whole library.
             wider = self._run(dataclasses.replace(plan, scope="library"), None)
             if len(wider.ids):
-                wider.notes.insert(0, "None of the earlier results matched, so I searched your whole library.")
+                wider.notes.insert(0, "Nothing in the earlier results; searched everything.")
                 return wider
         return result
 
@@ -96,7 +96,7 @@ class Executor:
             if previous_ids is not None and len(previous_ids):
                 universe = np.intersect1d(universe, previous_ids)
             else:
-                result.notes.append("There were no earlier results, so I searched the whole library.")
+                result.notes.append("No earlier results; searched everything.")
         result.universe = len(universe)
         self._coverage_note(result)
 
@@ -160,7 +160,7 @@ class Executor:
             found = self._engine_ids(engine, clause.query, result)
             if len(found):
                 result.notes.append(
-                    f"Nothing matched '{clause.query}' as {'/'.join(clause.engines)}, but it matched {len(found):,} photos by {engine}."
+                    f"'{clause.query}': found by {engine} instead."
                 )
                 return found
         near = self._similar_place_ids(clause.query, result)
@@ -176,7 +176,7 @@ class Executor:
         except sqlite3.Error:
             return np.zeros(0, np.int64)
         if len(ids):
-            result.notes.append(f"No photo is labelled '{query}', but {len(ids):,} were taken within 25 km of it (GPS).")
+            result.notes.append(f"{len(ids):,} taken within 25 km of {query} (GPS).")
         return ids
 
     def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
@@ -234,7 +234,7 @@ class Executor:
                 ids = place_ids(self._conn, close[0])
                 if len(ids):
                     found.append(ids)
-                    result.notes.append(f"I read '{word}' as the place '{close[0]}' in your library ({len(ids):,} photos).")
+                    result.notes.append(f"'{word}' read as {close[0]}.")
         return np.unique(np.concatenate(found)) if found else np.zeros(0, np.int64)
 
     def rescue(self, request: str) -> np.ndarray:
@@ -287,7 +287,7 @@ class Executor:
             "SELECT COUNT(*), SUM(meta_done=0 AND error IS NULL) FROM items WHERE missing=0"
         ).fetchone()
         if total and (pending or 0) > 0:
-            result.notes.append(f"{pending:,} of {total:,} photos are not indexed yet, so they are not searched.")
+            result.notes.append(f"{pending:,} of {total:,} photos not indexed yet.")
 
     def _rank(self, ids: np.ndarray) -> np.ndarray:
         """Best visual match first, otherwise newest first.  Never drops an id."""

@@ -124,7 +124,7 @@ def test_the_model_reads_the_search_result_before_it_answers_and_the_photos_stay
     observation = json.loads(second[-1]["content"])
     assert second[-1]["role"] == "tool" and observation["matched"] == 3 and observation["date_range"] == "2026-10-01 to 2026-10-31"
     # the model writes the words; the found photos are attached to the streamed reply
-    assert reply.text.startswith("Found **3**") and reply.kind == "results" and list(reply.ids) == [11, 12, 13]
+    assert reply.text.startswith("**3** photo") and reply.kind == "results" and list(reply.ids) == [11, 12, 13]
     assert reply.timings.keys() >= {"context", "decide", "tools", "search"}
 
 
@@ -141,7 +141,7 @@ def test_counting_everything_and_the_overview_tool_feed_the_model_real_data():
     agent, llm, plans = agent_with([[tool("count_photos")], [("delta", "49,743.")]])
     reply = agent.ask("how many pics are there in total")
     assert plans[0][0].all_photos is True and plans[0][0].intent == "count"
-    assert json.loads(llm.calls[1][1][-1]["content"])["matched"] == 3 and reply.text.startswith("**3** photos match")
+    assert json.loads(llm.calls[1][1][-1]["content"])["matched"] == 3 and reply.text.startswith("**3** photo")
     agent2, llm2, plans2 = agent_with([[tool("library_overview")], [("delta", "A big library.")]], overview=lambda previous: "FACTS: 49,743 files from 2012 to 2025")
     agent2.ask("what is in my library?")
     assert llm2.calls[1][1][-1] == {"role": "tool", "tool_name": "library_overview", "content": "FACTS: 49,743 files from 2012 to 2025"} and not plans2
@@ -192,7 +192,7 @@ def test_iterating_is_bounded_by_time_so_it_never_makes_the_app_slow(monkeypatch
 
     agent, llm, plans = agent_with([slow_turn, [("delta", "Here is what I found.")]])
     reply = agent.ask("dogs")
-    assert len(plans) == 1 and reply.text.startswith("Found")
+    assert len(plans) == 1 and reply.text.startswith("**")
     assert llm.calls[1][2] == []  # over budget: no more tools, the model answers with what it has
 
 
@@ -385,7 +385,7 @@ def test_indexing_note_only_counts_photos_that_are_really_waiting(tmp_path, monk
     conn.execute("UPDATE items SET meta_done=0 WHERE id IN (7, 8)")  # two genuinely still waiting
     conn.commit()
     ex._coverage_note(result)
-    assert result.notes == ["2 of 10 photos are not indexed yet, so they are not searched."]
+    assert result.notes == ["2 of 10 photos not indexed yet."]
 
 
 # ------------------------------------------------------------------ the holistic measure
