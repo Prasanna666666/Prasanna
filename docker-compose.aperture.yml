@@ -15,7 +15,10 @@ x-hardened: &hardened
 x-drive: &drive
   # The container sees the drive at the same path Aperture expects. A tmpfs is the "drive" root; the real folders
   # are mounted into it, so nothing else on your drive is visible to the container.
-  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture:/Volumes/Expansion/Aperture
+  # EVERYTHING Aperture learns about your photos (index, GPS, faces, text, labels, thumbnails, previews) lives in the named volume
+  # `aperture-data`: inside Docker's own disk image, not a folder on your Mac, so no program on the Mac (and no assistant) can browse it.
+  - aperture-data:/Volumes/Expansion/Aperture/data
+  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture_Exports:/Volumes/Expansion/Aperture_Exports
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos:ro
 
@@ -43,6 +46,9 @@ services:
     image: alpine/socat:1.8.0.0
     command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
     networks: [private, default]
+
+volumes:
+  aperture-data: {}
 
 networks:
   private: {internal: true}

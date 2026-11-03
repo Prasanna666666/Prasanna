@@ -23,3 +23,20 @@ def test_aperture_compose_security_properties():
 def test_dockerfile_runs_non_root_and_without_mac_extras():
     d = (ROOT / "Dockerfile.aperture").read_text()
     assert "APERTURE_NEVER_ONLINE=1" in d and "USER 10001" in d and "[ml,ui]" in d and "mac" not in d.split("pip install")[-1]
+
+
+def test_the_photo_index_lives_in_a_private_docker_volume_not_a_mac_folder():
+    from pathlib import Path
+
+    compose = (Path(__file__).parent.parent / "docker-compose.aperture.yml").read_text()
+    assert "aperture-data:/Volumes/Expansion/Aperture/data" in compose and "\nvolumes:\n  aperture-data" in compose
+    assert "/Aperture:/Volumes/Expansion/Aperture\n" not in compose  # the whole Aperture folder is no longer a bind mount
+    assert "Photos:/Volumes/Expansion/Photos:ro" in compose and "/Aperture/models:/Volumes/Expansion/Aperture/models:ro" in compose
+
+
+def test_the_coding_assistant_is_denied_the_drive_and_the_containers_data():
+    import json
+    from pathlib import Path
+
+    deny = json.loads((Path(__file__).parent.parent / ".claude" / "settings.json").read_text())["permissions"]["deny"]
+    assert "Read(//Volumes/**)" in deny and "Bash(docker cp:*)" in deny and "Bash(docker exec:*)" in deny
