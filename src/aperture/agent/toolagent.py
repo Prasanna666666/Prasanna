@@ -24,7 +24,7 @@ import json
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from .llm import LLMError, OllamaClient
@@ -62,6 +62,8 @@ PARAMS: dict[str, dict[str, Any]] = {
     "not_people": _array("People who must NOT be in the photos."),
     "not_places": _array("Places the photos must NOT be from."),
     **{key: _no_none(value) for key, value in _FILTER_PROPS.items()},
+    "date_from": {"type": "string", "description": "First day of the period, as YYYY-MM-DD. Get it from calc_date for anything relative."},
+    "date_to": {"type": "string", "description": "Last day of the period, as YYYY-MM-DD."},
     "narrow_previous": {"type": "boolean", "description": "True only when the user refers to the results already on screen ('only those', 'of these')."},
     "copy_to_folder": {"type": "string", "description": "Folder name, only if the user asked to copy or organize the matches into a folder."},
 }
@@ -95,6 +97,19 @@ TOOL_DEFS: dict[str, dict[str, Any]] = {
                                               "check that the results really show what the user asked for. Slow: use only when needed. Search first.",
                             {"question": {"type": "string", "description": "What to check or find out."},
                              "count": {"type": "integer", "description": "How many photos to look at, 1 to 3."}}, ["question"]),
+    "probe": _tool("probe", "See where a word or phrase from the user's message really occurs in THEIR library: as a place, a folder or file "
+                            "name, words written in photos, a person's name. Use it when a word could mean several things (a bare word, a name, "
+                            "something you are unsure about) and decide what the user means from the counts.",
+                   {"term": {"type": "string", "description": "The word or phrase to check."}}, ["term"]),
+    "calc_date": _tool("calc_date", "Exact calendar maths. Starting from today, move back (negative) or forward by some years, months, weeks "
+                                    "or days, and get the dates of the day/week/month/year you land in, or everything from there until today. "
+                                    "Use the result as date_from and date_to. Never work out dates yourself.",
+                       {"years": {"type": "integer", "description": "Years to move (negative = past)."},
+                        "months": {"type": "integer", "description": "Months to move (negative = past)."},
+                        "weeks": {"type": "integer", "description": "Weeks to move (negative = past)."},
+                        "days": {"type": "integer", "description": "Days to move (negative = past)."},
+                        "period": {"type": "string", "enum": ["day", "week", "month", "year"], "description": "The period you land in."},
+                        "until_today": {"type": "boolean", "description": "True for 'the last N months' style: from there until today."}}, ["period"]),
     "look_up": _tool("look_up", "Check the exact spelling of a place, person or folder name in the user's library. Use it ONLY when the "
                                 "library facts you were given do not already show the exact name.",
                      {"kind": {"type": "string", "enum": ["place", "person", "folder"]}, "text": {"type": "string", "description": "The word to look for."}},
@@ -111,7 +126,7 @@ class AgentSpec:
     goal: str = ""
 
 
-ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "copy_photos", "library_overview", "look_up", "read_photo_text", "look_at_photos"))
+ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "copy_photos", "library_overview", "probe", "calc_date", "look_up", "read_photo_text", "look_at_photos"))
 TOOLS = [TOOL_DEFS[name] for name in ASSISTANT.tools]
 
 
@@ -130,6 +145,8 @@ EXAMPLES = "\n".join([
     "'keep just the ones from May' (results are on screen) -> find_photos(month=5, narrow_previous=true)",
     "'thanks, that helps' -> reply in words, no tool",
     "'what is a RAW file?' -> reply in words, no tool",
+    "'tokyo' -> probe(term=\"tokyo\"), then search the way the counts show it exists in the library",
+    "'pics from 2 months back' -> calc_date(months=-2, period=\"month\"), then find_photos(date_from=..., date_to=...)",
     "Only fill in what the user said: 'sunset photos' is find_photos(what=\"sunset\") with no time of day and no kind.",
 ])
 
@@ -155,7 +172,8 @@ def plan_from_tool(name: str, args: dict[str, Any]) -> Plan:
         "scope": "previous" if args.get("narrow_previous") is True else "library",
         "match": "all",
         "clauses": clauses,
-        "date": {k: args[k] for k in ("year", "month", "season", "relative") if k in args},
+        "date": {**{k: args[k] for k in ("year", "month", "season", "relative") if k in args},
+                 **({"start": args["date_from"]} if args.get("date_from") else {}), **({"end": args["date_to"]} if args.get("date_to") else {})},
         "filters": {k: args[k] for k in FILTER_KEYS if k in args},
         "folder_name": folder,
     }
@@ -182,10 +200,11 @@ class ToolAgent:
                  overview: Callable[[Any], str] | None = None, lookup: Callable[[str, str], list[str]] | None = None,
                  read_text: Callable[[list[int]], list[dict[str, Any]]] | None = None,
                  look: Callable[[list[int], str], list[dict[str, Any]]] | None = None,
+                 probe: Callable[[str], dict[str, Any]] | None = None,
                  today: Callable[[], date] = date.today, max_tokens: int = CHAT_MAX_TOKENS, spec: AgentSpec = ASSISTANT) -> None:
         self._llm, self._service, self._context, self._today = llm, service, context, today
         self._overview, self._lookup, self._max_tokens, self.spec = overview, lookup, max_tokens, spec
-        self._read_text, self._look = read_text, look
+        self._read_text, self._look, self._probe = read_text, look, probe
         self._deadline = float("inf")
         self._tools = [TOOL_DEFS[name] for name in spec.tools]
 
@@ -303,10 +322,45 @@ class ToolAgent:
                 return json.dumps({"photos": found} if found else {"photos": [], "note": "none of these photos has readable text"}), None
             answers = self._look(ids, str(args.get("question", ""))) if self._look else []
             return json.dumps({"photos": answers}), None
+        if name == "probe":
+            return json.dumps(self._probe(str(args.get("term", "")))) if self._probe else json.dumps({"error": "unavailable"}), None
+        if name == "calc_date":
+            return json.dumps(calc_date(self._today(), args)), None
         if name == "look_up":
             found = self._lookup(str(args.get("kind", "")), str(args.get("text", ""))) if self._lookup else []
             return json.dumps({"matches": found}), None
         return json.dumps({"error": "unsupported"}), None
+
+
+def calc_date(today: date, args: dict[str, Any]) -> dict[str, str]:
+    """Calendar arithmetic for the model: move from today, then take the period landed in (or everything until today)."""
+    def n(key: str) -> int:
+        try:
+            return max(-1200, min(1200, int(args.get(key) or 0)))
+        except (TypeError, ValueError):
+            return 0
+
+    months = today.year * 12 + today.month - 1 + n("years") * 12 + n("months")
+    year, month = divmod(months, 12)
+    try:
+        moved = date(year, month + 1, min(today.day, 28 if month == 1 else 30 if month in (3, 5, 8, 10) else 31))
+    except ValueError:
+        return {"error": "that date is out of range"}
+    moved += timedelta(weeks=n("weeks"), days=n("days"))
+    period = str(args.get("period") or "day")
+    if period == "week":
+        start = moved - timedelta(days=moved.weekday())
+        end = start + timedelta(days=6)
+    elif period == "month":
+        start = moved.replace(day=1)
+        end = (start.replace(year=start.year + (start.month == 12), month=start.month % 12 + 1)) - timedelta(days=1)
+    elif period == "year":
+        start, end = date(moved.year, 1, 1), date(moved.year, 12, 31)
+    else:
+        start = end = moved
+    if args.get("until_today") is True:
+        end = today
+    return {"date_from": start.isoformat(), "date_to": end.isoformat()}
 
 
 def close_matches(candidates: list[str], text: str, limit: int = 15) -> list[str]:

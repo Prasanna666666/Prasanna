@@ -147,7 +147,7 @@ def test_single_mistral_model_and_old_settings_migrate(tmp_path):
     paths.settings_file.write_text(json.dumps({"schema": 3, "ollama_model": "llama3.2:3b", "vision_model": "moondream",
                                                 "page_size": 48}))
     s = Settings.load(paths)
-    assert s.ollama_model == s.vision_model == "ministral-3:3b" and s.page_size == 48 and s.schema == 8
+    assert s.ollama_model == s.vision_model == "ministral-3:3b" and s.page_size == 48 and s.schema == 9
 
 
 def test_doctor_skips_slow_stats_unless_asked(monkeypatch, tmp_path, capsys):

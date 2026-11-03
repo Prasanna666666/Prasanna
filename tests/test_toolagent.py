@@ -50,12 +50,12 @@ def test_copying_to_a_folder_is_an_export():
 
 def test_tool_descriptions_are_the_only_identity_and_the_choices_are_clean():
     names = [t["function"]["name"] for t in TOOLS]
-    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "look_up", "read_photo_text", "look_at_photos"]
+    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "probe", "calc_date", "look_up", "read_photo_text", "look_at_photos"]
     assert "photo library" in TOOLS[0]["function"]["description"]
     assert "last_month" in PARAMS["relative"]["enum"] and "none" not in PARAMS["relative"]["enum"] and "none" not in PARAMS["season"]["enum"]
     assert all(k in PARAMS for k in FILTER_KEYS) and "required" not in TOOLS[0]["function"]["parameters"]
-    assert TOOLS[4]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
-    assert TOOLS[6]["function"]["parameters"]["required"] == ["question"]
+    assert TOOLS[6]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
+    assert TOOLS[8]["function"]["parameters"]["required"] == ["question"]
 
 
 # ------------------------------------------------------------------ the agent loop
@@ -326,7 +326,7 @@ def test_the_default_brain_is_the_measured_pipeline_and_the_tool_agent_is_one_se
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     ctx = AppContext(paths)
-    assert isinstance(ctx.agent(), AgentService)  # the default is the pipeline that scored 83% / 97%
+    assert not isinstance(ctx.agent(), AgentService)  # the default is the tool-using agent
     ctx.settings.brain = "tools"
     agent = ctx.agent()
     assert isinstance(agent, ToolAgent) and agent._service._rescue is False  # no word-matching fallback
@@ -433,3 +433,22 @@ def test_optional_parameters_say_so_and_required_ones_do_not():
     assert TOOL_DEFS["copy_photos"]["function"]["parameters"]["required"] == ["folder"]
     assert plan_from_tool("copy_photos", {"places": ["Paris"], "folder": "Paris Trip"}).intent == "export"
     assert plan_from_tool("copy_photos", {"places": ["Paris"], "folder": "Paris Trip"}).folder_name == "Paris Trip"
+
+
+def test_calc_date_does_the_calendar_maths_for_any_offset():
+    from datetime import date
+
+    from aperture.agent.toolagent import calc_date
+
+    today = date(2026, 11, 3)
+    assert calc_date(today, {"months": -2, "period": "month"}) == {"date_from": "2026-09-01", "date_to": "2026-09-30"}
+    assert calc_date(today, {"weeks": -3, "period": "day", "until_today": True}) == {"date_from": "2026-10-13", "date_to": "2026-11-03"}
+    assert calc_date(today, {"years": -2, "months": -1, "period": "month"})["date_from"] == "2024-10-01"
+    assert calc_date(today, {"period": "year"}) == {"date_from": "2026-01-01", "date_to": "2026-12-31"}
+
+
+def test_a_tool_call_with_explicit_dates_becomes_that_date_range():
+    from aperture.agent.toolagent import plan_from_tool
+
+    plan = plan_from_tool("find_photos", {"date_from": "2026-09-01", "date_to": "2026-09-30"})
+    assert (plan.date.start, plan.date.end) == ("2026-09-01", "2026-09-30")

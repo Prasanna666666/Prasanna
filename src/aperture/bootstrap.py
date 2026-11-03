@@ -379,6 +379,28 @@ class AppContext:
             raw = extract_json(self.llm().complete_json(system_prompt(style), user, plan_schema(style)))
             return plan_from_raw(raw)[0] if isinstance(raw, dict) else None
 
+        def probe_term(term: str) -> dict[str, Any]:
+            """The probe tool: where does this word occur in the library? Counts per possible meaning, from the library itself."""
+            from .people.repository import resolve_name
+            from .search.metadata import path_ids, place_ids
+            from .search.text import search_text_ids
+
+            conn = self.db.connect()
+            try:
+                counts = {
+                    "as_place": len(place_ids(conn, term)),
+                    "as_folder_or_file_name": len(path_ids(conn, term)),
+                    "as_words_written_in_photos": len(search_text_ids(conn, term)),
+                    "as_person": len(resolve_name(conn, term)),
+                }
+            finally:
+                conn.close()
+            out: dict[str, Any] = {"term": term, **counts}
+            if not any(counts.values()):
+                out["similar_places"] = lookup("place", term)
+                out["note"] = "no exact match anywhere: it may be something to look for in the pictures, a date, or a place spelled differently"
+            return out
+
         def overview(previous_ids: Any) -> str:
             """The library_overview tool: plain facts for the model to read."""
             conn = self.db.connect()
@@ -443,7 +465,7 @@ class AppContext:
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
             if self.settings.brain == "tools":
-                return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look)
+                return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term)
             return service
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 

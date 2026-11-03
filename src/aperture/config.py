@@ -130,10 +130,10 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
-    schema: int = 8  # bumped when a default changed on purpose; older files get the new value
+    schema: int = 9  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
-    brain: str = "classic"  # "classic" = router + planner pipeline (measured 83% plans / 97% routing); "tools" = the tool-using agent (experimental until `aperture eval-tools` matches that)
+    brain: str = "tools"  # "tools" = the tool-using agent (decides, searches, reads results, tries again); "classic" = the fixed router + planner pipeline
     rescue_search: bool = False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
     quick_preview: bool = False  # instant matches by the typed WORDS (milliseconds, no AI); off: they can show photos that merely contain the words
@@ -203,8 +203,10 @@ class Settings:
             if raw.get("schema", 1) < 8:  # v8: the tool-using agent is the default brain; word-matching shortcuts are off
                 for key in ("quick_preview", "brain", "rescue_search"):
                     raw.pop(key, None)
+            if raw.get("schema", 1) < 9:  # v9: the tool-using agent is the default again
+                raw.pop("brain", None)
             _overlay(settings, raw)
-            settings.schema = 8
+            settings.schema = 9
         settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 

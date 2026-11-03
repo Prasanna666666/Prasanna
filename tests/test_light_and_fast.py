@@ -36,6 +36,6 @@ def test_light_indexing_defaults_and_old_settings_migrate(tmp_path):
     paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
     paths.settings_file.write_text(json.dumps({"schema": 4, "workers": 3, "batch_size": 16, "page_size": 48}))
     s = Settings.load(paths)
-    assert (s.workers, s.batch_size, s.page_size, s.schema) == (2, 8, 48, 8)
+    assert (s.workers, s.batch_size, s.page_size, s.schema) == (2, 8, 48, 9)
     paths.settings_file.write_text(json.dumps({"schema": 5, "workers": 4}))
     assert Settings.load(paths).workers == 4  # a deliberate choice made after v5 is kept
