@@ -318,7 +318,7 @@ class AppContext:
             return answer_question(self.llm().complete_text, question, facts)
 
         def _chat_system() -> str:
-            return CHAT_SYSTEM + f" Today's date is {date.today():%A %d %B %Y}."
+            return f"Today's date is {date.today():%A %d %B %Y}.\n" + CHAT_SYSTEM
 
         def chatter(request: str, history: list[tuple[str, str]]) -> str:
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
@@ -359,6 +359,25 @@ class AppContext:
                 return "", plan_from_raw({})[0].date
             date_fields = {k: raw[k] for k in ("year", "month", "season", "relative") if k in raw}
             return str(raw.get("phrase") or "").strip(), plan_from_raw({"intent": "find", "date": date_fields})[0].date
+
+        def reviser(request: str, plan: Any, feedback: str) -> Any:
+            """Agent step: the search found nothing. Show the model what it tried and why it failed, and ask for a better plan."""
+            import dataclasses
+            import json
+
+            from .agent.planner import plan_schema, plan_style, system_prompt
+            from .agent.schema import plan_from_raw
+
+            user = (
+                f"{library_context(request)}\nUser: {request}\n\n"
+                f"YOUR LAST PLAN FOUND NOTHING.\nPlan: {json.dumps(dataclasses.asdict(plan), default=str)}\nWhat happened: {feedback}\n"
+                "Write a DIFFERENT plan that finds what the user meant. Compare each query with the real places, people and folders listed above: "
+                "use a name exactly as listed, widen a place to its country or region, use scope \"library\" unless they clearly mean the earlier results, "
+                "or drop a wrong clause. Output ONLY the JSON object."
+            )
+            style = plan_style()
+            raw = extract_json(self.llm().complete_json(system_prompt(style), user, plan_schema(style)))
+            return plan_from_raw(raw)[0] if isinstance(raw, dict) else None
 
         def overview(previous_ids: Any) -> str:
             """The library_overview tool: plain facts for the model to read."""
@@ -421,7 +440,7 @@ class AppContext:
             service = AgentService(
                 Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
                 answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
-                fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step,
+                fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
             if self.settings.brain == "tools":
                 return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look)

@@ -167,3 +167,15 @@ def test_every_answer_carries_how_it_was_answered_and_the_status_says_which_buil
     assert dict(app.chat("tell me about RAW again")[1])["done"]["trace"][0]["system"] == "THE INSTRUCTIONS"  # a fresh log per message
     status = json.loads(app.get("/api/status")[1])
     assert isinstance(status["build"], str) and status["build"]
+
+
+def test_the_page_keeps_internals_out_of_sight():
+    from pathlib import Path
+
+    static = Path(__file__).parent.parent / "src" / "aperture" / "web" / "static"
+    js, html = (static / "app.js").read_text(), (static / "index.html").read_text()
+    assert "Brain:" not in js and "classic" not in js and 'id="build"' in html and "model call" not in js.lower()
+    from aperture.ui.views import settings
+    import inspect
+
+    assert "tool-using agent" not in inspect.getsource(settings)

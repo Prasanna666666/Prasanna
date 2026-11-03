@@ -72,8 +72,6 @@ def _form(ctx: AppContext) -> None:
             size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
             contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
         auto = st.checkbox("Resume indexing when Lumo opens", s.auto_scan)
-        smart = st.checkbox("Use the tool-using agent (experimental)", s.brain == "tools",
-                            help="The AI itself decides when to search, count or just talk, using tools and facts from your library. Off = the older fixed pipeline.")
         fast = st.checkbox("Skip the AI for simple one-subject searches (fastest)", s.fast_search,
                            help="'dogs' or 'birthday cake' go straight to the image search. Searches with names, places, dates or filters still use the AI.")
         quick = st.checkbox("Show instant photo matches while the AI thinks", s.quick_preview,
@@ -93,7 +91,6 @@ def _form(ctx: AppContext) -> None:
         s.ollama_model, s.vision_model, s.agentic, s.visual_strictness = model, vision, agentic, strict
         s.page_size, s.auto_scan, s.high_contrast, s.ui_density = int(size), auto, contrast, density or s.ui_density
         s.quick_preview, s.fast_search = quick, fast
-        s.brain = "tools" if smart else "classic"
         s.save(ctx.paths)
         ctx.reload_settings()
         st.success("Saved.")

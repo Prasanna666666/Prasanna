@@ -100,3 +100,25 @@ def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "Hi there!"}})
     assert agent._chatter("hello", [("user", "x"), ("assistant", "y")]) == "Hi there!"
     assert [m["role"] for m in sent[0]["messages"]] == ["system", "user", "assistant", "user"]
+
+
+def test_the_date_comes_before_the_examples_and_is_not_glued_to_one(tmp_path, monkeypatch):
+    import json
+    import urllib.request
+    from datetime import date
+
+    from aperture.agent.llm import OllamaClient
+    from aperture.bootstrap import AppContext
+    from aperture.config import Paths
+
+    sent = []
+    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "ok"}})
+    monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
+    paths = Paths(tmp_path / "Expansion")
+    paths.ensure()
+    ctx = AppContext(paths)
+    ctx.settings.brain = "classic"
+    ctx.agent()._chatter("hello", [])
+    system = sent[0]["messages"][0]["content"]
+    assert system.startswith(f"Today's date is {date.today():%A %d %B %Y}.\nYou are Lumo")
+    assert system.rstrip().endswith("than a JPEG.")  # the last example answer ends cleanly: nothing glued after it

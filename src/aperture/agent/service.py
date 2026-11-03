@@ -135,6 +135,9 @@ def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))
     return dataclasses.replace(plan, date=spec, clauses=kept)
 
+MAX_REVISIONS = 2  # how many times the agent may look at an empty result and try a different plan
+
+
 class AgentService:
     def __init__(
         self,
@@ -150,7 +153,9 @@ class AgentService:
         fast_search: bool = True,
         rescue: bool = True,
         date_step: Callable[[str], tuple[str, Any]] | None = None,
+        reviser: Callable[[str, Plan, str], Plan | None] | None = None,
     ) -> None:
+        self._reviser = reviser
         self._date_step = date_step
         self._rescue = rescue
         self._fast_search = fast_search
@@ -271,6 +276,29 @@ class AgentService:
                         "The AI's plan found nothing, so I searched your library for the words you typed. "
                         "These are the closest matches, so double-check them."
                     )
+            tried: list[str] = []
+            while (
+                self._reviser is not None
+                and len(outcome.ids) == 0
+                and plan.intent in ("find", "count", "export")
+                and len(tried) < MAX_REVISIONS
+            ):
+                # Nothing found: look at WHY, then let the model try a different plan (fewer words, other engine, wider place).
+                feedback = f"{explain_empty(outcome.reports)} Search scope was '{plan.scope}'."
+                started = time.perf_counter()
+                try:
+                    revised = self._reviser(request, plan, feedback)
+                except LLMError:
+                    break
+                timings[f"retry{len(tried) + 1}"] = round(time.perf_counter() - started, 2)
+                if revised is None or not revised.has_constraints or revised == plan:
+                    break
+                tried.append(describe_conditions(plan, outcome.date_range))
+                plan = revised
+                outcome = executor.run(plan, previous_ids if plan.scope == "previous" else None)
+                base["plan"] = plan
+            if tried and len(outcome.ids):
+                outcome.notes.append("My first search found nothing (" + "; ".join(tried) + "), so I tried again with a different approach.")
         except Exception as exc:
             log.exception("plan execution failed")
             return AgentReply("error", f"Something went wrong while searching: {exc}", **base)

@@ -347,3 +347,37 @@ def test_the_real_date_step_reads_the_models_json(tmp_path, monkeypatch):
     assert sent[0]["format"] == DATE_SCHEMA and sent[0]["options"]["num_predict"] == 60
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: {"message": {"content": "not json"}})
     assert step("x")[0] == ""
+
+
+def test_an_empty_search_is_reviewed_and_retried_with_a_different_plan():
+    """The agent looks at why nothing was found and lets the model try again (no hard-coded fix for any one word)."""
+    import dataclasses
+
+    from aperture.agent.executor import ClauseReport, ExecResult
+    import numpy as np
+
+    first = Plan(intent="find", scope="previous", clauses=(Clause(engines=("text",), query="Tokyo"),))
+    second = dataclasses.replace(first, scope="library", clauses=(Clause(engines=("place",), query="Japan"),))
+    seen = []
+
+    class Exec:
+        def run(self, plan, prev):
+            seen.append(plan)
+            if plan.scope == "previous":
+                return ExecResult(ids=np.array([], dtype=np.int64), reports=[ClauseReport("text 'Tokyo'", 0, 0)])
+            return ExecResult(ids=np.array([1, 2]), reports=[ClauseReport("place 'Japan'", 2, 2)])
+
+    feedback = []
+
+    def reviser(request, plan, why):
+        feedback.append(why)
+        return second
+
+    class P:
+        def plan(self, request, ctx):
+            return PlanResult(plan=first)
+
+    svc = AgentService(P(), lambda: Exec(), lambda: [], router=lambda r, p: "photos", reviser=reviser)
+    reply = svc.run_plan("pics from tokyo", first)
+    assert [p.scope for p in seen] == ["previous", "library"]
+    assert len(reply.ids) == 2 and "different approach" in " ".join(reply.notes) and "previous" in feedback[0]

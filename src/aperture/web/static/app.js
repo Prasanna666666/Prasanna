@@ -9,7 +9,7 @@
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
 
   const thread = $('#thread'), welcome = $('#welcome'), input = $('#input'), send = $('#send'), form = $('#composer');
-  let conv = uid(), history = [], controller = null, busy = false, stick = true, brain = '';
+  let conv = uid(), history = [], controller = null, busy = false, stick = true;
 
   // ---------------------------------------------------------------- small helpers
   const sparkle = () => { const a = el('div', 'avatar'); a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.3L21 10l-6.8 1.7L12 18l-2.2-6.3L3 10l6.8-1.7z"/></svg>'; return a; };
@@ -154,12 +154,12 @@
     const parts = Object.entries(d.timings).filter(([, v]) => v >= 0.1).map(([k, v]) => `${STEP_NAMES[k] || k} ${v.toFixed(1)}s`);
     return parts.length ? `  \u00b7  ${parts.join('  \u00b7  ')}` : '';
   }
-  function addTrace(msg, d) {                  // "How I answered": exactly what each model call was given and what it returned
+  function addTrace(msg, d) {                  // "How I answered": exactly what each step was given and what it returned
     if (!d.trace || !d.trace.length) return;
-    const box = el('details', 'trace'), head = el('summary', '', `How I answered (${brain || 'brain'}, ${d.trace.length} model call${d.trace.length === 1 ? '' : 's'})`);
+    const box = el('details', 'trace'), head = el('summary', '', `How I answered (${d.trace.length} step${d.trace.length === 1 ? '' : 's'})`);
     box.append(head);
     d.trace.forEach((c, i) => {
-      box.append(el('h4', '', `Model call ${i + 1}${c.tools && c.tools.length ? '  \u00b7  tools: ' + c.tools.join(', ') : ''}`));
+      box.append(el('h4', '', `Step ${i + 1}${c.tools && c.tools.length ? '  \u00b7  tools: ' + c.tools.join(', ') : ''}`));
       box.append(el('div', 'lbl', 'Instructions it was given'), el('pre', '', c.system || '(none)'));
       box.append(el('div', 'lbl', 'Conversation'), el('pre', '', (c.messages || []).map((m) => `${m.role}: ${m.text}`).join('\n')));
       const out = [c.output, ...(c.tool_calls || []).map((t) => `tool call: ${t.name}(${JSON.stringify(t.arguments)})`)].filter(Boolean).join('\n');
@@ -245,8 +245,8 @@
       const s = await (await api('/api/status')).json();
       const chips = [chip(s.search_ready ? 'Search ready' : (s.warm_problem ? 'Search unavailable' : 'Search warming up'), s.search_ready ? 'ok' : (s.warm_problem ? 'bad' : 'warn')),
                      chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad'),
-                     chip(s.brain === 'tools' ? 'Brain: agent' : 'Brain: classic', 'ok'), chip(`build ${s.build || '?'}`, 'ok')];
-      brain = s.brain;
+                     ];
+      $('#build').textContent = s.build ? `build ${s.build}` : '';
       if (s.photos) chips.push(chip(`${s.photos.toLocaleString()} photos`, 'ok'));
       if (s.indexing) chips.push(chip('Indexing', 'warn'));
       else if (s.paused_for_chat) chips.push(chip('Indexing paused', 'warn', { text: 'Resume', run: async () => { await api('/api/scan/resume', { method: 'POST' }); refreshStatus(); } }));
