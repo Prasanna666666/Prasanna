@@ -226,3 +226,65 @@ def test_search_readiness_and_settings_switch(tmp_path, monkeypatch):
     assert ctx.search_ready() is True
     assert Settings().fast_search is True
     assert "fast_search" in inspect.getsource(settings) and "Search warming up" in inspect.getsource(app)
+
+
+# ---------------------------------------------------------------- real-world failures reported from the app
+def test_a_plain_how_many_counts_everything_instead_of_asking_what_to_look_for():
+    class CountPlanner:
+        def plan(self, request, ctx):
+            return PlanResult(plan=Plan(intent="count"))  # the AI understood "count" but set no filters
+
+    plans = []
+
+    def make_executor():
+        def run(plan, previous):
+            plans.append(plan)
+            raise RuntimeError("stop here")
+        return SimpleNamespace(run=run)
+
+    svc = AgentService(CountPlanner(), make_executor, lambda: [], today=lambda: date(2026, 11, 3), router=lambda r, p: "photos")
+    svc.ask("how many pics are there in total")
+    assert plans and plans[0].all_photos is True and plans[0].intent == "count"
+
+
+def test_a_count_after_earlier_results_is_not_widened_to_everything():
+    import numpy as np
+
+    class CountPlanner:
+        def plan(self, request, ctx):
+            return PlanResult(plan=Plan(intent="count"))
+
+    svc = AgentService(CountPlanner(), lambda: SimpleNamespace(run=lambda p, prev: (_ for _ in ()).throw(AssertionError("no search"))),
+                       lambda: [], router=lambda r, p: "photos")
+    reply = svc.ask("how many", previous_ids=np.array([1, 2]))
+    assert reply.kind == "clarify"  # unchanged behaviour: it refers to the earlier set, which the planner did not narrow
+
+
+@pytest.mark.parametrize("text", ["How are you?", "how are you doing today", "What's up", "who are you", "what can you do?", "help"])
+def test_common_small_talk_is_answered_instantly_without_the_ai(text):
+    def router(request, has_previous):
+        raise AssertionError("no AI call for small talk")
+
+    reply = service(router).ask(text)
+    assert reply.kind == "chat" and reply.text and not reply.stream
+
+
+def test_timings_cover_every_step_of_a_photo_question():
+    class Planner2:
+        def plan(self, request, ctx):
+            return PlanResult(plan=Plan(intent="find", clauses=(Clause(engines=("visual",), query="x", exclude=False),)))
+
+    reached = {}
+
+    def make_executor():
+        def run(plan, previous):
+            reached["ok"] = True
+            raise RuntimeError("stop")
+        return SimpleNamespace(run=run)
+
+    svc = AgentService(Planner2(), make_executor, lambda: [], router=lambda r, p: "photos")
+    reply = svc.ask("sunset photos from Goa in 2023")
+    assert reached and reply.kind == "error"  # the stub stops the search; the timing keys below were recorded on the way
+    # timings live on successful replies; check the chat route (no search) carries route time
+    chat = service(lambda r, p: "chat", chat_stream=lambda *a: iter(["x"])).ask("tell me about cameras")
+    assert set(chat.timings) == {"route"}

@@ -55,6 +55,31 @@ class Web:
         self._convs: OrderedDict[str, np.ndarray] = OrderedDict()
         self._cache: dict[str, tuple[float, Any]] = {}
         self.paused_for_chat = False
+        self._counts: dict[str, int] = {"photos": 0, "indexed": 0}
+        self._counts_at = 0.0
+        self._counting = False
+
+    def refresh_counts_async(self, every: float = 120.0) -> None:
+        """Counting the library scans a table on the external drive: do it in the background, never while a request waits."""
+        if self._counting or time.monotonic() - self._counts_at < every:
+            return
+        self._counting = True
+
+        def work() -> None:
+            try:
+                conn = self.ctx.db.connect()
+                try:
+                    cov = lib.coverage(conn)
+                    self._counts = {"photos": cov.total, "indexed": cov.indexed}
+                finally:
+                    conn.close()
+            except Exception:
+                pass
+            finally:
+                self._counts_at = time.monotonic()
+                self._counting = False
+
+        threading.Thread(target=work, name="library-counts", daemon=True).start()
 
     # ---- conversations remember their last result set, so "only the ones from March" works
     def remember(self, conv: str, ids: np.ndarray) -> None:
@@ -86,16 +111,9 @@ class Web:
     def status(self) -> dict[str, Any]:
         ctx = self.ctx
 
-        def counts() -> dict[str, int]:
-            conn = ctx.db.connect()
-            try:
-                cov = lib.coverage(conn)
-                return {"photos": cov.total, "indexed": cov.indexed}
-            finally:
-                conn.close()
-
+        self.refresh_counts_async()
         healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
-        return {**self.cached("counts", 20, counts), "ai": healthy, "model": ctx.settings.ollama_model,
+        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model,
                 "search_ready": bool(ctx.search_ready()), "indexing": ScanLock(ctx.paths).running(),
                 "paused_for_chat": self.paused_for_chat}
 
@@ -302,6 +320,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
             self._headers(200, "text/event-stream; charset=utf-8")
             started = time.perf_counter()
             stream = None
+            first_words = None
             try:
                 self._sse("ack", {})
                 ctx = web.ctx
@@ -317,6 +336,8 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     if stream is not None:
                         parts = []
                         for chunk in stream:
+                            if first_words is None:
+                                first_words = round(time.perf_counter() - started, 2)
                             parts.append(chunk)
                             self._sse("delta", {"text": chunk})
                         text = "".join(parts) or "..."
@@ -328,7 +349,9 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                                           "notes": list(reply.notes), "warnings": list(reply.warnings)})
                 elif reply.notes or reply.warnings:
                     self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
-                self._sse("done", {"took": round(time.perf_counter() - started, 2), "kind": reply.kind, "text": text})
+                took = round(time.perf_counter() - started, 2)
+                timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
+                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "timings": timings})
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the browser left (for example a new chat was started): stop quietly
             except Exception as exc:

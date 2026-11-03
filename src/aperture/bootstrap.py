@@ -111,13 +111,14 @@ class AppContext:
         from .indexing.progress import ScanLock
 
         def work() -> None:
-            steps = (
-                ("photo index", self.embedding_index),
-                ("image search model", self.search_embedder),
+            steps = (  # the AI model first: every message needs it. The image-search model is the slowest, so it goes last
                 ("AI model", lambda: self.llm().warm()),
+                ("photo index", self.embedding_index),
+                ("library facts", self._prime_library_facts),
+                ("image search model", self.search_embedder),
             )
             for name, step in steps:
-                if name != "photo index" and ScanLock(self.paths).running():
+                if name in ("AI model", "image search model") and ScanLock(self.paths).running():
                     log.debug("warm-up: scan running, not loading the %s", name)
                     continue
                 try:
@@ -126,6 +127,28 @@ class AppContext:
                     log.debug("warm-up: %s failed", name, exc_info=True)
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
+
+    def _prime_library_facts(self) -> None:
+        """Run the first, slow library lookups now (while the app warms up) so the first question does not pay for them."""
+        agent = self.agent()
+        for name, args in (("_library_facts", ("photos",)), ("_known_people", ())):
+            fn = getattr(agent, name, None)
+            if callable(fn):
+                fn(*args)
+
+    def memo(self, key: str, ttl: float, fn):
+        """Remember a slow, request-independent lookup (a table scan on the external drive) for `ttl` seconds."""
+        import time
+
+        store = self.__dict__.setdefault("_memo_store", {})
+        with self._lock:
+            hit = store.get(key)
+            if hit and time.monotonic() - hit[0] < ttl:
+                return hit[1]
+        value = fn()
+        with self._lock:
+            store[key] = (time.monotonic(), value)
+        return value
 
     def search_ready(self) -> bool:
         """True once the photo index and the image-search model are loaded (the first search is then instant)."""
@@ -214,23 +237,34 @@ class AppContext:
             )
 
         def people_names() -> list[str]:
-            conn = self.db.connect()
-            try:
-                return [name for _, name in named_people(conn)]
-            finally:
-                conn.close()
+            def load() -> list[str]:
+                conn = self.db.connect()
+                try:
+                    return [name for _, name in named_people(conn)]
+                finally:
+                    conn.close()
+
+            return self.memo("people", 60.0, load)
 
         def library_facts(request: str) -> str:
+            def static_facts() -> tuple[list[str], str | None, str | None]:  # two table scans: the same for every request
+                scan = self.db.connect()
+                try:
+                    found = [
+                        r[0]
+                        for r in scan.execute(
+                            "SELECT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0 "
+                            "GROUP BY place ORDER BY COUNT(*) DESC LIMIT 25"
+                        )
+                    ]
+                    lo, hi = scan.execute("SELECT MIN(taken_at), MAX(taken_at) FROM items WHERE missing=0").fetchone()
+                    return found, lo, hi
+                finally:
+                    scan.close()
+
+            places, first, last = self.memo("static_facts", 300.0, static_facts)
             conn = self.db.connect()
             try:
-                places = [
-                    r[0]
-                    for r in conn.execute(
-                        "SELECT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0 "
-                        "GROUP BY place ORDER BY COUNT(*) DESC LIMIT 25"
-                    )
-                ]
-                first, last = conn.execute("SELECT MIN(taken_at), MAX(taken_at) FROM items WHERE missing=0").fetchone()
 
                 def person_photos(phrase: str) -> int:
                     ids = resolve_name(conn, phrase)

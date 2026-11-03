@@ -7,7 +7,9 @@ caller never has to catch exceptions to keep the interface alive.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -37,6 +39,7 @@ class AgentReply:
     folder_name: str = ""  # for kind == "export"
     date_range: str = ""
     trace: list[dict[str, str]] = field(default_factory=list)  # what the agent did, step by step
+    timings: dict[str, float] = field(default_factory=dict, repr=False, compare=False)  # seconds spent in each step
     stream: Any = field(default=None, repr=False, compare=False)  # chat replies: text arrives piece by piece (consumed by the UI)
 
 
@@ -100,17 +103,29 @@ MAX_SIMPLE_WORDS = 4
 _GREETINGS = {"hi", "hello", "hey", "hi there", "hello there", "hey there", "good morning", "good afternoon", "good evening"}
 _THANKS = {"thanks", "thank you", "thanks a lot", "thank you so much", "thx", "cheers"}
 _BYES = {"bye", "goodbye", "good night", "see you", "see ya"}
+_HOW_ARE_YOU = {"how are you", "how are you doing", "how are you today", "how are you doing today", "hows it going", "how is it going",
+                "whats up", "what is up", "how r u", "how are u", "how do you do"}
+_WHO = {"who are you", "what are you", "what is your name", "whats your name"}
+_HELP = {"help", "what can you do", "what do you do", "what can you do for me"}
 
 
 def instant_reply(request: str) -> str | None:
-    """A ready answer for a plain greeting, thanks or goodbye: no AI call, so it appears at once."""
-    text = " ".join("".join(ch if ch.isalnum() or ch.isspace() else " " for ch in request.lower()).split())
+    """A ready answer for greetings, thanks, goodbyes and the usual small talk: no AI call, so it appears at once."""
+    cleaned = request.lower().replace("'", "").replace("\u2019", "")
+    text = " ".join("".join(ch if ch.isalnum() or ch.isspace() else " " for ch in cleaned).split())
     if text in _GREETINGS:
         return "Hi! I'm Lumo. Ask me to find photos, like 'beach photos from last summer', or just chat."
+    if text in _HOW_ARE_YOU:
+        return "I'm doing well, thanks for asking! Ask me for photos, like 'beach photos from last summer', or just chat."
     if text in _THANKS:
         return "You're welcome!"
     if text in _BYES:
         return "See you soon!"
+    if text in _WHO:
+        return "I'm Lumo, a private assistant that finds your photos and chats. I run entirely on your Mac."
+    if text in _HELP:
+        return ("I can find photos by what they show, who is in them, where and when, or text written on them; count them; and answer "
+                "questions about your library. I can also just chat. Try 'sunsets from last year' or 'how many photos do I have?'.")
     return None
 
 
@@ -158,32 +173,41 @@ class AgentService:
         quick = instant_reply(request)
         if quick:
             return AgentReply("chat", quick)
+        timings: dict[str, float] = {}
         route = "photos"
         if self._router is not None:  # a tiny, fast question first: simple search, photo question, or just conversation?
+            started = time.perf_counter()
             try:
                 route = self._router(request, previous_ids is not None)
             except LLMError as exc:
                 return AgentReply("error", str(exc))
+            timings["route"] = round(time.perf_counter() - started, 2)
             if route == "chat":
-                return self._chat_reply(request, history, {}, "")
+                return self._chat_reply(request, history, {"timings": timings}, "")
         simple = (route == "simple" and self._fast_search and previous_ids is None
                   and 0 < len(request.split()) <= MAX_SIMPLE_WORDS)
         if simple:  # one visual subject: skip the AI plan (about 6 s) and search directly
             subject = request.strip().strip(".!?,;:").lower()
             planned = PlanResult(plan=Plan(intent="find", clauses=(Clause(engines=("visual",), query=subject, exclude=False),)))
         else:
+            started = time.perf_counter()
             ctx = PlannerContext(
                 today=self._today(),
                 known_people=tuple(self._known_people()),
                 previous_count=None if previous_ids is None else len(previous_ids),
                 library=self._library_facts(request) if self._library_facts else "",
             )
+            timings["context"] = round(time.perf_counter() - started, 2)
+            started = time.perf_counter()
             try:
                 planned = self._planner.plan(request, ctx)
             except (LLMError, PlanningError) as exc:
                 return AgentReply("error", str(exc))
+            timings["plan"] = round(time.perf_counter() - started, 2)
         plan = planned.plan
-        base: dict[str, Any] = {"plan": plan, "warnings": planned.warnings}
+        if plan.intent == "count" and not plan.has_constraints and previous_ids is None:
+            plan = dataclasses.replace(plan, all_photos=True)  # "how many photos do I have?" means all of them
+        base: dict[str, Any] = {"plan": plan, "warnings": planned.warnings, "timings": timings}
 
         if plan.intent == "chat":
             return self._chat_reply(request, history, base, plan.message)
@@ -201,7 +225,9 @@ class AgentService:
 
         try:
             executor = self._executor_factory()
+            started = time.perf_counter()
             outcome = executor.run(plan, previous_ids)
+            timings["search"] = round(time.perf_counter() - started, 2)
             if (
                 len(outcome.ids) == 0
                 and plan.intent in ("find", "count", "export")

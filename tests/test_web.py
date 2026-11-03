@@ -78,9 +78,16 @@ def test_api_needs_the_token_and_the_right_host_and_origin(app):
 
 
 def test_status_reports_the_state_and_counts(app):
-    status, body, _ = app.get("/api/status")
-    d = json.loads(body)
-    assert status == 200 and d["photos"] == 70 and d["ai"] is True and d["search_ready"] is True and d["indexing"] is False
+    import time
+
+    first = json.loads(app.get("/api/status")[1])  # counts are gathered in the background, never while a request waits
+    assert first["ai"] is True and first["search_ready"] is True and first["indexing"] is False
+    for _ in range(40):
+        d = json.loads(app.get("/api/status")[1])
+        if d["photos"] == 70:
+            break
+        time.sleep(0.05)
+    assert d["photos"] == 70 and d["indexed"] == 70
     assert json.loads(app.get("/api/suggestions")[1])["ideas"]
 
 

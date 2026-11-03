@@ -142,10 +142,16 @@
       msg.text.classList.remove('streaming');
       if (msg.gallery && !msg.gallery.total) { msg.gallery.root.remove(); msg.gallery = null; }  // a preview that was not confirmed
       if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.text });
-      if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s`));
+      if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s${breakdown(d)}`));
     }
     if (event === 'results') addNotes(msg, d);
     scrollDown();
+  }
+  const STEP_NAMES = { route: 'deciding', context: 'library lookup', plan: 'AI plan', search: 'search', first_words: 'first words' };
+  function breakdown(d) {                      // when an answer is slow, show where the time went
+    if (d.took < 3 || !d.timings) return '';
+    const parts = Object.entries(d.timings).filter(([, v]) => v >= 0.1).map(([k, v]) => `${STEP_NAMES[k] || k} ${v.toFixed(1)}s`);
+    return parts.length ? `  \u00b7  ${parts.join('  \u00b7  ')}` : '';
   }
   function addNotes(msg, d) {
     for (const t of d.notes || []) msg.body.append(el('div', 'note', t));
@@ -229,6 +235,7 @@
       if (s.indexing) chips.push(chip('Indexing', 'warn'));
       else if (s.paused_for_chat) chips.push(chip('Indexing paused', 'warn', { text: 'Resume', run: async () => { await api('/api/scan/resume', { method: 'POST' }); refreshStatus(); } }));
       $('#chips').replaceChildren(...chips);
+      document.body.classList.toggle('warming', !s.search_ready || !s.ai);
     } catch (_) { $('#chips').replaceChildren(chip('Lumo is not responding', 'bad')); }
   }
   async function loadIdeas() {
