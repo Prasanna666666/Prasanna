@@ -72,7 +72,7 @@ def _form(ctx: AppContext) -> None:
             size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
             contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
         auto = st.checkbox("Resume indexing when Lumo opens", s.auto_scan)
-        smart = st.checkbox("Use the tool-using agent (recommended)", s.brain == "tools",
+        smart = st.checkbox("Use the tool-using agent (experimental)", s.brain == "tools",
                             help="The AI itself decides when to search, count or just talk, using tools and facts from your library. Off = the older fixed pipeline.")
         fast = st.checkbox("Skip the AI for simple one-subject searches (fastest)", s.fast_search,
                            help="'dogs' or 'birthday cake' go straight to the image search. Searches with names, places, dates or filters still use the AI.")

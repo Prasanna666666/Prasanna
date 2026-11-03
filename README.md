@@ -55,7 +55,7 @@ Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with re
 
 ## The agent (how Lumo thinks)
 
-Lumo is a tool-using agent with RAG, written to be read: `src/aperture/agent/toolagent.py` (about 250 lines, no framework).
+Lumo's tool-using agent (RAG + tools + a loop), written to be read: `src/aperture/agent/toolagent.py` (about 250 lines, no framework).
 
 1. **Retrieve**: facts from your own library that matter for this message (matching places and people, the date span, how much is indexed).
 2. **Decide**: the model sees the conversation, those facts and its tools (`find_photos`, `count_photos`, `library_overview`, `look_up`). It answers in words
@@ -65,7 +65,7 @@ Lumo is a tool-using agent with RAG, written to be read: `src/aperture/agent/too
 4. **Answer**: it writes the reply, streamed; the photos it found appear on screen. The code writes no user-facing sentences.
 
 An agent is a goal plus a list of tools (`AgentSpec`); a specialist (a curator, an organiser) is the same loop with a different goal and tools. All tools are read-only.
-Measure the whole agent, not single phrases: `aperture eval-tools` (all plan and routing cases). Switch back to the older pipeline with `aperture settings --brain classic`.
+Measure the whole agent, not single phrases: `aperture eval-tools` (all plan and routing cases). It is **experimental**: the default brain is still the older router + planner pipeline (measured 83% plans, 97% routing) until `aperture eval-tools` scores at least as well. Try the agent with `aperture settings --brain tools`; go back with `--brain classic`.
 
 ## Develop
 

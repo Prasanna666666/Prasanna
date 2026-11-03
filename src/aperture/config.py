@@ -133,7 +133,7 @@ class Settings:
     schema: int = 8  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
-    brain: str = "tools"  # "tools" = one tool-using agent decides (recommended); "classic" = the older router + planner pipeline
+    brain: str = "classic"  # "classic" = router + planner pipeline (measured 83% plans / 97% routing); "tools" = the tool-using agent (experimental until `aperture eval-tools` matches that)
     rescue_search: bool = False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
     quick_preview: bool = False  # instant matches by the typed WORDS (milliseconds, no AI); off: they can show photos that merely contain the words
@@ -222,7 +222,7 @@ class Settings:
         if s.visual_strictness not in STRICTNESS_LEVELS:
             s.visual_strictness = "balanced"
         if s.brain not in ("tools", "classic"):
-            s.brain = "tools"
+            s.brain = "classic"
         s.page_size = _clamp(s.page_size, 6, 200)
         if s.ui_density not in DENSITY_COLUMNS:
             s.ui_density = "comfortable"

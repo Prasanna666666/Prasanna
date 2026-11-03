@@ -318,7 +318,7 @@ def test_the_real_chat_events_stream_parses_tool_calls_and_text(monkeypatch):
 
 
 # ------------------------------------------------------------------ the real app wiring
-def test_the_default_brain_is_the_tool_agent_and_the_classic_pipeline_stays_available(tmp_path, monkeypatch):
+def test_the_default_brain_is_the_measured_pipeline_and_the_tool_agent_is_one_setting_away(tmp_path, monkeypatch):
     from aperture.bootstrap import AppContext
     from aperture.config import Paths
 
@@ -326,10 +326,26 @@ def test_the_default_brain_is_the_tool_agent_and_the_classic_pipeline_stays_avai
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     ctx = AppContext(paths)
+    assert isinstance(ctx.agent(), AgentService)  # the default is the pipeline that scored 83% / 97%
+    ctx.settings.brain = "tools"
     agent = ctx.agent()
     assert isinstance(agent, ToolAgent) and agent._service._rescue is False  # no word-matching fallback
-    ctx.settings.brain = "classic"
-    assert isinstance(ctx.agent(), AgentService)
+
+
+def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_the_app_is():
+    from aperture.agent.toolagent import EXAMPLES
+
+    agent, llm, _ = agent_with([[("delta", "x")]])
+    agent.ask("hello")
+    system = llm.calls[0][0]
+    assert EXAMPLES in system and "find_photos(what=\"mountain\")" in system and "reply in words, no tool" in system
+    for persona in ("photo app", "You are", "Lumo", "assistant inside"):
+        assert persona not in system
+    eval_requests = {c["request"].lower() for c in __import__("aperture.evaluation", fromlist=["x"]).load_plan_cases()}
+    routes = {c["message"].lower() for c in json.loads((pathlib.Path(__file__).parent.parent / "src" / "aperture" / "eval_data" / "route_cases.json").read_text())}
+    for line in EXAMPLES.splitlines():
+        quoted = line.split("'")[1].lower() if line.startswith("'") else ""
+        assert quoted not in eval_requests and quoted not in routes  # the examples teach the pattern, not the test
 
 
 def test_library_context_is_retrieved_for_the_request(tmp_path, monkeypatch):
@@ -344,6 +360,7 @@ def test_library_context_is_retrieved_for_the_request(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     ctx = AppContext(paths)
+    ctx.settings.brain = "tools"
     facts = ctx.agent()._context("photos from Goa")
     assert "PLACES IN THIS LIBRARY: Goa, India" in facts and "PHOTOS SPAN: 2025-05-01" in facts and "LIBRARY SIZE: 1 files, 1 indexed" in facts
 

@@ -93,14 +93,14 @@ def test_chat_reply_carries_a_stream_and_never_runs_a_search():
 
 def test_instant_word_matches_are_off_by_default_and_the_old_choice_resets_once(tmp_path):
     paths = Paths(tmp_path)
-    assert Settings().quick_preview is False and Settings().brain == "tools" and Settings().rescue_search is False
+    assert Settings().quick_preview is False and Settings().brain == "classic" and Settings().rescue_search is False
     paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
-    paths.settings_file.write_text(json.dumps({"schema": 7, "quick_preview": True, "brain": "classic", "rescue_search": True}))
+    paths.settings_file.write_text(json.dumps({"schema": 7, "quick_preview": True, "brain": "tools", "rescue_search": True}))
     s = Settings.load(paths)
-    assert (s.quick_preview, s.brain, s.rescue_search) == (False, "tools", False)  # reset once by the v8 migration
-    paths.settings_file.write_text(json.dumps({"schema": 8, "quick_preview": True, "brain": "classic"}))
+    assert (s.quick_preview, s.brain, s.rescue_search) == (False, "classic", False)  # reset once by the v8 migration
+    paths.settings_file.write_text(json.dumps({"schema": 8, "quick_preview": True, "brain": "tools"}))
     s = Settings.load(paths)
-    assert s.quick_preview is True and s.brain == "classic"  # a deliberate choice made after v8 is kept
+    assert s.quick_preview is True and s.brain == "tools"  # a deliberate choice made after v8 is kept
 
 
 def test_chat_view_shows_the_message_at_once_and_streams_the_reply():

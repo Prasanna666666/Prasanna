@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
-    cfg.add_argument("--brain", choices=["tools", "classic"], help="tools = the tool-using agent (default); classic = the older pipeline")
+    cfg.add_argument("--brain", choices=["tools", "classic"], help="classic = router + planner pipeline (default); tools = the tool-using agent (experimental)")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
     sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
     sec.add_argument("--classic", action="store_true", help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app")
@@ -509,7 +509,10 @@ def cmd_eval_tools(ctx: AppContext) -> int:
         def lookup(kind: str, text: str) -> list[str]:
             return [p for p in people if text.lower() in p.lower()] if kind == "person" else [text.title()]
 
-        agent = Recording(ctx.llm(), None, lambda r: ("PEOPLE FOUND: " + ", ".join(people)) if people else "",
+        facts = ("LIBRARY SIZE: 10,000 files, 10,000 indexed\nPHOTOS SPAN: 2014-03-02 to 2026-10-30\n"
+                 "PLACES IN THIS LIBRARY: Goa, India; Paris, France; Japan; Eindhoven, Netherlands; Amsterdam, Netherlands; Switzerland"
+                 + (("\nPEOPLE FOUND: " + ", ".join(people)) if people else ""))  # the same kind of facts the real app retrieves
+        agent = Recording(ctx.llm(), None, lambda r: facts,
                           overview=lambda prev: "LIBRARY FACTS: 10,000 files, all indexed", lookup=lookup)
         started = time.perf_counter()
         try:
