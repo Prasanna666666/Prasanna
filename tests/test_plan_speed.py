@@ -72,3 +72,30 @@ def test_prompt_does_not_contain_todays_date():
     text = planner.Planner._user_prompt("sunset photos", ctx)
     assert "2026" not in text and "TODAY" not in text
     assert "Anna" in text and "sunset photos" in text
+
+
+def test_new_examples_are_valid_plans_and_teach_the_rules():
+    text = planner.system_prompt("full")
+    assert "SINGULAR" in text and "FILTERS ONLY" in text and text.rstrip().endswith("}")
+    plans = {}
+    for line in text.split("\n"):
+        if line.startswith("User: "):
+            req = line[6:]
+        elif line.startswith("{"):
+            plans[req], warnings = schema.plan_from_raw(json.loads(line))
+            assert not warnings, req
+    assert len(plans) >= 18
+    only_filters = plans["photos within 5 km of Utrecht"]
+    assert only_filters.clauses == () and only_filters.filters.near == "Utrecht" and only_filters.filters.radius_km == 5
+    assert plans["photos with only one person in them"].clauses == ()
+    assert plans["what did I shoot in March 2018"].intent == "find" and plans["what did I shoot in March 2018"].date.month == 3
+    exp = plans["put my Rome pictures into a folder called Italy"]
+    assert exp.intent == "export" and exp.scope == "library" and exp.folder_name == "Italy"
+    assert plans["wildlife photos not taken in Kenya"].clauses[1].exclude is True
+    # none of MY new examples reuses an eval case phrase (the score must stay an honest test). The original prompt already
+    # shares a couple of phrases with the eval set (e.g. the greeting); that predates this change.
+    import json as _j
+    from pathlib import Path
+    cases = _j.loads((Path(schema.__file__).parent.parent / "eval_data" / "plan_cases.json").read_text())
+    mine = {line[6:] for line in planner._EXTRA_EXAMPLES.split("\n") if line.startswith("User: ")}
+    assert len(mine) == 8 and not {c["request"] for c in cases} & mine

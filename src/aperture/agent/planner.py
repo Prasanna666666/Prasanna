@@ -16,7 +16,7 @@ from .jsonutil import JSONExtractError, extract_json
 from .llm import LLMClient, LLMError
 from .schema import Plan, plan_from_raw, plan_schema
 
-_PROMPT_TEXT = """You are the planning brain of Aperture, a private offline photo assistant.
+_PROMPT_TEXT_RAW = """You are the planning brain of Aperture, a private offline photo assistant.
 Convert the user's request into ONE JSON object. You do not search; you only plan.
 
 SEARCH ENGINES (a clause lists every engine where its words might live):
@@ -52,7 +52,10 @@ RULES
 10. Use "date" ONLY when the user states a year, month, season or a relative time ("last week"). Otherwise leave every date field unused.
 11. When DATA MATCHES is given, search each matched word with the engine(s) listed there. A word with no match is probably filler or a visual subject.
 12. When PLACES IN THIS LIBRARY is given, write place queries exactly as spelled there when the user means one of them.
-13. Output ONLY the JSON object.
+13. Visual queries are SINGULAR noun phrases ("dog", "mountain", "wedding"), never plural.
+14. People counts (group, selfie, alone, nobody), orientation, time of day, distance ("within N km of X") and quality are FILTERS ONLY:
+    never also add a clause for them. A request made only of filters has "clauses": [].
+15. Output ONLY the JSON object.
 
 EXAMPLES (compact):
 User: show me photos of Anna at the beach in Goa last summer
@@ -73,9 +76,35 @@ User: invoice number 48213
 {"intent":"find","message":"","scope":"library","match":"all","all_photos":false,"clauses":[{"engines":["text"],"query":"48213","exclude":false}],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 User: did the move finish? how many photos are in each year?
 {"intent":"question","message":"","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
-User: hi, what can you do?
+{EXTRA_EXAMPLES}User: hi, what can you do?
 {"intent":"chat","message":"I can find photos by what they show, text inside them, people, places, dates and folders, and copy results into a folder.","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 """
+
+def _example(request: str, intent: str = "find", clauses=(), date_: dict | None = None, filters: dict | None = None,
+             scope: str = "library", folder: str = "") -> str:
+    plan = {"intent": intent, "message": "", "scope": scope, "match": "all", "all_photos": False,
+            "clauses": [{"engines": list(e), "query": q, "exclude": x} for e, q, x in clauses],
+            "date": {"year": 0, "month": 0, "season": "none", "relative": "none", "start": "", "end": "", **(date_ or {})}}
+    if filters:
+        plan["filters"] = filters
+    plan["folder_name"] = folder
+    return f"User: {request}\n{json.dumps(plan, separators=(',', ':'), ensure_ascii=False)}\n"
+
+
+# Worked examples that teach PRINCIPLES (singular nouns, filters replace clauses, folder requests are not "previous",
+# "what did I shoot in <month>" is a find). They deliberately do not reuse the phrases of the eval cases.
+_EXTRA_EXAMPLES = "".join([
+    _example("photos with only one person in them", filters={"min_people": 1, "max_people": 1}),
+    _example("crowded pictures with ten or more people", filters={"min_people": 10}),
+    _example("photos within 5 km of Utrecht", filters={"near": "Utrecht", "radius_km": 5}),
+    _example("street scenes without any people", clauses=[(["visual"], "street", False)], filters={"max_people": 0}),
+    _example("what did I shoot in March 2018", date_={"year": 2018, "month": 3}),
+    _example("how many shots did I take last year", intent="count", date_={"relative": "last_year"}),
+    _example("put my Rome pictures into a folder called Italy", intent="export",
+             clauses=[(["place", "path"], "Rome", False)], folder="Italy"),
+    _example("wildlife photos not taken in Kenya", clauses=[(["visual"], "wildlife", False), (["place", "path"], "Kenya", True)]),
+])
+_PROMPT_TEXT = _PROMPT_TEXT_RAW.replace("{EXTRA_EXAMPLES}", _EXTRA_EXAMPLES)
 
 # Speed: a 3B model on an 8 GB Mac writes ~19 tokens/s, so every token costs time. Two styles (APERTURE_PLAN_STYLE):
 #   full - every field forced (the original; most reliable guidance for a small model)
