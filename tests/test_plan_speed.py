@@ -64,3 +64,11 @@ def test_planner_uses_the_selected_style(monkeypatch):
     monkeypatch.setenv("APERTURE_PLAN_STYLE", "lean")
     planner.Planner(Fake()).plan("x", ctx)
     assert "message" not in seen["required"] and seen["system"] != planner._PROMPT_TEXT
+
+
+def test_prompt_does_not_contain_todays_date():
+    """Models copy 'TODAY: 2026-11-03' into the forced year/month fields; dates are resolved in code instead."""
+    ctx = planner.PlannerContext(today=date(2026, 11, 3), known_people=("Anna",))
+    text = planner.Planner._user_prompt("sunset photos", ctx)
+    assert "2026" not in text and "TODAY" not in text
+    assert "Anna" in text and "sunset photos" in text

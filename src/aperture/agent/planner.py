@@ -146,10 +146,9 @@ class Planner:
         people = ", ".join(ctx.known_people[:150]) or "(none named yet)"
         previous = f"{ctx.previous_count} photos" if ctx.previous_count is not None else "(none)"
         library = f"{ctx.library}\n" if ctx.library else ""
-        return (
-            f"TODAY: {ctx.today.isoformat()}\nKNOWN PEOPLE: {people}\n{library}"
-            f"PREVIOUS RESULTS: {previous}\nUser: {request.strip()}"
-        )
+        # No "TODAY" line on purpose: dates are resolved in code (search/dates.py) from year/month/season/relative, and a small
+        # model asked to fill year+month copies today's date into every plan ("sunset photos" -> year 2026, month 11).
+        return f"KNOWN PEOPLE: {people}\n{library}PREVIOUS RESULTS: {previous}\nUser: {request.strip()}"
 
     def plan(self, request: str, ctx: PlannerContext) -> PlanResult:
         user = self._user_prompt(request, ctx)
