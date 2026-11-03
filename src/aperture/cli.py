@@ -54,8 +54,11 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--ollama-model")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
     sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
+    sec.add_argument("--classic", action="store_true", help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app")
     sec.add_argument("--no-browser", action="store_true", help="do not open the page in your browser when it is ready")
     sec.add_argument("--allow-moves", action="store_true", help="let Tidy up move files inside the photo folder (off in the sandbox by default)")
+    web = sub.add_parser("web", help="serve Lumo's fast web app on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
+    web.add_argument("--port", type=int, default=8765)
     ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
     ui.add_argument("--port", type=int, default=8765)
     app = sub.add_parser("app", help="open Aperture in its own window")
@@ -246,7 +249,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
-GUARDED = {"ui", "app", "scan", "ask", "caption", "export-job", "install-service", "install-launcher"}
+GUARDED = {"ui", "web", "app", "scan", "ask", "caption", "export-job", "install-service", "install-launcher"}
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
@@ -301,7 +304,8 @@ def is_aperture_ui(command: str) -> bool:
     c = command.lower()
     if "aperture" not in c or "scan" in c.split() or "caption" in c.split():
         return False
-    return "-m aperture ui" in c or "aperture ui" in c or "aperture/ui/app.py" in c or "aperture-sandboxed" in c
+    return ("-m aperture ui" in c or "aperture ui" in c or "-m aperture web" in c or "aperture web" in c
+            or "aperture/ui/app.py" in c or "aperture-sandboxed" in c)
 
 
 def stop_process(pid: int, wait: float = 8.0) -> bool:
@@ -350,7 +354,7 @@ def stop_old_ui(pid_file: Path, port: int) -> list[str]:
     return said
 
 
-def open_when_ready(port: int, attempts: int = 90) -> None:
+def open_when_ready(port: int, attempts: int = 90, health: str = "/api/health") -> None:
     """Open the page in the default browser as soon as the server answers (runs in a background thread)."""
     import time
     import urllib.request
@@ -358,7 +362,7 @@ def open_when_ready(port: int, attempts: int = 90) -> None:
 
     for _ in range(attempts):
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/_stcore/health", timeout=1):  # noqa: S310 - loopback
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}{health}", timeout=1):  # noqa: S310 - loopback
                 webbrowser.open(f"http://127.0.0.1:{port}")
                 return
         except OSError:
@@ -403,12 +407,13 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():
         cmd.append(str(export))
-    cmd += ["--", sys.executable, "-m", "aperture", "ui", "--port", str(port)]
+    cmd += ["--", sys.executable, "-m", "aperture", "ui" if args.classic else "web", "--port", str(port)]
     env = dict(os.environ, ALLOW_MOVES="yes" if args.allow_moves else "no", AP_ROOT=str(paths.root))
     print(f"Starting Aperture in the sandbox on http://127.0.0.1:{port}  (photos: read-only"
           f"{', moves allowed' if args.allow_moves else ''}; no internet). Press Ctrl+C to stop.")
     if not args.no_browser:
-        threading.Thread(target=open_when_ready, args=(port,), daemon=True).start()
+        health = "/_stcore/health" if args.classic else "/api/health"
+        threading.Thread(target=open_when_ready, args=(port, 90, health), daemon=True).start()
     proc = subprocess.Popen(cmd, env=env)  # noqa: S603
     try:
         pid_file.parent.mkdir(parents=True, exist_ok=True)
@@ -586,6 +591,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_scan(ctx, args)
     if args.command == "ask":
         return cmd_ask(ctx, args)
+    if args.command == "web":
+        from .web.server import serve
+
+        return serve(ctx, args.port)
     if args.command == "eval-plans":
         return cmd_eval_plans(ctx)
     if args.command == "eval-routes":

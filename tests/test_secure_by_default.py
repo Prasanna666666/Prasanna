@@ -26,7 +26,7 @@ def clean_env(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "listener_pid", lambda port: None)  # never touch the real process table in tests
 
 
-@pytest.mark.parametrize("cmd", ["ui", "app", "scan", "ask hi", "caption", "install-service", "install-launcher"])
+@pytest.mark.parametrize("cmd", ["ui", "web", "app", "scan", "ask hi", "caption", "install-service", "install-launcher"])
 def test_photo_commands_refuse_outside_the_secure_environment(cmd, capsys):
     assert cli.main(cmd.split()) == 2
     out = capsys.readouterr().out
@@ -63,7 +63,7 @@ def test_secure_ui_builds_the_sandbox_command(monkeypatch, tmp_path):
     assert cli.main(["secure-ui", "--port", "9100", "--no-browser"]) == 0
     cmd, env = calls[0]
     assert cmd[0].endswith("scripts/aperture-sandboxed.sh") and cmd[1] == str(photos) and cmd[2] == str(exports)
-    assert cmd[3:] == ["--", cli.sys.executable, "-m", "aperture", "ui", "--port", "9100"]
+    assert cmd[3:] == ["--", cli.sys.executable, "-m", "aperture", "web", "--port", "9100"]
     assert env["ALLOW_MOVES"] == "no"
     cli.main(["secure-ui", "--allow-moves", "--no-browser"])
     assert calls[1][1]["ALLOW_MOVES"] == "yes"
@@ -137,6 +137,7 @@ def _secure_setup(monkeypatch, tmp_path):
 
 @pytest.mark.parametrize("command,expected", [
     ("/x/.venv/bin/python -m aperture ui --port 8765", True),
+    ("/x/.venv/bin/python -m aperture web --port 8765", True),
     ("/x/.venv/bin/python /x/.venv/bin/aperture ui", True),
     ("python /x/src/aperture/ui/app.py", True),
     ("/bin/bash /x/scripts/aperture-sandboxed.sh /p -- python -m aperture ui", True),
@@ -279,3 +280,10 @@ def test_stop_process_wakes_a_suspended_copy_before_asking_it_to_stop(monkeypatc
     monkeypatch.setattr(time, "sleep", lambda s: None)
     assert cli.stop_process(5) is True
     assert sent[:2] == [signal.SIGCONT, signal.SIGTERM]
+
+
+def test_secure_ui_can_start_the_classic_screens(monkeypatch, tmp_path):
+    calls = _secure_setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(cli, "port_is_free", lambda port: True)
+    assert cli.main(["secure-ui", "--classic", "--no-browser"]) == 0
+    assert calls[0][-4:-2] == ["aperture", "ui"]

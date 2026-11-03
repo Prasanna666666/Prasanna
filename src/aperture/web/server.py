@@ -1,0 +1,375 @@
+"""The local server behind Lumo's web app (standard library only).
+
+Why not Streamlit for the chat: Streamlit re-runs the whole page on every click, and each run touches the external drive.
+Here the page is static, the browser keeps the conversation, and the server only does real work: planning, searching and
+streaming the reply. Photo matches stream in first (milliseconds), then the checked answer, then the words as they are written.
+
+Safety: loopback only; every request must name this host (no DNS rebinding); the API needs a random per-run token (no cross-site
+requests); strict Content-Security-Policy (no external scripts, styles or images); photos are served only from Aperture's own
+thumbnail/preview folders, by numeric id.
+"""
+
+from __future__ import annotations
+
+import hmac
+import json
+import re
+import secrets
+import subprocess
+import sys
+import threading
+import time
+from collections import OrderedDict
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
+import numpy as np
+
+from .. import library as lib
+from ..config import preview_rel, thumb_rel
+from ..indexing.progress import ScanLock
+
+STATIC = Path(__file__).parent / "static"
+STATIC_FILES = {"app.css": "text/css; charset=utf-8", "app.js": "text/javascript; charset=utf-8"}
+MAX_BODY = 64 * 1024
+PAGE = 60
+PREVIEW = 24
+DEFAULT_IDEAS = ["Photos from last summer", "Pictures of dogs", "Night photos", "Receipts and documents", "Screenshots", "Sunsets"]
+CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+ID_PATH = re.compile(r"^/api/photo/(\d{1,12})/(thumb|preview)$")
+ITEM_PATH = re.compile(r"^/api/item/(\d{1,12})$")
+
+
+class Web:
+    """State shared by every request."""
+
+    def __init__(self, ctx: Any, port: int, token: str | None = None) -> None:
+        self.ctx = ctx
+        self.port = port
+        self.token = token or secrets.token_urlsafe(24)
+        self.ai_lock = threading.Lock()  # one AI request at a time: the model runs on a single runner
+        self._convs: OrderedDict[str, np.ndarray] = OrderedDict()
+        self._cache: dict[str, tuple[float, Any]] = {}
+        self.paused_for_chat = False
+
+    # ---- conversations remember their last result set, so "only the ones from March" works
+    def remember(self, conv: str, ids: np.ndarray) -> None:
+        self._convs[conv] = ids
+        self._convs.move_to_end(conv)
+        while len(self._convs) > 20:
+            self._convs.popitem(last=False)
+
+    def previous(self, conv: str) -> np.ndarray | None:
+        ids = self._convs.get(conv)
+        return ids if ids is not None and len(ids) else None
+
+    def results(self, conv: str, offset: int, limit: int = PAGE) -> dict[str, Any]:
+        ids = self._convs.get(conv)
+        if ids is None:
+            return {"ids": [], "total": 0}
+        return {"ids": [int(i) for i in ids[offset:offset + limit]], "total": int(len(ids))}
+
+    # ---- small cache so polling the status never hits the drive or the AI server more than every few seconds
+    def cached(self, key: str, ttl: float, fn):
+        now = time.monotonic()
+        hit = self._cache.get(key)
+        if hit and now - hit[0] < ttl:
+            return hit[1]
+        value = fn()
+        self._cache[key] = (now, value)
+        return value
+
+    def status(self) -> dict[str, Any]:
+        ctx = self.ctx
+
+        def counts() -> dict[str, int]:
+            conn = ctx.db.connect()
+            try:
+                cov = lib.coverage(conn)
+                return {"photos": cov.total, "indexed": cov.indexed}
+            finally:
+                conn.close()
+
+        healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
+        return {**self.cached("counts", 20, counts), "ai": healthy, "model": ctx.settings.ollama_model,
+                "search_ready": bool(ctx.search_ready()), "indexing": ScanLock(ctx.paths).running(),
+                "paused_for_chat": self.paused_for_chat}
+
+    def suggestions(self) -> list[str]:
+        def build() -> list[str]:
+            from ..ui.suggestions import suggest_prompts
+
+            conn = self.ctx.db.connect()
+            try:
+                return suggest_prompts(conn, 6) or DEFAULT_IDEAS
+            finally:
+                conn.close()
+
+        try:
+            return self.cached("ideas", 120, build)
+        except Exception:
+            return DEFAULT_IDEAS
+
+    def pause_indexing_for_chat(self) -> None:
+        lock = ScanLock(self.ctx.paths)
+        if lock.running():
+            lock.stop()
+            self.paused_for_chat = True
+
+    def resume_indexing(self) -> bool:
+        if ScanLock(self.ctx.paths).running():
+            return False
+        try:
+            self.ctx.llm().unload()  # free the AI model's RAM before indexing starts
+        except Exception:
+            pass
+        subprocess.Popen([sys.executable, "-m", "aperture", "scan"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                         start_new_session=True)  # noqa: S603
+        self.paused_for_chat = False
+        return True
+
+    def item(self, item_id: int) -> dict[str, Any] | None:
+        conn = self.ctx.db.connect()
+        try:
+            found = lib.items_by_ids(conn, [item_id]).get(item_id)
+        finally:
+            conn.close()
+        if found is None:
+            return None
+        return {"id": item_id, "name": Path(found.rel_path or found.path).name, "taken": found.taken_at, "place": found.place,
+                "camera": found.camera, "width": found.width, "height": found.height}
+
+    def photo_file(self, item_id: int, kind: str) -> Path | None:
+        data = self.ctx.paths.data.resolve()
+        path = (data / (thumb_rel(item_id) if kind == "thumb" else preview_rel(item_id))).resolve()
+        return path if data in path.parents and path.is_file() else None
+
+
+def _clean_history(raw: Any) -> list[tuple[str, str]]:
+    turns: list[tuple[str, str]] = []
+    for entry in raw if isinstance(raw, list) else []:
+        if isinstance(entry, (list, tuple)) and len(entry) == 2 and entry[0] in ("user", "assistant") and isinstance(entry[1], str):
+            turns.append((entry[0], entry[1][:2000]))
+    return turns[-8:]
+
+
+def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
+    allowed_hosts = {f"127.0.0.1:{web.port}", f"localhost:{web.port}"}
+    allowed_origins = {f"http://{h}" for h in allowed_hosts}
+
+    class Handler(BaseHTTPRequestHandler):
+        server_version = "Lumo"
+        sys_version = ""
+
+        def log_message(self, fmt: str, *args: Any) -> None:  # quiet: nothing about your photos goes to a log
+            pass
+
+        # ---- helpers -------------------------------------------------------------------------------------------------
+        def _headers(self, status: int, ctype: str, length: int | None = None, cache: str = "no-store") -> None:
+            self.send_response(status)
+            self.send_header("Content-Type", ctype)
+            if length is not None:
+                self.send_header("Content-Length", str(length))
+            self.send_header("Cache-Control", cache)
+            self.send_header("Content-Security-Policy", CSP)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.end_headers()
+
+        def _json(self, obj: Any, status: int = 200) -> None:
+            body = json.dumps(obj).encode()
+            self._headers(status, "application/json; charset=utf-8", len(body))
+            self.wfile.write(body)
+
+        def _deny(self, status: HTTPStatus, message: str) -> None:
+            self._json({"error": message}, int(status))
+
+        def _checked(self, api: bool) -> bool:
+            if self.headers.get("Host", "") not in allowed_hosts:
+                self._deny(HTTPStatus.FORBIDDEN, "unknown host")
+                return False
+            origin = self.headers.get("Origin")
+            if origin is not None and origin not in allowed_origins:
+                self._deny(HTTPStatus.FORBIDDEN, "unknown origin")
+                return False
+            if api:
+                query = parse_qs(urlparse(self.path).query)
+                given = self.headers.get("X-Lumo-Token") or (query.get("t") or [""])[0]
+                if not hmac.compare_digest(given.encode(), web.token.encode()):
+                    self._deny(HTTPStatus.FORBIDDEN, "missing or wrong token")
+                    return False
+            return True
+
+        def _sse(self, event: str, data: Any) -> None:
+            self.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
+            self.wfile.flush()
+
+        # ---- GET -----------------------------------------------------------------------------------------------------
+        def do_GET(self) -> None:  # noqa: N802
+            url = urlparse(self.path)
+            path = url.path
+            if path == "/api/health":
+                if self._checked(False):
+                    self._json({"ok": True})
+                return
+            if path == "/" or path == "/index.html":
+                if self._checked(False):
+                    html = (STATIC / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", web.token)
+                    body = html.encode()
+                    self._headers(200, "text/html; charset=utf-8", len(body))
+                    self.wfile.write(body)
+                return
+            if path.startswith("/static/"):
+                name = path[len("/static/"):]
+                if self._checked(False):
+                    if name in STATIC_FILES:
+                        body = (STATIC / name).read_bytes()
+                        self._headers(200, STATIC_FILES[name], len(body))
+                        self.wfile.write(body)
+                    else:
+                        self._deny(HTTPStatus.NOT_FOUND, "not found")
+                return
+            if not path.startswith("/api/"):
+                self._deny(HTTPStatus.NOT_FOUND, "not found")
+                return
+            if not self._checked(True):
+                return
+            if path == "/api/status":
+                self._json(web.status())
+            elif path == "/api/suggestions":
+                self._json({"ideas": web.suggestions()})
+            elif path == "/api/results":
+                query = parse_qs(url.query)
+                try:
+                    offset = max(0, int((query.get("offset") or ["0"])[0]))
+                except ValueError:
+                    offset = 0
+                self._json(web.results((query.get("conv") or [""])[0][:64], offset))
+            elif (m := ID_PATH.match(path)):
+                file = web.photo_file(int(m.group(1)), m.group(2))
+                if file is None:
+                    self._deny(HTTPStatus.NOT_FOUND, "no such photo")
+                else:
+                    body = file.read_bytes()
+                    self._headers(200, "image/jpeg", len(body), cache="private, max-age=86400")
+                    self.wfile.write(body)
+            elif (m := ITEM_PATH.match(path)):
+                found = web.item(int(m.group(1)))
+                self._json(found) if found else self._deny(HTTPStatus.NOT_FOUND, "no such photo")
+            else:
+                self._deny(HTTPStatus.NOT_FOUND, "not found")
+
+        # ---- POST ----------------------------------------------------------------------------------------------------
+        def _body(self) -> dict[str, Any] | None:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = -1
+            if not 0 < length <= MAX_BODY:
+                self._deny(HTTPStatus.REQUEST_ENTITY_TOO_LARGE if length > MAX_BODY else HTTPStatus.BAD_REQUEST, "bad body size")
+                return None
+            try:
+                data = json.loads(self.rfile.read(length))
+            except ValueError:
+                self._deny(HTTPStatus.BAD_REQUEST, "bad json")
+                return None
+            return data if isinstance(data, dict) else None
+
+        def do_POST(self) -> None:  # noqa: N802
+            path = urlparse(self.path).path
+            if not self._checked(True):
+                return
+            if path == "/api/scan/resume":
+                self._json({"started": web.resume_indexing()})
+                return
+            if path != "/api/chat":
+                self._deny(HTTPStatus.NOT_FOUND, "not found")
+                return
+            body = self._body()
+            if body is None:
+                return
+            message = str(body.get("message", "")).strip()[:2000]
+            if not message:
+                self._deny(HTTPStatus.BAD_REQUEST, "empty message")
+                return
+            self._chat(message, str(body.get("conv", ""))[:64] or "default", _clean_history(body.get("history")))
+
+        def _chat(self, message: str, conv: str, history: list[tuple[str, str]]) -> None:
+            self._headers(200, "text/event-stream; charset=utf-8")
+            started = time.perf_counter()
+            stream = None
+            try:
+                self._sse("ack", {})
+                ctx = web.ctx
+                if ctx.settings.quick_preview and ctx.search_ready():  # photo matches in milliseconds, before the AI has finished
+                    ids = self._instant_matches(message)
+                    if ids is not None and len(ids):
+                        self._sse("preview", {"ids": [int(i) for i in ids[:PREVIEW]], "total": int(len(ids))})
+                with web.ai_lock:
+                    web.pause_indexing_for_chat()  # indexing and the AI model together would swap an 8 GB Mac
+                    reply = ctx.agent().ask(message, web.previous(conv), history=history)
+                    stream = reply.stream
+                    text = reply.text
+                    if stream is not None:
+                        parts = []
+                        for chunk in stream:
+                            parts.append(chunk)
+                            self._sse("delta", {"text": chunk})
+                        text = "".join(parts) or "..."
+                    else:
+                        self._sse("reply", {"text": text})
+                if len(reply.ids) and reply.kind in ("results", "export", "count"):
+                    web.remember(conv, reply.ids)
+                    self._sse("results", {"ids": [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
+                                          "notes": list(reply.notes), "warnings": list(reply.warnings)})
+                elif reply.notes or reply.warnings:
+                    self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
+                self._sse("done", {"took": round(time.perf_counter() - started, 2), "kind": reply.kind, "text": text})
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the browser left (for example a new chat was started): stop quietly
+            except Exception as exc:
+                try:
+                    self._sse("error", {"message": str(exc) or exc.__class__.__name__})
+                except OSError:
+                    pass
+            finally:
+                if stream is not None and hasattr(stream, "close"):
+                    stream.close()
+
+        def _instant_matches(self, message: str) -> np.ndarray | None:
+            from ..search.quick import quick_ids
+
+            ctx = web.ctx
+            conn = ctx.db.connect()
+            try:
+                return quick_ids(conn, message, ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness)
+            except Exception:
+                return None
+            finally:
+                conn.close()
+
+    return Handler
+
+
+def serve(ctx: Any, port: int = 8765, ready: threading.Event | None = None) -> int:
+    web = Web(ctx, port)
+    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(web))
+    server.daemon_threads = True
+    try:
+        ctx.warm_up()  # preload the photo index, the image-search model and the AI model in the background
+    except Exception:
+        pass
+    print(f"Lumo is running on http://127.0.0.1:{port}  (Ctrl+C to stop)", flush=True)
+    if ready is not None:
+        ready.set()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+    return 0

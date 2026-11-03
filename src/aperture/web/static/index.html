@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="lumo-token" content="__TOKEN__">
+<title>Lumo</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b5bf0'/%3E%3Cstop offset='1' stop-color='%2322c3d6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<header class="bar">
+  <div class="brand"><span class="logo" aria-hidden="true"></span><b>Lumo</b></div>
+  <div class="chips" id="chips" role="status" aria-live="polite"></div>
+  <button class="pill" id="newchat" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New chat
+  </button>
+</header>
+
+<main id="main">
+  <section id="welcome">
+    <p class="eyebrow">Private &middot; runs on your Mac</p>
+    <h1><span id="greeting">Hello</span>.<br>What are you looking for?</h1>
+    <p class="lede">Describe a photo in your own words, or just chat. Nothing leaves this computer.</p>
+    <div class="ideas" id="ideas"></div>
+  </section>
+  <section id="thread" aria-live="polite" aria-label="Conversation"></section>
+</main>
+
+<footer class="dock">
+  <form id="composer" autocomplete="off">
+    <textarea id="input" rows="1" maxlength="2000" placeholder="Ask for photos, or ask anything&hellip;" aria-label="Message"></textarea>
+    <button id="send" type="submit" aria-label="Send">
+      <svg class="i-send" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
+    </button>
+  </form>
+  <p class="hint">Enter to send &middot; Shift+Enter for a new line &middot; <kbd>/</kbd> to focus</p>
+</footer>
+
+<div id="lightbox" hidden>
+  <button class="lb-close" id="lb-close" type="button" aria-label="Close">&times;</button>
+  <button class="lb-nav lb-prev" id="lb-prev" type="button" aria-label="Previous">&#8249;</button>
+  <figure>
+    <img id="lb-img" alt="">
+    <figcaption id="lb-cap"></figcaption>
+  </figure>
+  <button class="lb-nav lb-next" id="lb-next" type="button" aria-label="Next">&#8250;</button>
+</div>
+
+<script src="/static/app.js" defer></script>
+</body>
+</html>

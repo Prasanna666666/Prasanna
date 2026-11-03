@@ -26,18 +26,24 @@ Then `ollama pull ministral-3:3b` (the Ollama app stores weights in `~/.ollama`;
 
 `open ~/Applications/Aperture.app`, or `aperture ui`. CLI: `aperture doctor | scan | ask "..." | stats | settings`.
 
-## Secure by default (macOS sandbox)
-
-Photo commands (`ui`, `app`, `scan`, `ask`, `caption`, ...) **refuse to run** unless they are inside the sandbox or Docker. The normal way:
+## Lumo: the fast web app (the normal way to use Aperture)
 
 ```bash
-aperture secure-ui          # starts the UI in the sandbox: no internet, photos read-only; always http://127.0.0.1:8765
-                            # (stops its own older copy first, opens your browser; Ctrl+C to stop; refresh the page as usual)
-aperture secure-ui --allow-moves     # only if you want Tidy up to move files inside the photo folder
+aperture secure-ui          # starts Lumo in the macOS sandbox (no internet, photos read-only) on http://127.0.0.1:8765
+                            # opens your browser when ready; it stops its own older copy first; Ctrl+C to stop
+aperture secure-ui --classic     # the older Streamlit screens: Photos, People, Tidy up, Settings, export/move cards
 scripts/aperture-sandboxed.sh --selftest /path/to/photos    # once: must print three PASS lines
-aperture --insecure ui      # explicit override (not recommended)
+aperture --insecure web     # explicit override (not recommended)
 ```
-See `docs/safety.md` (items 8-10), including encrypting the drive.
+
+Lumo is a small local web app written for speed: the page opens instantly and "New chat" costs the server nothing; photo matches
+stream in first (milliseconds), then the checked answer, then the reply word by word. Greetings answer instantly, one-subject
+searches skip the AI plan, and everything else goes through a tiny router. It is plain HTML/CSS/JS served by the standard library
+(no frameworks, no CDN, no new packages) with a strict Content-Security-Policy, a per-run token, host/origin checks and photos served
+only by number from Aperture's own thumbnail folders. Not in the new app yet: the Photos browser, People, Tidy up, Settings and the
+export/move cards (use `--classic` for those).
+
+Measure it: `aperture check` (seconds per step), `aperture eval-routes`, `aperture eval-plans`. See `docs/safety.md` (items 8-11).
 
 Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with read-only photos; see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
 

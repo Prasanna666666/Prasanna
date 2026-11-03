@@ -24,7 +24,7 @@ aperture = "aperture.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aperture = ["py.typed", "eval_data/*.json"]
+aperture = ["py.typed", "eval_data/*.json", "web/static/*"]
 
 [tool.ruff]
 line-length = 130
@@ -46,5 +46,5 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests"]
 markers = ["needs_models: requires real model files"]
