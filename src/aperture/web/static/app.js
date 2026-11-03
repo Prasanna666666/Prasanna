@@ -51,9 +51,9 @@
 
   // ---------------------------------------------------------------- photos
   function makeGallery(host) {
-    const root = el('div', 'gallery'), head = el('div', 'gal-head'), grid = el('div', 'grid');
-    root.append(head, grid); host.append(root);
-    return { root, head, grid, ids: [], total: 0, more: null };
+    const root = el('div', 'gallery'), head = el('div', 'gal-head'), readings = el('div', 'readings'), grid = el('div', 'grid');
+    root.append(head, readings, grid); host.append(root);
+    return { root, head, readings, grid, ids: [], total: 0, more: null, group: -1 };
   }
   function addTiles(g, ids) {
     for (const id of ids) {
@@ -80,6 +80,32 @@
     const g = msg.gallery; g.ids = []; g.grid.replaceChildren(); g.total = d.total;
     g.head.replaceChildren(el('span', 'count', d.kind === 'count' ? `${d.total.toLocaleString()} photos` : `${d.total.toLocaleString()} photo${d.total === 1 ? '' : 's'}`));
     addTiles(g, d.ids);
+    showReadings(g, d.groups || []);
+    showMore(g);
+  }
+  // Every way the query could be read, with how many photos each finds: pick one to see its photos.
+  function showReadings(g, groups) {
+    g.readings.replaceChildren();
+    if (groups.length < 2) return;
+    groups.forEach((r, i) => {
+      const b = el('button', 'reading' + (i === 0 ? ' active' : ''), `${r.label} \u00b7 ${r.count.toLocaleString()}`);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        g.readings.querySelectorAll('.reading').forEach((x) => x.classList.remove('active'));
+        b.classList.add('active');
+        g.group = i; g.ids = []; g.grid.replaceChildren();
+        try {
+          const data = await (await api(`/api/results?conv=${encodeURIComponent(conv)}&offset=0&group=${i}`)).json();
+          g.total = data.total;
+          g.head.replaceChildren(el('span', 'count', `${data.total.toLocaleString()} photo${data.total === 1 ? '' : 's'}`));
+          addTiles(g, data.ids);
+        } catch (_) { /* keep what is shown */ }
+        showMore(g);
+      });
+      g.readings.append(b);
+    });
+  }
+  function showMore(g) {
     if (g.more) g.more.remove();
     if (g.ids.length < g.total) {
       g.more = el('button', 'pill more', g.ids.length ? 'Show more' : 'Show these photos');
@@ -87,7 +113,7 @@
       g.more.addEventListener('click', async () => {
         g.more.disabled = true;
         try {
-          const r = await api(`/api/results?conv=${encodeURIComponent(conv)}&offset=${g.ids.length}`);
+          const r = await api(`/api/results?conv=${encodeURIComponent(conv)}&offset=${g.ids.length}&group=${g.group}`);
           const data = await r.json();
           addTiles(g, data.ids);
         } catch (_) { /* keep what is shown */ }

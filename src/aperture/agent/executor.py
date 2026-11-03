@@ -50,7 +50,6 @@ class ExecResult:
     notes: list[str] = field(default_factory=list)
     date_range: str = ""
     universe: int = 0
-    partial: str = ""  # set when no photo met every criterion: what the closest photos do match
 
 
 CLOSEST_LIMIT = 200  # how many near matches to return when nothing fits every requirement
@@ -105,7 +104,6 @@ class Executor:
             result.notes.append("Nothing to search for was given.")
             return result
         current = universe
-        criteria: list[tuple[str, np.ndarray]] = []  # every positive requirement, for closest-match ranking
         positives = [c for c in plan.clauses if not c.exclude]
         negatives = [c for c in plan.clauses if c.exclude]
 
@@ -118,7 +116,6 @@ class Executor:
                     result.reports.append(ClauseReport(clause.label, len(ids), len(current)))
             else:
                 for clause, ids in sets:
-                    criteria.append((clause.label, ids))
                     current = np.intersect1d(current, ids, assume_unique=True)
                     result.reports.append(ClauseReport(clause.label, len(ids), len(current)))
         for clause in negatives:
@@ -132,7 +129,6 @@ class Executor:
             ids = date_ids(self._conn, start.isoformat(), end.isoformat())
             current = np.intersect1d(current, ids, assume_unique=True)
             result.date_range = f"{start.isoformat()} to {(end - timedelta(days=1)).isoformat()}"
-            criteria.append((f"date {result.date_range}", ids))
             result.reports.append(ClauseReport(f"date {result.date_range}", len(ids), len(current)))
         elif not plan.date.is_empty:
             result.notes.append("I could not understand the date, so I ignored it.")
@@ -140,46 +136,12 @@ class Executor:
         if not plan.filters.is_empty:
             ids, notes = apply_filters(self._conn, plan.filters, self._geo_provider())
             current = np.intersect1d(current, ids, assume_unique=True)
-            criteria.append((f"filters: {plan.filters.describe()}", ids))
             result.notes.extend(n for n in notes if n not in result.notes)
             result.reports.append(ClauseReport(f"filters: {plan.filters.describe()}", len(ids), len(current)))
 
-        if len(current) == 0 and plan.match == "all" and len(criteria) >= 2:
-            self._closest(result, universe, criteria, negatives_ids=[self._clause_ids(c, result) for c in negatives])
-            return result
         result.ids = self._rank(current)
         return result
 
-    def _closest(self, result: ExecResult, universe: np.ndarray, criteria: list[tuple[str, np.ndarray]], negatives_ids: list[np.ndarray]) -> None:
-        """No photo meets everything: score each photo by the criteria it meets (rarer criteria count more) and keep the best."""
-        total = max(len(universe), 2)
-        score: dict[int, float] = {}
-        met: dict[int, list[str]] = {}
-        for label, ids in criteria:
-            ids = np.intersect1d(universe, ids, assume_unique=True)
-            if len(ids) == 0:
-                continue
-            weight = float(np.log(total / len(ids))) + 0.1
-            for i in ids.tolist():
-                score[i] = score.get(i, 0.0) + weight
-                met.setdefault(i, []).append(label)
-        for ids in negatives_ids:
-            for i in ids.tolist():
-                score.pop(i, None)
-        if not score:
-            return
-        for i, s in list(score.items()):
-            score[i] = s + 0.5 * max(self._visual_scores.get(i, 0.0), 0.0)
-        best = sorted(score, key=lambda i: -score[i])[:CLOSEST_LIMIT]
-        result.ids = np.array(best, np.int64)
-        top = met[best[0]]
-        result.partial = "; ".join(top)
-        result.notes.append(
-            f"No photo matches everything you asked for. These are the closest: the best of them match {len(top)} of {len(criteria)} "
-            f"requirements ({result.partial})."
-        )
-
-    # ------------------------------------------------------------------
     def _clause_ids(self, clause: Clause, result: ExecResult) -> np.ndarray:
         parts = [self._engine_ids(engine, clause.query, result) for engine in clause.engines]
         ids = np.unique(np.concatenate(parts)) if parts else np.zeros(0, np.int64)
@@ -216,6 +178,44 @@ class Executor:
         if len(ids):
             result.notes.append(f"No photo is labelled '{query}', but {len(ids):,} were taken within 25 km of it (GPS).")
         return ids
+
+    def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
+        """Every way the search words could be meant, each searched on its own: labelled place, GPS near it, folder or file name,
+        a person, words in the photo, how it looks, plus the date. The AI chose the words; this lists what each meaning finds."""
+        scratch = ExecResult(ids=np.zeros(0, np.int64))
+        universe = all_ids(self._conn)
+        limit = max(50, int(0.2 * len(universe)))  # a meaning that matches a fifth of the library says nothing
+        found: list[tuple[str, np.ndarray]] = []
+        terms = list(dict.fromkeys(c.query.strip() for c in plan.clauses if not c.exclude and c.query.strip()))
+        for term in terms:
+            wording = (
+                ("place", f"Labelled with the place '{term}'"),
+                ("near", f"Taken near {term} (GPS)"),
+                ("path", f"In a folder or file named '{term}'"),
+                ("person", f"Photos of {term}"),
+                ("text", f"With '{term}' written in them"),
+                ("visual", f"Looks like '{term}'"),
+            )
+            for engine, label in wording:
+                ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
+                if 0 < len(ids) <= limit:
+                    found.append((label, np.sort(ids)))
+        span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
+        if span is not None:
+            ids = date_ids(self._conn, span[0].isoformat(), span[1].isoformat())
+            if len(ids):
+                found.append((f"Taken {span[0].isoformat()} to {(span[1] - timedelta(days=1)).isoformat()}", np.sort(ids)))
+        banned = [self._clause_ids(c, scratch) for c in plan.clauses if c.exclude]  # what the user said they do not want stays out
+        allowed = apply_filters(self._conn, plan.filters, self._geo_provider())[0] if not plan.filters.is_empty else None
+        kept: list[tuple[str, np.ndarray]] = []
+        for label, ids in found:
+            for gone in banned:
+                ids = np.setdiff1d(ids, gone)
+            if allowed is not None:
+                ids = np.intersect1d(ids, allowed)
+            if len(ids):
+                kept.append((label, ids))
+        return kept
 
     def _place_vocabulary(self) -> list[str]:
         if self._vocabulary is None:

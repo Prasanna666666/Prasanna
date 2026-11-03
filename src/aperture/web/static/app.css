@@ -145,3 +145,9 @@ body.warming .warm { display: block; }
 .lb-close:hover, .lb-nav:hover { background: rgba(255, 255, 255, .22); transform: scale(1.06); }
 .lb-close { top: 18px; right: 18px; } .lb-prev { left: 18px; top: 50%; } .lb-next { right: 18px; top: 50%; }
 @media (max-width: 640px) { .chips { display: none; } .msg.user .bubble { max-width: 90%; } .lb-nav { top: auto; bottom: 22px; } }
+
+.readings { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
+.readings:empty { display: none; }
+.reading { font: inherit; font-size: .8rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.reading:hover { color: var(--text, inherit); border-color: var(--accent, #5b5bf0); }
+.reading.active { background: var(--accent, #5b5bf0); border-color: var(--accent, #5b5bf0); color: #fff; }

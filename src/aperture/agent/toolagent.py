@@ -316,12 +316,12 @@ class ToolAgent:
         if read:  # it read the photos' words / looked at them: its answer is about that content
             return AgentReply(shown.kind, "", ids=shown.ids, plan=shown.plan, reports=shown.reports, notes=shown.notes,
                               warnings=shown.warnings, folder_name=shown.folder_name, date_range=shown.date_range,
-                              timings=timings, stream=words())
+                              timings=timings, stream=words(), groups=shown.groups)
         # Photos were found: the words come from the data (counts and conditions), never from the model, so nothing is invented.
         events.close() if hasattr(events, "close") else None
         return AgentReply(shown.kind, shown.text, ids=shown.ids, plan=shown.plan, reports=shown.reports, notes=shown.notes,
                           warnings=shown.warnings, folder_name=shown.folder_name, date_range=shown.date_range,
-                          timings=timings)
+                          timings=timings, groups=shown.groups)
 
     # ---- 3. OBSERVE ----------------------------------------------------------------------------------------------------
     def _execute(self, call: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, float],

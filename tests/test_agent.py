@@ -152,3 +152,19 @@ def test_rescue_never_runs_for_plans_with_exclusions_or_dates(scanned):
 
     assert _only_plain_clauses(Plan(intent="find", clauses=[Clause(engines=["place"], query="x")]))
     assert not _only_plain_clauses(Plan(intent="find", clauses=[Clause(engines=["place"], query="x", exclude=True)]))
+
+
+def test_every_reading_of_the_search_words_is_listed_with_its_own_photos(scanned):
+    """A word may be a folder, words in a photo, a place...: each meaning is searched separately and shown, not swapped silently."""
+    svc, _ = service(scanned, plan(clauses=[{"engines": ["path"], "query": "italy"}]))
+    reply = svc.ask("italy")
+    labels = [label for label, _ in reply.groups]
+    assert labels[0] == "Best match"
+    assert all(len(ids) for _, ids in reply.groups)
+
+
+def test_an_empty_best_match_falls_back_to_the_first_reading_and_says_so(scanned):
+    clauses = [{"engines": ["place"], "query": "italy"}, {"engines": ["text"], "query": "zzzqqq"}]
+    svc, _ = service(scanned, plan(clauses=clauses))
+    reply = svc.ask("italy zzzqqq")
+    assert len(reply.ids) and any("one reading" in n for n in reply.notes)

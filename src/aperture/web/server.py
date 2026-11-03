@@ -66,6 +66,7 @@ class Web:
         self._cache: dict[str, tuple[float, Any]] = {}
         self.paused_for_chat = False
         self.build = build_id()
+        self._groups: dict[str, list[tuple[str, np.ndarray]]] = {}
         self._counts: dict[str, int] = {"photos": 0, "indexed": 0}
         self._counts_at: float | None = None
         self._counting = False
@@ -93,6 +94,11 @@ class Web:
         threading.Thread(target=work, name="library-counts", daemon=True).start()
 
     # ---- conversations remember their last result set, so "only the ones from March" works
+    def remember_groups(self, conv: str, groups: list[tuple[str, np.ndarray]]) -> None:
+        self._groups[conv] = groups
+        while len(self._groups) > 20:
+            self._groups.pop(next(iter(self._groups)))
+
     def remember(self, conv: str, ids: np.ndarray) -> None:
         self._convs[conv] = ids
         self._convs.move_to_end(conv)
@@ -103,7 +109,12 @@ class Web:
         ids = self._convs.get(conv)
         return ids if ids is not None and len(ids) else None
 
-    def results(self, conv: str, offset: int, limit: int = PAGE) -> dict[str, Any]:
+    def results(self, conv: str, offset: int, limit: int = PAGE, group: int = -1) -> dict[str, Any]:
+        groups = self._groups.get(conv) or []
+        if 0 <= group < len(groups):
+            chosen = groups[group][1]
+            self._convs[conv] = chosen  # the next message refines the readings the user picked
+            return {"ids": [int(i) for i in chosen[offset:offset + limit]], "total": int(len(chosen))}
         ids = self._convs.get(conv)
         if ids is None:
             return {"ids": [], "total": 0}
@@ -278,7 +289,11 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     offset = max(0, int((query.get("offset") or ["0"])[0]))
                 except ValueError:
                     offset = 0
-                self._json(web.results((query.get("conv") or [""])[0][:64], offset))
+                try:
+                    group = int((query.get("group") or ["-1"])[0])
+                except ValueError:
+                    group = -1
+                self._json(web.results((query.get("conv") or [""])[0][:64], offset, group=group))
             elif (m := ID_PATH.match(path)):
                 file = web.photo_file(int(m.group(1)), m.group(2))
                 if file is None:
@@ -349,7 +364,8 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     text = reply.text
                     if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words
                         web.remember(conv, reply.ids)
-                        self._sse("results", {"ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
+                        web.remember_groups(conv, reply.groups)
+                        self._sse("results", {"groups": [{"label": g[0], "count": int(len(g[1]))} for g in reply.groups], "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
                                               "notes": list(reply.notes), "warnings": list(reply.warnings)})
                     elif reply.notes or reply.warnings:
                         self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})

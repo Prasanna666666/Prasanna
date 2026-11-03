@@ -40,6 +40,7 @@ class AgentReply:
     date_range: str = ""
     trace: list[dict[str, str]] = field(default_factory=list)  # what the agent did, step by step
     timings: dict[str, float] = field(default_factory=dict, repr=False, compare=False)  # seconds spent in each step
+    groups: list[tuple[str, np.ndarray]] = field(default_factory=list, repr=False, compare=False)  # every reading of the query, best first
     stream: Any = field(default=None, repr=False, compare=False)  # chat replies: text arrives piece by piece (consumed by the UI)
 
 
@@ -138,6 +139,15 @@ def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     words = set(tokens(phrase))
     kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))
     return dataclasses.replace(plan, date=spec, clauses=kept)
+
+def _merge_groups(best: Any, readings: list[tuple[str, np.ndarray]]) -> list[tuple[str, np.ndarray]]:
+    """The best match first, then each reading; a reading that finds exactly the same photos as an earlier one is not repeated."""
+    out: list[tuple[str, np.ndarray]] = []
+    for label, ids in ([best] if best else []) + readings:
+        if not any(len(ids) == len(o) and np.array_equal(np.sort(ids), np.sort(o)) for _, o in out):
+            out.append((label, ids))
+    return out
+
 
 MAX_REVISIONS = 2  # how many times the agent may look at an empty result and try a different plan
 
@@ -307,8 +317,19 @@ class AgentService:
             log.exception("plan execution failed")
             return AgentReply("error", f"Something went wrong while searching: {exc}", **base)
 
+        groups: list[tuple[str, np.ndarray]] = []
+        if plan.intent in ("find", "count") and hasattr(executor, "readings"):
+            try:
+                groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), executor.readings(plan))
+            except Exception:  # listing the other readings must never break the answer
+                log.exception("listing readings failed")
+        if len(outcome.ids) == 0 and groups:
+            label, ids = groups[0]
+            outcome.ids = ids
+            outcome.notes.append(f"Nothing fits the whole request, so these are the photos that fit one reading of it: {label.lower()}.")
         common = {
             **base,
+            "groups": groups,
             "ids": outcome.ids,
             "reports": outcome.reports,
             "notes": outcome.notes,
@@ -316,8 +337,6 @@ class AgentService:
         }
         conditions = describe_conditions(plan, outcome.date_range)
         n = len(outcome.ids)
-        if n and getattr(outcome, "partial", ""):
-            return AgentReply("results", f"Nothing matches everything, so here are the **{n:,}** closest photos.", **common)
         if n == 0:
             return AgentReply("results", f"No photos found. {explain_empty(outcome.reports)}", **common)
         if plan.intent == "count":
