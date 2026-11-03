@@ -13,8 +13,13 @@
    on your Mac with `scripts/aperture-sandboxed.sh --selftest PHOTO_DIR` (expects three PASS lines). The wrapper also sets
    `APERTURE_NEVER_ONLINE=1`, which refuses to enable the network at all (`aperture fetch-models` is refused inside it). `sandbox-exec` is deprecated by Apple but still works; this profile
    was written without access to a Mac, so run the self-test before relying on it.
-9. **Encryption at rest.** Aperture's index (including face data) is not encrypted by Aperture. Encrypt the external drive:
-   Finder > right-click the drive > *Encrypt* (APFS), or erase it as *APFS (Encrypted)* in Disk Utility. Keep FileVault on.
+9. **Encryption at rest.** Aperture's index (dates, GPS, places, faces, text, labels, full metadata), thumbnails and previews are
+   private data. Keep them in the encrypted vault: `scripts/aperture-vault.sh create`, then `open`, then run with
+   `APERTURE_DRIVE=/Volumes/ApertureVault`. The vault is an AES-256 APFS image; its password is generated and kept only in your
+   login Keychain (never printed, never in a file or in this repository). `close` makes everything unreadable. Aperture also sets
+   folders to owner-only (0700) and the index and settings to 0600. Without the vault, at least use an encrypted APFS drive
+   (Disk Utility, *APFS (Encrypted)*) and keep FileVault on. None of this data is ever in git, and the assistant that wrote the
+   code has no access to your Mac or drive.
 10. **Install-time exposure.** `scripts/install.sh` downloads packages from PyPI. Run it once on a trusted network, then use
     the sandbox for daily use. Hash-pinned requirements are a possible later step.
 11. **Secure by default.** `ui`, `app`, `scan`, `ask`, `caption`, `export-job`, `install-service` and `install-launcher` refuse to run unless

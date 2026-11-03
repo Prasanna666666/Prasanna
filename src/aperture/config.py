@@ -89,6 +89,22 @@ class Paths:
         """Create the directory tree (call only after the drive was validated)."""
         for p in (self.data, self.models, self.logs, self.jobs, self.geo, self.tmp, self.cache):
             p.mkdir(parents=True, exist_ok=True)
+        self.lock_down()
+
+    def lock_down(self) -> None:
+        """Only the owner may open Aperture's folders and files (index, thumbnails, previews, settings, logs).
+        Best effort: drives formatted exFAT/FAT ignore permissions, which is one more reason to use an encrypted APFS volume."""
+        for folder in (self.root, self.data, self.logs, self.tmp, self.cache):
+            try:
+                folder.chmod(0o700)
+            except OSError:
+                pass
+        for file in (self.db, Path(f"{self.db}-wal"), Path(f"{self.db}-shm"), self.settings_file, self.progress_file):
+            try:
+                if file.exists():
+                    file.chmod(0o600)
+            except OSError:
+                pass
 
 
 def default_paths() -> Paths:

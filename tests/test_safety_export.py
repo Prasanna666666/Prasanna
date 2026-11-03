@@ -159,3 +159,25 @@ def test_doctor_skips_slow_stats_unless_asked(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(cli, "_stats", lambda conn: called.append(1) or {"photos": 0})
     ns = cli.build_parser().parse_args(["doctor"])
     assert ns.stats is False and cli.build_parser().parse_args(["doctor", "--stats"]).stats is True
+
+
+def test_aperture_folders_and_index_are_owner_only(tmp_path):
+    import stat
+
+    from aperture.config import Paths
+
+    paths = Paths(tmp_path)
+    paths.ensure()
+    paths.db.write_bytes(b"x")
+    paths.settings_file.write_text("{}")
+    paths.lock_down()
+    assert stat.S_IMODE(paths.data.stat().st_mode) == 0o700 and stat.S_IMODE(paths.root.stat().st_mode) == 0o700
+    assert stat.S_IMODE(paths.db.stat().st_mode) == 0o600 and stat.S_IMODE(paths.settings_file.stat().st_mode) == 0o600
+
+
+def test_the_vault_script_keeps_the_password_in_the_keychain_only():
+    from pathlib import Path
+
+    script = (Path(__file__).parent.parent / "scripts" / "aperture-vault.sh").read_text()
+    assert "security add-generic-password" in script and "-encryption AES-256" in script and "-stdinpass" in script
+    assert "echo \"$pw\"" not in script and "> " not in script.split("create)")[1].split("open)")[0].replace("&&", "")  # never written to a file
