@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from datetime import date
+from pathlib import Path
 
 import streamlit as st
 
@@ -10,7 +12,7 @@ from orbit import netguard
 
 netguard.install()
 
-from orbit import agent, db, llm, tagging
+from orbit import agent, applenotes, db, llm, tagging
 from orbit.modules import ALL, money, notes, people, tasks
 from orbit.modules.today import briefing_for
 
@@ -116,6 +118,9 @@ elif page == "Notes":
         if st.form_submit_button("Save") and body:
             notes.add_note(C, {"title": title, "body": body, "tags": tags})
             st.rerun()
+    inbox = Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
+    if st.button("Import Apple Notes from the inbox"):
+        st.success(str(applenotes.import_dir(C, inbox))) if inbox.is_dir() else st.error(f"{inbox} not found - run `orbit export-notes` on your Mac first")
     if st.button("Auto-tag untagged notes"):
         try:
             client = llm.OllamaClient(db.get_setting(C, "ollama_host", "") or None)

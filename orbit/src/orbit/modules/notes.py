@@ -17,6 +17,11 @@ MIGRATIONS = (
         updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """,
+    # v2: remember where an imported note came from, so re-importing updates instead of duplicating
+    """
+    ALTER TABLE notes ADD COLUMN source_id TEXT;
+    CREATE UNIQUE INDEX notes_source ON notes(source_id) WHERE source_id IS NOT NULL;
+    """,
 )
 
 

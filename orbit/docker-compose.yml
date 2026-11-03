@@ -20,7 +20,10 @@ services:
     image: orbit:local
     environment:
       OLLAMA_HOST: http://ollama:11434
-    volumes: ["orbit-data:/data"]
+      ORBIT_INBOX: /inbox
+    volumes:
+      - orbit-data:/data
+      - ${HOME}/OrbitInbox:/inbox:ro   # statements/notes you drop here; Orbit can read but never change them
     networks: [private]
     depends_on: [ollama]
 

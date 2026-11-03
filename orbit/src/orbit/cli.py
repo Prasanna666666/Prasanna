@@ -1,14 +1,15 @@
-"""orbit ui | chat | brief | tools | agents | tag"""
+"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir]"""
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
 
-from . import agent, agents, db, netguard, tagging
+from . import agent, agents, applenotes, db, netguard, tagging
 from .modules import ALL, tools
 from .modules.today import briefing_for
 
@@ -26,6 +27,11 @@ def main(argv: list[str] | None = None) -> int:
         app = Path(__file__).with_name("app.py")
         return subprocess.call([sys.executable, "-m", "streamlit", "run", str(app), *rest])
     netguard.install()
+    inbox = Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
+    if cmd == "export-notes":  # native Mac step; touches no database
+        out = Path(rest[0]) if rest else inbox
+        print(applenotes.write_notes(applenotes.fetch_notes(), out), "->", out)
+        return 0
     conn = open_db()
     if cmd == "brief":
         print(json.dumps(briefing_for(conn, date.today()), indent=2, default=str))
@@ -35,6 +41,8 @@ def main(argv: list[str] | None = None) -> int:
     elif cmd == "agents":
         for a in agents.AGENTS:
             print(f"{a.name:9} {len(a.tools)} tools: {', '.join(sorted(a.tools))}")
+    elif cmd == "import-notes":
+        print(applenotes.import_dir(conn, Path(rest[0]) if rest else inbox))
     elif cmd == "tag":
         try:
             client = agent.llm.OllamaClient()

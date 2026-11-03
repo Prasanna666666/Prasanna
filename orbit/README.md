@@ -38,6 +38,20 @@ cd orbit && docker compose up -d --build     # then open http://127.0.0.1:8501
 - **Egress guard** blocks every non-local connection inside the app; the container network blocks it again outside.
 - Not done yet: encryption of the database file.
 
+## Your data boundary
+- Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).
+  It is never in this folder. `.gitignore` and `tests/test_data_boundary.py` block data files from git.
+- `mkdir -p ~/OrbitInbox` before `docker compose up`; it is mounted **read-only** into the app.
+- Never paste real statements/notes into a cloud AI chat (including the one that wrote this code). Paste error text only.
+
+## Bring in your Apple Notes
+```bash
+pip install -e .                 # on the Mac, outside Docker (no dependencies)
+orbit export-notes               # allow the "control Notes" prompt; writes text files to ~/OrbitInbox/notes/
+orbit import-notes               # or the button on the Notes page; safe to repeat - updates, never duplicates
+```
+Locked notes are skipped and counted; images/attachments are not exported (text only). Untested on a real Mac.
+
 ## Agents and tagging
 - A router picks a **specialist agent** per message (instant keyword routing; the local model only breaks ties):
   `money`, `tasks`, `family`, `notes`, `briefing`, else `general` (all tools). `orbit agents` lists them.
