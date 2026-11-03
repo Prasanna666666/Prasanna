@@ -11,7 +11,7 @@ from orbit import netguard
 netguard.install()
 
 from orbit import agent, db, llm
-from orbit.modules import ALL, money, notes, people, tasks, world
+from orbit.modules import ALL, money, notes, people, tasks
 from orbit.modules.today import briefing_for
 
 st.set_page_config(page_title="Orbit", page_icon="🧭", layout="wide")
@@ -161,13 +161,9 @@ else:
     new = st.text_input("Currency code", cur)
     mdl = st.text_input("Local model (Ollama)", db.get_setting(C, "model", llm.DEFAULT_MODEL))
     oh = st.text_input("Ollama address", db.get_setting(C, "ollama_host", "") or llm.host())
-    city = st.text_input("Home city (for weather)", db.get_setting(C, "home_city", ""))
     if st.button("Save"):
         db.set_setting(C, "currency", new.upper())
         db.set_setting(C, "model", mdl)
         db.set_setting(C, "ollama_host", oh)
-        db.set_setting(C, "home_city", city)
         st.success("Saved")
-    st.caption(f"Data lives in {db.home()}. The model runs locally. The only internet traffic is the public lookups below.")
-    st.subheader("Everything sent to the internet")
-    st.dataframe(world.network_log(C, {"limit": 100}), width="stretch")
+    st.caption(f"Data lives in {db.home()}. The model runs locally. Orbit makes no internet requests.")

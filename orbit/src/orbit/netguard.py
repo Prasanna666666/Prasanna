@@ -1,18 +1,16 @@
-"""Egress guard: this process may talk to loopback and to an explicit allowlist of public hosts - nothing else.
+"""Air-gap guard: this process may talk to loopback and to explicitly trusted LOCAL hosts - nothing else.
 
-Installed at start-up. DNS resolution of any other name is refused, and so is any connect() to an address
-that is not loopback, a configured local host (e.g. an Ollama container) or an IP resolved from an allowed host.
-This is defence in depth next to the container's own network policy, not a replacement for it.
+Installed at start-up. DNS lookups of any other name are refused, and so is any connect() to an address that is
+not loopback or resolved from a trusted local host (e.g. the Ollama bridge inside the private Docker network).
+There is no public allowlist: Orbit makes no internet requests at all. This is defence in depth next to the
+container's internal-only network, not a replacement for it.
 """
 
 from __future__ import annotations
 
 import ipaddress
-import os
 import socket
-import urllib.parse
 
-PUBLIC_ALLOW = {"api.open-meteo.com", "geocoding-api.open-meteo.com", "api.frankfurter.app"}
 _local_hosts: set[str] = {"localhost"}
 _allowed_ips: set[str] = set()
 _installed = False
@@ -39,9 +37,6 @@ def install() -> None:
     global _installed
     if _installed:
         return
-    for var in ("HTTPS_PROXY", "https_proxy"):  # in the container, public lookups go via the allowlist proxy
-        if os.environ.get(var):
-            allow_local(urllib.parse.urlparse(os.environ[var]).hostname or "")
     _orig["gai"], _orig["connect"], _orig["connect_ex"] = socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex
 
     def gai(host, *a, **k):
@@ -51,17 +46,13 @@ def install() -> None:
             if h in _local_hosts:
                 _allowed_ips.update(r[4][0] for r in res)
             return res
-        if h in PUBLIC_ALLOW:
-            res = _orig["gai"](host, *a, **k)
-            _allowed_ips.update(r[4][0] for r in res)
-            return res
-        raise EgressBlocked(f"blocked DNS lookup for {h!r}: not on the allowlist")
+        raise EgressBlocked(f"blocked DNS lookup for {h!r}: Orbit is offline by design")
 
     def check(addr):
         if isinstance(addr, tuple) and addr and isinstance(addr[0], str):
             ip = addr[0]
             if not (_is_loopback(ip) or ip in _allowed_ips):
-                raise EgressBlocked(f"blocked connection to {ip}: not loopback or allowlisted")
+                raise EgressBlocked(f"blocked connection to {ip}: not loopback or a trusted local host")
 
     def connect(self, addr):
         if self.family != getattr(socket, "AF_UNIX", -1):

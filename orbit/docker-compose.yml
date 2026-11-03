@@ -1,7 +1,9 @@
-# Orbit: private by construction.
-#   private  - internal network, NO route to the internet: app, ollama, gateway, egress
-#   outside  - normal network, attached ONLY to `egress` (allowlist proxy) and to the one-off model download
-# The app's only way out is egress -> 3 public API hostnames. Your data lives in the `orbit-data` volume.
+# Orbit: offline by design.
+#   private - internal network, NO route to the internet. The app lives ONLY here.
+#   default - Docker's normal network, used only by the two byte-forwarders below (gateway, ollama bridge):
+#             Docker needs it to publish a port and to reach Ollama running on your Mac. They run no app code.
+# There is no proxy and no allowlist: nothing in this stack is meant to reach the internet.
+# Prereq (Mac): install Ollama and run `ollama pull llama3.2:3b` (needs internet once).
 name: orbit
 
 x-hardened: &hardened
@@ -18,14 +20,11 @@ services:
     image: orbit:local
     environment:
       OLLAMA_HOST: http://ollama:11434
-      HTTPS_PROXY: http://egress:3128
-      NO_PROXY: ollama,localhost,127.0.0.1
     volumes: ["orbit-data:/data"]
     networks: [private]
-    depends_on: [ollama, egress]
+    depends_on: [ollama]
 
-  # Docker cannot publish ports from an internal-only network, so a dumb TCP forwarder exposes the UI
-  # on this computer only (127.0.0.1). It can reach nothing except app:8501.
+  # Exposes the UI on this computer only (127.0.0.1). Can reach nothing except app:8501.
   gateway:
     <<: *hardened
     image: alpine/socat:1.8.0.0
@@ -34,34 +33,15 @@ services:
     networks: [private, default]
     depends_on: [app]
 
+  # Named `ollama` so the app finds it; forwards ONLY to Ollama on the Mac (host.docker.internal:11434).
   ollama:
     <<: *hardened
-    read_only: false   # ollama writes under /root/.ollama (the models volume)
-    image: ollama/ollama:0.5.7
-    volumes: ["ollama-models:/root/.ollama"]
-    networks: [private]
-
-  egress:
-    <<: *hardened
-    build: .
-    image: orbit:local
-    entrypoint: ["python", "-m", "orbit.egress"]
-    environment:
-      EGRESS_ALLOW: api.open-meteo.com,geocoding-api.open-meteo.com,api.frankfurter.app
-    networks: [private, outside]
-
-  # One-off: `docker compose --profile setup run --rm pull-model`  (the ONLY time the model touches the internet)
-  pull-model:
-    image: ollama/ollama:0.5.7
-    profiles: [setup]
-    entrypoint: ["sh", "-c", "ollama serve >/dev/null 2>&1 & sleep 4 && ollama pull $${MODEL:-llama3.2:3b}"]
-    volumes: ["ollama-models:/root/.ollama"]
-    networks: [outside]
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
+    networks: [private, default]
 
 networks:
   private: {internal: true}
-  outside: {}
 
 volumes:
   orbit-data:
-  ollama-models:

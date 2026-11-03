@@ -16,34 +16,27 @@ Try in Chat: "remind me to call Amma every Sunday 6pm", "spent 450 on groceries"
 
 Data is in `~/.orbit/orbit.db` (override with `ORBIT_HOME`).
 
-## Run in Docker (recommended for private data)
+## Run in Docker (offline by design)
+Orbit never uses the internet. Needs Ollama installed natively on the Mac (fast, uses the GPU).
 ```bash
-cd orbit
-docker compose --profile setup run --rm pull-model     # once: downloads the model (only time it touches the internet)
-docker compose up -d --build                           # then open http://127.0.0.1:8501
-# Apple Silicon (native Ollama for GPU speed):  ollama pull llama3.2:3b  &&
-docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
+ollama pull llama3.2:3b            # the ONLY step that needs internet (once); afterwards you can switch Wi-Fi off
+cd orbit && docker compose up -d --build     # then open http://127.0.0.1:8501
 ```
-- `app`, `ollama`, `gateway`, `egress` share an **internal** network with no route to the internet.
-- Only `egress` (an allowlist CONNECT proxy, `orbit/egress.py`) is also on an outside network; it permits just
-  `api.open-meteo.com`, `geocoding-api.open-meteo.com`, `api.frankfurter.app` on port 443, and refuses private IPs.
-- All containers: non-root, read-only filesystem, all Linux capabilities dropped, no-new-privileges. The UI is
-  published on 127.0.0.1 only. Data lives in Docker volumes `orbit-data` and `ollama-models`.
-- Disk encryption: Docker volumes are not encrypted by themselves - keep FileVault / BitLocker / LUKS on.
-- Verify isolation: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail.
-
-### Tuning for an 8 GB M1
-- Default model is `llama3.2:3b` (~2 GB, supports tool calls). `qwen2.5:3b` is a good alternative; avoid 7-8B models on 8 GB.
-- Docker Desktop > Settings > Resources: Memory 2 GB (the app, proxy and gateway are tiny; Ollama runs natively).
-- Close heavy apps while chatting; the model unloads itself 10 minutes after the last message.
-- Small models make more mistakes with dates and multi-step requests: check what it saved on the Tasks / Money pages.
+- Every container is on an **internal** Docker network with no route to the internet. There is no proxy and no allowlist.
+- `ollama` in the compose file is only a TCP forwarder to Ollama on your Mac; `gateway` forwards the UI to 127.0.0.1 only.
+  Those two also sit on Docker's default network (Docker needs it to publish a port / reach the host); they only forward bytes.
+- All containers: non-root, read-only filesystem, all Linux capabilities dropped, no-new-privileges.
+- In-process guard (`netguard.py`) refuses any DNS lookup or connection except loopback and the Ollama bridge. Tests fail the
+  build if a network library is imported or an internet-capable tool is registered.
+- Not covered by Orbit: Ollama itself (the Mac app can check for updates - turn that off) and macOS. For a hard guarantee,
+  switch Wi-Fi off while using Orbit, or block `ollama` in a firewall such as LuLu / Little Snitch.
+- Disk: Docker volumes are not encrypted by themselves - keep FileVault on.
+- Verify: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail.
 
 ## Privacy model
-- **The model is local** (Ollama). No cloud AI is used anywhere.
-- **Egress guard** (`netguard.py`): the process can reach loopback and three public hosts (Open-Meteo, Frankfurter/ECB) - DNS and connects to anything else are refused.
-- **Public lookups carry no private text**: `weather` takes only a city name, `exchange_rate` only two currency codes (regex-validated, so a prompt-injected model cannot smuggle your data out in them). `current_time` is offline.
-- **Audit**: every outbound request is logged; see Settings > "Everything sent to the internet".
-- Not done yet: encryption at rest, container with network policy, Gmail. See roadmap.
+- **The model is local** (Ollama). No cloud AI. No weather/rates/web tools exist - the assistant is offline.
+- **Egress guard** blocks every non-local connection inside the app; the container network blocks it again outside.
+- Not done yet: encryption of the database file.
 
 ## Adding a feature
 1. Create `src/orbit/modules/health.py` with a `MODULE = Module(name, migrations, tools)` (see `tasks.py`).
@@ -51,8 +44,8 @@ docker compose -f docker-compose.yml -f docker-compose.mac.yml up -d --build
 3. The tools immediately work in the chat, and you add a page in `app.py`. Migrations are append-only.
 
 ## Roadmap (suggested order)
-0. **Hardening**: encrypted database, Docker compose (app + Ollama on an internal network, allowlisting egress proxy), read-only fs.
-0b. **Gmail, local-only**: fetch via OAuth into the local DB, summarised by the local model; drafts only, never auto-send.
+0. **Hardening**: encrypted database file.
+0b. **Mail, offline**: import a Google Takeout .mbox file (no live connection), summarised by the local model.
 1. **Health & parents' care** - medicines with dose schedules, appointments, vitals log, per-parent records.
 2. **Reminders that reach you** - push/WhatsApp/Telegram/email delivery of due items (today they are only shown).
 3. **Calendar** - read/write Google or Apple calendar; briefing merges events.

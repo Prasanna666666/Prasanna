@@ -1,10 +1,16 @@
+import ast
+import pathlib
 import socket
 import threading
 
 import pytest
 
-from orbit import agent, netguard
-from orbit.modules import world
+from orbit import netguard
+from orbit.modules import ALL, tools
+
+SRC = pathlib.Path(__file__).parent.parent / "src" / "orbit"
+NETWORK_MODULES = {"requests", "httpx", "aiohttp", "http.client", "ftplib", "smtplib", "imaplib", "poplib",
+                   "telnetlib", "websockets", "anthropic", "openai"}
 
 
 @pytest.fixture
@@ -14,9 +20,10 @@ def guard():
     netguard.uninstall()
 
 
-def test_blocks_dns_and_direct_ip(guard):
-    with pytest.raises(netguard.EgressBlocked):
-        socket.getaddrinfo("example.com", 443)
+def test_blocks_all_dns_and_direct_ip(guard):
+    for name in ("example.com", "api.open-meteo.com", "api.frankfurter.app"):
+        with pytest.raises(netguard.EgressBlocked):
+            socket.getaddrinfo(name, 443)
     s = socket.socket()
     with pytest.raises(netguard.EgressBlocked):
         s.connect(("93.184.216.34", 443))
@@ -28,39 +35,22 @@ def test_loopback_still_works(guard):
     srv.bind(("127.0.0.1", 0))
     srv.listen(1)
     threading.Thread(target=lambda: srv.accept()[0].close(), daemon=True).start()
-    c = socket.create_connection(("127.0.0.1", srv.getsockname()[1]))
-    c.close()
+    socket.create_connection(("127.0.0.1", srv.getsockname()[1])).close()
     srv.close()
 
 
-def test_place_and_currency_are_strictly_validated(conn):
-    for bad in ["Bengaluru; my mother's BP is 150/90", "Amma\nsalary 90000", "x" * 50, "123"]:
-        with pytest.raises(ValueError):
-            world.weather(conn, {"place": bad})
-    with pytest.raises(ValueError):
-        world.exchange_rate(conn, {"base": "USD", "quote": "my password"})
-    assert conn.execute("SELECT COUNT(*) FROM net_audit").fetchone()[0] == 0  # nothing was sent
+def test_no_internet_capable_tools():
+    banned = {"weather", "exchange_rate", "network_log", "search_web", "fetch_url"}
+    assert not banned & set(tools(ALL))
 
 
-def test_exchange_rate_is_audited(conn, monkeypatch):
-    seen = {}
-
-    def fake_get(conn_, host, path, params):
-        conn_.execute("INSERT INTO net_audit (host, path, query) VALUES (?,?,?)", (host, path, str(params)))
-        seen.update(host=host, params=params)
-        return {"date": "2026-11-03", "rates": {"INR": 88.5}}
-
-    monkeypatch.setattr(world, "_get", fake_get)
-    r = world.exchange_rate(conn, {"base": "usd", "quote": "inr", "amount": 10})
-    assert r["converted"] == 885.0 and seen["params"] == {"from": "USD", "to": "INR"}
-    assert world.network_log(conn, {})[0]["host"] == "api.frankfurter.app"
-
-
-def test_non_allowlisted_host_refused(conn):
-    with pytest.raises(ValueError):
-        world._get(conn, "evil.example.com", "/", {})
-
-
-def test_time_is_offline(conn):
-    assert world.current_time(conn, {"timezone": "Asia/Kolkata"})["timezone"] == "Asia/Kolkata"
-    assert agent.run_tool(conn, "current_time", {"timezone": "Mars/Base"})[1]
+def test_no_network_libraries_imported_anywhere():
+    """Build-time check: only llm.py (local Ollama over urllib) may touch the network, and egress is guarded."""
+    for f in SRC.rglob("*.py"):
+        for node in ast.walk(ast.parse(f.read_text())):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
+                    [node.module or ""] if isinstance(node, ast.ImportFrom) else []
+            for n in names:
+                assert n not in NETWORK_MODULES, f"{f.name} imports {n}"
+                if n.startswith("urllib") and "request" in n:
+                    assert f.name == "llm.py", f"{f.name} uses urllib.request"
