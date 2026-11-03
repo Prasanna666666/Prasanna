@@ -327,7 +327,6 @@ def test_the_default_brain_is_the_measured_pipeline_and_the_tool_agent_is_one_se
     paths.ensure()
     ctx = AppContext(paths)
     assert not isinstance(ctx.agent(), AgentService)  # the default is the tool-using agent
-    ctx.settings.brain = "tools"
     agent = ctx.agent()
     assert isinstance(agent, ToolAgent) and agent._service._rescue is False  # no word-matching fallback
 
@@ -360,7 +359,6 @@ def test_library_context_is_retrieved_for_the_request(tmp_path, monkeypatch):
     conn.commit()
     conn.close()
     ctx = AppContext(paths)
-    ctx.settings.brain = "tools"
     facts = ctx.agent()._context("photos from Goa")
     assert "PLACES IN THIS LIBRARY: Goa, India" in facts and "PHOTOS SPAN: 2025-05-01" in facts and "LIBRARY SIZE: 1 files, 1 indexed" in facts
 

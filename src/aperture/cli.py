@@ -53,7 +53,6 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
-    cfg.add_argument("--brain", choices=["tools", "classic"], help="classic = router + planner pipeline (default); tools = the tool-using agent (experimental)")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
     sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
     sec.add_argument("--classic", action="store_true", help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app")
@@ -678,9 +677,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             s.export_dir = str(resolve_export_dir(paths, args.export_dir, s.photo_dir))
         if args.ollama_model:
             s.ollama_model = args.ollama_model
-        if args.brain:
-            s.brain = args.brain
-        if args.photo_dir or args.export_dir or args.ollama_model or args.brain:
+        if args.photo_dir or args.export_dir or args.ollama_model:
             s.save(paths)
         print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
         return 0

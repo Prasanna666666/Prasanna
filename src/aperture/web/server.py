@@ -124,7 +124,7 @@ class Web:
 
         self.refresh_counts_async()
         healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
-        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "brain": ctx.settings.brain, "build": self.build,
+        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "build": self.build,
                 "search_ready": bool(ctx.search_ready()), "warm_problem": ctx.warm_problem(),
                 "indexing": ScanLock(ctx.paths).running(verify=True),
                 "paused_for_chat": self.paused_for_chat}

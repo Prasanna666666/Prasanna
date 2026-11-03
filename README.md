@@ -65,7 +65,7 @@ Lumo's tool-using agent (RAG + tools + a loop), written to be read: `src/apertur
 4. **Answer**: it writes the reply, streamed; the photos it found appear on screen. The code writes no user-facing sentences.
 
 An agent is a goal plus a list of tools (`AgentSpec`); a specialist (a curator, an organiser) is the same loop with a different goal and tools. All tools are read-only.
-Measure the whole agent, not single phrases: `aperture eval-tools` (all plan and routing cases). It is **experimental**: the default brain is still the older router + planner pipeline (measured 83% plans, 97% routing) until `aperture eval-tools` scores at least as well. Try the agent with `aperture settings --brain tools`; go back with `--brain classic`.
+Measure the whole agent, not single phrases: `aperture eval-tools` (all plan and routing cases).
 
 ## Develop
 

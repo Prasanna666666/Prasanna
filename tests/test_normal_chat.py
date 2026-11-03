@@ -93,8 +93,7 @@ def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     ctx = AppContext(paths)
-    ctx.settings.brain = "classic"
-    agent = ctx.agent()
+    agent = ctx.service()
     assert isinstance(agent, AgentService) and agent._chatter is not None
     sent = []
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "Hi there!"}})
@@ -117,8 +116,7 @@ def test_the_date_comes_before_the_examples_and_is_not_glued_to_one(tmp_path, mo
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     ctx = AppContext(paths)
-    ctx.settings.brain = "classic"
-    ctx.agent()._chatter("hello", [])
+    ctx.service()._chatter("hello", [])
     system = sent[0]["messages"][0]["content"]
     assert system.startswith(f"Today's date is {date.today():%A %d %B %Y}.\nYou are Lumo")
     assert system.rstrip().endswith("than a JPEG.")  # the last example answer ends cleanly: nothing glued after it

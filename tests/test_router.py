@@ -77,7 +77,6 @@ def _context(tmp_path, monkeypatch):
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     ctx = AppContext(paths)
-    ctx.settings.brain = "classic"  # these tests are about the classic router + planner pipeline
     return ctx
 
 
@@ -107,7 +106,7 @@ def test_chat_replies_know_todays_date(tmp_path, monkeypatch):
             return False
 
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: bodies.append(json.loads(req.data)) or Resp())
-    agent = _context(tmp_path, monkeypatch).agent()
+    agent = _context(tmp_path, monkeypatch).service()
     assert "".join(agent._chat_stream("what day is it?", [])) == "ok"
     system = bodies[0]["messages"][0]["content"]
     assert "Today's date is" in system and str(date.today().year) in system
@@ -273,7 +272,7 @@ def test_real_chat_requests_are_short_and_calm(tmp_path, monkeypatch):
 
     sent = []
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "ok"}})
-    agent = _context(tmp_path, monkeypatch).agent()
+    agent = _context(tmp_path, monkeypatch).service()
     agent._chatter("tell me about cameras", [])
     p = sent[0]
     assert CHAT_MAX_TOKENS == 160 and p["options"]["num_predict"] == 160 and p["options"]["temperature"] == 0.3
@@ -342,7 +341,7 @@ def test_the_real_date_step_reads_the_models_json(tmp_path, monkeypatch):
     sent = []
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": '{"phrase": "last month", "relative": "last_month"}'}})
     ctx = _context(tmp_path, monkeypatch)
-    step = ctx.agent()._date_step
+    step = ctx.service()._date_step
     phrase, spec = step("pics of last month")
     assert phrase == "last month" and spec.relative == "last_month"
     assert sent[0]["format"] == DATE_SCHEMA and sent[0]["options"]["num_predict"] == 60

@@ -238,6 +238,11 @@ class AppContext:
 
         return lambda request, has_previous: route(" ".join(request.split()), has_previous)
 
+    def service(self) -> AgentService:
+        """The plan runner behind the agent (router, planner, executor)."""
+        self.agent()
+        return self._service
+
     def agent(self) -> Agent:
         def make_executor() -> Executor:
             return Executor(
@@ -464,9 +469,8 @@ class AppContext:
                 answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
-            if self.settings.brain == "tools":
-                return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term)
-            return service
+            self._service = service  # the search executor the agent uses (tests exercise it directly)
+            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term)
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

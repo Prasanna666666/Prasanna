@@ -133,7 +133,6 @@ class Settings:
     schema: int = 9  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
-    brain: str = "tools"  # "tools" = the tool-using agent (decides, searches, reads results, tries again); "classic" = the fixed router + planner pipeline
     rescue_search: bool = False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
     quick_preview: bool = False  # instant matches by the typed WORDS (milliseconds, no AI); off: they can show photos that merely contain the words
@@ -223,8 +222,6 @@ class Settings:
         s.stages = Stages(**_to_dict(self.stages))
         if s.visual_strictness not in STRICTNESS_LEVELS:
             s.visual_strictness = "balanced"
-        if s.brain not in ("tools", "classic"):
-            s.brain = "classic"
         s.page_size = _clamp(s.page_size, 6, 200)
         if s.ui_density not in DENSITY_COLUMNS:
             s.ui_density = "comfortable"
