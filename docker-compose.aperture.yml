@@ -3,7 +3,7 @@
 # There is no download job here. Get the models once with the normal install (scripts/install.sh) and reuse them.
 #   private - internal network: aperture + the Ollama bridge + gateway. No internet.
 # Set the drive path if it is not /Volumes/Expansion:  APERTURE_HOST_DRIVE=/Volumes/MyDrive docker compose -f docker-compose.aperture.yml up -d
-# Prereq (Mac): Ollama installed natively (`ollama pull llama3.2:3b`), listening on 127.0.0.1:11434.
+# Prereq (Mac): Ollama installed natively (`ollama pull ministral-3:3b`), listening on 127.0.0.1:11434.
 name: aperture
 
 x-hardened: &hardened

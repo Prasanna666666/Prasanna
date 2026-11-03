@@ -20,7 +20,7 @@ git clone https://github.com/Prasanna666666/Prasanna.git && cd Prasanna
 scripts/install.sh          # venv + models + Aperture.app, all on the external drive
 ```
 
-Then `ollama pull llama3.2:3b` (the Ollama app stores weights in `~/.ollama`; set `OLLAMA_MODELS` to a folder on the drive to keep them off the internal disk).
+Then `ollama pull ministral-3:3b` (the Ollama app stores weights in `~/.ollama`; set `OLLAMA_MODELS` to a folder on the drive to keep them off the internal disk).
 
 ## Use
 

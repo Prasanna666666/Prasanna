@@ -133,3 +133,18 @@ def test_fetch_models_refused_when_locked(monkeypatch, tmp_path, capsys):
     monkeypatch.setenv("APERTURE_DRIVE", str(tmp_path))
     assert main(["fetch-models"]) == 2
     assert "permanently disabled" in capsys.readouterr().out
+
+
+def test_single_mistral_model_and_old_settings_migrate(tmp_path):
+    import json
+
+    from aperture.config import Paths, Settings
+
+    paths = Paths(tmp_path)
+    d = Settings.defaults(paths)
+    assert d.ollama_model == d.vision_model == "ministral-3:3b"
+    paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
+    paths.settings_file.write_text(json.dumps({"schema": 3, "ollama_model": "llama3.2:3b", "vision_model": "moondream",
+                                                "page_size": 48}))
+    s = Settings.load(paths)
+    assert s.ollama_model == s.vision_model == "ministral-3:3b" and s.page_size == 48 and s.schema == 4

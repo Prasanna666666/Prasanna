@@ -12,11 +12,16 @@ Two ways to run Aperture safely. Pick one.
 Docker on a Mac runs a Linux VM, so Apple Vision and the GPU are unavailable inside it. If you care about search speed
 and photo text search, use the sandbox. If you care most about isolation, use Docker.
 
+## Disk space
+The Docker image includes PyTorch and is several GB, and Docker Desktop keeps its own disk file. On a Mac that is short of space, the
+native install + sandbox is much lighter. Models: one only (`ministral-3:3b`). Free space with `ollama list` then `ollama rm <name>`,
+and `docker system prune -a` to clear unused images (careful: removes all unused images).
+
 ## Run
 ```bash
 export APERTURE_HOST_DRIVE=/Volumes/YourDrive           # if not /Volumes/Expansion
 mkdir -p "$APERTURE_HOST_DRIVE"/{Aperture,Aperture_Exports}
-ollama pull llama3.2:3b                                  # native Ollama on the Mac (uses the GPU)
+ollama pull ministral-3:3b                                  # native Ollama on the Mac (uses the GPU)
 # Models for Aperture itself (CLIP, faces, place data) must already be in $APERTURE_HOST_DRIVE/Aperture/models.
 # Get them once with the normal install (scripts/install.sh -> `aperture fetch-models`). The container cannot download.
 docker compose -f docker-compose.aperture.yml build

@@ -130,13 +130,15 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
-    schema: int = 3  # bumped when a default changed on purpose; older files get the new value
+    schema: int = 4  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
     auto_scan: bool = True
     ollama_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "llama3.2:3b"
-    vision_model: str = "moondream"  # describes photos and checks results; small enough for 8 GB (ollama pull moondream)
+    # One model for everything, to save disk (a Mac with little space): ollama pull ministral-3:3b. The exact tag could not
+    # be verified when this was written; if photo description / double-checking fails, the model may lack image input.
+    ollama_model: str = "ministral-3:3b"
+    vision_model: str = "ministral-3:3b"  # describes photos and checks results (optional features)
     agentic: bool = False  # True = slower tool-using agent loop; False = one fast planning call
     agent_max_steps: int = 8
     verify_limit: int = 40  # most photos the vision model re-checks in one step
@@ -186,8 +188,11 @@ class Settings:
                 raw.pop("agentic", None)
             if raw.get("schema", 1) < 3:  # v3: a small vision model that fits in 8 GB is the default
                 raw.pop("vision_model", None)
+            if raw.get("schema", 1) < 4:  # v4: a single Ministral model replaces llama3.2 + moondream
+                raw.pop("ollama_model", None)
+                raw.pop("vision_model", None)
             _overlay(settings, raw)
-            settings.schema = 3
+            settings.schema = 4
         settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 
