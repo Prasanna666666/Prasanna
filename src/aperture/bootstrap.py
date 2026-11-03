@@ -346,6 +346,35 @@ class AppContext:
             finally:
                 conn.close()
 
+        def read_text(ids: list[int]) -> list[dict[str, Any]]:
+            """The read_photo_text tool: the words found inside photos (OCR), for the model to answer from."""
+            conn = self.db.connect()
+            try:
+                items = lib.items_by_ids(conn, ids)
+                out = []
+                for i in ids:
+                    text = " ".join(lib.item_text(conn, i, 900).split())
+                    if text:
+                        item = items.get(i)
+                        out.append({"photo": i, "date": (item.taken_at or "")[:10] if item else "", "place": item.place if item else "", "text": text})
+                return out
+            finally:
+                conn.close()
+
+        def look(ids: list[int], question: str) -> list[dict[str, Any]]:
+            """The look_at_photos tool: the vision model answers a question about a few photos (descriptions are remembered)."""
+            conn = self.db.connect()
+            try:
+                answers = []
+                for i in ids:
+                    try:
+                        answers.append({"photo": i, "answer": describe_item(conn, self.paths, self.describer(), self.settings.vision_model, i, question)})
+                    except LLMError as exc:
+                        answers.append({"photo": i, "error": str(exc)})
+                return answers
+            finally:
+                conn.close()
+
         def lookup(kind: str, text: str) -> list[str]:
             """The look_up tool: which places, people or folders really exist in this library."""
             def distinct(sql: str) -> list[str]:
@@ -373,7 +402,7 @@ class AppContext:
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search,
             )
             if self.settings.brain == "tools":
-                return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup)
+                return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look)
             return service
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 

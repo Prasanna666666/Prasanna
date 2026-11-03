@@ -499,10 +499,10 @@ def cmd_eval_tools(ctx: AppContext) -> int:
             self.call = call
 
     class Recording(ToolAgent):
-        def _execute(self, call, request, previous_ids, history, timings):
+        def _execute(self, call, request, previous_ids, history, timings, shown=None):
             if call["name"] in ("find_photos", "count_photos", "copy_photos"):
                 raise Found(call)
-            return super()._execute(call, request, previous_ids, history, timings)
+            return super()._execute(call, request, previous_ids, history, timings, shown)
 
     def decide(request: str, previous: bool, people: list[str]):
         """Runs the REAL loop (look-ups and overviews included) with stand-in tools, up to the first search."""

@@ -50,11 +50,12 @@ def test_copying_to_a_folder_is_an_export():
 
 def test_tool_descriptions_are_the_only_identity_and_the_choices_are_clean():
     names = [t["function"]["name"] for t in TOOLS]
-    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "look_up"]
+    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "look_up", "read_photo_text", "look_at_photos"]
     assert "photo library" in TOOLS[0]["function"]["description"]
     assert "last_month" in PARAMS["relative"]["enum"] and "none" not in PARAMS["relative"]["enum"] and "none" not in PARAMS["season"]["enum"]
     assert all(k in PARAMS for k in FILTER_KEYS) and "required" not in TOOLS[0]["function"]["parameters"]
     assert TOOLS[4]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
+    assert TOOLS[6]["function"]["parameters"]["required"] == ["question"]
 
 
 # ------------------------------------------------------------------ the agent loop
@@ -175,7 +176,80 @@ def test_bad_tool_calls_become_observations_the_model_can_recover_from():
 def test_the_agent_has_a_step_budget_so_it_can_never_loop_forever():
     agent, llm, plans = agent_with([[tool("find_photos", what="dog")]] * 10)
     reply = agent.ask("dogs")
-    assert reply.text.startswith("I could not finish") and len(llm.calls) == MAX_STEPS + 1 and len(plans) == MAX_STEPS + 1
+    assert reply.text.startswith("I could not finish") and len(llm.calls) == MAX_STEPS + 1 and len(plans) == MAX_STEPS
+    assert llm.calls[-1][2] == [] and all(c[2] == TOOLS for c in llm.calls[:-1])  # the last round has no tools: it must answer
+
+
+def test_iterating_is_bounded_by_time_so_it_never_makes_the_app_slow(monkeypatch):
+    from aperture.agent import toolagent
+
+    clock = {"now": 100.0}
+    monkeypatch.setattr(toolagent.time, "monotonic", lambda: clock["now"])
+
+    def slow_turn():  # the first round takes 20 simulated seconds
+        clock["now"] += 20.0
+        return [tool("find_photos", what="dog")]
+
+    agent, llm, plans = agent_with([slow_turn, [("delta", "Here is what I found.")]])
+    reply = agent.ask("dogs")
+    assert len(plans) == 1 and "".join(reply.stream) == "Here is what I found."
+    assert llm.calls[1][2] == []  # over budget: no more tools, the model answers with what it has
+
+
+def test_the_slow_vision_tool_is_refused_when_little_time_is_left_and_capped_otherwise(monkeypatch):
+    from aperture.agent import toolagent
+
+    asked = []
+    look = lambda ids, question: asked.append((ids, question)) or [{"photo": i, "answer": "yes"} for i in ids]
+    agent, llm, _ = agent_with([[tool("find_photos", what="sunset")], [tool("look_at_photos", question="is it a sunset?", count=3)], [("delta", "Yes.")]])
+    agent._look = look
+    agent.ask("sunsets")
+    assert asked == [([11, 12, 13], "is it a sunset?")] and json.loads(llm.calls[2][1][-1]["content"])["photos"][0]["answer"] == "yes"
+
+    clock = {"now": 0.0}
+    monkeypatch.setattr(toolagent.time, "monotonic", lambda: clock["now"])
+    def slow_look():  # nine simulated seconds pass before the model asks to look: only six of the fifteen remain
+        clock["now"] += 9
+        return [tool("look_at_photos", question="x")]
+
+    agent2, llm2, _ = agent_with([[tool("find_photos", what="sunset")], slow_look, [("delta", "ok")]])
+    agent2._look = look
+    asked.clear()
+    agent2.ask("sunsets")
+    assert not asked and "not enough time" in json.loads(llm2.calls[2][1][-1]["content"])["error"]
+
+
+def test_the_agent_can_read_the_text_inside_photos_and_iterate_after_an_empty_search():
+    empty = SimpleNamespace(ids=np.zeros(0, np.int64), reports=[], notes=[], date_range="")
+    outcomes = iter([empty, FOUND])
+    plans = []
+
+    def make_executor():
+        return SimpleNamespace(run=lambda plan, previous: plans.append(plan) or next(outcomes))
+
+    service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)
+    llm = FakeLLM([[tool("find_photos", text_in_photo=["Starbux"])], [tool("find_photos", text_in_photo=["Starbucks"])],
+                   [tool("read_photo_text", count=2)], [("delta", "The total was 4.50.")]])
+    read = []
+    agent = ToolAgent(llm, service, lambda r: "", read_text=lambda ids: read.append(ids) or [{"photo": ids[0], "text": "STARBUCKS TOTAL 4.50"}],
+                      today=lambda: date(2026, 11, 3))
+    reply = agent.ask("what was the total on my Starbucks receipt?")
+    assert [p.clauses[0].query for p in plans] == ["Starbux", "Starbucks"]  # the empty search was retried with different conditions
+    assert read == [[11, 12]] and json.loads(llm.calls[3][1][-1]["content"])["photos"][0]["text"] == "STARBUCKS TOTAL 4.50"
+    assert "".join(reply.stream) == "The total was 4.50." and list(reply.ids) == [11, 12, 13]
+
+
+def test_read_and_look_tools_need_a_search_first_and_observations_explain_each_condition():
+    agent, llm, _ = agent_with([[tool("read_photo_text")], [("delta", "Search first.")]])
+    agent.ask("read it")
+    assert "search for photos first" in json.loads(llm.calls[1][1][-1]["content"])["error"]
+    from aperture.agent.executor import ClauseReport
+    from aperture.agent.toolagent import observation_of
+
+    reply = AgentReply("results", "No photos found.", reports=[ClauseReport("person Anna", 420, 420), ClauseReport("place Goa", 90, 0)])
+    assert json.loads(observation_of(reply))["conditions"] == [
+        {"condition": "person Anna", "matched_alone": 420, "left_after_combining": 420},
+        {"condition": "place Goa", "matched_alone": 90, "left_after_combining": 0}]
 
 
 def test_narrow_previous_without_earlier_results_falls_back_to_the_whole_library_and_says_so():
