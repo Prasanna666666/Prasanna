@@ -28,7 +28,7 @@ from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
 from . import library as lib
 from .agent.toolagent import ToolAgent, close_matches
-from .agent.service import CHAT_MAX_TOKENS, CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
+from .agent.service import DATE_SCHEMA, DATE_SYSTEM, CHAT_MAX_TOKENS, CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
@@ -59,6 +59,7 @@ class AppContext:
         self._index_version: str | None = None
         self._embedder: ImageEmbedder | None = None
         self.embedder_error: str = ""
+        self.warm_errors: dict[str, str] = {}
         self._geo: GeoIndex | None = None
         self._geo_tried = False
 
@@ -122,13 +123,14 @@ class AppContext:
                 ("image search model", self.search_embedder),
             )
             for name, step in steps:
-                if name in ("AI model", "image search model") and ScanLock(self.paths).running():
+                if name in ("AI model", "image search model") and ScanLock(self.paths).running(verify=True):
                     log.debug("warm-up: scan running, not loading the %s", name)
                     continue
                 try:
                     step()
-                except Exception:
+                except Exception as exc:
                     log.debug("warm-up: %s failed", name, exc_info=True)
+                    self.warm_errors[name] = f"{type(exc).__name__}: {exc}"
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 
@@ -153,6 +155,12 @@ class AppContext:
         with self._lock:
             store[key] = (time.monotonic(), value)
         return value
+
+    def warm_problem(self) -> str:
+        """Why the search is not ready, if something failed (shown on the page instead of 'warming up' forever)."""
+        if self.embedder_error:
+            return self.embedder_error
+        return "; ".join(f"{name}: {error}" for name, error in self.warm_errors.items())
 
     def search_ready(self) -> bool:
         """True once the photo index and the image-search model are loaded (the first search is then instant)."""
@@ -338,6 +346,20 @@ class AppContext:
                 lines.append("PEOPLE FOUND: " + ", ".join(people[:40]))
             return "\n".join(line for line in lines if line)
 
+        def date_step(request: str):
+            """A short, focused model call: the time expression in the message (if any), as real date fields."""
+            from .agent.schema import plan_from_raw
+
+            answer = self.llm().complete_json(DATE_SYSTEM, request, DATE_SCHEMA, max_tokens=60)
+            try:
+                raw = extract_json(answer)
+            except Exception:  # unreadable answer: treat as "no time expression"; an extra check must never stop a search
+                raw = None
+            if not isinstance(raw, dict):
+                return "", plan_from_raw({})[0].date
+            date_fields = {k: raw[k] for k in ("year", "month", "season", "relative") if k in raw}
+            return str(raw.get("phrase") or "").strip(), plan_from_raw({"intent": "find", "date": date_fields})[0].date
+
         def overview(previous_ids: Any) -> str:
             """The library_overview tool: plain facts for the model to read."""
             conn = self.db.connect()
@@ -399,7 +421,7 @@ class AppContext:
             service = AgentService(
                 Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
                 answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
-                fast_search=self.settings.fast_search, rescue=self.settings.rescue_search,
+                fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step,
             )
             if self.settings.brain == "tools":
                 return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look)

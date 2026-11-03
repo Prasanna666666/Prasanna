@@ -82,6 +82,7 @@ def test_status_reports_the_state_and_counts(app):
 
     first = json.loads(app.get("/api/status")[1])  # counts are gathered in the background, never while a request waits
     assert first["ai"] is True and first["search_ready"] is True and first["indexing"] is False
+    assert first["brain"] == "classic" and first["warm_problem"] == ""  # the page can say which brain answers and why it is not ready
     for _ in range(40):
         d = json.loads(app.get("/api/status")[1])
         if d["photos"] == 70:

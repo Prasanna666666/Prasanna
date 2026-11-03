@@ -76,13 +76,14 @@ def _only_plain_clauses(plan: Plan) -> bool:
 
 
 CHAT_SYSTEM = (
-    "You are Lumo, the assistant inside a private photo app on the user's Mac. Your job is to help them find and understand their photos. "
-    "Reply in one or two short sentences of plain text: no lists, no emojis, no cheerleading. "
-    "For small talk, answer in a few words and steer back to the photos. For a general question, answer it briefly and directly. "
-    "Never offer to brainstorm, give career or relationship advice, play games or write essays, and never list everything you can do. "
-    "You run offline on the user's own Mac, so you cannot browse the web or know today's news. "
-    "You can find photos when asked (for example 'show me beach photos'); mention that only when it is relevant. "
-    "In this reply you are NOT searching photos, so never claim to have found any."
+    "You are Lumo, the assistant in a private photo app on the user's Mac. Chat naturally and warmly, in one or two short sentences of "
+    "plain text, without emojis or lists. If the user is just being social, reply kindly and invite them to describe photos to find. "
+    "For a general question, answer briefly and correctly. You cannot browse the web. You are not searching photos in this reply, "
+    "so never claim to have found any.\n"
+    "Examples:\n"
+    "User: Hello\nLumo: Hi! What would you like to find in your photos today?\n"
+    "User: How are you?\nLumo: Doing well, thanks for asking! Shall I look for some photos?\n"
+    "User: What is a RAW file?\nLumo: A RAW file is the unprocessed data straight from a camera sensor, so it holds more detail to edit than a JPEG."
 )
 CHAT_MAX_TOKENS = 160  # short answers: it is a photo app, and short answers are also fast
 
@@ -103,6 +104,37 @@ ROUTER_SYSTEM = (
 ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["simple", "photos", "chat"]}}, "required": ["route"]}
 MAX_SIMPLE_WORDS = 4
 
+DATE_SYSTEM = (
+    "Find the time expression in the user's message. phrase = the exact words that express a time or period (for example 'last month', "
+    "'in 2021', 'this summer', 'yesterday', 'March'), or an empty string if there is none. Fill year (like 2021), month (1-12), season or "
+    "relative ONLY from that phrase and leave the other fields out. Never compute dates.\n"
+    "Examples:\n"
+    "'pics from last month' -> {\"phrase\": \"last month\", \"relative\": \"last_month\"}\n"
+    "'what I shot in August 2019' -> {\"phrase\": \"August 2019\", \"year\": 2019, \"month\": 8}\n"
+    "'skiing trip winter 2023' -> {\"phrase\": \"winter 2023\", \"year\": 2023, \"season\": \"winter\"}\n"
+    "'cats on the sofa' -> {\"phrase\": \"\"}"
+)
+DATE_SCHEMA = {
+    "type": "object",
+    "properties": {"phrase": {"type": "string"}, "year": {"type": "integer"}, "month": {"type": "integer"},
+                   "season": {"type": "string", "enum": ["spring", "summer", "autumn", "winter"]},
+                   "relative": {"type": "string", "enum": ["today", "yesterday", "this_week", "last_week", "this_month", "last_month",
+                                                             "this_year", "last_year"]}},
+    "required": ["phrase"],
+}
+
+
+def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
+    """A dedicated step found a time expression: it becomes the plan's date, and any clause that only repeats those words
+    (for example the text 'last month') is dropped, because it was a date, not something written in a photo."""
+    if not phrase or spec.is_empty:
+        return plan
+    from ..search.textnorm import tokens
+
+    words = set(tokens(phrase))
+    kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))
+    return dataclasses.replace(plan, date=spec, clauses=kept)
+
 class AgentService:
     def __init__(
         self,
@@ -117,7 +149,9 @@ class AgentService:
         router: Callable[[str, bool], str] | None = None,
         fast_search: bool = True,
         rescue: bool = True,
+        date_step: Callable[[str], tuple[str, Any]] | None = None,
     ) -> None:
+        self._date_step = date_step
         self._rescue = rescue
         self._fast_search = fast_search
         self._router = router
@@ -191,6 +225,14 @@ class AgentService:
         """Carry out a plan (from the planner or from a tool call) and write the reply. Shared by every kind of agent."""
         timings = {} if timings is None else timings
         warnings = [] if warnings is None else warnings
+        if self._date_step is not None and plan.intent in ("find", "count", "export") and plan.date.is_empty:
+            started = time.perf_counter()
+            try:  # a small, focused step: is there a time expression the plan missed (or turned into words)?
+                phrase, spec = self._date_step(request)
+                plan = apply_dates(plan, phrase, spec)
+            except LLMError:
+                pass  # an extra check must never stop a search
+            timings["dates"] = round(time.perf_counter() - started, 2)
         if plan.intent == "count" and not plan.has_constraints and previous_ids is None:
             plan = dataclasses.replace(plan, all_photos=True)  # "how many photos do I have?" means all of them
         base: dict[str, Any] = {"plan": plan, "warnings": warnings, "timings": timings}

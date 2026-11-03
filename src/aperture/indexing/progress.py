@@ -50,18 +50,31 @@ def read_progress(paths: Paths) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def _is_aperture(pid: int) -> bool:
+    import subprocess
+
+    try:
+        command = subprocess.run(["ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return True  # cannot check: assume it is ours rather than start a second scan
+    return "aperture" in command.lower()
+
+
 class ScanLock:
     """PID-file lock so only one scan runs at a time."""
 
     def __init__(self, paths: Paths) -> None:
         self._file: Path = paths.scan_pid
 
-    def running(self) -> bool:
+    def running(self, verify: bool = False) -> bool:
+        """Is a scan running? With verify=True the process must really be Aperture: a stale marker whose number was reused by some
+        other program (or never cleaned up) must not count as 'indexing', and must never be sent a stop signal."""
         try:
-            os.kill(int(self._file.read_text().strip()), 0)
+            pid = int(self._file.read_text().strip())
+            os.kill(pid, 0)
         except (OSError, ValueError):
             return False
-        return True
+        return _is_aperture(pid) if verify else True
 
     def acquire(self) -> bool:
         if self.running():
@@ -73,7 +86,10 @@ class ScanLock:
         self._file.unlink(missing_ok=True)
 
     def stop(self) -> None:
-        """Ask a running scan to finish its current files and exit cleanly."""
+        """Ask a running scan to finish its current files and exit cleanly (only if it really is an Aperture scan)."""
+        if not self.running(verify=True):
+            self._file.unlink(missing_ok=True)  # stale marker: forget it, signal nobody
+            return
         try:
             os.kill(int(self._file.read_text().strip()), signal.SIGTERM)
         except (OSError, ValueError):

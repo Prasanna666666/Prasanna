@@ -277,4 +277,73 @@ def test_real_chat_requests_are_short_and_calm(tmp_path, monkeypatch):
     agent._chatter("tell me about cameras", [])
     p = sent[0]
     assert CHAT_MAX_TOKENS == 160 and p["options"]["num_predict"] == 160 and p["options"]["temperature"] == 0.3
-    assert "photo app" in p["messages"][0]["content"] and "emojis" in p["messages"][0]["content"]
+    assert "photo app" in p["messages"][0]["content"] and "emojis" in p["messages"][0]["content"] and "Lumo:" in p["messages"][0]["content"]
+
+
+# ---------------------------------------------------------------- dates are found by a focused step, for every brain
+def _service_with_dates(step, plans):
+    def make_executor():
+        def run(plan, previous):
+            plans.append(plan)
+            raise RuntimeError("stop here")
+        return SimpleNamespace(run=run)
+
+    return AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False, date_step=step)
+
+
+def _spec(**kw):
+    from aperture.agent.schema import plan_from_raw
+
+    return plan_from_raw({"intent": "find", "date": kw})[0].date
+
+
+def test_a_time_expression_the_plan_turned_into_words_becomes_a_real_date():
+    plans = []
+    text_plan = Plan(intent="find", clauses=(Clause(engines=("text",), query="last month", exclude=False),))
+    _service_with_dates(lambda request: ("last month", _spec(relative="last_month")), plans).run_plan("show me pics of last month", text_plan)
+    assert plans[0].date.relative == "last_month" and plans[0].clauses == ()  # a date search, not the words 'last month'
+
+
+def test_other_clauses_survive_and_only_clauses_that_repeat_the_date_words_are_dropped():
+    plans = []
+    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="beach", exclude=False),
+                                        Clause(engines=("text",), query="summer 2022", exclude=False)))
+    _service_with_dates(lambda r: ("summer 2022", _spec(year=2022, season="summer")), plans).run_plan("beach summer 2022", plan)
+    assert [c.query for c in plans[0].clauses] == ["beach"] and plans[0].date.year == 2022 and plans[0].date.season == "summer"
+
+
+def test_the_date_step_is_skipped_when_the_plan_has_a_date_or_finds_none_or_fails():
+    calls = []
+
+    def step(request):
+        calls.append(request)
+        return "", _spec()
+
+    plans = []
+    svc = _service_with_dates(step, plans)
+    dated = Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),), date=_spec(year=2020))
+    svc.run_plan("dogs 2020", dated)
+    assert not calls and plans[0].date.year == 2020  # already has a date: no extra call
+    svc.run_plan("dogs", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
+    assert calls == ["dogs"] and plans[1].date.is_empty  # nothing found: the plan is untouched
+
+    def failing(request):
+        raise LLMError("Ollama is not reachable")
+
+    plans2 = []
+    _service_with_dates(failing, plans2).run_plan("dogs", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
+    assert len(plans2) == 1  # the search still ran
+
+
+def test_the_real_date_step_reads_the_models_json(tmp_path, monkeypatch):
+    from aperture.agent.service import DATE_SCHEMA
+
+    sent = []
+    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": '{"phrase": "last month", "relative": "last_month"}'}})
+    ctx = _context(tmp_path, monkeypatch)
+    step = ctx.agent()._date_step
+    phrase, spec = step("pics of last month")
+    assert phrase == "last month" and spec.relative == "last_month"
+    assert sent[0]["format"] == DATE_SCHEMA and sent[0]["options"]["num_predict"] == 60
+    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: {"message": {"content": "not json"}})
+    assert step("x")[0] == ""

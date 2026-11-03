@@ -147,7 +147,7 @@
     if (event === 'results') addNotes(msg, d);
     scrollDown();
   }
-  const STEP_NAMES = { route: 'deciding', context: 'library lookup', plan: 'AI plan', search: 'search', first_words: 'first words' };
+  const STEP_NAMES = { route: 'deciding', decide: 'deciding', context: 'library lookup', plan: 'AI plan', dates: 'date check', tools: 'tools', search: 'search', first_words: 'first words' };
   function breakdown(d) {                      // when an answer is slow, show where the time went
     if (d.took < 3 || !d.timings) return '';
     const parts = Object.entries(d.timings).filter(([, v]) => v >= 0.1).map(([k, v]) => `${STEP_NAMES[k] || k} ${v.toFixed(1)}s`);
@@ -229,12 +229,14 @@
   async function refreshStatus() {
     try {
       const s = await (await api('/api/status')).json();
-      const chips = [chip(s.search_ready ? 'Search ready' : 'Search warming up', s.search_ready ? 'ok' : 'warn'),
-                     chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad')];
+      const chips = [chip(s.search_ready ? 'Search ready' : (s.warm_problem ? 'Search unavailable' : 'Search warming up'), s.search_ready ? 'ok' : (s.warm_problem ? 'bad' : 'warn')),
+                     chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad'),
+                     chip(s.brain === 'tools' ? 'Brain: agent' : 'Brain: classic', 'ok')];
       if (s.photos) chips.push(chip(`${s.photos.toLocaleString()} photos`, 'ok'));
       if (s.indexing) chips.push(chip('Indexing', 'warn'));
       else if (s.paused_for_chat) chips.push(chip('Indexing paused', 'warn', { text: 'Resume', run: async () => { await api('/api/scan/resume', { method: 'POST' }); refreshStatus(); } }));
       $('#chips').replaceChildren(...chips);
+      $('#warm').textContent = s.warm_problem ? `Image search could not start: ${s.warm_problem}` : (!s.ai ? 'The AI model is not reachable. Is Ollama running?' : 'Warming up: the first answer can take a little longer.');
       document.body.classList.toggle('warming', !s.search_ready || !s.ai);
     } catch (_) { $('#chips').replaceChildren(chip('Lumo is not responding', 'bad')); }
   }

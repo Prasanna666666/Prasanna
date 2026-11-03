@@ -78,10 +78,10 @@ def test_instant_photo_preview_is_off_by_default_and_guarded():
     assert "if ctx.settings.quick_preview:" in src and "history=turns" in src
 
 
-def test_chat_voice_is_a_short_photo_assistant_not_a_general_chatbot():
-    assert "photo app" in CHAT_SYSTEM and "one or two short sentences" in CHAT_SYSTEM and "no emojis" in CHAT_SYSTEM
-    assert "never claim to have found any" in CHAT_SYSTEM and "offline" in CHAT_SYSTEM
-    assert "Never offer to brainstorm" in CHAT_SYSTEM and "like a thoughtful friend" not in CHAT_SYSTEM and "talk about anything" not in CHAT_SYSTEM
+def test_chat_voice_is_natural_short_and_photo_focused_with_examples():
+    assert "photo app" in CHAT_SYSTEM and "one or two short sentences" in CHAT_SYSTEM and "without emojis" in CHAT_SYSTEM
+    assert "never claim to have found any" in CHAT_SYSTEM and "cannot browse the web" in CHAT_SYSTEM
+    assert "User: Hello\nLumo: " in CHAT_SYSTEM and "like a thoughtful friend" not in CHAT_SYSTEM and "talk about anything" not in CHAT_SYSTEM
 
 
 def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):

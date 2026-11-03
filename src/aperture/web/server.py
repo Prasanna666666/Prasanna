@@ -113,8 +113,9 @@ class Web:
 
         self.refresh_counts_async()
         healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
-        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model,
-                "search_ready": bool(ctx.search_ready()), "indexing": ScanLock(ctx.paths).running(),
+        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "brain": ctx.settings.brain,
+                "search_ready": bool(ctx.search_ready()), "warm_problem": ctx.warm_problem(),
+                "indexing": ScanLock(ctx.paths).running(verify=True),
                 "paused_for_chat": self.paused_for_chat}
 
     def suggestions(self) -> list[str]:
@@ -134,12 +135,12 @@ class Web:
 
     def pause_indexing_for_chat(self) -> None:
         lock = ScanLock(self.ctx.paths)
-        if lock.running():
+        if lock.running(verify=True):
             lock.stop()
             self.paused_for_chat = True
 
     def resume_indexing(self) -> bool:
-        if ScanLock(self.ctx.paths).running():
+        if ScanLock(self.ctx.paths).running(verify=True):
             return False
         try:
             self.ctx.llm().unload()  # free the AI model's RAM before indexing starts
