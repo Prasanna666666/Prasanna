@@ -16,7 +16,7 @@ _CSS = """
 <style>
 :root { --ap-accent: #4f46e5; --ap-radius: 14px; --ap-line: color-mix(in srgb, currentColor 14%, transparent);
         --ap-soft: color-mix(in srgb, currentColor 6%, transparent); --ap-muted: color-mix(in srgb, currentColor 62%, transparent); }
-.block-container { padding-top: 2.2rem; max-width: 1280px; }
+.block-container { max-width: 1280px; }
 h1, h2, h3 { letter-spacing: -0.02em; }
 h1 { font-weight: 700; }
 
@@ -76,6 +76,64 @@ button:focus-visible, [role="tab"]:focus-visible, input:focus-visible, [data-bas
 button[kind="primary"] { border-radius:10px; font-weight:600; }
 [data-testid="stChatMessage"] { border-radius:var(--ap-radius); }
 
+/* ---------- chat: a messenger, not a form ----------
+   Messages carry a hidden marker (.ap-user-marker / .ap-bot-marker, added in chat.py) so the styling does not depend on
+   Streamlit's internal avatar names, which differ between versions. */
+.stApp { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif; }
+.block-container { padding-top: 4.5rem; }
+.ap-chat-head { display:flex; align-items:baseline; gap:.7rem; padding:.1rem 0 .2rem; }
+.ap-chat-head b { font-size:1.35rem; letter-spacing:-0.02em; }
+.ap-chat-head span { color:var(--ap-muted); font-size:.85rem; }
+.ap-user-marker, .ap-bot-marker { display:none; }
+[data-testid="stElementContainer"]:has(> .ap-user-marker), [data-testid="stElementContainer"]:has(.ap-user-marker),
+[data-testid="stElementContainer"]:has(.ap-bot-marker) { display:none; }
+
+[data-testid="stChatMessage"] { background:transparent; border:none; padding:.4rem 0; gap:.8rem; max-width:980px; margin:0 auto .3rem; }
+[data-testid="stChatMessageContent"] { font-size:1.02rem; line-height:1.6; }
+[data-testid="stChatMessage"] p { margin:0 0 .5rem; }
+
+/* you: right-aligned accent bubble, no avatar */
+[data-testid="stChatMessage"]:has(.ap-user-marker) { flex-direction:row-reverse; }
+[data-testid="stChatMessage"]:has(.ap-user-marker) > [data-testid^="stChatMessageAvatar"] { display:none; }
+[data-testid="stChatMessage"]:has(.ap-user-marker) [data-testid="stChatMessageContent"] {
+  flex:0 1 auto; margin:0 0 0 auto !important; width:fit-content; max-width:74%; color:#fff; padding:.7rem 1.05rem; border-radius:20px 20px 6px 20px;
+  background:linear-gradient(135deg, var(--ap-accent), #7c6ff7); box-shadow:0 6px 18px color-mix(in srgb, var(--ap-accent) 28%, transparent); }
+[data-testid="stChatMessage"]:has(.ap-user-marker) [data-testid="stChatMessageContent"] * { color:#fff; }
+
+/* Lumo: gradient sparkle badge, roomy text, quiet extras */
+[data-testid="stChatMessage"]:has(.ap-bot-marker) > [data-testid^="stChatMessageAvatar"] {
+  background:linear-gradient(135deg, var(--ap-accent), #06b6d4); color:#fff; border-radius:12px; width:2.2rem; height:2.2rem;
+  box-shadow:0 4px 12px color-mix(in srgb, var(--ap-accent) 30%, transparent); }
+[data-testid="stChatMessage"]:has(.ap-bot-marker) > [data-testid^="stChatMessageAvatar"] * { color:#fff; }
+[data-testid="stChatMessage"] [data-testid="stAlert"] { background:transparent; border:none; padding:0; }
+[data-testid="stChatMessage"] [data-testid="stAlertContainer"] { border:none; border-radius:12px; font-size:.9rem; padding:.55rem .8rem;
+  background:color-mix(in srgb, var(--ap-accent) 9%, transparent); }
+[data-testid="stChatMessage"] [data-testid="stAlertContainer"] * { color:inherit; }
+[data-testid="stChatMessage"] details { border:none !important; background:transparent !important; }
+[data-testid="stChatMessage"] details summary { color:var(--ap-muted); font-size:.86rem; padding-left:0; }
+[data-testid="stChatMessage"] details summary:hover { color:var(--ap-accent); }
+[data-testid="stStatus"], [data-testid="stStatusWidget"] { border-radius:14px; border:1px solid var(--ap-line); }
+
+/* input: a floating pill with a round send button */
+[data-testid="stChatInput"] { max-width:820px; margin:0 auto; }
+[data-testid="stChatInput"] > div { border-radius:999px; border:1px solid var(--ap-line); padding:.2rem .35rem .2rem 1rem;
+  box-shadow:0 10px 30px color-mix(in srgb, var(--ap-accent) 12%, transparent), 0 1px 3px rgba(0,0,0,.06); transition:box-shadow .15s, border-color .15s; }
+[data-testid="stChatInput"] > div:focus-within { border-color:var(--ap-accent);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--ap-accent) 22%, transparent), 0 10px 30px color-mix(in srgb, var(--ap-accent) 14%, transparent); }
+[data-testid="stChatInput"] textarea { font-size:1rem; }
+[data-testid="stChatInput"] button { background:var(--ap-accent); color:#fff; border-radius:50%; width:2.2rem; height:2.2rem; }
+[data-testid="stChatInput"] button:disabled { background:var(--ap-soft); color:var(--ap-muted); }
+[data-testid="stChatInput"] button svg { fill:currentColor; }
+
+/* suggestion cards on the first screen */
+[class*="st-key-idea_"] button { text-align:left; justify-content:flex-start; min-height:5.2rem; padding:1rem 1.1rem; border-radius:16px;
+  border:1px solid var(--ap-line); background:var(--ap-soft); font-weight:500; white-space:normal; line-height:1.4;
+  transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+[class*="st-key-idea_"] button:hover { border-color:var(--ap-accent); transform:translateY(-2px); box-shadow:0 10px 24px color-mix(in srgb, var(--ap-accent) 16%, transparent); }
+[class*="st-key-idea_"] button p { text-align:left; }
+.ap-hero h1 { background:linear-gradient(90deg, var(--ap-accent), #06b6d4); -webkit-background-clip:text; background-clip:text; color:transparent; }
+.ap-eyebrow { display:inline-block; font-size:.78rem; letter-spacing:.06em; text-transform:uppercase; color:var(--ap-accent); font-weight:600; margin-bottom:.5rem; }
+
 /* high contrast option */
 body.ap-hc, .ap-hc-on { --ap-line: currentColor; }
 </style>
@@ -106,5 +164,6 @@ def stats(items: list[tuple[str, str]]) -> None:
     st.html(f'<div class="ap-stats" role="list">{cards}</div>')
 
 
-def hero(title: str, subtitle: str) -> None:
-    st.html(f'<div class="ap-hero"><h1>{title}</h1><p>{subtitle}</p></div>')
+def hero(title: str, subtitle: str, eyebrow: str = "") -> None:
+    tag = f'<span class="ap-eyebrow">{eyebrow}</span><br>' if eyebrow else ""
+    st.html(f'<div class="ap-hero">{tag}<h1>{title}</h1><p>{subtitle}</p></div>')

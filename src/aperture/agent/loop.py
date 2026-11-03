@@ -367,7 +367,9 @@ class AgentLoop:
             return f"error: {type(exc).__name__}: {exc}"
 
     # -- public -------------------------------------------------------------
-    def ask(self, request: str, previous_ids: np.ndarray | None = None) -> AgentReply:
+    def ask(
+        self, request: str, previous_ids: np.ndarray | None = None, history: list[tuple[str, str]] | None = None
+    ) -> AgentReply:
         if not request.strip():
             return AgentReply("clarify", "What would you like to find?")
         box = self._toolbox_factory(previous_ids)

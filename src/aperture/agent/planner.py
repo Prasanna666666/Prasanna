@@ -41,7 +41,8 @@ RULES
 3. "exclude":true means NOT (e.g. "without", "except", "not in").
 4. Dates go in "date" using year / month (1-12) / season / relative. NEVER compute dates yourself. Use 0 or "none" or "" for unused fields.
 5. intent: "find" (show photos), "count" (how many), "export" (copy/put/organize into a folder; set folder_name),
-   "chat" (greeting or question about what you can do; answer in "message"),
+   "chat" (anything that is NOT a request to find, count or copy photos and NOT a question about the library: greetings, thanks, small talk,
+   general knowledge, explanations, advice, writing help, questions about you. "message" may stay empty: a separate reply is written),
    "question" (the user asks ABOUT the library or the app instead of asking to see photos: statistics, "how many per year/place/camera",
    "did the move finish?", "is indexing done?", "what are these photos?", "tell me about my library". Leave clauses empty),
    "clarify" (the request has nothing searchable; ask ONE short question in "message").
@@ -103,6 +104,10 @@ _EXTRA_EXAMPLES = "".join([
     _example("put my Rome pictures into a folder called Italy", intent="export",
              clauses=[(["place", "path"], "Rome", False)], folder="Italy"),
     _example("wildlife photos not taken in Kenya", clauses=[(["visual"], "wildlife", False), (["place", "path"], "Kenya", True)]),
+    _example("thanks, that was really helpful", intent="chat"),
+    _example("what is the difference between RAW and JPEG?", intent="chat"),
+    _example("tell me a joke", intent="chat"),
+    _example("how are you doing today?", intent="chat"),
 ])
 _PROMPT_TEXT = _PROMPT_TEXT_RAW.replace("{EXTRA_EXAMPLES}", _EXTRA_EXAMPLES)
 

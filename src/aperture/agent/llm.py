@@ -32,11 +32,11 @@ NUM_CTX = 4096
 
 
 class OllamaClient:
-    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "2m") -> None:
+    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "5m") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
-        self.keep_alive = keep_alive  # 2 min: long enough between questions, short enough to give the RAM back on an 8 GB Mac
+        self.keep_alive = keep_alive  # 5 min: a reload costs seconds on every first question; Aperture also pauses indexing while you search
 
     # ------------------------------------------------------------------
     def _request(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -97,6 +97,21 @@ class OllamaClient:
             if "HTTP 400" in str(exc):  # older server: fall back to plain JSON mode
                 return call("json")
             raise
+
+    def complete_chat(self, system: str, messages: list[dict[str, str]], max_tokens: int = 400) -> str:
+        """A normal multi-turn conversational reply (free text, no JSON, no photos)."""
+        body = self._request(
+            "/api/chat",
+            {
+                "model": self.model,
+                "messages": [{"role": "system", "content": system}, *messages],
+                "stream": False,
+                "keep_alive": self.keep_alive,
+                "options": {"temperature": 0.6, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+            },
+        )
+        message = body.get("message")
+        return str(message.get("content", "")).strip() if isinstance(message, dict) else ""
 
     def complete_text(self, system: str, user: str) -> str:
         """Plain-text answer (no JSON), for conversational replies grounded in supplied facts."""

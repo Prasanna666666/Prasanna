@@ -6,11 +6,9 @@ from pathlib import Path
 
 import streamlit as st
 
-from aperture import library as lib
 from aperture.indexing.progress import ScanLock
 from aperture.ui import theme
-from aperture.ui.components import connection
-from aperture.ui.state import drive_ok, get_context
+from aperture.ui.state import cached_coverage, drive_ok, get_context
 from aperture.ui.views import chat, library, organize, people, settings, status
 
 st.set_page_config(page_title="Lumo", page_icon=":material/photo_camera:", layout="wide", initial_sidebar_state="expanded")
@@ -20,8 +18,7 @@ def _sidebar_status(ctx) -> None:
     chips = [theme.chip("Drive connected", "ok")]
     if ScanLock(ctx.paths).running():
         chips.append(theme.chip("Indexing", "warn"))
-    with connection(ctx) as conn:
-        cov = lib.coverage(conn)
+    cov = cached_coverage(ctx, str(ctx.paths.db))
     if cov.total:
         chips.append(theme.chip(f"{cov.total:,} files", "ok"))
     healthy, _ = ctx.llm().health()

@@ -21,7 +21,7 @@ from .agent.knowledge import gather_facts
 from .agent.llm import LLMError, OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
-from .agent.service import Agent, AgentService
+from .agent.service import CHAT_SYSTEM, Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
@@ -100,17 +100,27 @@ class AppContext:
             return False
 
     def warm_up(self) -> None:
-        """Preload the cheap parts (photo index) in the background.
+        """Preload in the background so the first question is not the slow one: photo index, image-search model, AI model.
 
-        The AI model (2.6 GB) and the search model (0.6 GB) load on first use: on an 8 GB Mac,
-        loading them eagerly while a scan runs pushes everything into swap."""
+        Models are only preloaded while no scan runs: a scan plus both models at once pushes an 8 GB Mac into swap."""
         import threading
 
+        from .indexing.progress import ScanLock
+
         def work() -> None:
-            try:
-                self.embedding_index()
-            except Exception:
-                log.debug("warm-up failed", exc_info=True)
+            steps = (
+                ("photo index", self.embedding_index),
+                ("image search model", self.search_embedder),
+                ("AI model", lambda: self.llm().warm()),
+            )
+            for name, step in steps:
+                if name != "photo index" and ScanLock(self.paths).running():
+                    log.debug("warm-up: scan running, not loading the %s", name)
+                    continue
+                try:
+                    step()
+                except Exception:
+                    log.debug("warm-up: %s failed", name, exc_info=True)
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 
@@ -239,9 +249,14 @@ class AppContext:
                 conn.close()
             return answer_question(self.llm().complete_text, question, facts)
 
+        def chatter(request: str, history: list[tuple[str, str]]) -> str:
+            turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
+            return self.llm().complete_chat(CHAT_SYSTEM, [*turns, {"role": "user", "content": request}])
+
         if not self.settings.agentic:
             return AgentService(
-                Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts, answerer=answerer
+                Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
+                answerer=answerer, chatter=chatter,
             )
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 

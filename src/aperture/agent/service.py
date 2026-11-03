@@ -40,7 +40,9 @@ class AgentReply:
 
 
 class Agent(Protocol):
-    def ask(self, request: str, previous_ids: np.ndarray | None = None) -> AgentReply: ...
+    def ask(
+        self, request: str, previous_ids: np.ndarray | None = None, history: list[tuple[str, str]] | None = None
+    ) -> AgentReply: ...
 
 
 def describe_conditions(plan: Plan, date_range: str) -> str:
@@ -69,6 +71,14 @@ def _only_plain_clauses(plan: Plan) -> bool:
     return not any(c.exclude for c in plan.clauses) and plan.date.is_empty and plan.filters.is_empty
 
 
+CHAT_SYSTEM = (
+    "You are Lumo, a friendly assistant inside a private photo app. You can talk about anything: answer questions, explain things, "
+    "help with writing, give advice, chat. Be concise and clear, like a thoughtful friend. You run offline on the user's own Mac, so "
+    "you cannot browse the web or know today's news. You can also find photos when asked (for example 'show me beach photos'); "
+    "mention that only when it is relevant. In this reply you are NOT searching photos, so never claim to have found any."
+)
+
+
 class AgentService:
     def __init__(
         self,
@@ -78,7 +88,9 @@ class AgentService:
         today: Callable[[], date] = date.today,
         library_facts: Callable[[str], str] | None = None,
         answerer: Callable[[str, np.ndarray | None], str] | None = None,
+        chatter: Callable[[str, list[tuple[str, str]]], str] | None = None,
     ) -> None:
+        self._chatter = chatter
         self._library_facts = library_facts
         self._answerer = answerer
         self._planner = planner
@@ -86,7 +98,9 @@ class AgentService:
         self._known_people = known_people
         self._today = today
 
-    def ask(self, request: str, previous_ids: np.ndarray | None = None) -> AgentReply:
+    def ask(
+        self, request: str, previous_ids: np.ndarray | None = None, history: list[tuple[str, str]] | None = None
+    ) -> AgentReply:
         if not request.strip():
             return AgentReply("clarify", "What would you like to find?")
         ctx = PlannerContext(
@@ -103,7 +117,13 @@ class AgentService:
         base: dict[str, Any] = {"plan": plan, "warnings": planned.warnings}
 
         if plan.intent == "chat":
-            return AgentReply("chat", plan.message or "Ask me to find photos by content, text, people, places or dates.", **base)
+            fallback = plan.message or "Ask me to find photos by content, text, people, places or dates."
+            if self._chatter is None:
+                return AgentReply("chat", fallback, **base)
+            try:
+                return AgentReply("chat", self._chatter(request, list(history or [])) or fallback, **base)
+            except LLMError as exc:
+                return AgentReply("error", str(exc), **base)
         if plan.intent == "question":
             if self._answerer is None:
                 return AgentReply("chat", "I can't look that up here yet.", **base)

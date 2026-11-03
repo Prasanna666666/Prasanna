@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import html
 import json
+import time
 
 import streamlit as st
 
 from ... import library as lib
 from ...agent.service import AgentReply
 from ...bootstrap import AppContext
+from ...indexing.progress import ScanLock
 from ...export import create_job, read_job
 from ...search.quick import quick_ids
 from .. import theme
 from ..components import connection, photo_grid
-from ..state import start_export_job
+from ..state import pause_scan_for_chat, start_export_job, start_scan, welcome_numbers
 from ..suggestions import suggest_prompts
 from .onboarding import render_checklist
 from .organize import move_card
@@ -100,6 +102,7 @@ def _export_card(ctx: AppContext, idx: int, msg: dict) -> None:  # type: ignore[
 def _render_message(ctx: AppContext, idx: int, msg: dict) -> None:  # type: ignore[type-arg]
     avatar = ":material/person:" if msg["role"] == "user" else ":material/auto_awesome:"
     with st.chat_message(msg["role"], avatar=avatar):
+        st.html(f'<i class="ap-{"user" if msg["role"] == "user" else "bot"}-marker"></i>')  # styling hook, see theme.py
         st.markdown(msg["text"])
         reply = msg.get("reply")
         if reply is None:
@@ -109,6 +112,8 @@ def _render_message(ctx: AppContext, idx: int, msg: dict) -> None:  # type: igno
         for text in reply.notes:
             st.info(text)
         _trace(reply)
+        if "took" in msg:
+            st.caption("instant (remembered)" if msg["took"] == 0 else f"answered in {msg['took']:.1f}s")
         if reply.kind == "export" and len(reply.ids):
             _export_card(ctx, idx, msg)
         if reply.kind in ("results", "export", "count") and len(reply.ids):
@@ -145,12 +150,9 @@ def _welcome(ctx: AppContext) -> None:
     theme.hero(
         "What are you looking for?",
         "Describe it in your own words: what it shows, who is in it, where, when, or text written on it.",
+        eyebrow="Private - runs on your Mac",
     )
-    with connection(ctx) as conn:
-        cov = lib.coverage(conn)
-        people = conn.execute("SELECT COUNT(DISTINCT person_id) FROM faces WHERE person_id IS NOT NULL").fetchone()[0]
-        places = conn.execute("SELECT COUNT(DISTINCT place) FROM items WHERE place IS NOT NULL AND missing=0").fetchone()[0]
-        ideas = suggest_prompts(conn) if cov.indexed else []
+    cov, people, places, ideas = welcome_numbers(ctx, str(ctx.paths.db))
     if cov.total:
         theme.stats(
             [
@@ -163,19 +165,32 @@ def _welcome(ctx: AppContext) -> None:
     render_checklist(ctx)
     if ideas:
         st.caption("Try asking")
-        for cell, idea in zip(st.columns(3), ideas, strict=False):
-            if cell.button(idea, key=f"idea:{idea}", use_container_width=True):
+        for n, (cell, idea) in enumerate(zip(st.columns(3), ideas, strict=False)):
+            if cell.button(idea, key=f"idea_{n}", icon=":material/search:", use_container_width=True):
                 st.session_state[PENDING] = idea
                 st.rerun()
 
 
+def _paused_notice(ctx: AppContext) -> None:
+    """Tell the user why indexing stopped, and let them resume it deliberately."""
+    if st.session_state.get("paused_for_chat") and not ScanLock(ctx.paths).running():
+        left, right = st.columns([5, 1], vertical_alignment="center")
+        left.caption("Indexing is paused so answers stay fast.")
+        if right.button("Resume", key="resume_scan", icon=":material/play_arrow:", use_container_width=True):
+            st.session_state["paused_for_chat"] = False
+            start_scan(ctx)
+            st.rerun()
+
+
 def render(ctx: AppContext) -> None:
     history = _history()
+    _paused_notice(ctx)
     if not history:
         _welcome(ctx)
     else:
-        st.title("Ask Lumo")
-        if st.button("New conversation", icon=":material/add_comment:", type="tertiary"):
+        left, right = st.columns([5, 1], vertical_alignment="center")
+        left.html('<div class="ap-chat-head"><b>Ask Lumo</b><span>Private - nothing leaves your Mac</span></div>')
+        if right.button("New chat", icon=":material/add_comment:", type="secondary", use_container_width=True):
             history.clear()
             st.rerun()
     for idx, msg in enumerate(history):
@@ -185,15 +200,22 @@ def render(ctx: AppContext) -> None:
     if not prompt:
         return
     previous = next((m["reply"].ids for m in reversed(history) if m.get("reply") is not None and len(m["reply"].ids)), None)
+    turns = [(m["role"], m["text"]) for m in history[-8:] if m.get("text")]  # for ordinary conversation
     history.append({"role": "user", "text": prompt})
+    started = time.perf_counter()
     key = _cache_key(ctx, prompt, previous)
     reply = _REPLIES.get(key) if key else None
     if reply is None:
-        _preview(ctx, prompt)
+        pause_scan_for_chat(ctx)  # indexing and the AI model together would swap an 8 GB Mac
+        if ctx.settings.quick_preview:
+            _preview(ctx, prompt)
         with st.status("Checking with the AI...", expanded=False) as status:
-            reply = ctx.agent().ask(prompt, previous)
+            reply = ctx.agent().ask(prompt, previous, history=turns)
             status.update(label="Done", state="complete" if reply.kind != "error" else "error")
         if key and reply.kind in ("results", "count"):
             _REPLIES[key] = reply
-    history.append({"role": "assistant", "text": reply.text, "reply": reply})
+        took = time.perf_counter() - started
+    else:
+        took = 0.0
+    history.append({"role": "assistant", "text": reply.text, "reply": reply, "took": took})
     st.rerun()

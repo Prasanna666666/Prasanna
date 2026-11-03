@@ -130,10 +130,11 @@ DENSITY_COLUMNS = {"compact": 8, "comfortable": 6, "spacious": 4}
 class Settings:
     """User-tunable settings persisted as JSON on the external drive."""
 
-    schema: int = 5  # bumped when a default changed on purpose; older files get the new value
+    schema: int = 6  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
-    auto_scan: bool = True
+    quick_preview: bool = False  # instant photo matches while the AI is still planning; off so ordinary chat never shows photos
+    auto_scan: bool = False  # indexing competes with the language model for 8 GB of RAM and the external disk: start it on purpose
     ollama_url: str = "http://127.0.0.1:11434"
     # One model for everything, to save disk (a Mac with little space): ollama pull ministral-3:3b. The exact tag could not
     # be verified when this was written; if photo description / double-checking fails, the model may lack image input.
@@ -194,8 +195,10 @@ class Settings:
             if raw.get("schema", 1) < 5:  # v5: lighter indexing defaults (8 GB Mac sharing RAM with the model)
                 raw.pop("batch_size", None)
                 raw.pop("workers", None)
+            if raw.get("schema", 1) < 6:  # v6: indexing no longer starts by itself every time the app opens
+                raw.pop("auto_scan", None)
             _overlay(settings, raw)
-            settings.schema = 5
+            settings.schema = 6
         settings.allow_moves = True  # no master switch any more: every move is previewed, confirmed and undoable
         return settings.normalized()
 
