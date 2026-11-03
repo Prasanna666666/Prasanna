@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools"""
+"""orbit ui | chat | brief | tools | agents | tag"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import agent, db, netguard
+from . import agent, agents, db, netguard, tagging
 from .modules import ALL, tools
 from .modules.today import briefing_for
 
@@ -32,6 +32,16 @@ def main(argv: list[str] | None = None) -> int:
     elif cmd == "tools":
         for name, t in tools(ALL).items():
             print(f"{name:20} {t.description}")
+    elif cmd == "agents":
+        for a in agents.AGENTS:
+            print(f"{a.name:9} {len(a.tools)} tools: {', '.join(sorted(a.tools))}")
+    elif cmd == "tag":
+        try:
+            client = agent.llm.OllamaClient()
+            n = tagging.autotag_notes(conn, client, client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL)))
+        except RuntimeError:
+            n = tagging.autotag_notes(conn)  # model unavailable: rules only
+        print(f"tagged {n} note(s)")
     elif cmd == "chat":
         history: list[dict] = []
         client = agent.llm.OllamaClient()
@@ -42,7 +52,9 @@ def main(argv: list[str] | None = None) -> int:
             except EOFError:
                 return 0
             if text:
-                print("orbit>", agent.chat(conn, history, text, client=client))
+                trace: list = []
+                print("orbit>", agent.chat(conn, history, text, client=client, trace=trace))
+                print(f"        [{trace[0]['agent']} agent]")
     else:
         print(__doc__)
         return 2

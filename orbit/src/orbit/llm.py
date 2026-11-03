@@ -10,7 +10,8 @@ from typing import Any
 
 from . import netguard
 
-DEFAULT_MODEL = "llama3.2:3b"
+DEFAULT_MODEL = "ministral-3:3b"  # not verifiable from the build sandbox: resolve() falls back if it is not installed
+FALLBACKS = ("llama3.2:3b", "qwen2.5:3b")
 
 
 def host() -> str:
@@ -22,13 +23,31 @@ class OllamaClient:
         self.base = base or host()
         netguard.allow_local(urllib.parse.urlparse(self.base).hostname or "localhost")
 
-    def chat(self, model: str, messages: list[dict], tools: list[dict]) -> dict[str, Any]:
-        body = json.dumps({"model": model, "messages": messages, "tools": tools, "stream": False,
-                           "options": {"temperature": 0.2, "num_ctx": 4096}, "keep_alive": "10m"}).encode()
-        req = urllib.request.Request(f"{self.base}/api/chat", body, {"Content-Type": "application/json"})
+    def _call(self, path: str, body: dict | None = None, timeout: int = 300) -> dict:
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(f"{self.base}{path}", data, {"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(req, timeout=300) as r:  # noqa: S310 - loopback/local host only
-                return json.load(r)["message"]
+            with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - local host only (netguard)
+                return json.load(r)
         except OSError as e:
-            raise RuntimeError(f"Cannot reach the local model at {self.base} ({e}). Is Ollama running, "
-                               f"and did you `ollama pull {model}`?") from e
+            raise RuntimeError(f"Cannot reach the local model server at {self.base} ({e}). Is Ollama running?") from e
+
+    def installed(self) -> list[str]:
+        return [m["name"] for m in self._call("/api/tags", timeout=10).get("models", [])]
+
+    def resolve(self, preferred: str) -> str:
+        """The preferred model if installed, else the first installed fallback, else a helpful error."""
+        names = self.installed()
+        have = set(names) | {n.removesuffix(":latest") for n in names}
+        for cand in (preferred, *FALLBACKS):
+            if cand in have:
+                return cand
+        raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). "
+                           f"Run:  ollama pull {preferred}")
+
+    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None) -> dict[str, Any]:
+        body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": "10m",
+                                "options": {"temperature": 0.2, "num_ctx": 4096}}
+        if tools:
+            body["tools"] = tools
+        return self._call("/api/chat", body)["message"]

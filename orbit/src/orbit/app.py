@@ -10,7 +10,7 @@ from orbit import netguard
 
 netguard.install()
 
-from orbit import agent, db, llm
+from orbit import agent, db, llm, tagging
 from orbit.modules import ALL, money, notes, people, tasks
 from orbit.modules.today import briefing_for
 
@@ -75,9 +75,12 @@ elif page == "Chat":
     if prompt := st.chat_input("What do you need?"):
         st.chat_message("user").write(prompt)
         try:
+            trace: list = []
             with st.spinner("Thinking..."):
-                reply = agent.chat(C, hist, prompt)
+                reply = agent.chat(C, hist, prompt, trace=trace)
+            who = trace[0]["agent"] if trace else "general"
             st.chat_message("assistant").write(reply)
+            st.caption(f"{who} agent" + (f" · used {', '.join(trace[0]['tools'])}" if trace and trace[0]["tools"] else ""))
         except Exception as e:
             st.error(str(e))
 
@@ -113,6 +116,13 @@ elif page == "Notes":
         if st.form_submit_button("Save") and body:
             notes.add_note(C, {"title": title, "body": body, "tags": tags})
             st.rerun()
+    if st.button("Auto-tag untagged notes"):
+        try:
+            client = llm.OllamaClient(db.get_setting(C, "ollama_host", "") or None)
+            n = tagging.autotag_notes(C, client, client.resolve(db.get_setting(C, "model", llm.DEFAULT_MODEL)))
+        except Exception:  # model not running: rules-only still works
+            n = tagging.autotag_notes(C)
+        st.success(f"Tagged {n} note(s)")
     q = st.text_input("Search")
     for n in notes.search_notes(C, {"query": q}):
         with st.expander(f"{n['title'] or n['body'][:50]}  ·  {n['tags']}"):

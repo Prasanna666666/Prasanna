@@ -19,7 +19,7 @@ Data is in `~/.orbit/orbit.db` (override with `ORBIT_HOME`).
 ## Run in Docker (offline by design)
 Orbit never uses the internet. Needs Ollama installed natively on the Mac (fast, uses the GPU).
 ```bash
-ollama pull llama3.2:3b            # the ONLY step that needs internet (once); afterwards you can switch Wi-Fi off
+ollama pull ministral-3:3b         # the ONLY step that needs internet (once); afterwards you can switch Wi-Fi off
 cd orbit && docker compose up -d --build     # then open http://127.0.0.1:8501
 ```
 - Every container is on an **internal** Docker network with no route to the internet. There is no proxy and no allowlist.
@@ -37,6 +37,15 @@ cd orbit && docker compose up -d --build     # then open http://127.0.0.1:8501
 - **The model is local** (Ollama). No cloud AI. No weather/rates/web tools exist - the assistant is offline.
 - **Egress guard** blocks every non-local connection inside the app; the container network blocks it again outside.
 - Not done yet: encryption of the database file.
+
+## Agents and tagging
+- A router picks a **specialist agent** per message (instant keyword routing; the local model only breaks ties):
+  `money`, `tasks`, `family`, `notes`, `briefing`, else `general` (all tools). `orbit agents` lists them.
+- Each agent is offered, and allowed to call, **only its own tools** (enforced in code). Fewer tools = faster and more
+  reliable on a 3B model, and a confused agent can only affect its own area. The chat shows which agent answered.
+- **Auto-tagging**: `orbit tag` or the Notes page button tags untagged notes (rules + people names first, then the local
+  model, limited to a fixed vocabulary). It never changes tags you set yourself.
+- If the default model is not installed, Orbit uses an installed fallback or tells you the exact `ollama pull` to run.
 
 ## Adding a feature
 1. Create `src/orbit/modules/health.py` with a `MODULE = Module(name, migrations, tools)` (see `tasks.py`).

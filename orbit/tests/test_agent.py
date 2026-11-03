@@ -8,7 +8,7 @@ class FakeLocalModel:
     def __init__(self):
         self.calls = []
 
-    def chat(self, model, messages, tools):
+    def chat(self, model, messages, tools=None):
         self.calls.append(messages)
         if len(self.calls) == 1:
             return {"content": "", "tool_calls": [{"function": {"name": "add_task", "arguments": {

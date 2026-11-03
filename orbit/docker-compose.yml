@@ -3,7 +3,7 @@
 #   default - Docker's normal network, used only by the two byte-forwarders below (gateway, ollama bridge):
 #             Docker needs it to publish a port and to reach Ollama running on your Mac. They run no app code.
 # There is no proxy and no allowlist: nothing in this stack is meant to reach the internet.
-# Prereq (Mac): install Ollama and run `ollama pull llama3.2:3b` (needs internet once).
+# Prereq (Mac): install Ollama and run `ollama pull ministral-3:3b` (or llama3.2:3b) (needs internet once).
 name: orbit
 
 x-hardened: &hardened

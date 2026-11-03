@@ -1,7 +1,7 @@
-"""The assistant: a local model (Ollama) plus the module tools, in a plain tool-calling loop.
+"""The assistant: a router plus specialist agents (agents.py), each a local-model tool-calling loop.
 
-The model can only call registered tools; every result is returned to it as data. `client` is injectable
-so the loop is testable without a model.
+The model can only call tools its agent is allowed to use (enforced here, not just suggested in the prompt);
+every result is returned to it as data. `client` is injectable so everything is testable without a model.
 """
 
 from __future__ import annotations
@@ -11,24 +11,25 @@ import sqlite3
 from datetime import date
 from typing import Any
 
-from . import llm
+from . import agents, llm
 from .db import get_setting
 from .modules import ALL, tools as registry
 
 MAX_STEPS = 8
 
 
-def system_prompt(conn: sqlite3.Connection, today: date | None = None) -> str:
+def system_prompt(conn: sqlite3.Connection, today: date | None = None, role: str = "") -> str:
     today = today or date.today()
     return (
-        "You are Orbit, the user's private personal assistant, running fully on their own computer. You manage "
-        "tasks and reminders, notes, money and family (including parents) through tools backed by a local database.\n"
-        f"Today is {today.strftime('%A')} {today.isoformat()}. Currency: {get_setting(conn, 'currency', 'INR')}."
-        "\n"
+        "You are Orbit, the user's private personal assistant, running fully on their own computer. "
+        + (role + " " if role else "You can use every tool. ")
+        + "You work through tools backed by a local database.\n"
+        f"Today is {today.strftime('%A')} {today.isoformat()}. Currency: {get_setting(conn, 'currency', 'INR')}.\n"
         "Rules: use tools for every fact about the user's data - never guess or invent records. Resolve relative "
         "dates ('tomorrow', 'next Friday') into YYYY-MM-DD yourself. If a person is mentioned, call list_people first "
-        "and link by id; add them if missing. You are offline and have no internet access: if asked for live "
-        "information (weather, news, prices) say you cannot look it up. Do what was asked in one go; ask only if a required detail is truly missing. Delete only when explicitly asked. Be brief and warm."
+        "and link by id. You are offline and have no internet access: if asked for live information (weather, news, "
+        "prices) say you cannot look it up. Do what was asked in one go; ask only if a required detail is truly "
+        "missing. Delete only when explicitly asked. Be brief and warm."
     )
 
 
@@ -47,10 +48,11 @@ def _coerce(tool, args: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str) -> tuple[str, bool]:
+def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str,
+             allowed: frozenset[str] | None = None) -> tuple[str, bool]:
     tool = registry(ALL).get(name)
-    if tool is None:
-        return json.dumps({"error": f"unknown tool {name}"}), True
+    if tool is None or (allowed is not None and name not in allowed):
+        return json.dumps({"error": f"tool {name!r} is not available"}), True
     try:
         if isinstance(args, str):
             args = json.loads(args or "{}")
@@ -60,21 +62,44 @@ def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str) ->
         return json.dumps({"error": f"{type(e).__name__}: {e}"}), True
 
 
+def _classifier(client, model: str):
+    def classify(text: str, names: list[str]) -> str:
+        msg = client.chat(model, [
+            {"role": "system", "content": "Reply with exactly one word: " + ", ".join(names) + ", or general "
+             "(if the request spans several areas or fits none). No other text."},
+            {"role": "user", "content": text}])
+        return msg.get("content") or ""
+    return classify
+
+
 def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=None, model: str | None = None,
-         today: date | None = None) -> str:
-    """Append the user turn, run the tool loop, append all turns to `history`, return the final text."""
+         today: date | None = None, trace: list | None = None) -> str:
+    """Route to a specialist, run its tool loop, append every turn to `history`, return the final text.
+
+    `trace` (optional) receives {'agent': name, 'tools': [names]} so the UI can show who answered.
+    """
     client = client or llm.OllamaClient(get_setting(conn, "ollama_host", "") or None)
     model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
-    schemas = [t.schema() for t in registry(ALL).values()]
+    if hasattr(client, "resolve"):
+        model = client.resolve(model)
+    name = agents.route(user_text, _classifier(client, model))
+    spec = agents.BY_NAME.get(name)
+    allowed = spec.tools if spec else None  # None = general: every tool
+    schemas = [t.schema() for t in registry(ALL).values() if allowed is None or t.name in allowed]
+    used: list[str] = []
+    if trace is not None:
+        trace.append({"agent": name, "tools": used})
     history.append({"role": "user", "content": user_text})
     for _ in range(MAX_STEPS):
-        msg = client.chat(model, [{"role": "system", "content": system_prompt(conn, today)}, *history], schemas)
-        history.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": msg.get("tool_calls") or []})
+        msg = client.chat(model, [{"role": "system", "content": system_prompt(conn, today, spec.role if spec else "")},
+                                  *history], schemas)
         calls = msg.get("tool_calls") or []
+        history.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
         if not calls:
             return (msg.get("content") or "").strip()
         for c in calls:
             fn = c["function"]
-            out, _err = run_tool(conn, fn["name"], fn.get("arguments") or {})
+            used.append(fn["name"])
+            out, _err = run_tool(conn, fn["name"], fn.get("arguments") or {}, allowed)
             history.append({"role": "tool", "tool_name": fn["name"], "content": out})
     return "I got stuck partway - please try rephrasing or doing it in smaller steps."
