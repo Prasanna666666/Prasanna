@@ -7,6 +7,7 @@ offline guard sees a plain 127.0.0.1 connection.
 from __future__ import annotations
 
 import json
+import time
 from contextvars import ContextVar
 import urllib.error
 import urllib.request

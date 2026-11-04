@@ -506,3 +506,21 @@ def test_a_greeting_costs_no_extra_model_call_and_warm_up_uses_the_real_prompt()
     agent2.warm()
     system, messages, tools, max_tokens = llm2.calls[0]
     assert "ACT FIRST" in system and tools == agent2._tools and max_tokens == 1
+
+
+def test_a_server_error_before_the_first_word_is_retried_once(monkeypatch):
+    from aperture.agent import llm as llm_mod
+    from aperture.agent.llm import LLMError, OllamaClient
+
+    monkeypatch.setattr(llm_mod.time, "sleep", lambda s: None)
+    client = OllamaClient("http://127.0.0.1:11434", "m")
+    calls = []
+
+    def chunks(payload):
+        calls.append(1)
+        if len(calls) == 1:
+            raise LLMError("Ollama returned HTTP 500: runner stopped")
+        yield {"message": {"content": "ok"}}
+
+    monkeypatch.setattr(client, "_stream_chunks", chunks)
+    assert list(client.chat_events("s", [], [], 5)) == [("delta", "ok")] and len(calls) == 2
