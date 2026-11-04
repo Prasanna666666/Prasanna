@@ -217,6 +217,7 @@ class Executor:
                 # Several hard facts point at the same word (the place name, GPS nearby, a folder...): one combined answer, not separate tabs.
                 # Photos near a city are often named after a smaller neighbouring town, so the place name alone misses them.
                 union = np.unique(np.concatenate([ids for _, ids in hard_found]))
+                union = np.union1d(union, self._same_trip_without_gps(union))  # no location in the file, but shot during that trip
                 readings = [("place", f"Taken in or near {term}", union)] + [r for r in readings if r[0] not in self.HARD]
             hard = [ids for engine, _, ids in readings if engine in self.HARD]
             confirmed = np.unique(np.concatenate(hard)) if hard else np.zeros(0, np.int64)
@@ -295,6 +296,20 @@ class Executor:
             log.exception("engine %s failed", engine)
             result.notes.append(f"The {engine} search failed: {exc}")
         return np.zeros(0, np.int64)
+
+    def _same_trip_without_gps(self, anchors: np.ndarray) -> np.ndarray:
+        """Photos that carry no GPS (screenshots, forwarded or location-off shots) but were taken during the trip of the given photos."""
+        trip = self._trip_ids(anchors)
+        if len(trip) == 0:
+            return trip
+        try:
+            keep: list[int] = []
+            for part in chunked(trip.tolist(), 500):
+                marks = ",".join("?" * len(part))
+                keep += [r[0] for r in self._conn.execute(f"SELECT id FROM items WHERE gps_lat IS NULL AND id IN ({marks})", part)]
+            return np.array(sorted(keep), np.int64)
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)
 
     def _trip_ids(self, anchors: np.ndarray) -> np.ndarray:
         """All photos of the trips/events that contain any of these photos (see `aperture scan`, which builds the events)."""

@@ -100,3 +100,21 @@ def test_the_gps_audit_separates_missing_in_the_file_from_failed_to_read():
     conn.execute("INSERT INTO file_metadata VALUES (2, 1, 'b', ?, 0)", (json.dumps({"pillow": {"exif": {}}}),))
     lines = placereport._gps_audit(conn)
     assert "failed to read it): 1" in lines[0] and "iPhone 12 (2)" in lines[1]
+
+
+def test_photos_without_gps_taken_during_the_trip_join_the_main_answer_for_the_place():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.search.geo import GeoIndex
+
+    conn = _db()
+    conn.row_factory = sqlite3.Row
+    _item(conn, 1, "2026-03-01 10:00:00", "Nagoya, Japan")
+    conn.execute("UPDATE items SET gps_lat=35.18, gps_lon=136.90, place_text=' nagoya japan' WHERE id=1")
+    _item(conn, 2, "2026-03-01 18:00:00")  # a screenshot from the same day: no GPS in the file
+    _item(conn, 3, "2026-08-01 12:00:00")  # months later: another trip
+    derive.build_events(conn)
+    geo = GeoIndex(["Nagoya"], ["Japan"], [" nagoya japan"], np.array([35.18]), np.array([136.90]))
+    ex = Executor(conn, lambda: None, lambda: None, geo_provider=lambda: geo)
+    readings = dict(ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Nagoya"),))))
+    assert readings["Taken in or near Nagoya"].tolist() == [1, 2]
