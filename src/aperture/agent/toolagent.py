@@ -31,7 +31,7 @@ from typing import Any
 
 from .llm import LLMError, OllamaClient
 from .schema import _DATE_PROPS, _FILTER_PROPS, Plan, plan_from_raw
-from .service import CHAT_MAX_TOKENS, AgentReply, AgentService
+from .service import CHAT_MAX_TOKENS, AgentReply, AgentService, show_previous
 
 PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool calls typed out as text
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
@@ -295,7 +295,7 @@ class ToolAgent:
                     kind, value, events = "tool", tool_events[0], [("tool", v) for v in tool_events[1:]]
             if kind != "tool":
                 typed = bool(self._call_text.search("".join(head)))  # a tool call typed out as text did nothing and its "results" are invented
-                if not acted and shown is None and (typed or (not nudged and self._mentions_library(facts, previous_ids))):
+                if not acted and shown is None and (typed or self._mentions_library(facts, previous_ids)):
                     if nudged:  # told twice and it still will not act: the planner does the search instead, so the answer is always real
                         return self._service.ask(request, previous_ids, history)
                     nudged = True
@@ -393,6 +393,9 @@ class ToolAgent:
             if plan.scope == "previous" and previous_ids is None:
                 plan = dataclasses.replace(plan, scope="library")
                 note = "There were no earlier results, so the whole library was searched."
+            if not plan.has_constraints and plan.scope == "previous" and previous_ids is not None and len(previous_ids):
+                reply = show_previous(previous_ids)  # "show them": the photos already on screen
+                return observation_of(reply, "These are the photos already on screen."), reply
             if not plan.has_constraints:
                 return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
             reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)

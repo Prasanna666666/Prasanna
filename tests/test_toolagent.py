@@ -540,3 +540,15 @@ def test_model_words_after_tools_without_any_photos_are_never_shown_the_real_sea
     sentinel = object()
     agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
     assert agent.ask("Tokyo") is sentinel
+
+
+def test_show_them_puts_the_photos_on_screen_back_and_a_model_that_only_talks_is_replaced_by_the_search():
+    agent, _, plans = agent_with([[tool("find_photos", narrow_previous=True)], [("delta", "ok")]])
+    reply = agent.ask("Show them", previous_ids=np.array([5, 6, 7]))
+    assert list(reply.ids) == [5, 6, 7] and reply.text.startswith("**3** photos") and not plans  # no new search was needed
+    # the model keeps talking instead of acting, even after being told: the app searches
+    talk = [("delta", "Here are your photos from Tokyo: 27 cityscapes, 15 street scenes and more. " * 2)]
+    agent2, _, _ = agent_with([talk, talk])
+    sentinel = object()
+    agent2._service.ask = lambda request, previous_ids=None, history=None: sentinel
+    assert agent2.ask("Show them", previous_ids=np.array([5, 6, 7])) is sentinel

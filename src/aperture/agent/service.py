@@ -140,6 +140,12 @@ def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))
     return dataclasses.replace(plan, date=spec, clauses=kept)
 
+def show_previous(previous_ids: np.ndarray, timings: dict[str, float] | None = None) -> AgentReply:
+    """'Show them': put the photos that are already on screen back, unchanged."""
+    n = len(previous_ids)
+    return AgentReply("results", f"**{n:,}** photo{'s' if n != 1 else ''} · the same photos", ids=previous_ids, timings=timings or {})
+
+
 def _asks_for_one_thing(plan: Plan) -> bool:
     """Exactly one thing to look for, no date and no other filters. A place filter alone only restates the place."""
     terms = {c.query.strip().lower() for c in plan.clauses if not c.exclude and c.query.strip()}
@@ -272,6 +278,8 @@ class AgentService:
                 return AgentReply("chat", self._answerer(request, previous_ids), **base)
             except LLMError as exc:
                 return AgentReply("error", str(exc), **base)
+        if not plan.has_constraints and plan.scope == "previous" and previous_ids is not None and len(previous_ids):
+            return show_previous(previous_ids, timings)
         if plan.intent == "clarify" or not plan.has_constraints:
             return AgentReply(
                 "clarify", plan.message or "What should I look for - a subject, text, person, place or date?", **base
