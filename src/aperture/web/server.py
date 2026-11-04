@@ -204,6 +204,18 @@ def _clean_history(raw: Any) -> list[tuple[str, str]]:
     return turns[-8:]
 
 
+def memory_of(reply: Any, text: str) -> str:
+    """What the conversation remembers of an answer: the words shown plus what was searched, so a follow-up ('why these?') can be answered."""
+    parts = [text]
+    groups = getattr(reply, "groups", None) or []
+    if groups:
+        parts.append("Readings considered: " + "; ".join(f"{label} ({len(ids):,})" for label, ids in groups[:5]))
+    notes = list(getattr(reply, "notes", None) or [])
+    if notes:
+        parts.append("Notes: " + " ".join(str(n) for n in notes[:3]))
+    return " | ".join(p for p in parts if p)[:700]
+
+
 def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
     # *.localhost always resolves to this Mac (RFC 6761), so the friendly address the installer prints is as safe as 127.0.0.1
     allowed_hosts = {f"127.0.0.1:{web.port}", f"localhost:{web.port}", f"lumo.localhost:{web.port}"}
@@ -388,7 +400,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                         self._sse("reply", {"text": text})
                 took = round(time.perf_counter() - started, 2)
                 timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
-                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "timings": timings, "trace": calls})
+                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "record": memory_of(reply, text), "timings": timings, "trace": calls})
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the browser left (for example a new chat was started): stop quietly
             except Exception as exc:

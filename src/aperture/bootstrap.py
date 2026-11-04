@@ -262,7 +262,7 @@ class AppContext:
                 value = extract_json(raw).get("route")
             except Exception:
                 return "photos"
-            return value if value in ("chat", "simple") else "photos"
+            return value if value in ("chat", "simple", "about") else "photos"
 
         return lambda request, has_previous: route(" ".join(request.split()), has_previous)
 

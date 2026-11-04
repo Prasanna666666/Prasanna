@@ -218,5 +218,45 @@
   "message": "what year did the iPhone come out?",
   "previous": false,
   "expect": "chat"
+ },
+ {
+  "message": "why did you show me these?",
+  "previous": true,
+  "expect": "about"
+ },
+ {
+  "message": "this looks wrong",
+  "previous": true,
+  "expect": "about"
+ },
+ {
+  "message": "how come there are only a few?",
+  "previous": true,
+  "expect": "about"
+ },
+ {
+  "message": "which words did you use to search?",
+  "previous": true,
+  "expect": "about"
+ },
+ {
+  "message": "that's not what I asked for",
+  "previous": true,
+  "expect": "about"
+ },
+ {
+  "message": "why is the Iceland one in here?",
+  "previous": true,
+  "expect": "about"
+ },
+ {
+  "message": "no, I meant the photos from Kyoto",
+  "previous": true,
+  "expect": "photos"
+ },
+ {
+  "message": "ok now only the ones with people",
+  "previous": true,
+  "expect": "photos"
  }
 ]

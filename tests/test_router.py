@@ -114,7 +114,7 @@ def test_chat_replies_know_todays_date(tmp_path, monkeypatch):
 
 def test_route_cases_file_is_valid_and_includes_the_real_failure():
     cases = json.loads((Path(llm_mod.__file__).parents[1] / "eval_data" / "route_cases.json").read_text())
-    assert len(cases) >= 40 and {c["expect"] for c in cases} == {"simple", "photos", "chat"}
+    assert len(cases) >= 40 and {c["expect"] for c in cases} == {"simple", "photos", "about", "chat"}
     assert {"message": "How many pics in 2026", "previous": False, "expect": "photos"} in cases
 
 

@@ -608,3 +608,25 @@ def test_the_long_list_of_every_place_is_not_sent_to_the_model_because_every_tok
     agent, _, _ = agent_with([[("delta", "x")]])
     system = agent.system_message("PLACES IN THIS LIBRARY: Goa; Paris; Kyoto\nDATA MATCHES FOR WORDS IN THE REQUEST: 'tokyo' -> text: 25", False)
     assert "PLACES IN THIS LIBRARY" not in system and "'tokyo' -> text: 25" in system
+
+
+def test_a_comment_on_the_earlier_answer_is_a_conversation_not_a_new_search():
+    agent, llm, plans = agent_with([[tool("find_photos", places=["Iceland"])], [("delta", "ok")]])
+    chats = []
+    agent._service._router = lambda request, has_previous: "about" if "why" in request.lower() else "photos"
+    agent._service._chat_stream = lambda request, history: chats.append((request, history)) or iter(["Those came from the trip chip."])
+    reply = agent.ask("why are these from Iceland?", previous_ids=np.array([1, 2]), history=[("assistant", "**8** photos | Readings considered: Same trip (975)")])
+    assert reply.kind == "chat" and not plans and not llm.calls  # no search, no tool call
+    assert chats and "Readings considered" in chats[0][1][0][1]  # the earlier answer's notes are available to answer from
+    agent.ask("Tokyo")
+    assert plans  # a real request still searches
+
+
+def test_the_conversation_remembers_what_was_searched_not_only_the_words_shown():
+    from types import SimpleNamespace
+
+    from aperture.web.server import memory_of
+
+    reply = SimpleNamespace(groups=[("Taken in or near Tokyo", np.arange(586)), ("Same trip as your Tokyo photos", np.arange(726))], notes=["No exact match."])
+    memory = memory_of(reply, "**586** photos · Taken in or near Tokyo")
+    assert "Same trip as your Tokyo photos (726)" in memory and "No exact match." in memory and memory.startswith("**586**")

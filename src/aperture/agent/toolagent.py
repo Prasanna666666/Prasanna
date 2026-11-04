@@ -273,6 +273,10 @@ class ToolAgent:
         timings: dict[str, float] = {}
         started = time.perf_counter()
         began = time.monotonic()
+        route = self._route(request, previous_ids)
+        if route in ("chat", "about"):  # conversation, or a comment on the earlier answer: talk, do not search again
+            timings["route"] = round(time.perf_counter() - started, 2)
+            return self._service._chat_reply(request, history, {"timings": timings}, "")
         facts = self._facts_within(request, CONTEXT_LIMIT)
         timings["context"] = round(time.perf_counter() - started, 2)
         system, messages = self.system_message(facts, previous_ids is not None), self._messages(request, history)
@@ -349,6 +353,16 @@ class ToolAgent:
                 leftover.append(event)
                 break
         return head, itertools.chain(leftover, events)
+
+    def _route(self, request: str, previous_ids: Any) -> str | None:
+        """What kind of message is this: a search, or conversation / a comment on the earlier answer? None when it cannot be told."""
+        router = getattr(self._service, "_router", None)
+        if router is None:
+            return None
+        try:
+            return router(request, previous_ids is not None)
+        except LLMError:
+            return None
 
     def _facts_within(self, request: str, limit: float) -> str:
         """The facts are help, not a requirement: if looking them up is slow (a cold external drive) the model runs without them while the

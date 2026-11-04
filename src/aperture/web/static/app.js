@@ -168,7 +168,7 @@
     else if (event === 'done') {
       msg.text.classList.remove('streaming');
       if (msg.gallery && !msg.gallery.total) { msg.gallery.root.remove(); msg.gallery = null; }  // a preview that was not confirmed
-      if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.text });
+      if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.record || d.text });
       if (SHOW_TRACE) addTrace(msg, d);
       if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s${breakdown(d)}`));
     }

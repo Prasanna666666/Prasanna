@@ -81,6 +81,8 @@ CHAT_SYSTEM = (
     "plain text, without emojis or lists. If the user is just being social, reply kindly and invite them to describe photos to find. "
     "For a general question, answer briefly and correctly. You cannot browse the web. You are not searching photos in this reply, "
     "so never claim to have found any.\n"
+    "If the user questions or corrects the earlier results, answer from the notes in the conversation (what was searched, how many, which "
+    "readings) in plain words: say what you searched, admit it if it looks wrong, and suggest how to narrow it. Never claim you searched again.\n"
     "Examples:\n"
     "User: Hello\nLumo: Hi! What would you like to find in your photos today?\n"
     "User: How are you?\nLumo: Doing well, thanks for asking! Shall I look for some photos?\n"
@@ -89,20 +91,24 @@ CHAT_SYSTEM = (
 CHAT_MAX_TOKENS = 160  # short answers: it is a photo app, and short answers are also fast
 
 ROUTER_SYSTEM = (
-    "You route messages in a private photo app. Reply with JSON: {\"route\": \"simple\"}, {\"route\": \"photos\"} or {\"route\": \"chat\"}.\n"
+    "You route messages in a private photo app. Reply with JSON: {\"route\": \"simple\"}, {\"route\": \"photos\"}, {\"route\": \"about\"} or {\"route\": \"chat\"}.\n"
     "simple = ONE subject to look for in the pictures themselves (an object, animal, food, scene or activity) and nothing else: no "
     "person's name, place, date or year, count, filter, 'not' or 'without', text written in a picture, and no earlier results. "
     "At most 4 words.\n"
     "photos = any other message about the user's photos or files or library: find, show, count, filter, copy or organize them, "
     "refine earlier results, or ask about them (how many, from which year, which people, places, indexing). Words like photos, pics, "
     "pictures, images, shots, selfies, albums, years and dates about their library mean photos. When in doubt, choose photos.\n"
+    "about = the user comments on, questions or complains about the EARLIER ANSWER or the app itself, without asking to find anything new: "
+    "'why are these from Iceland?', 'that is wrong', 'what did you search for?', 'why only 8?', 'how did you decide that?'. "
+    "If the user corrects AND names what they want ('no, I meant Japan'), that is photos.\n"
     "chat = everything else: greetings, thanks, small talk, general knowledge, explanations, advice, writing help, questions about you.\n"
     "Examples: 'mountains' -> simple; 'birthday cake' -> simple; 'a cup of coffee' -> simple; 'sailing boats' -> simple; "
     "'photos of Anna at the beach' -> photos; 'sunset photos from 2023' -> photos; 'beach photos without people' -> photos; "
     "'find the invoice that mentions Acme' -> photos; 'how many pics from 2019' -> photos; 'only the ones from March' -> photos; "
-    "'who is in my photos most' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
+    "'who is in my photos most' -> photos; 'why are these Iceland photos?' -> about; 'that is wrong' -> about; 'what did you search for?' -> about; "
+    "'no, I meant the ones from Japan' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
 )
-ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["simple", "photos", "chat"]}}, "required": ["route"]}
+ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["simple", "photos", "about", "chat"]}}, "required": ["route"]}
 MAX_SIMPLE_WORDS = 4
 
 DATE_SYSTEM = (
@@ -226,7 +232,7 @@ class AgentService:
             except LLMError as exc:
                 return AgentReply("error", str(exc))
             timings["route"] = round(time.perf_counter() - started, 2)
-            if route == "chat":
+            if route in ("chat", "about"):
                 return self._chat_reply(request, history, {"timings": timings}, "")
         simple = (route == "simple" and self._fast_search and previous_ids is None
                   and 0 < len(request.split()) <= MAX_SIMPLE_WORDS)
