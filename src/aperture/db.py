@@ -203,7 +203,17 @@ CREATE TABLE face_attributes(       -- expression and age group of each face, re
 );
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10]
+_MIGRATION_11 = """
+-- Photos without GPS: a location worked out from the photos around them in time, kept ONLY where that kind of guess measured >= 80%
+-- accurate on the library's own photos that do have GPS.
+ALTER TABLE items ADD COLUMN gps_est_lat REAL;
+ALTER TABLE items ADD COLUMN gps_est_lon REAL;
+ALTER TABLE items ADD COLUMN gps_est_conf REAL;          -- measured accuracy of this kind of guess (0..1)
+ALTER TABLE items ADD COLUMN gps_est_place TEXT;
+ALTER TABLE items ADD COLUMN gps_est_place_text TEXT NOT NULL DEFAULT '';
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11]
 
 
 class Database:

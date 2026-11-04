@@ -179,7 +179,7 @@ class Executor:
             result.notes.append(f"{len(ids):,} taken within 25 km of {query} (GPS).")
         return ids
 
-    HARD = ("place", "near", "path", "person")  # facts: the photo's own GPS, place tag, folder name, or a named person
+    HARD = ("place", "near", "estimated", "path", "person")  # facts: the photo's own GPS, place tag, folder name, or a named person
     SOFT = ("text", "tag", "visual")  # clues: a word that appears in the picture, or what the picture looks like
 
     def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
@@ -195,6 +195,7 @@ class Executor:
             wording = (
                 ("place", f"Taken in {term}"),
                 ("near", f"Taken near {term}"),
+                ("estimated", f"Probably taken in {term}"),
                 ("path", f"In folders named {term}"),
                 ("person", f"People called {term}"),
                 ("text", f"The word {term} in the photo"),
@@ -217,7 +218,6 @@ class Executor:
                 # Several hard facts point at the same word (the place name, GPS nearby, a folder...): one combined answer, not separate tabs.
                 # Photos near a city are often named after a smaller neighbouring town, so the place name alone misses them.
                 union = np.unique(np.concatenate([ids for _, ids in hard_found]))
-                union = np.union1d(union, self._same_trip_without_gps(union))  # no location in the file, but shot during that trip
                 readings = [("place", f"Taken in or near {term}", union)] + [r for r in readings if r[0] not in self.HARD]
             hard = [ids for engine, _, ids in readings if engine in self.HARD]
             confirmed = np.unique(np.concatenate(hard)) if hard else np.zeros(0, np.int64)
@@ -292,10 +292,32 @@ class Executor:
                 return self._visual_ids(query, result)
             if engine == "tag":
                 return self._tag_ids(query)
+            if engine == "estimated":
+                return self._estimated_ids(query)
         except sqlite3.Error as exc:  # a broken engine must not take the whole answer down
             log.exception("engine %s failed", engine)
             result.notes.append(f"The {engine} search failed: {exc}")
         return np.zeros(0, np.int64)
+
+    def _estimated_ids(self, query: str) -> np.ndarray:
+        """Photos with no GPS of their own, located from the photos around them in time (kept only where that tested >= 80% accurate)."""
+        from ..search.metadata import estimated_place_ids
+
+        try:
+            ids = estimated_place_ids(self._conn, query)
+            geo = self._geo_provider()
+            found = geo.find(query) if geo is not None else None
+            if found is not None:
+                rows = self._conn.execute("SELECT id, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND gps_est_lat IS NOT NULL").fetchall()
+                if rows:
+                    from ..search.filters import haversine_km
+
+                    near = np.array([r[0] for r in rows], np.int64)
+                    dist = haversine_km(found[0], found[1], np.array([r[1] for r in rows]), np.array([r[2] for r in rows]))
+                    ids = np.union1d(ids, near[dist <= 25])
+            return ids
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)
 
     def _same_trip_without_gps(self, anchors: np.ndarray) -> np.ndarray:
         """Photos that carry no GPS (screenshots, forwarded or location-off shots) but were taken during the trip of the given photos."""

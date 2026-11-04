@@ -102,19 +102,31 @@ def test_the_gps_audit_separates_missing_in_the_file_from_failed_to_read():
     assert "failed to read it): 1" in lines[0] and "iPhone 12 (2)" in lines[1]
 
 
-def test_photos_without_gps_taken_during_the_trip_join_the_main_answer_for_the_place():
-    from aperture.agent.executor import Executor
-    from aperture.agent.schema import Clause, Plan
+def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_least_80_percent_accurate():
+    from datetime import datetime, timedelta
+
     from aperture.search.geo import GeoIndex
 
     conn = _db()
-    conn.row_factory = sqlite3.Row
-    _item(conn, 1, "2026-03-01 10:00:00", "Nagoya, Japan")
-    conn.execute("UPDATE items SET gps_lat=35.18, gps_lon=136.90, place_text=' nagoya japan' WHERE id=1")
-    _item(conn, 2, "2026-03-01 18:00:00")  # a screenshot from the same day: no GPS in the file
-    _item(conn, 3, "2026-08-01 12:00:00")  # months later: another trip
-    derive.build_events(conn)
-    geo = GeoIndex(["Nagoya"], ["Japan"], [" nagoya japan"], np.array([35.18]), np.array([136.90]))
-    ex = Executor(conn, lambda: None, lambda: None, geo_provider=lambda: geo)
-    readings = dict(ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Nagoya"),))))
-    assert readings["Taken in or near Nagoya"].tolist() == [1, 2]
+    geo = GeoIndex(["Nagoya", "Amsterdam"], ["Japan", "The Netherlands"], [" nagoya japan", " amsterdam the netherlands"],
+                   np.array([35.18, 52.37]), np.array([136.90, 4.90]))
+    place = {0: (35.18, 136.90), 1: (52.37, 4.90)}
+    n = 0
+    start = datetime(2025, 1, 1, 10, 0)
+    for day in range(40):  # one city per day, far apart; eight photos ten minutes apart
+        for k in range(8):
+            n += 1
+            lat, lon = place[day % 2]
+            when = start + timedelta(days=day, minutes=10 * k)
+            conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif, gps_lat, gps_lon) VALUES (?,?,?,?,?,?,1,?,1,?,?)",
+                         (n, f"/p/{n}", f"{n}", "image", 0, 0, when.isoformat(sep=" "), lat, lon))
+    easy, hard = 1000, 1001  # no GPS: between two photos ten minutes apart (day 5, Amsterdam), and in the dead of night between two cities
+    for item_id, when in ((easy, start + timedelta(days=5, minutes=35)), (hard, start + timedelta(days=5, hours=14))):
+        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif) VALUES (?,?,?,?,?,?,1,?,1)",
+                     (item_id, f"/p/{item_id}", f"{item_id}", "image", 0, 0, when.isoformat(sep=" ")))
+    outcome = derive.infer_locations(conn, geo)
+    used = {k["kind"]: k for k in outcome["kinds"]}
+    assert used["neighbours agree, within 10 min"]["used"] and used["neighbours agree, within 10 min"]["accuracy"] >= 0.8
+    got = dict(conn.execute("SELECT id, gps_est_place FROM items WHERE id IN (1000, 1001)").fetchall())
+    assert got[easy] == "Amsterdam, The Netherlands" and got[hard] is None  # the doubtful guess is not made: it does not belong
+    assert outcome["located"] >= 1 and conn.execute("SELECT gps_est_conf FROM items WHERE id=1000").fetchone()[0] >= 0.8

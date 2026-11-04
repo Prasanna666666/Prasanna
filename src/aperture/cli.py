@@ -249,6 +249,12 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
     conn = ctx.db.connect()
     try:
         print(f"capture flags: {derive.derive_meta_labels(conn):,}; trips and events: {derive.build_events(conn):,}")
+        print("locating photos that have no GPS from the photos around them (tested on your photos that do have GPS):", flush=True)
+        outcome = derive.infer_locations(conn, ctx.geo())
+        for kind in outcome["kinds"]:
+            if kind["tested"]:
+                print(f"  {kind['kind']}: {kind['accuracy']:.0%} accurate over {kind['tested']:,} tests -> {'USED' if kind['used'] else 'not used (below 80%)'}")
+        print(f"  located {outcome['located']:,} of {outcome['without_gps']:,} photos without GPS; the rest are left without a location")
     finally:
         conn.close()
     return 0

@@ -37,6 +37,11 @@ def place_ids(conn: sqlite3.Connection, query: str) -> np.ndarray:
     return _word_prefix_ids(conn, "place_text", query)
 
 
+def estimated_place_ids(conn: sqlite3.Connection, query: str) -> np.ndarray:
+    """Photos with no GPS whose place was worked out from the photos around them (only guesses that tested >= 80% accurate are stored)."""
+    return _word_prefix_ids(conn, "gps_est_place_text", query)
+
+
 def date_ids(conn: sqlite3.Connection, start: str, end: str) -> np.ndarray:
     """Photos taken in ``[start, end)`` (ISO dates)."""
     return _ids(
