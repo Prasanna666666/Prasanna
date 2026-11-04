@@ -64,8 +64,9 @@ def shrink(jpeg: bytes) -> bytes:
 
 
 def analyse(vision: Any, jpeg: bytes) -> dict:
-    raw = vision.extract(shrink(jpeg), PROMPT, SCHEMA)
-    data = json.loads(raw)
+    from ..agent.jsonutil import extract_json
+
+    data = extract_json(vision.extract(shrink(jpeg), PROMPT, SCHEMA, 900))
     return data if isinstance(data, dict) else {}
 
 
@@ -142,13 +143,15 @@ def run(conn: sqlite3.Connection, data_dir: Path, vision: Any, geo: Any, model: 
     todo = pending(conn, limit)
     deadline = time.monotonic() + seconds if seconds else None
     done = located = failed = 0
+    last_error = ""
     for n, item_id in enumerate(todo, 1):
         if (stop is not None and stop.is_set()) or (deadline is not None and time.monotonic() > deadline):
             break
         try:
             data = analyse(vision, (data_dir / preview_rel(item_id)).read_bytes())
-        except Exception:
+        except Exception as exc:
             failed += 1
+            last_error = last_error or f"{type(exc).__name__}: {exc}"[:300]
             continue
         store(conn, item_id, model, data)
         done += 1
@@ -165,7 +168,7 @@ def run(conn: sqlite3.Connection, data_dir: Path, vision: Any, geo: Any, model: 
             if report:
                 report(n, len(todo), located)
     conn.commit()
-    return {"analysed": done, "located": located, "failed": failed, "left": max(len(todo) - done - failed, 0)}
+    return {"analysed": done, "located": located, "failed": failed, "left": max(len(todo) - done - failed, 0), "error": last_error}
 
 
 def calibrate(conn: sqlite3.Connection, data_dir: Path, vision: Any, geo: Any, samples: int = 100, seed: int = 3) -> dict:

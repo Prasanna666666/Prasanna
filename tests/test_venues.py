@@ -39,7 +39,7 @@ def test_only_photos_that_already_look_like_a_venue_are_looked_at_and_never_twic
     vision = Vision([{"sports_venue": True, "sport": "Hockey", "venue_type": "rink", "evidence": "boards, blue lines and goals"},
                      {"sports_venue": False, "sport": "unknown", "venue_type": "other", "evidence": "a shopping mall"}])
     out = venues.run(conn, tmp_path, vision)
-    assert out == {"looked_at": 2, "sports_venues": 1, "failed": 0, "left": 0} and vision.calls == 2
+    assert out == {"looked_at": 2, "sports_venues": 1, "failed": 0, "left": 0, "error": ""} and vision.calls == 2
     assert venues.candidates(conn) == []  # read once, kept for good
     labels = {r[0] for r in conn.execute("SELECT label FROM photo_labels WHERE item_id=1 AND source='venue'")}
     assert labels == {"sports venue", "rink", "hockey", "hockey rink"}
@@ -59,3 +59,26 @@ def test_the_sport_labels_make_hockey_stadium_an_instant_exact_lookup(tmp_path):
     conn.execute("INSERT INTO photo_labels VALUES (1, 'stadium', 0.9, 'vision')")
     venues.run(conn, tmp_path, Vision([{"sports_venue": True, "sport": "hockey", "venue_type": "stadium", "evidence": "hockey nets and ice"}]))
     assert Executor(conn, lambda: None, lambda: None)._tag_ids("hockey stadium").tolist() == [1]
+
+
+def test_a_failure_is_reported_with_its_reason_not_swallowed(tmp_path):
+    conn = _db(tmp_path, 2)
+    conn.execute("INSERT INTO photo_labels VALUES (1, 'stadium', 0.9, 'vision')")
+
+    class Broken:
+        def extract(self, *args, **kwargs):
+            raise RuntimeError("Ollama returned HTTP 500: model requires more system memory")
+
+    out = venues.run(conn, tmp_path, Broken())
+    assert out["failed"] == 1 and out["looked_at"] == 0 and "requires more system memory" in out["error"]
+
+
+def test_a_little_text_around_the_models_json_is_tolerated(tmp_path):
+    conn = _db(tmp_path, 1)
+    conn.execute("INSERT INTO photo_labels VALUES (1, 'arena', 0.9, 'vision')")
+
+    class Chatty:
+        def extract(self, *args, **kwargs):
+            return 'Sure! {"sports_venue": true, "sport": "hockey", "venue_type": "arena", "evidence": "nets"} Hope that helps.'
+
+    assert venues.run(conn, tmp_path, Chatty())["sports_venues"] == 1

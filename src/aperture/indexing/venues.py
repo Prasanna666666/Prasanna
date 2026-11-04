@@ -35,6 +35,14 @@ NO_SPORT = {"", "unknown", "none", "n/a", "unclear", "not applicable"}
 LABEL_SCORE = 0.8
 
 
+def _parse(raw: str) -> dict:
+    """The model's JSON, tolerating a little text around it."""
+    from ..agent.jsonutil import extract_json
+
+    data = extract_json(raw)
+    return data if isinstance(data, dict) else {}
+
+
 def candidates(conn: sqlite3.Connection, limit: int = 0) -> list[int]:
     """Photos that look like a sports venue by the fast labels and have not been looked at yet, most likely first."""
     marks = " OR ".join("l.label LIKE ?" for _ in CANDIDATE_LABELS)
@@ -73,15 +81,16 @@ def run(conn: sqlite3.Connection, data_dir: Path, vision: Any, seconds: float = 
     todo = candidates(conn, limit)
     deadline = time.monotonic() + seconds if seconds else None
     done = failed = venues = 0
+    last_error = ""
     for n, item_id in enumerate(todo, 1):
         if (stop is not None and stop.is_set()) or (deadline is not None and time.monotonic() > deadline):
             break
         try:
-            raw = vision.extract(shrink((data_dir / preview_rel(item_id)).read_bytes()), PROMPT, SCHEMA, 250)
-            data = json.loads(raw)
-            data = data if isinstance(data, dict) else {}
-        except Exception:
+            raw = vision.extract(shrink((data_dir / preview_rel(item_id)).read_bytes()), PROMPT, SCHEMA, 500)
+            data = _parse(raw)
+        except Exception as exc:  # the first reason is kept and shown: a silent failure cannot be fixed
             failed += 1
+            last_error = last_error or f"{type(exc).__name__}: {exc}"[:300]
             continue
         store(conn, item_id, data)
         done += 1
@@ -91,4 +100,4 @@ def run(conn: sqlite3.Connection, data_dir: Path, vision: Any, seconds: float = 
             if report:
                 report(n, len(todo))
     conn.commit()
-    return {"looked_at": done, "sports_venues": venues, "failed": failed, "left": max(len(todo) - done - failed, 0)}
+    return {"looked_at": done, "sports_venues": venues, "failed": failed, "left": max(len(todo) - done - failed, 0), "error": last_error}

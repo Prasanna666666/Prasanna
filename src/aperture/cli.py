@@ -384,6 +384,8 @@ def cmd_judge(ctx: AppContext, args: argparse.Namespace) -> int:
         outcome = judge.run(conn, ctx.paths.data, vision, ctx.geo(), ctx.settings.vision_model, args.hours * 3600, args.limit, stop,
                             lambda n, t, loc: print(f"  {n:,} / {t:,}  ({loc:,} placed)", flush=True))
         print(f"judge: {outcome['analysed']:,} analysed, {outcome['located']:,} placed, {outcome['left']:,} left for next time")
+        if outcome["failed"]:
+            print(f"  {outcome['failed']:,} could not be read. First reason: {outcome['error']}")
     finally:
         conn.close()
     return 0
@@ -444,6 +446,8 @@ def cmd_venues(ctx: AppContext, args: argparse.Namespace) -> int:
         print(f"{todo:,} photos look like a sports venue and have not been read yet" + (f"; up to {args.hours} hours" if args.hours else ""), flush=True)
         outcome = venues.run(conn, ctx.paths.data, ctx.describer(), args.hours * 3600, args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
         print(f"venues: {outcome['looked_at']:,} read, {outcome['sports_venues']:,} are sports venues, {outcome['left']:,} left for next time")
+        if outcome["failed"]:
+            print(f"  {outcome['failed']:,} could not be read. First reason: {outcome['error']}")
     finally:
         conn.close()
     return 0
