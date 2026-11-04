@@ -205,3 +205,8 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .event { padding: 22px 24px; } .event .lines .line:first-child { border-top: 0; }
 .fold summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; } .fold summary::-webkit-details-marker { display: none; }
 .fold summary::after { content: "▸"; margin-left: auto; color: var(--faint); } .fold[open] summary::after { content: "▾"; }
+
+/* ---------- home: routine spending first ---------- */
+.summary { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; padding: 28px 30px; }
+.quiets { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
+.quiet { display: flex; justify-content: space-between; gap: 24px; padding: 10px 14px; border-radius: 14px; background: var(--surface-2); text-decoration: none; color: var(--ink); } .quiet:hover { background: var(--accent-soft); }

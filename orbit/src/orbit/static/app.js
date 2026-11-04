@@ -111,35 +111,52 @@ function barChart(trend, selected, onPick) {
     h('div', { class: 'bar-label' }, shortMonth(t.month)))));
 }
 
+function changeNote(d) {
+  const ch = d.before > 0 ? ((d.amount - d.before) / d.before) * 100 : null;
+  return ch == null ? 'new this month' : Math.abs(ch) < 10 ? 'about the same as last month' : ch > 100 ? '↑ more than doubled' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% vs last month`;
+}
+/** Day-to-day category tiles, shared by Home and Money. `isOn(category)` and `onTap(category)` are optional. */
+function dailyTiles(daily, isOn, onTap) {
+  const max = Math.max(...daily.map((d) => d.amount), 1);
+  return h('div', { class: 'tiles' }, daily.map((d) => h(onTap ? 'button' : 'div', { class: 'tile' + (isOn && isOn(d.category) ? ' on' : ''), onclick: onTap ? () => onTap(d.category) : null },
+    h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '10px', height: '10px', borderRadius: '4px', background: colour(d.category) } }), h('span', { class: 'tname' }, d.category)),
+    h('div', { class: 'tamt num' }, money(d.amount)), h('div', { class: 'meter' }, h('i', { style: { width: (d.amount / max) * 100 + '%', background: colour(d.category) } })),
+    h('div', { class: 'faint', style: { fontSize: '12.5px', marginTop: '8px' } }, changeNote(d)))));
+}
+/** The month to open on: the latest with data, unless it is the current month and only a few days old. */
+function startMonth(trend) {
+  const now = new Date().toISOString().slice(0, 7), latest = trend.length ? trend[trend.length - 1].month : now;
+  return latest === now && new Date().getDate() < 10 && trend.length > 1 ? trend[trend.length - 2].month : latest;
+}
+
 // ------------------------------------------------------------------ pages
 const pages = {};
 
 pages.home = async () => {
   const d = await api('/api/home'); cur = d.currency;
-  const b = d.briefing, m = b.money, hour = new Date().getHours();
+  const b = d.briefing, hour = new Date().getHours(), month = startMonth(d.trend);
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const ask = h('input', { class: 'field', placeholder: 'Ask Orbit anything: "how much did I spend on food last month?"', style: { fontSize: '16px', padding: '16px 20px', borderRadius: '18px' } });
+  const [daily, byMain, sum] = d.trend.length ? await Promise.all([tool('daily_spending', { month }), tool('spending_by_main', { month }), tool('spending_summary', { month })]) : [[], [], { income: 0 }];
+  const ask = h('input', { class: 'field', placeholder: 'Ask Orbit anything: "how much did I spend on groceries last month?"', style: { fontSize: '16px', padding: '16px 20px', borderRadius: '18px' } });
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { sessionStorage.setItem('orbit.ask', ask.value.trim()); location.hash = '#/chat'; } });
-  const tile = (label, value, sub, cls) => h('div', { class: 'card' }, h('div', { class: 'eyebrow' }, label), h('div', { class: 'num ' + (cls || ''), style: { fontSize: '30px', fontWeight: 700, margin: '6px 0 2px', letterSpacing: '-.02em' } }, value), h('div', { class: 'muted', style: { fontSize: '13px' } }, sub));
-  return h('div', { class: 'stack' },
-    head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })),
-    ask,
-    d.trend.length ? h('div', { class: 'grid g3' },
-      tile('Spent in ' + monthName(m.month).split(' ')[0], money(m.spent), 'so far this month'),
-      tile('Money in', money(m.income), 'this month', 'good'),
-      tile('To do', String(b.tasks_due.length), b.tasks_due.length ? 'due or overdue' : 'all clear')) :
-      h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your private assistant for money, tasks, notes and people. Everything stays on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my finance files')),
-    d.trend.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Spending, last months'), h('a', { href: '#/money', class: 'chip' }, 'Open Money')), barChart(d.trend, d.trend[d.trend.length - 1].month, () => { location.hash = '#/money'; })) : null,
-    h('div', { class: 'grid g2' },
-      h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Needs attention')),
-        b.tasks_due.length ? h('div', { class: 'list' }, b.tasks_due.map((t) => h('div', { class: 'item' },
-          h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
-          h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, t.due || 'no date'))))) : h('div', { class: 'empty' }, 'Nothing due. Enjoy it.')),
-      h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Coming up')),
-        b.upcoming_dates.length ? h('div', { class: 'list' }, b.upcoming_dates.map((u) => h('div', { class: 'item' },
-          h('div', { class: 'avatar', style: { background: colour(u.name) } }, initials(u.name)),
-          h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${u.name} · ${u.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days === 0 ? 'today' : `in ${u.in_days} days`)),
-          u.turning ? h('span', { class: 'chip' }, `turning ${u.turning}`) : null))) : h('div', { class: 'empty' }, 'No birthdays or dates in the next two weeks.'))));
+  const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
+  const outings = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
+  const before = daily.reduce((x, r) => x + r.before, 0), ch = before > 0 ? ((dayTotal - before) / before) * 100 : null;
+  const link = (label, value, good) => h('a', { class: 'quiet', href: '#/money' }, h('span', { class: 'faint' }, label), h('span', { class: 'num ' + (good ? 'good' : ''), style: { fontWeight: 650 } }, value));
+  const money_ = d.trend.length ? [
+    h('div', { class: 'card summary' }, h('div', {}, h('div', { class: 'eyebrow' }, 'Day to day · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '46px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
+        h('div', { class: 'muted' }, ch == null ? 'everyday spending' : Math.abs(ch) < 10 ? 'about the same as last month' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% compared with last month`)),
+      h('div', { class: 'quiets' }, link('Trips & events', signed(outings, 0)), link('Money in', money(sum.income), true), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'See all of Money'))),
+    daily.length ? dailyTiles(daily.slice(0, 8), null, null) : null] :
+    [h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your private assistant for money, tasks, notes and people. Everything stays on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my finance files'))];
+  const tasksCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'To do')),
+    b.tasks_due.length ? h('div', { class: 'list' }, b.tasks_due.map((t) => h('div', { class: 'item' },
+      h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
+      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, t.due || 'no date'))))) : h('div', { class: 'empty' }, 'Nothing due. Enjoy it.'));
+  const upCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Coming up')),
+    b.upcoming_dates.length ? h('div', { class: 'list' }, b.upcoming_dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.name) } }, initials(u.name)),
+      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${u.name} · ${u.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days === 0 ? 'today' : `in ${u.in_days} days`)), u.turning ? h('span', { class: 'chip' }, `turning ${u.turning}`) : null))) : h('div', { class: 'empty' }, 'Nothing in the next two weeks.'));
+  return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask, ...money_.filter(Boolean), h('div', { class: 'grid g2' }, tasksCard, upCard));
 };
 
 pages.chat = async () => {
@@ -178,10 +195,7 @@ pages.money = async () => {
   const [trend0, settings] = await Promise.all([tool('monthly_trend', { months: 12 }), api('/api/settings')]);
   cur = settings.currency;
   const now = new Date().toISOString().slice(0, 7);
-  const latest = trend0.length ? trend0[trend0.length - 1].month : now;
-  // early in a month the current month is too short to read: open the last complete one instead
-  const prevOfLatest = trend0.length > 1 ? trend0[trend0.length - 2].month : latest;
-  let month = location.hash.split('?m=')[1] || (latest === now && new Date().getDate() < 10 ? prevOfLatest : latest);
+  let month = location.hash.split('?m=')[1] || startMonth(trend0);
   let tab = 'daily'; const openCats = new Set(); const openEvents = new Set();
   const wrap = h('div', { class: 'stack' });
   const importBtn = h('button', { class: 'btn primary', onclick: guard(startImport) }, 'Read my files');
@@ -238,12 +252,7 @@ pages.money = async () => {
     // ---- day to day: category tiles; tap one to see its payments
     const payRow = (t) => h('div', { class: 'pay' }, h('span', { class: 'num faint', style: { width: '48px' } }, t.day.slice(5)), h('span', { class: 'grow', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, t.note || '-'),
       t.event ? h('span', { class: 'chip' }, t.event) : null, h('span', { class: 'num ' + (t.kind === 'income' ? 'good' : ''), style: { fontWeight: 600 } }, (t.kind === 'income' ? '+' : '−') + money(t.amount, 2)));
-    const maxC = Math.max(...daily.map((d) => d.amount), 1);
-    const tiles = h('div', { class: 'tiles' }, daily.map((d) => { const ch = d.before > 0 ? ((d.amount - d.before) / d.before) * 100 : null;
-      return h('button', { class: 'tile' + (openCats.has(d.category) ? ' on' : ''), onclick: () => { openCats.has(d.category) ? openCats.delete(d.category) : openCats.add(d.category); draw(false); } },
-        h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '10px', height: '10px', borderRadius: '4px', background: colour(d.category) } }), h('span', { class: 'tname' }, d.category)),
-        h('div', { class: 'tamt num' }, money(d.amount)), h('div', { class: 'meter' }, h('i', { style: { width: (d.amount / maxC) * 100 + '%', background: colour(d.category) } })),
-        h('div', { class: 'faint', style: { fontSize: '12.5px', marginTop: '8px' } }, ch == null ? 'new this month' : Math.abs(ch) < 10 ? 'about the same as last month' : ch > 100 ? '↑ more than doubled' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% vs last month`)); }));
+    const tiles = dailyTiles(daily, (c) => openCats.has(c), (c) => { openCats.has(c) ? openCats.delete(c) : openCats.add(c); draw(false); });
     const opened = daily.filter((d) => openCats.has(d.category)).map((d) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', { style: { textTransform: 'capitalize' } }, d.category), h('span', { class: 'chip' }, money(d.amount))),
       h('div', { class: 'list' }, txs.filter((t) => !t.event && t.kind === 'expense' && (t.category === 'other' ? 'unsorted' : t.category) === d.category).map(payRow))));
     const q = h('input', { class: 'field', placeholder: 'Search payments', style: { maxWidth: '280px' } });
