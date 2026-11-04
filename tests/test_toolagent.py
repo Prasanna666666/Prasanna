@@ -630,3 +630,14 @@ def test_the_conversation_remembers_what_was_searched_not_only_the_words_shown()
     reply = SimpleNamespace(groups=[("Taken in or near Tokyo", np.arange(586)), ("Same trip as your Tokyo photos", np.arange(726))], notes=["No exact match."])
     memory = memory_of(reply, "**586** photos · Taken in or near Tokyo")
     assert "Same trip as your Tokyo photos (726)" in memory and "No exact match." in memory and memory.startswith("**586**")
+
+
+def test_the_memory_of_a_place_search_says_how_many_photos_cannot_be_found_by_place():
+    from types import SimpleNamespace
+
+    from aperture.web.server import memory_of
+
+    reply = SimpleNamespace(groups=[("Taken in or near Tokyo", np.arange(543))], notes=[])
+    coverage = "Location coverage: of 49,611 photos, 31,405 have a location in their own file; 18,206 have no location, so a search by place cannot find them."
+    assert "18,206 have no location" in memory_of(reply, "**543** photos · Taken in or near Tokyo", coverage)
+    assert "Location coverage" not in memory_of(SimpleNamespace(groups=[], notes=[]), "Hello", coverage)  # only searches carry it

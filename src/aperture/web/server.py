@@ -127,6 +127,25 @@ class Web:
         return {"ids": [int(i) for i in ids[offset:offset + limit]], "total": int(len(ids))}
 
     # ---- small cache so polling the status never hits the drive or the AI server more than every few seconds
+    def coverage_note(self) -> str:
+        """How complete the locations are, so 'are you sure you found them all?' can be answered truthfully."""
+        def compute() -> str:
+            conn = self.ctx.db.connect()
+            try:
+                total, own, worked = conn.execute(
+                    "SELECT COUNT(*), COALESCE(SUM(gps_lat IS NOT NULL),0), COALESCE(SUM(gps_lat IS NULL AND gps_est_lat IS NOT NULL),0) "
+                    "FROM items WHERE missing=0 AND meta_done=1").fetchone()
+            except Exception:
+                return ""
+            finally:
+                conn.close()
+            none = total - own - worked
+            extra = f", {worked:,} more were placed by time or appearance" if worked else ""
+            return (f"Location coverage: of {total:,} photos, {own:,} have a location in their own file{extra}; {none:,} have no location, "
+                    "so a search by place cannot find them.")
+
+        return self.cached("coverage_note", 300.0, compute)
+
     def cached(self, key: str, ttl: float, fn):
         now = time.monotonic()
         hit = self._cache.get(key)
@@ -204,7 +223,7 @@ def _clean_history(raw: Any) -> list[tuple[str, str]]:
     return turns[-8:]
 
 
-def memory_of(reply: Any, text: str) -> str:
+def memory_of(reply: Any, text: str, coverage: str = "") -> str:
     """What the conversation remembers of an answer: the words shown plus what was searched, so a follow-up ('why these?') can be answered."""
     parts = [text]
     groups = getattr(reply, "groups", None) or []
@@ -213,7 +232,9 @@ def memory_of(reply: Any, text: str) -> str:
     notes = list(getattr(reply, "notes", None) or [])
     if notes:
         parts.append("Notes: " + " ".join(str(n) for n in notes[:3]))
-    return " | ".join(p for p in parts if p)[:700]
+    if coverage and groups:
+        parts.append(coverage)
+    return " | ".join(p for p in parts if p)[:900]
 
 
 def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
@@ -400,7 +421,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                         self._sse("reply", {"text": text})
                 took = round(time.perf_counter() - started, 2)
                 timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
-                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "record": memory_of(reply, text), "timings": timings, "trace": calls})
+                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "record": memory_of(reply, text, web.coverage_note()), "timings": timings, "trace": calls})
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the browser left (for example a new chat was started): stop quietly
             except Exception as exc:
