@@ -141,6 +141,7 @@ class AppContext:
                 if hasattr(self, "geo"):
                     run("place data", self.geo)
                 if hasattr(self, "db"):
+                    run("question copy", self._build_replica)
                     run("photo list", self._prime_photo_list)
                 run("place names", self._fill_places)
                 run("library facts", self._prime_library_facts)
@@ -294,6 +295,24 @@ class AppContext:
                 self._geo = GeoIndex.load(self.paths)
             return self._geo
 
+    _replica: Any = None
+
+    def question_db(self) -> Any:
+        """The connection a question reads: the in-memory copy when it is ready, otherwise the library file."""
+        if self._replica is not None:
+            conn = self._replica.connect()
+            if conn is not None:
+                return conn
+        return self.db.connect()
+
+    def _build_replica(self) -> None:
+        from .search.replica import Replica
+
+        replica = Replica(self.paths.db)
+        if replica.build():
+            self._replica = replica
+            replica.keep_fresh()
+
     def _prime_photo_list(self) -> None:
         """Read the list of live photos once at start-up (it is remembered until the library file changes)."""
         from .search.metadata import all_ids
@@ -351,7 +370,7 @@ class AppContext:
     def agent(self) -> Agent:
         def make_executor() -> Executor:
             return Executor(
-                self.db.connect(),
+                self.question_db(),
                 self.embedding_index,
                 self.ready_embedder,
                 strictness=self.settings.visual_strictness,

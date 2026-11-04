@@ -245,3 +245,34 @@ def test_word_search_in_memory_gives_the_same_answer_as_the_database_and_follows
     conn.execute("UPDATE items SET meta_text=' hockey nagoya' WHERE id=2")
     conn.commit()
     assert metadata.path_ids(conn, "hockey nagoya").tolist() == [2, 3]  # the file changed, so the remembered text was read again
+
+
+def test_the_in_memory_copy_answers_like_the_library_file_and_leaves_the_vectors_on_the_drive(tmp_path):
+    from aperture.search import metadata
+    from aperture.search.replica import Replica
+
+    source = tmp_path / "lib.db"
+    conn = sqlite3.connect(source)
+    for m in MIGRATIONS:
+        conn.executescript(m)
+    for i in (1, 2, 3):
+        conn.execute("INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)",
+                     (i, f"/p{i}", f"p{i}", "image", " hockey club" if i < 3 else " holiday", " nagoya japan" if i != 2 else " amsterdam"))
+    conn.execute("INSERT INTO faces(item_id, score, px, emb) VALUES(1, 0.9, 100, ?)", (b"\x00" * 8,))
+    conn.execute("INSERT INTO photo_labels(item_id, label, source, score) VALUES(3, 'baby', 'face', 0.9)")
+    conn.commit()
+    replica = Replica(source)
+    assert replica.build() is True
+    mem = replica.connect()
+    assert mem.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 3
+    assert "emb" not in [r[1] for r in mem.execute("PRAGMA table_info(faces)")]  # the vectors stay on the drive
+    assert metadata.all_ids(mem).tolist() == metadata.all_ids(conn).tolist() == [1, 2, 3]
+    assert metadata.path_ids(mem, "hockey").tolist() == [1, 2] and metadata.place_ids(mem, "nagoya").tolist() == [1, 3]
+    assert mem.execute("SELECT item_id FROM photo_labels WHERE label='baby'").fetchone()[0] == 3
+    assert mem.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0] == 0  # a table that is not copied is still reachable
+    assert replica.stale() is False
+    conn.execute("UPDATE items SET missing=1 WHERE id=3")
+    conn.commit()
+    assert replica.stale() is True and replica.build() is True
+    assert metadata.all_ids(replica.connect()).tolist() == [1, 2]  # a rebuild follows the library
+    mem.close()
