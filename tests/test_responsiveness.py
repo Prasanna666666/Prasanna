@@ -164,3 +164,21 @@ def test_worked_out_locations_are_off_unless_asked_for():
 
 def test_warming_up_runs_one_real_search_so_the_first_question_is_not_the_slow_one(scanned):
     scanned._warm_search()  # must run end to end on a real (small) library without raising
+
+
+def test_switching_the_picture_model_throws_away_everything_derived_from_the_old_one(scanned):
+    from aperture.config import Settings
+    from aperture.db import meta_set
+    from aperture.indexing.runner import Scanner
+
+    conn = scanned.db.connect()
+    meta_set(conn, "clip_model", "ViT-B-32/laion2b_s34b_b79k")
+    conn.execute("INSERT INTO photo_labels VALUES (1, 'baby', 0.9, 'face')")
+    conn.execute("INSERT INTO photo_labels VALUES (1, 'baby', 0.9, 'age')")  # a different model's work is kept
+    settings = Settings(clip_model="ViT-L-14", clip_pretrained="laion2b_s32b_b82k")
+    scanner = Scanner.__new__(Scanner)
+    scanner.settings = settings
+    scanner._check_embedding_model(conn)
+    assert conn.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0] == 0
+    assert {r[0] for r in conn.execute("SELECT source FROM photo_labels")} == {"age"}  # only the old picture model's labels went
+    assert conn.execute("SELECT COUNT(*) FROM items WHERE clip_done=0 AND kind='image'").fetchone()[0] > 0

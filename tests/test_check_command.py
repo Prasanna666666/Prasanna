@@ -22,3 +22,9 @@ def test_check_command_exists_and_budgets_cover_the_slow_steps():
     assert cli.build_parser().parse_args(["check"]).command == "check"
     assert set(cli.BUDGET) == {"router", "first words", "AI plan", "instant photo matches"}
     assert "check" not in cli.GUARDED  # it reads no photos
+
+
+def test_the_image_model_choices_are_named_models():
+    from aperture import cli
+
+    assert cli.IMAGE_MODELS["small"] == ("ViT-B-32", "laion2b_s34b_b79k") and cli.IMAGE_MODELS["large"] == ("ViT-L-14", "laion2b_s32b_b82k")

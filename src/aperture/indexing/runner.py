@@ -147,6 +147,8 @@ class Scanner:
         if current not in (None, wanted):
             conn.execute("DELETE FROM embeddings")
             conn.execute("UPDATE items SET clip_done=0 WHERE kind IN ('image','pdf')")
+            conn.execute("DELETE FROM photo_labels WHERE source IN ('clip', 'face')")  # everything derived from the old model's vectors
+            conn.execute("DELETE FROM face_attributes")
         meta_set(conn, "clip_model", wanted)
         conn.commit()
 

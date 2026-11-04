@@ -71,6 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
+    cfg.add_argument("--image-model", choices=["small", "large"], help="the picture-understanding model: small (ViT-B/32, fast, the default) or large "
+                     "(ViT-L/14: clearly better at objects and scenes; needs a one-time download and a few hours of re-indexing)")
     cfg.add_argument("--estimate-locations", choices=["on", "off"], help="give photos without GPS a worked-out location (measured >= 95% accurate); off by default")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
     sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
@@ -484,6 +486,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
+IMAGE_MODELS = {"small": ("ViT-B-32", "laion2b_s34b_b79k"), "large": ("ViT-L-14", "laion2b_s32b_b82k")}
 GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "venues", "ask", "caption", "export-job"}  # install-service / install-launcher only write start-up files; the app they start is sandboxed
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
@@ -930,9 +933,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             s.export_dir = str(resolve_export_dir(paths, args.export_dir, s.photo_dir))
         if args.ollama_model:
             s.ollama_model = args.ollama_model
+        if args.image_model:
+            s.clip_model, s.clip_pretrained = IMAGE_MODELS[args.image_model]
+            print(f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo.")
         if args.estimate_locations:
             s.estimate_locations = args.estimate_locations == "on"
-        if args.photo_dir or args.export_dir or args.ollama_model or args.estimate_locations:
+        if args.photo_dir or args.export_dir or args.ollama_model or args.estimate_locations or args.image_model:
             s.save(paths)
         print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
         return 0
