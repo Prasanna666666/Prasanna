@@ -215,3 +215,15 @@ def test_descriptions_from_the_cloud_find_the_subject_inside_the_place_when_noth
                 meanings=("ice hockey players on a rink", "a crowd in an arena"))
     assert ex.explore(plan).together().tolist() == [1, 2, 4]  # the labelled ones plus the one that only LOOKS like hockey, inside Nagoya
     assert Executor(conn, lambda: None, lambda: None).explore(dataclasses.replace(plan, meanings=())).together().tolist() == [1, 2]
+
+
+def test_a_named_place_is_a_requirement_whatever_else_found_the_photos():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.agent.service import AgentService
+
+    conn = _hockey_library()
+    service = AgentService(planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False)
+    plan = Plan(intent="find", clauses=(Clause(engines=("place", "path"), query="Nagoya"), Clause(engines=("visual",), query="hockey")))
+    reply = service.run_plan("hockey in nagoya", plan)
+    assert set(reply.ids.tolist()) <= {1, 2, 4, 5} and all(set(ids.tolist()) <= {1, 2, 4, 5} for _, ids in reply.groups)

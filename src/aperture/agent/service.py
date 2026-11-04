@@ -364,6 +364,7 @@ class AgentService:
         groups: list[tuple[str, np.ndarray]] = []
         lead = ""
         hard_ids = None
+        exploration = None
         if len(outcome.ids) == 0 and plan.intent == "find" and hasattr(executor, "run_relaxed"):
             relaxed = executor.run_relaxed(plan, previous_ids)  # keep the place, date or person; only the look is relaxed
             if len(relaxed.ids):
@@ -389,6 +390,18 @@ class AgentService:
                     groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), readings)
             except Exception:  # listing the other readings must never break the answer
                 log.exception("listing readings failed")
+        if exploration is not None:
+            # A place the person named is a requirement, not a hint: whatever else found these photos, they must be from that place.
+            for clause in plan.clauses:
+                term = clause.query.strip()
+                if clause.exclude or "place" not in clause.engines or "visual" in clause.engines or term not in exploration.terms:
+                    continue
+                inside = exploration.terms[term]
+                if len(inside) == 0:
+                    continue  # nothing is known about that place: do not wipe the answer
+                outcome.ids = outcome.ids[np.isin(outcome.ids, inside)]
+                groups = [(label, ids[np.isin(ids, inside)]) for label, ids in groups]
+                groups = [(label, ids) for label, ids in groups if len(ids)]
         if hard_ids is not None:  # a compound request: every tab must still respect its exact requirements
             groups = [(label, np.intersect1d(ids, hard_ids)) for label, ids in groups]
             groups = [(label, ids) for label, ids in groups if len(ids)]
