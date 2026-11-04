@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import urllib.error
 import urllib.request
 from datetime import date, datetime
 from http import HTTPStatus
@@ -149,6 +150,10 @@ class Gateway:
         try:
             with self._open(request, timeout=20) as response:
                 reply = json.loads(response.read().decode("utf-8", "replace"))
+        except urllib.error.HTTPError as exc:
+            hints = {400: "the request was refused (check the model name)", 401: "the API key was refused (check the key)", 403: "the API key is not allowed to use this model",
+                     404: "the model name was not found (set a valid one with cloud_model)", 429: "rate limit or no credit left at the provider"}
+            raise GatewayError(f"the provider answered HTTP {exc.code}: {hints.get(exc.code, 'see the provider dashboard')}") from exc  # no body, no key
         except Exception as exc:
             raise GatewayError(f"the provider could not be reached: {type(exc).__name__}") from exc  # never echo anything that could hold the key
         usage = reply.get("usage") or {}

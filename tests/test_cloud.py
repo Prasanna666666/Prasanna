@@ -121,3 +121,25 @@ def test_an_unreachable_provider_never_leaks_details_and_the_http_gateway_serves
         assert status == 503 and "sk-test-key" not in json.dumps(body) and "could not be reached" in body["error"]
     finally:
         server.shutdown()
+
+
+@pytest.mark.parametrize("code, hint", [(401, "key was refused"), (404, "model name was not found"), (429, "no credit")])
+def test_a_refusal_from_the_provider_says_why_without_echoing_anything_sensitive(tmp_path, code, hint):
+    class Refusing(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):  # noqa: N802
+            self.send_response(code)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+    server = HTTPServer(("127.0.0.1", 0), Refusing)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        g = gw.Gateway("sk-secret", gw.Usage(tmp_path / "usage.json"), provider_url=f"http://127.0.0.1:{server.server_port}/v1/messages")
+        with pytest.raises(gw.GatewayError) as caught:
+            g.interpret("dogs", False, "2026-11-04")
+        assert f"HTTP {code}" in str(caught.value) and hint in str(caught.value) and "sk-secret" not in str(caught.value)
+    finally:
+        server.shutdown()

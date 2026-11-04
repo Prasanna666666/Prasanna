@@ -10,6 +10,7 @@ import shutil
 import signal
 import sys
 import threading
+import urllib.error
 import urllib.request
 from datetime import date
 from collections.abc import Callable, Sequence
@@ -54,7 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     vn.add_argument("--limit", type=int, default=0)
     cl = sub.add_parser("cloud", help="optional: let a cloud model understand what you type (only the words, names hidden); enable | off | status")
-    cl.add_argument("action", choices=["enable", "off", "status"])
+    cl.add_argument("action", choices=["enable", "off", "status", "test"])
     cl.add_argument("--forget-key", action="store_true", help="with `off`: also delete the API key from the Keychain")
     sub.add_parser("cloud-gateway", help="(internal) the sandboxed program that talks to the cloud provider; started for you")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
@@ -504,6 +505,20 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
         else:
             print("Off. Nothing is sent to the cloud. (The key is still in the Keychain; add --forget-key to remove it.)")
         return 0
+    if args.action == "test":
+        question = "photos of <PERSON_1> from the last 3 months"
+        print(f"sending only this to the cloud: {question!r}")
+        try:
+            http = urllib.request.Request(f"http://127.0.0.1:{settings.cloud_port}/interpret", data=json.dumps({"question": question, "has_previous": False}).encode())
+            with urllib.request.urlopen(http, timeout=30) as response:
+                plan = json.loads(response.read()).get("plan")
+            print("the cloud understood it:", json.dumps(plan) if plan else "no usable plan (the local model would take over)")
+            return 0 if plan else 1
+        except urllib.error.HTTPError as exc:
+            print("failed:", json.loads(exc.read() or b"{}").get("error", f"HTTP {exc.code}"))
+        except OSError:
+            print("the gateway is not running: start the app with `aperture secure-ui` or `aperture install-service`, then try again")
+        return 1
     print(f"cloud understanding: {'ON' if settings.cloud_interpreter else 'off'}; model {settings.cloud_model}; monthly cap ${settings.cloud_cap_usd:.2f}")
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{settings.cloud_port}/status", timeout=2) as response:
