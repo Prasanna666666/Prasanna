@@ -87,3 +87,16 @@ def test_the_place_report_gives_the_numbers_behind_a_place_name():
     text = "\n".join(placereport.report(conn, geo, "Nagoya"))
     assert "1 with GPS" in text and "says 'Nagoya': 1" in text and "within 25 km of Nagoya, Japan: 1" in text
     assert "Trip photos around those: 2 (1 without GPS, 1 with GPS)" in text
+
+
+def test_the_gps_audit_separates_missing_in_the_file_from_failed_to_read():
+    from aperture.indexing import placereport
+
+    conn = _db()
+    _item(conn, 1, "2026-03-01 10:00:00")  # the file has GPS but the index does not: the app failed to read it
+    _item(conn, 2, "2026-03-01 11:00:00")  # genuinely no GPS in the file
+    conn.execute("UPDATE items SET camera='iPhone 12' WHERE id IN (1,2)")
+    conn.execute("INSERT INTO file_metadata VALUES (1, 1, 'a', ?, 0)", (json.dumps({"exiftool": {"GPS:GPSLatitude": 35.1}}),))
+    conn.execute("INSERT INTO file_metadata VALUES (2, 1, 'b', ?, 0)", (json.dumps({"pillow": {"exif": {}}}),))
+    lines = placereport._gps_audit(conn)
+    assert "failed to read it): 1" in lines[0] and "iPhone 12 (2)" in lines[1]

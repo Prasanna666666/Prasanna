@@ -9,6 +9,23 @@ from typing import Any
 import numpy as np
 
 
+def _gps_audit(conn: sqlite3.Connection) -> list[str]:
+    """Why do photos lack GPS: is it missing from the files, or did the app fail to read it?"""
+    out: list[str] = []
+    try:
+        hidden = conn.execute("SELECT COUNT(*) FROM file_metadata m JOIN items i ON i.id=m.item_id WHERE i.missing=0 AND i.gps_lat IS NULL "
+                              "AND m.data LIKE '%GPSLatitude%'").fetchone()[0]
+        out.append(f"GPS present in the file's own metadata but missing in the index (the app failed to read it): {hidden:,}")
+    except sqlite3.Error:
+        out.append("(the full-metadata pass has not run, so the files' own GPS cannot be compared)")
+    rows = conn.execute("SELECT COALESCE(NULLIF(camera,''),'unknown camera'), COUNT(*) FROM items WHERE missing=0 AND meta_done=1 AND gps_lat IS NULL "
+                        "GROUP BY 1 ORDER BY 2 DESC LIMIT 6").fetchall()
+    out.append("Photos without GPS, by camera: " + "; ".join(f"{c} ({n:,})" for c, n in rows))
+    years = conn.execute("SELECT substr(taken_at,1,4), COUNT(*) FROM items WHERE missing=0 AND meta_done=1 AND gps_lat IS NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 5").fetchall()
+    out.append("... and by year: " + "; ".join(f"{y} ({n:,})" for y, n in years))
+    return out
+
+
 def report(conn: sqlite3.Connection, geo: Any, name: str) -> list[str]:
     from ..search.filters import haversine_km
     from ..search.metadata import place_ids
@@ -18,6 +35,7 @@ def report(conn: sqlite3.Connection, geo: Any, name: str) -> list[str]:
         "SELECT COUNT(*), COALESCE(SUM(gps_lat IS NOT NULL),0), COALESCE(SUM(place IS NOT NULL AND place<>''),0) FROM items WHERE missing=0 AND meta_done=1"
     ).fetchone()
     lines.append(f"Whole library: {total:,} photos, {with_gps:,} with GPS ({with_gps / max(total, 1):.0%}), {with_place:,} with a place name.")
+    lines += _gps_audit(conn)
     tagged = place_ids(conn, name)
     lines.append(f"Photos whose place name says '{name}': {len(tagged):,}")
     found = geo.find(name) if geo is not None else None
