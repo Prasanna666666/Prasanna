@@ -51,6 +51,14 @@ class OllamaClient:
         raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). "
                            f"Run:  ollama pull {preferred}")
 
+    def warm(self, model: str) -> None:
+        """Load the model into memory now (so the first message does not wait for it). Failures are ignored: it is only a head start."""
+        try:
+            self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": "2m",
+                                         "options": {"num_ctx": 4096}}, timeout=120)
+        except RuntimeError:
+            pass
+
     def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None,
              num_ctx: int = 4096) -> dict[str, Any]:
         """`schema` forces the answer to be JSON of that shape (Ollama's constrained output)."""

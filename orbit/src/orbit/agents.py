@@ -91,7 +91,7 @@ def route(text: str, classify=None) -> str:
         return picked
     if classify:
         answer = (classify(text, [a.name for a in AGENTS]) or "").strip().lower()
-        for name in (*BY_NAME, "general"):
+        for name in (*BY_NAME, "chat", "general"):
             if re.search(rf"\b{name}\b", answer):
                 return name
     return "general"

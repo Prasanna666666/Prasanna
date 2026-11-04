@@ -7,6 +7,7 @@ RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin orbit \
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
+COPY .streamlit ./.streamlit
 ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ORBIT_HOME=/data
 
 FROM base AS app

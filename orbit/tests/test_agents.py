@@ -101,3 +101,18 @@ def test_same_context_and_keepalive_as_aperture_so_one_loaded_model_is_shared(mo
     monkeypatch.setattr(llm.OllamaClient, "_call", lambda self, path, body=None, timeout=300: seen.update(body=body) or {"message": {}})
     llm.OllamaClient("http://127.0.0.1:11434").chat("ministral-3:3b", [], None)
     assert seen["body"]["options"]["num_ctx"] == 4096 and seen["body"]["keep_alive"] == "2m"
+
+
+def test_small_talk_gets_a_short_reply_with_no_tools_and_no_big_prompt(conn):
+    from orbit import agent
+
+    seen = []
+
+    class Client:
+        def chat(self, model, messages, tools=None, **kw):
+            seen.append((messages[0]["content"], tools))
+            return {"content": "chat" if "Reply with exactly one word" in messages[0]["content"] else "Hello! How can I help?"}
+
+    out = agent.chat(conn, [], "hi", client=Client(), model="m")
+    assert out == "Hello! How can I help?"
+    assert len(seen) == 2 and seen[1][1] == [] and len(seen[1][0]) < 400  # the answer call carries no tool definitions

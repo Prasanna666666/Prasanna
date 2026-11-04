@@ -27,7 +27,26 @@ def conn():
 
 
 C = conn()
-cur = db.get_setting(C, "currency", "INR")
+cur = db.get_setting(C, "currency", "EUR")
+
+
+@st.cache_resource
+def _warm_model() -> bool:
+    """Once per start: load the local model in the background while you look around."""
+    import threading
+
+    def work() -> None:
+        try:
+            client = llm.OllamaClient(db.get_setting(C, "ollama_host", "") or None)
+            client.warm(client.resolve(db.get_setting(C, "model", llm.DEFAULT_MODEL)))
+        except Exception:  # noqa: BLE001 - only a head start; the chat reports any real problem
+            pass
+
+    threading.Thread(target=work, daemon=True).start()
+    return True
+
+
+_warm_model()
 page = st.sidebar.radio("Orbit", ["Today", "Chat", "Tasks", "Notes", "Documents", "Money", "People", "Settings"])
 
 

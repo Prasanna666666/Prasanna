@@ -24,7 +24,7 @@ def system_prompt(conn: sqlite3.Connection, today: date | None = None, role: str
         "You are Orbit, the user's private personal assistant, running fully on their own computer. "
         + (role + " " if role else "You can use every tool. ")
         + "You work through tools backed by a local database.\n"
-        f"Today is {today.strftime('%A')} {today.isoformat()}. Currency: {get_setting(conn, 'currency', 'INR')}.\n"
+        f"Today is {today.strftime('%A')} {today.isoformat()}. Currency: {get_setting(conn, 'currency', 'EUR')}.\n"
         "Rules: use tools for every fact about the user's data - never guess or invent records. Resolve relative "
         "dates ('tomorrow', 'next Friday') into YYYY-MM-DD yourself. If a person is mentioned, call list_people first "
         "and link by id. You are offline and have no internet access: if asked for live information (weather, news, "
@@ -65,8 +65,8 @@ def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str,
 def _classifier(client, model: str):
     def classify(text: str, names: list[str]) -> str:
         msg = client.chat(model, [
-            {"role": "system", "content": "Reply with exactly one word: " + ", ".join(names) + ", or general "
-             "(if the request spans several areas or fits none). No other text."},
+            {"role": "system", "content": "Reply with exactly one word: " + ", ".join(names) + ", chat (greetings, thanks, small talk or a "
+             "general question that needs none of the user's data), or general (a request that spans several areas or fits none). No other text."},
             {"role": "user", "content": text}])
         return msg.get("content") or ""
     return classify
@@ -84,15 +84,19 @@ def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=N
         model = client.resolve(model)
     name = agents.route(user_text, _classifier(client, model))
     spec = agents.BY_NAME.get(name)
-    allowed = spec.tools if spec else None  # None = general: every tool
+    allowed = frozenset() if name == "chat" else (spec.tools if spec else None)  # chat = no tools; None = general: every tool
     schemas = [t.schema() for t in registry(ALL).values() if allowed is None or t.name in allowed]
     used: list[str] = []
     if trace is not None:
         trace.append({"agent": name, "tools": used})
     history.append({"role": "user", "content": user_text})
     for _ in range(MAX_STEPS):
-        msg = client.chat(model, [{"role": "system", "content": system_prompt(conn, today, spec.role if spec else "")},
-                                  *history], schemas)
+        if name == "chat":  # no tools, a short prompt: this is what keeps "Hi" fast
+            system = ("You are Orbit, the user's private personal assistant, running on their own computer. Chat briefly and warmly. "
+                      "You cannot see their data in this reply; if they want something done, tell them to ask for it.")
+        else:
+            system = system_prompt(conn, today, spec.role if spec else "")
+        msg = client.chat(model, [{"role": "system", "content": system}, *history], schemas)
         calls = msg.get("tool_calls") or []
         history.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
         if not calls:

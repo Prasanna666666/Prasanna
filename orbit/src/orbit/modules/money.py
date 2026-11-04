@@ -49,7 +49,7 @@ def to_minor(x: float) -> int:
 
 
 def currency(conn) -> str:
-    return get_setting(conn, "currency", "INR")
+    return get_setting(conn, "currency", "EUR")
 
 
 def add_transaction(conn, a):

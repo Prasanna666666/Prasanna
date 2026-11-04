@@ -4,14 +4,23 @@
 #   ./scripts/up.sh --show-key print the key once so you can back it up (lose the key = lose the data)
 set -euo pipefail
 cd "$(dirname "$0")/.."
-SERVICE=orbit-db-key
-if [ "${1:-}" = "--show-key" ]; then security find-generic-password -a "$USER" -s "$SERVICE" -w; exit 0; fi
+OLD=orbit-db-key        # first version of the entry: macOS asked for your password every time it was read
+SERVICE=orbit-db-key-v2 # same key, readable by the `security` tool without a prompt
+read_key() { security find-generic-password -a "$USER" -s "$1" -w 2>/dev/null; }
+if [ "${1:-}" = "--show-key" ]; then read_key "$SERVICE" || read_key "$OLD"; exit 0; fi
 [ "$(uname)" = "Darwin" ] || { echo "This script uses the macOS Keychain. On Linux export ORBIT_DB_KEY yourself."; exit 2; }
-if ! KEY="$(security find-generic-password -a "$USER" -s "$SERVICE" -w 2>/dev/null)"; then
-  KEY="$(openssl rand -base64 32)"
-  security add-generic-password -a "$USER" -s "$SERVICE" -w "$KEY" -T "" -U
-  echo "Created a new database key in your Keychain ('$SERVICE')."
-  echo "BACK IT UP NOW:  ./scripts/up.sh --show-key   (store it somewhere safe, offline). Without it the data cannot be recovered."
+if ! KEY="$(read_key "$SERVICE")"; then
+  if KEY="$(read_key "$OLD")"; then   # one last password prompt: copy the SAME key to the new entry, check it, and only then drop the old one
+    security add-generic-password -a "$USER" -s "$SERVICE" -w "$KEY" -T /usr/bin/security -U
+    [ "$(read_key "$SERVICE")" = "$KEY" ] || { echo "Could not copy the key safely; nothing was changed."; exit 1; }
+    security delete-generic-password -a "$USER" -s "$OLD" >/dev/null 2>&1 || true
+    echo "Moved your database key to a Keychain entry that no longer asks for your password."
+  else
+    KEY="$(openssl rand -base64 32)"
+    security add-generic-password -a "$USER" -s "$SERVICE" -w "$KEY" -T /usr/bin/security -U
+    echo "Created a new database key in your Keychain ('$SERVICE')."
+    echo "BACK IT UP NOW:  ./scripts/up.sh --show-key   (store it somewhere safe, offline). Without it the data cannot be recovered."
+  fi
 fi
 mkdir -p "$HOME/OrbitInbox/notes"
 export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep your finance folder where it is: ORBIT_FINANCE_DIR=/path ./scripts/up.sh
