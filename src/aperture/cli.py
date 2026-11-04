@@ -257,14 +257,14 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
         outcome = derive.infer_locations(conn, ctx.geo())
         for kind in outcome["kinds"]:
             if kind["tested"]:
-                print(f"  {kind['kind']}: {kind['accuracy']:.0%} accurate over {kind['tested']:,} tests -> {'USED' if kind['used'] else 'not used (below 80%)'}")
+                print(f"  {kind['kind']}: {kind['accuracy']:.0%} accurate over {kind['tested']:,} tests -> {'USED' if kind['used'] else 'not used (below 95%)'}")
         print(f"  located {outcome['located']:,} of {outcome['without_gps']:,} photos without GPS; the rest are left without a location")
         from .indexing import placemodel
 
         print("learning what your places look like from the photos that have GPS, then placing the rest by picture and time:", flush=True)
         seen = placemodel.locate_by_picture(conn, ctx.embedding_index(), ctx.geo())
         if seen.get("threshold") is None:
-            print("  no level reached 80% accuracy on your own test photos, so no more photos were placed")
+            print("  no level reached 95% accuracy on your own test photos, so no more photos were placed")
         else:
             print(f"  tested on {seen['tested']:,} of your photos: {seen['accuracy_at_threshold']:.0%} accurate above probability {seen['threshold']}; "
                   f"placed {seen['located']:,} more photos")

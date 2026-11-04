@@ -7,6 +7,7 @@ import sqlite3
 from collections import Counter
 from datetime import datetime, timedelta
 
+MIN_PRECISION = 0.95  # a location is given to a photo only when that kind of guess measured at least this accurate on the library's own GPS photos
 EVENT_GAP = timedelta(hours=36)  # a pause this long between photos starts a new trip or occasion
 
 
@@ -115,7 +116,7 @@ def _guess(times, t_gps, lat_gps, lon_gps, before, after):
     return bucket, plat, plon
 
 
-def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = 0.8, min_samples: int = 30) -> dict:
+def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = MIN_PRECISION, min_samples: int = 30) -> dict:
     """Give photos with no GPS a location from the photos around them in time, but only for kinds of guess that are at least
     `min_precision` accurate when tested on the library's own GPS photos (each is hidden in turn and guessed from its neighbours).
     Returns the measured accuracy of every kind and how many photos were located."""

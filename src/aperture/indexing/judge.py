@@ -3,7 +3,7 @@
 Slow (seconds per picture) and therefore used only where it is needed: photos with no GPS that were not located by time or by what the
 picture looks like. Each picture is analysed once and the full answer is stored for good. A place the judge names is accepted only when
 something independent agrees (the places of the photos taken around the same time), or when the judge's place answers were measured
->= 80% accurate on photos whose real place is known (`calibrate`).
+>= 95% accurate on photos whose real place is known (`calibrate`).
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import numpy as np
 
 from ..config import preview_rel
 from ..db import meta_get, meta_set
+from .derive import MIN_PRECISION
 
 MODEL_SIDE = 768  # pictures are shrunk before the model sees them: much faster, enough to read a scene
 AGREE_KM = 60.0
@@ -116,7 +117,7 @@ def decide(conn: sqlite3.Connection, taken: str, data: dict, geo: Any) -> tuple[
             return found, 0.9  # the judge and the photos taken around that time agree
         return None  # they disagree: the doubt is not resolved, so no location
     measured = float(meta_get(conn, "judge_precision", "0") or 0)
-    return (found, measured) if measured >= 0.8 else None
+    return (found, measured) if measured >= MIN_PRECISION else None
 
 
 def pending(conn: sqlite3.Connection, limit: int = 0) -> list[int]:

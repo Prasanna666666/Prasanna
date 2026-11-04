@@ -49,11 +49,11 @@ def test_photos_that_look_like_a_known_place_are_located_and_ones_that_do_not_ar
     geo = GeoIndex(["Nagoya", "Amsterdam"], ["Japan", "The Netherlands"], [" nagoya japan", " amsterdam the netherlands"],
                    np.array([35.18, 52.37]), np.array([136.90, 4.90]))
     report = placemodel.locate_by_picture(conn, index, geo)
-    assert report["threshold"] is not None and report["accuracy_at_threshold"] >= 0.8 and report["tested"] > 100
+    assert report["threshold"] is not None and report["accuracy_at_threshold"] >= 0.95 and report["tested"] > 100
     placed = dict(conn.execute("SELECT id, gps_est_place FROM items WHERE id IN (%s)" % ",".join(map(str, easy + ambiguous))).fetchall())
     assert sum(placed[i] == "Nagoya, Japan" for i in easy) >= 15  # recognised by how they look
     assert sum(placed[i] is not None for i in ambiguous) <= 2  # a picture that fits both places equally is not guessed
-    assert all(r[0] >= 0.8 for r in conn.execute("SELECT gps_est_conf FROM items WHERE gps_est_conf IS NOT NULL"))
+    assert all(r[0] >= 0.95 for r in conn.execute("SELECT gps_est_conf FROM items WHERE gps_est_conf IS NOT NULL"))
 
 
 def test_with_too_few_known_photos_nothing_is_guessed():
@@ -62,3 +62,9 @@ def test_with_too_few_known_photos_nothing_is_guessed():
         conn.executescript(script)
     index = EmbeddingIndex(np.zeros(0, np.int64), np.zeros((0, 4), np.float32))
     assert placemodel.locate_by_picture(conn, index, None)["located"] == 0
+
+
+def test_a_place_is_trusted_only_if_it_tested_well_on_its_own():
+    conn, index, easy, ambiguous = _library()
+    report = placemodel.locate_by_picture(conn, index, None)
+    assert report["trusted_places"] == 2 and report["accuracy_at_threshold"] >= 0.95  # both cities were tested often and recognised

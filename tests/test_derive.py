@@ -126,7 +126,7 @@ def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_leas
                      (item_id, f"/p/{item_id}", f"{item_id}", "image", 0, 0, when.isoformat(sep=" ")))
     outcome = derive.infer_locations(conn, geo)
     used = {k["kind"]: k for k in outcome["kinds"]}
-    assert used["neighbours agree, within 10 min"]["used"] and used["neighbours agree, within 10 min"]["accuracy"] >= 0.8
+    assert used["neighbours agree, within 10 min"]["used"] and used["neighbours agree, within 10 min"]["accuracy"] >= 0.95
     got = dict(conn.execute("SELECT id, gps_est_place FROM items WHERE id IN (1000, 1001)").fetchall())
     assert got[easy] == "Amsterdam, The Netherlands" and got[hard] is None  # the doubtful guess is not made: it does not belong
-    assert outcome["located"] >= 1 and conn.execute("SELECT gps_est_conf FROM items WHERE id=1000").fetchone()[0] >= 0.8
+    assert outcome["located"] >= 1 and conn.execute("SELECT gps_est_conf FROM items WHERE id=1000").fetchone()[0] >= 0.95

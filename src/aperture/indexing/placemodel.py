@@ -16,12 +16,15 @@ from typing import Any
 
 import numpy as np
 
+from .derive import MIN_PRECISION
+
 CELL_DEG = 0.25  # about 25 km: a "place" for this model is a 0.25 x 0.25 degree cell
 K_NEIGHBOURS = 20
-EXCLUDE_MIN = 30.0  # visual neighbours taken within this many minutes of the photo are ignored
+EXCLUDE_MIN = 24 * 60.0  # visual neighbours taken within a day of the photo are ignored: the picture must be recognised from OTHER occasions
 TIME_WINDOW_MIN = 12 * 60.0
 TIME_SCALE_MIN = 60.0
-MAX_TEST = 8000
+MAX_TEST = 20000
+MIN_TESTS_PER_PLACE = 8  # a place must have been tested at least this often to be trusted
 CHUNK = 512
 
 
@@ -88,7 +91,7 @@ def _top(candidates, w):
     return result
 
 
-def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = 0.8, min_accepted: int = 30, seed: int = 7) -> dict:
+def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = MIN_PRECISION, min_accepted: int = 30, seed: int = 7) -> dict:
     rows = conn.execute("SELECT id, taken_at, gps_lat, gps_lon, gps_est_lat FROM items WHERE missing=0 AND meta_done=1").fetchall()
     row_of = {int(i): r for r, i in enumerate(index.ids.tolist())}
     ids, times, lat, lon, est = [], [], [], [], []
@@ -157,6 +160,15 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
     cut = int(good[-1])  # the most photos that still keep the measured precision
     threshold = float(prob[order][cut])
     precision = float(cum_precision[cut])
+    # Accuracy per place, not only overall: home dominates the library and is easy; a rarer place has to earn its own 95%.
+    predicted = np.array([c for c, _, _ in scored], dtype=object)
+    accepted = prob >= threshold
+    trusted: set[int] = set()
+    for cell in {c for c in predicted[accepted] if c is not None}:
+        m = accepted & (predicted == cell)
+        if m.sum() >= MIN_TESTS_PER_PLACE and ok[m].mean() >= min_precision:
+            trusted.add(int(cell))
+    report["trusted_places"] = len(trusted)
     # a picture that matches known photos of its place much less closely than the correctly placed test photos did is out of its depth
     floor = float(np.percentile(looks[ok], 10)) if ok.any() else 1.0
     report.update(threshold=round(threshold, 3), accuracy_at_threshold=round(precision, 3), accepted_in_test=int(cut + 1), similarity_floor=round(floor, 3))
@@ -174,7 +186,7 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
         s, c = neighbours(vec[part], times[part], None)
         picks = _top(_features(s, c, times[part], tg, cells, None), w)
         for item, (cell, p, look) in zip(ids[part], picks):
-            if cell is not None and p >= threshold and look >= floor:
+            if cell is not None and p >= threshold and look >= floor and int(cell) in trusted:
                 la, lo = centroid[cell]
                 place = geo.lookup(la, lo) if geo is not None else None
                 updates.append((la, lo, precision, place.label if place else None, place.search_text if place else "", int(item)))

@@ -204,7 +204,7 @@ CREATE TABLE face_attributes(       -- expression and age group of each face, re
 """
 
 _MIGRATION_11 = """
--- Photos without GPS: a location worked out from the photos around them in time, kept ONLY where that kind of guess measured >= 80%
+-- Photos without GPS: a location worked out from the photos around them in time, kept ONLY where that kind of guess measured >= 95%
 -- accurate on the library's own photos that do have GPS.
 ALTER TABLE items ADD COLUMN gps_est_lat REAL;
 ALTER TABLE items ADD COLUMN gps_est_lon REAL;
