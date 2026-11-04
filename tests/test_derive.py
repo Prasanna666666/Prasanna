@@ -171,3 +171,17 @@ def test_explain_shows_every_reading_with_the_places_its_photos_are_really_from(
     cli.cmd_explain(ctx, argparse.Namespace(word="Tokyo"))
     out = capsys.readouterr().out
     assert "Taken in or near Tokyo" in out and "Shinjuku, Japan" in out and "Iceland" not in out
+
+
+def test_a_photo_without_a_location_joins_a_trip_only_if_its_camera_also_took_located_photos_there():
+    from aperture.agent.executor import Executor
+
+    conn = _db()
+    conn.row_factory = sqlite3.Row
+    for i, camera, gps in ((1, "iPhone 12", (35.68, 139.76)), (2, "iPhone 12", None), (3, "Canon EOS R100", None)):
+        _item(conn, i, f"2026-03-01 1{i}:00:00")
+        conn.execute("UPDATE items SET camera=?, gps_lat=?, gps_lon=? WHERE id=?", (camera, gps[0] if gps else None, gps[1] if gps else None, i))
+    derive.build_events(conn)
+    ex = Executor(conn, lambda: None, lambda: None)
+    # the iPhone screenshot-like photo (no GPS) shares a camera with a located photo: kept. The Canon never records GPS: its clock is unproven: dropped.
+    assert ex._trip_ids(np.array([1])).tolist() == [1, 2]

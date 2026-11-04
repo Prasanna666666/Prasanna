@@ -383,6 +383,9 @@ def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
             top = Counter(r[0] for r in rows).most_common(4)
             own = sum(1 for r in rows if r[1])
             print(f"{label}: {len(ids):,} photos ({own} of the first {len(rows)} have their own GPS)")
+            cams = Counter(r[0] for r in conn.execute(f"SELECT COALESCE(NULLIF(camera,''), 'unknown camera') FROM items WHERE id IN ({marks}) AND gps_lat IS NULL", ids[:900].tolist()))
+            if cams:
+                print("    without GPS, by camera: " + "; ".join(f"{c} ({n})" for c, n in cams.most_common(3)))
             print("    places: " + "; ".join(f"{p} ({n})" for p, n in top))
     finally:
         conn.close()

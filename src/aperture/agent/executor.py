@@ -340,9 +340,30 @@ class Executor:
             return np.zeros(0, np.int64)
         try:
             ids = self._trip_ids_unfiltered(anchors)
-            return self._near_the_anchors(ids, anchors)
+            return self._same_camera_as_the_located(self._near_the_anchors(ids, anchors), anchors)
         except sqlite3.Error:
             return np.zeros(0, np.int64)
+
+    def _same_camera_as_the_located(self, ids: np.ndarray, anchors: np.ndarray) -> np.ndarray:
+        """A photo with no location of its own joins a trip only if its camera also took located photos of that trip: a camera that never
+        records GPS may have a wrong clock, and its photos would land in trips they were not part of."""
+        if len(ids) == 0:
+            return ids
+        cameras: set[str] = set()
+        for part in chunked(anchors.tolist(), 500):
+            marks = ",".join("?" * len(part))
+            cameras.update(r[0] or "" for r in self._conn.execute(
+                f"SELECT DISTINCT camera FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NOT NULL", part))
+        if not cameras:
+            return ids  # nothing is located, so there is no camera to compare with
+        drop: list[int] = []
+        for part in chunked(ids.tolist(), 500):
+            marks = ",".join("?" * len(part))
+            for item_id, camera in self._conn.execute(
+                    f"SELECT id, COALESCE(camera, '') FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NULL", part):
+                if camera not in cameras:
+                    drop.append(item_id)
+        return np.setdiff1d(ids, np.array(drop, np.int64))
 
     def _near_the_anchors(self, ids: np.ndarray, anchors: np.ndarray, km: float = 300.0) -> np.ndarray:
         from ..search.filters import haversine_km
