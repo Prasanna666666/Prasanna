@@ -115,3 +115,18 @@ def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees
     details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "dog"], top=2, min_score=0.0, min_p=0.0, geo=geo)
     tags = sorted(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
     assert tags == [(1, "tokyo tower"), (4, "dog")]  # the Amsterdam photo, the photo without GPS and the dog-less photos are all dropped
+
+
+def test_filler_words_are_not_looked_up_in_the_library():
+    from aperture.search import quick
+
+    conn = _db(2)
+    seen = []
+    originals = (quick.place_ids, quick.path_ids, quick.search_text_ids)
+    quick.place_ids = lambda c, phrase: seen.append(phrase) or np.zeros(0, np.int64)
+    quick.path_ids = quick.search_text_ids = lambda c, phrase: np.zeros(0, np.int64)
+    try:
+        quick.probe(conn, "show me the photos from this year of tokyo")
+    finally:
+        quick.place_ids, quick.path_ids, quick.search_text_ids = originals
+    assert seen and all(p not in ("show", "the", "this", "year", "photos", "from") for p in seen) and "tokyo" in seen

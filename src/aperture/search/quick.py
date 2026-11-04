@@ -52,17 +52,23 @@ def quick_ids(
     return VisualSearch(idx, model, strictness).search(request).ids
 
 
+FILLER = frozenset("""the and for with from this that these those was were are you your yours show give get find see take took taken
+pic pics picture pictures photo photos image images all any some please can could would should who what when where which how many much more most
+last next ago back year years month months week weeks day days today yesterday them they their there then than have has had into onto over
+under about around only just also not without his her him its our out off one two let lets want need like me mine""".split())
+
+
 def probe(conn: sqlite3.Connection, request: str, people: Callable[[str], int] | None = None) -> str:
     """Facts about how the request's words relate to THIS library, for the planner.
 
     Each word and each pair of neighbouring words is tried against places, folders and file
     names, text found in photos, and (when given) people.  Only hits are reported, with their
     counts, so the model picks the engine that really holds the word instead of guessing."""
-    words = tokens(request, min_len=2)
+    words = [w for w in tokens(request, min_len=2) if w not in FILLER]  # filler words match everything and cost a lookup each
     phrases = list(dict.fromkeys([w for w in words if len(w) >= 3] + [f"{a} {b}" for a, b in itertools.pairwise(words)]))
     total = conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0] or 1
     lines: list[str] = []
-    for phrase in phrases[:16]:
+    for phrase in phrases[:8]:
         hits = {
             "place": len(place_ids(conn, phrase)),
             "folder/file name": len(path_ids(conn, phrase)),

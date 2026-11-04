@@ -228,6 +228,7 @@ class Database:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA temp_store=MEMORY")
         conn.execute("PRAGMA cache_size=-65536")
+        conn.execute("PRAGMA mmap_size=268435456")  # read through the OS cache: much faster on an external drive
         if not self._ready:
             with self._lock:
                 if not self._ready:

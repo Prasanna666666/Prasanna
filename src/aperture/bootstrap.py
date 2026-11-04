@@ -192,7 +192,7 @@ class AppContext:
 
     def search_ready(self) -> bool:
         """True once the photo index and the image-search model are loaded (the first search is then instant)."""
-        return self._index is not None and self._embedder is not None
+        return self._index is not None
 
     def embedding_index(self) -> EmbeddingIndex:
         """Cached index, rebuilt automatically when a scan changes embeddings."""

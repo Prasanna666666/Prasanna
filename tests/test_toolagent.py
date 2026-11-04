@@ -552,3 +552,12 @@ def test_show_them_puts_the_photos_on_screen_back_and_a_model_that_only_talks_is
     sentinel = object()
     agent2._service.ask = lambda request, previous_ids=None, history=None: sentinel
     assert agent2.ask("Show them", previous_ids=np.array([5, 6, 7])) is sentinel
+
+
+def test_the_start_of_the_prompt_never_changes_so_the_model_can_reuse_what_it_processed():
+    agent, _, _ = agent_with([[("delta", "x")]])
+    a = agent.system_message("", False)
+    b = agent.system_message("DATA MATCHES: 'tokyo' -> text in photos: 25", True)
+    shared = len(a.split("Today is")[0])
+    assert a[:shared] == b[:shared] and shared > 1000  # examples and rules come first; date, screen and facts come last
+    assert b.index("LIBRARY FACTS") > b.index("Today is") > b.index("ACT FIRST")
