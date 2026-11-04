@@ -325,13 +325,15 @@ def test_the_date_step_is_skipped_when_the_plan_has_a_date_or_finds_none_or_fail
     assert calls == ["dogs 2020"] and plans[0].date.year == 2020  # the date step is checked every time; no phrase found keeps the plan
     calls.clear()
     svc.run_plan("dogs", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
-    assert calls == ["dogs"] and plans[1].date.is_empty  # nothing found: the plan is untouched
+    assert calls == [] and plans[1].date.is_empty  # no time word in the message: the date step is not even asked
+    svc.run_plan("dogs last week", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
+    assert calls == ["dogs last week"] and plans[2].date.is_empty  # asked, nothing found: the plan is untouched
 
     def failing(request):
         raise LLMError("Ollama is not reachable")
 
     plans2 = []
-    _service_with_dates(failing, plans2).run_plan("dogs", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
+    _service_with_dates(failing, plans2).run_plan("dogs last week", Plan(intent="find", clauses=(Clause(engines=("visual",), query="dog", exclude=False),)))
     assert len(plans2) == 1  # the search still ran
 
 

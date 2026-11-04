@@ -115,16 +115,11 @@ def test_the_model_is_not_told_what_the_app_is_only_given_data():
         assert persona not in system
 
 
-def test_the_model_reads_the_search_result_before_it_answers_and_the_photos_stay_on_screen():
-    agent, llm, plans = agent_with([[tool("find_photos", relative="last_month")], [("delta", "Found "), ("delta", "3 from October.")]])
+def test_once_photos_are_found_the_answer_is_built_from_the_data_with_no_second_model_pass():
+    agent, llm, plans = agent_with([[tool("find_photos", relative="last_month")], [("delta", "never used")]])
     reply = agent.ask("Show me pics of last month")
     assert plans[0][0].date.relative == "last_month" and plans[0][0].clauses == ()  # a date search, not a word search
-    # round 2: the model was shown its own tool call and the observation of the real search
-    second = llm.calls[1][1]
-    assert second[-2]["role"] == "assistant" and second[-2]["tool_calls"][0]["function"]["name"] == "find_photos"
-    observation = json.loads(second[-1]["content"])
-    assert second[-1]["role"] == "tool" and observation["matched"] == 3 and observation["date_range"] == "2026-10-01 to 2026-10-31"
-    # the model writes the words; the found photos are attached to the streamed reply
+    assert len(llm.calls) == 1  # one model call decided; nothing was spent on words that would be thrown away
     assert reply.text.startswith("**3** photo") and reply.kind == "results" and list(reply.ids) == [11, 12, 13]
     assert reply.timings.keys() >= {"context", "decide", "tools", "search"}
 
@@ -142,7 +137,7 @@ def test_counting_everything_and_the_overview_tool_feed_the_model_real_data():
     agent, llm, plans = agent_with([[tool("count_photos")], [("delta", "49,743.")]])
     reply = agent.ask("how many pics are there in total")
     assert plans[0][0].all_photos is True and plans[0][0].intent == "count"
-    assert json.loads(llm.calls[1][1][-1]["content"])["matched"] == 3 and reply.text.startswith("**3** photo")
+    assert reply.text.startswith("**3** photo") and len(llm.calls) == 1
     agent2, llm2, plans2 = agent_with([[tool("library_overview")], [("delta", "A big library.")]], overview=lambda previous: "FACTS: 49,743 files from 2012 to 2025")
     agent2.ask("what is in my library?")
     assert llm2.calls[1][1][-1] == {"role": "tool", "tool_name": "library_overview", "content": "FACTS: 49,743 files from 2012 to 2025"} and not plans2
@@ -175,7 +170,8 @@ def test_bad_tool_calls_become_observations_the_model_can_recover_from():
 
 
 def test_the_agent_has_a_step_budget_so_it_can_never_loop_forever():
-    agent, llm, plans = agent_with([[tool("find_photos", what="dog")]] * 10)
+    empty = SimpleNamespace(ids=np.zeros(0, np.int64), reports=[], notes=[], date_range="")
+    agent, llm, plans = agent_with([[tool("find_photos", what="dog")]] * 10, outcome=empty)  # nothing is ever found, so it keeps trying
     reply = agent.ask("dogs")
     assert reply.text.startswith("I could not finish") and len(llm.calls) == MAX_STEPS + 1 and len(plans) == MAX_STEPS
     assert llm.calls[-1][2] == [] and all(c[2] == TOOLS for c in llm.calls[:-1])  # the last round has no tools: it must answer
@@ -191,9 +187,10 @@ def test_iterating_is_bounded_by_time_so_it_never_makes_the_app_slow(monkeypatch
         clock["now"] += 20.0
         return [tool("find_photos", what="dog")]
 
-    agent, llm, plans = agent_with([slow_turn, [("delta", "Here is what I found.")]])
+    empty = SimpleNamespace(ids=np.zeros(0, np.int64), reports=[], notes=[], date_range="")
+    agent, llm, plans = agent_with([slow_turn, [("delta", "Here is what I found.")]], outcome=empty)
     reply = agent.ask("dogs")
-    assert len(plans) == 1 and reply.text.startswith("**")
+    assert len(plans) == 1 and reply.text.startswith("No photos found")
     assert llm.calls[1][2] == []  # over budget: no more tools, the model answers with what it has
 
 
@@ -202,22 +199,24 @@ def test_the_slow_vision_tool_is_refused_when_little_time_is_left_and_capped_oth
 
     asked = []
     look = lambda ids, question: asked.append((ids, question)) or [{"photo": i, "answer": "yes"} for i in ids]
-    agent, llm, _ = agent_with([[tool("find_photos", what="sunset")], [tool("look_at_photos", question="is it a sunset?", count=3)], [("delta", "Yes.")]])
+    # the model searches and asks to look at the first photos in the same step
+    agent, llm, _ = agent_with([[tool("find_photos", what="sunset"), tool("look_at_photos", question="is it a sunset?", count=3)], [("delta", "Yes.")]])
     agent._look = look
     agent.ask("sunsets")
-    assert asked == [([11, 12, 13], "is it a sunset?")] and json.loads(llm.calls[2][1][-1]["content"])["photos"][0]["answer"] == "yes"
+    assert asked == [([11, 12, 13], "is it a sunset?")] and json.loads(llm.calls[1][1][-1]["content"])["photos"][0]["answer"] == "yes"
 
     clock = {"now": 0.0}
     monkeypatch.setattr(toolagent.time, "monotonic", lambda: clock["now"])
-    def slow_look():  # nine simulated seconds pass before the model asks to look: only six of the fifteen remain
-        clock["now"] += 9
-        return [tool("look_at_photos", question="x")]
 
-    agent2, llm2, _ = agent_with([[tool("find_photos", what="sunset")], slow_look, [("delta", "ok")]])
+    def slow_step():  # nine simulated seconds pass while the model decides: not enough time is left for the slow vision model
+        clock["now"] += 9
+        return [tool("find_photos", what="sunset"), tool("look_at_photos", question="x")]
+
+    agent2, llm2, _ = agent_with([slow_step, [("delta", "ok")]])
     agent2._look = look
     asked.clear()
     agent2.ask("sunsets")
-    assert not asked and "not enough time" in json.loads(llm2.calls[2][1][-1]["content"])["error"]
+    assert not asked and "not enough time" in json.loads(llm2.calls[1][1][-1]["content"])["error"]
 
 
 def test_the_agent_can_read_the_text_inside_photos_and_iterate_after_an_empty_search():
@@ -229,14 +228,14 @@ def test_the_agent_can_read_the_text_inside_photos_and_iterate_after_an_empty_se
         return SimpleNamespace(run=lambda plan, previous: plans.append(plan) or next(outcomes))
 
     service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)
-    llm = FakeLLM([[tool("find_photos", text_in_photo=["Starbux"])], [tool("find_photos", text_in_photo=["Starbucks"])],
-                   [tool("read_photo_text", count=2)], [("delta", "The total was 4.50.")]])
+    llm = FakeLLM([[tool("find_photos", text_in_photo=["Starbux"])], [tool("find_photos", text_in_photo=["Starbucks"]), tool("read_photo_text", count=2)],
+                   [("delta", "The total was 4.50.")]])
     read = []
     agent = ToolAgent(llm, service, lambda r: "", read_text=lambda ids: read.append(ids) or [{"photo": ids[0], "text": "STARBUCKS TOTAL 4.50"}],
                       today=lambda: date(2026, 11, 3))
     reply = agent.ask("what was the total on my Starbucks receipt?")
     assert [p.clauses[0].query for p in plans] == ["Starbux", "Starbucks"]  # the empty search was retried with different conditions
-    assert read == [[11, 12]] and json.loads(llm.calls[3][1][-1]["content"])["photos"][0]["text"] == "STARBUCKS TOTAL 4.50"
+    assert read == [[11, 12]] and json.loads(llm.calls[2][1][-1]["content"])["photos"][0]["text"] == "STARBUCKS TOTAL 4.50"
     assert "".join(reply.stream) == "The total was 4.50." and list(reply.ids) == [11, 12, 13]
 
 
@@ -255,8 +254,8 @@ def test_read_and_look_tools_need_a_search_first_and_observations_explain_each_c
 
 def test_narrow_previous_without_earlier_results_falls_back_to_the_whole_library_and_says_so():
     agent, llm, plans = agent_with([[tool("find_photos", what="dog", narrow_previous=True)], [("delta", "ok")]])
-    agent.ask("only those")
-    assert plans[0][0].scope == "library" and "whole library was searched" in json.loads(llm.calls[1][1][-1]["content"])["notes"][0]
+    reply = agent.ask("only those")
+    assert plans[0][0].scope == "library" and "whole library was searched" in reply.notes[0]  # and the user is told
     agent2, llm2, plans2 = agent_with([[tool("find_photos", year=2020, narrow_previous=True)], [("delta", "ok")]])
     agent2.ask("only 2020", previous_ids=np.array([1, 2, 3]))
     assert plans2[0][0].scope == "previous" and "previous message are on the user's screen" in llm2.calls[0][0]

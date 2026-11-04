@@ -142,6 +142,20 @@ DATE_SCHEMA = {
 }
 
 
+TIME_WORDS = frozenset("""ago back last past previous this next since before after during until between earlier later recent recently lately today
+yesterday tonight morning afternoon evening night week weeks month months year years day days weekend weekday weekdays season spring summer autumn
+fall winter monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november
+december jan feb mar apr jun jul aug sep sept oct nov dec christmas easter diwali holiday holidays birthday""".split())
+
+
+def mentions_time(request: str) -> bool:
+    """Does the message contain anything that could be a time? If not, the date step (a model call) is skipped."""
+    import re
+
+    words = re.findall(r"[a-z0-9]+", request.lower())
+    return any(w in TIME_WORDS or (w.isdigit() and len(w) in (2, 4)) for w in words)
+
+
 def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     """A dedicated step found a time expression: it becomes the plan's date, and any clause that only repeats those words
     (for example the text 'last month') is dropped, because it was a date, not something written in a photo."""
@@ -270,7 +284,7 @@ class AgentService:
         """Carry out a plan (from the planner or from a tool call) and write the reply. Shared by every kind of agent."""
         timings = {} if timings is None else timings
         warnings = [] if warnings is None else warnings
-        if self._date_step is not None and plan.intent in ("find", "count", "export"):  # authoritative: the planner invents dates
+        if self._date_step is not None and plan.intent in ("find", "count", "export") and mentions_time(request):  # authoritative: the planner invents dates
             started = time.perf_counter()
             try:  # a small, focused step: is there a time expression the plan missed (or turned into words)?
                 phrase, spec = self._date_step(request)

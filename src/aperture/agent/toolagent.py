@@ -37,6 +37,7 @@ from .service import CHAT_MAX_TOKENS, AgentReply, AgentService, show_previous
 PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool calls typed out as text
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
 CONTEXT_LIMIT = 4.0  # seconds the facts lookup may take before the model runs without it
+SEARCH_TOOLS = ('find_photos', 'count_photos', 'copy_photos', 'show_results')
 HARD_LIMIT = 20.0  # no message may take longer than this: each model call gets only the time that is left, then the app answers by itself
 TIME_BUDGET = 12.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
 SLOW_TOOL_MIN_REMAINING = 8.0  # the vision model needs several seconds per photo: it is refused when less time than this is left
@@ -338,6 +339,11 @@ class ToolAgent:
                     last_search = reply
                 if reply is not None and len(reply.ids):
                     shown = reply
+            if shown is not None and not read and any(c["name"] in SEARCH_TOOLS for c in calls):
+                # Photos were found and the words come from the data, so another model pass would only be thrown away: answer now.
+                return AgentReply(shown.kind, shown.text, ids=shown.ids, plan=shown.plan, reports=shown.reports, notes=shown.notes,
+                                  warnings=shown.warnings, folder_name=shown.folder_name, date_range=shown.date_range,
+                                  timings=timings, groups=shown.groups)
         return AgentReply("chat", "I could not finish that. Could you say it another way?", timings=timings)
 
     def _peek(self, first: str, events: Any) -> tuple[list[str], Any]:
@@ -453,6 +459,8 @@ class ToolAgent:
             if not plan.has_constraints:
                 return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
             reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)
+            if note:
+                reply.notes.insert(0, note)  # the user is told too
             return observation_of(reply, note), reply
         if name == "library_overview":
             return (self._overview(previous_ids) if self._overview else "No overview available."), None
