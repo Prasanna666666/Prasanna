@@ -149,7 +149,7 @@ class OllamaClient:
         message = body.get("message")
         return str(message.get("content", "")).strip() if isinstance(message, dict) else ""
 
-    def _stream_chunks(self, payload: dict[str, Any]):
+    def _stream_chunks(self, payload: dict[str, Any], timeout: float | None = None):
         """POST a streaming chat request and yield each parsed chunk as the model produces it."""
         request = urllib.request.Request(
             self.base_url + "/api/chat", data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}
@@ -157,7 +157,7 @@ class OllamaClient:
         parts: list[str] = []
         calls: list[dict[str, Any]] = []
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=timeout or self.timeout) as response:
                 for raw in response:
                     line = raw.strip()
                     if not line:
@@ -209,12 +209,12 @@ class OllamaClient:
             if text:
                 yield text
 
-    def _chunks_with_retry(self, payload: dict[str, Any]):
+    def _chunks_with_retry(self, payload: dict[str, Any], timeout: float | None = None):
         """A server error before the first word (the model runner restarting, memory pressure) is retried once after a short pause."""
         for attempt in (1, 2):
             started = False
             try:
-                for chunk in self._stream_chunks(payload):
+                for chunk in self._stream_chunks(payload, timeout):
                     started = True
                     yield chunk
                 return
@@ -223,10 +223,11 @@ class OllamaClient:
                     raise
                 time.sleep(2.0)
 
-    def chat_events(self, system: str, messages: list[dict[str, str]], tools: list[dict[str, Any]], max_tokens: int = 400):
+    def chat_events(self, system: str, messages: list[dict[str, str]], tools: list[dict[str, Any]], max_tokens: int = 400,
+                    timeout: float | None = None):
         """One streaming call where the model chooses: yield ("delta", text) while it talks, or ("tool", {name, arguments}) when it
         decides to use one of the tools. This is the heart of an agent: the model decides, our code only carries it out."""
-        for chunk in self._chunks_with_retry(self._chat_payload(system, messages, max_tokens, tools)):
+        for chunk in self._chunks_with_retry(self._chat_payload(system, messages, max_tokens, tools), timeout):
             message = chunk.get("message")
             if not isinstance(message, dict):
                 continue

@@ -69,7 +69,8 @@ class FakeLLM:
     def __init__(self, turns):
         self.turns, self.calls = list(turns), []
 
-    def chat_events(self, system, messages, tools, max_tokens=400):
+    def chat_events(self, system, messages, tools, max_tokens=400, timeout=None):
+        self.timeouts = [*getattr(self, 'timeouts', []), timeout]
         self.calls.append((system, [dict(m) for m in messages], tools, max_tokens))
         turn = self.turns.pop(0) if self.turns else []
         if callable(turn):
@@ -484,19 +485,17 @@ def test_a_normal_reply_is_shown_in_full_after_the_peek():
     assert "".join(reply.stream) == "Hello there, this is a long enough friendly greeting to pass the peek window, and more."
 
 
-def test_when_the_model_call_fails_the_planner_still_does_a_real_search():
+def test_when_the_model_call_fails_the_stored_data_still_gives_a_real_answer():
     from aperture.agent.llm import LLMError
 
     class Broken:
         def chat_events(self, *a, **k):
             raise LLMError("Ollama returned HTTP 500")
 
-    agent, _, _ = agent_with([[("delta", "x")]])
+    agent, _, plans = agent_with([[("delta", "x")]])
     agent._llm = Broken()
-    agent._probe = lambda term: {"term": term, "photos_with_this_word_written_in_them": 25}
-    sentinel = object()
-    agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
-    assert agent.ask("Tokyo") is sentinel
+    reply = agent.ask("Tokyo")
+    assert len(plans) == 1 and list(reply.ids) == [11, 12, 13]  # no model needed: the word was looked up in the stored data
 
 
 def test_a_greeting_costs_no_extra_model_call_and_warm_up_uses_the_real_prompt():
@@ -517,7 +516,7 @@ def test_a_server_error_before_the_first_word_is_retried_once(monkeypatch):
     client = OllamaClient("http://127.0.0.1:11434", "m")
     calls = []
 
-    def chunks(payload):
+    def chunks(payload, timeout=None):
         calls.append(1)
         if len(calls) == 1:
             raise LLMError("Ollama returned HTTP 500: runner stopped")
@@ -568,3 +567,22 @@ def test_a_search_flagged_as_narrowing_without_conditions_never_replays_the_old_
     reply = agent.ask("Germany pics", previous_ids=np.array([5, 6, 7]))
     assert not plans and list(reply.ids) != [5, 6, 7]  # no conditions: an error for the model, not the Tokyo photos again
     assert "no search conditions" in json.loads(llm.calls[1][1][-1]["content"])["error"]
+
+
+def test_a_slow_model_never_holds_the_answer_past_the_limit_the_stored_data_answers(monkeypatch):
+    from aperture.agent import toolagent
+    from aperture.agent.llm import LLMUnavailable
+
+    class Slow:
+        timeouts = []
+
+        def chat_events(self, system, messages, tools, max_tokens=400, timeout=None):
+            self.timeouts.append(timeout)
+            raise LLMUnavailable("timed out")
+
+    agent, _, plans = agent_with([[("delta", "x")]])
+    slow = Slow()
+    agent._llm = slow
+    reply = agent.ask("show me the Tokyo trip photos")
+    assert len(plans) == 1 and [c.query for c in plans[0][0].clauses] == ["tokyo", "trip"]  # words looked up without the model
+    assert list(reply.ids) == [11, 12, 13] and slow.timeouts[0] <= toolagent.HARD_LIMIT

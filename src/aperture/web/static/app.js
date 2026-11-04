@@ -4,6 +4,7 @@
   const token = document.querySelector('meta[name="lumo-token"]').content;
   const $ = (s) => document.querySelector(s);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const SHOW_TRACE = new URLSearchParams(location.search).has('trace');  // the step-by-step panel is for debugging: off unless asked for
   const photoUrl = (id, kind) => `/api/photo/${id}/${kind}?t=${encodeURIComponent(token)}`;
   const api = (path, opts = {}) => fetch(path, { ...opts, headers: { 'X-Lumo-Token': token, ...(opts.headers || {}) } });
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
@@ -168,7 +169,7 @@
       msg.text.classList.remove('streaming');
       if (msg.gallery && !msg.gallery.total) { msg.gallery.root.remove(); msg.gallery = null; }  // a preview that was not confirmed
       if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.text });
-      addTrace(msg, d);
+      if (SHOW_TRACE) addTrace(msg, d);
       if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s${breakdown(d)}`));
     }
     if (event === 'results') addNotes(msg, d);

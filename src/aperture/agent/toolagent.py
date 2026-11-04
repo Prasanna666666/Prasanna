@@ -35,7 +35,8 @@ from .service import CHAT_MAX_TOKENS, AgentReply, AgentService, show_previous
 
 PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool calls typed out as text
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
-TIME_BUDGET = 15.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
+HARD_LIMIT = 20.0  # no message may take longer than this: each model call gets only the time that is left, then the app answers by itself
+TIME_BUDGET = 12.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
 SLOW_TOOL_MIN_REMAINING = 8.0  # the vision model needs several seconds per photo: it is refused when less time than this is left
 
 
@@ -251,8 +252,8 @@ class ToolAgent:
         return [*turns, {"role": "user", "content": request}]
 
     # ---- 2. DECIDE -----------------------------------------------------------------------------------------------------
-    def _decide(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None):
-        events = self._llm.chat_events(system, messages, self._tools if tools is None else tools, self._max_tokens)
+    def _decide(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, timeout: float | None = None):
+        events = self._llm.chat_events(system, messages, self._tools if tools is None else tools, self._max_tokens, timeout=timeout)
         return next(events, None), events
 
     def decide(self, request: str, previous: bool = False, history: list[tuple[str, str]] | None = None, facts: str = ""):
@@ -264,6 +265,7 @@ class ToolAgent:
             return AgentReply("clarify", "What would you like to find?")
         timings: dict[str, float] = {}
         started = time.perf_counter()
+        began = time.monotonic()
         try:
             facts = self._context(request)
         except Exception:
@@ -281,13 +283,12 @@ class ToolAgent:
             final = step == MAX_STEPS or time.monotonic() >= self._deadline  # out of rounds or time: no more tools, just answer
             started = time.perf_counter()
             try:
-                first, events = self._decide(system, messages, [] if final else None)
+                first, events = self._decide(system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began)))
             except LLMError as exc:
-                if shown is None:  # the model failed: the planner can still do a real search, so the user is not left with nothing
-                    try:
-                        return self._service.ask(request, previous_ids, history)
-                    except Exception:  # the fallback failed as well: report the original problem
-                        pass
+                if shown is None:  # the model is too slow or failed: answer from the stored data, without the model, so the user is never left waiting
+                    reply = self._keyword_search(request, previous_ids, history, timings)
+                    if reply is not None:
+                        return reply
                 return AgentReply("error", str(exc), timings=timings)
             timings["decide"] = round(timings.get("decide", 0.0) + time.perf_counter() - started, 2)
             if first is None or (final and first[0] == "tool"):
@@ -344,6 +345,22 @@ class ToolAgent:
                 leftover.append(event)
                 break
         return head, itertools.chain(leftover, events)
+
+    def _keyword_search(self, request: str, previous_ids: Any, history: Any, timings: dict[str, float]) -> AgentReply | None:
+        """The model could not answer in time. The content words of the message are looked up as a place, folder, person or written
+        text, then validated against everything stored (no model call). None when the message has no content words."""
+        from ..search.quick import FILLER
+        from ..search.textnorm import tokens
+        from .schema import Clause
+
+        words = [w for w in dict.fromkeys(tokens(request, min_len=3)) if w not in FILLER][:4]
+        if not words:
+            return None
+        plan = Plan(intent="find", clauses=tuple(Clause(engines=("place", "path", "person", "text"), query=w) for w in words))
+        try:
+            return self._service.run_plan(request, plan, None, history, [], timings)
+        except Exception:
+            return None
 
     @staticmethod
     def _mentions_library(facts: str, previous_ids: Any) -> bool:
