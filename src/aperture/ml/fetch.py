@@ -21,6 +21,7 @@ BUFFALO_URL = "https://github.com/deepinsight/insightface/releases/download/v0.7
 CITIES_URL = "https://download.geonames.org/export/dump/cities15000.zip"
 COUNTRIES_URL = "https://download.geonames.org/export/dump/countryInfo.txt"
 FACE_FILES = ("det_10g.onnx", "w600k_r50.onnx")
+AGE_FILE = "genderage.onnx"  # in the same package: estimates the age of a face
 
 Log = Callable[[str], None]
 
@@ -77,6 +78,29 @@ def fetch_face_models(paths: Paths, log: Log = print) -> None:
     archive.unlink(missing_ok=True)
 
 
+def fetch_age_model(paths: Paths, log: Log = print) -> None:
+    """The age model from the same InsightFace package (a few MB). Kept next to the face models."""
+    target = paths.face_models / AGE_FILE
+    if target.exists():
+        log("age model: already present")
+        return
+    local = Path.home() / ".insightface" / "models" / "buffalo_l" / AGE_FILE
+    paths.face_models.mkdir(parents=True, exist_ok=True)
+    if local.exists():
+        shutil.copy2(local, target)
+        log("age model: imported from ~/.insightface")
+        return
+    if not online_allowed():
+        log("age model: missing (run `aperture fetch-models` once to get it)")
+        return
+    log("age model: downloading the InsightFace package (~280 MB) to take the age model from it...")
+    archive = paths.models / "buffalo_l.zip"
+    _download(BUFFALO_URL, archive)
+    with zipfile.ZipFile(archive) as zf, zf.open(AGE_FILE) as src, open(target, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    archive.unlink(missing_ok=True)
+
+
 def fetch_clip(paths: Paths, settings: Settings, log: Log = print) -> None:
     import open_clip
 
@@ -111,5 +135,6 @@ def fetch_geo(paths: Paths, log: Log = print) -> None:
 def fetch_all(paths: Paths, settings: Settings, log: Log = print) -> None:
     paths.ensure()
     fetch_face_models(paths, log)
+    fetch_age_model(paths, log)
     fetch_clip(paths, settings, log)
     fetch_geo(paths, log)

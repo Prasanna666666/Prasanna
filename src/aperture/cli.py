@@ -254,6 +254,19 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
             print(f"  {faceattrs.run(conn, ctx.paths.data, embedder, stop=stop):,} faces")
         finally:
             conn.close()
+    age_model = ctx.paths.face_models / "genderage.onnx"
+    if age_model.exists() and not stop.is_set():
+        from .indexing import faceages
+        from .ml.age import OnnxAgeEstimator
+
+        print("estimating the age of every face ...", flush=True)
+        conn = ctx.db.connect()
+        try:
+            print(f"  {faceages.run(conn, ctx.paths.data, OnnxAgeEstimator(age_model), stop=stop):,} faces; labels: {faceages.make_labels(conn):,}")
+        finally:
+            conn.close()
+    elif not age_model.exists():
+        print("(no age model yet: run `aperture fetch-models` once outside the sandbox to get it)")
     conn = ctx.db.connect()
     try:
         print(f"capture flags: {derive.derive_meta_labels(conn):,}; trips and events: {derive.build_events(conn):,}")
