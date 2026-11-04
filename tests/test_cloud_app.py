@@ -74,11 +74,12 @@ def test_the_agent_uses_the_cloud_plan_and_falls_back_to_the_local_model(tmp_pat
     service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)
     cloud_plan = {"name": "find_photos", "arguments": {"places": ["Nagoya"], "what": "stadium"}}
     agent = ToolAgent(Local(), service, lambda r: "", today=lambda: date(2026, 11, 4), cloud=lambda request, previous: cloud_plan)
-    agent.ask("Nagoya stadium")
+    reply = agent.ask("Nagoya stadium")
     assert {c.query for c in seen[0].clauses} == {"Nagoya", "stadium"} and Local.calls == 0  # the local model was not even asked
+    assert reply.timings["understood"] == "cloud"  # and the answer says so
     agent2 = ToolAgent(Local(), service, lambda r: "", today=lambda: date(2026, 11, 4), cloud=lambda request, previous: None)
-    agent2.ask("Nagoya stadium")
-    assert Local.calls == 1 and seen[1].clauses[0].query == "local guess"  # cloud said nothing: the local model decided
+    reply2 = agent2.ask("Nagoya stadium")
+    assert reply2.timings["understood"] == "local" and Local.calls == 1 and seen[1].clauses[0].query == "local guess"  # cloud said nothing: the local model decided
 
 
 def test_the_cloud_option_is_off_by_default():

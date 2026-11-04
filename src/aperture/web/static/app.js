@@ -178,7 +178,8 @@
       if (msg.gallery && !msg.gallery.total) { msg.gallery.root.remove(); msg.gallery = null; }  // a preview that was not confirmed
       if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.record || d.text });
       if (SHOW_TRACE) addTrace(msg, d);
-      if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s${breakdown(d)}`));
+      const who = d.timings && d.timings.understood === 'cloud' ? '  \u00b7  \u2601 cloud understood the request' : (d.timings && d.timings.understood === 'local' ? '  \u00b7  understood locally' : '');
+      if (d.took >= 0.01) msg.body.append(el('div', 'meta', d.took < 0.2 ? 'instant' : `answered in ${d.took.toFixed(1)}s${breakdown(d)}${who}`));
     }
     if (event === 'results') addNotes(msg, d);
     scrollDown();
@@ -280,6 +281,8 @@
       const s = await (await api('/api/status')).json();
       const chips = [chip(s.search_ready ? 'Search ready' : (s.warm_problem ? 'Search unavailable' : 'Search warming up'), s.search_ready ? 'ok' : (s.warm_problem ? 'bad' : 'warn')),
                      chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad'),
+                     ...(s.cloud && s.cloud.state === 'connected' ? [chip('Hybrid \u00b7 $' + Number(s.cloud.spent || 0).toFixed(2) + ' of $' + Number(s.cloud.cap || 0).toFixed(0), 'ok')]
+                       : s.cloud && s.cloud.state === 'down' ? [chip('Cloud not connected: local only', 'warn')] : []),
                      ];
       $('#build').textContent = s.build ? `build ${s.build}` : '';
       if (s.photos) chips.push(chip(`${s.photos.toLocaleString()} photos`, 'ok'));

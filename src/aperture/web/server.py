@@ -156,13 +156,24 @@ class Web:
         self._cache[key] = (now, value)
         return value
 
+    def cloud_info(self) -> dict[str, Any]:
+        """Whether a cloud model is reading the typed questions (names hidden) and what it has cost this month, shown in the header."""
+        if not self.ctx.settings.cloud_interpreter:
+            return {"state": "off"}
+        from ..launcher import gateway_status
+
+        info = self.cached("cloud_up", 10, lambda: gateway_status(self.ctx.settings.cloud_port))
+        if info is None:
+            return {"state": "down"}
+        return {"state": "connected", "spent": info.get("spent_usd"), "cap": info.get("cap_usd")}
+
     def status(self) -> dict[str, Any]:
         ctx = self.ctx
 
         self.refresh_counts_async()
         healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
         return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "build": self.build,
-                "search_ready": bool(ctx.search_ready()), "warm_problem": ctx.warm_problem(),
+                "search_ready": bool(ctx.search_ready()), "warm_problem": ctx.warm_problem(), "cloud": self.cloud_info(),
                 "indexing": ScanLock(ctx.paths).running(verify=True),
                 "paused_for_chat": self.paused_for_chat}
 

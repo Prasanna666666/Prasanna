@@ -266,3 +266,16 @@ def test_the_page_is_told_what_the_app_is_doing_while_a_question_runs(caplog):
         assert ask_within(work, 5, seen.append) == "answer"
     assert seen == ["Understanding your message", "Searching your photos"]
     assert any("stage: Searching your photos (+" in r.getMessage() for r in caplog.records)  # and every stage is logged with its time
+
+
+def test_the_header_says_whether_the_cloud_is_reading_the_questions_and_what_it_cost(app, monkeypatch):
+    from aperture import launcher
+
+    assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "off"}  # the default: fully local
+    app.web.ctx.settings.cloud_interpreter = True
+    app.web._cache.pop("cloud_up", None)
+    monkeypatch.setattr(launcher, "gateway_status", lambda port: {"spent_usd": 0.0123, "cap_usd": 5.0})
+    assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "connected", "spent": 0.0123, "cap": 5.0}
+    app.web._cache.pop("cloud_up", None)
+    monkeypatch.setattr(launcher, "gateway_status", lambda port: None)
+    assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "down"}  # on, but not reachable: the local model is doing the work

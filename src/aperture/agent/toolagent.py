@@ -298,8 +298,11 @@ class ToolAgent:
                     say("Asking the cloud model to understand your request (only its words are sent)")
                     decided = self._cloud(request, previous_ids is not None)
                 if decided is not None:
+                    timings["understood"] = "cloud"  # shown on the answer so you can see which model read the request
                     first, events = ("tool", decided), iter(())
                 else:
+                    if step == 0:
+                        timings["understood"] = "local"
                     first, events = self._decide(system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began)))
             except LLMError as exc:
                 if shown is None:  # the model is too slow or failed: answer from the stored data, without the model, so the user is never left waiting

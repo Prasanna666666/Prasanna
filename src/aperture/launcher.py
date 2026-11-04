@@ -167,6 +167,18 @@ def gateway_up(port: int) -> bool:
         return False
 
 
+def gateway_status(port: int) -> dict[str, Any] | None:
+    """What the running gateway says about itself (model, spend this month, cap), or None when it is not running."""
+    import json
+
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=1.0) as response:
+            info = json.loads(response.read())
+        return info if isinstance(info, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
 def gateway_command() -> list[str]:
     """The gateway runs in its own sandbox that cannot read the drive, photos or personal folders."""
     command = [sys.executable, "-m", "aperture", "cloud-gateway"]
