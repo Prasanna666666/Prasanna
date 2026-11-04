@@ -499,6 +499,10 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
         if done.returncode != 0 or not launcher.keychain_key():
             print("The key was not saved, so the cloud option stays off.")
             return 1
+        if not launcher.keychain_key().startswith("sk-ant-"):
+            subprocess.run(["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False)  # noqa: S603
+            print("That was not an API key (they start with sk-ant-), so it was not kept. Create one at console.anthropic.com under API keys and try again.")
+            return 1
         settings.cloud_interpreter = True
         settings.save(paths)
         print(f"On. Only the words of what you type leave this Mac, with the names from your library replaced by placeholders. Never photos, faces, "
