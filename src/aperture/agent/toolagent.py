@@ -267,6 +267,8 @@ class ToolAgent:
         shown: AgentReply | None = None  # the last search that found photos: those photos go on screen
         nudged = False
         acted = False  # becomes True once a tool really ran
+        last_search: AgentReply | None = None  # the latest search, even an empty one
+        grounded = False  # a tool that returns facts to answer from (library overview, text in photos, looking at photos) was used
         read = False  # a reading tool was used: then the model's own words are grounded in what it read
         self._deadline = time.monotonic() + TIME_BUDGET
         for step in range(MAX_STEPS + 1):
@@ -300,17 +302,25 @@ class ToolAgent:
                     messages.append({"role": "assistant", "content": ""})
                     messages.append({"role": "user", "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns."})
                     continue
+                if acted and shown is None and not grounded:
+                    # It used tools but never showed any photos and now only talks ("let me check ..."): the app answers in its own plain words.
+                    if last_search is not None:  # a search ran and found nothing: say that, briefly
+                        return last_search
+                    return self._service.ask(request, previous_ids, history)
                 return self._answer("".join(head), iter(events), shown, timings, read)  # ---- 4. ANSWER: the model talks
             calls = [value] + [v for k, v in events if k == "tool"]
             messages.append({"role": "assistant", "content": "",
                              "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]})
-            acted = True
             for call in calls:  # ---- 3. OBSERVE
                 read = read or call["name"] in ("read_photo_text", "look_at_photos")
+                grounded = grounded or call["name"] in ("read_photo_text", "look_at_photos", "library_overview")
                 started = time.perf_counter()
                 text, reply = self._execute(call, request, previous_ids, history, timings, shown)
                 timings["tools"] = round(timings.get("tools", 0.0) + time.perf_counter() - started, 2)
+                acted = acted or not text.startswith('{"error"')  # a tool that really worked (a rejected call is not an action)
                 messages.append({"role": "tool", "tool_name": call["name"], "content": text})
+                if reply is not None:
+                    last_search = reply
                 if reply is not None and len(reply.ids):
                     shown = reply
         return AgentReply("chat", "I could not finish that. Could you say it another way?", timings=timings)

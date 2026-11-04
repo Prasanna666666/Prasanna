@@ -128,13 +128,13 @@ def test_the_model_reads_the_search_result_before_it_answers_and_the_photos_stay
     assert reply.timings.keys() >= {"context", "decide", "tools", "search"}
 
 
-def test_an_empty_result_is_handed_to_the_model_to_explain_not_replaced_by_a_word_search():
+def test_an_empty_result_is_told_plainly_by_the_app_not_improvised_by_the_model():
     empty = SimpleNamespace(ids=np.zeros(0, np.int64), reports=[], notes=[], date_range="2026-10-01 to 2026-10-31")
     agent, llm, plans = agent_with([[tool("find_photos", relative="last_month")], [("delta", "Nothing from October.")]], outcome=empty)
     reply = agent.ask("pics of last month")
     observation = json.loads(llm.calls[1][1][-1]["content"])
     assert observation["matched"] == 0 and observation["summary"].startswith("No photos found")
-    assert len(plans) == 1 and len(reply.ids) == 0 and "".join(reply.stream) == "Nothing from October."
+    assert len(plans) == 1 and len(reply.ids) == 0 and reply.text.startswith("No photos found") and "Nothing from October" not in reply.text
 
 
 def test_counting_everything_and_the_overview_tool_feed_the_model_real_data():
@@ -493,6 +493,7 @@ def test_when_the_model_call_fails_the_planner_still_does_a_real_search():
 
     agent, _, _ = agent_with([[("delta", "x")]])
     agent._llm = Broken()
+    agent._probe = lambda term: {"term": term, "photos_with_this_word_written_in_them": 25}
     sentinel = object()
     agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
     assert agent.ask("Tokyo") is sentinel
@@ -531,3 +532,10 @@ def test_words_before_a_real_tool_call_are_dropped_and_the_call_still_runs():
     reply = agent.ask("Tokyo")
     assert len(plans) == 1 and list(reply.ids) == [11, 12, 13] and "Let me find" not in reply.text
     assert "friendly person" in llm.calls[0][0] and "say nothing before you search" in llm.calls[0][0]
+
+
+def test_model_words_after_tools_without_any_photos_are_never_shown_the_real_search_answers():
+    agent, _, _ = agent_with([[tool("probe", term="Tokyo")], [("delta", "Let me check where and when those photos were taken ... " * 2)]])
+    sentinel = object()
+    agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
+    assert agent.ask("Tokyo") is sentinel

@@ -64,10 +64,10 @@ def explain_empty(reports: list[ClauseReport]) -> str:
     """Say which constraint made the result empty."""
     for report in reports:
         if report.matched == 0 and report.note != "excluded":
-            return f"No photos match **{report.label}**."
+            return f"No photos match {report.label}."
     for report in reports:
         if report.remaining == 0:
-            return f"No photo matches all of it; it emptied at **{report.label}**."
+            return f"No photo fits all of that. Nothing matches {report.label}."
     return "No photo matches."
 
 
