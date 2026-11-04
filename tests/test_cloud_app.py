@@ -118,3 +118,17 @@ def test_enabling_stores_the_key_in_the_keychain_only_and_turns_the_option_on(mo
     assert Settings.load(paths).cloud_interpreter is True
     cli.cmd_cloud(paths, argparse.Namespace(action="off", forget_key=True))
     assert Settings.load(paths).cloud_interpreter is False and calls[-1][1] == "delete-generic-password"
+
+
+def test_the_cloud_model_and_cap_can_be_set_from_the_command_line(tmp_path):
+    from aperture import cli
+    from aperture.config import Paths, Settings
+
+    paths = Paths(tmp_path / "drive")
+    paths.ensure()
+    args = cli.build_parser().parse_args(["settings", "--cloud-model", "claude-sonnet-5-5", "--cloud-cap", "2.5"])
+    assert args.cloud_model == "claude-sonnet-5-5" and args.cloud_cap == 2.5
+    s = Settings.load(paths)
+    s.cloud_model, s.cloud_cap_usd = args.cloud_model, args.cloud_cap
+    s.save(paths)
+    assert Settings.load(paths).cloud_model == "claude-sonnet-5-5" and Settings.load(paths).cloud_cap_usd == 2.5

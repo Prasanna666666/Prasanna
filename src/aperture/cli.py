@@ -77,6 +77,8 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
+    cfg.add_argument("--cloud-model", help="the cloud model that reads your typed question (default claude-haiku-5-5)")
+    cfg.add_argument("--cloud-cap", type=float, help="monthly spending cap in USD for the cloud option (default 5)")
     cfg.add_argument("--image-model", choices=["small", "large"], help="the picture-understanding model: small (ViT-B/32, fast, the default) or large "
                      "(ViT-L/14: clearly better at objects and scenes; needs a one-time download and a few hours of re-indexing)")
     cfg.add_argument("--estimate-locations", choices=["on", "off"], help="give photos without GPS a worked-out location (measured >= 95% accurate); off by default")
@@ -1027,9 +1029,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.image_model:
             s.clip_model, s.clip_pretrained = IMAGE_MODELS[args.image_model]
             print(f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo.")
+        if args.cloud_model:
+            s.cloud_model = args.cloud_model
+        if args.cloud_cap is not None:
+            s.cloud_cap_usd = max(0.0, args.cloud_cap)
         if args.estimate_locations:
             s.estimate_locations = args.estimate_locations == "on"
-        if args.photo_dir or args.export_dir or args.ollama_model or args.estimate_locations or args.image_model:
+        if args.photo_dir or args.export_dir or args.ollama_model or args.estimate_locations or args.image_model or args.cloud_model or args.cloud_cap is not None:
             s.save(paths)
         print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
         return 0
