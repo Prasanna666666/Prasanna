@@ -58,7 +58,7 @@ def test_events_can_be_renamed_moved_and_deleted_without_losing_the_payments(con
         events.create_event(conn, {"name": "x", "main": "groceries"})  # only the five main categories exist
 
 
-def test_the_model_proposes_groups_and_nothing_is_final_until_you_confirm(conn):
+def test_the_model_groups_payments_by_itself_and_looks_at_each_payment_once(conn):
     a = pay(conn, "2026-09-10", 634.10, "Asian Games tickets")
     b = pay(conn, "2026-09-11", 1179.31, "KLM flights Hangzhou")
     c = pay(conn, "2026-09-12", 25.0, "Random shop")
@@ -76,9 +76,9 @@ def test_the_model_proposes_groups_and_nothing_is_final_until_you_confirm(conn):
     r = events.suggest(conn, Model(), "fake")
     assert r["considered"] == 3 and r["grouped"] == 2 and "Rent" not in Model.seen
     ev = events.list_events(conn)
-    assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["confirmed"] == 0 and ev[0]["total"] == 1813.41
-    events.update_event(conn, {"id": ev[0]["id"], "confirmed": True})
-    assert events.list_events(conn)[0]["confirmed"] == 1
+    assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["total"] == 1813.41
+    again = events.suggest(conn, Model(), "fake")
+    assert again["considered"] == 0  # every payment is looked at once, never asked about twice
 
 
 def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leaves_events_out(conn):
@@ -90,3 +90,35 @@ def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leav
     rows = {r["category"]: r for r in events.daily_by_category(conn, {"month": "2026-10"})}
     assert rows["groceries"]["amount"] == 130.0 and rows["groceries"]["before"] == 100.0 and rows["groceries"]["payments"] == 1
     assert rows["unsorted"]["amount"] == 20.0 and set(rows) == {"groceries", "unsorted"}  # the event payment and the own-account move are not day-to-day
+
+
+def test_reading_the_files_also_groups_the_payments_into_trips_and_events_without_any_clicks(conn, tmp_path):
+    from orbit import extract
+    from orbit.modules import documents
+
+    class Model:
+        def chat(self, model, messages, schema=None, **kw):
+            system, text = messages[0]["content"], messages[1]["content"]
+            if system == extract.KIND_PROMPT:
+                return {"content": json.dumps({"kind": "bank_statement"})}
+            if system == extract.TXN_PROMPT:
+                items = []
+                for line in text.splitlines():
+                    day, desc, amount, direction = line.split("|")[:4]
+                    items.append({"date": day, "description": desc, "amount": float(amount), "direction": direction, "balance": None})
+                return {"content": json.dumps({"transactions": items})}
+            if system.startswith(events.PROMPT[:40]):
+                found = [{"id": int(line.split("|")[0]), "event": "Asian Games 2026", "main": "trips", "sub": "flights" if "KLM" in line else "tickets"}
+                         for line in text.splitlines() if "Asian" in line or "KLM" in line]
+                return {"content": json.dumps({"assignments": found})}
+            return {"content": "{}"}
+
+    lines = ["2026-09-10|Asian Games tickets|634.10|out", "2026-09-11|KLM flights Hangzhou|1179.31|out", "2026-09-12|Albert Heijn|23.45|out"]
+    sha = "cd" * 32
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / f"{sha}.json").write_text(json.dumps({"schema": 1, "sha256": sha, "name": "ing.pdf", "kind": "pdf", "text": "\n".join(lines), "meta": {}, "area": "finance", "data": {"lines": lines}}))
+    documents.ingest_dir(conn, tmp_path / "p")
+    r = money.import_statements(conn, client=Model(), model="fake")
+    assert r["new_transactions"] == 3 and r["problems"] == []
+    ev = events.list_events(conn)
+    assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["total"] == 1813.41  # found on its own; the groceries stayed day to day

@@ -44,7 +44,6 @@ class State:
         self.chat_lock = threading.Lock()
         self.importing: dict[str, Any] = {"running": False, "progress": "", "result": None, "error": ""}
         self.import_lock = threading.Lock()
-        self.grouping: dict[str, Any] = {"running": False, "progress": "", "result": None, "error": ""}
 
     def connect(self):
         conn = db.connect()
@@ -90,32 +89,6 @@ def start_import(state: State) -> bool:
             conn.close()
 
     threading.Thread(target=work, name="import", daemon=True).start()
-    return True
-
-
-def start_grouping(state: State) -> bool:
-    """Ask the local model to group payments into events, in the background. Returns False if it is already running."""
-    with state.import_lock:
-        if state.grouping["running"]:
-            return False
-        state.grouping.update(running=True, progress="Starting...", result=None, error="")
-
-    def work() -> None:
-        conn = state.connect()
-        try:
-            try:
-                client, model = client_and_model(conn)
-            except RuntimeError as exc:
-                state.grouping["error"] = f"The local model is not available: {exc}"
-                return
-            state.grouping["result"] = events.suggest(conn, client, model, progress=lambda m: state.grouping.update(progress=m))
-        except Exception as exc:  # noqa: BLE001 - shown on the page
-            state.grouping["error"] = f"{type(exc).__name__}: {exc}"
-        finally:
-            state.grouping["running"] = False
-            conn.close()
-
-    threading.Thread(target=work, name="group", daemon=True).start()
     return True
 
 
@@ -210,8 +183,6 @@ def make_handler(state: State):
                                        "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(), "data": str(db.home())})
                 if path == "/api/import":
                     return self._json({"ok": True, **state.importing})
-                if path == "/api/group":
-                    return self._json({"ok": True, **state.grouping})
                 if path == "/api/history":
                     return self._json({"ok": True, "history": [h for h in state.history if h["role"] in ("user", "assistant") and h.get("content")]})
             finally:
@@ -260,8 +231,6 @@ def make_handler(state: State):
                 return self._json({"ok": True})
             if path == "/api/import":
                 return self._json({"ok": True, "started": start_import(state)})
-            if path == "/api/group":
-                return self._json({"ok": True, "started": start_grouping(state)})
             if path == "/api/settings":
                 for key in ("currency", "model", "ollama_host"):
                     if isinstance(body.get(key), str):

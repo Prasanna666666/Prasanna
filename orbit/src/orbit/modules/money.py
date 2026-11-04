@@ -246,6 +246,13 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             categorize.recategorise_with_model(conn, client, model)
         except RuntimeError as exc:
             problems.append(f"Imported, but the merchants could not be sorted by the model: {exc}")
+    if client is not None and model and added:  # trips, matches and shows: the model groups the payments that belong together
+        try:
+            from . import events
+
+            events.suggest(conn, client, model, progress=progress)
+        except RuntimeError as exc:
+            problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
     return {"files": files, "new_transactions": added, "already_had": duplicates, "payslips": payslip_count,
             "files_with_no_transactions": empty, "problems": problems}
 

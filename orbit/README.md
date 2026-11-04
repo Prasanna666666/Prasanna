@@ -59,9 +59,11 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   contradicts the arithmetic, the arithmetic wins. If the model is not running, nothing is imported (a guess could silently give wrong numbers).
 - **Safe to repeat and to interrupt.** Each part is saved as it is read; a line is never stored twice, even when statements overlap. Reading takes a
   few minutes per statement on an 8 GB Mac (a 3B model, a few lines at a time); it is done once per file.
-- **Categories:** a few cheap keyword rules, then the local model for the merchants left (it sees only merchant names, never amounts), then your
-  own corrections (**Help me sort these**: pick once, that merchant follows it forever). Moves between your own accounts stay out of spending.
-- **Views:** spent / income / net, by category, top merchants, month by month, repeating payments, payslips, and chat ("what did I spend on food
+- **Categories, automatic.** Everyday spending: a few cheap keyword rules, then the local model for the merchants left (it sees only names, never
+  amounts). **Trips, matches, shows and cancellations:** after every import the local model groups payments that belong together into named events
+  (Asian Games 2026: Tickets, Flights, Stay ... Total), each under sports, events, trips or cancellations; refunds count negative, so a cancellation can
+  end below zero. Each payment is looked at once. Nothing to click: if something is wrong, tell Orbit in chat ("move the Ajax tickets to the PSV event").
+- **Views:** day-to-day tiles by category, trips and events with totals, month by month, regular payments, payslips, and chat ("what did I spend on food
   last month?", "how much tax did I pay this year?"). **What did Orbit make of each file?** lists every file with counts only, never content.
 - Scanned (image-only) or password-protected PDFs have no text to read: Orbit lists them as "read: 0 transactions". Remove the password or use the bank's
   CSV/PDF download instead.

@@ -34,6 +34,9 @@ MIGRATIONS = (
     ALTER TABLE transactions ADD COLUMN sub TEXT NOT NULL DEFAULT '';
     CREATE INDEX tx_event ON transactions(event_id);
     """,
+    """
+    ALTER TABLE transactions ADD COLUMN event_checked INTEGER NOT NULL DEFAULT 0;   -- the model has already looked at this payment
+    """,
 )
 
 
@@ -202,9 +205,9 @@ CHUNK = 20
 
 
 def suggest(conn, client, model: str, progress=None) -> dict:
-    """Ask the local model to attach unassigned payments to events. Proposals are marked unconfirmed until you accept them."""
+    """Ask the local model to attach new payments to events. Runs by itself after every import; each payment is looked at once."""
     todo = rows(conn.execute(
-        "SELECT id, day, kind, note, category, ROUND(amount_minor/100.0, 2) AS amount FROM transactions WHERE event_id IS NULL AND category NOT IN (%s) ORDER BY day"
+        "SELECT id, day, kind, note, category, ROUND(amount_minor/100.0, 2) AS amount FROM transactions WHERE event_id IS NULL AND event_checked=0 AND category NOT IN (%s) ORDER BY day"
         % ",".join("?" * len(ROUTINE)), ROUTINE))
     grouped = 0
     for n in range(0, len(todo), CHUNK):
@@ -218,6 +221,8 @@ def suggest(conn, client, model: str, progress=None) -> dict:
             items = json.loads(msg.get("content") or "{}").get("assignments", [])
         except ValueError:
             continue
+        conn.executemany("UPDATE transactions SET event_checked=1 WHERE id=?", [(t["id"],) for t in chunk])  # never ask about the same payment twice
+        conn.commit()
         valid = {t["id"] for t in chunk}
         for it in items if isinstance(items, list) else []:
             if not isinstance(it, dict) or it.get("id") not in valid:
@@ -225,7 +230,7 @@ def suggest(conn, client, model: str, progress=None) -> dict:
             name = re.sub(r"\s+", " ", str(it.get("event") or "")).strip()[:80]
             if not name or it.get("main") not in MAINS or it["main"] == "others":
                 continue
-            assign(conn, {"transaction_ids": [it["id"]], "event": name, "main": it["main"], "sub": str(it.get("sub") or "")}, confirmed=0)
+            assign(conn, {"transaction_ids": [it["id"]], "event": name, "main": it["main"], "sub": str(it.get("sub") or "")}, confirmed=1)
             grouped += 1
     return {"considered": len(todo), "grouped": grouped, "events": len(rows(conn.execute("SELECT 1 FROM events WHERE confirmed=0")))}
 
