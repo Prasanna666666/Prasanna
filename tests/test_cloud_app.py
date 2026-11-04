@@ -112,10 +112,16 @@ def test_enabling_stores_the_key_in_the_keychain_only_and_turns_the_option_on(mo
     paths.ensure()
     calls = []
     monkeypatch.setattr(cli.sys, "platform", "darwin")
-    monkeypatch.setattr(cli.subprocess if hasattr(cli, "subprocess") else __import__("subprocess"), "run", lambda cmd, **k: calls.append(cmd) or SimpleNamespace(returncode=0))
-    monkeypatch.setattr(launcher, "keychain_key", lambda: "sk-ant-secret")
+    monkeypatch.setattr(cli.subprocess if hasattr(cli, "subprocess") else __import__("subprocess"), "run", lambda cmd, **k: calls.append(cmd) or SimpleNamespace(returncode=0, stdout="", stderr=""))
+    import getpass
+
+    key = "sk-ant-api03-" + "x" * 40
+    monkeypatch.setattr(getpass, "getpass", lambda prompt="": "\x1b[200~ " + key + " \n")  # a paste with invisible extras still works
+    monkeypatch.setattr(launcher, "keychain_key", lambda: key)
     assert cli.cmd_cloud(paths, argparse.Namespace(action="enable", forget_key=False)) == 0
-    assert calls[0][:2] == ["/usr/bin/security", "add-generic-password"] and "-w" in calls[0] and "sk-ant-secret" not in " ".join(calls[0])  # the key is never an argument
+    assert calls[0] == ["/usr/bin/security", "-i"] and key not in " ".join(calls[0])  # the key goes in on stdin, never in a command line
+    monkeypatch.setattr(getpass, "getpass", lambda prompt="": "not a key")
+    assert cli.cmd_cloud(paths, argparse.Namespace(action="enable", forget_key=False)) == 1 and "9 characters" in capsys.readouterr().out
     assert Settings.load(paths).cloud_interpreter is True
     cli.cmd_cloud(paths, argparse.Namespace(action="off", forget_key=True))
     assert Settings.load(paths).cloud_interpreter is False and calls[-1][1] == "delete-generic-password"

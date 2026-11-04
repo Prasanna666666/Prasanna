@@ -6,6 +6,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import shutil
 import signal
 import sys
@@ -494,11 +495,21 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
         if sys.platform != "darwin":
             print("The cloud option stores its key in the macOS Keychain, so it needs a Mac.")
             return 2
+        import getpass
+
         print("Paste your Anthropic API key when asked. It starts with sk-ant- and comes from console.anthropic.com > API keys.\n"
               "It is NOT your Mac password or your Claude login. What you type is hidden and goes straight into your Keychain, never into a file.")
-        done = subprocess.run(["/usr/bin/security", "add-generic-password", "-U", "-s", launcher.KEYCHAIN_SERVICE, "-a", user, "-w"], check=False)  # noqa: S603
-        if done.returncode != 0 or not launcher.keychain_key():
-            print("The key was not saved, so the cloud option stays off.")
+        typed = getpass.getpass("API key: ")
+        found = re.search(r"sk-ant-[A-Za-z0-9_\-]{20,}", typed)  # a paste can carry invisible extras (spaces, a newline, terminal markers)
+        if not found:
+            print(f"That was not an API key: {len(typed.strip())} characters"
+                  f"{', and it does not contain sk-ant-' if 'sk-ant-' not in typed else ', but it looks cut short'}. Nothing was saved. "
+                  "Create a key at console.anthropic.com > API keys, copy all of it, and try again.")
+            return 1
+        done = subprocess.run(["/usr/bin/security", "-i"], input=f"add-generic-password -U -s {launcher.KEYCHAIN_SERVICE} -a {user} -w {found.group(0)}\n",  # noqa: S603
+                              text=True, check=False, capture_output=True)  # typed on stdin, so the key never appears in a command line
+        if done.returncode != 0:
+            print("The Keychain refused to save the key, so the cloud option stays off.")
             return 1
         if not launcher.keychain_key().startswith("sk-ant-"):
             subprocess.run(["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False)  # noqa: S603
