@@ -99,7 +99,7 @@ def test_the_reports_tally_with_the_raw_ledger_every_month(conn):
     events.assign(conn, {"event": ev["id"], "transaction_ids": [tx(conn, "2026-10-20", 1000, "income")]})
     tx(conn, "2026-11-01", 7000, cat="transfers", account="NLABN")
     found = verify.tally(conn)
-    assert [f.level for f in found] == ["ok"] and "2 month(s)" in found[0].message
+    assert [(f.subject, f.level) for f in found] == [("all in EUR", "ok"), ("EUR", "ok")] and all("2 month(s)" in f.message for f in found)
 
 
 def test_a_report_that_drops_a_payment_makes_the_tally_fail(conn):
@@ -115,6 +115,6 @@ def test_tally_checks_each_currency_on_its_own_and_restores_the_view(conn):
     tx(conn, "2026-10-02", 5000, cur="EUR")
     tx(conn, "2026-10-02", 900000, cur="INR")
     found = verify.tally(conn)
-    assert {f.subject for f in found} == {"EUR", "INR"} and all(f.level == "ok" for f in found)
-    assert db.view_currency(conn) == "EUR"  # the setting is back where it was
+    assert {f.subject for f in found} == {"all in EUR", "EUR", "INR"} and all(f.level == "ok" for f in found)
+    assert db.view_currency(conn) == "ALL"  # the setting is back where it was
     assert any("EUR, INR" in f.message for f in verify.currency_mix(conn))

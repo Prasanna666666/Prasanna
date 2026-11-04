@@ -225,12 +225,12 @@ pages.money = async () => {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc, agents] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies')]);
-    const curChips = cc.currencies.length > 1 ? h('div', { class: 'seg' }, cc.currencies.map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: `${c.payments} payments`,
-      onclick: guard(async () => { await api('/api/settings', { view_currency: c.currency }); cur = c.currency; location.reload(); }) }, c.currency))) : null;
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies'), tool('agent_list')]);
+    const curChips = cc.currencies.length > 1 || cc.currencies.some((c) => c.currency !== 'EUR') ? h('div', { class: 'seg' }, [{ currency: 'ALL', payments: 0, label: 'All in EUR' }, ...cc.currencies].map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: c.currency === 'ALL' ? 'Everything converted to euros at the rate of its day' : `${c.payments} payments in ${c.currency}`,
+      onclick: guard(async () => { await api('/api/settings', { view_currency: c.currency }); location.reload(); }) }, c.label || c.currency))) : null;
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
@@ -300,6 +300,12 @@ pages.money = async () => {
         h('span', { class: 'num' }, h('span', { class: 'good' }, `✓ ${c.ok}`), c.warn ? h('span', { style: { color: 'var(--warn)', marginLeft: '12px' } }, `! ${c.warn}`) : null, c.fail ? h('span', { class: 'bad', style: { marginLeft: '12px' } }, `✗ ${c.fail}`) : null)))),
       ver.problems.length ? h('div', { class: 'list', style: { marginTop: '14px' } }, ver.problems.slice(0, 12).map((p) => h('div', { class: 'item' }, h('span', { class: LEVEL[p.level][1], style: { fontWeight: 700, width: '18px' } }, LEVEL[p.level][0]),
         h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, p.message), h('div', { class: 'faint', style: { fontSize: '12.5px' } }, `${p.agent} · ${p.subject}`))))) : h('div', { class: 'muted', style: { marginTop: '12px' } }, 'Everything agrees.')) : null;
+    const groups = [...new Set(agents.agents.map((a) => a.group))];
+    const agentsCard = h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'The agents'), h('span', { class: 'faint' }, ` · ${agents.built} working, ${agents.planned} planned`)),
+      h('div', { style: { height: '12px' } }), ...groups.map((g) => h('div', { style: { marginBottom: '16px' } }, h('div', { class: 'eyebrow', style: { marginBottom: '6px' } }, g),
+        h('div', { class: 'lines' }, agents.agents.filter((a) => a.group === g).map((a) => h('div', { class: 'line', style: { alignItems: 'flex-start' } },
+          h('div', {}, h('div', { style: { fontWeight: 600 } }, a.name), h('div', { class: 'faint', style: { fontSize: '13px' } }, a.does)),
+          h('span', { class: 'chip', style: a.status === 'built' ? {} : { background: 'rgba(245,158,11,.14)', color: 'var(--warn)' } }, a.status === 'built' ? 'working' : 'planned')))))));
     // ---- honesty about files: what could not be proven correct is said out loud and is NOT in the totals
     const bad = checks.filter((c) => c.status === 'needs_check'), unproven = checks.filter((c) => c.status === 'unverified');
     const checkNote = bad.length ? h('div', { class: 'note-banner', style: { background: 'rgba(244,63,94,.1)', borderColor: 'rgba(244,63,94,.3)', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' } },
@@ -310,7 +316,7 @@ pages.money = async () => {
     const tabs = [['daily', 'Day to day'], ['income', 'Income'], ['events', 'Trips & events' + (evs.length ? ` · ${evs.length}` : '')], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents & checks' + (ver.problems.length ? ` · ${ver.problems.length}` : docs.length ? ` · ${docs.length}` : '')]];
     const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
     const content = { daily: dailyPane, income: incomePane, events: eventsPane, regular: [recCard],
-      documents: [verCard, docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
+      documents: [verCard, agentsCard, docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
     const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Let’s bring in your money'),
       h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),
       h('ol', { class: 'steps' }, h('li', {}, 'Copy your PDFs into the finance folder'), h('li', {}, 'Press “Read my files”'), h('li', {}, 'Come back in a few minutes: your money is ready')),

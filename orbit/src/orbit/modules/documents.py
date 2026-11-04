@@ -29,7 +29,7 @@ MIGRATIONS = (
     ALTER TABLE documents ADD COLUMN data TEXT NOT NULL DEFAULT '';   -- structured rows (CSV) or reconstructed lines (PDF), as JSON
     """,
 )
-KINDS = {"text", "csv", "pdf"}
+KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}
 MAX_JSON = 30_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 

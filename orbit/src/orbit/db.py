@@ -79,16 +79,31 @@ def ledger_view(conn: sqlite3.Connection) -> None:
     """`ledger` = the payments of ONE currency (the one being viewed), so euros and rupees can never be added together by accident.
     Payments with no currency recorded count as the main currency. It is a per-connection view over `transactions`, read by every report."""
     main = "COALESCE((SELECT value FROM main.settings WHERE key='currency'), 'EUR')"
-    viewed = f"COALESCE((SELECT value FROM main.settings WHERE key='view_currency'), {main})"
+    viewed = "COALESCE((SELECT value FROM main.settings WHERE key='view_currency'), 'ALL')"
     try:
         conn.execute("DROP VIEW IF EXISTS temp.ledger")
-        conn.execute(f"CREATE TEMP VIEW ledger AS SELECT * FROM main.transactions WHERE COALESCE(NULLIF(currency, ''), {main}) = {viewed}")
+        columns = [r[1] for r in conn.execute("PRAGMA main.table_info(transactions)")]
+        if "eur_minor" in columns:
+            # 'ALL' = everything in euros at the rate of its own day; a payment that could not be converted is left out here and reported, never guessed
+            everything = ", ".join("eur_minor AS amount_minor" if c == "amount_minor" else c for c in columns)
+            conn.execute(f"CREATE TEMP VIEW ledger AS SELECT {everything} FROM main.transactions WHERE {viewed} = 'ALL' AND eur_minor IS NOT NULL "
+                         f"UNION ALL SELECT * FROM main.transactions WHERE {viewed} = 'ALL' AND eur_minor IS NULL AND COALESCE(NULLIF(currency, ''), {main}) = 'EUR' "
+                         f"UNION ALL SELECT * FROM main.transactions WHERE {viewed} <> 'ALL' AND COALESCE(NULLIF(currency, ''), {main}) = {viewed}")
+        else:
+            conn.execute(f"CREATE TEMP VIEW ledger AS SELECT * FROM main.transactions WHERE {viewed} <> 'ALL' AND COALESCE(NULLIF(currency, ''), {main}) = {viewed}")
     except sqlite3.Error:
         pass  # before the first migration there is nothing to view
 
 
 def view_currency(conn: sqlite3.Connection) -> str:
-    return get_setting(conn, "view_currency", "") or get_setting(conn, "currency", "EUR")
+    """'ALL' (everything converted to euros) or one currency shown as it is."""
+    return get_setting(conn, "view_currency", "") or "ALL"
+
+
+def display_currency(conn: sqlite3.Connection) -> str:
+    """The currency the amounts on screen are in."""
+    v = view_currency(conn)
+    return "EUR" if v == "ALL" else v
 
 
 def migrate(conn: sqlite3.Connection, modules: list[Module]) -> None:

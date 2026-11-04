@@ -8,7 +8,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import categorize, dates, extract, payslips, standards, statements, verify
+from .. import categorize, dates, extract, payslips, rates, standards, statements, verify
 from ..db import get_setting, rows
 from ..module import Module, N, S, Tool
 
@@ -73,6 +73,12 @@ MIGRATIONS = (
     ALTER TABLE transactions ADD COLUMN transfer_id INTEGER;                      -- the other half of a transfer between your own accounts
     ALTER TABLE statement_files ADD COLUMN currency TEXT NOT NULL DEFAULT '';
     CREATE INDEX tx_account ON transactions(account, day);
+    """,
+    """
+    ALTER TABLE transactions ADD COLUMN eur_minor INTEGER;                        -- the amount in euros at the rate of its own day (NULL = not converted yet)
+    ALTER TABLE transactions ADD COLUMN rate TEXT NOT NULL DEFAULT '';            -- units of the payment's currency per 1 EUR that were used
+    ALTER TABLE transactions ADD COLUMN rate_source TEXT NOT NULL DEFAULT '';     -- 'euro' | 'ecb <day>' | 'transfer'
+    CREATE TABLE rates (day TEXT NOT NULL, currency TEXT NOT NULL, per_eur TEXT NOT NULL, PRIMARY KEY (day, currency));
     """,
 )
 
@@ -288,6 +294,14 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         txns: list[statements.Txn] = []
         new = 0
         rd: verify.Read | None = None
+        if rates.looks_like_ecb(data.get("rows")):  # the ECB's exchange-rate file: loaded into the rates table, not a document about your money
+            n = rates.store(conn, rates.parse_ecb(data["rows"]))
+            _remember_doc(conn, d, {"kind": "other", "title": "ECB exchange rates"})
+            conn.execute("INSERT INTO statement_files (sha256, name, found, added, status) VALUES (?,?,0,0,'ok')", (d["sha256"], d["name"]))
+            verify.store_file_findings(conn, d["name"], [verify.Finding("rates", "ok", d["name"], f"{n} exchange rates loaded")])
+            files += 1
+            conn.commit()
+            continue
         standard = standards.sniff(d["text"])
         if standard:
             info = {"kind": "bank_statement", "title": "Bank statement"}
@@ -333,6 +347,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         if not txns and slip is None and info.get("kind") == "bank_statement" and status != "needs_check":
             empty.append(d["name"])
         conn.commit()
+    rates.convert_all(conn)  # every payment in euros at the rate of its own day
     verify.run_cross_checks(conn)  # payslips vs bank, invoices vs bank, continuity, plausibility: every time, on everything
     if client is not None and model and added:  # merchants the rules could not place: the local model sees only their names
         try:
@@ -358,6 +373,11 @@ def currencies(conn, a=None):
     out = rows(conn.execute("SELECT COALESCE(NULLIF(currency,''), ?) AS currency, COUNT(*) AS payments FROM transactions GROUP BY 1 ORDER BY payments DESC", (main,)))
     viewing = db.view_currency(conn)
     return {"viewing": viewing, "main": main, "currencies": out}
+
+
+def agent_list(conn, a=None):
+    """Every verifier and helper agent, grouped, with whether it is running today or only planned."""
+    return {"agents": verify.AGENTS, "built": sum(1 for x in verify.AGENTS if x["status"] == "built"), "planned": sum(1 for x in verify.AGENTS if x["status"] == "planned")}
 
 
 def verification_report(conn, a=None):
@@ -492,6 +512,7 @@ MODULE = Module(
              {"by": S("kind, month or party", enum=["kind", "month", "party"]), "kind": S("Only this kind"), "since": S("YYYY-MM-DD"),
               "until": S("YYYY-MM-DD")}, finance_document_totals),
         Tool("currencies", "The currencies in the ledger and which one the totals are showing.", {}, currencies),
+        Tool("agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, agent_list),
         Tool("verification_report", "What each verifier agent checked (balances, totals, second reading, payslip vs bank, invoice vs bank, continuity): counts, warnings and failures.", {}, verification_report),
         Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),

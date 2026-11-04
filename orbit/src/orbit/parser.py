@@ -1,4 +1,4 @@
-"""The isolated parser: turns untrusted files (PDF, CSV, text) into plain JSON. It is the only code that opens them.
+"""The isolated parser: turns untrusted files (PDF incl. scans, images, spreadsheets, Word, web pages, emails, JSON, ZIP, CSV, text) into one plain JSON shape. It is the only code that opens them.
 
 Runs in its own container with NO network, the inbox mounted read-only, and a single writable output folder that the
 app mounts read-only. Each file is parsed in a throw-away subprocess with CPU, memory and time limits, so a hostile or
@@ -30,8 +30,12 @@ MAX_PAGES = 500
 MAX_CSV_ROWS = 200_000
 MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
 MAX_CELL = 300
-TIMEOUT_S = 60
-KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".tsv": "csv", ".pdf": "pdf", ".mt940": "text", ".sta": "text", ".xml": "text"}
+TIMEOUT_S = 300  # scanned PDFs are read with OCR, which takes a while
+KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".tsv": "csv", ".pdf": "pdf", ".mt940": "text", ".sta": "text", ".xml": "text",
+         ".png": "image", ".jpg": "image", ".jpeg": "image", ".tif": "image", ".tiff": "image", ".bmp": "image", ".webp": "image",
+         ".xlsx": "sheet", ".xlsm": "sheet", ".docx": "doc", ".html": "html", ".htm": "html", ".eml": "email", ".json": "json", ".zip": "zip"}
+SKIP_NAMES = {"passwords.txt", ".passwords"}  # the passwords for protected PDFs live here: never read as a document
+from . import readers  # noqa: E402
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -61,21 +65,19 @@ def extract(path: Path) -> dict:
         text = "\n".join(" | ".join(r) for r in rows)
         data["rows"] = [[clean(c)[:MAX_CELL] for c in r][:60] for r in rows[:MAX_DATA_ROWS]]  # exact cells, for statements
     elif kind == "pdf":
-        import pymupdf  # only installed in the parser image
-
-        with pymupdf.open(path) as doc:
-            meta["pages"] = doc.page_count
-            text = "\n\n".join(doc[i].get_text() for i in range(min(doc.page_count, MAX_PAGES)))
-            lines: list[str] = []
-            for i in range(min(doc.page_count, MAX_PAGES)):
-                lines += _visual_lines(doc[i].get_text("words"))
-            data["lines"] = [clean(x)[:600] for x in lines[:MAX_DATA_ROWS]]
-            table: list = []
-            for i in range(min(doc.page_count, MAX_PAGES)):
-                table += _table_lines(doc[i].get_text("words"))
-            data["table"] = table[:MAX_DATA_ROWS]  # every line as cells with their horizontal position: columns can be recovered exactly
-            if doc.page_count > MAX_PAGES:
-                meta["truncated"] = True
+        return readers.read_pdf(path, load_passwords())
+    elif kind == "image":
+        return readers.read_image(path)
+    elif kind == "sheet":
+        return readers.read_sheet(path)
+    elif kind == "doc":
+        return readers.read_docx(path)
+    elif kind == "html":
+        return readers.read_html(path)
+    elif kind == "email":
+        return readers.read_eml(path)[0]
+    elif kind == "json":
+        return readers.read_json(path)
     else:
         raise ValueError(f"unsupported file type: {path.suffix}")
     if kind == "text":
@@ -84,6 +86,22 @@ def extract(path: Path) -> dict:
         if rows:
             data["rows"] = rows
     return {"kind": kind, "text": clean(text), "meta": meta, "data": data}
+
+
+_table_lines = readers.table_lines
+_visual_lines = readers.visual_lines
+
+
+def load_passwords() -> list[str]:
+    """Passwords for protected PDFs: one per line in passwords.txt (in your finance folder, or the file named by ORBIT_PASSWORDS_FILE). Never stored."""
+    candidates = [os.environ.get("ORBIT_PASSWORDS_FILE", "")] + [str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ORBIT_FINANCE", "ORBIT_INBOX") if os.environ.get(k)]
+    for c in candidates:
+        if c and Path(c).is_file():
+            try:
+                return [ln.strip() for ln in Path(c).read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip()][:50]
+            except OSError:
+                pass
+    return []
 
 
 def _delimited_rows(text: str) -> list[list[str]]:
@@ -97,47 +115,6 @@ def _delimited_rows(text: str) -> list[list[str]]:
             reader = csv.reader(text.splitlines(), delimiter=delimiter)
             return [[clean(c)[:MAX_CELL] for c in r][:60] for _, r in zip(range(MAX_DATA_ROWS), reader)]
     return []
-
-
-def _table_lines(words: list, gap: float = 7.0) -> list[list[list]]:
-    """Lines as cells: [[x0, x1, text], ...]. Words on one line that are closer than `gap` points belong to one cell; a wider gap starts a new cell."""
-    items = sorted(((round((w[1] + w[3]) / 2), w[0], w[2], clean(str(w[4]))) for w in words if str(w[4]).strip()), key=lambda t: (t[0], t[1]))
-    lines: list[list[tuple[float, float, str]]] = []
-    last_y = None
-    for y, x0, x1, text in items:
-        if last_y is None or abs(y - last_y) > 3:
-            lines.append([])
-            last_y = y
-        lines[-1].append((x0, x1, text))
-    out = []
-    for line in lines:
-        line.sort()
-        cells: list[list] = []
-        for x0, x1, text in line:
-            if cells and x0 - cells[-1][1] < gap:
-                cells[-1][1], cells[-1][2] = max(cells[-1][1], x1), cells[-1][2] + " " + text
-            else:
-                cells.append([round(x0, 1), round(x1, 1), text])
-        out.append([[c[0], c[1], c[2][:200]] for c in cells])
-    return out
-
-
-def _visual_lines(words: list) -> list[str]:
-    """Rebuild the lines of a page as they look: words with nearly the same height are one line, in left-to-right order.
-    A statement table is then 'date  description  amount  balance' on one line, however the PDF stores its cells."""
-    items = sorted(((round((w[1] + w[3]) / 2), w[0], w[2], str(w[4])) for w in words), key=lambda t: (t[0], t[1]))
-    lines: list[list[tuple[float, float, str]]] = []
-    last_y = None
-    for y, x0, x1, text in items:
-        if last_y is None or abs(y - last_y) > 3:
-            lines.append([])
-            last_y = y
-        lines[-1].append((x0, x1, text))
-    out = []
-    for line in lines:
-        line.sort()
-        out.append(" ".join(t for _, _, t in line))
-    return out
 
 
 def _limits() -> None:  # runs in the child before exec (Linux/macOS)
@@ -164,36 +141,60 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) -> None:
+    doc = {"schema": SCHEMA, "sha256": digest, "name": clean(label)[:255], "bytes": size,
+           "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **({"area": area} if area else {}), **res}
+    tmp = out / f".{digest}.tmp"
+    tmp.write_text(json.dumps(doc, ensure_ascii=False))
+    os.replace(tmp, out / f"{digest}.json")  # atomic: the app never sees a half-written file
+
+
+def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0) -> None:
+    """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
+    import tempfile
+
+    suffix = f.suffix.lower()
+    if f.name.lower() in SKIP_NAMES or suffix not in KINDS or f.stat().st_size > MAX_BYTES:
+        counts["skipped"] += 1
+        return
+    digest = sha256(f)
+    if area:
+        digest = hashlib.sha256((area + digest).encode()).hexdigest()  # the same file in two folders is two documents
+    if (out / f"{digest}.json").exists():
+        return
+    try:
+        if suffix == ".zip" and depth == 0:
+            members = readers.zip_members(f)
+            with tempfile.TemporaryDirectory() as tmp:
+                for name, content in members:
+                    inner = Path(tmp) / name
+                    inner.write_bytes(content)
+                    _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
+            return
+        res = extract_isolated(f) if isolated else extract(f)
+        _write(out, digest, label, f.stat().st_size, res, area)
+        counts["parsed"] += 1
+        if suffix == ".eml" and depth < 2:
+            with tempfile.TemporaryDirectory() as tmp:
+                for name, content in readers.read_eml(f)[1][:20]:
+                    inner = Path(tmp) / Path(name).name
+                    inner.write_bytes(content)
+                    _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
+    except Exception as e:
+        print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
+        counts["failed"] += 1
+
+
 def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "") -> dict[str, int]:
     """Parse every new supported file under inbox into out/<sha256>.json. Same content is never parsed twice."""
     out.mkdir(parents=True, exist_ok=True)
     root = inbox.resolve()
-    done = skipped = failed = 0
+    counts = {"parsed": 0, "skipped": 0, "failed": 0}
     for f in sorted(root.rglob("*")):
         if not f.is_file() or f.is_symlink() or root not in f.resolve().parents:
             continue
-        if f.suffix.lower() not in KINDS or f.stat().st_size > MAX_BYTES:
-            skipped += 1
-            continue
-        digest = sha256(f)
-        if area:
-            digest = hashlib.sha256((area + digest).encode()).hexdigest()  # the same file in two folders is two documents
-        target = out / f"{digest}.json"
-        if target.exists():
-            continue
-        try:
-            res = extract_isolated(f) if isolated else extract(f)
-        except Exception as e:
-            print(f"FAILED {f.name}: {e}", file=sys.stderr, flush=True)
-            failed += 1
-            continue
-        doc = {"schema": SCHEMA, "sha256": digest, "name": clean(f.name)[:255], "bytes": f.stat().st_size,
-               "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **({"area": area} if area else {}), **res}
-        tmp = out / f".{digest}.tmp"
-        tmp.write_text(json.dumps(doc, ensure_ascii=False))
-        os.replace(tmp, target)  # atomic: the app never sees a half-written file
-        done += 1
-    return {"parsed": done, "skipped": skipped, "failed": failed}
+        _process(f, f.name, out, area, isolated, counts)
+    return counts
 
 
 def main(argv: list[str] | None = None) -> int:

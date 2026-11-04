@@ -12,7 +12,7 @@ dependencies = []
 [project.optional-dependencies]
 ui = []  # kept so older install commands still work; the interface needs no extra packages
 secure = ["sqlcipher3-binary>=0.5"]
-parse = ["pymupdf>=1.24"]
+parse = ["pymupdf>=1.24", "openpyxl>=3.1", "pillow>=10"]
 dev = ["pytest>=8", "ruff>=0.5"]
 
 [project.scripts]

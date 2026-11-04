@@ -234,15 +234,62 @@ def link_transfers(conn) -> list[Finding]:
             elif c:
                 ambiguous += 1
     conn.commit()
+    cost, fx_pairs = _link_across_currencies(conn, main)
     out = []
     total = conn.execute("SELECT COUNT(*) FROM transactions WHERE transfer_id IS NOT NULL").fetchone()[0] // 2
     if total:
         out.append(Finding("transfers", "ok", "own accounts", f"{total} transfer(s) between your own accounts are matched, and kept out of spending and income on both sides"))
+    if fx_pairs:
+        out.append(Finding("transfers", "ok", "currency conversion", f"{fx_pairs} transfer(s) between currencies matched; the conversion cost (fee + spread against the day's reference rate) is {cost / 100:.2f} EUR"))
     if ambiguous:
         out.append(Finding("transfers", "warn", "own accounts", f"{ambiguous} possible transfer(s) have more than one candidate and were left as ordinary payments"))
     lone = conn.execute("SELECT COUNT(*) FROM transactions WHERE category='transfers' AND transfer_id IS NULL AND account<>''").fetchone()[0]
     if lone:
         out.append(Finding("transfers", "warn", "own accounts", f"{lone} payment(s) look like transfers but have no matching payment in another imported account (import that account's statement)"))
+    return out
+
+
+def _link_across_currencies(conn, main: str, tolerance: float = 0.06) -> tuple[int, int]:
+    """Money sent from an account in one currency and received in another: the euro values must be close (a fee and a spread explain the gap), the days
+    within three, and each the other's only candidate. The cost = what was sent, valued at the day's reference rate, minus what arrived, becomes an
+    expense of its own ('currency conversion cost'), so the euros still tally."""
+    rows = list(conn.execute(
+        "SELECT id, day, amount_minor, kind, account, eur_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions "
+        "WHERE account<>'' AND transfer_id IS NULL AND event_id IS NULL AND eur_minor IS NOT NULL AND source<>'derived'", (main,)))
+    outs = [r for r in rows if r["kind"] == "expense"]
+    ins = [r for r in rows if r["kind"] == "income"]
+    gap = lambda a, b: abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)  # noqa: E731
+    near = lambda o, i: (o["cur"] != i["cur"] and o["account"] != i["account"] and gap(o, i) <= 3 and abs(o["eur_minor"] - i["eur_minor"]) <= tolerance * max(o["eur_minor"], i["eur_minor"]))  # noqa: E731
+    total_cost, pairs = 0, 0
+    for o in outs:
+        c = [i for i in ins if near(o, i)]
+        if len(c) == 1 and len([x for x in outs if near(x, c[0])]) == 1:
+            i = c[0]
+            cost = o["eur_minor"] - i["eur_minor"]
+            conn.execute("UPDATE transactions SET transfer_id=?, category='transfers', auto=1 WHERE id IN (?,?)", (o["id"], o["id"], i["id"]))
+            if i["cur"] == "EUR":  # the real rate the money moved at: units of the sent currency per euro received
+                conn.execute("UPDATE transactions SET rate=?, rate_source='transfer' WHERE id=?", (f"{o['amount_minor'] / i['amount_minor']:.4f}", o["id"]))
+            if cost:
+                conn.execute("INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, auto, currency, account, eur_minor, rate, rate_source) "
+                             "VALUES (?,?,?,?,?,?,'derived',1,'EUR',?,?,'1','transfer')",
+                             (o["day"], abs(cost), "expense" if cost > 0 else "income", "fees" if cost > 0 else "income",
+                              "Currency conversion cost (fee and spread)" if cost > 0 else "Currency conversion gain", f"fx:{o['id']}:{i['id']}", o["account"], abs(cost)))
+            total_cost += cost
+            pairs += 1
+    conn.commit()
+    return total_cost, pairs
+
+
+def conversion(conn) -> list[Finding]:
+    """Every payment that is not in euros must have been converted at the rate of its own day, and say so; one without a rate is reported, never guessed."""
+    main = _main_currency(conn)
+    out = []
+    for cur in [r[0] for r in conn.execute("SELECT DISTINCT COALESCE(NULLIF(currency,''), ?) FROM transactions", (main,)) if r[0] != "EUR"]:
+        done, missing = conn.execute("SELECT SUM(eur_minor IS NOT NULL), SUM(eur_minor IS NULL) FROM transactions WHERE COALESCE(NULLIF(currency,''), ?) = ?", (main, cur)).fetchone()
+        if done:
+            out.append(Finding("conversion", "ok", cur, f"{done} payment(s) in {cur} converted to euros at the ECB reference rate of their own day"))
+        if missing:
+            out.append(Finding("conversion", "warn", cur, f"{missing} payment(s) in {cur} have no exchange rate for their day, so they are left out of the euro totals (run ./scripts/fetch-rates.sh on your Mac, then Read my files)"))
     return out
 
 
@@ -270,6 +317,10 @@ def account_ledger(conn) -> list[Finding]:
     return out
 
 
+def label_of(cur: str) -> str:
+    return "all in EUR" if cur == "ALL" else cur
+
+
 def tally(conn) -> list[Finding]:
     """Every month, in every currency: the net cash change in the raw ledger must equal what the reports show (money in - day to day - trips and events)
     plus the transfers between your own accounts. If any report drops or double-counts a payment, this fails."""
@@ -280,7 +331,7 @@ def tally(conn) -> list[Finding]:
     main = _main_currency(conn)
     out = []
     try:
-        for cur in [r[0] for r in conn.execute("SELECT DISTINCT COALESCE(NULLIF(currency,''), ?) FROM transactions", (main,))]:
+        for cur in ["ALL", *[r[0] for r in conn.execute("SELECT DISTINCT COALESCE(NULLIF(currency,''), ?) FROM transactions", (main,))]]:
             db.set_setting(conn, "view_currency", cur)
             db.ledger_view(conn)
             months = [r[0] for r in conn.execute("SELECT DISTINCT substr(day,1,7) FROM ledger ORDER BY 1")]
@@ -291,9 +342,10 @@ def tally(conn) -> list[Finding]:
                 shown = round(money.income_summary(conn, {"month": m})["total"] * 100) - sum(round(x["net"] * 100) for x in events.spending_by_main(conn, {"month": m}))
                 if raw != shown + tr:
                     bad += 1
-                    out.append(Finding("tally", "fail", f"{cur} {m}", f"the ledger's net change is {raw / 100:.2f} but the reports plus transfers give {(shown + tr) / 100:.2f}"))
+                    out.append(Finding("tally", "fail", f"{label_of(cur)} {m}", f"the ledger's net change is {raw / 100:.2f} but the reports plus transfers give {(shown + tr) / 100:.2f}"))
+            label = "all in EUR" if cur == "ALL" else cur
             if months and not bad:
-                out.append(Finding("tally", "ok", cur, f"{len(months)} month(s) in {cur}: the reports and the raw ledger agree to the cent"))
+                out.append(Finding("tally", "ok", label, f"{len(months)} month(s) {'in euros (everything converted)' if cur == 'ALL' else 'in ' + cur}: the reports and the raw ledger agree to the cent"))
     finally:
         db.set_setting(conn, "view_currency", original) if original else conn.execute("DELETE FROM settings WHERE key='view_currency'")
         conn.commit()
@@ -307,7 +359,7 @@ def currency_mix(conn) -> list[Finding]:
     return [Finding("currency", "ok", "payments", f"payments are in {', '.join(sorted(found))}: totals are always shown one currency at a time")] if len(found) > 1 else []
 
 
-CROSS_AGENTS = (link_transfers, payslip_vs_bank, documents_vs_bank, continuity, account_ledger, tally, plausibility, currency_mix)
+CROSS_AGENTS = (link_transfers, conversion, payslip_vs_bank, documents_vs_bank, continuity, account_ledger, tally, plausibility, currency_mix)
 
 
 def run_cross_checks(conn) -> list[Finding]:
@@ -325,3 +377,61 @@ def store_file_findings(conn, subject: str, findings: list[Finding]) -> None:
     conn.execute("DELETE FROM findings WHERE cross=0 AND subject=?", (subject,))
     conn.executemany("INSERT INTO findings (agent, level, subject, message, cross) VALUES (?,?,?,?,0)", [(f.agent, f.level, f.subject, f.message) for f in findings])
     conn.commit()
+
+
+# ---- the agent register: what exists, what is proposed -------------------------------------------------------------------------
+# status: built = running today; planned = designed, not built. Independent agents can run side by side; today the cross-document agents run one after
+# another in about a second, and the file readers wait on the single local model.
+AGENTS: list[dict[str, str]] = [
+    # getting information out of any file
+    {"group": "Reading files", "name": "File reader", "does": "PDF, scans, photos, spreadsheets, Word, web pages, emails, JSON, ZIP all become the same plain shape", "status": "built"},
+    {"group": "Reading files", "name": "OCR reader", "does": "Reads scanned PDFs and photos offline (Dutch + English) with word positions", "status": "built"},
+    {"group": "Reading files", "name": "Unlocker", "does": "Opens password-protected PDFs with the passwords you list in passwords.txt", "status": "built"},
+    {"group": "Reading files", "name": "Archive and email opener", "does": "Opens ZIPs and emails, one file at a time, bounded", "status": "built"},
+    {"group": "Reading files", "name": "OCR confidence guard", "does": "Re-reads low-confidence scan pages at higher resolution and flags digits it is unsure of", "status": "planned"},
+    {"group": "Reading files", "name": "Second OCR engine", "does": "Reads scans with two engines and compares every figure", "status": "planned"},
+    {"group": "Reading files", "name": "Handwriting and receipt photo reader", "does": "A stronger on-device vision model for crumpled receipts and handwriting", "status": "planned"},
+    # turning a statement into transactions
+    {"group": "Reading statements", "name": "Standard reader", "does": "MT940 and camt.053 exactly, no model", "status": "built"},
+    {"group": "Reading statements", "name": "Layout reader", "does": "The local model only says which column is which; code reads every figure", "status": "built"},
+    {"group": "Reading statements", "name": "Second reader", "does": "Works the layout out again from another part of the file; both readings must agree", "status": "built"},
+    {"group": "Reading statements", "name": "Third reader (majority vote)", "does": "A third independent reading; two of three must agree", "status": "planned"},
+    {"group": "Reading statements", "name": "Currency detector", "does": "Which currency a statement is in, from what it prints", "status": "built"},
+    # proving the numbers
+    {"group": "Proving the numbers", "name": "Balance prover", "does": "Running balances add up, line by line, oldest-first or newest-first", "status": "built"},
+    {"group": "Proving the numbers", "name": "Totals prover", "does": "Opening + transactions = closing; also proves credit cards", "status": "built"},
+    {"group": "Proving the numbers", "name": "Account ledger", "does": "Statements vs the payments stored for the account", "status": "built"},
+    {"group": "Proving the numbers", "name": "Continuity", "does": "Each statement starts where the last ended; no month missing", "status": "built"},
+    {"group": "Proving the numbers", "name": "Tally", "does": "The reports equal the raw ledger every month, in euros and per currency", "status": "built"},
+    {"group": "Proving the numbers", "name": "Plausibility", "does": "Nothing dated in the future or outside its statement", "status": "built"},
+    {"group": "Proving the numbers", "name": "Self-test canary", "does": "Runs known sample statements through the readers at every start and fails loudly if anything changed", "status": "planned"},
+    {"group": "Proving the numbers", "name": "Audit log", "does": "An unchangeable record of every import and correction", "status": "planned"},
+    # money in euros
+    {"group": "Euros", "name": "Converter", "does": "Every payment in euros at the ECB reference rate of its own day", "status": "built"},
+    {"group": "Euros", "name": "Transfer matcher", "does": "Pairs money moved between your own accounts, in one currency or two", "status": "built"},
+    {"group": "Euros", "name": "Conversion-cost agent", "does": "Fee and spread of a currency transfer, booked as its own expense", "status": "built"},
+    {"group": "Euros", "name": "Statement-rate agent", "does": "Uses the rate and fee printed on a statement or Wise CSV instead of the reference rate", "status": "planned"},
+    {"group": "Euros", "name": "Rate freshness agent", "does": "Warns when the rate file is out of date", "status": "planned"},
+    # comparing documents with each other
+    {"group": "Cross-checking documents", "name": "Payslip <-> bank", "does": "Net pay arrives in the bank to the cent", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Invoice/receipt <-> bank", "does": "Every invoice and receipt total appears as a payment", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Notes arithmetic", "does": "Your calculations in Apple Notes add up", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Notes <-> app", "does": "Your notes agree with the app, line by line", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Tax letter agent", "does": "Tax assessments and refunds vs payments", "status": "planned"},
+    {"group": "Cross-checking documents", "name": "Insurance and contract agent", "does": "Premiums and rent vs what was actually paid", "status": "planned"},
+    {"group": "Cross-checking documents", "name": "Year-end agent", "does": "Your annual income statement (jaaropgave) vs twelve payslips and the bank", "status": "planned"},
+    {"group": "Cross-checking documents", "name": "VAT agent", "does": "Adds up the VAT on invoices and receipts", "status": "planned"},
+    {"group": "Cross-checking documents", "name": "Refund matcher", "does": "Ties each refund to its original purchase", "status": "planned"},
+    # understanding
+    {"group": "Understanding", "name": "Categoriser", "does": "Rules, then the local model, then your corrections", "status": "built"},
+    {"group": "Understanding", "name": "Event grouper", "does": "Groups tickets, flights, stays and refunds into trips, matches and shows", "status": "built"},
+    {"group": "Understanding", "name": "Merchant normaliser", "does": "Treats 'AH 1234' and 'Albert Heijn' as one shop", "status": "planned"},
+    {"group": "Understanding", "name": "Duplicate-payment agent", "does": "Spots the same payment charged twice", "status": "planned"},
+    {"group": "Understanding", "name": "Price-change agent", "does": "Tells you when a regular bill or subscription changes", "status": "planned"},
+    {"group": "Understanding", "name": "Unusual-payment agent", "does": "Flags payments that do not fit your pattern", "status": "planned"},
+    {"group": "Understanding", "name": "Net-worth agent", "does": "All account balances in euros, over time", "status": "planned"},
+    {"group": "Understanding", "name": "Forecast agent", "does": "Upcoming regular payments and what is left", "status": "planned"},
+    # safety
+    {"group": "Safety", "name": "Privacy sentinel", "does": "Nothing in the app can use the network; the model and the data stay on this Mac", "status": "built"},
+    {"group": "Safety", "name": "Backup and integrity agent", "does": "Encrypted backup of the database and a check that it is intact", "status": "planned"},
+]

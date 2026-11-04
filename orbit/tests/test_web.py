@@ -74,9 +74,10 @@ def test_files_outside_the_static_folder_cannot_be_read(server):
 
 def test_settings_and_the_home_summary(server):
     assert post(server, "/api/settings", {"currency": "usd", "model": "ministral-3:3b"})[0] == 200
-    assert json.loads(call(server, "GET", "/api/settings")[1])["currency"] == "USD"
+    settings = json.loads(call(server, "GET", "/api/settings")[1])
+    assert settings["main_currency"] == "USD" and settings["view"] == "ALL" and settings["currency"] == "EUR"  # the default view is everything converted to euros
     home = json.loads(call(server, "GET", "/api/home")[1])
-    assert home["ok"] and home["currency"] == "USD" and "briefing" in home
+    assert home["ok"] and home["currency"] == "EUR" and "briefing" in home
 
 
 def test_chat_reports_a_missing_model_plainly(server, monkeypatch):
