@@ -122,3 +122,17 @@ def test_reading_the_files_also_groups_the_payments_into_trips_and_events_withou
     assert r["new_transactions"] == 3 and r["problems"] == []
     ev = events.list_events(conn)
     assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["total"] == 1813.41  # found on its own; the groceries stayed day to day
+
+
+def test_income_by_source_leaves_out_refunds_that_belong_to_an_event(conn):
+    pay(conn, "2026-09-25", 3100, "Acme BV Salaris september", kind="income", category="salary")
+    pay(conn, "2026-10-25", 3180, "Acme BV Salaris oktober", kind="income", category="salary")
+    pay(conn, "2026-10-26", 12.5, "Rente spaarrekening", kind="income", category="interest")
+    pay(conn, "2026-10-27", 40, "Tikkie van Daan", kind="income", category="income")
+    events.assign(conn, {"event": "PSV vs Bayern", "main": "cancellations", "transaction_ids": [pay(conn, "2026-10-20", 175.80, "refund psv", kind="income")]})
+    conn.execute("INSERT INTO payslips VALUES ('s','loonstrook.pdf','2026-10',450000,318000,96000,22500,36000)")
+    r = money.income_summary(conn, {"month": "2026-10"})
+    assert r["total"] == 3232.5 and r["before"] == 3100.0  # the refund is inside the event, not income
+    assert {s["source"]: (s["amount"], s["before"]) for s in r["sources"]} == {"salary": (3180.0, 3100.0), "interest": (12.5, 0.0), "other income": (40.0, 0.0)}
+    assert r["payslip"]["net"] == 3180.0 and r["payslip"]["gross"] == 4500.0
+    assert money.summary(conn, {"month": "2026-10"})["income"] == 3232.5  # 'Money in' agrees everywhere

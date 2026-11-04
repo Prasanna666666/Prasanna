@@ -210,3 +210,6 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .summary { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; padding: 28px 30px; }
 .quiets { display: flex; flex-direction: column; gap: 10px; min-width: 240px; }
 .quiet { display: flex; justify-content: space-between; gap: 24px; padding: 10px 14px; border-radius: 14px; background: var(--surface-2); text-decoration: none; color: var(--ink); } .quiet:hover { background: var(--accent-soft); }
+
+.fold .card { box-shadow: none; border: 0; padding: 0; background: transparent; }
+.summary { justify-content: space-between; } @media (min-width: 981px) { .summary > div:nth-child(2) { border-left: 1px solid var(--line); padding-left: 40px; } }

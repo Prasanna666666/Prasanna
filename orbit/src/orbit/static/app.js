@@ -103,11 +103,11 @@ function donut(data) {
   const t2 = t.cloneNode(); t2.setAttribute('y', 112); t2.setAttribute('font-size', 12); t2.setAttribute('font-weight', 500); t2.setAttribute('fill', 'var(--faint)'); t2.textContent = 'spent'; svg.append(t2);
   return svg;
 }
-function barChart(trend, selected, onPick) {
-  const max = Math.max(...trend.map((t) => t.spent), 1);
-  return h('div', { class: 'bars' }, trend.map((t, i) => h('div', { class: 'bar-col', title: `${monthName(t.month)}: spent ${money(t.spent)}, income ${money(t.income)}` },
-    h('div', { class: 'bar-val num' }, t.spent ? money(t.spent) : ''),
-    h('div', { class: 'bar' + (t.month === selected ? ' on' : ''), style: { height: Math.max((t.spent / max) * 100, 3) + '%', animationDelay: i * 50 + 'ms' }, onclick: () => onPick(t.month) }),
+function barChart(trend, selected, onPick, key = 'spent') {
+  const max = Math.max(...trend.map((t) => t[key]), 1);
+  return h('div', { class: 'bars' }, trend.map((t, i) => h('div', { class: 'bar-col', title: `${monthName(t.month)}: ${money(t[key])}` },
+    h('div', { class: 'bar-val num' }, t[key] ? money(t[key]) : ''),
+    h('div', { class: 'bar' + (t.month === selected ? ' on' : ''), style: { height: Math.max((t[key] / max) * 100, 3) + '%', animationDelay: i * 50 + 'ms' }, onclick: () => onPick(t.month) }),
     h('div', { class: 'bar-label' }, shortMonth(t.month)))));
 }
 
@@ -144,9 +144,12 @@ pages.home = async () => {
   const before = daily.reduce((x, r) => x + r.before, 0), ch = before > 0 ? ((dayTotal - before) / before) * 100 : null;
   const link = (label, value, good) => h('a', { class: 'quiet', href: '#/money' }, h('span', { class: 'faint' }, label), h('span', { class: 'num ' + (good ? 'good' : ''), style: { fontWeight: 650 } }, value));
   const money_ = d.trend.length ? [
-    h('div', { class: 'card summary' }, h('div', {}, h('div', { class: 'eyebrow' }, 'Day to day · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '46px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
-        h('div', { class: 'muted' }, ch == null ? 'everyday spending' : Math.abs(ch) < 10 ? 'about the same as last month' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% compared with last month`)),
-      h('div', { class: 'quiets' }, link('Trips & events', signed(outings, 0)), link('Money in', money(sum.income), true), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'See all of Money'))),
+    h('div', { class: 'card summary' },
+      h('div', {}, h('div', { class: 'eyebrow' }, 'Day to day · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
+        h('div', { class: 'muted' }, ch == null ? 'everyday spending' : Math.abs(ch) < 10 ? 'about the same as last month' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% vs last month`)),
+      h('div', {}, h('div', { class: 'eyebrow' }, 'Money in'), h('div', { class: 'num good', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(sum.income)),
+        h('div', { class: 'muted' }, 'salary and other income')),
+      h('div', { class: 'quiets' }, link('Trips & events', signed(outings, 0)), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'See all of Money'))),
     daily.length ? dailyTiles(daily.slice(0, 8), null, null) : null] :
     [h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your private assistant for money, tasks, notes and people. Everything stays on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my finance files'))];
   const tasksCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'To do')),
@@ -222,10 +225,10 @@ pages.money = async () => {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month })]);
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month })]);
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
@@ -275,11 +278,24 @@ pages.money = async () => {
     const eventsPane = evs.length ? [...sections, h('div', { class: 'muted', style: { textAlign: 'center', fontSize: '14px' } }, 'Orbit grouped these from your statements. Something not right? Tell it in ', h('a', { href: '#/chat' }, 'Ask Orbit'), ', for example “move the Ajax tickets to the PSV event”.')]
       : [h('div', { class: 'card welcome-card' }, h('h2', {}, 'No trips or events yet'), h('p', { class: 'muted' }, 'When your statements contain tickets, flights, hotels or refunds, Orbit groups them into trips, matches and shows for you. Press “Read my files” to look for them.'))];
 
+    // ---- income: how much came in, from where, and the payslip
+    const incChange = inc.before > 0 ? ((inc.total - inc.before) / inc.before) * 100 : null;
+    const sl = inc.payslip;
+    const incomePane = [
+      h('div', { class: 'card summary' }, h('div', {}, h('div', { class: 'eyebrow' }, 'Money in · ' + monthName(month)), h('div', { class: 'num good', style: { fontSize: '46px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(inc.total)),
+        h('div', { class: 'muted' }, incChange == null ? 'salary, interest and other income' : Math.abs(incChange) < 5 ? 'about the same as last month' : `${incChange >= 0 ? '↑' : '↓'} ${Math.abs(incChange).toFixed(0)}% compared with last month`))),
+      inc.sources.length ? dailyTiles(inc.sources.map((x) => ({ category: x.source, amount: x.amount, before: x.before, payments: x.payments })), null, null) : h('div', { class: 'card empty' }, 'No money in this month.'),
+      sl ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Payslip · ' + monthName(sl.period))),
+        h('div', { class: 'lines' }, [['Gross', sl.gross], ['Tax', sl.tax], ['Pension', sl.pension], ['Holiday pay', sl.holiday]].filter(([, v]) => v != null).map(([k, v]) => h('div', { class: 'line' }, h('span', {}, k), h('span', { class: 'num' }, money(v, 2)))),
+          h('div', { class: 'line total' }, h('span', {}, 'Paid out (net)'), h('span', { class: 'num good' }, money(sl.net, 2))))) : null,
+      trend.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Money in, month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),
+        barChart(trend.slice(-8), month, (m) => { month = m; openCats.clear(); draw(false); }, 'income')) : null,
+      slips.length > 1 ? h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payslips'), h('span', { class: 'faint' }, ` · ${slips.length}`)), h('div', { style: { height: '12px' } }), slipCard) : null];
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['daily', 'Day to day'], ['events', 'Trips & events' + (evs.length ? ` · ${evs.length}` : '')], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents' + (docs.length + slips.length ? ` · ${docs.length + slips.length}` : '')]];
+    const tabs = [['daily', 'Day to day'], ['income', 'Income'], ['events', 'Trips & events' + (evs.length ? ` · ${evs.length}` : '')], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents' + (docs.length ? ` · ${docs.length}` : '')]];
     const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
-    const content = { daily: dailyPane, events: eventsPane, regular: [recCard],
-      documents: [slipCard, docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
+    const content = { daily: dailyPane, income: incomePane, events: eventsPane, regular: [recCard],
+      documents: [docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
     const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Let’s bring in your money'),
       h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),
       h('ol', { class: 'steps' }, h('li', {}, 'Copy your PDFs into the finance folder'), h('li', {}, 'Press “Read my files”'), h('li', {}, 'Come back in a few minutes: your money is ready')),

@@ -96,7 +96,8 @@ def summary(conn, a):
         "SELECT category, SUM(amount_minor)/100.0 AS spent FROM transactions "
         "WHERE kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY category ORDER BY spent DESC", (start, end)))
     tot = {r["kind"]: r["t"] for r in conn.execute(
-        "SELECT kind, SUM(amount_minor)/100.0 AS t FROM transactions WHERE category<>'transfers' AND day>=? AND day<? GROUP BY kind",
+        "SELECT kind, SUM(amount_minor)/100.0 AS t FROM transactions WHERE category<>'transfers' AND NOT (kind='income' AND event_id IS NOT NULL) "
+        "AND day>=? AND day<? GROUP BY kind",
         (start, end))}
     budgets = {r["category"]: r["monthly_minor"] / 100 for r in conn.execute("SELECT * FROM budgets")}
     for r in by_cat:
@@ -105,6 +106,36 @@ def summary(conn, a):
     return {"month": start[:7], "currency": currency(conn), "spent": tot.get("expense", 0),
             "income": tot.get("income", 0), "net": tot.get("income", 0) - tot.get("expense", 0),
             "by_category": by_cat}
+
+
+INCOME_NAMES = {"income": "other income", "refund": "refunds", "interest": "interest"}
+
+
+def income_summary(conn, a=None):
+    """Money in for a month, by source (salary, interest, refunds, other), with the month before and the payslip figures if there is one.
+    Refunds that belong to a trip or event are not income: they are netted inside that event."""
+    from datetime import date
+
+    a = a or {}
+    month = a.get("month") or date.today().strftime("%Y-%m")
+    start, end = dates.month_bounds(month)
+    before_start = dates.add_months(date.fromisoformat(start), -1).isoformat()
+
+    def by_source(lo, hi):
+        out: dict[str, list] = {}
+        for r in conn.execute("SELECT category, note, amount_minor FROM transactions WHERE kind='income' AND event_id IS NULL AND category<>'transfers' AND day>=? AND day<?", (lo, hi)):
+            name = INCOME_NAMES.get(r["category"], r["category"])  # salary stays 'salary': its description carries the month, so it would never match last month's
+            slot = out.setdefault(name, [0, 0])
+            slot[0] += r["amount_minor"]
+            slot[1] += 1
+        return out
+
+    now, before = by_source(start, end), by_source(before_start, start)
+    sources = sorted(({"source": k, "amount": v[0] / 100, "payments": v[1], "before": before.get(k, [0])[0] / 100} for k, v in now.items()), key=lambda x: -x["amount"])
+    slip = conn.execute("SELECT period, gross_minor/100.0 AS gross, tax_minor/100.0 AS tax, pension_minor/100.0 AS pension, holiday_minor/100.0 AS holiday, net_minor/100.0 AS net "
+                        "FROM payslips WHERE period=? ORDER BY name LIMIT 1", (month,)).fetchone()
+    return {"month": month, "total": round(sum(s["amount"] for s in sources), 2), "before": round(sum(v[0] for v in before.values()) / 100, 2),
+            "sources": sources, "payslip": dict(slip) if slip else None}
 
 
 def set_budget(conn, a):
@@ -377,6 +408,8 @@ MODULE = Module(
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool("top_merchants", "Where the money went: spend per merchant, biggest first. Optional month YYYY-MM or since/until dates.",
              {"month": S("YYYY-MM"), "since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "limit": N("Max rows")}, top_merchants),
+        Tool("income_summary", "Money in for a month YYYY-MM: total, by source (employer, interest, refunds, other), the month before, and the payslip figures.",
+             {"month": S("YYYY-MM")}, income_summary),
         Tool("monthly_trend", "Spent, income and net for each of the last N months.", {"months": N("How many months, default 6")}, monthly_trend),
         Tool("recurring_payments", "Subscriptions, rent, EMIs and bills: payments that repeat about monthly for a similar amount.", {},
              recurring_payments),
