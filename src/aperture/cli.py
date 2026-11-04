@@ -494,7 +494,8 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
         if sys.platform != "darwin":
             print("The cloud option stores its key in the macOS Keychain, so it needs a Mac.")
             return 2
-        print("Paste your provider API key when asked (it is hidden and goes straight into your Keychain, never into a file).")
+        print("Paste your Anthropic API key when asked. It starts with sk-ant- and comes from console.anthropic.com > API keys.\n"
+              "It is NOT your Mac password or your Claude login. What you type is hidden and goes straight into your Keychain, never into a file.")
         done = subprocess.run(["/usr/bin/security", "add-generic-password", "-U", "-s", launcher.KEYCHAIN_SERVICE, "-a", user, "-w"], check=False)  # noqa: S603
         if done.returncode != 0 or not launcher.keychain_key():
             print("The key was not saved, so the cloud option stays off.")
