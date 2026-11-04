@@ -361,6 +361,13 @@ class AgentService:
 
         groups: list[tuple[str, np.ndarray]] = []
         lead = ""
+        hard_ids = None
+        if len(outcome.ids) == 0 and plan.intent == "find" and hasattr(executor, "run_relaxed"):
+            relaxed = executor.run_relaxed(plan, previous_ids)  # keep the place, date or person; only the look is relaxed
+            if len(relaxed.ids):
+                what = " and ".join(c.query for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",))
+                outcome.ids, outcome.notes = relaxed.ids, [*outcome.notes, f"No photo clearly shows {what}. These are the closest of the {len(relaxed.hard):,} photos that match the rest."]
+                hard_ids = relaxed.hard
         if plan.intent in ("find", "count") and hasattr(executor, "readings"):
             try:
                 readings = executor.readings(plan)
@@ -373,7 +380,10 @@ class AgentService:
                     groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), readings)
             except Exception:  # listing the other readings must never break the answer
                 log.exception("listing readings failed")
-        if len(outcome.ids) == 0 and groups:
+        if hard_ids is not None:  # a compound request: every tab must still respect its exact requirements
+            groups = [(label, np.intersect1d(ids, hard_ids)) for label, ids in groups]
+            groups = [(label, ids) for label, ids in groups if len(ids)]
+        if len(outcome.ids) == 0 and groups and _asks_for_one_thing(plan):  # never for a compound request: that would drop a place or a date
             label, ids = groups[0]
             outcome.ids = ids
             outcome.notes.append(f"No exact match. Showing: {label}.")

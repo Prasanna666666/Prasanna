@@ -98,5 +98,9 @@ def test_agent_applies_filters_end_to_end(photos):
     reply = svc.ask("weekend nights")
     assert reply.ids.tolist() == [ids[0]] and "weekend" in reply.text
     svc, _ = service(ctx, plan(filters={"time_of_day": "night"}, clauses=[{"engines": ["visual"], "query": "green frog"}]))
-    assert len(svc.ask("green frogs at night").ids) == 0  # filters never widen a result
+    night = svc.ask("green frogs at night")  # no night photo shows a green frog: the filter stays, only the look is relaxed, and it says so
+    only_night, _ = service(ctx, plan(filters={"time_of_day": "night"}))
+    night_photos = set(only_night.ask("at night").ids.tolist())
+    assert any("No photo clearly shows green frog" in n for n in night.notes)
+    assert night.ids.size and set(night.ids.tolist()) <= night_photos  # every photo shown really was taken at night
     assert isinstance(reply.ids, np.ndarray)

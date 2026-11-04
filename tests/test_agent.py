@@ -163,11 +163,11 @@ def test_every_reading_of_the_search_words_is_listed_with_its_own_photos(scanned
     assert all(len(ids) for _, ids in reply.groups)
 
 
-def test_an_empty_best_match_falls_back_to_the_first_reading_and_says_so(scanned):
+def test_a_written_word_that_matches_nothing_is_not_silently_dropped(scanned):
     clauses = [{"engines": ["place"], "query": "italy"}, {"engines": ["text"], "query": "zzzqqq"}]
     svc, _ = service(scanned, plan(clauses=clauses))
     reply = svc.ask("italy zzzqqq")
-    assert len(reply.ids) and any("No exact match" in n for n in reply.notes)
+    assert len(reply.ids) == 0  # the word is an exact requirement: nothing is shown instead of something that ignores it
 
 
 def test_photos_with_gps_but_no_place_name_get_one_without_reading_files(scanned):
@@ -187,3 +187,16 @@ def test_asking_for_one_thing_leads_with_the_most_reliable_reading_not_a_mixed_s
     reply = svc.ask("italy")
     assert reply.text.startswith("**") and "Best match" not in [label for label, _ in reply.groups]
     assert reply.groups[0][0] == "In folders named italy"
+
+
+def test_when_nothing_looks_right_the_place_is_kept_and_only_the_look_is_relaxed(scanned):
+    clauses = [{"engines": ["path"], "query": "italy"}, {"engines": ["visual"], "query": "yellow"}]  # no italy photo is yellow
+    svc, _ = service(scanned, plan(clauses=clauses))
+    reply = svc.ask("yellow things in italy")
+    conn = scanned.db.connect()
+    italy = {r[0] for r in conn.execute("SELECT id FROM items WHERE meta_text LIKE '% italy%'")}
+    assert len(reply.ids) and set(reply.ids.tolist()) <= italy  # only Italy photos, never the whole library
+    assert any("No photo clearly shows yellow" in n for n in reply.notes)
+    outside = {r[0] for r in conn.execute("SELECT id FROM items WHERE meta_text NOT LIKE '% italy%'")}
+    for _, ids in reply.groups:
+        assert not (set(ids.tolist()) & outside)  # and no tab shows the look from everywhere

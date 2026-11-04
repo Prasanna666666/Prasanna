@@ -14,6 +14,7 @@ import difflib
 import logging
 import sqlite3
 from collections.abc import Callable
+from typing import Any
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -50,6 +51,7 @@ class ExecResult:
     notes: list[str] = field(default_factory=list)
     date_range: str = ""
     universe: int = 0
+    hard: Any = None  # photos that satisfy every exact requirement (place, date, person, written text), before looks are considered
 
 
 CLOSEST_LIMIT = 200  # how many near matches to return when nothing fits every requirement
@@ -178,6 +180,34 @@ class Executor:
         if len(ids):
             result.notes.append(f"{len(ids):,} taken within 25 km of {query} (GPS).")
         return ids
+
+    def run_relaxed(self, plan: Plan, previous_ids: np.ndarray | None = None, keep: int = 60) -> ExecResult:
+        """When nothing satisfies everything: keep every EXACT requirement (place, date, person, written text, filters), drop only what a
+        picture should look like, and rank the photos that remain by how close they come. A place, date or person is never dropped."""
+        soft = [c for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",)]
+        hard_plan = dataclasses.replace(plan, clauses=tuple(c for c in plan.clauses if c not in soft))
+        if not soft or not (hard_plan.clauses or not hard_plan.date.is_empty or not hard_plan.filters.is_empty):
+            return ExecResult(ids=np.zeros(0, np.int64))
+        result = self._run(hard_plan, previous_ids)
+        result.hard = result.ids
+        if len(result.ids) == 0:
+            return result
+        result.ids = self._closest_in_look(result.ids, [c.query for c in soft], keep)
+        return result
+
+    def _closest_in_look(self, ids: np.ndarray, queries: list[str], keep: int) -> np.ndarray:
+        index, embedder = self._index_provider(), self._embedder_provider()
+        if embedder is None or len(index) == 0:
+            return ids[:keep]
+        search = VisualSearch(index, embedder, self._strictness)
+        rows = np.searchsorted(index.ids, ids)
+        rows = np.clip(rows, 0, len(index) - 1)
+        known = index.ids[rows] == ids  # photos without an embedding cannot be ranked
+        if not known.any():
+            return ids[:keep]
+        vectors = index.vectors[rows[known]].astype(np.float32)
+        score = sum(vectors @ search.query_vector(q) for q in queries)
+        return ids[known][np.argsort(-score)][:keep]
 
     HARD = ("place", "near", "estimated", "path", "person")  # facts: the photo's own GPS, place tag, folder name, or a named person
     SOFT = ("text", "tag", "visual")  # clues: a word that appears in the picture, or what the picture looks like
