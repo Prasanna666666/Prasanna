@@ -164,6 +164,12 @@ class Web:
             return {"ok": False, "error": "The cloud is not set up. Run: .venv/bin/python -m aperture cloud enable"}
         if on and not gateway_up(self.ctx.settings.cloud_port):
             return {"ok": False, "error": "The cloud connection is not running. Restart the app: .venv/bin/python -m aperture install-service"}
+        if on:  # a real request first: it only turns on if the cloud really answers
+            from ..cloud.client import check
+
+            problem = check(self.ctx.settings.cloud_port)
+            if problem:
+                return {"ok": False, "error": f"The cloud did not answer, so it stays off. {problem}"}
         self.ctx.cloud_on = on
         self._cache.pop("cloud_up", None)
         return {"ok": True, "cloud": self.cloud_info()}

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import time
 import re
+import urllib.error
 import urllib.request
 from collections.abc import Callable
 from datetime import date
@@ -34,6 +35,23 @@ def _drop_unknown_placeholders(value: Any) -> Any:
 
 
 MAX_EARLIER = 3
+
+
+def check(port: int, opener: Any = urllib.request.urlopen) -> str:
+    """One small real request through the gateway. Returns "" when the cloud answered, otherwise why not, in the provider's own words."""
+    body = json.dumps({"question": "photos of dogs from last year", "has_previous": False, "today": date.today().isoformat()}).encode()
+    http = urllib.request.Request(f"http://127.0.0.1:{port}/interpret", data=body, headers={"Content-Type": "application/json"})
+    try:
+        with opener(http, timeout=15) as response:
+            plan = json.loads(response.read().decode("utf-8", "replace")).get("plan")
+        return "" if isinstance(plan, dict) and plan.get("tool") else "the cloud answered, but with nothing usable"
+    except urllib.error.HTTPError as exc:
+        try:
+            return str(json.loads(exc.read().decode("utf-8", "replace")).get("error") or f"HTTP {exc.code}")
+        except Exception:
+            return f"HTTP {exc.code}"
+    except OSError:
+        return "the cloud connection is not running"
 REST_SECONDS = 120.0
 
 

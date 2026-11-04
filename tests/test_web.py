@@ -292,5 +292,11 @@ def test_the_cloud_switch_starts_off_and_only_turns_on_when_the_cloud_is_set_up_
     assert app.web.set_cloud(True)["ok"] is False and not getattr(app.web.ctx, "cloud_on", False)  # set up, but no connection
     monkeypatch.setattr(launcher, "gateway_up", lambda port: True)
     monkeypatch.setattr(launcher, "gateway_status", lambda port: {"spent_usd": 0.0, "cap_usd": 5.0})
+    from aperture.cloud import client
+
+    monkeypatch.setattr(client, "check", lambda port: "Your credit balance is too low")
+    refused = app.web.set_cloud(True)
+    assert refused["ok"] is False and "credit balance" in refused["error"] and not getattr(app.web.ctx, "cloud_on", False)  # it never claims to be on
+    monkeypatch.setattr(client, "check", lambda port: "")
     assert app.web.set_cloud(True)["cloud"]["state"] == "connected"
     assert app.web.set_cloud(False)["cloud"] == {"state": "local"}
