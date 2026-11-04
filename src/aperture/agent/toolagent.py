@@ -139,23 +139,23 @@ TOOLS = [TOOL_DEFS[name] for name in ASSISTANT.tools]
 # Few-shot examples: the usual way to steer a small model's tool use. They show the pattern (a bare noun is a search, name only what was
 # said, talk when it is conversation); they are deliberately different from the phrases the evaluation sets use.
 EXAMPLES = "\n".join([
-    "'mountains' -> find_photos(what=\"mountain\")",
-    "'a cup of coffee' -> find_photos(what=\"cup of coffee\")",
-    "'pictures of Maya at the market' -> find_photos(people=[\"Maya\"], what=\"market\")",
-    "'photos from last week' -> find_photos(relative=\"last_week\")",
-    "'beach photos from the summer of 2022' -> find_photos(what=\"beach\", year=2022, season=\"summer\")",
-    "'how many pictures did I take in 2018?' -> count_photos(year=2018)",
-    "'find the invoice that mentions Acme' -> find_photos(text_in_photo=[\"Acme\"])",
-    "'forest photos without any people' -> find_photos(what=\"forest\", max_people=0)",
-    "'put my Rome photos into a folder called Italy' -> copy_photos(places=[\"Rome\"], folder=\"Italy\")",
-    "'keep just the ones from May' (results are on screen) -> find_photos(month=5, narrow_previous=true)",
+    "'mountains' -> search for pictures showing a mountain",
+    "'a cup of coffee' -> search for pictures showing a cup of coffee",
+    "'pictures of Maya at the market' -> search for the person Maya and pictures showing a market",
+    "'photos from last week' -> search with the relative time last_week",
+    "'beach photos from the summer of 2022' -> search for a beach, year 2022, season summer",
+    "'how many pictures did I take in 2018?' -> count the photos of year 2018",
+    "'find the invoice that mentions Acme' -> search for the text Acme written in a photo",
+    "'forest photos without any people' -> search for a forest with at most 0 people",
+    "'put my Rome photos into a folder called Italy' -> copy the photos from the place Rome into the folder Italy",
+    "'keep just the ones from May' (results are on screen) -> narrow the previous results to month 5",
     "'thanks, that helps' -> reply in words, no tool",
     "'what is a RAW file?' -> reply in words, no tool",
     "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
-    "'pics from 2 months back' -> use the calc_date tool for the dates, then find_photos with date_from and date_to",
+    "'pics from 2 months back' -> use the calc_date tool for the dates, then search with date_from and date_to",
     "'all the photos I took in Tokyo' -> search the place; if only text mentions it, use inspect_results to learn when and where, then search those dates or places",
+    "Only fill in what the user said: 'sunset photos' is a search for a sunset with no time of day and no kind.",
     "Always call tools through the tool interface; never write a tool call out as text.",
-    "Only fill in what the user said: 'sunset photos' is find_photos(what=\"sunset\") with no time of day and no kind.",
 ])
 
 

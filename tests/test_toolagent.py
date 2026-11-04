@@ -337,7 +337,7 @@ def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_t
     agent, llm, _ = agent_with([[("delta", "x")]])
     agent.ask("hello")
     system = llm.calls[0][0]
-    assert EXAMPLES in system and "find_photos(what=\"mountain\")" in system and "reply in words, no tool" in system
+    assert EXAMPLES in system and "search for pictures showing a mountain" in system and "(" not in EXAMPLES.split("Always call")[0].replace("(results are on screen)", "").replace("(a bare word)", "") and "reply in words, no tool" in system
     for persona in ("photo app", "You are", "Lumo", "assistant inside"):
         assert persona not in system
     eval_requests = {c["request"].lower() for c in __import__("aperture.evaluation", fromlist=["x"]).load_plan_cases()}
