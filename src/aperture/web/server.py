@@ -285,11 +285,13 @@ def ask_within(work: Any, limit: float, on_status: Any = None) -> Any:
     worker = threading.Thread(target=lambda: context.run(run), name="ask", daemon=True)
     worker.start()
     give_up = time.monotonic() + limit
+    last = ""
     while worker.is_alive() and time.monotonic() < give_up:
         worker.join(0.2)
         while on_status is not None:
             try:
-                on_status(statuses.get_nowait())
+                last = statuses.get_nowait()
+                on_status(last)
             except queue.Empty:
                 break
     while on_status is not None:  # whatever it said just before finishing
@@ -298,8 +300,14 @@ def ask_within(work: Any, limit: float, on_status: Any = None) -> Any:
         except queue.Empty:
             break
     if worker.is_alive():
-        log.warning("a question was still running after %.0f s; the answer was given up", limit)
-        return AgentReply("error", "That is taking longer than it should. Please try again, or ask it in a simpler way.")
+        import sys
+        import traceback
+
+        frame = sys._current_frames().get(worker.ident)  # exactly where it is stuck, so the cause can be read from the log
+        where = "".join(traceback.format_stack(frame)[-8:]) if frame is not None else "unknown"
+        log.warning("a question was still running after %.0f s (last step: %s); the answer was given up. Stuck at:\n%s", limit, last or "none", where)
+        return AgentReply("error", "That is taking longer than it should. Please try again, or ask it in a simpler way."
+                                   + (f" (It was at: {last.lower()}.)" if last else ""))
     if "error" in box:
         raise box["error"]
     return box["reply"]
