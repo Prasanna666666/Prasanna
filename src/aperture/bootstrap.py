@@ -140,6 +140,8 @@ class AppContext:
                 run("photo index", self.embedding_index)
                 if hasattr(self, "geo"):
                     run("place data", self.geo)
+                if hasattr(self, "db"):
+                    run("photo list", self._prime_photo_list)
                 run("place names", self._fill_places)
                 run("library facts", self._prime_library_facts)
             finally:
@@ -291,6 +293,16 @@ class AppContext:
                 self._geo_tried = True
                 self._geo = GeoIndex.load(self.paths)
             return self._geo
+
+    def _prime_photo_list(self) -> None:
+        """Read the list of live photos once at start-up (it is remembered until the library file changes)."""
+        from .search.metadata import all_ids
+
+        conn = self.db.connect()
+        try:
+            all_ids(conn)
+        finally:
+            conn.close()
 
     def ready_geo(self) -> GeoIndex | None:
         """The place list for a question: only if already loaded (loading it took 25 s from the drive). It loads at start-up, never during a question."""

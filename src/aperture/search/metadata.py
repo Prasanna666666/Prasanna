@@ -8,6 +8,7 @@ must match, which keeps results precise.
 from __future__ import annotations
 
 import sqlite3
+from typing import Any
 
 import numpy as np
 
@@ -52,4 +53,37 @@ def date_ids(conn: sqlite3.Connection, start: str, end: str) -> np.ndarray:
 def all_ids(conn: sqlite3.Connection, *, indexed_only: bool = True) -> np.ndarray:
     """Every live item (the universe for NOT-clauses and 'show everything')."""
     sql = "SELECT id FROM items WHERE missing=0" + (" AND meta_done=1" if indexed_only else "") + " ORDER BY id"
-    return _ids(conn.execute(sql).fetchall())
+    key = _file_signature(conn, indexed_only)
+    if key is not None and key in _ALL_IDS:
+        return _ALL_IDS[key].copy()
+    ids = _ids(conn.execute(sql).fetchall())
+    if key is not None:
+        _ALL_IDS.clear()  # one entry is enough: the library is the same until its file changes
+        _ALL_IDS[key] = ids.copy()
+    return ids
+
+
+_ALL_IDS: dict[Any, np.ndarray] = {}
+
+
+def _file_signature(conn: sqlite3.Connection, indexed_only: bool) -> Any:
+    """Reading every photo id from the drive takes seconds; it only needs repeating when the library file has changed (its size or time changes
+    on every write). None when it cannot be told safely (an in-memory database, or unsaved changes on this connection)."""
+    import os
+
+    try:
+        if conn.in_transaction:
+            return None
+        path = conn.execute("PRAGMA database_list").fetchone()[2]
+        if not path:
+            return None
+        stats = []
+        for name in (path, path + "-wal"):
+            try:
+                info = os.stat(name)
+                stats.append((info.st_mtime_ns, info.st_size))
+            except FileNotFoundError:
+                stats.append(None)
+        return (path, indexed_only, tuple(stats))
+    except Exception:
+        return None

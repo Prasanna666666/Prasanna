@@ -452,6 +452,7 @@ def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
 
     conn = ctx.db.connect()
     try:
+        ctx.geo()  # as in the running app, the place list is loaded before any question
         executor = Executor(conn, ctx.embedding_index, ctx.ready_embedder, geo_provider=ctx.geo)
         plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query=args.word),))
         for name, work in (("answer (strict search)", lambda: executor.run(plan)), ("other readings", lambda: executor.explore(plan))):
