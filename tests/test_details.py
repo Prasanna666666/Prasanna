@@ -166,3 +166,38 @@ def test_a_concept_word_is_answered_by_its_trusted_picture_labels_and_they_lead(
     assert ex._tag_ids("baby").tolist() == [1, 2]
     readings = ex.readings(Plan(intent="find", clauses=(Clause(engines=("visual",), query="baby"),)))
     assert readings[0][0] == "Looks like baby" and readings[0][1].tolist() == [1, 2]  # and it leads, ahead of a stray written word
+
+
+def _hockey_library():
+    conn = _db(8)
+    conn.row_factory = sqlite3.Row
+    for i in (1, 2, 3):  # photos in a folder named hockey: 1 and 2 are in Nagoya, 3 is not
+        conn.execute("UPDATE items SET meta_text=' hockey tournament' WHERE id=?", (i,))
+    conn.execute("UPDATE items SET place='Nagoya, Japan', place_text=' nagoya japan' WHERE id IN (1, 2, 4, 5)")  # 4 and 5 are Nagoya, not hockey
+    return conn
+
+
+def test_several_conditions_are_each_judged_by_their_own_best_evidence_and_intersected():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _hockey_library()
+    ex = Executor(conn, lambda: None, lambda: None)
+    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")))
+    exploration = ex.explore(plan)
+    assert exploration.terms["hockey"].tolist() == [1, 2, 3] and exploration.terms["Nagoya"].tolist() == [1, 2, 4, 5]
+    assert exploration.together().tolist() == [1, 2]  # the hockey photos that are also in Nagoya
+    assert not any("Same trip" in label for label, _ in exploration.readings)  # no trip tabs for several conditions
+
+
+def test_a_request_with_several_conditions_answers_with_where_they_all_hold_even_when_the_models_search_method_finds_nothing():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.agent.service import AgentService
+
+    conn = _hockey_library()
+    service = AgentService(planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False)
+    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")))
+    reply = service.run_plan("hockey game in nagoya", plan)  # the strict search on 'looks like hockey' finds nothing here: no image model
+    assert sorted(reply.ids.tolist()) == [1, 2] and "hockey and Nagoya" in reply.text
+    assert reply.groups[0][0] == "hockey and Nagoya"

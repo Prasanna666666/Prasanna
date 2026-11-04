@@ -372,8 +372,15 @@ class AgentService:
                 hard_ids = relaxed.hard
         if plan.intent in ("find", "count") and hasattr(executor, "readings"):
             try:
-                readings = executor.readings(plan)
-                if readings and _asks_for_one_thing(plan):
+                exploration = executor.explore(plan) if hasattr(executor, "explore") else None
+                readings = exploration.readings if exploration is not None else executor.readings(plan)
+                together = exploration.together() if exploration is not None else None
+                if together is not None and len(together):
+                    # Several conditions: each is judged by its OWN best evidence (a folder, a place, GPS, a trusted label ...) and the answer is
+                    # where all of them hold, not whatever the model's guessed search method happened to give.
+                    lead, outcome.ids = " and ".join(exploration.terms) if exploration.terms else "all of it", together
+                    groups = _merge_groups((lead, together), readings)
+                elif readings and _asks_for_one_thing(plan):
                     # One thing was asked for: the most reliable way it can be found leads (place and GPS before folders, people, written
                     # text and finally what the picture looks like), instead of a mixed search that silently narrows it to a few photos.
                     lead, outcome.ids = readings[0][0], readings[0][1]

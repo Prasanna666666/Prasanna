@@ -56,6 +56,25 @@ class ExecResult:
 
 CLOSEST_LIMIT = 200  # how many near matches to return when nothing fits every requirement
 
+@dataclass
+class Exploration:
+    """Every reading of the request's words, plus the best evidence for each condition on its own."""
+
+    readings: list[tuple[str, np.ndarray]]
+    terms: dict[str, np.ndarray]  # each word: the photos that have good evidence for it
+    when: np.ndarray | None = None  # the photos in the requested time, if a time was asked for
+
+    def together(self) -> np.ndarray | None:
+        """The photos where EVERY condition holds at once (each condition judged by its own best evidence). None for a single condition."""
+        sets = [*self.terms.values(), *([self.when] if self.when is not None else [])]
+        if len(sets) < 2:
+            return None
+        both = sets[0]
+        for other in sets[1:]:
+            both = np.intersect1d(both, other)
+        return both
+
+
 FALLBACK_ENGINES = ("place", "path", "text", "visual")  # cheap, exact ones first; people are never guessed
 
 
@@ -212,7 +231,7 @@ class Executor:
     HARD = ("place", "near", "estimated", "path", "person")  # facts: the photo's own GPS, place tag, folder name, or a named person
     SOFT = ("text", "tag", "visual")  # clues: a word that appears in the picture, or what the picture looks like
 
-    def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
+    def explore(self, plan: Plan) -> Exploration:
         """Every way the search words could be meant, each searched on its own and then VALIDATED against everything stored about the
         photos: a photo is kept only if it has hard evidence (its GPS, place tag, folder or a named person) or at least two independent
         clues agree. Single weak clues (one word in a receipt, one look-alike guess) are dropped. Then the trip of the confirmed photos."""
@@ -220,6 +239,7 @@ class Executor:
         universe = all_ids(self._conn)
         limit = max(50, int(0.2 * len(universe)))  # a meaning that matches a fifth of the library says nothing
         found: list[tuple[str, np.ndarray]] = []
+        term_sets: dict[str, np.ndarray] = {}
         terms = list(dict.fromkeys(c.query.strip() for c in plan.clauses if not c.exclude and c.query.strip()))
         for term in terms:
             wording = (
@@ -262,17 +282,20 @@ class Executor:
             for engine, _, ids in readings:
                 if engine == "tag":  # a picture label that is already strong, or backed by two sources, is evidence in its own right
                     confirmed = np.union1d(confirmed, ids)
+            term_sets[term] = confirmed
             for engine, label, ids in readings:
                 if engine in self.SOFT:
                     ids = np.intersect1d(ids, confirmed)  # a clue counts only where hard evidence or a second clue backs it
                 if len(ids):
                     found.append((label, ids))
-            trip = self._trip_ids(confirmed) if len(confirmed) else np.zeros(0, np.int64)  # the whole trip of the confirmed photos
+            trip = self._trip_ids(confirmed) if len(confirmed) and len(terms) == 1 else np.zeros(0, np.int64)  # one condition only: with several it just confuses
             if 0 < len(trip) <= limit:
                 found.append((f"Same trip as your {term} photos", np.sort(trip)))
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
+        when: np.ndarray | None = None
         if span is not None:
             ids = date_ids(self._conn, span[0].isoformat(), span[1].isoformat())
+            when = np.sort(ids)
             if len(ids):
                 found.append((f"Taken {span[0].isoformat()} to {(span[1] - timedelta(days=1)).isoformat()}", np.sort(ids)))
         banned = [self._clause_ids(c, scratch) for c in plan.clauses if c.exclude]  # what the user said they do not want stays out
@@ -285,7 +308,16 @@ class Executor:
                 ids = np.intersect1d(ids, allowed)
             if len(ids):
                 kept.append((label, ids))
-        return kept
+        for term, ids in list(term_sets.items()):  # what the person excluded, and the exact filters, apply to every condition
+            for gone in banned:
+                ids = np.setdiff1d(ids, gone)
+            if allowed is not None:
+                ids = np.intersect1d(ids, allowed)
+            term_sets[term] = ids
+        return Exploration(kept, term_sets, when)
+
+    def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
+        return self.explore(plan).readings
 
     def _place_vocabulary(self) -> list[str]:
         if self._vocabulary is None:
