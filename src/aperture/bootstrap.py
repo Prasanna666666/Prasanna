@@ -118,7 +118,7 @@ class AppContext:
         reads_done = threading.Event()
 
         def run(name: str, step) -> None:
-            if name in ("AI model", "image search model") and ScanLock(self.paths).running(verify=True):
+            if name in ("AI model", "image search model", "search warm-up") and ScanLock(self.paths).running(verify=True):
                 log.debug("warm-up: scan running, not loading the %s", name)
                 return
             try:
@@ -139,9 +139,20 @@ class AppContext:
             threading.Thread(target=drive_reads, name="warm-up-drive", daemon=True).start()
             run("image search model", self.search_embedder)  # first: loading it while the chat model answers would slow the chat down
             reads_done.wait()
+            if hasattr(self, "_warm_search"):
+                run("search warm-up", self._warm_search)  # the first real search compiles GPU code for several seconds: do it now, not on your first question
             run("AI model", self.warm_ai if hasattr(self, "warm_ai") else lambda: self.llm().warm())  # last, so it is hot when you start
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
+
+    def _warm_search(self) -> None:
+        """Run one real picture search so the first one a person asks is not the slow one."""
+        from .search.visual import VisualSearch
+
+        embedder = self.search_embedder()
+        index = self.embedding_index()
+        if embedder is not None and len(index):
+            VisualSearch(index, embedder).search("a photo of people")
 
     def warm_ai(self) -> None:
         agent = self.agent()

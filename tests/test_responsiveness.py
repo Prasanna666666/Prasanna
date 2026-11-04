@@ -36,6 +36,7 @@ def _fake_ctx(calls):
         search_embedder=lambda: calls.append("clip"),
         _prime_library_facts=lambda: calls.append("facts"),
         _fill_places=lambda: calls.append("places"),
+        _warm_search=lambda: calls.append("warm"),
         warm_errors={},
         llm=lambda: llm,
     )
@@ -43,7 +44,7 @@ def _fake_ctx(calls):
 
 def test_warm_up_loads_models_only_when_no_scan_is_running(monkeypatch):
     monkeypatch.setattr(threading, "Thread", _InlineThread)
-    for running, expected in ((False, ["index", "places", "facts", "clip", "llm"]), (True, ["index", "places", "facts"])):
+    for running, expected in ((False, ["index", "places", "facts", "clip", "warm", "llm"]), (True, ["index", "places", "facts"])):
         calls = []
         monkeypatch.setattr("aperture.indexing.progress.ScanLock.running", lambda self, verify=False, r=running: r)
         bootstrap.AppContext.warm_up(_fake_ctx(calls))
@@ -57,7 +58,7 @@ def test_warm_up_survives_a_failing_step(monkeypatch):
     ctx = _fake_ctx(calls)
     ctx.search_embedder = lambda: (_ for _ in ()).throw(RuntimeError("no model"))
     bootstrap.AppContext.warm_up(ctx)
-    assert sorted(calls) == ["facts", "index", "llm", "places"]  # the image-search model failed; the others still loaded
+    assert sorted(calls) == ["facts", "index", "llm", "places", "warm"]  # the image-search model failed; the others still loaded
 
 
 def test_searching_pauses_a_running_scan_and_remembers_why(monkeypatch):
@@ -159,3 +160,7 @@ def test_worked_out_locations_are_off_unless_asked_for():
     from aperture.config import Settings
 
     assert Settings().estimate_locations is False
+
+
+def test_warming_up_runs_one_real_search_so_the_first_question_is_not_the_slow_one(scanned):
+    scanned._warm_search()  # must run end to end on a real (small) library without raising
