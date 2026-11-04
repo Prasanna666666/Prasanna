@@ -122,7 +122,7 @@ def _lines(conn, event_id):
     out = rows(conn.execute(
         "SELECT CASE WHEN sub='' THEN 'other' ELSE sub END AS sub, "
         "ROUND(SUM(CASE WHEN kind='income' THEN -amount_minor ELSE amount_minor END)/100.0, 2) AS amount, COUNT(*) AS payments "
-        "FROM transactions WHERE event_id=? GROUP BY 1 ORDER BY (sub='refund'), amount DESC", (event_id,)))
+        "FROM ledger WHERE event_id=? GROUP BY 1 ORDER BY (sub='refund'), amount DESC", (event_id,)))
     return out
 
 
@@ -133,7 +133,7 @@ def list_events(conn, a=None):
     if a.get("main"):
         where.append("e.main=?")
         args.append(str(a["main"]).lower())
-    sql = ("SELECT e.id, e.name, e.main, e.confirmed, e.starts, e.ends, MIN(t.day) AS first, MAX(t.day) AS last FROM events e LEFT JOIN transactions t ON t.event_id=e.id"
+    sql = ("SELECT e.id, e.name, e.main, e.confirmed, e.starts, e.ends, MIN(t.day) AS first, MAX(t.day) AS last FROM events e LEFT JOIN ledger t ON t.event_id=e.id"
            + (" WHERE " + " AND ".join(where) if where else "") + " GROUP BY e.id ORDER BY MAX(t.day) DESC, e.name")
     out = rows(conn.execute(sql, args))
     for ev in out:
@@ -155,10 +155,10 @@ def spending_by_main(conn, a=None):
         span, args = " AND t.day>=? AND t.day<?", [start, end]
     net = "SUM(CASE WHEN t.kind='income' THEN -t.amount_minor ELSE t.amount_minor END)/100.0"
     ev = {r["main"]: r for r in rows(conn.execute(
-        f"SELECT e.main AS main, ROUND({net}, 2) AS net, COUNT(DISTINCT e.id) AS events FROM transactions t JOIN events e ON e.id=t.event_id "
+        f"SELECT e.main AS main, ROUND({net}, 2) AS net, COUNT(DISTINCT e.id) AS events FROM ledger t JOIN events e ON e.id=t.event_id "
         f"WHERE 1=1{span} GROUP BY e.main", args))}
     others = rows(conn.execute(
-        f"SELECT CASE WHEN t.category='other' THEN 'unsorted' ELSE t.category END AS sub, ROUND(SUM(t.amount_minor)/100.0, 2) AS amount FROM transactions t "
+        f"SELECT CASE WHEN t.category='other' THEN 'unsorted' ELSE t.category END AS sub, ROUND(SUM(t.amount_minor)/100.0, 2) AS amount FROM ledger t "
         f"WHERE t.event_id IS NULL AND t.kind='expense' AND t.category<>'transfers'{span} GROUP BY 1 ORDER BY amount DESC", args))
     out = [{"main": m, "net": (ev.get(m) or {}).get("net", 0.0), "events": (ev.get(m) or {}).get("events", 0)} for m in MAINS if m != "others"]
     out.append({"main": "others", "net": round(sum(o["amount"] for o in others), 2), "events": 0, "subs": others})
@@ -179,7 +179,7 @@ def daily_by_category(conn, a=None):
 
     def totals(lo, hi):
         return {r["sub"]: (r["amount"], r["n"]) for r in rows(conn.execute(
-            "SELECT CASE WHEN category='other' THEN 'unsorted' ELSE category END AS sub, ROUND(SUM(amount_minor)/100.0, 2) AS amount, COUNT(*) AS n FROM transactions "
+            "SELECT CASE WHEN category='other' THEN 'unsorted' ELSE category END AS sub, ROUND(SUM(amount_minor)/100.0, 2) AS amount, COUNT(*) AS n FROM ledger "
             "WHERE event_id IS NULL AND kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY 1", (lo, hi)))}
 
     now, before = totals(start, end), totals(before_start, start)

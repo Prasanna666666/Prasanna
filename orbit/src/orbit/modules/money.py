@@ -67,6 +67,13 @@ MIGRATIONS = (
         subject TEXT NOT NULL, message TEXT NOT NULL, cross INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """,
+    """
+    ALTER TABLE transactions ADD COLUMN currency TEXT NOT NULL DEFAULT '';        -- '' = the main currency
+    ALTER TABLE transactions ADD COLUMN account TEXT NOT NULL DEFAULT '';         -- the account/card the payment belongs to, as printed on its statement
+    ALTER TABLE transactions ADD COLUMN transfer_id INTEGER;                      -- the other half of a transfer between your own accounts
+    ALTER TABLE statement_files ADD COLUMN currency TEXT NOT NULL DEFAULT '';
+    CREATE INDEX tx_account ON transactions(account, day);
+    """,
 )
 
 
@@ -102,7 +109,7 @@ def list_transactions(conn, a):
         where.append("t.category=?")
         args.append(a["category"].lower())
     sql = ("SELECT t.id, t.day, t.kind, t.category, t.note, t.amount_minor/100.0 AS amount, t.event_id, t.sub, e.name AS event "
-           "FROM transactions t LEFT JOIN events e ON e.id=t.event_id")
+           "FROM ledger t LEFT JOIN events e ON e.id=t.event_id")
     sql += " WHERE " + " AND ".join(where) if where else ""
     return rows(conn.execute(sql + " ORDER BY t.day DESC, t.id DESC LIMIT ?", [*args, int(a.get("limit", 50))]))
 
@@ -110,10 +117,10 @@ def list_transactions(conn, a):
 def summary(conn, a):
     start, end = dates.month_bounds(a.get("month") or date.today().strftime("%Y-%m"))
     by_cat = rows(conn.execute(
-        "SELECT category, SUM(amount_minor)/100.0 AS spent FROM transactions "
+        "SELECT category, SUM(amount_minor)/100.0 AS spent FROM ledger "
         "WHERE kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY category ORDER BY spent DESC", (start, end)))
     tot = {r["kind"]: r["t"] for r in conn.execute(
-        "SELECT kind, SUM(amount_minor)/100.0 AS t FROM transactions WHERE category<>'transfers' AND NOT (kind='income' AND event_id IS NOT NULL) "
+        "SELECT kind, SUM(amount_minor)/100.0 AS t FROM ledger WHERE category<>'transfers' AND NOT (kind='income' AND event_id IS NOT NULL) "
         "AND day>=? AND day<? GROUP BY kind",
         (start, end))}
     budgets = {r["category"]: r["monthly_minor"] / 100 for r in conn.execute("SELECT * FROM budgets")}
@@ -140,7 +147,7 @@ def income_summary(conn, a=None):
 
     def by_source(lo, hi):
         out: dict[str, list] = {}
-        for r in conn.execute("SELECT category, note, amount_minor FROM transactions WHERE kind='income' AND event_id IS NULL AND category<>'transfers' AND day>=? AND day<?", (lo, hi)):
+        for r in conn.execute("SELECT category, note, amount_minor FROM ledger WHERE kind='income' AND event_id IS NULL AND category<>'transfers' AND day>=? AND day<?", (lo, hi)):
             name = INCOME_NAMES.get(r["category"], r["category"])  # salary stays 'salary': its description carries the month, so it would never match last month's
             slot = out.setdefault(name, [0, 0])
             slot[0] += r["amount_minor"]
@@ -168,13 +175,13 @@ def delete_transaction(conn, a):
 
 
 # ---- statements -------------------------------------------------------------------------------------------------------
-def _store(conn, d, txns, learned, account: str = "") -> int:
+def _store(conn, d, txns, learned, account: str = "", currency: str = "") -> int:
     new = 0
     scope = re.sub(r"[^A-Za-z0-9]", "", account).upper()
     for ref, t in statements.with_references(txns, scope):
         cur = conn.execute(
-            "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, balance_minor, auto) VALUES (?,?,?,?,?,?,?,?,1)",
-            (t.day, t.amount_minor, t.kind, categorize.categorise(t.desc, t.kind, learned), t.desc[:300], ref, d["name"][:200], t.balance_minor))
+            "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, balance_minor, auto, currency, account) VALUES (?,?,?,?,?,?,?,?,1,?,?)",
+            (t.day, t.amount_minor, t.kind, categorize.categorise(t.desc, t.kind, learned), t.desc[:300], ref, d["name"][:200], t.balance_minor, currency, scope))
         new += cur.rowcount
     conn.commit()
     return new
@@ -243,6 +250,7 @@ def _read_standard(kind: str, text: str, name: str) -> verify.Read:
         r.txns += s.txns
         r.issues += s.issues
     r.account = statements_[0].account if statements_ else ""
+    r.currency = next((s.currency for s in statements_ if s.currency), "")
     if r.txns:
         days = sorted(t.day for t in r.txns)
         r.first, r.last = days[0], days[-1]
@@ -308,7 +316,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             status, issues = rd.status, rd.issues
             if status != "needs_check":  # nothing from a file that fails its own proof ever reaches your totals
                 txns = rd.txns
-                new = _store(conn, d, txns, learned, rd.account)
+                new = _store(conn, d, txns, learned, rd.account, rd.currency)
             else:
                 needs_check.append({"file": d["name"], "issues": issues[:5]})
             verify.store_file_findings(conn, d["name"], rd.findings)
@@ -317,8 +325,8 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             conn.execute("INSERT OR IGNORE INTO payslips VALUES (?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], slip.period, slip.gross_minor, slip.net_minor,
                                                                                    slip.tax_minor, slip.pension_minor, slip.holiday_minor))
             payslip_count += 1
-        conn.execute("INSERT INTO statement_files (sha256, name, found, added, status, issues, account, period_start, period_end, opening_minor, closing_minor, proofs) "
-                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500], *extra))
+        conn.execute("INSERT INTO statement_files (sha256, name, found, added, status, issues, account, period_start, period_end, opening_minor, closing_minor, proofs, currency) "
+                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500], *extra, rd.currency if rd is not None else ""))
         files += 1
         added += new
         duplicates += len(txns) - new
@@ -340,6 +348,16 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
     return {"files": files, "new_transactions": added, "already_had": duplicates, "payslips": payslip_count,
             "files_with_no_transactions": empty, "needs_check": needs_check, "problems": problems}
+
+
+def currencies(conn, a=None):
+    """The currencies in your ledger with how many payments each has, and which one is being viewed. Totals never mix them."""
+    from .. import db
+
+    main = db.get_setting(conn, "currency", "EUR")
+    out = rows(conn.execute("SELECT COALESCE(NULLIF(currency,''), ?) AS currency, COUNT(*) AS payments FROM transactions GROUP BY 1 ORDER BY payments DESC", (main,)))
+    viewing = db.view_currency(conn)
+    return {"viewing": viewing, "main": main, "currencies": out}
 
 
 def verification_report(conn, a=None):
@@ -391,7 +409,7 @@ def top_merchants(conn, a):
     """Where the money went: spend grouped by merchant, biggest first."""
     where, args = _range(a)
     totals: dict[str, list[float]] = defaultdict(lambda: [0.0, 0])
-    for r in conn.execute(f"SELECT note, amount_minor FROM transactions WHERE {where}", args):
+    for r in conn.execute(f"SELECT note, amount_minor FROM ledger WHERE {where}", args):
         m = categorize.merchant(r["note"]) or "(unnamed)"
         totals[m][0] += r["amount_minor"] / 100
         totals[m][1] += 1
@@ -403,7 +421,7 @@ def monthly_trend(conn, a):
     months = max(1, min(int(a.get("months", 6)), 60))
     out = rows(conn.execute(
         "SELECT substr(day,1,7) AS month, SUM(CASE WHEN kind='expense' THEN amount_minor ELSE 0 END)/100.0 AS spent, "
-        "SUM(CASE WHEN kind='income' THEN amount_minor ELSE 0 END)/100.0 AS income FROM transactions "
+        "SUM(CASE WHEN kind='income' THEN amount_minor ELSE 0 END)/100.0 AS income FROM ledger "
         "WHERE category<>'transfers' GROUP BY month ORDER BY month DESC LIMIT ?", (months,)))
     for r in out:
         r["net"] = round(r["income"] - r["spent"], 2)
@@ -413,7 +431,7 @@ def monthly_trend(conn, a):
 def recurring_payments(conn, a=None):
     """Payments that repeat about monthly for about the same amount: subscriptions, rent, EMIs, bills."""
     by: dict[str, list[tuple[str, int]]] = defaultdict(list)
-    for r in conn.execute("SELECT day, note, amount_minor FROM transactions WHERE kind='expense' AND category<>'transfers' ORDER BY day"):
+    for r in conn.execute("SELECT day, note, amount_minor FROM ledger WHERE kind='expense' AND category<>'transfers' ORDER BY day"):
         m = categorize.merchant(r["note"])
         if m:
             by[m].append((r["day"], r["amount_minor"]))
@@ -434,7 +452,7 @@ def recurring_payments(conn, a=None):
 def uncategorised(conn, a=None):
     """The merchants still in 'other', biggest first, so a few corrections place most of the rest."""
     totals: dict[str, list[float]] = defaultdict(lambda: [0.0, 0])
-    for r in conn.execute("SELECT note, amount_minor FROM transactions WHERE category='other'"):
+    for r in conn.execute("SELECT note, amount_minor FROM ledger WHERE category='other'"):
         m = categorize.merchant(r["note"])
         if m:
             totals[m][0] += r["amount_minor"] / 100
@@ -473,6 +491,7 @@ MODULE = Module(
         Tool("finance_document_totals", "Add up invoices, receipts, insurance ... by kind, month or who they are from.",
              {"by": S("kind, month or party", enum=["kind", "month", "party"]), "kind": S("Only this kind"), "since": S("YYYY-MM-DD"),
               "until": S("YYYY-MM-DD")}, finance_document_totals),
+        Tool("currencies", "The currencies in the ledger and which one the totals are showing.", {}, currencies),
         Tool("verification_report", "What each verifier agent checked (balances, totals, second reading, payslip vs bank, invoice vs bank, continuity): counts, warnings and failures.", {}, verification_report),
         Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),

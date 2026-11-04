@@ -13,6 +13,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from . import currency as currencies
 from . import tables
 from .statements import Txn
 
@@ -39,6 +40,7 @@ class Read:
     closing: int | None = None
     proofs: list[str] = field(default_factory=list)
     findings: list[Finding] = field(default_factory=list)
+    currency: str = ""
 
 
 def _squash(s: str) -> str:
@@ -103,6 +105,9 @@ def read_table_statement(client, model: str, name: str, data: dict, text: str) -
     r.txns, r.issues = parsed.txns, list(parsed.issues)
     r.opening, r.closing, r.proofs = parsed.opening, parsed.closing, list(parsed.proofs)
     r.account = layout.account if layout.account and _squash(layout.account) in _squash(text) else ""  # an account number counts only if it is really printed
+    r.currency = currencies.detect(text + " " + " ".join(c.text for line in table for c in line))
+    r.findings.append(Finding("currency", "ok", name, f"the statement is in {r.currency}") if r.currency else
+                      Finding("currency", "warn", name, "the statement does not clearly say which currency it is in; the main currency was assumed"))
     if r.txns:
         days = sorted(t.day for t in r.txns)
         r.first, r.last = days[0], days[-1]
@@ -197,12 +202,119 @@ def plausibility(conn, today: date | None = None) -> list[Finding]:
     return out
 
 
-CROSS_AGENTS = (payslip_vs_bank, documents_vs_bank, continuity, plausibility)
+def _main_currency(conn) -> str:
+    from .db import get_setting
+
+    return get_setting(conn, "currency", "EUR")
+
+
+def _normal(account: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "", account or "").upper()
+
+
+def link_transfers(conn) -> list[Finding]:
+    """Money moved between your OWN accounts leaves one and arrives in the other: the two payments are matched exactly (same amount, same currency,
+    opposite directions, different accounts, within three days, and each the other's only candidate) and kept out of spending and income on both sides."""
+    main = _main_currency(conn)
+    rows = list(conn.execute(
+        "SELECT id, day, amount_minor, kind, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE account<>'' AND transfer_id IS NULL AND event_id IS NULL", (main,)))
+    groups: dict[tuple, tuple[list, list]] = {}
+    for r in rows:
+        groups.setdefault((r["cur"], r["amount_minor"]), ([], []))[0 if r["kind"] == "expense" else 1].append(r)
+    gap = lambda a, b: abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)  # noqa: E731
+    paired = ambiguous = 0
+    for outs, ins in groups.values():
+        near_out = {o["id"]: [i for i in ins if i["account"] != o["account"] and gap(o, i) <= 3] for o in outs}
+        near_in = {i["id"]: [o for o in outs if o["account"] != i["account"] and gap(o, i) <= 3] for i in ins}
+        for o in outs:
+            c = near_out[o["id"]]
+            if len(c) == 1 and len(near_in[c[0]["id"]]) == 1:
+                conn.execute("UPDATE transactions SET transfer_id=?, category='transfers', auto=1 WHERE id IN (?,?)", (o["id"], o["id"], c[0]["id"]))
+                paired += 1
+            elif c:
+                ambiguous += 1
+    conn.commit()
+    out = []
+    total = conn.execute("SELECT COUNT(*) FROM transactions WHERE transfer_id IS NOT NULL").fetchone()[0] // 2
+    if total:
+        out.append(Finding("transfers", "ok", "own accounts", f"{total} transfer(s) between your own accounts are matched, and kept out of spending and income on both sides"))
+    if ambiguous:
+        out.append(Finding("transfers", "warn", "own accounts", f"{ambiguous} possible transfer(s) have more than one candidate and were left as ordinary payments"))
+    lone = conn.execute("SELECT COUNT(*) FROM transactions WHERE category='transfers' AND transfer_id IS NULL AND account<>''").fetchone()[0]
+    if lone:
+        out.append(Finding("transfers", "warn", "own accounts", f"{lone} payment(s) look like transfers but have no matching payment in another imported account (import that account's statement)"))
+    return out
+
+
+def account_ledger(conn) -> list[Finding]:
+    """For each run of consecutive, proven statements of an account: opening balance + ALL payments stored for that account in that time = closing balance.
+    This is what catches a payment lost, or counted twice, between the statement and your ledger."""
+    out = []
+    for acc in [r[0] for r in conn.execute("SELECT DISTINCT account FROM statement_files WHERE account<>'' AND status='verified' AND opening_minor IS NOT NULL AND closing_minor IS NOT NULL")]:
+        files = list(conn.execute("SELECT name, period_start, period_end, opening_minor, closing_minor FROM statement_files WHERE account=? AND status='verified' "
+                                  "AND opening_minor IS NOT NULL AND closing_minor IS NOT NULL AND period_start IS NOT NULL ORDER BY period_start", (acc,)))
+        chains: list[list] = []
+        for f in files:
+            if chains and chains[-1][-1]["closing_minor"] == f["opening_minor"] and (date.fromisoformat(f["period_start"]) - date.fromisoformat(chains[-1][-1]["period_end"])).days <= 5:
+                chains[-1].append(f)
+            else:
+                chains.append([f])
+        for chain in chains:
+            start, end = chain[0]["period_start"], chain[-1]["period_end"]
+            actual = conn.execute("SELECT COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END), 0) FROM transactions WHERE account=? AND day>=? AND day<=?",
+                                  (_normal(acc), start, end)).fetchone()[0]
+            expected = chain[-1]["closing_minor"] - chain[0]["opening_minor"]
+            label = f"{acc} {start} to {end}"
+            out.append(Finding("account ledger", "ok", label, f"opening + the {len(chain)} statement(s)' payments = closing ({expected / 100:.2f})") if actual == expected else
+                       Finding("account ledger", "fail", label, f"the stored payments add up to {actual / 100:.2f} but the statements say {expected / 100:.2f} (difference {(actual - expected) / 100:.2f})"))
+    return out
+
+
+def tally(conn) -> list[Finding]:
+    """Every month, in every currency: the net cash change in the raw ledger must equal what the reports show (money in - day to day - trips and events)
+    plus the transfers between your own accounts. If any report drops or double-counts a payment, this fails."""
+    from . import db
+    from .modules import events, money
+
+    original = db.get_setting(conn, "view_currency", "")
+    main = _main_currency(conn)
+    out = []
+    try:
+        for cur in [r[0] for r in conn.execute("SELECT DISTINCT COALESCE(NULLIF(currency,''), ?) FROM transactions", (main,))]:
+            db.set_setting(conn, "view_currency", cur)
+            db.ledger_view(conn)
+            months = [r[0] for r in conn.execute("SELECT DISTINCT substr(day,1,7) FROM ledger ORDER BY 1")]
+            bad = 0
+            for m in months:
+                raw = conn.execute("SELECT COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END),0) FROM ledger WHERE substr(day,1,7)=?", (m,)).fetchone()[0]
+                tr = conn.execute("SELECT COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END),0) FROM ledger WHERE substr(day,1,7)=? AND category='transfers' AND event_id IS NULL", (m,)).fetchone()[0]
+                shown = round(money.income_summary(conn, {"month": m})["total"] * 100) - sum(round(x["net"] * 100) for x in events.spending_by_main(conn, {"month": m}))
+                if raw != shown + tr:
+                    bad += 1
+                    out.append(Finding("tally", "fail", f"{cur} {m}", f"the ledger's net change is {raw / 100:.2f} but the reports plus transfers give {(shown + tr) / 100:.2f}"))
+            if months and not bad:
+                out.append(Finding("tally", "ok", cur, f"{len(months)} month(s) in {cur}: the reports and the raw ledger agree to the cent"))
+    finally:
+        db.set_setting(conn, "view_currency", original) if original else conn.execute("DELETE FROM settings WHERE key='view_currency'")
+        conn.commit()
+        db.ledger_view(conn)
+    return out
+
+
+def currency_mix(conn) -> list[Finding]:
+    main = _main_currency(conn)
+    found = [r[0] for r in conn.execute("SELECT DISTINCT COALESCE(NULLIF(currency,''), ?) FROM transactions", (main,))]
+    return [Finding("currency", "ok", "payments", f"payments are in {', '.join(sorted(found))}: totals are always shown one currency at a time")] if len(found) > 1 else []
+
+
+CROSS_AGENTS = (link_transfers, payslip_vs_bank, documents_vs_bank, continuity, account_ledger, tally, plausibility, currency_mix)
 
 
 def run_cross_checks(conn) -> list[Finding]:
     """Run every cross-document agent and store the findings (the previous cross-document findings are replaced)."""
-    found = [f for agent in CROSS_AGENTS for f in agent(conn)]
+    from . import notes_check
+
+    found = [f for agent in (*CROSS_AGENTS, notes_check.notes_arithmetic, notes_check.notes_vs_app) for f in agent(conn)]
     conn.execute("DELETE FROM findings WHERE cross=1")
     conn.executemany("INSERT INTO findings (agent, level, subject, message, cross) VALUES (?,?,?,?,1)", [(f.agent, f.level, f.subject, f.message) for f in found])
     conn.commit()

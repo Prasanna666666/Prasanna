@@ -62,6 +62,7 @@ def connect(path: str | Path | None = None, key: str | None = None) -> sqlite3.C
         conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
+    ledger_view(conn)
     if Path(path).exists():
         os.chmod(path, 0o600)  # owner-only, even without a container
     return conn
@@ -74,6 +75,22 @@ def _hexkey(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+def ledger_view(conn: sqlite3.Connection) -> None:
+    """`ledger` = the payments of ONE currency (the one being viewed), so euros and rupees can never be added together by accident.
+    Payments with no currency recorded count as the main currency. It is a per-connection view over `transactions`, read by every report."""
+    main = "COALESCE((SELECT value FROM main.settings WHERE key='currency'), 'EUR')"
+    viewed = f"COALESCE((SELECT value FROM main.settings WHERE key='view_currency'), {main})"
+    try:
+        conn.execute("DROP VIEW IF EXISTS temp.ledger")
+        conn.execute(f"CREATE TEMP VIEW ledger AS SELECT * FROM main.transactions WHERE COALESCE(NULLIF(currency, ''), {main}) = {viewed}")
+    except sqlite3.Error:
+        pass  # before the first migration there is nothing to view
+
+
+def view_currency(conn: sqlite3.Connection) -> str:
+    return get_setting(conn, "view_currency", "") or get_setting(conn, "currency", "EUR")
+
+
 def migrate(conn: sqlite3.Connection, modules: list[Module]) -> None:
     conn.execute("CREATE TABLE IF NOT EXISTS _migrations (module TEXT PRIMARY KEY, version INTEGER NOT NULL)")
     conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
@@ -84,6 +101,7 @@ def migrate(conn: sqlite3.Connection, modules: list[Module]) -> None:
             conn.executescript(sql)
             conn.execute("INSERT OR REPLACE INTO _migrations VALUES (?, ?)", (m.name, i))
         conn.commit()
+    ledger_view(conn)
 
 
 def get_setting(conn: sqlite3.Connection, key: str, default: str = "") -> str:

@@ -45,7 +45,7 @@ def long_statement(n=14):
 def test_a_statement_read_the_same_way_twice_passes_the_second_reader():
     r = verify.read_table_statement(Model(LAYOUT), "m", "ing.pdf", data_of(long_statement()), "")
     agents = {f.agent: f.level for f in r.findings}
-    assert r.status == "verified" and agents == {"layout reader": "ok", "balance prover": "ok", "second reader": "ok"}
+    assert r.status == "verified" and agents == {"layout reader": "ok", "currency": "warn", "balance prover": "ok", "second reader": "ok"}  # no currency is printed in this sample
 
 
 def test_two_independent_readings_that_disagree_fail_the_file():

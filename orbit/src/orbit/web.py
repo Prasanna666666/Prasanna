@@ -168,7 +168,7 @@ def make_handler(state: State):
             conn = state.connect()
             try:
                 if path == "/api/home":
-                    return self._json({"ok": True, "currency": db.get_setting(conn, "currency", "EUR"),
+                    return self._json({"ok": True, "currency": db.view_currency(conn),
                                        "briefing": briefing_for(conn, date.today()), "trend": money.monthly_trend(conn, {"months": 6})})
                 if path == "/api/status":
                     try:
@@ -178,7 +178,7 @@ def make_handler(state: State):
                     except RuntimeError as exc:
                         return self._json({"ok": True, "ai": False, "problem": str(exc)})
                 if path == "/api/settings":
-                    return self._json({"ok": True, "currency": db.get_setting(conn, "currency", "EUR"),
+                    return self._json({"ok": True, "currency": db.view_currency(conn), "main_currency": db.get_setting(conn, "currency", "EUR"),
                                        "model": db.get_setting(conn, "model", llm.DEFAULT_MODEL),
                                        "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(), "data": str(db.home())})
                 if path == "/api/import":
@@ -232,9 +232,10 @@ def make_handler(state: State):
             if path == "/api/import":
                 return self._json({"ok": True, "started": start_import(state)})
             if path == "/api/settings":
-                for key in ("currency", "model", "ollama_host"):
+                for key in ("currency", "view_currency", "model", "ollama_host"):
                     if isinstance(body.get(key), str):
-                        db.set_setting(conn, key, body[key].upper()[:5] if key == "currency" else body[key].strip()[:200])
+                        db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
+                db.ledger_view(conn)
                 return self._json({"ok": True})
             if path == "/api/notes/tag":
                 try:

@@ -225,10 +225,12 @@ pages.money = async () => {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report')]);
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies')]);
+    const curChips = cc.currencies.length > 1 ? h('div', { class: 'seg' }, cc.currencies.map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: `${c.payments} payments`,
+      onclick: guard(async () => { await api('/api/settings', { view_currency: c.currency }); cur = c.currency; location.reload(); }) }, c.currency))) : null;
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
@@ -313,7 +315,7 @@ pages.money = async () => {
       h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),
       h('ol', { class: 'steps' }, h('li', {}, 'Copy your PDFs into the finance folder'), h('li', {}, 'Press “Read my files”'), h('li', {}, 'Come back in a few minutes: your money is ready')),
       h('div', {}, importBtn));
-    wrap.replaceChildren(...[head('Money', empty ? null : (ver.passed || ver.problems.length ? `${ver.passed} checks passed${ver.problems.length ? ` · ${ver.problems.length} to look at` : ''} · everything stays on this Mac` : 'Everything stays on this Mac.'), empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
+    wrap.replaceChildren(...[head('Money', empty ? null : (ver.passed || ver.problems.length ? `${ver.passed} checks passed${ver.problems.length ? ` · ${ver.problems.length} to look at` : ''} · everything stays on this Mac` : 'Everything stays on this Mac.'), empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
   }
   await draw(false); poll();
   return wrap;

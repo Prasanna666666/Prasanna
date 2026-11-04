@@ -70,6 +70,19 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   *Across documents, after every import:* payslip net pay vs the bank deposit (to the cent), invoice/receipt totals vs a payment, each statement starting
   where the previous one ended per account (and no month missing), and plausibility (nothing dated in the future or outside its own statement).
   Money > Documents & checks shows what each agent concluded, in words.
+- **Everything must tally.** *Currencies* are kept apart: every payment carries its currency (read from the statement; the main currency is assumed, with a
+  warning, if it says nothing) and every report shows ONE currency at a time, so euros and rupees are never added. *Transfers between your own accounts* are
+  matched exactly (same amount and currency, opposite directions, different accounts, within three days, and each the other's only candidate) and kept out of
+  spending and income on both sides; ambiguous or lonely ones are reported, never guessed. *Account ledger:* for each run of consecutive proven statements,
+  opening + every payment stored for that account = closing, which catches a payment lost or counted twice between a statement and your ledger. *Tally:* every
+  month and currency, the raw ledger's net change must equal money in - day to day - trips and events + transfers, so no report can drop or double-count a payment.
+- **Your own calculations are checked too.** Notes you imported (Apple Notes) with blocks like "Asian games 2026 / Tickets: 634.1 / ... / Total: 2438.36"
+  are read by code: *notes arithmetic* checks that the lines add up to the total you wrote, to the cent (refunds negative), and *notes <-> app* compares each
+  block with the event of the same name, line by line and total, listing every difference in words. Neither your notes nor the app is trusted until they agree.
+- **How the verifiers are tested.** 340 randomly generated statements (several number notations, one or two amount columns, oldest-first and newest-first) must be
+  read back exactly; each is then altered (one cent on a balance, one cent on an amount, a line dropped, a line duplicated) and every alteration must be caught.
+  One limit is written down as a test: a missing LAST line is invisible to running balances unless the closing balance is printed; the next statement's opening
+  balance (continuity) is what catches it.
 - **Best way to get each bank's data (exact beats PDF).** From the bank's own pages and third-party descriptions; *none of these layouts has been tested on
   a real file yet*:
   - **ABN AMRO:** download "Bij- en afschrijvingen" as **MT940** or **camt.053** (exact, read without a model), or the TXT export. PDF is read best-effort.
