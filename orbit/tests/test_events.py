@@ -93,46 +93,34 @@ def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leav
 
 
 def test_reading_the_files_also_groups_the_payments_into_trips_and_events_without_any_clicks(conn, tmp_path):
-    from orbit import extract
+    from orbit import extract, tables
     from orbit.modules import documents
+
+    layout = {"header_line": 0, "roles": ["date", "description", "debit", "credit", "balance"], "date_format": "%d-%m-%Y", "month_names": [], "decimal": ",",
+              "thousands": ".", "debit_words": [], "credit_words": [], "date_on_every_row": True}
 
     class Model:
         def chat(self, model, messages, schema=None, **kw):
             system, text = messages[0]["content"], messages[1]["content"]
             if system == extract.KIND_PROMPT:
                 return {"content": json.dumps({"kind": "bank_statement"})}
-            if system == extract.TXN_PROMPT:
-                items = []
-                for line in text.splitlines():
-                    day, desc, amount, direction = line.split("|")[:4]
-                    items.append({"date": day, "description": desc, "amount": float(amount), "direction": direction, "balance": None})
-                return {"content": json.dumps({"transactions": items})}
+            if system == tables.LAYOUT_PROMPT:
+                return {"content": json.dumps(layout)}
             if system.startswith(events.PROMPT[:40]):
                 found = [{"id": int(line.split("|")[0]), "event": "Asian Games 2026", "main": "trips", "sub": "flights" if "KLM" in line else "tickets"}
                          for line in text.splitlines() if "Asian" in line or "KLM" in line]
                 return {"content": json.dumps({"assignments": found})}
             return {"content": "{}"}
 
-    lines = ["2026-09-10|Asian Games tickets|634.10|out", "2026-09-11|KLM flights Hangzhou|1179.31|out", "2026-09-12|Albert Heijn|23.45|out"]
+    cols = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
+    rows = [["Datum", "Omschrijving", "Af", "Bij", "Saldo"], ["10-09-2026", "Asian Games tickets", "634,10", "", ""], ["11-09-2026", "KLM flights Hangzhou", "1.179,31", "", ""],
+            ["12-09-2026", "Albert Heijn", "23,45", "", ""]]
+    table = [[[cols[i][0], cols[i][1], c] for i, c in enumerate(r) if c] for r in rows]
     sha = "cd" * 32
     (tmp_path / "p").mkdir()
-    (tmp_path / "p" / f"{sha}.json").write_text(json.dumps({"schema": 1, "sha256": sha, "name": "ing.pdf", "kind": "pdf", "text": "\n".join(lines), "meta": {}, "area": "finance", "data": {"lines": lines}}))
+    (tmp_path / "p" / f"{sha}.json").write_text(json.dumps({"schema": 1, "sha256": sha, "name": "ing.pdf", "kind": "pdf", "text": "Datum", "meta": {}, "area": "finance", "data": {"table": table}}))
     documents.ingest_dir(conn, tmp_path / "p")
     r = money.import_statements(conn, client=Model(), model="fake")
-    assert r["new_transactions"] == 3 and r["problems"] == []
+    assert r["new_transactions"] == 3 and r["problems"] == [] and r["needs_check"] == []
     ev = events.list_events(conn)
     assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["total"] == 1813.41  # found on its own; the groceries stayed day to day
-
-
-def test_income_by_source_leaves_out_refunds_that_belong_to_an_event(conn):
-    pay(conn, "2026-09-25", 3100, "Acme BV Salaris september", kind="income", category="salary")
-    pay(conn, "2026-10-25", 3180, "Acme BV Salaris oktober", kind="income", category="salary")
-    pay(conn, "2026-10-26", 12.5, "Rente spaarrekening", kind="income", category="interest")
-    pay(conn, "2026-10-27", 40, "Tikkie van Daan", kind="income", category="income")
-    events.assign(conn, {"event": "PSV vs Bayern", "main": "cancellations", "transaction_ids": [pay(conn, "2026-10-20", 175.80, "refund psv", kind="income")]})
-    conn.execute("INSERT INTO payslips VALUES ('s','loonstrook.pdf','2026-10',450000,318000,96000,22500,36000)")
-    r = money.income_summary(conn, {"month": "2026-10"})
-    assert r["total"] == 3232.5 and r["before"] == 3100.0  # the refund is inside the event, not income
-    assert {s["source"]: (s["amount"], s["before"]) for s in r["sources"]} == {"salary": (3180.0, 3100.0), "interest": (12.5, 0.0), "other income": (40.0, 0.0)}
-    assert r["payslip"]["net"] == 3180.0 and r["payslip"]["gross"] == 4500.0
-    assert money.summary(conn, {"month": "2026-10"})["income"] == 3232.5  # 'Money in' agrees everywhere

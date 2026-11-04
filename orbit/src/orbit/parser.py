@@ -70,6 +70,10 @@ def extract(path: Path) -> dict:
             for i in range(min(doc.page_count, MAX_PAGES)):
                 lines += _visual_lines(doc[i].get_text("words"))
             data["lines"] = [clean(x)[:600] for x in lines[:MAX_DATA_ROWS]]
+            table: list = []
+            for i in range(min(doc.page_count, MAX_PAGES)):
+                table += _table_lines(doc[i].get_text("words"))
+            data["table"] = table[:MAX_DATA_ROWS]  # every line as cells with their horizontal position: columns can be recovered exactly
             if doc.page_count > MAX_PAGES:
                 meta["truncated"] = True
     else:
@@ -77,6 +81,29 @@ def extract(path: Path) -> dict:
     if kind == "text":
         data["lines"] = [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]
     return {"kind": kind, "text": clean(text), "meta": meta, "data": data}
+
+
+def _table_lines(words: list, gap: float = 7.0) -> list[list[list]]:
+    """Lines as cells: [[x0, x1, text], ...]. Words on one line that are closer than `gap` points belong to one cell; a wider gap starts a new cell."""
+    items = sorted(((round((w[1] + w[3]) / 2), w[0], w[2], clean(str(w[4]))) for w in words if str(w[4]).strip()), key=lambda t: (t[0], t[1]))
+    lines: list[list[tuple[float, float, str]]] = []
+    last_y = None
+    for y, x0, x1, text in items:
+        if last_y is None or abs(y - last_y) > 3:
+            lines.append([])
+            last_y = y
+        lines[-1].append((x0, x1, text))
+    out = []
+    for line in lines:
+        line.sort()
+        cells: list[list] = []
+        for x0, x1, text in line:
+            if cells and x0 - cells[-1][1] < gap:
+                cells[-1][1], cells[-1][2] = max(cells[-1][1], x1), cells[-1][2] + " " + text
+            else:
+                cells.append([round(x0, 1), round(x1, 1), text])
+        out.append([[c[0], c[1], c[2][:200]] for c in cells])
+    return out
 
 
 def _visual_lines(words: list) -> list[str]:

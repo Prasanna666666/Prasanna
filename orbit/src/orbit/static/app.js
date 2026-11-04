@@ -225,10 +225,10 @@ pages.money = async () => {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month })]);
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check')]);
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
@@ -291,6 +291,12 @@ pages.money = async () => {
       trend.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Money in, month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),
         barChart(trend.slice(-8), month, (m) => { month = m; openCats.clear(); draw(false); }, 'income')) : null,
       slips.length > 1 ? h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payslips'), h('span', { class: 'faint' }, ` · ${slips.length}`)), h('div', { style: { height: '12px' } }), slipCard) : null];
+    // ---- honesty about files: what could not be proven correct is said out loud and is NOT in the totals
+    const bad = checks.filter((c) => c.status === 'needs_check'), unproven = checks.filter((c) => c.status === 'unverified');
+    const checkNote = bad.length ? h('div', { class: 'note-banner', style: { background: 'rgba(244,63,94,.1)', borderColor: 'rgba(244,63,94,.3)', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' } },
+        h('b', {}, `${bad.length} file${bad.length === 1 ? '' : 's'} could not be proven correct and ${bad.length === 1 ? 'is' : 'are'} NOT counted`),
+        ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${c.issues || 'could not be read'}`))) :
+      unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} counted but could not be checked`), h('span', { class: 'muted' }, ' · no balances to check them against.'))) : null;
     const empty = !trend.length && !docs.length && !slips.length;
     const tabs = [['daily', 'Day to day'], ['income', 'Income'], ['events', 'Trips & events' + (evs.length ? ` · ${evs.length}` : '')], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents' + (docs.length ? ` · ${docs.length}` : '')]];
     const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
@@ -300,7 +306,7 @@ pages.money = async () => {
       h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),
       h('ol', { class: 'steps' }, h('li', {}, 'Copy your PDFs into the finance folder'), h('li', {}, 'Press “Read my files”'), h('li', {}, 'Come back in a few minutes: your money is ready')),
       h('div', {}, importBtn));
-    wrap.replaceChildren(...[head('Money', empty ? null : 'Everything stays on this Mac.', empty ? null : nav, empty ? null : importBtn), status, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
+    wrap.replaceChildren(...[head('Money', empty ? null : 'Everything stays on this Mac.', empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
   }
   await draw(false); poll();
   return wrap;

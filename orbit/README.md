@@ -52,13 +52,18 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
 - **Any finance file:** the model says what each file is (bank statement, payslip, invoice, receipt, tax, insurance, contract or other) and pulls
   out who it is from, the date, due date, reference, total and VAT. Invoices and receipts are filed and summed by kind, month or supplier; they are not
   added as bank transactions (the payment already appears on the statement). Ask in chat: "what invoices are due?", "how much VAT on receipts?".
-- **The local model reads the files** (Ministral via Ollama, on your Mac). No bank, language or layout is coded in: it decides what each file is
-  (bank statement, payslip, other), reads each transaction (date, description, amount, in/out, balance) and each payslip's figures
-  (gross, tax, pension, holiday pay, net). Dutch, English, any new account: drop the PDFs in and import again.
-- **Code only checks.** Dates must be real, amounts positive, and when a statement shows running balances they must add up; where a direction
-  contradicts the arithmetic, the arithmetic wins. If the model is not running, nothing is imported (a guess could silently give wrong numbers).
-- **Safe to repeat and to interrupt.** Each part is saved as it is read; a line is never stored twice, even when statements overlap. Reading takes a
-  few minutes per statement on an 8 GB Mac (a 3B model, a few lines at a time); it is done once per file.
+- **The model never copies a number.** The local model (Ministral via Ollama) only works out the *layout* of a file: which column is the date, the
+  description, money out, money in, the balance; how dates and numbers are written. Plain code reads every line with that layout, so no digit is
+  mistyped and no line is invented. Dutch, English, any bank: nothing is coded per bank.
+- **Every statement is proved.** Each line is a transaction, the continuation of one, a balance line, or ignored text; a line with an amount that fits
+  none of these is reported. Running balances must add up from line to line (also when printed newest-first). A file ends as **verified** (the
+  balances add up), **unverified** (no balances to check against: imported, marked) or **needs check** (a balance does not add up, a direction cannot be
+  known, a line is unexplained, or the layout is not understood). **A file that needs a check adds nothing to your totals**, and Money says so, with the reason.
+- **Payslips and invoices:** the model quotes each amount exactly as printed; an amount is kept only if that exact text is in the document.
+- **Honest limits.** Scanned (image-only) or password-protected PDFs have no text and are listed as such. A statement without balances can be read but
+  not proven. Categories and trip/event grouping are interpretation, not arithmetic: they can be wrong and are fixed by telling Orbit in chat.
+- **Safe to repeat and to interrupt.** A line is never stored twice, even when statements overlap. Reading takes a minute or two per file: the model is only
+  asked for the layout.
 - **Categories, automatic.** Everyday spending: a few cheap keyword rules, then the local model for the merchants left (it sees only names, never
   amounts). **Trips, matches, shows and cancellations:** after every import the local model groups payments that belong together into named events
   (Asian Games 2026: Tickets, Flights, Stay ... Total), each under sports, events, trips or cancellations; refunds count negative, so a cancellation can

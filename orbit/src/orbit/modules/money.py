@@ -7,7 +7,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import categorize, dates, extract, payslips, statements
+from .. import categorize, dates, extract, payslips, statements, tables
 from ..db import get_setting, rows
 from ..module import Module, N, S, Tool
 
@@ -49,6 +49,10 @@ MIGRATIONS = (
         total_minor INTEGER, vat_minor INTEGER, currency TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS finance_docs_kind ON finance_docs(kind, doc_date);
+    """,
+    """
+    ALTER TABLE statement_files ADD COLUMN status TEXT NOT NULL DEFAULT 'ok';      -- verified | unverified | needs_check | ok (not a statement)
+    ALTER TABLE statement_files ADD COLUMN issues TEXT NOT NULL DEFAULT '';        -- why a file needs a check
     """,
 )
 
@@ -227,6 +231,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     files = added = duplicates = payslip_count = 0
     empty: list[str] = []
     problems: list[str] = []
+    needs_check: list[dict] = []
     docs = [d for d in conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall() if d["sha256"] not in done]
     for index, d in enumerate(docs, 1):
         try:
@@ -239,6 +244,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         lines = lines or d["text"].splitlines()
         slip = None
         info: dict = {}
+        status, issues = "ok", []
         txns: list[statements.Txn] = []
         new = 0
         if client is not None and model:
@@ -248,13 +254,17 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
                 if info["kind"] == "payslip":
                     slip = payslips.from_model(info)
                 elif info["kind"] == "bank_statement":
-                    def save(part, n, total, _d=d):
-                        nonlocal new
-                        new += _store(conn, _d, part, learned)
-                        if progress:
-                            progress(f"{_d['name']}: part {n} of {total}  ({index} of {len(docs)} files)")
-
-                    txns = extract.read_statement(client, model, lines, save).txns
+                    if progress:
+                        progress(f"{d['name']}: reading the table ({index} of {len(docs)} files)")
+                    table = tables.table_from_data(data)
+                    layout = tables.infer_layout(client, model, table)
+                    parsed = tables.parse_table(table, layout) if layout else tables.Parsed([], "needs_check", ["the layout of this file could not be understood"])
+                    status, issues = parsed.status, parsed.issues
+                    if status != "needs_check":  # nothing from a file that fails its own proof ever reaches your totals
+                        txns = parsed.txns
+                        new = _store(conn, d, txns, learned)
+                    else:
+                        needs_check.append({"file": d["name"], "issues": issues[:5]})
             except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
                 problems.append(str(exc))
                 break
@@ -265,7 +275,8 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             conn.execute("INSERT OR IGNORE INTO payslips VALUES (?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], slip.period, slip.gross_minor, slip.net_minor,
                                                                                    slip.tax_minor, slip.pension_minor, slip.holiday_minor))
             payslip_count += 1
-        conn.execute("INSERT INTO statement_files (sha256, name, found, added) VALUES (?,?,?,?)", (d["sha256"], d["name"], len(txns), new))
+        conn.execute("INSERT INTO statement_files (sha256, name, found, added, status, issues) VALUES (?,?,?,?,?,?)",
+                     (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500]))
         files += 1
         added += new
         duplicates += len(txns) - new
@@ -285,7 +296,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         except RuntimeError as exc:
             problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
     return {"files": files, "new_transactions": added, "already_had": duplicates, "payslips": payslip_count,
-            "files_with_no_transactions": empty, "problems": problems}
+            "files_with_no_transactions": empty, "needs_check": needs_check, "problems": problems}
 
 
 def list_payslips(conn, a=None):
@@ -293,6 +304,11 @@ def list_payslips(conn, a=None):
     out = rows(conn.execute("SELECT period, name, gross_minor/100.0 AS gross, tax_minor/100.0 AS tax, pension_minor/100.0 AS pension, "
                             "holiday_minor/100.0 AS holiday, net_minor/100.0 AS net FROM payslips ORDER BY period DESC, name"))
     return out[: int((a or {}).get("limit", 36))]
+
+
+def files_to_check(conn, a=None):
+    """Statements that could not be proven correct (not imported) or could not be checked (imported, marked), with the reason."""
+    return rows(conn.execute("SELECT name AS file, status, issues FROM statement_files WHERE status IN ('needs_check','unverified') ORDER BY status, name"))
 
 
 def statement_report(conn, a=None):
@@ -405,6 +421,7 @@ MODULE = Module(
         Tool("finance_document_totals", "Add up invoices, receipts, insurance ... by kind, month or who they are from.",
              {"by": S("kind, month or party", enum=["kind", "month", "party"]), "kind": S("Only this kind"), "since": S("YYYY-MM-DD"),
               "until": S("YYYY-MM-DD")}, finance_document_totals),
+        Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool("top_merchants", "Where the money went: spend per merchant, biggest first. Optional month YYYY-MM or since/until dates.",
              {"month": S("YYYY-MM"), "since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "limit": N("Max rows")}, top_merchants),

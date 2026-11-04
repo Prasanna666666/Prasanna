@@ -17,7 +17,7 @@ class Payslip:
 
 
 def from_model(info: dict) -> Payslip | None:
-    """A payslip from the model's reading of it. Gross and net must both be present and net cannot exceed gross."""
+    """A payslip from the model's reading, after every amount was verified against the document. Gross and net must both be present and net cannot exceed gross."""
     def minor(key: str) -> int | None:
         v = info.get(key)
         return round(abs(float(v)) * 100) if isinstance(v, (int, float)) and not isinstance(v, bool) and v else None
