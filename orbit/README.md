@@ -93,7 +93,7 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
 ## Adding a feature
 1. Create `src/orbit/modules/health.py` with a `MODULE = Module(name, migrations, tools)` (see `tasks.py`).
 2. Append it to `ALL` in `modules/__init__.py`.
-3. The tools immediately work in the chat, and you add a page in `app.py`. Migrations are append-only.
+3. The tools immediately work in the chat, and you add a page in `src/orbit/static/app.js`. Migrations are append-only.
 
 ## Roadmap (suggested order)
 0. **Hardening** (done): encrypted DB, isolated parser. Next: OCR for scans (Tesseract in the parser box), approval cards for changes.

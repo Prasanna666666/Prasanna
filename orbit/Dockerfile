@@ -7,7 +7,6 @@ RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin orbit \
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
-COPY .streamlit ./.streamlit
 ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ORBIT_HOME=/data
 
 FROM base AS app
@@ -15,12 +14,12 @@ FROM base AS app
 # system SQLCipher, then remove the compilers again (the runtime library, installed as a dependency, stays: no auto-remove).
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libsqlcipher-dev
 RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
-RUN pip install --no-cache-dir ".[ui]"
+RUN pip install --no-cache-dir .
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
-ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false ORBIT_REQUIRE_ENCRYPTION=1
+ENV ORBIT_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["orbit"]
-CMD ["ui", "--server.address", "0.0.0.0", "--server.headless", "true", "--server.port", "8501"]
+CMD ["ui", "--host", "0.0.0.0", "--port", "8501"]
 
 FROM base AS parser
 RUN pip install --no-cache-dir ".[parse]"

@@ -42,8 +42,11 @@ def main(argv: list[str] | None = None) -> int:
         print(REFUSAL.format(cmd=cmd))
         return 2
     if cmd == "ui":
-        app = Path(__file__).with_name("app.py")
-        return subprocess.call([sys.executable, "-m", "streamlit", "run", str(app), *rest])
+        from . import web
+
+        host = rest[rest.index("--host") + 1] if "--host" in rest else "127.0.0.1"
+        port = int(rest[rest.index("--port") + 1]) if "--port" in rest else 8501
+        return web.serve(host, port)
     netguard.install()
     inbox = Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
     if cmd == "export-notes":  # native Mac step; touches no database
