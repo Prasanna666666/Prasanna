@@ -140,6 +140,13 @@ def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))
     return dataclasses.replace(plan, date=spec, clauses=kept)
 
+def _asks_for_one_thing(plan: Plan) -> bool:
+    """Exactly one thing to look for, no date and no other filters. A place filter alone only restates the place."""
+    terms = {c.query.strip().lower() for c in plan.clauses if not c.exclude and c.query.strip()}
+    others_empty = dataclasses.replace(plan.filters, near="", radius_km=0).is_empty
+    return len(terms) == 1 and plan.date.is_empty and others_empty and not any(c.exclude for c in plan.clauses)
+
+
 def _merge_groups(best: Any, readings: list[tuple[str, np.ndarray]]) -> list[tuple[str, np.ndarray]]:
     """The best match first, then each reading; a reading that finds exactly the same photos as an earlier one is not repeated."""
     out: list[tuple[str, np.ndarray]] = []
@@ -318,9 +325,17 @@ class AgentService:
             return AgentReply("error", f"Something went wrong while searching: {exc}", **base)
 
         groups: list[tuple[str, np.ndarray]] = []
+        lead = ""
         if plan.intent in ("find", "count") and hasattr(executor, "readings"):
             try:
-                groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), executor.readings(plan))
+                readings = executor.readings(plan)
+                if readings and _asks_for_one_thing(plan):
+                    # One thing was asked for: the most reliable way it can be found leads (place and GPS before folders, people, written
+                    # text and finally what the picture looks like), instead of a mixed search that silently narrows it to a few photos.
+                    lead, outcome.ids = readings[0][0], readings[0][1]
+                    groups = _merge_groups(None, readings)
+                else:
+                    groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), readings)
             except Exception:  # listing the other readings must never break the answer
                 log.exception("listing readings failed")
         if len(outcome.ids) == 0 and groups:
@@ -335,7 +350,7 @@ class AgentService:
             "notes": outcome.notes,
             "date_range": outcome.date_range,
         }
-        conditions = describe_conditions(plan, outcome.date_range)
+        conditions = lead or describe_conditions(plan, outcome.date_range)
         n = len(outcome.ids)
         if n == 0:
             return AgentReply("results", f"No photos found. {explain_empty(outcome.reports)}", **common)

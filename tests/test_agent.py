@@ -159,7 +159,7 @@ def test_every_reading_of_the_search_words_is_listed_with_its_own_photos(scanned
     svc, _ = service(scanned, plan(clauses=[{"engines": ["path"], "query": "italy"}]))
     reply = svc.ask("italy")
     labels = [label for label, _ in reply.groups]
-    assert labels[0] == "Best match"
+    assert labels[0] == "In folders named italy"  # one thing asked: its most reliable reading leads
     assert all(len(ids) for _, ids in reply.groups)
 
 
@@ -179,3 +179,11 @@ def test_photos_with_gps_but_no_place_name_get_one_without_reading_files(scanned
     assert fill_missing_places(conn, geo) == 1
     assert conn.execute("SELECT place FROM items WHERE id=1").fetchone()[0] == "Shinjuku, Japan"
     assert fill_missing_places(conn, geo) == 0  # nothing left to name
+
+
+def test_asking_for_one_thing_leads_with_the_most_reliable_reading_not_a_mixed_search(scanned):
+    clauses = [{"engines": ["path"], "query": "italy"}]
+    svc, _ = service(scanned, plan(clauses=clauses))
+    reply = svc.ask("italy")
+    assert reply.text.startswith("**") and "Best match" not in [label for label, _ in reply.groups]
+    assert reply.groups[0][0] == "In folders named italy"
