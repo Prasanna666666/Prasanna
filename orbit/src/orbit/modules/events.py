@@ -162,6 +162,28 @@ def spending_by_main(conn, a=None):
     return out
 
 
+def daily_by_category(conn, a=None):
+    """Day-to-day spending by category (groceries, food, shopping, transport ...) for a month: payments in no event, own-account moves left out.
+    Each row also carries the month before, for comparison."""
+    from datetime import date
+
+    from .. import dates
+
+    a = a or {}
+    month = a.get("month") or date.today().strftime("%Y-%m")
+    start, end = dates.month_bounds(month)
+    before_start = dates.add_months(date.fromisoformat(start), -1).isoformat()
+
+    def totals(lo, hi):
+        return {r["sub"]: (r["amount"], r["n"]) for r in rows(conn.execute(
+            "SELECT CASE WHEN category='other' THEN 'unsorted' ELSE category END AS sub, ROUND(SUM(amount_minor)/100.0, 2) AS amount, COUNT(*) AS n FROM transactions "
+            "WHERE event_id IS NULL AND kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY 1", (lo, hi)))}
+
+    now, before = totals(start, end), totals(before_start, start)
+    out = [{"category": c, "amount": v[0], "payments": v[1], "before": before.get(c, (0.0, 0))[0]} for c, v in now.items()]
+    return sorted(out, key=lambda r: -r["amount"])
+
+
 # ---- the model proposes groups -------------------------------------------------------------------------------------------
 ROUTINE = ("rent", "emi", "insurance", "utilities", "salary", "interest", "groceries", "fuel", "cash", "fees", "transfers", "investments", "medical", "education",
            "subscriptions")
@@ -222,6 +244,8 @@ MODULE = Module("events", MIGRATIONS, (
                                                                                                   "main": S("Main category", enum=list(MAINS)), "confirmed": {"type": "boolean", "description": "true to accept"}},
          update_event, ("id",)),
     Tool("delete_event", "Delete an event (its payments stay, ungrouped).", {"id": I("Event id")}, delete_event, ("id",)),
+    Tool("daily_spending", "Day-to-day spending by category (groceries, food, shopping, transport ...) for a month YYYY-MM, with the month before for comparison.",
+         {"month": S("YYYY-MM")}, daily_by_category),
     Tool("spending_by_main", "Net cost per main category (refunds subtracted) for a month YYYY-MM, with 'others' split by sub-category.",
          {"month": S("YYYY-MM")}, spending_by_main),
 ))

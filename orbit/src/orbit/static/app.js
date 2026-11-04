@@ -196,7 +196,7 @@ pages.money = async () => {
   // early in a month the current month is too short to read: open the last complete one instead
   const prevOfLatest = trend0.length > 1 ? trend0[trend0.length - 2].month : latest;
   let month = location.hash.split('?m=')[1] || (latest === now && new Date().getDate() < 10 ? prevOfLatest : latest);
-  let tab = 'overview'; const picked = new Set();
+  let tab = 'daily'; const picked = new Set(); const openCats = new Set(); const openEvents = new Set(); let sorting = false;
   const wrap = h('div', { class: 'stack' });
   const importBtn = h('button', { class: 'btn primary', onclick: guard(startImport) }, 'Read my files');
   const status = h('div', { class: 'card', style: { display: 'none' } });
@@ -222,29 +222,20 @@ pages.money = async () => {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 300 }), tool('list_events'), tool('spending_by_main', { month })]);
-    const idx = trend.findIndex((t) => t.month === month), prev = idx > 0 ? trend[idx - 1] : null;
-    const delta = prev && prev.spent ? ((sum.spent - prev.spent) / prev.spent) * 100 : null;
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month })]);
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
-    function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); draw(false); }
-    const cats = sum.by_category.map((c) => ({ name: c.category, value: c.spent, colour: colour(c.category) }));
-    const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent in ' + monthName(month)), h('div', { class: 'big num' }, money(sum.spent)),
-      delta != null ? h('span', { class: 'delta' }, `${delta > 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}% vs ${shortMonth(prev.month)}`) : null,
-      h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Income'), h('div', { class: 'v num' }, money(sum.income))), h('div', {}, h('div', { class: 'k' }, 'Net'), h('div', { class: 'v num' }, money(sum.net))),
-        h('div', {}, h('div', { class: 'k' }, 'Transactions'), h('div', { class: 'v num' }, String(txs.length)))));
-    const maxM = Math.max(...merchants.map((x) => x.spent), 1);
-    const mainData = byMain.map((m) => ({ name: MAIN_LABEL[m.main], value: Math.max(m.net, 0), net: m.net, colour: MAIN_COLOUR[m.main], main: m.main }));
-    const catCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Where it went'), h('button', { class: 'btn ghost small', onclick: () => { tab = 'events'; draw(false); } }, 'See events')),
-      mainData.some((m) => m.value > 0) ? h('div', { class: 'donut-wrap' }, donut(mainData.filter((m) => m.value > 0)), h('div', { class: 'legend' }, mainData.map((c) => h('div', { class: 'legend-row' }, h('span', { class: 'sw', style: { background: c.colour } }), h('span', { class: 'nm' }, c.name), h('span', { class: 'amt num ' + (c.net < 0 ? 'good' : '') }, signed(c.net, 0)))))) : h('div', { class: 'empty' }, 'Nothing spent this month.'));
+    function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); picked.clear(); openCats.clear(); draw(false); }
+    const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
+    const outingTotal = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
+    const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent in ' + monthName(month)), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
+      h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Day to day'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'Trips & events'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
+        h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
     const trendCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),
-      trend.length ? barChart(trend, month, (m) => { month = m; draw(false); }) : h('div', { class: 'empty' }, 'No data yet. Read your finance files to begin.'));
-    const merchCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Top merchants')),
-      merchants.length ? h('div', { class: 'list' }, merchants.map((x) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(x.merchant) } }, initials(x.merchant)),
-        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600, textTransform: 'capitalize' } }, x.merchant), h('div', { class: 'meter' }, h('i', { style: { width: (x.spent / maxM) * 100 + '%' } }))),
-        h('div', { style: { textAlign: 'right' } }, h('div', { class: 'num', style: { fontWeight: 650 } }, money(x.spent)), h('div', { class: 'faint', style: { fontSize: '12px' } }, x.times + '×'))))) : h('div', { class: 'empty' }, 'No spending yet.'));
+      trend.length ? barChart(trend.slice(-8), month, (m) => { month = m; picked.clear(); openCats.clear(); draw(false); }) : h('div', { class: 'empty' }, 'No data yet.'));
+    const maxM = Math.max(...merchants.map((x) => x.spent), 1);
     const recCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Repeating payments'), recurring.length ? h('span', { class: 'chip' }, `≈ ${money(recurring.reduce((s, r) => s + r.per_month, 0))}/mo`) : null),
       recurring.length ? h('div', { class: 'list' }, recurring.slice(0, 8).map((r) => h('div', { class: 'item' }, h('span', { class: 'sw', style: { width: '10px', height: '10px', borderRadius: '4px', background: colour(r.merchant), flex: 'none' } }),
         h('div', { class: 'grow', style: { textTransform: 'capitalize', fontWeight: 600 } }, r.merchant, h('div', { class: 'faint', style: { fontSize: '12px', textTransform: 'none', fontWeight: 400 } }, `${r.times} payments · last ${r.last}`)), h('div', { class: 'num', style: { fontWeight: 650 } }, money(r.typical_amount, 2))))) : h('div', { class: 'empty' }, 'None found yet.'));
@@ -263,16 +254,10 @@ pages.money = async () => {
         h('tbody', {}, other.slice(0, 30).map((d) => h('tr', {}, h('td', {}, h('span', { class: 'chip', style: { background: 'transparent', border: '1px solid var(--line-strong)', color: KIND[d.kind] || 'var(--muted)' } }, h('span', { class: 'sw', style: { background: KIND[d.kind] || '#999' } }), d.kind)),
           h('td', {}, h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name), d.summary ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary) : null), h('td', { class: 'num' }, d.date || '-'), h('td', { class: 'num' }, d.due_date || '-'),
           h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'Only statements and payslips so far.')) : null;
-    const q = h('input', { class: 'field', placeholder: 'Search payments', style: { maxWidth: '280px' } });
-    const body = h('tbody', {});
-    const fill = () => { const f = q.value.toLowerCase(); body.replaceChildren(...txs.filter((t) => !f || (t.note + t.category + (t.event || '')).toLowerCase().includes(f)).slice(0, 300).map((t) => {
-      const box = h('input', { type: 'checkbox', 'aria-label': 'Select', onchange: () => { box.checked ? picked.add(t.id) : picked.delete(t.id); drawBar(); } }); box.checked = picked.has(t.id);
-      return h('tr', {}, h('td', {}, box), h('td', { class: 'num faint' }, t.day.slice(5)), h('td', {}, t.note || '-'),
-        h('td', {}, t.event ? h('span', { class: 'chip' }, t.event + (t.sub ? ' · ' + t.sub : '')) : h('span', { class: 'chip', style: { background: 'transparent', border: '1px solid var(--line-strong)', color: 'var(--muted)' } }, h('span', { class: 'sw', style: { background: colour(t.category) } }), t.category)),
-        h('td', { class: 'r num ' + (t.kind === 'income' ? 'good' : ''), style: { fontWeight: 600 } }, (t.kind === 'income' ? '+' : '−') + money(t.amount, 2))); })); };
-    q.addEventListener('input', fill); fill();
-    const txCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h2', {}, 'Payments'), h('div', { class: 'muted', style: { fontSize: '13px' } }, 'Tick payments, then add them to an event.')), q),
-      txs.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['', 'Date', 'Description', 'Event or category', ''].map((x, i) => h('th', { class: i === 4 ? 'r' : '' }, x)))), body) : h('div', { class: 'empty' }, 'No payments this month.'));
+    // ---- payments with a tick box (used under a category and in "All payments")
+    const payRow = (t) => { const box = h('input', { type: 'checkbox', 'aria-label': 'Select', onchange: () => { box.checked ? picked.add(t.id) : picked.delete(t.id); drawBar(); } }); box.checked = picked.has(t.id);
+      return h('div', { class: 'pay' }, box, h('span', { class: 'num faint', style: { width: '48px' } }, t.day.slice(5)), h('span', { class: 'grow', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, t.note || '-'),
+        t.event ? h('span', { class: 'chip' }, t.event) : null, h('span', { class: 'num ' + (t.kind === 'income' ? 'good' : ''), style: { fontWeight: 600 } }, (t.kind === 'income' ? '+' : '−') + money(t.amount, 2))); };
     const bar = h('div', { class: 'pickbar', style: { display: 'none' } });
     function drawBar() {
       if (!picked.size) { bar.style.display = 'none'; return; }
@@ -282,30 +267,47 @@ pages.money = async () => {
       const apply = h('button', { class: 'btn primary', onclick: guard(async () => {
         const ids = [...picked]; let event = sel.value, main;
         if (!event) { toast('Choose an event first.', true); return; }
-        if (event === '__new') { const r = await dialog('New event', [{ key: 'name', label: 'Name', placeholder: 'e.g. Asian Games 2026' }, { key: 'main', label: 'Main category', options: MAINS.map((m) => [m, MAIN_LABEL[m]]), value: 'events' }], 'Create');
+        if (event === '__new') { const r = await dialog('New event', [{ key: 'name', label: 'Name', placeholder: 'e.g. Asian Games 2026' }, { key: 'main', label: 'Main category', options: MAINS.filter((m) => m !== 'others').map((m) => [m, MAIN_LABEL[m]]), value: 'trips' }], 'Create');
           if (!r || !r.name) return; event = r.name; main = r.main; }
         await tool('assign_to_event', { event, main, sub: sub.value, transaction_ids: ids }); picked.clear(); toast('Added to the event.'); draw(false); }) }, 'Add');
       bar.replaceChildren(h('span', { style: { fontWeight: 650 } }, `${picked.size} selected`), sel, sub, apply,
         h('button', { class: 'btn', onclick: guard(async () => { await tool('remove_from_event', { transaction_ids: [...picked] }); picked.clear(); draw(false); }) }, 'Remove from event'),
-        h('button', { class: 'btn ghost', onclick: () => { picked.clear(); fill(); drawBar(); } }, 'Clear'),
-        h('datalist', { id: 'subs' }, SUB_HINTS.map((x) => h('option', { value: x }))));
+        h('button', { class: 'btn ghost', onclick: () => { picked.clear(); draw(false); } }, 'Clear'), h('datalist', { id: 'subs' }, SUB_HINTS.map((x) => h('option', { value: x }))));
     }
     drawBar();
-    // ---- events: the main view of the money
-    const evCard = (ev) => {
-      const big = ev.total < 0 ? 'good' : '';
-      return h('div', { class: 'card event' },
-        h('div', { class: 'card-head', style: { alignItems: 'flex-start' } }, h('div', {}, h('div', { style: { fontSize: '18px', fontWeight: 700, letterSpacing: '-.01em' } }, ev.name),
-          h('div', { class: 'faint', style: { fontSize: '13px' } }, ev.first ? (ev.first === ev.last ? ev.first : `${ev.first} to ${ev.last}`) : 'no payments yet')),
-          ev.confirmed ? null : h('span', { class: 'chip', style: { background: 'rgba(245,158,11,.14)', color: 'var(--warn)' } }, 'proposed')),
-        ev.lines.length ? h('div', { class: 'lines' }, ev.lines.map((l) => h('div', { class: 'line' }, h('span', { style: { textTransform: 'capitalize' } }, l.sub), h('span', { class: 'num ' + (l.amount < 0 ? 'good' : '') }, signed(l.amount))))) : h('div', { class: 'faint', style: { padding: '8px 0' } }, 'Add payments from the Spending tab.'),
-        h('div', { class: 'line total' }, h('span', {}, 'Total'), h('span', { class: 'num ' + big }, signed(ev.total))),
-        h('div', { class: 'row', style: { marginTop: '14px', flexWrap: 'wrap', gap: '6px' } },
-          ev.confirmed ? null : h('button', { class: 'btn small primary', onclick: guard(async () => { await tool('update_event', { id: ev.id, confirmed: true }); draw(false); }) }, 'Looks right'),
-          h('button', { class: 'btn small ghost', onclick: guard(async () => { const r = await dialog('Edit event', [{ key: 'name', label: 'Name', value: ev.name }, { key: 'main', label: 'Main category', options: MAINS.map((m) => [m, MAIN_LABEL[m]]), value: ev.main }]);
-            if (r && r.name) { await tool('update_event', { id: ev.id, name: r.name, main: r.main, confirmed: true }); draw(false); } }) }, 'Edit'),
-          h('button', { class: 'btn small ghost', onclick: guard(async () => { if (confirm(`Delete "${ev.name}"? Its payments stay, ungrouped.`)) { await tool('delete_event', { id: ev.id }); draw(false); } }) }, 'Delete')));
-    };
+
+    // ---- day to day: category tiles, a quiet note when something needs sorting, everything else tucked away
+    const maxC = Math.max(...daily.map((d) => d.amount), 1);
+    const tiles = h('div', { class: 'tiles' }, daily.map((d) => { const ch = d.before > 0 ? ((d.amount - d.before) / d.before) * 100 : null;
+      return h('button', { class: 'tile' + (openCats.has(d.category) ? ' on' : ''), onclick: () => { openCats.has(d.category) ? openCats.delete(d.category) : openCats.add(d.category); draw(false); } },
+        h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '10px', height: '10px', borderRadius: '4px', background: colour(d.category) } }), h('span', { class: 'tname' }, d.category)),
+        h('div', { class: 'tamt num' }, money(d.amount)), h('div', { class: 'meter' }, h('i', { style: { width: (d.amount / maxC) * 100 + '%', background: colour(d.category) } })),
+        h('div', { class: 'faint', style: { fontSize: '12.5px', marginTop: '8px' } }, ch == null ? 'new this month' : Math.abs(ch) < 10 ? 'about the same as last month' : ch > 100 ? '↑ more than doubled' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% vs last month`)); }));
+    const opened = daily.filter((d) => openCats.has(d.category)).map((d) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', { style: { textTransform: 'capitalize' } }, d.category), h('span', { class: 'chip' }, money(d.amount))),
+      h('div', { class: 'list' }, txs.filter((t) => !t.event && t.kind === 'expense' && (t.category === 'other' ? 'unsorted' : t.category) === d.category).map(payRow))));
+    const sortNote = todo.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${todo.length} shop${todo.length === 1 ? '' : 's'} need a category`), h('span', { class: 'muted' }, ' · choose once and Orbit remembers.')),
+      h('button', { class: 'btn small', onclick: () => { sorting = !sorting; draw(false); } }, sorting ? 'Hide' : 'Sort them')) : null;
+    const q = h('input', { class: 'field', placeholder: 'Search payments', style: { maxWidth: '280px' } });
+    const listBox = h('div', { class: 'list' });
+    const fillAll = () => { const f = q.value.toLowerCase(); listBox.replaceChildren(...txs.filter((t) => !f || (t.note + t.category + (t.event || '')).toLowerCase().includes(f)).slice(0, 200).map(payRow)); };
+    q.addEventListener('input', fillAll); fillAll();
+    const allPay = h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payments'), h('span', { class: 'faint' }, ` · ${txs.length} this month`)),
+      h('div', { class: 'muted', style: { margin: '10px 0 14px', fontSize: '13px' } }, 'Tick payments to add them to a trip or event.'), q, h('div', { style: { height: '10px' } }), listBox);
+    const dailyPane = [sortNote, sorting ? sortCard : null, daily.length ? tiles : h('div', { class: 'card empty' }, 'No day-to-day spending this month.'), ...opened, trendCard, allPay, bar];
+
+    // ---- trips & events: a calm card each, total first; tap to see the lines
+    const evCard = (ev) => { const open = openEvents.has(ev.id);
+      return h('div', { class: 'card event' + (open ? ' open' : '') },
+        h('button', { class: 'evhead', onclick: () => { open ? openEvents.delete(ev.id) : openEvents.add(ev.id); draw(false); } },
+          h('div', { class: 'grow', style: { textAlign: 'left' } }, h('div', { style: { fontSize: '17px', fontWeight: 700, letterSpacing: '-.01em' } }, ev.name, ev.confirmed ? null : h('span', { class: 'chip', style: { marginLeft: '10px', background: 'rgba(245,158,11,.14)', color: 'var(--warn)' } }, 'proposed')),
+            h('div', { class: 'faint', style: { fontSize: '13px' } }, ev.first ? (ev.first === ev.last ? ev.first : `${ev.first} to ${ev.last}`) : 'no payments yet')),
+          h('div', { class: 'num ' + (ev.total < 0 ? 'good' : ''), style: { fontSize: '22px', fontWeight: 750 } }, signed(ev.total)), h('span', { class: 'chev' }, open ? '▾' : '▸')),
+        open ? h('div', { class: 'evbody' }, ev.lines.length ? h('div', { class: 'lines' }, ev.lines.map((l) => h('div', { class: 'line' }, h('span', { style: { textTransform: 'capitalize' } }, l.sub), h('span', { class: 'num ' + (l.amount < 0 ? 'good' : '') }, signed(l.amount))))) : h('div', { class: 'faint', style: { padding: '8px 0' } }, 'Add payments from "All payments" on the Day to day tab.'),
+          h('div', { class: 'row', style: { marginTop: '12px', flexWrap: 'wrap', gap: '6px' } },
+            ev.confirmed ? null : h('button', { class: 'btn small primary', onclick: guard(async () => { await tool('update_event', { id: ev.id, confirmed: true }); draw(false); }) }, 'Looks right'),
+            h('button', { class: 'btn small ghost', onclick: guard(async () => { const r = await dialog('Edit event', [{ key: 'name', label: 'Name', value: ev.name }, { key: 'main', label: 'Main category', options: MAINS.filter((m) => m !== 'others').map((m) => [m, MAIN_LABEL[m]]), value: ev.main }]);
+              if (r && r.name) { await tool('update_event', { id: ev.id, name: r.name, main: r.main, confirmed: true }); draw(false); } }) }, 'Edit'),
+            h('button', { class: 'btn small ghost', onclick: guard(async () => { if (confirm(`Delete "${ev.name}"? Its payments stay, ungrouped.`)) { await tool('delete_event', { id: ev.id }); draw(false); } }) }, 'Delete'))) : null); };
     const groupBtn = h('button', { class: 'btn', onclick: guard(async () => { await api('/api/group', {}); groupPoll(); }) }, 'Let Orbit group my payments');
     const gstatus = h('div', { class: 'card', style: { display: 'none' } });
     async function groupPoll() {
@@ -314,21 +316,18 @@ pages.money = async () => {
       if (g.running) { groupBtn.disabled = true; gstatus.replaceChildren(h('div', { class: 'row' }, h('span', { class: 'chip' }, 'Working'), h('div', { class: 'grow muted' }, g.progress)), h('div', { class: 'progress' })); setTimeout(groupPoll, 1500); return; }
       groupBtn.disabled = false;
       if (g.error) gstatus.replaceChildren(h('div', { class: 'bad', style: { fontWeight: 600 } }, g.error));
-      else if (g.result) { gstatus.replaceChildren(h('div', { style: { fontWeight: 650 } }, `Orbit grouped ${g.result.grouped} of ${g.result.considered} payments. Check each proposed event, then press "Looks right".`)); if (g.result.grouped) draw(false); }
+      else if (g.result) { gstatus.replaceChildren(h('div', { style: { fontWeight: 650 } }, `Orbit grouped ${g.result.grouped} of ${g.result.considered} payments. Open each proposed event and press "Looks right".`)); if (g.result.grouped) draw(false); }
     }
-    const sections = MAINS.filter((m) => m !== 'others').map((m) => { const list = evs.filter((e) => e.main === m); if (!list.length) return null;
-      const net = list.reduce((x, e) => x + e.total, 0);
-      return h('div', { class: 'stack' }, h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '12px', height: '12px', borderRadius: '4px', background: MAIN_COLOUR[m] } }), h('h2', {}, MAIN_LABEL[m]), h('span', { class: 'chip' }, signed(net, 0))), h('div', { class: 'grid g2' }, list.map(evCard))); });
-    const others = byMain.find((m) => m.main === 'others');
-    const othersCard = others && others.subs && others.subs.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Others in ' + monthName(month)), h('span', { class: 'chip' }, money(others.net, 0))),
-      h('div', { class: 'lines' }, others.subs.map((x) => h('div', { class: 'line' }, h('span', { style: { textTransform: 'capitalize' } }, x.sub), h('span', { class: 'num' }, money(x.amount)))))) : null;
+    const sections = MAINS.filter((m) => m !== 'others').map((m) => { const list = evs.filter((e) => e.main === m); if (!list.length) return null; const net = list.reduce((x, e) => x + e.total, 0);
+      return h('div', { class: 'stack', style: { gap: '12px' } }, h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '12px', height: '12px', borderRadius: '4px', background: MAIN_COLOUR[m] } }), h('h2', {}, MAIN_LABEL[m]), h('span', { class: 'chip' }, signed(net, 0))), ...list.map(evCard)); });
     const eventsPane = [h('div', { class: 'row', style: { flexWrap: 'wrap' } }, h('button', { class: 'btn primary', onclick: guard(async () => { const r = await dialog('New event', [{ key: 'name', label: 'Name', placeholder: 'e.g. Asian Games 2026' }, { key: 'main', label: 'Main category', options: MAINS.filter((m) => m !== 'others').map((m) => [m, MAIN_LABEL[m]]), value: 'trips' }], 'Create');
-        if (r && r.name) { await tool('create_event', { name: r.name, main: r.main }); tab = 'spending'; toast('Created. Tick payments in Spending and add them to it.'); draw(false); } }) }, 'New event'), groupBtn), gstatus,
-      ...(evs.length ? sections : [h('div', { class: 'card welcome-card' }, h('h2', {}, 'No events yet'), h('p', { class: 'muted' }, 'Group your payments into events and trips: Tickets, Flights, Stay and so on, with a total for each. Create one yourself, or let Orbit propose groups from your statements.'))]), othersCard];
+        if (r && r.name) { await tool('create_event', { name: r.name, main: r.main }); tab = 'daily'; toast('Created. Tick payments under "All payments" and add them to it.'); draw(false); } }) }, 'New event'), groupBtn), gstatus,
+      ...(evs.length ? sections : [h('div', { class: 'card welcome-card' }, h('h2', {}, 'No trips or events yet'), h('p', { class: 'muted' }, 'Group payments into trips, matches and shows: tickets, flights, stay and so on, with one total each. Create one yourself, or let Orbit propose groups from your statements.'))])];
+
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['overview', 'Overview'], ['events', 'Events' + (evs.length ? ` · ${evs.length}` : '')], ['spending', 'Spending'], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents' + (docs.length + slips.length ? ` · ${docs.length + slips.length}` : '')]];
+    const tabs = [['daily', 'Day to day'], ['events', 'Trips & events' + (evs.length ? ` · ${evs.length}` : '')], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents' + (docs.length + slips.length ? ` · ${docs.length + slips.length}` : '')]];
     const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; picked.clear(); draw(false); } }, label)));
-    const content = { overview: [h('div', { class: 'grid g2' }, catCard, trendCard), sortCard], events: eventsPane, spending: [merchCard, txCard, bar], regular: [recCard],
+    const content = { daily: dailyPane, events: eventsPane, regular: [recCard],
       documents: [slipCard, docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
     const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Let’s bring in your money'),
       h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),

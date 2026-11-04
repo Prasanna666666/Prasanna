@@ -79,3 +79,14 @@ def test_the_model_proposes_groups_and_nothing_is_final_until_you_confirm(conn):
     assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["confirmed"] == 0 and ev[0]["total"] == 1813.41
     events.update_event(conn, {"id": ev[0]["id"], "confirmed": True})
     assert events.list_events(conn)[0]["confirmed"] == 1
+
+
+def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leaves_events_out(conn):
+    pay(conn, "2026-09-05", 100, "AH", category="groceries")
+    pay(conn, "2026-10-05", 130, "AH", category="groceries")
+    pay(conn, "2026-10-06", 20, "Kiosk", category="other")
+    pay(conn, "2026-10-07", 500, "own account", category="transfers")
+    events.assign(conn, {"event": "Max Amini", "main": "events", "sub": "tickets", "transaction_ids": [pay(conn, "2026-10-08", 63.48, "tickets", category="entertainment")]})
+    rows = {r["category"]: r for r in events.daily_by_category(conn, {"month": "2026-10"})}
+    assert rows["groceries"]["amount"] == 130.0 and rows["groceries"]["before"] == 100.0 and rows["groceries"]["payments"] == 1
+    assert rows["unsorted"]["amount"] == 20.0 and set(rows) == {"groceries", "unsorted"}  # the event payment and the own-account move are not day-to-day
