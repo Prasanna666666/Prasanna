@@ -90,6 +90,14 @@ class AppContext:
                     self.embedder_error = str(exc)
             return self._embedder
 
+    def ready_embedder(self) -> ImageEmbedder | None:
+        """The picture-search model for a question: only if it is already loaded. Loading it takes 20 to 60 s (torch and the weights come from the
+        external drive), so a question never waits for it: it answers from everything else and the model finishes loading in the background."""
+        if self._embedder is None and not self.embedder_error and not getattr(self, "_loading", False):
+            self._loading = True
+            threading.Thread(target=self.search_embedder, name="load-search-model", daemon=True).start()
+        return self._embedder
+
     def describer(self) -> OllamaVision:
         return OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=180.0)
 
@@ -311,7 +319,7 @@ class AppContext:
             return Executor(
                 self.db.connect(),
                 self.embedding_index,
-                self.search_embedder,
+                self.ready_embedder,
                 strictness=self.settings.visual_strictness,
                 geo_provider=self.geo,
             )
