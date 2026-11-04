@@ -72,7 +72,7 @@ def test_only_the_redacted_question_reaches_the_provider_and_the_plan_is_checked
     headers, body = provider.seen[0]
     sent = json.dumps(body)
     assert "<PLACE_1> hockey stadium" in sent and "Nagoya" not in sent  # the placeholder is all the provider ever sees
-    assert set(body) == {"model", "max_tokens", "temperature", "system", "messages"} and len(body["messages"]) == 1
+    assert set(body) == {"model", "max_tokens", "system", "messages"} and len(body["messages"]) == 1
     assert {k.lower(): v for k, v in headers.items()}["x-api-key"] == "sk-test-key" and "sk-test-key" not in sent  # the key is a header, never part of the content
 
 

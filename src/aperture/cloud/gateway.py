@@ -175,7 +175,7 @@ class Gateway:
         """One request to the provider; spending is counted and refused over the cap. Returns the provider's text."""
         if self._usage.spent() >= self.cap_usd:
             raise GatewayError(f"the monthly cap of ${self.cap_usd:.2f} is reached")
-        body = json.dumps({"model": self.model, "max_tokens": max_tokens, "temperature": 0.6 if system is CHAT_SYSTEM else 0, "system": system,
+        body = json.dumps({"model": self.model, "max_tokens": max_tokens, "system": system,
                            "messages": [{"role": "user", "content": content}]}).encode()
         request = urllib.request.Request(self._url, data=body, headers={"content-type": "application/json", "x-api-key": self._key,
                                                                           "anthropic-version": "2023-06-01"})
@@ -207,7 +207,7 @@ class Gateway:
         if self._usage.spent() >= self.cap_usd:
             raise GatewayError(f"the monthly cap of ${self.cap_usd:.2f} is reached")
         body = json.dumps({
-            "model": self.model, "max_tokens": 400, "temperature": 0, "system": SYSTEM,
+            "model": self.model, "max_tokens": 400, "system": SYSTEM,
             "messages": [{"role": "user", "content": json.dumps({"today": today, "photos_already_on_screen": bool(has_previous), "request": question})}],
         }).encode()
         request = urllib.request.Request(self._url, data=body, headers={"content-type": "application/json", "x-api-key": self._key,
