@@ -346,14 +346,15 @@ class Executor:
 
     def _same_camera_as_the_located(self, ids: np.ndarray, anchors: np.ndarray) -> np.ndarray:
         """A photo with no location of its own joins a trip only if its camera also took located photos of that trip: a camera that never
-        records GPS may have a wrong clock, and its photos would land in trips they were not part of."""
+        records GPS may have a wrong clock, and its photos would land in trips they were not part of. A location the app only worked out
+        does not prove a clock, so only a camera's own GPS counts."""
         if len(ids) == 0:
             return ids
         cameras: set[str] = set()
         for part in chunked(anchors.tolist(), 500):
             marks = ",".join("?" * len(part))
             cameras.update(r[0] or "" for r in self._conn.execute(
-                f"SELECT DISTINCT camera FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NOT NULL", part))
+                f"SELECT DISTINCT camera FROM items WHERE id IN ({marks}) AND gps_lat IS NOT NULL", part))  # the camera's OWN GPS, never an estimate
         if not cameras:
             return ids  # nothing is located, so there is no camera to compare with
         drop: list[int] = []

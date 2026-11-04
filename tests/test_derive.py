@@ -185,3 +185,18 @@ def test_a_photo_without_a_location_joins_a_trip_only_if_its_camera_also_took_lo
     ex = Executor(conn, lambda: None, lambda: None)
     # the iPhone screenshot-like photo (no GPS) shares a camera with a located photo: kept. The Canon never records GPS: its clock is unproven: dropped.
     assert ex._trip_ids(np.array([1])).tolist() == [1, 2]
+
+
+def test_a_worked_out_location_does_not_prove_a_cameras_clock():
+    from aperture.agent.executor import Executor
+
+    conn = _db()
+    conn.row_factory = sqlite3.Row
+    for i, camera, gps, est in ((1, "iPhone 12", (35.68, 139.76), None), (2, "Canon EOS R100", None, (35.68, 139.76)), (3, "Canon EOS R100", None, None)):
+        _item(conn, i, f"2026-03-01 1{i}:00:00")
+        conn.execute("UPDATE items SET camera=?, gps_lat=?, gps_lon=?, gps_est_lat=?, gps_est_lon=? WHERE id=?",
+                     (camera, gps[0] if gps else None, gps[1] if gps else None, est[0] if est else None, est[1] if est else None, i))
+    derive.build_events(conn)
+    ex = Executor(conn, lambda: None, lambda: None)
+    # photo 2 was placed (estimated), photo 3 was not: the Canon never recorded GPS, so photo 3 stays out of the iPhone's trip
+    assert ex._trip_ids(np.array([1, 2])).tolist() == [1, 2]
