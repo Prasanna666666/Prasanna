@@ -147,3 +147,27 @@ def test_a_trip_never_reaches_another_country_even_without_a_pause_in_the_photos
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._trip_ids(np.array([1])).tolist() == [1, 2]
     assert ex._near_the_anchors(np.array([1, 2, 3, 4]), np.array([1])).tolist() == [1, 2]  # and even a stray Iceland photo is dropped
+
+
+def test_explain_shows_every_reading_with_the_places_its_photos_are_really_from(capsys):
+    import argparse
+    from types import SimpleNamespace
+
+    from aperture import cli
+    from aperture.search.geo import GeoIndex
+
+    conn = _db()
+    conn.row_factory = sqlite3.Row
+    _item(conn, 1, "2026-03-01 10:00:00", "Shinjuku, Japan")
+    conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76, place_text=' shinjuku tokyo japan' WHERE id=1")
+    _item(conn, 2, "2026-03-01 11:00:00", "Reykjavik, Iceland")
+    conn.execute("UPDATE items SET gps_lat=64.14, gps_lon=-21.90, place_text=' reykjavik iceland' WHERE id=2")
+    geo = GeoIndex(["Tokyo"], ["Japan"], [" tokyo japan"], np.array([35.68]), np.array([139.76]))
+    class Keep:  # the test connection must survive the command closing it
+        def __getattr__(self, name):
+            return (lambda: None) if name == "close" else getattr(conn, name)
+
+    ctx = SimpleNamespace(db=SimpleNamespace(connect=lambda: Keep()), embedding_index=lambda: None, search_embedder=lambda: None, geo=lambda: geo)
+    cli.cmd_explain(ctx, argparse.Namespace(word="Tokyo"))
+    out = capsys.readouterr().out
+    assert "Taken in or near Tokyo" in out and "Shinjuku, Japan" in out and "Iceland" not in out

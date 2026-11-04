@@ -46,6 +46,9 @@ def build_parser() -> argparse.ArgumentParser:
     jd.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     jd.add_argument("--limit", type=int, default=0)
     jd.add_argument("--calibrate", type=int, default=0, help="first measure how right the judge is on this many photos whose place is known")
+    ex = sub.add_parser("explain", help="for one word: every reading the app builds, with how many photos and which places they are really from (read-only)")
+    ex.add_argument("word")
+    sub.add_parser("clear-estimates", help="remove every location the app worked out (photos keep only the GPS in their own files); a clean start")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -361,6 +364,39 @@ def cmd_judge(ctx: AppContext, args: argparse.Namespace) -> int:
         print(f"judge: {outcome['analysed']:,} analysed, {outcome['located']:,} placed, {outcome['left']:,} left for next time")
     finally:
         conn.close()
+    return 0
+
+
+def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
+    from collections import Counter
+
+    from .agent.executor import Executor
+    from .agent.schema import Clause, Plan
+
+    conn = ctx.db.connect()
+    try:
+        executor = Executor(conn, ctx.embedding_index, ctx.search_embedder, geo_provider=ctx.geo)
+        plan = Plan(intent="find", clauses=(Clause(engines=("place", "path", "text"), query=args.word),))
+        for label, ids in executor.readings(plan):
+            marks = ",".join("?" * min(len(ids), 900))
+            rows = conn.execute(f"SELECT COALESCE(place, gps_est_place, '(no place)'), gps_lat IS NOT NULL FROM items WHERE id IN ({marks})", ids[:900].tolist()).fetchall()
+            top = Counter(r[0] for r in rows).most_common(4)
+            own = sum(1 for r in rows if r[1])
+            print(f"{label}: {len(ids):,} photos ({own} of the first {len(rows)} have their own GPS)")
+            print("    places: " + "; ".join(f"{p} ({n})" for p, n in top))
+    finally:
+        conn.close()
+    return 0
+
+
+def cmd_clear_estimates(ctx: AppContext) -> int:
+    conn = ctx.db.connect()
+    try:
+        conn.execute("UPDATE items SET gps_est_lat=NULL, gps_est_lon=NULL, gps_est_conf=NULL, gps_est_place=NULL, gps_est_place_text=''")
+        conn.commit()
+    finally:
+        conn.close()
+    print("every worked-out location was removed; photos now have only the GPS in their own files")
     return 0
 
 
@@ -803,6 +839,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_scan(ctx, args)
     if args.command == "where":
         return cmd_where(ctx, args)
+    if args.command == "explain":
+        return cmd_explain(ctx, args)
+    if args.command == "clear-estimates":
+        return cmd_clear_estimates(ctx)
     if args.command == "judge":
         return cmd_judge(ctx, args)
     if args.command == "details":
