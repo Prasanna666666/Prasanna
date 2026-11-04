@@ -234,7 +234,8 @@ class ToolAgent:
                      "user means while a search could answer it: search, show what you found, then say in one or two sentences what it is. "
                      "Photos that merely contain a word are clues, not the answer: use inspect_results to see when and where they were taken, then "
                      "search for everything taken then or there. If a result is empty or looks wrong, change the conditions and try again. "
-                     "Never invent numbers.")
+                     "Never invent numbers. Speak like a friendly person in short, plain sentences: never mention tools, probes, labels, "
+                     "methods or counts per method, and say nothing before you search.")
         return "\n".join(lines)
 
     def _messages(self, request: str, history: list[tuple[str, str]] | None) -> list[dict[str, Any]]:
@@ -286,6 +287,11 @@ class ToolAgent:
             kind, value = first
             if kind != "tool":
                 head, events = self._peek(value, events)  # words arrive in pieces: look at the start of the reply before showing it
+                events = list(events)
+                tool_events = [v for k, v in events if k == "tool"]
+                if tool_events:  # it talked and then really called a tool: the call runs and the words before it are dropped
+                    kind, value, events = "tool", tool_events[0], [("tool", v) for v in tool_events[1:]]
+            if kind != "tool":
                 typed = bool(self._call_text.search("".join(head)))  # a tool call typed out as text did nothing and its "results" are invented
                 if not acted and shown is None and (typed or (not nudged and self._mentions_library(facts, previous_ids))):
                     if nudged:  # told twice and it still will not act: the planner does the search instead, so the answer is always real
@@ -294,7 +300,7 @@ class ToolAgent:
                     messages.append({"role": "assistant", "content": ""})
                     messages.append({"role": "user", "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns."})
                     continue
-                return self._answer("".join(head), events, shown, timings, read)  # ---- 4. ANSWER: the model talks
+                return self._answer("".join(head), iter(events), shown, timings, read)  # ---- 4. ANSWER: the model talks
             calls = [value] + [v for k, v in events if k == "tool"]
             messages.append({"role": "assistant", "content": "",
                              "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]})

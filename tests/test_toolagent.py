@@ -524,3 +524,10 @@ def test_a_server_error_before_the_first_word_is_retried_once(monkeypatch):
 
     monkeypatch.setattr(client, "_stream_chunks", chunks)
     assert list(client.chat_events("s", [], [], 5)) == [("delta", "ok")] and len(calls) == 2
+
+
+def test_words_before_a_real_tool_call_are_dropped_and_the_call_still_runs():
+    agent, llm, plans = agent_with([[("delta", "Let me find all photos for you. "), tool("find_photos", places=["Tokyo"])], [("delta", "ok")]])
+    reply = agent.ask("Tokyo")
+    assert len(plans) == 1 and list(reply.ids) == [11, 12, 13] and "Let me find" not in reply.text
+    assert "friendly person" in llm.calls[0][0] and "say nothing before you search" in llm.calls[0][0]

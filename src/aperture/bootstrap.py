@@ -421,13 +421,13 @@ class AppContext:
             conn = self.db.connect()
             try:
                 counts = {
-                    "as_place": len(place_ids(conn, term)),
-                    "as_folder_or_file_name": len(path_ids(conn, term)),
-                    "as_words_written_in_photos": len(search_text_ids(conn, term)),
-                    "as_person": len(resolve_name(conn, term)),
+                    "photos_taken_in_a_place_with_this_name": len(place_ids(conn, term)),
+                    "photos_in_folders_or_files_with_this_name": len(path_ids(conn, term)),
+                    "photos_with_this_word_written_in_them": len(search_text_ids(conn, term)),
+                    "people_with_this_name": len(resolve_name(conn, term)),
                 }
                 try:
-                    counts["as_picture_label"] = conn.execute(
+                    counts["photos_that_look_like_this"] = conn.execute(
                         "SELECT COUNT(DISTINCT item_id) FROM photo_labels WHERE label LIKE ?", (f"%{term.strip().lower()}%",)).fetchone()[0]
                 except Exception:
                     pass

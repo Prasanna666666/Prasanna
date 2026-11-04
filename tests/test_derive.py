@@ -55,7 +55,7 @@ def test_a_word_finds_the_whole_trip_even_photos_without_gps():
     ex = Executor(conn, lambda: None, lambda: None)
     plan = Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),))
     groups = dict(ex.readings(plan))
-    assert groups["Same trip or event as the 'tokyo tower' photos"].tolist() == [1, 2, 3]
+    assert groups["Same trip as your tokyo tower photos"].tolist() == [1, 2, 3]
 
 
 def _jpeg(color, size=(80, 60)):

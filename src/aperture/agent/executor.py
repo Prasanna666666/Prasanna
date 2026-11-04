@@ -189,13 +189,13 @@ class Executor:
         terms = list(dict.fromkeys(c.query.strip() for c in plan.clauses if not c.exclude and c.query.strip()))
         for term in terms:
             wording = (
-                ("place", f"Labelled with the place '{term}'"),
-                ("near", f"Taken near {term} (GPS)"),
-                ("path", f"In a folder or file named '{term}'"),
-                ("person", f"Photos of {term}"),
-                ("text", f"With '{term}' written in them"),
-                ("tag", f"Tagged '{term}'"),
-                ("visual", f"Looks like '{term}'"),
+                ("place", f"Taken in {term}"),
+                ("near", f"Taken near {term}"),
+                ("path", f"In folders named {term}"),
+                ("person", f"People called {term}"),
+                ("text", f"The word {term} in the photo"),
+                ("tag", f"Looks like {term}"),
+                ("visual", f"Similar to {term}"),
             )
             for engine, label in wording:
                 ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
@@ -205,7 +205,7 @@ class Executor:
             anchors = [ids for label, ids in found if f"'{term}'" in label or term in label]
             trip = self._trip_ids(np.unique(np.concatenate(anchors))) if anchors else np.zeros(0, np.int64)
             if 0 < len(trip) <= limit:
-                found.append((f"Same trip or event as the '{term}' photos", np.sort(trip)))
+                found.append((f"Same trip as your {term} photos", np.sort(trip)))
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
         if span is not None:
             ids = date_ids(self._conn, span[0].isoformat(), span[1].isoformat())
