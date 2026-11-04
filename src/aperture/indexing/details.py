@@ -21,7 +21,7 @@ from ..ml.vision_details import Details
 VERSION = 2  # 2: all the Vision readers + the perceptual hash; pictures read at version 1 are read again
 CLIP_TOP = 5
 CLIP_MIN_SCORE = 0.18  # cosine between image and "a photo of <label>" below which a tag is noise
-CLIP_MIN_P = 0.25  # and the label must win a real share of the vocabulary (a landmark tag on a plain street photo is wrong)
+CLIP_MIN_P = 0.35  # and the label must win a real share of the vocabulary (a landmark tag on a plain street photo is wrong)
 
 
 def vocabulary() -> list[str]:
@@ -94,7 +94,7 @@ def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0,
 
 
 def clip_tags(conn: sqlite3.Connection, index: Any, embedder: Any, labels: list[str] | None = None, top: int = CLIP_TOP,
-              min_score: float = CLIP_MIN_SCORE, min_p: float = CLIP_MIN_P) -> int:
+              min_score: float = CLIP_MIN_SCORE, min_p: float = CLIP_MIN_P, geo: Any = None, verify: bool = True) -> int:
     """Tag every photo with the vocabulary labels its stored embedding is closest to (no image is decoded: seconds, not hours)."""
     labels = labels or vocabulary()
     if len(index) == 0 or not labels:
@@ -115,4 +115,57 @@ def clip_tags(conn: sqlite3.Connection, index: Any, embedder: Any, labels: list[
         conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'clip')", batch)
         rows += len(batch)
     conn.commit()
+    if verify:
+        rows -= verify_clip_tags(conn, geo)
     return rows
+
+
+LANDMARK_RADIUS_KM = 150
+STOP_WORDS = {"the", "and", "photo", "with", "of", "in", "a"}
+
+
+def _words(text: str) -> set[str]:
+    from ..search.textnorm import tokens
+
+    return {t for t in tokens(text) if len(t) >= 3 and t not in STOP_WORDS}
+
+
+def verify_clip_tags(conn: sqlite3.Connection, geo: Any) -> int:
+    """A guess from appearance is kept only when something independent agrees; everything else is deleted. Returns how many were removed.
+
+    - A landmark (a proper name such as "Tokyo Tower") must have GPS, and that GPS must be near the city in its name.
+    - Any other label must be confirmed by Apple Vision's own labels for the same photo (a shared word such as "dog" or "beach").
+    A guess that cannot be confirmed is not shown: wrong answers are worse than missing ones."""
+    from ..search.filters import haversine_km
+
+    removed = 0
+    labels = [r[0] for r in conn.execute("SELECT DISTINCT label FROM photo_labels WHERE source='clip'")]
+    vocab = {v.lower(): v for v in vocabulary()}
+    vision: dict[int, set[str]] = {}
+    for item_id, label in conn.execute("SELECT item_id, label FROM photo_labels WHERE source='vision'"):
+        vision.setdefault(item_id, set()).update(_words(label))
+    for label in labels:
+        landmark = vocab.get(label, label)[:1].isupper()
+        rows = conn.execute("SELECT l.rowid, l.item_id, i.gps_lat, i.gps_lon FROM photo_labels l JOIN items i ON i.id=l.item_id "
+                            "WHERE l.source='clip' AND l.label=?", (label,)).fetchall()
+        if landmark:
+            city = None
+            words = label.split()
+            for n in range(len(words), 0, -1):  # "tokyo tower" -> the city "tokyo"
+                found = geo.find(" ".join(words[:n])) if geo is not None else None
+                if found and found[2].split(",")[0].strip().lower() == " ".join(words[:n]).lower():
+                    city = found
+                    break
+            keep = set()
+            if city is not None:
+                for rowid, _item, lat, lon in rows:
+                    if lat is not None and lon is not None and haversine_km(city[0], city[1], np.array([lat]), np.array([lon]))[0] <= LANDMARK_RADIUS_KM:
+                        keep.add(rowid)
+        else:
+            wanted = _words(label)
+            keep = {rowid for rowid, item, _lat, _lon in rows if wanted & vision.get(item, set())}
+        drop = [(rowid,) for rowid, *_ in rows if rowid not in keep]
+        conn.executemany("DELETE FROM photo_labels WHERE rowid=?", drop)
+        removed += len(drop)
+    conn.commit()
+    return removed

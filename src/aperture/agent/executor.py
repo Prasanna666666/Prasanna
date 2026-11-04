@@ -197,10 +197,16 @@ class Executor:
                 ("tag", f"Looks like {term}"),
                 ("visual", f"Similar to {term}"),
             )
+            identified = False  # found as a place, folder or person: hard evidence, so guesses from appearance would only add noise
             for engine, label in wording:
+                if identified and engine in ("tag", "visual"):
+                    continue
                 ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
+                if engine == "visual" and len(ids):
+                    ids = np.intersect1d(ids, self._vision_agrees(term))  # a guess from appearance counts only if Apple Vision agrees
                 if 0 < len(ids) <= limit:
                     found.append((label, np.sort(ids)))
+                    identified = identified or engine in ("place", "near", "path", "person")
         for term in terms:  # a trip: everything shot around the same time as the photos this word finds directly
             anchors = [ids for label, ids in found if f"'{term}'" in label or term in label]
             trip = self._trip_ids(np.unique(np.concatenate(anchors))) if anchors else np.zeros(0, np.int64)
@@ -283,15 +289,28 @@ class Executor:
         except sqlite3.Error:
             return np.zeros(0, np.int64)  # the events have not been built yet
 
+    def _vision_agrees(self, term: str) -> np.ndarray:
+        """Photos whose Apple Vision labels share a word with the term (confident labels only)."""
+        from ..search.textnorm import tokens
+
+        words = [w for w in tokens(term) if len(w) >= 3]
+        if not words:
+            return np.zeros(0, np.int64)
+        try:
+            marks = " OR ".join("label LIKE ?" for _ in words)
+            rows = self._conn.execute(f"SELECT DISTINCT item_id FROM photo_labels WHERE source='vision' AND score>=0.5 AND ({marks})",
+                                      [f"%{w}%" for w in words])
+            return np.array(sorted(r[0] for r in rows), np.int64)
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)
+
     def _tag_ids(self, query: str) -> np.ndarray:
         """Photos labelled with this scene, object or landmark (read once from the picture; see `aperture details`)."""
         word = query.strip().lower()
         if len(word) < 2:
             return np.zeros(0, np.int64)
         try:
-            rows = self._conn.execute(
-                "SELECT DISTINCT item_id FROM photo_labels WHERE label=? OR label LIKE ? ESCAPE '\\'", (word, f"%{word.replace('%', '').replace('_', '')}%")
-            )
+            rows = self._conn.execute("SELECT DISTINCT item_id FROM photo_labels WHERE label=? AND (source<>'vision' OR score>=0.5)", (word,))  # the exact label, never a part of one
             return np.array(sorted(r[0] for r in rows), np.int64)
         except sqlite3.Error:
             return np.zeros(0, np.int64)  # the details pass has not run yet

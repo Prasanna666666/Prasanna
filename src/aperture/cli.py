@@ -289,7 +289,7 @@ def cmd_details(ctx: AppContext, args: argparse.Namespace) -> int:
         embedder = ctx.search_embedder()
         if embedder is not None:
             print("landmark and scene tags from the stored image embeddings ...", flush=True)
-            print(f"  {details.clip_tags(conn, ctx.embedding_index(), embedder):,} tags")
+            print(f"  {details.clip_tags(conn, ctx.embedding_index(), embedder, geo=ctx.geo()):,} tags")
         if args.no_vision:
             return 0
         if not vision_available():

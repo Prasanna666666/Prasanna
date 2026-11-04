@@ -59,7 +59,7 @@ def test_scene_and_landmark_tags_come_from_the_stored_embeddings_without_decodin
         def embed_text(self, texts):
             return np.array([[1.0, 0.0] if "tower" in t.lower() else [0.0, 1.0] for t in texts], np.float32)
 
-    assert details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "beach"], top=1, min_score=0.5) == 2
+    assert details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "beach"], top=1, min_score=0.5, verify=False) == 2
     tags = dict(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
     assert tags == {1: "tokyo tower", 2: "beach"}
 
@@ -77,3 +77,41 @@ def test_labels_are_searchable_as_a_reading_of_a_word():
     conn.row_factory = sqlite3.Row
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._tag_ids("Tokyo Tower").tolist() == [2] and ex._tag_ids("zzz").tolist() == []
+
+
+def test_a_word_found_as_a_place_gets_no_guesses_from_appearance_and_tags_match_exactly():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _db(4)
+    conn.row_factory = sqlite3.Row
+    conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76, place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1")
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.5, 'clip')")  # a landmark guess on a different photo
+    ex = Executor(conn, lambda: None, lambda: None)
+    assert ex._tag_ids("tokyo").tolist() == [] and ex._tag_ids("tokyo tower").tolist() == [2]  # exact label, not a part of one
+    labels = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Shinjuku"),)))]
+    assert labels == ["Taken in Shinjuku"] and not any("Looks like" in l or "Similar" in l for l in labels)
+    plain = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("visual",), query="tokyo tower"),)))]
+    assert "Looks like tokyo tower" in plain  # with no hard evidence the appearance reading is still offered
+
+
+def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees():
+    from aperture.search.embeddings import EmbeddingIndex
+    from aperture.search.geo import GeoIndex
+
+    conn = _db(4)
+    # photo 1: really in Tokyo (GPS), photo 2: GPS in Amsterdam, photo 3: no GPS
+    conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76 WHERE id=1")
+    conn.execute("UPDATE items SET gps_lat=52.37, gps_lon=4.90 WHERE id=2")
+    conn.execute("INSERT INTO photo_labels VALUES (4, 'dog', 0.9, 'vision')")  # photo 4: Apple Vision also sees a dog
+    geo = GeoIndex(["Tokyo"], ["Japan"], [" tokyo japan"], np.array([35.68]), np.array([139.76]))
+    vectors = np.ones((4, 2), np.float16)
+    index = EmbeddingIndex(np.array([1, 2, 3, 4]), vectors)
+
+    class Embedder:
+        def embed_text(self, texts):
+            return np.ones((len(texts), 2), np.float32)  # every photo matches every label equally well
+
+    details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "dog"], top=2, min_score=0.0, min_p=0.0, geo=geo)
+    tags = sorted(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
+    assert tags == [(1, "tokyo tower"), (4, "dog")]  # the Amsterdam photo, the photo without GPS and the dog-less photos are all dropped

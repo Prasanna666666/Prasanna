@@ -428,7 +428,7 @@ class AppContext:
                 }
                 try:
                     counts["photos_that_look_like_this"] = conn.execute(
-                        "SELECT COUNT(DISTINCT item_id) FROM photo_labels WHERE label LIKE ?", (f"%{term.strip().lower()}%",)).fetchone()[0]
+                        "SELECT COUNT(DISTINCT item_id) FROM photo_labels WHERE label=?", (term.strip().lower(),)).fetchone()[0]
                 except Exception:
                     pass
             finally:
