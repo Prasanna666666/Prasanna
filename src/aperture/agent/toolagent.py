@@ -114,7 +114,9 @@ TOOL_DEFS: dict[str, dict[str, Any]] = {
                    {"term": {"type": "string", "description": "The word or phrase to check."}}, ["term"]),
     "calc_date": _tool("calc_date", "Exact calendar maths. Starting from today, move back (negative) or forward by some years, months, weeks "
                                     "or days, and get the dates of the day/week/month/year you land in, or everything from there until today. "
-                                    "Use the result as date_from and date_to. Never work out dates yourself.",
+                                    "For 'N months back' or 'N weeks ago' leave until_today out (that one period); for 'the last N months', 'the past N weeks' or "
+                                    "'recent' set until_today true (everything from then until today). Use the result as date_from and date_to. "
+                                    "Never work out dates yourself.",
                        {"years": {"type": "integer", "description": "Years to move (negative = past)."},
                         "months": {"type": "integer", "description": "Months to move (negative = past)."},
                         "weeks": {"type": "integer", "description": "Weeks to move (negative = past)."},
@@ -159,7 +161,8 @@ EXAMPLES = "\n".join([
     "'thanks, that helps' -> reply in words, no tool",
     "'what is a RAW file?' -> reply in words, no tool",
     "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
-    "'pics from 2 months back' -> use the calc_date tool for the dates, then search with date_from and date_to",
+    "'pics from 2 months back' -> use the calc_date tool for that one month, then search with date_from and date_to",
+    "'pictures from the last 3 months' -> use the calc_date tool with until_today set, from 3 months ago until today, then search",
     "'all the photos I took in Tokyo' -> search the place; if only text mentions it, use inspect_results to learn when and where, then search those dates or places",
     "Only fill in what the user said: 'sunset photos' is a search for a sunset with no time of day and no kind.",
     "Always call tools through the tool interface; never write a tool call out as text.",

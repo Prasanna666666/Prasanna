@@ -109,12 +109,17 @@ DATE_SYSTEM = (
     "Find the time expression in the user's message. phrase = the exact words that express a time or period (for example 'last month', "
     "'in 2021', 'this summer', 'yesterday', 'March'), or an empty string if there is none. Fill year (like 2021), month (1-12), season or "
     "relative ONLY from that phrase and leave the other fields out. Never compute dates.\n"
+    "For 'N units ago' style phrases set ago and unit, and also span: 'period' when the user means that ONE period ('2 months back', "
+    "'3 weeks ago'), or 'until_now' when the user means the whole stretch from then until today ('the last 3 months', 'the past 2 weeks', "
+    "'in the last 10 days', 'recent months').\n"
     "Examples:\n"
     "'pics from last month' -> {\"phrase\": \"last month\", \"relative\": \"last_month\"}\n"
     "'what I shot in August 2019' -> {\"phrase\": \"August 2019\", \"year\": 2019, \"month\": 8}\n"
     "'skiing trip winter 2023' -> {\"phrase\": \"winter 2023\", \"year\": 2023, \"season\": \"winter\"}\n"
-    "'pics from 2 months back' -> {\"phrase\": \"2 months back\", \"ago\": 2, \"unit\": \"month\"}\n"
-    "'photos from the last 3 weeks' -> {\"phrase\": \"the last 3 weeks\", \"ago\": 3, \"unit\": \"week\", \"through\": true}\n"
+    "'pics from 2 months back' -> {\"phrase\": \"2 months back\", \"ago\": 2, \"unit\": \"month\", \"span\": \"period\"}\n"
+    "'photos from the last 3 weeks' -> {\"phrase\": \"the last 3 weeks\", \"ago\": 3, \"unit\": \"week\", \"span\": \"until_now\"}\n"
+    "'pictures from the last 3 months' -> {\"phrase\": \"the last 3 months\", \"ago\": 3, \"unit\": \"month\", \"span\": \"until_now\"}\n"
+    "'what did I shoot in the past 10 days' -> {\"phrase\": \"the past 10 days\", \"ago\": 10, \"unit\": \"day\", \"span\": \"until_now\"}\n"
     "'cats on the sofa' -> {\"phrase\": \"\"}"
 )
 DATE_SCHEMA = {
@@ -124,7 +129,7 @@ DATE_SCHEMA = {
                    "relative": {"type": "string", "enum": ["today", "yesterday", "this_week", "last_week", "this_month", "last_month",
                                                              "this_year", "last_year"]},
                    "ago": {"type": "integer"}, "unit": {"type": "string", "enum": ["day", "week", "month", "year"]},
-                   "through": {"type": "boolean"}},
+                   "through": {"type": "boolean"}, "span": {"type": "string", "enum": ["period", "until_now"]}},
     "required": ["phrase"],
 }
 

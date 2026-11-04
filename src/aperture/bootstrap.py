@@ -390,7 +390,7 @@ class AppContext:
                 raw = None
             if not isinstance(raw, dict):
                 return "", plan_from_raw({})[0].date
-            date_fields = {k: raw[k] for k in ("year", "month", "season", "relative", "ago", "unit", "through") if k in raw}
+            date_fields = {k: raw[k] for k in ("year", "month", "season", "relative", "ago", "unit", "through", "span") if k in raw}
             return str(raw.get("phrase") or "").strip(), plan_from_raw({"intent": "find", "date": date_fields})[0].date
 
         def reviser(request: str, plan: Any, feedback: str) -> Any:

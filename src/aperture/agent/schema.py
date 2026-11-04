@@ -151,7 +151,7 @@ def _date_spec(raw: Any) -> DateSpec:
         end=_text(raw.get("end"), 10),
         ago=max(0, min(_int(raw.get("ago")), 1200)),
         unit=_choice(raw.get("unit"), ("day", "week", "month", "year"), "none"),
-        through=raw.get("through") is True,
+        through=raw.get("through") is True or raw.get("span") == "until_now",
     )
 
 
