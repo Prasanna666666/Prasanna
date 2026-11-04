@@ -38,3 +38,8 @@ def test_images_keep_parsing_libraries_out_of_the_app():
     assert "secure" in app and "parse" not in app.replace("parser", "")
     assert "[parse]" in parser and "USER 10001" in app and "USER 10001" in parser
     assert "ORBIT_REQUIRE_ENCRYPTION=1" in app
+
+
+def test_the_app_reaches_ollama_by_a_name_ollama_accepts():
+    assert S["app"]["environment"]["OLLAMA_HOST"].startswith("http://ollama.internal:11434")  # other host names get HTTP 403 from Ollama
+    assert "ollama.internal" in S["ollama"]["networks"]["private"]["aliases"]

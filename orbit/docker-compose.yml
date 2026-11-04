@@ -35,7 +35,7 @@ services:
     build: {context: ., target: app}
     image: orbit:local
     environment:
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ORBIT_INBOX: /inbox
       ORBIT_PARSED: /parsed
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
@@ -59,7 +59,9 @@ services:
     <<: *hardened
     image: alpine/socat:1.8.0.0
     command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
-    networks: [private, default]
+    networks:
+      private: {aliases: [ollama.internal]}
+      default: {}
 
 networks:
   private: {internal: true}
