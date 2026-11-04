@@ -575,7 +575,7 @@ class AppContext:
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
             self._service = service  # the search executor the agent uses (tests exercise it directly)
-            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results, cloud=self._cloud_interpreter(people_names), cloud_chat=self._cloud_chat)
+            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results, cloud=self._cloud_interpreter(people_names), cloud_chat=self._cloud_chat, cloud_on=lambda: self.cloud_on)
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

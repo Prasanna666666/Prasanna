@@ -171,3 +171,15 @@ def test_a_photo_answer_says_how_the_request_was_understood():
 
     assert describe_call("find_photos", {"places": ["Nagoya"], "what": "hockey stadium"}) == "show photos \u00b7 places Nagoya \u00b7 what hockey stadium"
     assert describe_call("count_photos", {"year": 2019}) == "count photos \u00b7 year 2019"
+
+
+def test_with_the_switch_off_the_cloud_is_never_called_and_never_mentioned():
+    from aperture.agent.service import AgentService
+
+    service = AgentService(planner=None, executor_factory=lambda: None, known_people=lambda: [], rescue=False, router=lambda request, previous: "chat")
+    service._chat_stream = lambda request, history: iter(["local reply"])
+    calls, said = [], []
+    agent = ToolAgent(SimpleNamespace(), service, lambda r: "", today=lambda: date(2026, 11, 4), cloud=lambda q, p: calls.append(q),
+                      cloud_chat=lambda r, h: calls.append(r) or "cloud", cloud_on=lambda: False)
+    reply = agent.ask("hello there", progress=said.append) if "progress" in ToolAgent.ask.__code__.co_varnames else agent.ask("hello there")
+    assert not calls and reply.text != "cloud" and not any("cloud" in str(s).lower() for s in said)

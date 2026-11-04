@@ -231,8 +231,9 @@ class ToolAgent:
                  inspect: Callable[[list[int]], dict[str, Any]] | None = None,
                  today: Callable[[], date] = date.today, max_tokens: int = CHAT_MAX_TOKENS, spec: AgentSpec = ASSISTANT,
                  cloud: Callable[[str, bool], dict[str, Any] | None] | None = None,
-                 cloud_chat: Callable[[str, list[tuple[str, str]] | None], str | None] | None = None) -> None:
-        self._cloud, self._cloud_chat = cloud, cloud_chat
+                 cloud_chat: Callable[[str, list[tuple[str, str]] | None], str | None] | None = None,
+                 cloud_on: Callable[[], bool] = lambda: True) -> None:
+        self._cloud, self._cloud_chat, self._cloud_on = cloud, cloud_chat, cloud_on
         self._llm, self._service, self._context, self._today = llm, service, context, today
         self._overview, self._lookup, self._max_tokens, self.spec = overview, lookup, max_tokens, spec
         self._read_text, self._look, self._probe, self._inspect = read_text, look, probe, inspect
@@ -287,7 +288,7 @@ class ToolAgent:
         began = time.monotonic()
         say("Understanding your message")
         route = self._route(request, previous_ids)
-        if route == "chat" and self._cloud_chat is not None:  # plain conversation: a stronger model replies to your words (names hidden)
+        if route == "chat" and self._cloud_chat is not None and self._cloud_on():  # plain conversation: a stronger model replies to your words (names hidden)
             say("Asking the cloud model for a reply (only your words are sent)")
             text = self._cloud_chat(request, history)
             if text:
@@ -315,7 +316,7 @@ class ToolAgent:
             say("Deciding how to search" if step == 0 else "Checking what it found")
             try:
                 decided = None
-                if self._cloud is not None and step == 0 and not final:  # a stronger model reads the typed words (names hidden); anything wrong: local
+                if self._cloud is not None and self._cloud_on() and step == 0 and not final:  # a stronger model reads the typed words (names hidden); anything wrong: local
                     say("Asking the cloud model to understand your request (only its words are sent)")
                     decided = self._cloud(request, previous_ids is not None)
                 if decided is not None:
