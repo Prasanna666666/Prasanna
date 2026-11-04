@@ -20,3 +20,22 @@
 ;;    (for example when the photos folder is the whole drive). Allowed again after the rule above.
 (allow file-write* (subpath (param "AP_ROOT")))
 (allow file-write* (subpath (param "EXPORT_DIR")))
+
+;; 4. Personal folders are not readable by Aperture at all (it has no business there): documents, desktop, downloads, pictures and movies
+;;    libraries, messages, cloud-synced folders, and the other apps' data. Parameter: HOME. The photo folder and Aperture's own data are
+;;    elsewhere (usually the external drive), so nothing it needs is affected. If your photos live inside one of these folders, move the
+;;    photo folder or remove that line.
+(deny file-read* (subpath (string-append (param "HOME") "/Documents")))
+(deny file-read* (subpath (string-append (param "HOME") "/Desktop")))
+(deny file-read* (subpath (string-append (param "HOME") "/Downloads")))
+(deny file-read* (subpath (string-append (param "HOME") "/Movies")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Mobile Documents")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Messages")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Mail")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Safari")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Keychains")))
+(deny file-read* (subpath (string-append (param "HOME") "/.ssh")))
+(deny file-read* (subpath (string-append (param "HOME") "/.aws")))
+(deny file-read* (subpath (string-append (param "HOME") "/.orbit")))
+(deny file-read* (subpath (string-append (param "HOME") "/OrbitInbox")))
+(deny file-read* (subpath (string-append (param "HOME") "/ApertureVault.sparsebundle")))

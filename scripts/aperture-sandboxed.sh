@@ -23,7 +23,7 @@ if [ $# -ge 1 ] && [ "$1" != "--" ]; then EXPORT_DIR="$(cd "$1" && pwd -P)"; shi
 [ "${1:-}" = "--" ] && shift
 
 export APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1
-SB=(sandbox-exec -f "$PROFILE" -D "PHOTO_DIR=$PHOTO_DIR" -D "EXPORT_DIR=$EXPORT_DIR" -D "AP_ROOT=${AP_ROOT:-/nonexistent-aperture-root}" -D "ALLOW_MOVES=${ALLOW_MOVES:-no}")
+SB=(sandbox-exec -f "$PROFILE" -D "PHOTO_DIR=$PHOTO_DIR" -D "EXPORT_DIR=$EXPORT_DIR" -D "AP_ROOT=${AP_ROOT:-/nonexistent-aperture-root}" -D "ALLOW_MOVES=${ALLOW_MOVES:-no}" -D "HOME=$HOME")
 
 if [ "$SELFTEST" = 1 ]; then
   exec "${SB[@]}" python3 - "$PHOTO_DIR" <<'PY'

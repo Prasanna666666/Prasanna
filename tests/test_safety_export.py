@@ -188,3 +188,14 @@ def test_the_run_wrapper_keeps_the_sandbox_and_the_mac_awake():
 
     script = (Path(__file__).parent.parent / "scripts" / "aperture-run.sh").read_text()
     assert "caffeinate -i scripts/aperture-sandboxed.sh" in script and "AP_ROOT" in script and '"$@"' in script
+
+
+def test_the_app_sandbox_cannot_read_personal_folders_but_still_reaches_the_photo_drive():
+    from pathlib import Path
+
+    root = Path(__file__).parent.parent / "scripts"
+    profile, script = (root / "aperture-sandbox.sb").read_text(), (root / "aperture-sandboxed.sh").read_text()
+    for folder in ("Documents", "Desktop", "Downloads", "Library/Messages", "Library/Keychains", ".ssh"):
+        assert f'(deny file-read* (subpath (string-append (param "HOME") "/{folder}")))' in profile
+    assert '-D "HOME=$HOME"' in script  # the profile is told which home folder to protect
+    assert '(deny file-read* (subpath "/Volumes"))' not in profile and '(deny file-read* (subpath (param "PHOTO_DIR")))' not in profile  # the photos stay readable

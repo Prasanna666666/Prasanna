@@ -41,3 +41,7 @@
     - **Limits:** a monthly spending cap (default $5; the prices are placeholders, set your provider's in the settings), a strict check of every plan
       the provider returns (only known tools and arguments are accepted), and automatic fallback to the local model on any problem.
     - **Off:** `aperture cloud off` (and `--forget-key` to delete the key).
+13. **The best protection (recommended).** Encrypt the whole external drive in place so the originals and the index are protected if it is lost or
+    stolen (`diskutil apfs encryptVolume /Volumes/<drive> -user disk`, APFS only), keep FileVault on for the Mac, run the app in the sandbox (no
+    internet, photos read-only, personal folders unreadable: `scripts/aperture-sandbox.sb` rule 4) and eject the drive when you are done. No
+    option protects data from malware already running as you while the drive is unlocked; Docker does not either.
