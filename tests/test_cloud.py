@@ -143,3 +143,22 @@ def test_a_refusal_from_the_provider_says_why_without_echoing_anything_sensitive
         assert f"HTTP {code}" in str(caught.value) and hint in str(caught.value) and "sk-secret" not in str(caught.value)
     finally:
         server.shutdown()
+
+
+def test_a_refusal_from_the_provider_is_reported_in_its_own_words_on_every_path(tmp_path):
+    import io
+    import urllib.error
+
+    from aperture.cloud import gateway as g
+
+    def refuse(request, timeout=None):
+        raise urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(b'{"error":{"message":"Your credit balance is too low"}}'))
+
+    gateway = g.Gateway("sk-ant-test", g.Usage(tmp_path / "u.json"), opener=refuse)
+    for call in (lambda: gateway.chat("hi", [], "2026-11-04"), lambda: gateway.interpret("photos of dogs", False, "2026-11-04")):
+        try:
+            call()
+        except g.GatewayError as exc:
+            assert "credit balance is too low" in str(exc)
+        else:
+            raise AssertionError("expected a refusal")
