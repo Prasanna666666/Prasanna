@@ -53,9 +53,11 @@ function toast(text, bad) {
 const guard = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message, true); } };
 
 // ------------------------------------------------------------------ shell
-const PAGES = [['home', 'Home'], ['chat', 'Ask Orbit'], ['money', 'Money'], ['tasks', 'Tasks'], ['notes', 'Notes'], ['people', 'People'], ['files', 'Files'], ['settings', 'Settings']];
+const PAGES = [['home', 'Home'], ['money', 'Money'], ['chat', 'Ask Orbit'], ['tasks', 'Tasks'], ['notes', 'Notes'], ['people', 'People'], ['files', 'Files'], ['settings', 'Settings']];
+const MENU = [['home', 'money', 'chat'], ['tasks', 'notes', 'people'], ['settings']];  // 'files' is reached from Money > Documents
 function buildNav() {
-  $('#nav').replaceChildren(...PAGES.map(([id, label]) => h('a', { class: 'nav-item', href: '#/' + id, 'data-id': id }, icon(id), h('span', {}, label))));
+  const label = Object.fromEntries(PAGES);
+  $('#nav').replaceChildren(...MENU.flatMap((group, i) => [i ? h('div', { class: 'nav-gap' }) : null, ...group.map((id) => h('a', { class: 'nav-item', href: '#/' + id, 'data-id': id }, icon(id), h('span', {}, label[id])))]).filter(Boolean));
 }
 async function refreshStatus() {
   try {
@@ -115,13 +117,13 @@ pages.home = async () => {
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { sessionStorage.setItem('orbit.ask', ask.value.trim()); location.hash = '#/chat'; } });
   const tile = (label, value, sub, cls) => h('div', { class: 'card' }, h('div', { class: 'eyebrow' }, label), h('div', { class: 'num ' + (cls || ''), style: { fontSize: '30px', fontWeight: 700, margin: '6px 0 2px', letterSpacing: '-.02em' } }, value), h('div', { class: 'muted', style: { fontSize: '13px' } }, sub));
   return h('div', { class: 'stack' },
-    head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })),
+    head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })),
     ask,
-    h('div', { class: 'grid g4' },
-      tile('Spent ' + monthName(m.month).split(' ')[0], money(m.spent), 'this month'),
-      tile('Income', money(m.income), 'this month', 'good'),
-      tile('Net', money(m.net), m.net >= 0 ? 'ahead' : 'behind', m.net >= 0 ? 'good' : 'bad'),
-      tile('Needs attention', String(b.tasks_due.length), b.tasks_due.length ? 'tasks due or overdue' : 'all clear')),
+    d.trend.length ? h('div', { class: 'grid g3' },
+      tile('Spent in ' + monthName(m.month).split(' ')[0], money(m.spent), 'so far this month'),
+      tile('Money in', money(m.income), 'this month', 'good'),
+      tile('To do', String(b.tasks_due.length), b.tasks_due.length ? 'due or overdue' : 'all clear')) :
+      h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your private assistant for money, tasks, notes and people. Everything stays on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my finance files')),
     d.trend.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Spending, last months'), h('a', { href: '#/money', class: 'chip' }, 'Open Money')), barChart(d.trend, d.trend[d.trend.length - 1].month, () => { location.hash = '#/money'; })) : null,
     h('div', { class: 'grid g2' },
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Needs attention')),
@@ -175,8 +177,9 @@ pages.money = async () => {
   // early in a month the current month is too short to read: open the last complete one instead
   const prevOfLatest = trend0.length > 1 ? trend0[trend0.length - 2].month : latest;
   let month = location.hash.split('?m=')[1] || (latest === now && new Date().getDate() < 10 ? prevOfLatest : latest);
+  let tab = 'overview';
   const wrap = h('div', { class: 'stack' });
-  const importBtn = h('button', { class: 'btn primary', onclick: guard(startImport) }, 'Read new finance files');
+  const importBtn = h('button', { class: 'btn primary', onclick: guard(startImport) }, 'Read my files');
   const status = h('div', { class: 'card', style: { display: 'none' } });
   async function startImport() {
     await api('/api/import', {}); poll();
@@ -189,7 +192,7 @@ pages.money = async () => {
       status.replaceChildren(h('div', { class: 'row' }, h('span', { class: 'chip' }, 'In progress'), h('div', { class: 'grow muted' }, s.progress || 'Starting...')), h('div', { class: 'progress' }));
       setTimeout(poll, 1500); return;
     }
-    importBtn.disabled = false; importBtn.textContent = 'Read new finance files';
+    importBtn.disabled = false; importBtn.textContent = 'Read my files';
     if (s.error) status.replaceChildren(h('div', { class: 'bad', style: { fontWeight: 600 } }, s.error));
     else if (s.result) {
       const r = s.result;
@@ -246,8 +249,16 @@ pages.money = async () => {
       h('td', { class: 'r num ' + (t.kind === 'income' ? 'good' : ''), style: { fontWeight: 600 } }, (t.kind === 'income' ? '+' : '−') + money(t.amount, 2))))); };
     q.addEventListener('input', fill); fill();
     const txCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Transactions'), q), txs.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['Date', 'Description', 'Category', ''].map((x, i) => h('th', { class: i === 3 ? 'r' : '' }, x)))), body) : h('div', { class: 'empty' }, 'No transactions this month.'));
-    wrap.replaceChildren(head('Money', 'Statements, payslips, invoices and receipts, read privately on this Mac.', nav, importBtn), status, hero,
-      h('div', { class: 'grid g2' }, catCard, trendCard), h('div', { class: 'grid g2' }, merchCard, recCard), sortCard, slipCard, docCard, txCard);
+    const empty = !trend.length && !docs.length && !slips.length;
+    const tabs = [['overview', 'Overview'], ['spending', 'Spending'], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents' + (docs.length + slips.length ? ` · ${docs.length + slips.length}` : '')]];
+    const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
+    const content = { overview: [h('div', { class: 'grid g2' }, catCard, trendCard), sortCard], spending: [merchCard, txCard], regular: [recCard],
+      documents: [slipCard, docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
+    const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Let’s bring in your money'),
+      h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),
+      h('ol', { class: 'steps' }, h('li', {}, 'Copy your PDFs into the finance folder'), h('li', {}, 'Press “Read my files”'), h('li', {}, 'Come back in a few minutes: your money is ready')),
+      h('div', {}, importBtn));
+    wrap.replaceChildren(...[head('Money', empty ? null : 'Everything stays on this Mac.', empty ? null : nav, empty ? null : importBtn), status, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
   }
   await draw(false); poll();
   return wrap;
@@ -298,7 +309,7 @@ pages.files = async () => {
   const load = guard(async () => {
     seg.replaceChildren(...[['finance', 'Finance files'], ['all', 'All documents']].map(([id, label]) => h('button', { class: mode === id ? 'on' : '', onclick: () => { mode = id; load(); } }, label)));
     if (mode === 'finance') { const docs = await tool('finance_documents', { party: q, limit: 200 });
-      out.replaceChildren(docs.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['Type', 'From / title', 'Date', 'Reference', 'Total'].map((x, i) => h('th', { class: i === 4 ? 'r' : '' }, x)))), h('tbody', {}, docs.map((d) => h('tr', {}, h('td', {}, h('span', { class: 'chip' }, d.kind)), h('td', {}, h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name), d.summary ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary) : null), h('td', { class: 'num' }, d.date || '-'), h('td', { class: 'num faint' }, d.reference || '-'), h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'No finance files yet. Put PDFs in your finance folder, then use "Read new finance files" on the Money page.')); }
+      out.replaceChildren(docs.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['Type', 'From / title', 'Date', 'Reference', 'Total'].map((x, i) => h('th', { class: i === 4 ? 'r' : '' }, x)))), h('tbody', {}, docs.map((d) => h('tr', {}, h('td', {}, h('span', { class: 'chip' }, d.kind)), h('td', {}, h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name), d.summary ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary) : null), h('td', { class: 'num' }, d.date || '-'), h('td', { class: 'num faint' }, d.reference || '-'), h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'No finance files yet. Put PDFs in your finance folder, then use "Read my files" on the Money page.')); }
     else { const docs = await tool('search_documents', { query: q, limit: 25 });
       out.replaceChildren(docs.length ? h('div', { class: 'list' }, docs.map((d) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, d.name), h('div', { class: 'muted', style: { fontSize: '13px' } }, d.snippet)), h('span', { class: 'chip' }, d.kind)))) : h('div', { class: 'empty' }, 'No documents found.')); }
   });
