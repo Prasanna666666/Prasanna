@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hmac
 import json
+import logging
 import re
 import secrets
 import subprocess
@@ -223,6 +224,36 @@ def _clean_history(raw: Any) -> list[tuple[str, str]]:
     return turns[-8:]
 
 
+log = logging.getLogger(__name__)
+ASK_LIMIT = 45.0  # the last resort: whatever happens inside, a question ends with an answer or an apology, never a spinner that never stops
+
+
+def ask_within(work: Any, limit: float) -> Any:
+    """Run one question, but stop waiting for it after `limit` seconds."""
+    from ..agent.service import AgentReply
+
+    box: dict[str, Any] = {}
+
+    def run() -> None:
+        try:
+            box["reply"] = work()
+        except BaseException as exc:  # carried back to the request that asked
+            box["error"] = exc
+
+    import contextvars
+
+    context = contextvars.copy_context()  # the helper thread must see the same per-message state (such as the record of model calls)
+    worker = threading.Thread(target=lambda: context.run(run), name="ask", daemon=True)
+    worker.start()
+    worker.join(limit)
+    if worker.is_alive():
+        log.warning("a question was still running after %.0f s; the answer was given up", limit)
+        return AgentReply("error", "That is taking longer than it should. Please try again, or ask it in a simpler way.")
+    if "error" in box:
+        raise box["error"]
+    return box["reply"]
+
+
 def memory_of(reply: Any, text: str, coverage: str = "") -> str:
     """What the conversation remembers of an answer: the words shown plus what was searched, so a follow-up ('why these?') can be answered."""
     parts = [text]
@@ -399,7 +430,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                         self._sse("preview", {"ids": [int(i) for i in ids[:PREVIEW]], "total": int(len(ids))})
                 with web.ai_lock:
                     web.pause_indexing_for_chat()  # indexing and the AI model together would swap an 8 GB Mac
-                    reply = ctx.agent().ask(message, web.previous(conv), history=history)
+                    reply = ask_within(lambda: ctx.agent().ask(message, web.previous(conv), history=history), ASK_LIMIT)
                     stream = reply.stream
                     text = reply.text
                     if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words

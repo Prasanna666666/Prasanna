@@ -211,3 +211,21 @@ def test_the_friendly_local_address_works_and_other_names_are_still_refused(app)
     assert app.get("/api/status", host=f"lumo.localhost:{port}")[0] == 200  # the address the installer prints
     assert app.get("/api/status", host=f"other.localhost:{port}")[0] == 403  # only that one name
     assert app.get("/api/status", host="evil.example.com")[0] == 403
+
+
+def test_a_question_that_never_finishes_ends_with_an_apology_not_a_spinner():
+    import threading
+    import time
+
+    from aperture.web.server import ask_within
+
+    stuck = threading.Event()
+    start = time.monotonic()
+    reply = ask_within(lambda: stuck.wait(10), 0.2)
+    assert time.monotonic() - start < 2 and reply.kind == "error" and "taking longer" in reply.text
+    stuck.set()
+    assert ask_within(lambda: "fine", 5) == "fine"
+    try:
+        ask_within(lambda: (_ for _ in ()).throw(ValueError("boom")), 5)
+    except ValueError as exc:
+        assert str(exc) == "boom"  # a real failure still reaches the error handling
