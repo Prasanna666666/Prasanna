@@ -237,7 +237,13 @@ CREATE TABLE photo_venues(          -- what the vision model made of photos that
 );
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12, _MIGRATION_13, _MIGRATION_14]
+_MIGRATION_15 = """
+-- Counting the faces in each photo read every face row, including its 2 KB vector, from the external drive. This index holds the three numbers
+-- the count needs, so the count never touches the vectors.
+CREATE INDEX IF NOT EXISTS faces_count ON faces(item_id, score, px);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12, _MIGRATION_13, _MIGRATION_14, _MIGRATION_15]
 
 
 class Database:
