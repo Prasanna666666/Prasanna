@@ -58,6 +58,19 @@ CHAT_SYSTEM = (
 MAX_TURNS = 4
 
 
+def _open_provider(request: Any, timeout: float) -> Any:
+    """The default way to reach the provider. Python on a Mac often has no certificate list of its own, so use certifi's when it is installed."""
+    import ssl
+
+    try:
+        import certifi
+
+        context = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        context = ssl.create_default_context()
+    return urllib.request.urlopen(request, timeout=timeout, context=context)  # noqa: S310
+
+
 class GatewayError(RuntimeError):
     pass
 
@@ -139,7 +152,7 @@ def clean_plan(data: Any) -> dict[str, Any] | None:
 
 class Gateway:
     def __init__(self, key: str, usage: Usage, model: str = DEFAULT_MODEL, cap_usd: float = 5.0, prices: tuple[float, float] = DEFAULT_PRICES,
-                 provider_url: str = PROVIDER_URL, opener: Any = urllib.request.urlopen) -> None:
+                 provider_url: str = PROVIDER_URL, opener: Any = _open_provider) -> None:
         self._key, self._usage, self.model, self.cap_usd, self.prices = key, usage, model, cap_usd, prices
         self._url, self._open = provider_url, opener
 
@@ -162,7 +175,8 @@ class Gateway:
                      404: "the model name was not found (set a valid one with cloud_model)", 429: "rate limit or no credit left at the provider"}
             raise GatewayError(f"the provider answered HTTP {exc.code}: {hints.get(exc.code, 'see the provider dashboard')}") from exc
         except Exception as exc:
-            raise GatewayError(f"the provider could not be reached: {type(exc).__name__}") from exc
+            reason = getattr(exc, "reason", exc)  # why, in a few words: a certificate problem, a blocked lookup, a timeout ... (never the key)
+            raise GatewayError(f"the provider could not be reached: {type(reason).__name__}: {str(reason)[:140]}") from exc
         usage = reply.get("usage") or {}
         self._usage.add(int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0), self.prices)
         return "".join(block.get("text", "") for block in reply.get("content", []) if isinstance(block, dict))
