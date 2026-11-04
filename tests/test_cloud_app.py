@@ -183,3 +183,15 @@ def test_with_the_switch_off_the_cloud_is_never_called_and_never_mentioned():
                       cloud_chat=lambda r, h: calls.append(r) or "cloud", cloud_on=lambda: False)
     reply = agent.ask("hello there", progress=said.append) if "progress" in ToolAgent.ask.__code__.co_varnames else agent.ask("hello there")
     assert not calls and reply.text != "cloud" and not any("cloud" in str(s).lower() for s in said)
+
+
+def test_a_slow_or_failing_cloud_is_skipped_for_a_while_so_answers_are_not_delayed_twice():
+    calls = []
+
+    def broken(request, timeout=None):
+        calls.append(1)
+        raise TimeoutError
+
+    cloud = CloudInterpreter(9, lambda: [], lambda: [], opener=broken)
+    assert cloud("baby photos", False) is None and cloud("baby photos", False) is None and cloud.chat("hi", None) is None
+    assert len(calls) == 1  # after the first failure the rest are not even attempted
