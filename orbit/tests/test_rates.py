@@ -46,7 +46,9 @@ def test_every_payment_is_converted_at_its_own_days_rate_and_a_missing_rate_is_l
     assert rates.convert_all(conn) == {"euro": 1, "converted": 2, "missing": 1}
     got = {r["day"]: (r["eur_minor"], r["rate"], r["rate_source"]) for r in conn.execute("SELECT day, eur_minor, rate, rate_source FROM transactions WHERE currency='INR'")}
     assert got["2026-10-09"] == (10000, "90.0000", "ecb 2026-10-09") and got["2026-10-02"] == (10000, "89.0000", "ecb 2026-10-02") and got["2026-10-20"][0] is None
-    # the default view is everything in euros: the unconverted payment is not in it, the converted ones are
+    assert money.summary(conn, {"month": "2026-10"})["spent"] == 45  # the default shows each currency as it is: the euro payments only
+    db.set_setting(conn, "view_currency", "ALL")  # the option: everything converted to euros. The unconverted payment is not in it, the converted ones are
+    db.ledger_view(conn)
     assert money.summary(conn, {"month": "2026-10"})["spent"] == 45 + 100 + 100
     msgs = {f.level: f.message for f in verify.conversion(conn)}
     assert "2 payment(s) in INR converted" in msgs["ok"] and "1 payment(s) in INR have no exchange rate" in msgs["warn"]
@@ -72,6 +74,8 @@ def test_a_transfer_from_a_rupee_account_to_a_euro_account_is_matched_and_its_co
     rates.convert_all(conn)
     found = verify.link_transfers(conn)
     assert any(f.level == "ok" and "1 transfer(s) between currencies matched" in f.message and "2.20 EUR" in f.message for f in found)
+    db.set_setting(conn, "view_currency", "ALL")
+    db.ledger_view(conn)
     assert money.summary(conn, {"month": "2026-10"})["spent"] == 2.20 and money.summary(conn, {"month": "2026-10"})["income"] == 0  # the two halves cancel; the cost is the only spending
     cost = conn.execute("SELECT category, eur_minor, rate_source FROM transactions WHERE source='derived'").fetchone()
     assert tuple(cost) == ("fees", 220, "transfer")
@@ -98,7 +102,7 @@ def test_the_tally_still_holds_in_euros_with_conversions_and_a_derived_cost(conn
     tx(conn, "2026-10-09", 180000, cur="INR", cat="groceries")
     rates.convert_all(conn)
     verify.link_transfers(conn)
-    assert all(f.level == "ok" for f in verify.tally(conn)) and db.view_currency(conn) == "ALL"
+    assert all(f.level == "ok" for f in verify.tally(conn)) and db.view_currency(conn) == "EUR"  # the default view is the main currency, as it is
 
 
 def test_viewing_one_currency_shows_its_own_amounts_not_euros(conn):
@@ -114,3 +118,17 @@ def test_the_agent_register_is_consistent():
     names = [a["name"] for a in verify.AGENTS]
     assert len(names) == len(set(names)) and {a["status"] for a in verify.AGENTS} == {"built", "planned"}
     assert all(a["group"] and a["does"] for a in verify.AGENTS)
+
+
+def test_a_converted_payment_still_shows_its_original_amount_and_currency(conn):
+    rates.store(conn, rates.parse_ecb(ECB))
+    tx(conn, "2026-10-09", 900000, cur="INR", cat="groceries", note="Big Bazaar")
+    rates.convert_all(conn)
+    db.set_setting(conn, "view_currency", "ALL")
+    db.ledger_view(conn)
+    row = money.list_transactions(conn, {"since": "2026-10-01", "until": "2026-10-31"})[0]
+    assert (row["amount"], row["original"], row["currency"]) == (100.0, 9000.0, "INR")  # euros for the totals, the original beside it
+    db.set_setting(conn, "view_currency", "INR")
+    db.ledger_view(conn)
+    row = money.list_transactions(conn, {"since": "2026-10-01", "until": "2026-10-31"})[0]
+    assert (row["amount"], row["original"]) == (9000.0, 9000.0)

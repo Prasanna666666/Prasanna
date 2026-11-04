@@ -114,7 +114,8 @@ def list_transactions(conn, a):
     if a.get("category"):
         where.append("t.category=?")
         args.append(a["category"].lower())
-    sql = ("SELECT t.id, t.day, t.kind, t.category, t.note, t.amount_minor/100.0 AS amount, t.event_id, t.sub, e.name AS event "
+    sql = ("SELECT t.id, t.day, t.kind, t.category, t.note, t.amount_minor/100.0 AS amount, t.native_minor/100.0 AS original, "
+           "COALESCE(NULLIF(t.currency,''), (SELECT COALESCE((SELECT value FROM settings WHERE key='currency'),'EUR'))) AS currency, t.event_id, t.sub, e.name AS event "
            "FROM ledger t LEFT JOIN events e ON e.id=t.event_id")
     sql += " WHERE " + " AND ".join(where) if where else ""
     return rows(conn.execute(sql + " ORDER BY t.day DESC, t.id DESC LIMIT ?", [*args, int(a.get("limit", 50))]))

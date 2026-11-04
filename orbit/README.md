@@ -83,7 +83,7 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   read back exactly; each is then altered (one cent on a balance, one cent on an amount, a line dropped, a line duplicated) and every alteration must be caught.
   One limit is written down as a test: a missing LAST line is invisible to running balances unless the closing balance is printed; the next statement's opening
   balance (continuity) is what catches it.
-- **Any file, one shape.** The parser (offline, isolated) reads PDFs (text, **scanned**, **password-protected**), photos/screenshots (png, jpg, tiff, webp), spreadsheets
+- **Any file, one shape (internal).** This single shape exists only to help the local model: your originals are never changed, and nothing is exported or converted for you (no CSV files are made). The parser (offline, isolated) reads PDFs (text, **scanned**, **password-protected**), photos/screenshots (png, jpg, tiff, webp), spreadsheets
   (xlsx), Word (docx), web pages, emails (with their attachments), JSON, ZIP archives, CSV/TSV, MT940, camt.053 and plain text, and turns every one into the same shape:
   plain text plus rows or positioned cells. Scans and photos are read with **Tesseract** (Dutch + English, no network); the balance checks catch a misread digit.
   For protected PDFs put the passwords, one per line, in `passwords.txt` in your finance folder (it is never read as a document).
@@ -91,8 +91,8 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   last published rate, up to a week back; nothing older is used). Run `./scripts/fetch-rates.sh` once on your Mac (the only step that goes online, and not part of
   the app) to download the ECB history into your finance folder, then press **Read my files**. Payments with no rate are left out of the euro totals and reported.
   A transfer between two of your accounts in different currencies (e.g. rupees to euros) is matched when the euro values are within 6% and the days within 3; the
-  fee and spread (what was sent at the day's rate minus what arrived) becomes an expense of its own, so the euros still tally. The switch at the top of Money shows
-  **All in EUR** (default) or one currency as it is.
+  fee and spread (what was sent at the day's rate minus what arrived) becomes an expense of its own, so the euros still tally. By default every currency is shown **as it is**
+  (your main currency first); the switch at the top of Money has **Convert to EUR** as an option, and a converted payment still shows its original amount beside it.
 - **The agents.** Money > Documents & checks > *The agents* lists every reading, proving and cross-checking agent and whether it is working or only planned.
 - **Best way to get each bank's data (exact beats PDF).** From the bank's own pages and third-party descriptions; *none of these layouts has been tested on
   a real file yet*:

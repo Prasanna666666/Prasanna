@@ -116,5 +116,5 @@ def test_tally_checks_each_currency_on_its_own_and_restores_the_view(conn):
     tx(conn, "2026-10-02", 900000, cur="INR")
     found = verify.tally(conn)
     assert {f.subject for f in found} == {"all in EUR", "EUR", "INR"} and all(f.level == "ok" for f in found)
-    assert db.view_currency(conn) == "ALL"  # the setting is back where it was
+    assert db.view_currency(conn) == "EUR"  # the setting is back where it was: the main currency, shown as it is
     assert any("EUR, INR" in f.message for f in verify.currency_mix(conn))
