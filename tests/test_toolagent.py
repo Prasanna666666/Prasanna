@@ -640,3 +640,24 @@ def test_the_memory_of_a_place_search_says_how_many_photos_cannot_be_found_by_pl
     coverage = "Location coverage: of 49,611 photos, 31,405 have a location in their own file; 18,206 have no location, so a search by place cannot find them."
     assert "18,206 have no location" in memory_of(reply, "**543** photos · Taken in or near Tokyo", coverage)
     assert "Location coverage" not in memory_of(SimpleNamespace(groups=[], notes=[]), "Hello", coverage)  # only searches carry it
+
+
+def test_two_places_in_one_request_mean_either_of_them_and_the_other_conditions_still_apply():
+    from aperture.agent.service import AgentService
+
+    seen = []
+
+    def make_executor():
+        def run(plan, previous):
+            seen.append(plan)
+            place = next(c.query for c in plan.clauses if "place" in c.engines).lower()
+            ids = {"tokyo": [1, 2], "kyoto": [3]}.get(place, [])
+            return SimpleNamespace(ids=np.array(ids, np.int64), reports=[], notes=[], date_range="")
+        return SimpleNamespace(run=run)
+
+    service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)
+    llm = FakeLLM([[tool("find_photos", places=["Tokyo", "Kyoto"], what="temple")], [("delta", "x")]])
+    agent = ToolAgent(llm, service, lambda r: "", today=lambda: date(2026, 11, 3))
+    reply = agent.ask("temple photos from Tokyo and Kyoto")
+    assert sorted(reply.ids.tolist()) == [1, 2, 3] and "Tokyo or Kyoto" in reply.text  # either place, not both at once
+    assert len(seen) == 2 and all(any(c.query == "temple" for c in p.clauses) for p in seen)  # every search keeps the temple condition

@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
+import numpy as np
+
 from .llm import LLMError, OllamaClient
 from .progress import say
 from .schema import _DATE_PROPS, _FILTER_PROPS, Plan, plan_from_raw
@@ -449,12 +451,32 @@ class ToolAgent:
                           timings=timings, groups=shown.groups)
 
     # ---- 3. OBSERVE ----------------------------------------------------------------------------------------------------
+    def _execute_any_place(self, name: str, args: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, float]):
+        """Several places in one request ('Tokyo and Kyoto') mean ANY of them: a photo is taken in one place at a time. Each place is searched
+        with all the other conditions and the results are combined."""
+        from .service import _merge_groups
+
+        places = _list(args.get("places"))
+        say("Searching your photos")
+        replies = [self._service.run_plan(request, plan_from_tool(name, {**args, "places": [place]}), previous_ids, history, [], timings) for place in places]
+        found = [r for r in replies if len(r.ids)]
+        if not found:
+            return observation_of(replies[0]), replies[0]
+        ids = np.unique(np.concatenate([r.ids for r in found]))
+        text = f"**{len(ids):,}** photo{'s' if len(ids) != 1 else ''} \u00b7 " + " or ".join(places)
+        groups = _merge_groups(("Any of these places", ids), [g for r in found for g in r.groups if g[0] != "Best match"])
+        notes = list(dict.fromkeys(n for r in found for n in r.notes))
+        reply = dataclasses.replace(found[0], ids=ids, text=text, groups=groups, notes=notes)
+        return observation_of(reply), reply
+
     def _execute(self, call: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, float],
                  shown: AgentReply | None = None):
         """Carry out one tool call. Returns (observation text for the model, the search reply or None)."""
         name, args = call["name"], call["arguments"]
         if name not in self.spec.tools:
             return json.dumps({"error": f"there is no tool called {name!r}"}), None
+        if name in ("find_photos", "count_photos", "copy_photos") and len(_list(args.get("places"))) >= 2:
+            return self._execute_any_place(name, args, request, previous_ids, history, timings)
         if name in ("find_photos", "count_photos", "copy_photos"):
             plan = plan_from_tool(name, args)
             note = ""
