@@ -452,8 +452,16 @@ def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
 
     conn = ctx.db.connect()
     try:
-        ctx.geo()  # as in the running app, the place list is loaded before any question
-        executor = Executor(conn, ctx.embedding_index, ctx.ready_embedder, geo_provider=ctx.geo)
+        # As in the running app: everything a question needs is loaded at start-up, so load it first and time only the question.
+        from .search.metadata import TEXT_COLUMNS, _text_column, all_ids
+
+        ctx.geo()
+        ctx.search_embedder()
+        ctx.embedding_index()
+        all_ids(conn)
+        for column in TEXT_COLUMNS:
+            _text_column(conn, column)
+        executor = Executor(conn, ctx.embedding_index, ctx.ready_embedder, geo_provider=ctx.ready_geo)
         plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query=args.word),))
         for name, work in (("answer (strict search)", lambda: executor.run(plan)), ("other readings", lambda: executor.explore(plan))):
             profiler = cProfile.Profile()
