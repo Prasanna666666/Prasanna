@@ -130,3 +130,20 @@ def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_leas
     got = dict(conn.execute("SELECT id, gps_est_place FROM items WHERE id IN (1000, 1001)").fetchall())
     assert got[easy] == "Amsterdam, The Netherlands" and got[hard] is None  # the doubtful guess is not made: it does not belong
     assert outcome["located"] >= 1 and conn.execute("SELECT gps_est_conf FROM items WHERE id=1000").fetchone()[0] >= 0.95
+
+
+def test_a_trip_never_reaches_another_country_even_without_a_pause_in_the_photos():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _db()
+    conn.row_factory = sqlite3.Row
+    legs = [(1, "2026-03-01 10:00:00", 35.68, 139.76, "Shinjuku, Japan"), (2, "2026-03-01 20:00:00", 35.68, 139.76, "Shinjuku, Japan"),
+            (3, "2026-03-02 08:00:00", 64.14, -21.90, "Reykjavik, Iceland"), (4, "2026-03-02 20:00:00", 64.14, -21.90, "Reykjavik, Iceland")]
+    for i, taken, la, lo, place in legs:  # photos every few hours: no 36-hour pause anywhere
+        _item(conn, i, taken, place)
+        conn.execute("UPDATE items SET gps_lat=?, gps_lon=?, place_text=? WHERE id=?", (la, lo, f" {place.lower().replace(',', '')}", i))
+    assert derive.build_events(conn) == 2  # Japan and Iceland are separate trips
+    ex = Executor(conn, lambda: None, lambda: None)
+    assert ex._trip_ids(np.array([1])).tolist() == [1, 2]
+    assert ex._near_the_anchors(np.array([1, 2, 3, 4]), np.array([1])).tolist() == [1, 2]  # and even a stray Iceland photo is dropped

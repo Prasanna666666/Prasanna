@@ -334,9 +334,36 @@ class Executor:
             return np.zeros(0, np.int64)
 
     def _trip_ids(self, anchors: np.ndarray) -> np.ndarray:
-        """All photos of the trips/events that contain any of these photos (see `aperture scan`, which builds the events)."""
+        """All photos of the trips/events that contain any of these photos (see `aperture scan`, which builds the events), except any photo
+        whose own location (GPS or estimated) is far from where the anchors are: a trip never reaches another country."""
         if len(anchors) == 0:
             return np.zeros(0, np.int64)
+        try:
+            ids = self._trip_ids_unfiltered(anchors)
+            return self._near_the_anchors(ids, anchors)
+        except sqlite3.Error:
+            return np.zeros(0, np.int64)
+
+    def _near_the_anchors(self, ids: np.ndarray, anchors: np.ndarray, km: float = 300.0) -> np.ndarray:
+        from ..search.filters import haversine_km
+
+        def positions(of: np.ndarray) -> np.ndarray:
+            out = []
+            for part in chunked(of.tolist(), 500):
+                marks = ",".join("?" * len(part))
+                out += [tuple(r) for r in self._conn.execute(
+                    f"SELECT id, COALESCE(gps_lat, gps_est_lat), COALESCE(gps_lon, gps_est_lon) FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NOT NULL", part)]
+            return np.array(out, float).reshape(-1, 3)
+
+        known = positions(anchors)
+        if len(known) == 0 or len(ids) == 0:
+            return ids
+        centre = (float(np.median(known[:, 1])), float(np.median(known[:, 2])))
+        there = positions(ids)
+        far = there[haversine_km(centre[0], centre[1], there[:, 1], there[:, 2]) > km][:, 0].astype(np.int64) if len(there) else np.zeros(0, np.int64)
+        return np.setdiff1d(ids, far)
+
+    def _trip_ids_unfiltered(self, anchors: np.ndarray) -> np.ndarray:
         try:
             events: set[int] = set()
             for part in chunked(anchors.tolist(), 500):

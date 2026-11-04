@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 
 MIN_PRECISION = 0.95  # a location is given to a photo only when that kind of guess measured at least this accurate on the library's own GPS photos
+TRIP_JUMP_KM = 200.0  # photos this far apart cannot belong to the same trip leg
 EVENT_GAP = timedelta(hours=36)  # a pause this long between photos starts a new trip or occasion
 
 
@@ -52,18 +53,24 @@ def derive_meta_labels(conn: sqlite3.Connection) -> int:
 def build_events(conn: sqlite3.Connection, gap: timedelta = EVENT_GAP) -> int:
     """Group photos into trips/occasions: consecutive photos (by camera date) with no pause longer than `gap`. Rebuilt each time."""
     rows = conn.execute(
-        "SELECT id, taken_at, place FROM items WHERE missing=0 AND meta_done=1 AND taken_exif=1 AND taken_at >= '2003' ORDER BY taken_at"
+        "SELECT id, taken_at, place, gps_lat, gps_lon FROM items WHERE missing=0 AND meta_done=1 AND taken_exif=1 AND taken_at >= '2003' ORDER BY taken_at"
     ).fetchall()
     conn.execute("DELETE FROM photo_events")
     conn.execute("DELETE FROM events")
     groups: list[list[tuple[int, str, str]]] = []
     last = None
-    for item_id, taken, place in rows:
+    where: tuple[float, float] | None = None  # the last known position
+    for item_id, taken, place, lat, lon in rows:
         try:
             when = datetime.fromisoformat(str(taken)[:19])
         except ValueError:
             continue
-        if last is None or when - last > gap:
+        moved = False
+        if lat is not None and lon is not None:
+            if where is not None and float(_haversine(where[0], where[1], lat, lon)) > TRIP_JUMP_KM:
+                moved = True  # a trip is one place: a jump of hundreds of kilometres starts a new one, even with no pause in between
+            where = (lat, lon)
+        if last is None or when - last > gap or moved:
             groups.append([])
         groups[-1].append((item_id, str(taken)[:10], place or ""))
         last = when
