@@ -91,8 +91,11 @@ def test_a_word_found_as_a_place_gets_no_guesses_from_appearance_and_tags_match_
     assert ex._tag_ids("tokyo").tolist() == [] and ex._tag_ids("tokyo tower").tolist() == [2]  # exact label, not a part of one
     labels = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Shinjuku"),)))]
     assert labels == ["Taken in Shinjuku"] and not any("Looks like" in l or "Similar" in l for l in labels)
-    plain = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("visual",), query="tokyo tower"),)))]
-    assert "Looks like tokyo tower" in plain  # with no hard evidence the appearance reading is still offered
+    lone = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
+    assert lone == []  # a single look-alike clue with nothing else behind it is not shown
+    conn.execute("UPDATE items SET meta_text=' tokyo tower' WHERE id=2")  # a second, independent clue (a folder name) agrees
+    backed = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
+    assert any("Looks like" in l or "folders named" in l for l in backed)  # backed by hard evidence: shown
 
 
 def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees():

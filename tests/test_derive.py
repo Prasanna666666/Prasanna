@@ -50,12 +50,12 @@ def test_a_word_finds_the_whole_trip_even_photos_without_gps():
     conn.row_factory = sqlite3.Row
     for i, taken in enumerate(["2026-03-01 10:00:00", "2026-03-01 15:00:00", "2026-03-02 09:00:00", "2026-07-01 09:00:00"], 1):
         _item(conn, i, taken)
-    conn.execute("INSERT INTO photo_labels VALUES (1, 'tokyo tower', 0.4, 'clip')")  # only photo 1 is recognisably Tokyo
+    conn.execute("UPDATE items SET place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1")  # only photo 1 is known to be in Tokyo
     derive.build_events(conn)
     ex = Executor(conn, lambda: None, lambda: None)
-    plan = Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),))
+    plan = Plan(intent="find", clauses=(Clause(engines=("place",), query="tokyo"),))
     groups = dict(ex.readings(plan))
-    assert groups["Same trip as your tokyo tower photos"].tolist() == [1, 2, 3]
+    assert groups["Same trip as your tokyo photos"].tolist() == [1, 2, 3]
 
 
 def _jpeg(color, size=(80, 60)):

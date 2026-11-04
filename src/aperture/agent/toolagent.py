@@ -100,6 +100,8 @@ TOOL_DEFS: dict[str, dict[str, Any]] = {
                                               "check that the results really show what the user asked for. Slow: use only when needed. Search first.",
                             {"question": {"type": "string", "description": "What to check or find out."},
                              "count": {"type": "integer", "description": "How many photos to look at, 1 to 3."}}, ["question"]),
+    "show_results": _tool("show_results", "Show the photos that are ALREADY on screen again, unchanged. Only for 'show them', 'show me these', "
+                                          "'let me see them'. Never use it for a new request.", {}),
     "inspect_results": _tool("inspect_results", "Find out WHEN and WHERE the photos of the latest search were taken: date periods, places and folders. "
                                                 "Photos that only mention a word (a receipt, a sign) are clues to a trip or an event: inspect them, then "
                                                 "search for everything taken in those dates or places. Search first.", {}),
@@ -132,7 +134,7 @@ class AgentSpec:
     goal: str = ""
 
 
-ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "copy_photos", "library_overview", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"))
+ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "copy_photos", "library_overview", "show_results", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"))
 TOOLS = [TOOL_DEFS[name] for name in ASSISTANT.tools]
 
 
@@ -149,6 +151,8 @@ EXAMPLES = "\n".join([
     "'forest photos without any people' -> search for a forest with at most 0 people",
     "'put my Rome photos into a folder called Italy' -> copy the photos from the place Rome into the folder Italy",
     "'keep just the ones from May' (results are on screen) -> narrow the previous results to month 5",
+    "'show them' (results are on screen) -> use the show_results tool",
+    "'germany' (results from another place are on screen) -> a new search for Germany, never the old photos",
     "'thanks, that helps' -> reply in words, no tool",
     "'what is a RAW file?' -> reply in words, no tool",
     "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
@@ -395,9 +399,6 @@ class ToolAgent:
             if plan.scope == "previous" and previous_ids is None:
                 plan = dataclasses.replace(plan, scope="library")
                 note = "There were no earlier results, so the whole library was searched."
-            if not plan.has_constraints and plan.scope == "previous" and previous_ids is not None and len(previous_ids):
-                reply = show_previous(previous_ids)  # "show them": the photos already on screen
-                return observation_of(reply, "These are the photos already on screen."), reply
             if not plan.has_constraints:
                 return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
             reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)
@@ -420,6 +421,11 @@ class ToolAgent:
                 return json.dumps({"photos": found} if found else {"photos": [], "note": "none of these photos has readable text"}), None
             answers = self._look(ids, str(args.get("question", ""))) if self._look else []
             return json.dumps({"photos": answers}), None
+        if name == "show_results":
+            if previous_ids is None or not len(previous_ids):
+                return json.dumps({"error": "nothing is on screen yet"}), None
+            reply = show_previous(previous_ids)
+            return observation_of(reply, "These are the photos that were already on screen."), reply
         if name == "inspect_results":
             if shown is None or not len(shown.ids):
                 return json.dumps({"error": "there are no search results yet; search for photos first"}), None

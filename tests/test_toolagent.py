@@ -50,12 +50,12 @@ def test_copying_to_a_folder_is_an_export():
 
 def test_tool_descriptions_are_the_only_identity_and_the_choices_are_clean():
     names = [t["function"]["name"] for t in TOOLS]
-    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"]
+    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "show_results", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"]
     assert "photo library" in TOOLS[0]["function"]["description"]
     assert "last_month" in PARAMS["relative"]["enum"] and "none" not in PARAMS["relative"]["enum"] and "none" not in PARAMS["season"]["enum"]
     assert all(k in PARAMS for k in FILTER_KEYS) and "required" not in TOOLS[0]["function"]["parameters"]
-    assert TOOLS[7]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
-    assert TOOLS[9]["function"]["parameters"]["required"] == ["question"]
+    assert TOOLS[8]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
+    assert TOOLS[10]["function"]["parameters"]["required"] == ["question"]
 
 
 # ------------------------------------------------------------------ the agent loop
@@ -337,7 +337,7 @@ def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_t
     agent, llm, _ = agent_with([[("delta", "x")]])
     agent.ask("hello")
     system = llm.calls[0][0]
-    assert EXAMPLES in system and "search for pictures showing a mountain" in system and "(" not in EXAMPLES.split("Always call")[0].replace("(results are on screen)", "").replace("(a bare word)", "") and "reply in words, no tool" in system
+    assert EXAMPLES in system and "search for pictures showing a mountain" in system and "(" not in EXAMPLES.split("Always call")[0].replace("(results are on screen)", "").replace("(results from another place are on screen)", "").replace("(a bare word)", "") and "reply in words, no tool" in system
     for persona in ("photo app", "You are", "Lumo", "assistant inside"):
         assert persona not in system
     eval_requests = {c["request"].lower() for c in __import__("aperture.evaluation", fromlist=["x"]).load_plan_cases()}
@@ -543,7 +543,7 @@ def test_model_words_after_tools_without_any_photos_are_never_shown_the_real_sea
 
 
 def test_show_them_puts_the_photos_on_screen_back_and_a_model_that_only_talks_is_replaced_by_the_search():
-    agent, _, plans = agent_with([[tool("find_photos", narrow_previous=True)], [("delta", "ok")]])
+    agent, _, plans = agent_with([[tool("show_results")], [("delta", "ok")]])
     reply = agent.ask("Show them", previous_ids=np.array([5, 6, 7]))
     assert list(reply.ids) == [5, 6, 7] and reply.text.startswith("**3** photos") and not plans  # no new search was needed
     # the model keeps talking instead of acting, even after being told: the app searches
@@ -561,3 +561,10 @@ def test_the_start_of_the_prompt_never_changes_so_the_model_can_reuse_what_it_pr
     shared = len(a.split("Today is")[0])
     assert a[:shared] == b[:shared] and shared > 1000  # examples and rules come first; date, screen and facts come last
     assert b.index("LIBRARY FACTS") > b.index("Today is") > b.index("ACT FIRST")
+
+
+def test_a_search_flagged_as_narrowing_without_conditions_never_replays_the_old_photos():
+    agent, llm, plans = agent_with([[tool("find_photos", narrow_previous=True)], [("delta", "ok")]])
+    reply = agent.ask("Germany pics", previous_ids=np.array([5, 6, 7]))
+    assert not plans and list(reply.ids) != [5, 6, 7]  # no conditions: an error for the model, not the Tokyo photos again
+    assert "no search conditions" in json.loads(llm.calls[1][1][-1]["content"])["error"]

@@ -179,9 +179,13 @@ class Executor:
             result.notes.append(f"{len(ids):,} taken within 25 km of {query} (GPS).")
         return ids
 
+    HARD = ("place", "near", "path", "person")  # facts: the photo's own GPS, place tag, folder name, or a named person
+    SOFT = ("text", "tag", "visual")  # clues: a word that appears in the picture, or what the picture looks like
+
     def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
-        """Every way the search words could be meant, each searched on its own: labelled place, GPS near it, folder or file name,
-        a person, words in the photo, how it looks, plus the date. The AI chose the words; this lists what each meaning finds."""
+        """Every way the search words could be meant, each searched on its own and then VALIDATED against everything stored about the
+        photos: a photo is kept only if it has hard evidence (its GPS, place tag, folder or a named person) or at least two independent
+        clues agree. Single weak clues (one word in a receipt, one look-alike guess) are dropped. Then the trip of the confirmed photos."""
         scratch = ExecResult(ids=np.zeros(0, np.int64))
         universe = all_ids(self._conn)
         limit = max(50, int(0.2 * len(universe)))  # a meaning that matches a fifth of the library says nothing
@@ -197,7 +201,8 @@ class Executor:
                 ("tag", f"Looks like {term}"),
                 ("visual", f"Similar to {term}"),
             )
-            identified = False  # found as a place, folder or person: hard evidence, so guesses from appearance would only add noise
+            readings: list[tuple[str, str, np.ndarray]] = []
+            identified = False  # found by hard evidence: guesses from appearance would only add noise
             for engine, label in wording:
                 if identified and engine in ("tag", "visual"):
                     continue
@@ -205,11 +210,24 @@ class Executor:
                 if engine == "visual" and len(ids):
                     ids = np.intersect1d(ids, self._vision_agrees(term))  # a guess from appearance counts only if Apple Vision agrees
                 if 0 < len(ids) <= limit:
-                    found.append((label, np.sort(ids)))
-                    identified = identified or engine in ("place", "near", "path", "person")
-        for term in terms:  # a trip: everything shot around the same time as the photos this word finds directly
-            anchors = [ids for label, ids in found if f"'{term}'" in label or term in label]
-            trip = self._trip_ids(np.unique(np.concatenate(anchors))) if anchors else np.zeros(0, np.int64)
+                    readings.append((engine, label, np.sort(ids)))
+                    identified = identified or engine in self.HARD
+            hard = [ids for engine, _, ids in readings if engine in self.HARD]
+            confirmed = np.unique(np.concatenate(hard)) if hard else np.zeros(0, np.int64)
+            soft = [(label, ids) for engine, label, ids in readings if engine in self.SOFT]
+            support: dict[int, int] = {}
+            for _, ids in soft:
+                for i in ids.tolist():
+                    support[i] = support.get(i, 0) + 1
+            agreed = np.array(sorted(i for i, n in support.items() if n >= 2), np.int64)  # two independent clues agree
+            if len(agreed):
+                confirmed = np.union1d(confirmed, agreed)
+            for engine, label, ids in readings:
+                if engine in self.SOFT:
+                    ids = np.intersect1d(ids, confirmed)  # a clue counts only where hard evidence or a second clue backs it
+                if len(ids):
+                    found.append((label, ids))
+            trip = self._trip_ids(confirmed) if len(confirmed) else np.zeros(0, np.int64)  # the whole trip of the confirmed photos
             if 0 < len(trip) <= limit:
                 found.append((f"Same trip as your {term} photos", np.sort(trip)))
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
