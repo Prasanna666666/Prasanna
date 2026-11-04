@@ -18,7 +18,6 @@ from ...search.quick import quick_ids
 from .. import theme
 from ..components import connection, photo_grid
 from ..state import pause_scan_for_chat, start_export_job, start_scan, welcome_numbers
-from ..suggestions import suggest_prompts
 from .onboarding import render_checklist
 from .organize import move_card
 
