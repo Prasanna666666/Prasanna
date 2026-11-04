@@ -139,8 +139,8 @@ function dailyTiles(daily, isOn, onTap) {
 }
 /** The month to open on: the latest with data, unless it is the current month and only a few days old. */
 function startMonth(trend) {
-  const now = new Date().toISOString().slice(0, 7), latest = trend.length ? trend[trend.length - 1].month : now;
-  return latest === now && new Date().getDate() < 10 && trend.length > 1 ? trend[trend.length - 2].month : latest;
+  // statements arrive after the month ends, so the newest month with data is the one to show
+  return trend.length ? trend[trend.length - 1].month : new Date().toISOString().slice(0, 7);
 }
 
 // ------------------------------------------------------------------ pages
