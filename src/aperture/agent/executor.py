@@ -288,7 +288,8 @@ class Executor:
                     ids = np.intersect1d(ids, confirmed)  # a clue counts only where hard evidence or a second clue backs it
                 if len(ids):
                     found.append((label, ids))
-            trip = self._trip_ids(confirmed) if len(confirmed) and len(terms) == 1 else np.zeros(0, np.int64)  # one condition only: with several it just confuses
+            placed = any(engine in ("place", "near", "estimated") for engine, _, _ in readings)  # a trip only means something for a PLACE, never for 'baby'
+            trip = self._trip_ids(confirmed) if len(confirmed) and len(terms) == 1 and placed else np.zeros(0, np.int64)  # one condition only: with several it just confuses
             if 0 < len(trip) <= limit:
                 found.append((f"Same trip as your {term} photos", np.sort(trip)))
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
