@@ -29,7 +29,7 @@ TOOLS = ("find_photos", "count_photos", "copy_photos", "show_results", "library_
 ARGUMENTS = {
     "what": "str", "people": "list", "places": "list", "text_in_photo": "list", "not_what": "list", "not_people": "list", "not_places": "list",
     "year": "int", "month": "int", "season": "str", "relative": "str", "date_from": "date", "date_to": "date", "min_people": "int",
-    "max_people": "int", "time_of_day": "str", "day_type": "str", "orientation": "str", "color": "str", "narrow_previous": "bool", "folder": "str",
+    "max_people": "int", "time_of_day": "str", "day_type": "str", "orientation": "str", "color": "str", "narrow_previous": "bool", "folder": "str", "looks_like": "list",
 }
 SYSTEM = (
     "You turn a person's request about their photo library into ONE search call. You never see the photos. Reply with ONLY a JSON object: "
@@ -40,7 +40,9 @@ SYSTEM = (
     "shows, a short singular noun phrase; people[]; places[] (cities, countries or folders); text_in_photo[]; year; month (1-12); season "
     "(spring|summer|autumn|winter); relative (today|yesterday|this_week|last_week|this_month|last_month|this_year|last_year); date_from and "
     "date_to (YYYY-MM-DD); not_what[]; not_people[]; not_places[]; min_people; max_people; time_of_day; day_type; orientation; color; "
-    "narrow_previous (true only when the request refers to the photos already on screen).\n"
+    "narrow_previous (true only when the request refers to the photos already on screen); looks_like[] = when 'what' is an activity, event or "
+    "place type, up to 4 short, concrete descriptions of how it would look in a photo, in plain visual words (for 'hockey game': 'ice hockey players on "
+    "a rink', 'a crowd in an arena watching a game', 'players with sticks on a pitch'). Only describe what the request itself asks for.\n"
     "Several places mean ANY of them. Words like <PERSON_1> and <PLACE_1> stand for real names: copy them exactly into people or places. "
     "'The last 3 months' means from 3 months before today until today; '2 months back' means that one month. "
     "A request that is only conversation, or that you cannot turn into a search, is {\"tool\": \"none\"}."

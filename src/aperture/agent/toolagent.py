@@ -202,6 +202,9 @@ def plan_from_tool(name: str, args: dict[str, Any]) -> Plan:
         "folder_name": folder,
     }
     plan, _ = plan_from_raw(raw)
+    meanings = tuple(m[:120] for m in _list(args.get("looks_like"))[:4])
+    if meanings:
+        plan = dataclasses.replace(plan, meanings=meanings)
     if name == "count_photos" and not plan.has_constraints and plan.scope == "library":
         plan = dataclasses.replace(plan, all_photos=True)  # "how many photos do I have?" means all of them
     return plan

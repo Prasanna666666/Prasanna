@@ -298,6 +298,22 @@ class Executor:
             when = np.sort(ids)
             if len(ids):
                 found.append((f"Taken {span[0].isoformat()} to {(span[1] - timedelta(days=1)).isoformat()}", np.sort(ids)))
+        subject = next((c.query.strip() for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",)), "")
+        if plan.meanings and subject in term_sets:
+            # The subject has no label of its own (no folder or caption says "hockey"). Where the OTHER conditions already pin the photos down
+            # (the place, the time), look at what the pictures show, using the cloud's plain descriptions of how it would look.
+            fixed = [ids for term, ids in term_sets.items() if term != subject]
+            if when is not None:
+                fixed.append(when)
+            if fixed:
+                region = fixed[0]
+                for other in fixed[1:]:
+                    region = np.intersect1d(region, other)
+                if len(region):
+                    seen = [np.intersect1d(self._visual_ids(m, scratch), region) for m in plan.meanings]
+                    looks = np.unique(np.concatenate(seen)) if seen else np.zeros(0, np.int64)
+                    if len(looks):
+                        term_sets[subject] = np.union1d(term_sets[subject], looks)
         banned = [self._clause_ids(c, scratch) for c in plan.clauses if c.exclude]  # what the user said they do not want stays out
         allowed = apply_filters(self._conn, plan.filters, self._geo_provider())[0] if not plan.filters.is_empty else None
         kept: list[tuple[str, np.ndarray]] = []

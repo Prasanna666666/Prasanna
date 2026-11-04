@@ -1,5 +1,6 @@
 """What is IN each picture is read once and stored; later questions are database lookups."""
 
+import dataclasses
 import sqlite3
 
 import numpy as np
@@ -201,3 +202,16 @@ def test_a_request_with_several_conditions_answers_with_where_they_all_hold_even
     reply = service.run_plan("hockey game in nagoya", plan)  # the strict search on 'looks like hockey' finds nothing here: no image model
     assert sorted(reply.ids.tolist()) == [1, 2] and "hockey and Nagoya" in reply.text
     assert [g[0] for g in reply.groups] == ["hockey and Nagoya"]  # just the answer, no other tabs
+
+
+def test_descriptions_from_the_cloud_find_the_subject_inside_the_place_when_nothing_is_labelled():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _hockey_library()
+    ex = Executor(conn, lambda: None, lambda: None)
+    ex._visual_ids = lambda query, result: np.array([4, 9]) if "rink" in query else np.zeros(0, np.int64)  # 4 is in Nagoya, 9 is not
+    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")),
+                meanings=("ice hockey players on a rink", "a crowd in an arena"))
+    assert ex.explore(plan).together().tolist() == [1, 2, 4]  # the labelled ones plus the one that only LOOKS like hockey, inside Nagoya
+    assert Executor(conn, lambda: None, lambda: None).explore(dataclasses.replace(plan, meanings=())).together().tolist() == [1, 2]
