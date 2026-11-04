@@ -126,6 +126,28 @@ def _start_ollama() -> None:
         pass
 
 
+def ensure_ollama(wait: float = 45.0) -> bool:
+    """Start the AI engine if it is not running and wait until it answers. True when it is up."""
+    import time
+
+    def up() -> bool:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=1.5):
+                return True
+        except OSError:
+            return False
+
+    if up():
+        return True
+    _start_ollama()
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        if up():
+            return True
+        time.sleep(1.0)
+    return False
+
+
 def _update_in_background() -> None:
     """Best-effort ``git pull`` of the source checkout; never waited for, never prompts."""
     repo = Path(__file__).resolve().parents[2]
@@ -237,7 +259,7 @@ def install_service(paths: Paths, port: int = DEFAULT_PORT) -> str:
         f'if [ ! -d "{paths.drive}" ]; then exit 1; fi; '
         f"/usr/bin/curl -sf -m 1 http://127.0.0.1:11434 >/dev/null || /usr/bin/open -ga Ollama; "
         f"{pull} "
-        f'exec "{sys.executable}" -m aperture ui --port {port}'
+        f'exec "{sys.executable}" -m aperture secure-ui --no-browser'
     )
     agents = Path.home() / "Library" / "LaunchAgents"
     agents.mkdir(parents=True, exist_ok=True)

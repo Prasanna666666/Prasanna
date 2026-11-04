@@ -130,3 +130,14 @@ def test_the_real_agent_streams_through_the_model(tmp_path, monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=None: FakeResponse(
         ndjson({"message": {"content": "Hi"}}, {"message": {"content": " there"}, "done": True})))
     assert "".join(agent._chat_stream("hello", [("user", "x"), ("assistant", "y")])) == "Hi there"
+
+
+def test_a_slow_ai_engine_is_described_as_busy_not_as_switched_off():
+    import socket
+    import urllib.error
+
+    from aperture.agent.llm import _unavailable_message
+
+    assert "busy or still loading" in _unavailable_message(TimeoutError("timed out"))
+    assert "busy or still loading" in _unavailable_message(urllib.error.URLError(socket.timeout("timed out")))
+    assert "isn't running" in _unavailable_message(urllib.error.URLError(ConnectionRefusedError(61, "refused")))

@@ -129,3 +129,9 @@ def scanned(ctx: AppContext) -> AppContext:
     assert summary.state == "done", summary
     ctx._embedder = FakeEmbedder()
     return ctx
+
+
+@pytest.fixture(autouse=True)
+def _never_start_the_real_ai_engine(monkeypatch):
+    """No test may start Ollama or wait for it: starting the app is faked everywhere."""
+    monkeypatch.setattr("aperture.launcher.ensure_ollama", lambda wait=45.0: True)

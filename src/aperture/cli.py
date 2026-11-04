@@ -555,6 +555,11 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
             return 2
         if port != wanted:
             print(f"Port {wanted} is used by another program, so I am using {port}.")
+    from .launcher import ensure_ollama
+
+    print("Starting the AI engine (Ollama) if it is not running ...", flush=True)
+    if not ensure_ollama():
+        print("The AI engine did not answer within 45 seconds. Open the Ollama app yourself; the page will say when it is ready.")
     cmd = [str(script), str(photo)]
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():

@@ -18,6 +18,17 @@ from typing import Any, Protocol
 log = logging.getLogger(__name__)
 
 
+
+def _unavailable_message(exc: BaseException) -> str:
+    """Not running at all (refused at once) and running but busy (nothing came back in time) need different advice."""
+    import socket
+
+    reason = getattr(exc, "reason", exc)
+    if isinstance(exc, (TimeoutError, socket.timeout)) or isinstance(reason, (TimeoutError, socket.timeout)):
+        return "The AI engine is busy or still loading its model. Give it a few seconds and ask again."
+    return "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
+
+
 class LLMError(RuntimeError):
     """The model answered, but not usefully (missing model, bad request...)."""
 
@@ -78,7 +89,7 @@ class OllamaClient:
             raise LLMError(f"Ollama returned HTTP {exc.code}: {detail}") from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             raise LLMUnavailable(
-                "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
+                _unavailable_message(exc)
             ) from exc
         except ValueError as exc:
             raise LLMError("Ollama sent an unreadable response") from exc
@@ -189,7 +200,7 @@ class OllamaClient:
             raise LLMError(f"Ollama returned HTTP {exc.code}" + (f": {detail}" if detail else "")) from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             raise LLMUnavailable(
-                "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
+                _unavailable_message(exc)
             ) from exc
         finally:
             _record(self.model, payload, "".join(parts), calls)
