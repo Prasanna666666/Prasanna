@@ -381,6 +381,13 @@ def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
     try:
         executor = Executor(conn, ctx.embedding_index, ctx.search_embedder, geo_provider=ctx.geo)
         plan = Plan(intent="find", clauses=(Clause(engines=("place", "path", "text"), query=args.word),))
+        word = args.word.strip().lower()
+        stored = conn.execute("SELECT source, label, COUNT(DISTINCT item_id), ROUND(MAX(score), 2) FROM photo_labels WHERE label LIKE ? "
+                              "GROUP BY source, label ORDER BY 3 DESC LIMIT 8", (f"%{word}%",)).fetchall()
+        faces = conn.execute("SELECT age, COUNT(*), ROUND(AVG(age_p), 2) FROM face_attributes WHERE age LIKE ? GROUP BY age", (f"%{word}%",)).fetchall()
+        print("Labels stored from the pictures: " + ("; ".join(f"{r[0]}:'{r[1]}' on {r[2]:,} photos (best score {r[3]})" for r in stored) or "none"))
+        if faces:
+            print("Faces whose age group matches: " + "; ".join(f"{r[0]} ({r[1]:,} faces, average confidence {r[2]})" for r in faces))
         for label, ids in executor.readings(plan):
             marks = ",".join("?" * min(len(ids), 900))
             rows = conn.execute(f"SELECT COALESCE(place, gps_est_place, '(no place)'), gps_lat IS NOT NULL FROM items WHERE id IN ({marks})", ids[:900].tolist()).fetchall()
