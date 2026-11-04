@@ -277,6 +277,24 @@ class OllamaClient:
 
 
 class Vision(Protocol):
+    def extract(self, image: bytes, prompt: str, schema: dict[str, Any], max_tokens: int = 700) -> str:
+        """Ask the vision model about one picture and get an answer that follows `schema` (JSON)."""
+        import base64
+
+        body = self._request(
+            "/api/chat",
+            {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt, "images": [base64.b64encode(image).decode()]}],
+                "stream": False,
+                "format": schema,
+                "keep_alive": self.keep_alive,
+                "options": {"temperature": 0.1, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+            },
+        )
+        message = body.get("message")
+        return str(message.get("content", "")) if isinstance(message, dict) else ""
+
     def judge(self, image: bytes, question: str) -> tuple[bool, str]:
         """Look at one image and answer a yes/no question: (answer, short reason)."""
 

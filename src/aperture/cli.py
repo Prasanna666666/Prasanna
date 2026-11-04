@@ -42,6 +42,10 @@ def build_parser() -> argparse.ArgumentParser:
     det.add_argument("--no-vision", action="store_true", help="skip Apple Vision (only the quick landmark and scene tags)")
     where = sub.add_parser("where", help="numbers behind one place name: how many photos have it as a place name, by GPS, and on the same trips (read-only)")
     where.add_argument("name")
+    jd = sub.add_parser("judge", help="the vision judge: a vision model reads everything from the photos that could not be placed any other way (slow, resumable, answers kept for good)")
+    jd.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
+    jd.add_argument("--limit", type=int, default=0)
+    jd.add_argument("--calibrate", type=int, default=0, help="first measure how right the judge is on this many photos whose place is known")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -333,6 +337,28 @@ def cmd_where(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_judge(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .indexing import judge
+
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    conn = ctx.db.connect()
+    try:
+        vision = ctx.describer()
+        if args.calibrate:
+            print(f"measuring the judge on {args.calibrate} photos whose place is known ...", flush=True)
+            print(" ", judge.calibrate(conn, ctx.paths.data, vision, ctx.geo(), args.calibrate))
+        todo = len(judge.pending(conn, args.limit))
+        print(f"{todo:,} undecided photos for the judge" + (f", for up to {args.hours} hours" if args.hours else ""), flush=True)
+        outcome = judge.run(conn, ctx.paths.data, vision, ctx.geo(), ctx.settings.vision_model, args.hours * 3600, args.limit, stop,
+                            lambda n, t, loc: print(f"  {n:,} / {t:,}  ({loc:,} placed)", flush=True))
+        print(f"judge: {outcome['analysed']:,} analysed, {outcome['located']:,} placed, {outcome['left']:,} left for next time")
+    finally:
+        conn.close()
+    return 0
+
+
 def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     reply = ctx.agent().ask(" ".join(args.request))
     print(reply.text)
@@ -370,7 +396,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
-GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "ask", "caption", "export-job", "install-service", "install-launcher"}
+GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "ask", "caption", "export-job", "install-service", "install-launcher"}
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
@@ -767,6 +793,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_scan(ctx, args)
     if args.command == "where":
         return cmd_where(ctx, args)
+    if args.command == "judge":
+        return cmd_judge(ctx, args)
     if args.command == "details":
         return cmd_details(ctx, args)
     if args.command == "deepmeta":

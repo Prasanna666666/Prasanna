@@ -213,7 +213,16 @@ ALTER TABLE items ADD COLUMN gps_est_place TEXT;
 ALTER TABLE items ADD COLUMN gps_est_place_text TEXT NOT NULL DEFAULT '';
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11]
+_MIGRATION_12 = """
+CREATE TABLE photo_vision(          -- everything the vision-language model read from a picture, kept for good (one analysis per photo)
+    item_id INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    model   TEXT NOT NULL,
+    data    TEXT NOT NULL,       -- JSON
+    read_at REAL NOT NULL
+);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12]
 
 
 class Database:
