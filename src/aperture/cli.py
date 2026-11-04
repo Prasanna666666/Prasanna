@@ -51,6 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     jd.add_argument("--calibrate", type=int, default=0, help="first measure how right the judge is on this many photos whose place is known")
     ex = sub.add_parser("explain", help="for one or more words (e.g. hockey Nagoya): every reading the app builds, how many photos, which places, and where all the words hold together (read-only)")
     ex.add_argument("words", nargs="+")
+    pr = sub.add_parser("profile", help="time the search for a word step by step, to find what is slow (read-only)")
+    pr.add_argument("word")
     sub.add_parser("clear-estimates", help="remove every location the app worked out (photos keep only the GPS in their own files); a clean start")
     vn = sub.add_parser("venues", help="the vision model reads the photos that look like a sports venue: which sport, with evidence (slow, resumable, answers kept for good)")
     vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
@@ -434,6 +436,35 @@ def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
             if cams:
                 print("    without GPS, by camera: " + "; ".join(f"{c} ({n})" for c, n in cams.most_common(3)))
             print("    places: " + "; ".join(f"{p} ({n})" for p, n in top))
+    finally:
+        conn.close()
+    return 0
+
+
+def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
+    """Run the same searches a question runs and print where the time went."""
+    import cProfile
+    import pstats
+    import time
+
+    from .agent.executor import Executor
+    from .agent.schema import Clause, Plan
+
+    conn = ctx.db.connect()
+    try:
+        executor = Executor(conn, ctx.embedding_index, ctx.ready_embedder, geo_provider=ctx.geo)
+        plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query=args.word),))
+        for name, work in (("answer (strict search)", lambda: executor.run(plan)), ("other readings", lambda: executor.explore(plan))):
+            profiler = cProfile.Profile()
+            started = time.perf_counter()
+            profiler.enable()
+            work()
+            profiler.disable()
+            print(f"\n{name}: {time.perf_counter() - started:.1f} s")
+            stats = pstats.Stats(profiler)
+            rows = sorted(((v[3], k) for k, v in stats.stats.items() if "aperture" in k[0] or k[2] in ("execute", "executemany", "fetchall", "fetchone")), reverse=True)
+            for cumulative, (file, line, function) in rows[:8]:
+                print(f"   {cumulative:6.1f} s  {function}  ({Path(file).name}:{line})")
     finally:
         conn.close()
     return 0
@@ -1005,6 +1036,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_scan(ctx, args)
     if args.command == "where":
         return cmd_where(ctx, args)
+    if args.command == "profile":
+        return cmd_profile(ctx, args)
     if args.command == "explain":
         return cmd_explain(ctx, args)
     if args.command == "clear-estimates":
