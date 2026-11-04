@@ -213,3 +213,5 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 
 .fold .card { box-shadow: none; border: 0; padding: 0; background: transparent; }
 .summary { justify-content: space-between; } @media (min-width: 981px) { .summary > div:nth-child(2) { border-left: 1px solid var(--line); padding-left: 40px; } }
+
+.tick { width: 32px; height: 32px; border-radius: 50%; background: rgba(16,185,129,.15); color: var(--good); display: grid; place-items: center; font-weight: 800; }

@@ -215,7 +215,7 @@ def suggest(conn, client, model: str, progress=None) -> dict:
         known = ", ".join(f"{e['name']} ({e['main']})" for e in rows(conn.execute("SELECT name, main FROM events"))) or "none yet"
         text = "\n".join(f"{t['id']} | {t['day']} | {'+' if t['kind'] == 'income' else '-'}{t['amount']} | {t['note']}" for t in chunk)
         if progress:
-            progress(f"Grouping payments: part {n // CHUNK + 1} of {-(-len(todo) // CHUNK)}")
+            progress("Sorting your payments")
         msg = client.chat(model, [{"role": "system", "content": PROMPT + known + "."}, {"role": "user", "content": text}], schema=SCHEMA)
         try:
             items = json.loads(msg.get("content") or "{}").get("assignments", [])

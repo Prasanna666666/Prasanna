@@ -68,7 +68,7 @@ async function refreshStatus() {
   try {
     const s = await api('/api/status');
     $('#ai-pill').className = 'pill ' + (s.ai ? 'ok' : 'bad');
-    $('#ai-text').textContent = s.ai ? 'Local model ready' : 'Model offline';
+    $('#ai-text').textContent = s.ai ? 'Assistant ready' : 'Assistant off';
     $('#ai-pill').title = s.ai ? s.model : s.problem;
   } catch (_) { $('#ai-pill').className = 'pill bad'; $('#ai-text').textContent = 'Not responding'; }
 }
@@ -113,7 +113,21 @@ function barChart(trend, selected, onPick, key = 'spent') {
 
 function changeNote(d) {
   const ch = d.before > 0 ? ((d.amount - d.before) / d.before) * 100 : null;
-  return ch == null ? 'new this month' : Math.abs(ch) < 10 ? 'about the same as last month' : ch > 100 ? '↑ more than doubled' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% vs last month`;
+  return ch == null ? 'new' : Math.abs(ch) < 10 ? '' : ch > 100 ? '↑ 2×+' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}%`;
+}
+/** Say what a check found in everyday words. */
+function plain(m) {
+  return String(m)
+    .replace(/the balances do not add up at \d+ place\(s\)/, "the numbers don't add up")
+    .replace(/opening balance and transactions do not add up to the closing balance.*/, "the numbers don't add up")
+    .replace(/opening \+ transactions gives \S+ but the statement prints \S+/, "the total doesn't match")
+    .replace(/two independent readings of the layout disagree.*/, "it could not be read reliably")
+    .replace(/the layout of this file could not be understood/, "it could not be read")
+    .replace(/line \d+ has an amount but no date/, 'a line has no date')
+    .replace(/cannot tell whether .* is money in or out/, "it is unclear if a payment is money in or out")
+    .replace(/line \d+: the figure .* sits in a column read as text/, 'a figure is in the wrong place')
+    .replace(/the stored payments add up to .* but the statements say .*/, "the payments don't match the statements")
+    .replace(/closing .* does not match the next opening .*/, "it does not join the next statement");
 }
 /** Day-to-day category tiles, shared by Home and Money. `isOn(category)` and `onTap(category)` are optional. */
 function dailyTiles(daily, isOn, onTap) {
@@ -137,7 +151,7 @@ pages.home = async () => {
   const b = d.briefing, hour = new Date().getHours(), month = startMonth(d.trend);
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
   const [daily, byMain, sum] = d.trend.length ? await Promise.all([tool('daily_spending', { month }), tool('spending_by_main', { month }), tool('spending_summary', { month })]) : [[], [], { income: 0 }];
-  const ask = h('input', { class: 'field', placeholder: 'Ask Orbit anything: "how much did I spend on groceries last month?"', style: { fontSize: '16px', padding: '16px 20px', borderRadius: '18px' } });
+  const ask = h('input', { class: 'field', placeholder: 'Ask anything…', style: { fontSize: '16px', padding: '16px 20px', borderRadius: '18px' } });
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { sessionStorage.setItem('orbit.ask', ask.value.trim()); location.hash = '#/chat'; } });
   const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
   const outings = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
@@ -145,33 +159,33 @@ pages.home = async () => {
   const link = (label, value, good) => h('a', { class: 'quiet', href: '#/money' }, h('span', { class: 'faint' }, label), h('span', { class: 'num ' + (good ? 'good' : ''), style: { fontWeight: 650 } }, value));
   const money_ = d.trend.length ? [
     h('div', { class: 'card summary' },
-      h('div', {}, h('div', { class: 'eyebrow' }, 'Day to day · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
-        h('div', { class: 'muted' }, ch == null ? 'everyday spending' : Math.abs(ch) < 10 ? 'about the same as last month' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}% vs last month`)),
+      h('div', {}, h('div', { class: 'eyebrow' }, 'Everyday · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
+        h('div', { class: 'muted' }, ch == null || Math.abs(ch) < 10 ? '\u00a0' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}%`)),
       h('div', {}, h('div', { class: 'eyebrow' }, 'Money in'), h('div', { class: 'num good', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(sum.income)),
-        h('div', { class: 'muted' }, 'salary and other income')),
-      h('div', { class: 'quiets' }, link('Trips & events', signed(outings, 0)), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'See all of Money'))),
+        h('div', { class: 'muted' }, '\u00a0')),
+      h('div', { class: 'quiets' }, link('Trips & events', signed(outings, 0)), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'Money'))),
     daily.length ? dailyTiles(daily.slice(0, 8), null, null) : null] :
-    [h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your private assistant for money, tasks, notes and people. Everything stays on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my finance files'))];
+    [h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, tasks and notes. Private, on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my files'))];
   const tasksCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'To do')),
     b.tasks_due.length ? h('div', { class: 'list' }, b.tasks_due.map((t) => h('div', { class: 'item' },
       h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
-      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, t.due || 'no date'))))) : h('div', { class: 'empty' }, 'Nothing due. Enjoy it.'));
+      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, t.due || 'no date'))))) : h('div', { class: 'empty' }, 'All done.'));
   const upCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Coming up')),
     b.upcoming_dates.length ? h('div', { class: 'list' }, b.upcoming_dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.name) } }, initials(u.name)),
-      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${u.name} · ${u.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days === 0 ? 'today' : `in ${u.in_days} days`)), u.turning ? h('span', { class: 'chip' }, `turning ${u.turning}`) : null))) : h('div', { class: 'empty' }, 'Nothing in the next two weeks.'));
+      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${u.name} · ${u.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days === 0 ? 'today' : `in ${u.in_days} days`)), u.turning ? h('span', { class: 'chip' }, `turning ${u.turning}`) : null))) : h('div', { class: 'empty' }, 'Nothing coming up.'));
   return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask, ...money_.filter(Boolean), h('div', { class: 'grid g2' }, tasksCard, upCard));
 };
 
 pages.chat = async () => {
   const { history } = await api('/api/history');
   const msgs = h('div', { class: 'msgs', id: 'msgs' });
-  const input = h('textarea', { rows: 1, placeholder: 'Ask about your money, tasks, notes, people...' });
+  const input = h('textarea', { rows: 1, placeholder: 'Ask anything…' });
   const sendBtn = h('button', { class: 'send', 'aria-label': 'Send' }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>', style: { display: 'contents' } }));
   let busy = false;
   const scroll = () => { msgs.scrollTop = msgs.scrollHeight; };
   const bubble = (role, text, tags) => { const b = h('div', { class: 'bubble ' + role }, text, tags && tags.length ? h('div', { class: 'tags' }, tags.map((t) => h('span', { class: 'chip' }, t))) : null); msgs.append(b); scroll(); return b; };
-  const welcome = () => h('div', { class: 'welcome' }, h('div', { class: 'orb' }), h('h2', {}, 'How can I help?'), h('div', { class: 'muted' }, 'Everything runs on this Mac. Nothing is sent anywhere.'),
-    h('div', { class: 'suggest', style: { justifyContent: 'center', marginTop: '22px' } }, ['How much did I spend last month?', 'Which subscriptions do I pay?', 'What invoices are due?', "What's on today?"].map((q) => h('button', { onclick: () => send(q) }, q))));
+  const welcome = () => h('div', { class: 'welcome' }, h('div', { class: 'orb' }), h('h2', {}, 'How can I help?'), h('div', { class: 'muted' }, 'Private, on this Mac.'),
+    h('div', { class: 'suggest', style: { justifyContent: 'center', marginTop: '22px' } }, ['How much did I spend last month?', 'What are my regular payments?', "What's on today?"].map((q) => h('button', { onclick: () => send(q) }, q))));
   if (!history.length) msgs.append(welcome()); else history.forEach((m) => bubble(m.role === 'user' ? 'user' : 'bot', m.content));
   async function send(text) {
     text = (text || input.value).trim();
@@ -190,7 +204,7 @@ pages.chat = async () => {
   sendBtn.addEventListener('click', () => send());
   const pending = sessionStorage.getItem('orbit.ask'); sessionStorage.removeItem('orbit.ask');
   if (pending) setTimeout(() => send(pending), 50);
-  return h('div', {}, head('Ask Orbit', 'Private, on-device. It uses your tasks, notes, people and money.', h('button', { class: 'btn ghost', onclick: guard(async () => { await api('/api/chat/reset', {}); render(); }) }, 'New chat')),
+  return h('div', {}, head('Ask Orbit', null, h('button', { class: 'btn ghost', onclick: guard(async () => { await api('/api/chat/reset', {}); render(); }) }, 'New chat')),
     h('div', { class: 'chat' }, msgs, h('div', { class: 'composer' }, input, sendBtn)));
 };
 
@@ -218,25 +232,25 @@ pages.money = async () => {
     if (s.error) status.replaceChildren(h('div', { class: 'bad', style: { fontWeight: 600 } }, s.error));
     else if (s.result) {
       const r = s.result;
-      status.replaceChildren(h('div', { style: { fontWeight: 650 } }, `Read ${r.files} new file(s): ${r.new_transactions} new transactions, ${r.payslips} payslip(s).`),
-        ...r.problems.map((p) => h('div', { class: 'bad' }, p)), r.files_with_no_transactions.length ? h('div', { class: 'muted' }, 'No transactions found in: ' + r.files_with_no_transactions.join(', ') + '. Scanned or password-protected PDFs cannot be read.') : null);
+      status.replaceChildren(h('div', { style: { fontWeight: 650 } }, `Added ${r.new_transactions} payments from ${r.files} file${r.files === 1 ? '' : 's'}.`),
+        ...r.problems.map((p) => h('div', { class: 'bad' }, p)), r.files_with_no_transactions.length ? h('div', { class: 'muted' }, 'Could not read: ' + r.files_with_no_transactions.join(', ')) : null);
       if (r.files) draw(true);
     }
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc, agents] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies'), tool('agent_list')]);
-    const curChips = cc.currencies.length > 1 || cc.currencies.some((c) => c.currency !== cc.main) ? h('div', { class: 'seg' }, [...cc.currencies, { currency: 'ALL', payments: 0, label: 'Convert to EUR' }].map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: c.currency === 'ALL' ? 'Everything converted to euros at the rate of each payment\'s day' : `${c.payments} payments in ${c.currency}, shown as they are`,
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies')]);
+    const curChips = cc.currencies.length > 1 || cc.currencies.some((c) => c.currency !== cc.main) ? h('div', { class: 'seg' }, [...cc.currencies, { currency: 'ALL', payments: 0, label: 'In euros' }].map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: c.currency === 'ALL' ? 'Show everything in euros' : `${c.payments} payments`,
       onclick: guard(async () => { await api('/api/settings', { view_currency: c.currency }); location.reload(); }) }, c.label || c.currency))) : null;
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
     const outingTotal = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
-    const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent in ' + monthName(month)), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
-      h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Day to day'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'Trips & events'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
+    const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
+      h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Everyday'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'Trips & events'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
         h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
     const trendCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),
       trend.length ? barChart(trend.slice(-8), month, (m) => { month = m; openCats.clear(); draw(false); }) : h('div', { class: 'empty' }, 'No data yet.'));
@@ -249,11 +263,11 @@ pages.money = async () => {
       h('tbody', {}, slips.map((s) => h('tr', {}, h('td', {}, s.period ? monthName(s.period) : s.name), ...[s.gross, s.tax, s.pension].map((v) => h('td', { class: 'r num' }, v != null ? money(v, 2) : '-')), h('td', { class: 'r num', style: { fontWeight: 650 } }, money(s.net, 2))))))) : null;
     const KIND = { invoice: '#6366f1', receipt: '#10b981', payslip: '#ec4899', tax: '#f59e0b', insurance: '#06b6d4', contract: '#8b5cf6', bank_statement: '#a3a3a3', other: '#a3a3a3' };
     const other = docs.filter((d) => !['bank_statement', 'payslip'].includes(d.kind));
-    const docCard = docs.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Invoices, receipts and other files'), h('div', { class: 'row' }, docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`)))),
+    const docCard = docs.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Other files'), h('div', { class: 'row' }, docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`)))),
       other.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['', 'From', 'Date', 'Due', 'Total'].map((x, i) => h('th', { class: i === 4 ? 'r' : '' }, x)))),
         h('tbody', {}, other.slice(0, 30).map((d) => h('tr', {}, h('td', {}, h('span', { class: 'chip', style: { background: 'transparent', border: '1px solid var(--line-strong)', color: KIND[d.kind] || 'var(--muted)' } }, h('span', { class: 'sw', style: { background: KIND[d.kind] || '#999' } }), d.kind)),
           h('td', {}, h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name), d.summary ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary) : null), h('td', { class: 'num' }, d.date || '-'), h('td', { class: 'num' }, d.due_date || '-'),
-          h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'Only statements and payslips so far.')) : null;
+          h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'Nothing else yet.')) : null;
     // ---- day to day: category tiles; tap one to see its payments
     const payRow = (t) => h('div', { class: 'pay' }, h('span', { class: 'num faint', style: { width: '48px' } }, t.day.slice(5)), h('span', { class: 'grow', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, t.note || '-'),
       t.event ? h('span', { class: 'chip' }, t.event) : null, t.currency !== cur ? h('span', { class: 'faint', style: { fontSize: '12.5px' } }, new Intl.NumberFormat(undefined, { style: 'currency', currency: t.currency }).format(t.original)) : null, h('span', { class: 'num ' + (t.kind === 'income' ? 'good' : ''), style: { fontWeight: 600 } }, (t.kind === 'income' ? '+' : '−') + money(t.amount, 2)));
@@ -265,7 +279,7 @@ pages.money = async () => {
     const fillAll = () => { const f = q.value.toLowerCase(); listBox.replaceChildren(...txs.filter((t) => !f || (t.note + t.category + (t.event || '')).toLowerCase().includes(f)).slice(0, 200).map(payRow)); };
     q.addEventListener('input', fillAll); fillAll();
     const allPay = h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payments'), h('span', { class: 'faint' }, ` · ${txs.length} this month`)), h('div', { style: { height: '14px' } }), q, h('div', { style: { height: '10px' } }), listBox);
-    const dailyPane = [daily.length ? tiles : h('div', { class: 'card empty' }, 'No day-to-day spending this month.'), ...opened, trendCard, allPay];
+    const dailyPane = [daily.length ? tiles : h('div', { class: 'card empty' }, 'Nothing spent this month.'), ...opened, trendCard, allPay];
 
     // ---- trips & events: found by the model from your statements; tap a card for its lines
     const evCard = (ev) => { const open = openEvents.has(ev.id);
@@ -277,8 +291,8 @@ pages.money = async () => {
         open ? h('div', { class: 'evbody' }, h('div', { class: 'lines' }, ev.lines.map((l) => h('div', { class: 'line' }, h('span', { style: { textTransform: 'capitalize' } }, l.sub), h('span', { class: 'num ' + (l.amount < 0 ? 'good' : '') }, signed(l.amount)))))) : null); };
     const sections = MAINS.filter((m) => m !== 'others').map((m) => { const list = evs.filter((e) => e.main === m); if (!list.length) return null; const net = list.reduce((x, e) => x + e.total, 0);
       return h('div', { class: 'stack', style: { gap: '12px' } }, h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '12px', height: '12px', borderRadius: '4px', background: MAIN_COLOUR[m] } }), h('h2', {}, MAIN_LABEL[m]), h('span', { class: 'chip' }, signed(net, 0))), ...list.map(evCard)); });
-    const eventsPane = evs.length ? [...sections, h('div', { class: 'muted', style: { textAlign: 'center', fontSize: '14px' } }, 'Orbit grouped these from your statements. Something not right? Tell it in ', h('a', { href: '#/chat' }, 'Ask Orbit'), ', for example “move the Ajax tickets to the PSV event”.')]
-      : [h('div', { class: 'card welcome-card' }, h('h2', {}, 'No trips or events yet'), h('p', { class: 'muted' }, 'When your statements contain tickets, flights, hotels or refunds, Orbit groups them into trips, matches and shows for you. Press “Read my files” to look for them.'))];
+    const eventsPane = evs.length ? [...sections, h('div', { class: 'muted', style: { textAlign: 'center', fontSize: '14px' } }, 'Not right? Tell Orbit in ', h('a', { href: '#/chat' }, 'chat'), '.')]
+      : [h('div', { class: 'card welcome-card' }, h('h2', {}, 'No trips or events yet'), h('p', { class: 'muted' }, 'Tickets, flights and hotels are grouped here for you.'))];
 
     // ---- income: how much came in, from where, and the payslip
     const incChange = inc.before > 0 ? ((inc.total - inc.before) / inc.before) * 100 : null;
@@ -295,33 +309,28 @@ pages.money = async () => {
       slips.length > 1 ? h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payslips'), h('span', { class: 'faint' }, ` · ${slips.length}`)), h('div', { style: { height: '12px' } }), slipCard) : null];
     // ---- every verifier agent, in words
     const LEVEL = { ok: ['✓', 'good'], warn: ['!', ''], fail: ['✗', 'bad'] };
-    const verCard = Object.keys(ver.summary).length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('div', {}, h('h2', {}, 'Checks'), h('div', { class: 'muted', style: { fontSize: '13px' } }, 'Independent agents check every file and compare documents with each other.'))),
-      h('div', { class: 'lines' }, Object.entries(ver.summary).map(([agent, c]) => h('div', { class: 'line' }, h('span', { style: { textTransform: 'capitalize' } }, agent),
-        h('span', { class: 'num' }, h('span', { class: 'good' }, `✓ ${c.ok}`), c.warn ? h('span', { style: { color: 'var(--warn)', marginLeft: '12px' } }, `! ${c.warn}`) : null, c.fail ? h('span', { class: 'bad', style: { marginLeft: '12px' } }, `✗ ${c.fail}`) : null)))),
-      ver.problems.length ? h('div', { class: 'list', style: { marginTop: '14px' } }, ver.problems.slice(0, 12).map((p) => h('div', { class: 'item' }, h('span', { class: LEVEL[p.level][1], style: { fontWeight: 700, width: '18px' } }, LEVEL[p.level][0]),
-        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, p.message), h('div', { class: 'faint', style: { fontSize: '12.5px' } }, `${p.agent} · ${p.subject}`))))) : h('div', { class: 'muted', style: { marginTop: '12px' } }, 'Everything agrees.')) : null;
-    const groups = [...new Set(agents.agents.map((a) => a.group))];
-    const agentsCard = h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'The agents'), h('span', { class: 'faint' }, ` · ${agents.built} working, ${agents.planned} planned`)),
-      h('div', { style: { height: '12px' } }), ...groups.map((g) => h('div', { style: { marginBottom: '16px' } }, h('div', { class: 'eyebrow', style: { marginBottom: '6px' } }, g),
-        h('div', { class: 'lines' }, agents.agents.filter((a) => a.group === g).map((a) => h('div', { class: 'line', style: { alignItems: 'flex-start' } },
-          h('div', {}, h('div', { style: { fontWeight: 600 } }, a.name), h('div', { class: 'faint', style: { fontSize: '13px' } }, a.does)),
-          h('span', { class: 'chip', style: a.status === 'built' ? {} : { background: 'rgba(245,158,11,.14)', color: 'var(--warn)' } }, a.status === 'built' ? 'working' : 'planned')))))));
+    const statusCard = ver.problems.length ? h('div', { class: 'card' }, h('h2', { style: { marginBottom: '8px' } }, `${ver.problems.length} thing${ver.problems.length === 1 ? '' : 's'} to look at`),
+        h('div', { class: 'list' }, ver.problems.slice(0, 8).map((p) => h('div', { class: 'item' }, h('span', { class: LEVEL[p.level][1], style: { fontWeight: 700, width: '18px' } }, LEVEL[p.level][0]),
+          h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, plain(p.message)), h('div', { class: 'faint', style: { fontSize: '12.5px' } }, p.subject)))))) :
+      ver.passed ? h('div', { class: 'card' }, h('div', { class: 'row' }, h('span', { class: 'tick' }, '✓'), h('div', { style: { fontWeight: 650, fontSize: '18px' } }, 'Everything adds up'))) : null;
+    const detailsFold = Object.keys(ver.summary).length ? h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'Details')),
+      h('div', { style: { height: '12px' } }), h('div', { class: 'lines' }, Object.entries(ver.summary).map(([agent, c]) => h('div', { class: 'line' }, h('span', { style: { textTransform: 'capitalize' } }, agent),
+        h('span', { class: 'num' }, h('span', { class: 'good' }, `✓ ${c.ok}`), c.warn ? h('span', { style: { color: 'var(--warn)', marginLeft: '12px' } }, `! ${c.warn}`) : null, c.fail ? h('span', { class: 'bad', style: { marginLeft: '12px' } }, `✗ ${c.fail}`) : null))))) : null;
     // ---- honesty about files: what could not be proven correct is said out loud and is NOT in the totals
     const bad = checks.filter((c) => c.status === 'needs_check'), unproven = checks.filter((c) => c.status === 'unverified');
     const checkNote = bad.length ? h('div', { class: 'note-banner', style: { background: 'rgba(244,63,94,.1)', borderColor: 'rgba(244,63,94,.3)', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' } },
-        h('b', {}, `${bad.length} file${bad.length === 1 ? '' : 's'} could not be proven correct and ${bad.length === 1 ? 'is' : 'are'} NOT counted`),
-        ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${c.issues || 'could not be read'}`))) :
-      unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} counted but could not be checked`), h('span', { class: 'muted' }, ' · no balances to check them against.'))) : null;
+        h('b', {}, `${bad.length} file${bad.length === 1 ? '' : 's'} left out`),
+        ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${plain(c.issues) || 'could not be read'}`))) :
+      unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} not double-checked`))) : null;
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['daily', 'Day to day'], ['income', 'Income'], ['events', 'Trips & events' + (evs.length ? ` · ${evs.length}` : '')], ['regular', 'Regular payments' + (recurring.length ? ` · ${recurring.length}` : '')], ['documents', 'Documents & checks' + (ver.problems.length ? ` · ${ver.problems.length}` : docs.length ? ` · ${docs.length}` : '')]];
+    const tabs = [['daily', 'Everyday'], ['income', 'Income'], ['events', 'Trips & events'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
     const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
     const content = { daily: dailyPane, income: incomePane, events: eventsPane, regular: [recCard],
-      documents: [verCard, agentsCard, docCard, h('div', { class: 'muted', style: { textAlign: 'center' } }, 'Looking for another kind of file? ', h('a', { href: '#/files' }, 'Search all documents'))] }[tab];
-    const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Let’s bring in your money'),
-      h('p', { class: 'muted' }, 'Put your bank statements, payslips, invoices and receipts (PDF) in your finance folder, then press the button. Orbit reads them privately on this Mac.'),
-      h('ol', { class: 'steps' }, h('li', {}, 'Copy your PDFs into the finance folder'), h('li', {}, 'Press “Read my files”'), h('li', {}, 'Come back in a few minutes: your money is ready')),
+      documents: [statusCard, docCard, detailsFold, h('div', { class: 'muted', style: { textAlign: 'center' } }, h('a', { href: '#/files' }, 'Search all files'))] }[tab];
+    const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Add your money'),
+      h('p', { class: 'muted' }, 'Put your PDFs in your finance folder, then press the button.'),
       h('div', {}, importBtn));
-    wrap.replaceChildren(...[head('Money', empty ? null : (ver.passed || ver.problems.length ? `${ver.passed} checks passed${ver.problems.length ? ` · ${ver.problems.length} to look at` : ''} · everything stays on this Mac` : 'Everything stays on this Mac.') + (cc.viewing === 'ALL' ? ' · converted to euros at the rate of each day' : ''), empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
+    wrap.replaceChildren(...[head('Money', null, empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : hero, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
   }
   await draw(false); poll();
   return wrap;
@@ -340,7 +349,7 @@ pages.tasks = async () => {
       h('div', { class: 'list' }, items.map((t) => h('div', { class: 'item' }, h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 300); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
         h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, [t.due || 'no date', t.recurrence !== 'none' ? '↻ ' + t.recurrence : ''].filter(Boolean).join(' · '))),
         h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_task', { id: t.id }); render(); }) }, 'Delete'))))) : null; }),
-    tasks.length ? null : h('div', { class: 'empty' }, 'Nothing to do. Add something above.'));
+    tasks.length ? null : h('div', { class: 'empty' }, 'Nothing to do.'));
 };
 
 pages.notes = async () => {
@@ -372,7 +381,7 @@ pages.files = async () => {
   const load = guard(async () => {
     seg.replaceChildren(...[['finance', 'Finance files'], ['all', 'All documents']].map(([id, label]) => h('button', { class: mode === id ? 'on' : '', onclick: () => { mode = id; load(); } }, label)));
     if (mode === 'finance') { const docs = await tool('finance_documents', { party: q, limit: 200 });
-      out.replaceChildren(docs.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['Type', 'From / title', 'Date', 'Reference', 'Total'].map((x, i) => h('th', { class: i === 4 ? 'r' : '' }, x)))), h('tbody', {}, docs.map((d) => h('tr', {}, h('td', {}, h('span', { class: 'chip' }, d.kind)), h('td', {}, h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name), d.summary ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary) : null), h('td', { class: 'num' }, d.date || '-'), h('td', { class: 'num faint' }, d.reference || '-'), h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'No finance files yet. Put PDFs in your finance folder, then use "Read my files" on the Money page.')); }
+      out.replaceChildren(docs.length ? h('table', { class: 'table' }, h('thead', {}, h('tr', {}, ['Type', 'From / title', 'Date', 'Reference', 'Total'].map((x, i) => h('th', { class: i === 4 ? 'r' : '' }, x)))), h('tbody', {}, docs.map((d) => h('tr', {}, h('td', {}, h('span', { class: 'chip' }, d.kind)), h('td', {}, h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name), d.summary ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary) : null), h('td', { class: 'num' }, d.date || '-'), h('td', { class: 'num faint' }, d.reference || '-'), h('td', { class: 'r num', style: { fontWeight: 650 } }, d.total != null ? money(d.total, 2) : '-'))))) : h('div', { class: 'empty' }, 'No files yet.')); }
     else { const docs = await tool('search_documents', { query: q, limit: 25 });
       out.replaceChildren(docs.length ? h('div', { class: 'list' }, docs.map((d) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, d.name), h('div', { class: 'muted', style: { fontSize: '13px' } }, d.snippet)), h('span', { class: 'chip' }, d.kind)))) : h('div', { class: 'empty' }, 'No documents found.')); }
   });

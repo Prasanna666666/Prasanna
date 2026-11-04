@@ -316,7 +316,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
                     slip = payslips.from_model(info)
                 elif info["kind"] == "bank_statement":
                     if progress:
-                        progress(f"{d['name']}: reading and checking ({index} of {len(docs)} files)")
+                        progress(f"Reading file {index} of {len(docs)}")
                     rd = verify.read_table_statement(client, model, d["name"], data, d["text"])
             except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
                 problems.append(str(exc))
