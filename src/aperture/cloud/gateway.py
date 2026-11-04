@@ -173,7 +173,12 @@ class Gateway:
         except urllib.error.HTTPError as exc:
             hints = {400: "the request was refused (check the model name)", 401: "the API key was refused (check the key)", 403: "the API key is not allowed to use this model",
                      404: "the model name was not found (set a valid one with cloud_model)", 429: "rate limit or no credit left at the provider"}
-            raise GatewayError(f"the provider answered HTTP {exc.code}: {hints.get(exc.code, 'see the provider dashboard')}") from exc
+            detail = ""
+            try:  # the provider says exactly what is wrong (no credit, unknown model, bad setting); it never contains our key
+                detail = str((json.loads(exc.read().decode("utf-8", "replace")).get("error") or {}).get("message") or "")[:200]
+            except Exception:
+                pass
+            raise GatewayError(f"the provider answered HTTP {exc.code}: {detail or hints.get(exc.code, 'see the provider dashboard')}") from exc
         except Exception as exc:
             reason = getattr(exc, "reason", exc)  # why, in a few words: a certificate problem, a blocked lookup, a timeout ... (never the key)
             raise GatewayError(f"the provider could not be reached: {type(reason).__name__}: {str(reason)[:140]}") from exc
