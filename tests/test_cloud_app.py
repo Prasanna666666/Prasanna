@@ -133,3 +133,41 @@ def test_the_cloud_model_and_cap_can_be_set_from_the_command_line(tmp_path):
     s.cloud_model, s.cloud_cap_usd = args.cloud_model, args.cloud_cap
     s.save(paths)
     assert Settings.load(paths).cloud_model == "claude-sonnet-5-5" and Settings.load(paths).cloud_cap_usd == 2.5
+
+
+def test_conversation_goes_to_the_cloud_with_only_your_redacted_words_and_falls_back_locally(chain):
+    chain.provider.text = "Hello <PERSON_1>! Lovely to hear from you."
+    cloud = CloudInterpreter(chain.port, lambda: PEOPLE, lambda: PLACES)
+    history = [("user", "my name is Anna Verhoeven"), ("assistant", "**586** photos \u00b7 Taken in or near Nagoya | Readings considered: ..."), ("user", "I like Nagoya")]
+    reply = cloud.chat("hi it's Anna Verhoeven", history)
+    assert reply == "Hello Anna Verhoeven! Lovely to hear from you."  # the real name is restored locally
+    sent = json.dumps(chain.provider.seen[0][1])
+    for private in ("Anna", "Verhoeven", "Nagoya", "586", "Readings"):
+        assert private not in sent  # no name, no earlier answer, no result, no count
+    content = json.loads(json.loads(sent)["messages"][0]["content"])
+    assert set(content) == {"today", "their_earlier_messages", "their_message"} and len(content["their_earlier_messages"]) == 2  # only their own words
+    assert CloudInterpreter(9, lambda: PEOPLE, lambda: PLACES).chat("hi", None) is None  # gateway down: the local model replies
+
+
+def test_the_agent_uses_the_cloud_for_conversation_but_keeps_comments_on_results_local():
+    from aperture.agent.service import AgentService
+
+    service = AgentService(planner=None, executor_factory=lambda: None, known_people=lambda: [], rescue=False,
+                           router=lambda request, previous: "about" if "why" in request else "chat")
+    local = []
+    service._chat_stream = lambda request, history: local.append(request) or iter(["local reply"])
+    agent = ToolAgent(SimpleNamespace(), service, lambda r: "", today=lambda: date(2026, 11, 4), cloud_chat=lambda request, history: "cloud reply")
+    reply = agent.ask("hello there")
+    assert reply.text == "cloud reply" and reply.timings["understood"] == "cloud" and not local
+    agent.ask("why these?", previous_ids=np.array([1, 2]))
+    assert local == ["why these?"]  # a question about the results never leaves the Mac
+    quiet = ToolAgent(SimpleNamespace(), service, lambda r: "", today=lambda: date(2026, 11, 4), cloud_chat=lambda request, history: None)
+    quiet.ask("hello again")
+    assert local[-1] == "hello again"  # the cloud had nothing: the local model replied
+
+
+def test_a_photo_answer_says_how_the_request_was_understood():
+    from aperture.agent.toolagent import describe_call
+
+    assert describe_call("find_photos", {"places": ["Nagoya"], "what": "hockey stadium"}) == "show photos \u00b7 places Nagoya \u00b7 what hockey stadium"
+    assert describe_call("count_photos", {"year": 2019}) == "count photos \u00b7 year 2019"

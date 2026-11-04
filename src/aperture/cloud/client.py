@@ -32,6 +32,9 @@ def _drop_unknown_placeholders(value: Any) -> Any:
     return value
 
 
+MAX_EARLIER = 3
+
+
 class CloudInterpreter:
     def __init__(self, port: int, people: Callable[[], list[str]], places: Callable[[], list[str]], opener: Any = urllib.request.urlopen) -> None:
         self._port, self._people, self._places, self._open = port, people, places, opener
@@ -50,3 +53,17 @@ class CloudInterpreter:
             return {"name": str(plan["tool"]), "arguments": arguments}
         except Exception:
             return None  # any problem at all: the local model takes over
+
+    def chat(self, request: str, history: list[tuple[str, str]] | None) -> str | None:
+        """A conversational reply from the cloud model, or None (then the local model replies). Only YOUR recent words are sent, with names hidden:
+        never the app's earlier answers (they hold results), never library facts."""
+        try:
+            redactor = Redactor(self._people(), self._places())
+            earlier = [redactor.redact(text) for role, text in (history or []) if role == "user" and text][-MAX_EARLIER:]
+            body = json.dumps({"question": redactor.redact(request), "earlier": earlier, "today": date.today().isoformat()}).encode()
+            http = urllib.request.Request(f"http://127.0.0.1:{self._port}/chat", data=body, headers={"Content-Type": "application/json"})
+            with self._open(http, timeout=_time_left(15.0)) as response:
+                reply = json.loads(response.read().decode("utf-8", "replace")).get("reply")
+            return redactor.restore(str(reply)).strip() or None if isinstance(reply, str) else None
+        except Exception:
+            return None

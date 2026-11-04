@@ -154,6 +154,8 @@ class AppContext:
         if embedder is not None and len(index):
             VisualSearch(index, embedder).search("a photo of people")
 
+    _cloud_chat: Any = None
+
     def _cloud_interpreter(self, people_names: Any) -> Any:
         """The optional cloud question reader (off unless switched on); it only ever receives the redacted words of the question."""
         if not self.settings.cloud_interpreter:
@@ -171,7 +173,9 @@ class AppContext:
 
             return self.memo("cloud_places", 300.0, load)
 
-        return CloudInterpreter(self.settings.cloud_port, people_names, places)
+        interpreter = CloudInterpreter(self.settings.cloud_port, people_names, places)
+        self._cloud_chat = interpreter.chat
+        return interpreter
 
     def warm_ai(self) -> None:
         agent = self.agent()
@@ -570,7 +574,7 @@ class AppContext:
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
             self._service = service  # the search executor the agent uses (tests exercise it directly)
-            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results, cloud=self._cloud_interpreter(people_names))
+            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results, cloud=self._cloud_interpreter(people_names), cloud_chat=self._cloud_chat)
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

@@ -173,6 +173,16 @@ def _list(value: Any) -> list[str]:
     return []
 
 
+def describe_call(name: str, args: dict[str, Any]) -> str:
+    """How a request was understood, in plain words: 'show photos · places Nagoya · what hockey stadium'."""
+    verbs = {"find_photos": "show photos", "count_photos": "count photos", "copy_photos": "copy photos", "show_results": "show the same photos"}
+    parts = [verbs.get(name, name.replace("_", " "))]
+    for key, value in args.items():
+        shown = ", ".join(str(v) for v in value) if isinstance(value, list) else str(value)
+        parts.append(f"{key.replace('_', ' ')} {shown}")
+    return " \u00b7 ".join(parts)
+
+
 def plan_from_tool(name: str, args: dict[str, Any]) -> Plan:
     """Turn a tool call into the search plan the engines understand. Lenient on purpose: bad values are dropped, never crash."""
     clauses: list[dict[str, Any]] = []
@@ -217,8 +227,9 @@ class ToolAgent:
                  probe: Callable[[str], dict[str, Any]] | None = None,
                  inspect: Callable[[list[int]], dict[str, Any]] | None = None,
                  today: Callable[[], date] = date.today, max_tokens: int = CHAT_MAX_TOKENS, spec: AgentSpec = ASSISTANT,
-                 cloud: Callable[[str, bool], dict[str, Any] | None] | None = None) -> None:
-        self._cloud = cloud
+                 cloud: Callable[[str, bool], dict[str, Any] | None] | None = None,
+                 cloud_chat: Callable[[str, list[tuple[str, str]] | None], str | None] | None = None) -> None:
+        self._cloud, self._cloud_chat = cloud, cloud_chat
         self._llm, self._service, self._context, self._today = llm, service, context, today
         self._overview, self._lookup, self._max_tokens, self.spec = overview, lookup, max_tokens, spec
         self._read_text, self._look, self._probe, self._inspect = read_text, look, probe, inspect
@@ -273,6 +284,13 @@ class ToolAgent:
         began = time.monotonic()
         say("Understanding your message")
         route = self._route(request, previous_ids)
+        if route == "chat" and self._cloud_chat is not None:  # plain conversation: a stronger model replies to your words (names hidden)
+            say("Asking the cloud model for a reply (only your words are sent)")
+            text = self._cloud_chat(request, history)
+            if text:
+                timings["route"] = round(time.perf_counter() - started, 2)
+                timings["understood"] = "cloud"
+                return AgentReply("chat", text, timings=timings)
         if route in ("chat", "about"):
             say("Writing a reply")  # conversation, or a comment on the earlier answer: talk, do not search again
             timings["route"] = round(time.perf_counter() - started, 2)
@@ -491,6 +509,7 @@ class ToolAgent:
                 return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
             say("Searching your photos")
             reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)
+            reply.notes.insert(0, "Understood as: " + describe_call(name, args))  # so a misreading is visible at once
             if note:
                 reply.notes.insert(0, note)  # the user is told too
             return observation_of(reply, note), reply

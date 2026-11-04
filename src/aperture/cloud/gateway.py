@@ -47,6 +47,15 @@ SYSTEM = (
 )
 
 
+CHAT_SYSTEM = (
+    "You are Lumo, a warm, quick-witted assistant inside a private photo app on the person's Mac. You cannot see their photos and you are not searching "
+    "anything in this reply, so never claim to have found or looked at any. Chat naturally in one to three short sentences of plain text, no lists or "
+    "emojis. For small talk, be genuinely friendly and curious; for general questions, answer correctly and briefly; and when it fits, invite them to "
+    "describe photos they would like to find. Words like <PERSON_1> and <PLACE_1> stand for real names: you may use them as written."
+)
+MAX_TURNS = 4
+
+
 class GatewayError(RuntimeError):
     pass
 
@@ -135,6 +144,36 @@ class Gateway:
     def status(self) -> dict[str, Any]:
         return {"model": self.model, "spent_usd": round(self._usage.spent(), 4), "cap_usd": self.cap_usd, "month": _month_key()}
 
+    def _call(self, system: str, content: str, max_tokens: int) -> str:
+        """One request to the provider; spending is counted and refused over the cap. Returns the provider's text."""
+        if self._usage.spent() >= self.cap_usd:
+            raise GatewayError(f"the monthly cap of ${self.cap_usd:.2f} is reached")
+        body = json.dumps({"model": self.model, "max_tokens": max_tokens, "temperature": 0.6 if system is CHAT_SYSTEM else 0, "system": system,
+                           "messages": [{"role": "user", "content": content}]}).encode()
+        request = urllib.request.Request(self._url, data=body, headers={"content-type": "application/json", "x-api-key": self._key,
+                                                                          "anthropic-version": "2023-06-01"})
+        try:
+            with self._open(request, timeout=20) as response:
+                reply = json.loads(response.read().decode("utf-8", "replace"))
+        except urllib.error.HTTPError as exc:
+            hints = {400: "the request was refused (check the model name)", 401: "the API key was refused (check the key)", 403: "the API key is not allowed to use this model",
+                     404: "the model name was not found (set a valid one with cloud_model)", 429: "rate limit or no credit left at the provider"}
+            raise GatewayError(f"the provider answered HTTP {exc.code}: {hints.get(exc.code, 'see the provider dashboard')}") from exc
+        except Exception as exc:
+            raise GatewayError(f"the provider could not be reached: {type(exc).__name__}") from exc
+        usage = reply.get("usage") or {}
+        self._usage.add(int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0), self.prices)
+        return "".join(block.get("text", "") for block in reply.get("content", []) if isinstance(block, dict))
+
+    def chat(self, question: str, earlier: list[str], today: str) -> str:
+        """A conversational reply to the (already redacted) message. Only the person's own recent words are sent, never results or library facts."""
+        question = " ".join(str(question).split())[:MAX_QUESTION]
+        if not question:
+            raise GatewayError("empty question")
+        recent = [" ".join(str(e).split())[:MAX_QUESTION] for e in earlier[-MAX_TURNS:] if str(e).strip()]
+        content = json.dumps({"today": today, "their_earlier_messages": recent, "their_message": question})
+        return self._call(CHAT_SYSTEM, content, 250).strip()
+
     def interpret(self, question: str, has_previous: bool, today: str) -> dict[str, Any] | None:
         question = " ".join(str(question).split())[:MAX_QUESTION]
         if not question:
@@ -188,8 +227,14 @@ def make_handler(gateway: Gateway, port: int) -> type[BaseHTTPRequestHandler]:
             self._json(gateway.status() if self.path == "/status" else {"ok": True})
 
         def do_POST(self) -> None:  # noqa: N802
-            if self.headers.get("Host", "") not in hosts or self.path != "/interpret":
+            if self.headers.get("Host", "") not in hosts or self.path not in ("/interpret", "/chat"):
                 return self._json({"error": "not found"}, int(HTTPStatus.NOT_FOUND))
+            if self.path == "/chat":
+                try:
+                    size = int(self.headers.get("Content-Length", "0"))
+                    return self._chat(json.loads(self.rfile.read(min(size, 4096))))
+                except (ValueError, TypeError):
+                    return self._json({"error": "bad request"}, int(HTTPStatus.BAD_REQUEST))
             try:
                 size = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(min(size, 4096)))
@@ -199,6 +244,14 @@ def make_handler(gateway: Gateway, port: int) -> type[BaseHTTPRequestHandler]:
             except (ValueError, TypeError):
                 return self._json({"error": "bad request"}, int(HTTPStatus.BAD_REQUEST))
             self._json({"plan": plan})
+
+        def _chat(self, body: dict[str, Any]) -> None:
+            try:
+                reply = gateway.chat(str(body.get("question", "")), [str(x) for x in (body.get("earlier") or [])][:MAX_TURNS],
+                                     str(body.get("today") or date.today().isoformat()))
+            except GatewayError as exc:
+                return self._json({"error": str(exc)}, int(HTTPStatus.SERVICE_UNAVAILABLE))
+            self._json({"reply": reply})
 
     return Handler
 
