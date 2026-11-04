@@ -229,7 +229,15 @@ CREATE TABLE face_ages(             -- the age model's estimate for each face, i
 );
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12, _MIGRATION_13]
+_MIGRATION_14 = """
+CREATE TABLE photo_venues(          -- what the vision model made of photos that look like a sports venue (one analysis per photo, kept for good)
+    item_id INTEGER PRIMARY KEY REFERENCES items(id) ON DELETE CASCADE,
+    data    TEXT NOT NULL,
+    read_at REAL NOT NULL
+);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12, _MIGRATION_13, _MIGRATION_14]
 
 
 class Database:

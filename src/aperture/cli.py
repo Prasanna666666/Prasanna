@@ -49,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     ex = sub.add_parser("explain", help="for one word: every reading the app builds, with how many photos and which places they are really from (read-only)")
     ex.add_argument("word")
     sub.add_parser("clear-estimates", help="remove every location the app worked out (photos keep only the GPS in their own files); a clean start")
+    vn = sub.add_parser("venues", help="the vision model reads the photos that look like a sports venue: which sport, with evidence (slow, resumable, answers kept for good)")
+    vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
+    vn.add_argument("--limit", type=int, default=0)
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -427,6 +430,23 @@ def cmd_clear_estimates(ctx: AppContext) -> int:
     return 0
 
 
+def cmd_venues(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .indexing import venues
+
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    conn = ctx.db.connect()
+    try:
+        todo = len(venues.candidates(conn, args.limit))
+        print(f"{todo:,} photos look like a sports venue and have not been read yet" + (f"; up to {args.hours} hours" if args.hours else ""), flush=True)
+        outcome = venues.run(conn, ctx.paths.data, ctx.describer(), args.hours * 3600, args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
+        print(f"venues: {outcome['looked_at']:,} read, {outcome['sports_venues']:,} are sports venues, {outcome['left']:,} left for next time")
+    finally:
+        conn.close()
+    return 0
+
+
 def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     reply = ctx.agent().ask(" ".join(args.request))
     print(reply.text)
@@ -464,7 +484,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
-GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "ask", "caption", "export-job"}  # install-service / install-launcher only write start-up files; the app they start is sandboxed
+GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "venues", "ask", "caption", "export-job"}  # install-service / install-launcher only write start-up files; the app they start is sandboxed
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
@@ -870,6 +890,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_explain(ctx, args)
     if args.command == "clear-estimates":
         return cmd_clear_estimates(ctx)
+    if args.command == "venues":
+        return cmd_venues(ctx, args)
     if args.command == "judge":
         return cmd_judge(ctx, args)
     if args.command == "details":
