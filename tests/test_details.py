@@ -133,3 +133,18 @@ def test_filler_words_are_not_looked_up_in_the_library():
     finally:
         quick.place_ids, quick.path_ids, quick.search_text_ids = originals
     assert seen and all(p not in ("show", "the", "this", "year", "photos", "from") for p in seen) and "tokyo" in seen
+
+
+def test_a_place_gives_one_combined_answer_of_everything_taken_in_or_near_it():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.search.geo import GeoIndex
+
+    conn = _db(3)
+    conn.row_factory = sqlite3.Row
+    conn.execute("UPDATE items SET gps_lat=35.18, gps_lon=136.90, place='Nagoya, Japan', place_text=' nagoya japan' WHERE id=1")
+    conn.execute("UPDATE items SET gps_lat=35.0, gps_lon=137.0, place='Okazaki, Japan', place_text=' okazaki japan' WHERE id=2")  # near, named after a town
+    geo = GeoIndex(["Nagoya"], ["Japan"], [" nagoya japan"], np.array([35.18]), np.array([136.90]))
+    ex = Executor(conn, lambda: None, lambda: None, geo_provider=lambda: geo)
+    readings = dict(ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Nagoya"),))))
+    assert readings["Taken in or near Nagoya"].tolist() == [1, 2]  # the place name alone would have found only photo 1

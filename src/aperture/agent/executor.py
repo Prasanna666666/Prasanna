@@ -212,6 +212,12 @@ class Executor:
                 if 0 < len(ids) <= limit:
                     readings.append((engine, label, np.sort(ids)))
                     identified = identified or engine in self.HARD
+            hard_found = [(engine, ids) for engine, _, ids in readings if engine in self.HARD]
+            if len(hard_found) >= 2:
+                # Several hard facts point at the same word (the place name, GPS nearby, a folder...): one combined answer, not separate tabs.
+                # Photos near a city are often named after a smaller neighbouring town, so the place name alone misses them.
+                union = np.unique(np.concatenate([ids for _, ids in hard_found]))
+                readings = [("place", f"Taken in or near {term}", union)] + [r for r in readings if r[0] not in self.HARD]
             hard = [ids for engine, _, ids in readings if engine in self.HARD]
             confirmed = np.unique(np.concatenate(hard)) if hard else np.zeros(0, np.int64)
             soft = [(label, ids) for engine, label, ids in readings if engine in self.SOFT]
