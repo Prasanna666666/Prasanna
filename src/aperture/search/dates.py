@@ -81,9 +81,23 @@ def resolve(spec: DateSpec, today: date) -> tuple[date, date] | None:
     return None
 
 
+def _shift_back(today: date, n: int, unit: str) -> date:
+    if unit == "day":
+        return today - timedelta(days=n)
+    if unit == "week":
+        return today - timedelta(weeks=n)
+    months = n * (12 if unit == "year" else 1)
+    first = _month_start(today.year, today.month - months)
+    last_day = (_month_start(first.year, first.month + 1) - timedelta(days=1)).day
+    return first.replace(day=min(today.day, last_day))
+
+
 def _ago(n: int, unit: str, through: bool, today: date) -> tuple[date, date] | None:
     """'N units back' as a range, by calendar arithmetic (the model never computes dates)."""
     n = max(1, min(n, 1200))
+    if through:  # a rolling window: exactly N units before today, up to and including today
+        start = _shift_back(today, n, unit)
+        return (start, today + timedelta(days=1))
     if unit == "day":
         begin, stop = today - timedelta(days=n), today - timedelta(days=n - 1)
     elif unit == "week":

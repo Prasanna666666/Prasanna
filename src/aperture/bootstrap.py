@@ -383,7 +383,13 @@ class AppContext:
             """A short, focused model call: the time expression in the message (if any), as real date fields."""
             from .agent.schema import plan_from_raw
 
-            answer = self.llm().complete_json(DATE_SYSTEM, request, DATE_SCHEMA, max_tokens=60)
+            from .agent import phrasebook
+
+            hit = phrasebook.match(request)  # a known phrasing: its meaning comes from the phrasebook, exactly, with no model call
+            if hit is not None:
+                phrase, fields = hit
+                return phrase, plan_from_raw({"intent": "find", "date": fields})[0].date
+            answer = self.llm().complete_json(DATE_SYSTEM, phrasebook.examples_text(request) + "Message: " + request, DATE_SCHEMA, max_tokens=60)
             try:
                 raw = extract_json(answer)
             except Exception:  # unreadable answer: treat as "no time expression"; an extra check must never stop a search

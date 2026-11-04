@@ -342,7 +342,7 @@ def test_the_real_date_step_reads_the_models_json(tmp_path, monkeypatch):
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": '{"phrase": "last month", "relative": "last_month"}'}})
     ctx = _context(tmp_path, monkeypatch)
     step = ctx.service()._date_step
-    phrase, spec = step("pics of last month")
+    phrase, spec = step("pics from around the holidays")  # not a known pattern: the model is asked, with similar phrases as examples
     assert phrase == "last month" and spec.relative == "last_month"
     assert sent[0]["format"] == DATE_SCHEMA and sent[0]["options"]["num_predict"] == 60
     monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: {"message": {"content": "not json"}})
@@ -390,5 +390,5 @@ def test_the_last_n_months_is_a_window_up_to_today_but_n_months_back_is_that_one
     today = date(2026, 11, 4)
     window, _ = plan_from_raw({"intent": "find", "date": {"ago": 3, "unit": "month", "span": "until_now"}})
     single, _ = plan_from_raw({"intent": "find", "date": {"ago": 3, "unit": "month", "span": "period"}})
-    assert resolve(window.date, today) == (date(2026, 8, 1), date(2026, 11, 5))  # August 1st until today (inclusive)
+    assert resolve(window.date, today) == (date(2026, 8, 4), date(2026, 11, 5))  # exactly three months before today, up to and including today
     assert resolve(single.date, today) == (date(2026, 8, 1), date(2026, 9, 1))  # only August
