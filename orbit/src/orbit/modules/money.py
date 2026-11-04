@@ -77,16 +77,17 @@ def add_transaction(conn, a):
 
 def list_transactions(conn, a):
     where, args = [], []
-    for col, op, key in (("day", ">=", "since"), ("day", "<=", "until")):
+    for col, op, key in (("t.day", ">=", "since"), ("t.day", "<=", "until")):
         if a.get(key):
             where.append(f"{col} {op} ?")
             args.append(a[key])
     if a.get("category"):
-        where.append("category=?")
+        where.append("t.category=?")
         args.append(a["category"].lower())
-    sql = "SELECT id, day, kind, category, note, amount_minor/100.0 AS amount FROM transactions"
+    sql = ("SELECT t.id, t.day, t.kind, t.category, t.note, t.amount_minor/100.0 AS amount, t.event_id, t.sub, e.name AS event "
+           "FROM transactions t LEFT JOIN events e ON e.id=t.event_id")
     sql += " WHERE " + " AND ".join(where) if where else ""
-    return rows(conn.execute(sql + " ORDER BY day DESC, id DESC LIMIT ?", [*args, int(a.get("limit", 50))]))
+    return rows(conn.execute(sql + " ORDER BY t.day DESC, t.id DESC LIMIT ?", [*args, int(a.get("limit", 50))]))
 
 
 def summary(conn, a):
