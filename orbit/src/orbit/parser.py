@@ -47,9 +47,11 @@ def extract(path: Path) -> dict:
     if kind == "text":
         text = path.read_text(encoding="utf-8", errors="replace")
     elif kind == "csv":
-        with path.open(newline="", encoding="utf-8", errors="replace") as f:
+        head = path.read_bytes()[:4096].decode("utf-8", "replace")
+        delimiter = max((",", ";", "\t"), key=head.split("\n")[0].count)  # Dutch banks export with ; or tab
+        with path.open(newline="", encoding="utf-8-sig", errors="replace") as f:
             rows = []
-            for i, row in enumerate(csv.reader(f)):
+            for i, row in enumerate(csv.reader(f, delimiter=delimiter)):
                 if i >= MAX_CSV_ROWS:
                     meta["truncated"] = True
                     break

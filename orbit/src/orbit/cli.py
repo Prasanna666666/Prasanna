@@ -23,7 +23,7 @@ def open_db():
 
 # Commands that touch your database. They need the encryption key (set by the Docker deployment / scripts/up.sh),
 # or an explicit ORBIT_ALLOW_PLAIN=1 for throwaway test data.
-NEEDS_SECURE = {"ui", "chat", "brief", "tag", "import-notes", "ingest", "import-statements", "categorise"}
+NEEDS_SECURE = {"ui", "chat", "brief", "tag", "import-notes", "ingest", "import-statements", "categorise", "statement-report"}
 REFUSAL = (
     "Refusing to open the database without encryption.\n"
     "  Normal way:   ./scripts/up.sh          (Docker: encrypted, offline, isolated)\n"
@@ -66,7 +66,18 @@ def main(argv: list[str] | None = None) -> int:
     elif cmd == "import-statements":  # after `ingest`: turns the parsed finance files into transactions
         from .modules import money
 
-        print(money.import_statements(conn))
+        try:
+            client = agent.llm.OllamaClient()
+            model = client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))
+        except RuntimeError as exc:
+            print(f"The local model is not available ({exc}). Statements are read by the local model, so nothing was imported.")
+            client = model = None
+        print(money.import_statements(conn, client=client, model=model, progress=lambda m: print(" ", m, flush=True)))
+    elif cmd == "statement-report":  # what Orbit made of each finance file; shows counts only, never content
+        from .modules import money
+
+        for r in money.statement_report(conn):
+            print(r)
     elif cmd == "categorise":  # the local model places merchants the rules could not
         from . import categorize
 

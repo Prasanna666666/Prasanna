@@ -51,9 +51,13 @@ class OllamaClient:
         raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). "
                            f"Run:  ollama pull {preferred}")
 
-    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None) -> dict[str, Any]:
+    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None,
+             num_ctx: int = 4096) -> dict[str, Any]:
+        """`schema` forces the answer to be JSON of that shape (Ollama's constrained output)."""
         body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": "2m",
-                                "options": {"temperature": 0.2, "num_ctx": 4096}}
+                                "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx}}
+        if schema:
+            body["format"] = schema
         if tools:
             body["tools"] = tools
         return self._call("/api/chat", body)["message"]

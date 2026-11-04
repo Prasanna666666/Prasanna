@@ -43,21 +43,26 @@ Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` a
   `docker compose exec app sh -c "touch /parsed/x"` must fail (read-only).
 - Untested on a real Mac (no Docker engine where this was written). Send only error text if a step fails.
 
-## Your finance folder (bank statements, UPI, cards)
-Keep your statements where they are and point Orbit at the folder; it is mounted **read-only** and only the offline parser can open it:
+## Your finance folder (bank statements, payslips, any bank, any language)
+Keep your PDFs where they are and point Orbit at the folder; it is mounted **read-only** and only the offline parser can open it:
 ```bash
-ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance
+ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance. Subfolders are fine (ing/2026/, payslips/ ...)
 ```
-Then open **Money -> Get new statements**. The parser keeps the exact rows of every CSV and rebuilds the lines of every PDF; Orbit finds the
-columns itself (Date, Narration/Description, Debit/Withdrawal, Credit/Deposit, Amount, Dr/Cr, Balance), reads dates day-first and amounts
-with commas, Rs/INR/₹, brackets and Dr/Cr, and skips opening-balance, total and footer lines. Nothing is guessed from a row it cannot read.
-- **Safe to repeat.** A line is never added twice, even when two statements overlap.
-- **Categories:** rules first (food, groceries, transport, subscriptions, EMI, rent ...), then your own corrections (**Help me sort these** - pick
-  a category once and that merchant follows it forever), then `orbit categorise` for the local model (it sees only merchant names, never amounts).
-  Moves between your own accounts are kept out of spending and income.
-- **Views:** spent / income / net, by category, top merchants, month by month, repeating payments (subscriptions, rent, EMIs), and chat:
-  "what did I spend on food last month?", "which subscriptions do I pay?", "top merchants this year".
-- Password-protected or scanned PDFs cannot be read yet; for those, download the CSV from your bank. Without Docker: `orbit ingest`, `orbit import-statements`.
+Then open **Money -> Get new statements** (or `orbit import-statements`).
+- **The local model reads the files** (Ministral via Ollama, on your Mac). No bank, language or layout is coded in: it decides what each file is
+  (bank statement, payslip, other), reads each transaction (date, description, amount, in/out, balance) and each payslip's figures
+  (gross, tax, pension, holiday pay, net). Dutch, English, any new account: drop the PDFs in and import again.
+- **Code only checks.** Dates must be real, amounts positive, and when a statement shows running balances they must add up; where a direction
+  contradicts the arithmetic, the arithmetic wins. If the model is not running, nothing is imported (a guess could silently give wrong numbers).
+- **Safe to repeat and to interrupt.** Each part is saved as it is read; a line is never stored twice, even when statements overlap. Reading takes a
+  few minutes per statement on an 8 GB Mac (a 3B model, a few lines at a time); it is done once per file.
+- **Categories:** a few cheap keyword rules, then the local model for the merchants left (it sees only merchant names, never amounts), then your
+  own corrections (**Help me sort these**: pick once, that merchant follows it forever). Moves between your own accounts stay out of spending.
+- **Views:** spent / income / net, by category, top merchants, month by month, repeating payments, payslips, and chat ("what did I spend on food
+  last month?", "how much tax did I pay this year?"). **What did Orbit make of each file?** lists every file with counts only, never content.
+- Scanned (image-only) or password-protected PDFs have no text to read: Orbit lists them as "read: 0 transactions". Remove the password or use the bank's
+  CSV/PDF download instead.
+- The model, Ollama, lives on your Mac in `~/.ollama/models` (about 2 GB); your data never leaves your Mac, and Orbit makes no network requests.
 
 ## Your data boundary
 - Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).

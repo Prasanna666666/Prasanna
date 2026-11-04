@@ -154,13 +154,30 @@ elif page == "Money":
     if st.button("Get new statements"):
         if parsed.is_dir():
             documents.ingest_dir(C, parsed)
-            r = money.import_statements(C)
+            bar = st.empty()
+            try:
+                client = llm.OllamaClient(db.get_setting(C, "ollama_host", "") or None)
+                model = client.resolve(db.get_setting(C, "model", llm.DEFAULT_MODEL))
+            except RuntimeError as exc:
+                st.warning(f"The local model is not available ({exc}). Statements are read by the local model, so nothing was imported.")
+                client = model = None
+            r = money.import_statements(C, client=client, model=model, progress=bar.info)
+            bar.empty()
+            for problem in r["problems"]:
+                st.error(problem)
             st.success(f"{r['new_transactions']} new transactions from {r['files']} new file(s); {r['already_had']} were already there.")
             if r["files_with_no_transactions"]:
                 st.warning("No transactions could be read from: " + ", ".join(r["files_with_no_transactions"]) +
                            ". (Password-protected or scanned PDFs cannot be read yet; a CSV download from your bank works best.)")
         else:
             st.error(f"{parsed} not found - start the parser")
+    with st.expander("What did Orbit make of each file?"):
+        st.caption("Counts only, no content. A PDF with 0 dated lines is probably scanned or password-protected.")
+        st.dataframe(money.statement_report(C), width="stretch")
+    slips = money.list_payslips(C)
+    if slips:
+        with st.expander(f"Payslips ({len(slips)})"):
+            st.dataframe(slips, width="stretch")
     month = st.text_input("Month", date.today().strftime("%Y-%m"))
     s = money.summary(C, {"month": month})
     m1, m2, m3 = st.columns(3)

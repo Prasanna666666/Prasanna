@@ -7,7 +7,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import categorize, dates, statements
+from .. import categorize, dates, extract, payslips, statements
 from ..db import get_setting, rows
 from ..module import Module, N, S, Tool
 
@@ -32,6 +32,10 @@ MIGRATIONS = (
     ALTER TABLE transactions ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;   -- 1 = category chosen by rules/model, 0 = chosen by you
     CREATE UNIQUE INDEX tx_ref ON transactions(ref) WHERE ref IS NOT NULL;
     CREATE TABLE merchant_rules (merchant TEXT PRIMARY KEY, category TEXT NOT NULL);
+    CREATE TABLE payslips (
+        sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, period TEXT NOT NULL, gross_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL,
+        tax_minor INTEGER, pension_minor INTEGER, holiday_minor INTEGER
+    );
     CREATE TABLE statement_files (
         sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, found INTEGER NOT NULL, added INTEGER NOT NULL,
         at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -106,34 +110,95 @@ def delete_transaction(conn, a):
 
 
 # ---- statements -------------------------------------------------------------------------------------------------------
-def import_statements(conn, a=None):
-    """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice."""
+def _store(conn, d, txns, learned) -> int:
+    new = 0
+    for ref, t in statements.with_references(txns):
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, balance_minor, auto) VALUES (?,?,?,?,?,?,?,?,1)",
+            (t.day, t.amount_minor, t.kind, categorize.categorise(t.desc, t.kind, learned), t.desc[:300], ref, d["name"][:200], t.balance_minor))
+        new += cur.rowcount
+    conn.commit()
+    return new
+
+
+def import_statements(conn, a=None, client=None, model=None, progress=None):
+    """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice.
+
+    The local model (`client`, `model`) understands each file, whatever its bank, language or layout; code only checks the answer by arithmetic.
+    Without the model nothing is imported (a guess at a layout could silently give wrong numbers)."""
     learned = categorize.learned_rules(conn)
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
-    files = added = duplicates = 0
+    files = added = duplicates = payslip_count = 0
     empty: list[str] = []
-    for d in conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall():
-        if d["sha256"] in done:
-            continue
+    problems: list[str] = []
+    docs = [d for d in conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall() if d["sha256"] not in done]
+    for index, d in enumerate(docs, 1):
         try:
             data = json.loads(d["data"]) if d["data"] else {}
         except ValueError:
             data = {}
-        txns = statements.from_document(data) or statements.from_lines(d["text"].splitlines())
+        lines = [str(x) for x in data.get("lines", [])] if isinstance(data.get("lines"), list) else []
+        if not lines and isinstance(data.get("rows"), list):
+            lines = [" | ".join(str(c) for c in r) for r in data["rows"] if isinstance(r, list)]
+        lines = lines or d["text"].splitlines()
+        slip = None
+        txns: list[statements.Txn] = []
         new = 0
-        for ref, t in statements.with_references(txns):
-            cur = conn.execute(
-                "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, balance_minor, auto) VALUES (?,?,?,?,?,?,?,?,1)",
-                (t.day, t.amount_minor, t.kind, categorize.categorise(t.desc, t.kind, learned), t.desc[:300], ref, d["name"][:200], t.balance_minor))
-            new += cur.rowcount
+        if client is not None and model:
+            try:
+                info = extract.classify(client, model, d["name"], d["text"])
+                if info["kind"] == "payslip":
+                    slip = payslips.from_model(info)
+                elif info["kind"] == "bank_statement":
+                    def save(part, n, total, _d=d):
+                        nonlocal new
+                        new += _store(conn, _d, part, learned)
+                        if progress:
+                            progress(f"{_d['name']}: part {n} of {total}  ({index} of {len(docs)} files)")
+
+                    txns = extract.read_statement(client, model, lines, save).txns
+            except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
+                problems.append(str(exc))
+                break
+        else:
+            problems.append("The local model is not running, so statements cannot be read. Start Ollama and try again.")
+            break
+        if slip is not None:
+            conn.execute("INSERT OR IGNORE INTO payslips VALUES (?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], slip.period, slip.gross_minor, slip.net_minor,
+                                                                                   slip.tax_minor, slip.pension_minor, slip.holiday_minor))
+            payslip_count += 1
         conn.execute("INSERT INTO statement_files (sha256, name, found, added) VALUES (?,?,?,?)", (d["sha256"], d["name"], len(txns), new))
         files += 1
         added += new
         duplicates += len(txns) - new
-        if not txns:
+        if not txns and slip is None:
             empty.append(d["name"])
-    conn.commit()
-    return {"files": files, "new_transactions": added, "already_had": duplicates, "files_with_no_transactions": empty}
+        conn.commit()
+    if client is not None and model and added:  # merchants the rules could not place: the local model sees only their names
+        try:
+            categorize.recategorise_with_model(conn, client, model)
+        except RuntimeError as exc:
+            problems.append(f"Imported, but the merchants could not be sorted by the model: {exc}")
+    return {"files": files, "new_transactions": added, "already_had": duplicates, "payslips": payslip_count,
+            "files_with_no_transactions": empty, "problems": problems}
+
+
+def list_payslips(conn, a=None):
+    """Payslips by month: gross, tax, pension, holiday pay and net, in currency units."""
+    out = rows(conn.execute("SELECT period, name, gross_minor/100.0 AS gross, tax_minor/100.0 AS tax, pension_minor/100.0 AS pension, "
+                            "holiday_minor/100.0 AS holiday, net_minor/100.0 AS net FROM payslips ORDER BY period DESC, name"))
+    return out[: int((a or {}).get("limit", 36))]
+
+
+def statement_report(conn, a=None):
+    """For each finance file: what Orbit made of it, with no content shown. Use it to see which files could not be read."""
+    out = []
+    for d in conn.execute("SELECT d.name, d.kind, d.text, s.found, s.added FROM documents d LEFT JOIN statement_files s ON s.sha256=d.sha256 "
+                          "WHERE d.area='finance' ORDER BY d.name"):
+        slip = bool(conn.execute("SELECT 1 FROM payslips WHERE name=?", (d["name"],)).fetchone())
+        out.append({"file": d["name"], "type": d["kind"], "text_characters": len(d["text"]), "payslip": slip,
+                    "transactions_found": d["found"], "imported": d["added"], "read": d["found"] is not None})
+    return out
 
 
 def _range(a):
@@ -228,6 +293,7 @@ MODULE = Module(
              ("category", "monthly_amount")),
         Tool("import_statements", "Import new bank/UPI/card statements from the finance folder into transactions (safe to repeat).",
              {}, import_statements),
+        Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool("top_merchants", "Where the money went: spend per merchant, biggest first. Optional month YYYY-MM or since/until dates.",
              {"month": S("YYYY-MM"), "since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "limit": N("Max rows")}, top_merchants),
         Tool("monthly_trend", "Spent, income and net for each of the last N months.", {"months": N("How many months, default 6")}, monthly_trend),
