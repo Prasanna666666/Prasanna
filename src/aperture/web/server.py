@@ -205,7 +205,8 @@ def _clean_history(raw: Any) -> list[tuple[str, str]]:
 
 
 def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
-    allowed_hosts = {f"127.0.0.1:{web.port}", f"localhost:{web.port}"}
+    # *.localhost always resolves to this Mac (RFC 6761), so the friendly address the installer prints is as safe as 127.0.0.1
+    allowed_hosts = {f"127.0.0.1:{web.port}", f"localhost:{web.port}", f"lumo.localhost:{web.port}"}
     allowed_origins = {f"http://{h}" for h in allowed_hosts}
 
     class Handler(BaseHTTPRequestHandler):

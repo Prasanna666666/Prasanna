@@ -204,3 +204,10 @@ def test_each_answer_keeps_its_own_photos_so_scrolling_back_never_shows_newer_re
     assert web.results("c", 0, rid=tokyo)["total"] == 3
     assert web.results("c", 0, group=1, rid=nagoya)["ids"] == [7, 8, 9]
     assert web.results("c", 0, rid="unknown")["total"] == 0 or web.results("c", 0, rid="unknown")["ids"] is not None
+
+
+def test_the_friendly_local_address_works_and_other_names_are_still_refused(app):
+    port = app.server.server_port
+    assert app.get("/api/status", host=f"lumo.localhost:{port}")[0] == 200  # the address the installer prints
+    assert app.get("/api/status", host=f"other.localhost:{port}")[0] == 403  # only that one name
+    assert app.get("/api/status", host="evil.example.com")[0] == 403
