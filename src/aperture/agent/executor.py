@@ -489,9 +489,9 @@ class Executor:
         if not words:
             return np.zeros(0, np.int64)
         try:
-            marks = " OR ".join("label LIKE ?" for _ in words)
-            rows = self._conn.execute(f"SELECT DISTINCT item_id FROM photo_labels WHERE source='vision' AND score>=0.5 AND ({marks})",
-                                      [f"%{w}%" for w in words])
+            names = sorted({form for w in words for form in (w, w + "s", w.rstrip("s"))})  # exact labels, so the label index is used (a '%word%' scan read every label)
+            marks = ",".join("?" * len(names))
+            rows = self._conn.execute(f"SELECT DISTINCT item_id FROM photo_labels WHERE label IN ({marks}) AND source='vision' AND score>=0.5", names)
             return np.array(sorted(r[0] for r in rows), np.int64)
         except sqlite3.Error:
             return np.zeros(0, np.int64)
