@@ -72,3 +72,18 @@ def test_the_perceptual_hash_matches_copies_and_re_saves():
     a, b = details.dhash(buf1.getvalue()), details.dhash(buf2.getvalue())
     assert a is not None and bin((a ^ b) & (2**64 - 1)).count("1") <= 6
     assert details.dhash(b"not an image") is None
+
+
+def test_the_place_report_gives_the_numbers_behind_a_place_name():
+    from aperture.indexing import placereport
+    from aperture.search.geo import GeoIndex
+
+    conn = _db()
+    _item(conn, 1, "2026-03-01 10:00:00", "Nagoya, Japan")
+    conn.execute("UPDATE items SET gps_lat=35.18, gps_lon=136.90, place_text=' nagoya japan' WHERE id=1")
+    _item(conn, 2, "2026-03-01 18:00:00")  # same trip, no GPS (a screenshot)
+    derive.build_events(conn)
+    geo = GeoIndex(["Nagoya"], ["Japan"], [" nagoya japan"], np.array([35.18]), np.array([136.90]))
+    text = "\n".join(placereport.report(conn, geo, "Nagoya"))
+    assert "1 with GPS" in text and "says 'Nagoya': 1" in text and "within 25 km of Nagoya, Japan: 1" in text
+    assert "Trip photos around those: 2 (1 without GPS, 1 with GPS)" in text

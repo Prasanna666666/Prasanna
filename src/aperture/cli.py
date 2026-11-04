@@ -40,6 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
     det = sub.add_parser("details", help="read and store what is IN each picture: scene and object labels, animals and people with boxes, text with boxes, landmark tags; resumable")
     det.add_argument("--limit", type=int, default=0, help="only this many photos (0 = all that are missing)")
     det.add_argument("--no-vision", action="store_true", help="skip Apple Vision (only the quick landmark and scene tags)")
+    where = sub.add_parser("where", help="numbers behind one place name: how many photos have it as a place name, by GPS, and on the same trips (read-only)")
+    where.add_argument("name")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -299,6 +301,18 @@ def cmd_details(ctx: AppContext, args: argparse.Namespace) -> int:
         print(f"{total:,} pictures to read", flush=True)
         done, bad = details.run(conn, ctx.paths.data, VisionDetails(), args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
         print(f"details: {done:,} stored, {bad:,} unreadable")
+    finally:
+        conn.close()
+    return 0
+
+
+def cmd_where(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .indexing import placereport
+
+    conn = ctx.db.connect()
+    try:
+        for line in placereport.report(conn, ctx.geo(), args.name):
+            print(line)
     finally:
         conn.close()
     return 0
@@ -736,6 +750,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return cmd_doctor(ctx, args.stats)
     if args.command == "scan":
         return cmd_scan(ctx, args)
+    if args.command == "where":
+        return cmd_where(ctx, args)
     if args.command == "details":
         return cmd_details(ctx, args)
     if args.command == "deepmeta":
