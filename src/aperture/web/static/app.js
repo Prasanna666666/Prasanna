@@ -78,7 +78,7 @@
   }
   function showResults(msg, d) {
     msg.gallery = msg.gallery || makeGallery(msg.body);
-    const g = msg.gallery; g.ids = []; g.grid.replaceChildren(); g.total = d.total;
+    const g = msg.gallery; g.ids = []; g.grid.replaceChildren(); g.total = d.total; g.rid = d.rid || '';
     g.head.replaceChildren(el('span', 'count', d.kind === 'count' ? `${d.total.toLocaleString()} photos` : `${d.total.toLocaleString()} photo${d.total === 1 ? '' : 's'}`));
     addTiles(g, d.ids);
     showReadings(g, d.groups || []);
@@ -96,7 +96,7 @@
         b.classList.add('active');
         g.group = i; g.ids = []; g.grid.replaceChildren();
         try {
-          const data = await (await api(`/api/results?conv=${encodeURIComponent(conv)}&offset=0&group=${i}`)).json();
+          const data = await (await api(`/api/results?conv=${encodeURIComponent(conv)}&rid=${encodeURIComponent(g.rid || '')}&offset=0&group=${i}`)).json();
           g.total = data.total;
           g.head.replaceChildren(el('span', 'count', `${data.total.toLocaleString()} photo${data.total === 1 ? '' : 's'}`));
           addTiles(g, data.ids);
@@ -114,7 +114,7 @@
       g.more.addEventListener('click', async () => {
         g.more.disabled = true;
         try {
-          const r = await api(`/api/results?conv=${encodeURIComponent(conv)}&offset=${g.ids.length}&group=${g.group}`);
+          const r = await api(`/api/results?conv=${encodeURIComponent(conv)}&rid=${encodeURIComponent(g.rid || '')}&offset=${g.ids.length}&group=${g.group}`);
           const data = await r.json();
           addTiles(g, data.ids);
         } catch (_) { /* keep what is shown */ }

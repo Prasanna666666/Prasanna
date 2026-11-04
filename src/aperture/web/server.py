@@ -66,7 +66,7 @@ class Web:
         self._cache: dict[str, tuple[float, Any]] = {}
         self.paused_for_chat = False
         self.build = build_id()
-        self._groups: dict[str, list[tuple[str, np.ndarray]]] = {}
+        self._sets: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._counts: dict[str, int] = {"photos": 0, "indexed": 0}
         self._counts_at: float | None = None
         self._counting = False
@@ -94,10 +94,14 @@ class Web:
         threading.Thread(target=work, name="library-counts", daemon=True).start()
 
     # ---- conversations remember their last result set, so "only the ones from March" works
-    def remember_groups(self, conv: str, groups: list[tuple[str, np.ndarray]]) -> None:
-        self._groups[conv] = groups
-        while len(self._groups) > 20:
-            self._groups.pop(next(iter(self._groups)))
+    def remember_set(self, ids: np.ndarray, groups: list[tuple[str, np.ndarray]]) -> str:
+        """Every answer keeps its OWN photos and readings under its own id, so scrolling back to an earlier answer and using its tabs or
+        'Show more' always gives that answer's photos, never the newest ones."""
+        rid = secrets.token_hex(8)
+        self._sets[rid] = {"ids": ids, "groups": groups}
+        while len(self._sets) > 60:
+            self._sets.pop(next(iter(self._sets)))
+        return rid
 
     def remember(self, conv: str, ids: np.ndarray) -> None:
         self._convs[conv] = ids
@@ -109,11 +113,13 @@ class Web:
         ids = self._convs.get(conv)
         return ids if ids is not None and len(ids) else None
 
-    def results(self, conv: str, offset: int, limit: int = PAGE, group: int = -1) -> dict[str, Any]:
-        groups = self._groups.get(conv) or []
-        if 0 <= group < len(groups):
-            chosen = groups[group][1]
-            self._convs[conv] = chosen  # the next message refines the readings the user picked
+    def results(self, conv: str, offset: int, limit: int = PAGE, group: int = -1, rid: str = "") -> dict[str, Any]:
+        found = self._sets.get(rid)
+        if found is not None:
+            groups = found["groups"]
+            chosen = groups[group][1] if 0 <= group < len(groups) else found["ids"]
+            if group >= 0 and offset == 0:
+                self._convs[conv] = chosen  # the next message refines the photos the user is looking at
             return {"ids": [int(i) for i in chosen[offset:offset + limit]], "total": int(len(chosen))}
         ids = self._convs.get(conv)
         if ids is None:
@@ -293,7 +299,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     group = int((query.get("group") or ["-1"])[0])
                 except ValueError:
                     group = -1
-                self._json(web.results((query.get("conv") or [""])[0][:64], offset, group=group))
+                self._json(web.results((query.get("conv") or [""])[0][:64], offset, group=group, rid=(query.get("rid") or [""])[0][:32]))
             elif (m := ID_PATH.match(path)):
                 file = web.photo_file(int(m.group(1)), m.group(2))
                 if file is None:
@@ -364,8 +370,8 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     text = reply.text
                     if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words
                         web.remember(conv, reply.ids)
-                        web.remember_groups(conv, reply.groups)
-                        self._sse("results", {"groups": [{"label": g[0], "count": int(len(g[1]))} for g in reply.groups], "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
+                        rid = web.remember_set(reply.ids, reply.groups)
+                        self._sse("results", {"rid": rid, "groups": [{"label": g[0], "count": int(len(g[1]))} for g in reply.groups], "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
                                               "notes": list(reply.notes), "warnings": list(reply.warnings)})
                     elif reply.notes or reply.warnings:
                         self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})

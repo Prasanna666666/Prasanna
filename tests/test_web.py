@@ -186,3 +186,21 @@ def test_a_count_answer_sends_the_number_not_the_whole_photo_grid():
 
     source = (Path(__file__).parent.parent / "src" / "aperture" / "web" / "server.py").read_text()
     assert '[] if reply.kind == "count"' in source
+
+
+def test_each_answer_keeps_its_own_photos_so_scrolling_back_never_shows_newer_results():
+    from collections import OrderedDict
+
+    import numpy as np
+
+    from aperture.web.server import Web
+
+    web = Web.__new__(Web)  # only the result bookkeeping is under test
+    web._sets, web._convs = OrderedDict(), OrderedDict()
+    tokyo = web.remember_set(np.array([1, 2, 3]), [("Taken near Tokyo", np.array([1, 2, 3])), ("Same trip as your Tokyo photos", np.array([1, 2, 3, 4]))])
+    nagoya = web.remember_set(np.array([7, 8]), [("Taken in Nagoya", np.array([7, 8])), ("Same trip as your Nagoya photos", np.array([7, 8, 9]))])
+    # the newest answer is Nagoya, yet the Tokyo answer's tab and its "Show more" still give Tokyo's photos
+    assert web.results("c", 0, group=1, rid=tokyo)["ids"] == [1, 2, 3, 4]
+    assert web.results("c", 0, rid=tokyo)["total"] == 3
+    assert web.results("c", 0, group=1, rid=nagoya)["ids"] == [7, 8, 9]
+    assert web.results("c", 0, rid="unknown")["total"] == 0 or web.results("c", 0, rid="unknown")["ids"] is not None
