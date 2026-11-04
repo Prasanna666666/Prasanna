@@ -31,7 +31,7 @@ MAX_CSV_ROWS = 200_000
 MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
 MAX_CELL = 300
 TIMEOUT_S = 60
-KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".pdf": "pdf"}
+KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".tsv": "csv", ".pdf": "pdf", ".mt940": "text", ".sta": "text", ".xml": "text"}
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -80,7 +80,23 @@ def extract(path: Path) -> dict:
         raise ValueError(f"unsupported file type: {path.suffix}")
     if kind == "text":
         data["lines"] = [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]
+        rows = _delimited_rows(text)  # a plain tab- or semicolon-separated export (some banks give these with no header row)
+        if rows:
+            data["rows"] = rows
     return {"kind": kind, "text": clean(text), "meta": meta, "data": data}
+
+
+def _delimited_rows(text: str) -> list[list[str]]:
+    """Rows of a plain delimited text file, or [] if it does not look like one (the first lines must split into the same number of columns)."""
+    head = [ln for ln in text.splitlines()[:8] if ln.strip()]
+    if len(head) < 2:
+        return []
+    for delimiter in ("\t", ";", ","):
+        counts = {ln.count(delimiter) for ln in head[:5]}
+        if len(counts) == 1 and counts != {0} and next(iter(counts)) >= 2:
+            reader = csv.reader(text.splitlines(), delimiter=delimiter)
+            return [[clean(c)[:MAX_CELL] for c in r][:60] for _, r in zip(range(MAX_DATA_ROWS), reader)]
+    return []
 
 
 def _table_lines(words: list, gap: float = 7.0) -> list[list[list]]:

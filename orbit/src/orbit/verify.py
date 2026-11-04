@@ -1,0 +1,215 @@
+"""Verifier agents: independent checkers that look at the same facts in different ways. Any one of them can fail a file.
+
+File level (run when a statement is read):   layout reader · balance prover · totals prover · second reader · standard reader
+Across documents (run after every import):    payslip <-> bank · invoice/receipt <-> bank · statement continuity per account · plausibility
+
+Each agent returns Findings: ok (it checked and it holds), warn (it could not check, or something deserves a look), fail (a contradiction).
+A statement with a fail is NOT counted in your totals. Everything is arithmetic or an exact comparison; the model is only used to describe layouts.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from datetime import date, timedelta
+
+from . import tables
+from .statements import Txn
+
+
+@dataclass(frozen=True)
+class Finding:
+    agent: str
+    level: str  # ok | warn | fail
+    subject: str
+    message: str
+
+
+@dataclass
+class Read:
+    """The result of reading one statement file."""
+
+    txns: list[Txn] = field(default_factory=list)
+    status: str = "needs_check"  # verified | unverified | needs_check
+    issues: list[str] = field(default_factory=list)
+    account: str = ""
+    first: str = ""
+    last: str = ""
+    opening: int | None = None
+    closing: int | None = None
+    proofs: list[str] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
+
+
+def _squash(s: str) -> str:
+    return re.sub(r"\s+", "", s)
+
+
+def signature(txns: list[Txn]) -> list[tuple]:
+    return sorted((t.day, t.amount_minor, t.kind) for t in txns)
+
+
+# ---- file-level agents -----------------------------------------------------------------------------------------------------
+def totals_prover(layout: tables.Layout, text: str, txns: list[Txn], subject: str) -> tuple[Finding | None, bool]:
+    """Previous/opening balance + the transactions must equal the new/closing balance, both quoted as printed. Works without a running balance (credit cards)."""
+    if not layout.opening_text or not layout.closing_text:
+        return None, False
+    haystack = _squash(text)
+    values = []
+    for printed in (layout.opening_text, layout.closing_text):
+        minor = tables.money_from_printed(printed) if _squash(printed) in haystack else None
+        if minor is None:
+            return Finding("totals prover", "warn", subject, "the printed opening/closing balance could not be found in the document"), False
+        values.append(minor)
+    opening, closing = values
+    spent = sum(t.amount_minor for t in txns if t.kind == "expense")
+    received = sum(t.amount_minor for t in txns if t.kind == "income")
+    expected = opening + spent - received if layout.owed else opening + received - spent  # a card balance is what you owe: purchases raise it
+    if expected == closing:
+        return Finding("totals prover", "ok", subject, "opening balance + the transactions = the printed closing balance"), True
+    return Finding("totals prover", "fail", subject, f"opening + transactions gives {expected / 100:.2f} but the statement prints {closing / 100:.2f}"), False
+
+
+def second_reader(client, model: str, table: list[list[tables.Cell]], first_layout: tables.Layout, first: tables.Parsed, subject: str) -> Finding:
+    """Read the file again from a different part of it. The layout is worked out afresh and both readings must give exactly the same transactions."""
+    start = first_layout.header_line
+    middle = max(start + 1, len(table) // 2)
+    sample = ([table[start]] if start >= 0 else []) + table[middle: middle + 35]
+    if len(sample) < 3:
+        return Finding("second reader", "warn", subject, "the file is too short for a second, independent reading")
+    again = tables.infer_layout(client, model, sample)
+    if again is None:
+        return Finding("second reader", "warn", subject, "a second reading of the layout was not possible")
+    again.header_line = start  # the sample's own header index is relative to the sample
+    try:
+        other = tables.parse_table(table, again)
+    except (ValueError, IndexError):
+        return Finding("second reader", "fail", subject, "the second reading could not read the file at all")
+    if signature(other.txns) == signature(first.txns):
+        return Finding("second reader", "ok", subject, f"a second, independent reading of the layout gives the same {len(first.txns)} transactions")
+    return Finding("second reader", "fail", subject, f"two independent readings of the layout disagree ({len(first.txns)} vs {len(other.txns)} transactions)")
+
+
+def read_table_statement(client, model: str, name: str, data: dict, text: str) -> Read:
+    """A PDF or CSV statement: layout by the model, figures by code, then every agent has its say."""
+    r = Read()
+    table = tables.table_from_data(data)
+    layout = tables.infer_layout(client, model, table)
+    if layout is None:
+        r.issues = ["the layout of this file could not be understood"]
+        r.findings.append(Finding("layout reader", "fail", name, r.issues[0]))
+        return r
+    parsed = tables.parse_table(table, layout)
+    r.txns, r.issues = parsed.txns, list(parsed.issues)
+    r.opening, r.closing, r.proofs = parsed.opening, parsed.closing, list(parsed.proofs)
+    r.account = layout.account if layout.account and _squash(layout.account) in _squash(text) else ""  # an account number counts only if it is really printed
+    if r.txns:
+        days = sorted(t.day for t in r.txns)
+        r.first, r.last = days[0], days[-1]
+    r.findings.append(Finding("layout reader", "ok" if not r.issues else "fail", name, f"{len(parsed.txns)} transactions read" if not r.issues else "; ".join(r.issues[:3])))
+    if parsed.checked:
+        r.findings.append(Finding("balance prover", "ok", name, f"{parsed.checked} running-balance checks all add up"))
+    elif not r.issues:
+        r.findings.append(Finding("balance prover", "warn", name, "this statement shows no balances to check the lines against"))
+    finding, proven = totals_prover(layout, text, r.txns, name)
+    if finding:
+        r.findings.append(finding)
+        if finding.level == "fail":
+            r.issues.append(finding.message)
+        elif proven:
+            r.proofs.append("opening + transactions = closing")
+    if not r.issues and r.txns:
+        second = second_reader(client, model, table, layout, parsed, name)
+        r.findings.append(second)
+        if second.level == "fail":
+            r.issues.append(second.message)
+    r.proofs = list(dict.fromkeys(r.proofs))
+    r.status = "needs_check" if r.issues else ("verified" if r.proofs else "unverified")
+    return r
+
+
+# ---- across documents ------------------------------------------------------------------------------------------------------
+def _months_with_transactions(conn) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT DISTINCT substr(day,1,7) FROM transactions")}
+
+
+def _shift(day: str, days: int) -> str:
+    return (date.fromisoformat(day) + timedelta(days=days)).isoformat()
+
+
+def payslip_vs_bank(conn) -> list[Finding]:
+    """Each payslip's net pay must arrive in the bank to the cent, within about ten days of the end of its month."""
+    out = []
+    covered = _months_with_transactions(conn)
+    for p in conn.execute("SELECT name, period, net_minor FROM payslips WHERE period<>'' ORDER BY period"):
+        year, month = int(p["period"][:4]), int(p["period"][5:7])
+        start = date(year, month, 1).isoformat()
+        end = _shift((date(year + (month == 12), month % 12 + 1, 1)).isoformat(), 10)
+        hit = conn.execute("SELECT 1 FROM transactions WHERE kind='income' AND amount_minor=? AND day>=? AND day<=? AND event_id IS NULL", (p["net_minor"], start, end)).fetchone()
+        if hit:
+            out.append(Finding("payslip ↔ bank", "ok", p["name"], f"net pay {p['net_minor'] / 100:.2f} for {p['period']} arrived in the bank"))
+        elif p["period"] in covered:
+            out.append(Finding("payslip ↔ bank", "warn", p["name"], f"net pay {p['net_minor'] / 100:.2f} for {p['period']} was not found as a deposit"))
+    return out
+
+
+def documents_vs_bank(conn) -> list[Finding]:
+    """An invoice or receipt total should appear as a payment of exactly that amount, from a few days before its date to two months after."""
+    out = []
+    covered = _months_with_transactions(conn)
+    for d in conn.execute("SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('invoice','receipt') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"):
+        hit = conn.execute("SELECT 1 FROM transactions WHERE kind='expense' AND amount_minor=? AND day>=? AND day<=?", (d["total_minor"], _shift(d["doc_date"], -5), _shift(d["doc_date"], 60))).fetchone()
+        label = f"{d['kind']} {d['party'] or d['name']}"
+        if hit:
+            out.append(Finding("document ↔ bank", "ok", d["name"], f"{label}: a payment of {d['total_minor'] / 100:.2f} was found"))
+        elif d["doc_date"][:7] in covered:
+            out.append(Finding("document ↔ bank", "warn", d["name"], f"{label}: no payment of {d['total_minor'] / 100:.2f} was found"))
+    return out
+
+
+def continuity(conn) -> list[Finding]:
+    """Per account, each statement must start where the previous one ended, with no month missing."""
+    out = []
+    accounts = {r[0] for r in conn.execute("SELECT DISTINCT account FROM statement_files WHERE account<>'' AND period_start IS NOT NULL AND status<>'needs_check'")}
+    for acc in sorted(accounts):
+        files = list(conn.execute("SELECT name, period_start, period_end, opening_minor, closing_minor FROM statement_files WHERE account=? AND period_start IS NOT NULL AND status<>'needs_check' ORDER BY period_start", (acc,)))
+        for a, b in zip(files, files[1:], strict=False):
+            gap = (date.fromisoformat(b["period_start"]) - date.fromisoformat(a["period_end"])).days
+            if gap > 5:
+                out.append(Finding("continuity", "warn", acc, f"no statement between {a['period_end']} and {b['period_start']}"))
+            elif a["closing_minor"] is not None and b["opening_minor"] is not None:
+                same = a["closing_minor"] == b["opening_minor"]
+                out.append(Finding("continuity", "ok" if same else "fail", acc, f"{a['name']} → {b['name']}: " + ("the balances join up" if same else
+                           f"closing {a['closing_minor'] / 100:.2f} does not match the next opening {b['opening_minor'] / 100:.2f}")))
+    return out
+
+
+def plausibility(conn, today: date | None = None) -> list[Finding]:
+    """Dates in the future, or a payment dated outside the statement it came from, are impossible."""
+    today = today or date.today()
+    out = []
+    n = conn.execute("SELECT COUNT(*) FROM transactions WHERE day>?", (today.isoformat(),)).fetchone()[0]
+    out.append(Finding("plausibility", "fail", "payments", f"{n} payment(s) are dated in the future") if n else Finding("plausibility", "ok", "payments", "no payment is dated in the future"))
+    for f in conn.execute("SELECT name, period_start, period_end FROM statement_files WHERE period_start IS NOT NULL AND status<>'needs_check'"):
+        bad = conn.execute("SELECT COUNT(*) FROM transactions WHERE source=? AND (day<? OR day>?)", (f["name"], f["period_start"], f["period_end"])).fetchone()[0]
+        if bad:
+            out.append(Finding("plausibility", "fail", f["name"], f"{bad} payment(s) are dated outside this statement's own period"))
+    return out
+
+
+CROSS_AGENTS = (payslip_vs_bank, documents_vs_bank, continuity, plausibility)
+
+
+def run_cross_checks(conn) -> list[Finding]:
+    """Run every cross-document agent and store the findings (the previous cross-document findings are replaced)."""
+    found = [f for agent in CROSS_AGENTS for f in agent(conn)]
+    conn.execute("DELETE FROM findings WHERE cross=1")
+    conn.executemany("INSERT INTO findings (agent, level, subject, message, cross) VALUES (?,?,?,?,1)", [(f.agent, f.level, f.subject, f.message) for f in found])
+    conn.commit()
+    return found
+
+
+def store_file_findings(conn, subject: str, findings: list[Finding]) -> None:
+    conn.execute("DELETE FROM findings WHERE cross=0 AND subject=?", (subject,))
+    conn.executemany("INSERT INTO findings (agent, level, subject, message, cross) VALUES (?,?,?,?,0)", [(f.agent, f.level, f.subject, f.message) for f in findings])
+    conn.commit()

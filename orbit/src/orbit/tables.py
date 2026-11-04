@@ -29,6 +29,9 @@ LAYOUT_SCHEMA = {
         "decimal": {"type": "string"}, "thousands": {"type": "string"},  # as printed: "," and "." for 1.234,56
         "debit_words": {"type": "array", "items": {"type": "string"}}, "credit_words": {"type": "array", "items": {"type": "string"}},  # words marking direction (Af/Bij, Dr/Cr)
         "date_on_every_row": {"type": "boolean"},
+        "opening_balance": {"type": ["string", "null"]}, "closing_balance": {"type": ["string", "null"]},  # as printed, if the statement shows them
+        "balance_is_amount_owed": {"type": "boolean"},  # true for a credit card, where the balance is what you owe
+        "account": {"type": ["string", "null"]},  # the account or card number as printed
     },
     "required": ["header_line", "roles", "date_format", "decimal"],
 }
@@ -39,7 +42,10 @@ LAYOUT_PROMPT = (
     "direction (a column saying Af/Bij, Dr/Cr, debit/credit), balance (the running balance), ignore. date_format = the Python strptime format dates "
     "use (use %b for abbreviated month names and %B for full ones). month_names = the 12 month names as printed, in order, if months are words, else []. "
     "decimal and thousands = the characters used in numbers, e.g. decimal ',' thousands '.' for 1.234,56. debit_words and credit_words = the exact words "
-    "that mark direction in a direction column or after an amount. date_on_every_row = true if every transaction line starts with its own date."
+    "that mark direction in a direction column or after an amount. date_on_every_row = true if every transaction line starts with its own date. "
+    "If there are NO column titles (a plain data file), header_line = -1 and roles describe the cells of the FIRST line. If the statement prints an opening "
+    "balance and a closing balance (or previous and new balance), give each EXACTLY AS PRINTED as text, otherwise null; balance_is_amount_owed = true for a "
+    "credit card statement (the balance is what you owe). account = the account or card number exactly as printed, or null."
 )
 CURRENCY = re.compile(r"[€$£₹]|\b(?:eur|usd|inr|gbp|rs)\b\.?", re.IGNORECASE)
 
@@ -62,6 +68,10 @@ class Layout:
     debit_words: list[str] = field(default_factory=list)
     credit_words: list[str] = field(default_factory=list)
     date_on_every_row: bool = True
+    opening_text: str = ""
+    closing_text: str = ""
+    owed: bool = False
+    account: str = ""
 
 
 @dataclass
@@ -70,6 +80,9 @@ class Parsed:
     status: str  # verified | unverified | needs_check
     issues: list[str] = field(default_factory=list)
     checked: int = 0  # balance checkpoints that matched
+    opening: int | None = None  # signed minor units, from the balances (None if the statement shows none)
+    closing: int | None = None
+    proofs: list[str] = field(default_factory=list)  # how it was proved: "running balances", "opening + transactions = closing" ...
 
 
 # ---------------------------------------------------------------------------------------------------------------------------
@@ -83,7 +96,8 @@ def table_from_data(data: dict) -> list[list[Cell]]:
                 out.append(cells)
         return out
     if isinstance(data.get("rows"), list):
-        return [[Cell(i * 100.0, i * 100.0 + 99, str(c)) for i, c in enumerate(r) if str(c).strip()] for r in data["rows"] if isinstance(r, list) and any(str(c).strip() for c in r)]
+        # empty cells are kept: they hold a column's place (a plain data file has no titles to tell the columns apart)
+        return [[Cell(i * 100.0, i * 100.0 + 99, str(c)) for i, c in enumerate(r)] for r in data["rows"] if isinstance(r, list) and any(str(c).strip() for c in r)]
     return []
 
 
@@ -99,13 +113,17 @@ def infer_layout(client, model: str, table: list[list[Cell]]) -> Layout | None:
         roles = [r if r in ROLES else "ignore" for r in d["roles"]]
     except (ValueError, KeyError, TypeError):
         return None
-    if not 0 <= header < len(table) or len(roles) != len(table[header]) or "date" not in roles:
+    if not -1 <= header < len(table):
+        return None
+    reference = table[header] if header >= 0 else table[0]
+    if len(roles) != len(reference) or "date" not in roles:
         return None
     if not (("debit" in roles or "credit" in roles) or "amount" in roles):
         return None
     words = lambda k: [str(w).strip().lower() for w in d.get(k, []) if str(w).strip()]  # noqa: E731
     return Layout(header, roles, str(d["date_format"]), str(d.get("decimal") or ".")[:1] or ".", str(d.get("thousands") or "")[:1],
-                  [str(m).strip().lower() for m in d.get("month_names", [])][:12], words("debit_words"), words("credit_words"), bool(d.get("date_on_every_row", True)))
+                  [str(m).strip().lower() for m in d.get("month_names", [])][:12], words("debit_words"), words("credit_words"), bool(d.get("date_on_every_row", True)),
+                  str(d.get("opening_balance") or ""), str(d.get("closing_balance") or ""), bool(d.get("balance_is_amount_owed", False)), str(d.get("account") or "")[:40])
 
 
 def parse_date(text: str, layout: Layout) -> str | None:
@@ -186,14 +204,15 @@ def _assign(line: list[Cell], columns: list[tuple[float, float, str]]) -> dict[i
 
 
 def parse_table(table: list[list[Cell]], layout: Layout) -> Parsed:
-    columns = [(c.x0, c.x1, role) for c, role in zip(table[layout.header_line], layout.roles, strict=True)]
+    reference = table[layout.header_line] if layout.header_line >= 0 else table[0]  # no titles: the first data line shows where the columns are
+    columns = [(c.x0, c.x1, role) for c, role in zip(reference, layout.roles, strict=True)]
     role_of = {i: r for i, (_, _, r) in enumerate(columns)}
-    header_text = [c.text.strip().lower() for c in table[layout.header_line]]
+    header_text = [c.text.strip().lower() for c in reference] if layout.header_line >= 0 else None
     issues: list[str] = []
     rows: list[dict] = []  # day, amount (signed or None), kind, desc, balance
     day = None
     for n, line in enumerate(table):
-        if n <= layout.header_line or [c.text.strip().lower() for c in line] == header_text:
+        if n <= layout.header_line or (header_text is not None and [c.text.strip().lower() for c in line] == header_text):
             continue  # titles, and the titles repeated on every page
         cols = _assign(line, columns)
         text = {r: " ".join(v for i, v in cols.items() if role_of[i] == r).strip() for r in ROLES}
@@ -206,6 +225,9 @@ def parse_table(table: list[list[Cell]], layout: Layout) -> Parsed:
         if d is None and not has_money and balance is None:
             if text["description"] and rows and not text["date"]:
                 rows[-1]["desc"] += " " + text["description"]  # a description continued on the next line
+            continue
+        if d is None and not has_money and balance is not None:
+            rows.append({"day": day, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True})  # e.g. 'opening balance' with no date
             continue
         if d is not None and not has_money:
             if balance is not None:
@@ -229,10 +251,13 @@ def parse_table(table: list[list[Cell]], layout: Layout) -> Parsed:
                 side = amount[1] or ("dr" if words in layout.debit_words else "cr" if words in layout.credit_words else None)
                 kind = "expense" if (amount[0] < 0 or side == "dr") else "income" if side == "cr" else None
             rows.append({"day": d, "amount": minor, "kind": kind, "desc": text["description"], "balance": balance[0] if balance else None})
+            for i, shown in cols.items():  # a figure that looks like an amount sitting in a text column means the columns were misread
+                if role_of[i] in ("description", "ignore", "direction") and re.fullmatch(r"\(?-?\d{1,3}([.,\s]\d{3})*[.,]\d{2}\)?", shown.strip()):
+                    issues.append(f"line {n}: the figure {shown.strip()} sits in a column read as text")
         elif d is not None and text["description"] == "" and balance is None:
             issues.append(f"line {n} has a date but nothing else")
-    txns, status, checked = _prove(rows, issues)
-    return Parsed(txns, status, issues, checked)
+    txns, status, checked, opening, closing = _prove(rows, issues)
+    return Parsed(txns, status, issues, checked, opening, closing, ["running balances"] if checked else [])
 
 
 def _score(seq: list[dict]) -> int:
@@ -251,14 +276,18 @@ def _score(seq: list[dict]) -> int:
     return score
 
 
-def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int]:
+def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int, int | None, int | None]:
     """Put the lines in their true order, settle unknown directions with the balances, and make sure the balances add up.
     Returns (transactions, status, balance checks that matched)."""
     ordered = rows[::-1] if _score(rows[::-1]) > _score(rows) else rows  # a newest-first statement prints its balances in reverse
     running, matched, broken = None, 0, 0
     out: list[Txn] = []
+    opening = closing = None
     for r in ordered:
         if r.get("checkpoint"):
+            if opening is None:
+                opening = r["balance"]
+            closing = r["balance"]
             if running is not None:
                 matched, broken = (matched + 1, broken) if running == r["balance"] else (matched, broken + 1)
             running = r["balance"]
@@ -273,6 +302,10 @@ def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int]:
             running = r["balance"]
             continue
         signed = r["amount"] if kind == "income" else -r["amount"]
+        if opening is None and r["balance"] is not None:
+            opening = r["balance"] - signed  # the balance before the first transaction
+        if r["balance"] is not None:
+            closing = r["balance"]
         if r["balance"] is not None:
             if running is not None:
                 matched, broken = (matched + 1, broken) if running + signed == r["balance"] else (matched, broken + 1)
@@ -285,5 +318,5 @@ def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int]:
     if not out and not issues:
         issues.append("no transactions were found")
     if issues:
-        return out, "needs_check", matched
-    return (out, "verified", matched) if matched >= 1 else (out, "unverified", 0)
+        return out, "needs_check", matched, opening, closing
+    return (out, "verified", matched, opening, closing) if matched >= 1 else (out, "unverified", 0, None, None)

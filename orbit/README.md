@@ -64,6 +64,19 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   not proven. Categories and trip/event grouping are interpretation, not arithmetic: they can be wrong and are fixed by telling Orbit in chat.
 - **Safe to repeat and to interrupt.** A line is never stored twice, even when statements overlap. Reading takes a minute or two per file: the model is only
   asked for the layout.
+- **Verifier agents** (independent checkers; any one can fail a file; see `verify.py`). *Per file:* layout reader, balance prover (running balances add up),
+  totals prover (opening + transactions = closing, which also proves credit cards that have no running balance), second reader (the layout is worked out
+  again from a different part of the file and both readings must give identical transactions), standard reader (MT940 / camt.053: exact, to the cent).
+  *Across documents, after every import:* payslip net pay vs the bank deposit (to the cent), invoice/receipt totals vs a payment, each statement starting
+  where the previous one ended per account (and no month missing), and plausibility (nothing dated in the future or outside its own statement).
+  Money > Documents & checks shows what each agent concluded, in words.
+- **Best way to get each bank's data (exact beats PDF).** From the bank's own pages and third-party descriptions; *none of these layouts has been tested on
+  a real file yet*:
+  - **ABN AMRO:** download "Bij- en afschrijvingen" as **MT940** or **camt.053** (exact, read without a model), or the TXT export. PDF is read best-effort.
+  - **Wise:** use the **CSV** statement. The PDF often has no date column (dates sit inside the description) and its headers vary by language and currency.
+  - **ICICI / SBI:** use the **CSV** or Excel-as-CSV export from net banking. ICICI PDFs are usually password-protected, which Orbit cannot open. SBI PDFs show
+    Txn/Post Date, Value Date, Description, Ref/Cheque No, Debit, Credit and a running Balance (sometimes with a CR/DR marker); they are read by layout.
+  - **Credit cards (e.g. ABN AMRO card):** read by layout and proved by the previous/new balance printed on the statement.
 - **Categories, automatic.** Everyday spending: a few cheap keyword rules, then the local model for the merchants left (it sees only names, never
   amounts). **Trips, matches, shows and cancellations:** after every import the local model groups payments that belong together into named events
   (Asian Games 2026: Tickets, Flights, Stay ... Total), each under sports, events, trips or cancellations; refunds count negative, so a cancellation can

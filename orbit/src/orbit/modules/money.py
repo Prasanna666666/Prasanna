@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import categorize, dates, extract, payslips, statements, tables
+from .. import categorize, dates, extract, payslips, standards, statements, verify
 from ..db import get_setting, rows
 from ..module import Module, N, S, Tool
 
@@ -53,6 +54,18 @@ MIGRATIONS = (
     """
     ALTER TABLE statement_files ADD COLUMN status TEXT NOT NULL DEFAULT 'ok';      -- verified | unverified | needs_check | ok (not a statement)
     ALTER TABLE statement_files ADD COLUMN issues TEXT NOT NULL DEFAULT '';        -- why a file needs a check
+    """,
+    """
+    ALTER TABLE statement_files ADD COLUMN account TEXT NOT NULL DEFAULT '';       -- the account/card number printed on the statement
+    ALTER TABLE statement_files ADD COLUMN period_start TEXT;
+    ALTER TABLE statement_files ADD COLUMN period_end TEXT;
+    ALTER TABLE statement_files ADD COLUMN opening_minor INTEGER;
+    ALTER TABLE statement_files ADD COLUMN closing_minor INTEGER;
+    ALTER TABLE statement_files ADD COLUMN proofs TEXT NOT NULL DEFAULT '';        -- how it was proved
+    CREATE TABLE findings (                                                        -- what each verifier agent concluded
+        id INTEGER PRIMARY KEY, agent TEXT NOT NULL, level TEXT NOT NULL CHECK (level IN ('ok','warn','fail')),
+        subject TEXT NOT NULL, message TEXT NOT NULL, cross INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
     """,
 )
 
@@ -155,9 +168,10 @@ def delete_transaction(conn, a):
 
 
 # ---- statements -------------------------------------------------------------------------------------------------------
-def _store(conn, d, txns, learned) -> int:
+def _store(conn, d, txns, learned, account: str = "") -> int:
     new = 0
-    for ref, t in statements.with_references(txns):
+    scope = re.sub(r"[^A-Za-z0-9]", "", account).upper()
+    for ref, t in statements.with_references(txns, scope):
         cur = conn.execute(
             "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, balance_minor, auto) VALUES (?,?,?,?,?,?,?,?,1)",
             (t.day, t.amount_minor, t.kind, categorize.categorise(t.desc, t.kind, learned), t.desc[:300], ref, d["name"][:200], t.balance_minor))
@@ -221,11 +235,33 @@ def finance_document_totals(conn, a=None):
                              f"FROM finance_docs WHERE {' AND '.join(where)} GROUP BY grp ORDER BY total DESC LIMIT 50", args))
 
 
+def _read_standard(kind: str, text: str, name: str) -> verify.Read:
+    """MT940 / camt.053: exact formats, no model needed."""
+    statements_ = standards.read_mt940(text) if kind == "mt940" else standards.read_camt(text)
+    r = verify.Read()
+    for s in statements_:
+        r.txns += s.txns
+        r.issues += s.issues
+    r.account = statements_[0].account if statements_ else ""
+    if r.txns:
+        days = sorted(t.day for t in r.txns)
+        r.first, r.last = days[0], days[-1]
+    if len(statements_) == 1:
+        r.opening, r.closing = statements_[0].opening, statements_[0].closing
+    proven = bool(statements_) and all(s.status == "verified" for s in statements_)
+    r.proofs = ["opening + transactions = closing"] if proven else []
+    r.status = "needs_check" if r.issues else ("verified" if proven else "unverified")
+    r.findings = [verify.Finding("standard reader", "fail" if r.issues else "ok", name,
+                                 "; ".join(r.issues[:3]) if r.issues else f"{len(r.txns)} transactions; opening balance + transactions = closing balance, to the cent")]
+    return r
+
+
 def import_statements(conn, a=None, client=None, model=None, progress=None):
     """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice.
 
-    The local model (`client`, `model`) understands each file, whatever its bank, language or layout; code only checks the answer by arithmetic.
-    Without the model nothing is imported (a guess at a layout could silently give wrong numbers)."""
+    Bank standards (MT940, camt.053) are read exactly, without a model. Other statements: the local model only describes the layout, code reads every
+    figure, and verifier agents (balances, totals, a second independent reading) must all agree. A file that fails is not counted. Without the model,
+    only the exact standards can be imported (a guess at a layout could silently give wrong numbers)."""
     learned = categorize.learned_rules(conn)
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
     files = added = duplicates = payslip_count = 0
@@ -238,16 +274,18 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             data = json.loads(d["data"]) if d["data"] else {}
         except ValueError:
             data = {}
-        lines = [str(x) for x in data.get("lines", [])] if isinstance(data.get("lines"), list) else []
-        if not lines and isinstance(data.get("rows"), list):
-            lines = [" | ".join(str(c) for c in r) for r in data["rows"] if isinstance(r, list)]
-        lines = lines or d["text"].splitlines()
         slip = None
         info: dict = {}
         status, issues = "ok", []
         txns: list[statements.Txn] = []
         new = 0
-        if client is not None and model:
+        rd: verify.Read | None = None
+        standard = standards.sniff(d["text"])
+        if standard:
+            info = {"kind": "bank_statement", "title": "Bank statement"}
+            _remember_doc(conn, d, info)
+            rd = _read_standard(standard, d["text"], d["name"])
+        elif client is not None and model:
             try:
                 info = extract.classify(client, model, d["name"], d["text"])
                 _remember_doc(conn, d, info)
@@ -255,34 +293,39 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
                     slip = payslips.from_model(info)
                 elif info["kind"] == "bank_statement":
                     if progress:
-                        progress(f"{d['name']}: reading the table ({index} of {len(docs)} files)")
-                    table = tables.table_from_data(data)
-                    layout = tables.infer_layout(client, model, table)
-                    parsed = tables.parse_table(table, layout) if layout else tables.Parsed([], "needs_check", ["the layout of this file could not be understood"])
-                    status, issues = parsed.status, parsed.issues
-                    if status != "needs_check":  # nothing from a file that fails its own proof ever reaches your totals
-                        txns = parsed.txns
-                        new = _store(conn, d, txns, learned)
-                    else:
-                        needs_check.append({"file": d["name"], "issues": issues[:5]})
+                        progress(f"{d['name']}: reading and checking ({index} of {len(docs)} files)")
+                    rd = verify.read_table_statement(client, model, d["name"], data, d["text"])
             except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
                 problems.append(str(exc))
                 break
         else:
-            problems.append("The local model is not running, so statements cannot be read. Start Ollama and try again.")
-            break
+            msg = "The local model is not running, so these statements cannot be read. Start Ollama and try again."
+            if msg not in problems:
+                problems.append(msg)
+            continue
+        extra = ("", None, None, None, None, "")
+        if rd is not None:
+            status, issues = rd.status, rd.issues
+            if status != "needs_check":  # nothing from a file that fails its own proof ever reaches your totals
+                txns = rd.txns
+                new = _store(conn, d, txns, learned, rd.account)
+            else:
+                needs_check.append({"file": d["name"], "issues": issues[:5]})
+            verify.store_file_findings(conn, d["name"], rd.findings)
+            extra = (rd.account, rd.first or None, rd.last or None, rd.opening, rd.closing, "; ".join(rd.proofs))
         if slip is not None:
             conn.execute("INSERT OR IGNORE INTO payslips VALUES (?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], slip.period, slip.gross_minor, slip.net_minor,
                                                                                    slip.tax_minor, slip.pension_minor, slip.holiday_minor))
             payslip_count += 1
-        conn.execute("INSERT INTO statement_files (sha256, name, found, added, status, issues) VALUES (?,?,?,?,?,?)",
-                     (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500]))
+        conn.execute("INSERT INTO statement_files (sha256, name, found, added, status, issues, account, period_start, period_end, opening_minor, closing_minor, proofs) "
+                     "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500], *extra))
         files += 1
         added += new
         duplicates += len(txns) - new
-        if not txns and slip is None and info.get("kind") == "bank_statement":
+        if not txns and slip is None and info.get("kind") == "bank_statement" and status != "needs_check":
             empty.append(d["name"])
         conn.commit()
+    verify.run_cross_checks(conn)  # payslips vs bank, invoices vs bank, continuity, plausibility: every time, on everything
     if client is not None and model and added:  # merchants the rules could not place: the local model sees only their names
         try:
             categorize.recategorise_with_model(conn, client, model)
@@ -297,6 +340,15 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
     return {"files": files, "new_transactions": added, "already_had": duplicates, "payslips": payslip_count,
             "files_with_no_transactions": empty, "needs_check": needs_check, "problems": problems}
+
+
+def verification_report(conn, a=None):
+    """What every verifier agent concluded: counts per agent, and every warning and failure in words."""
+    found = rows(conn.execute("SELECT agent, level, subject, message FROM findings ORDER BY (level='fail') DESC, (level='warn') DESC, agent, subject"))
+    summary: dict[str, dict[str, int]] = {}
+    for f in found:
+        summary.setdefault(f["agent"], {"ok": 0, "warn": 0, "fail": 0})[f["level"]] += 1
+    return {"summary": summary, "problems": [f for f in found if f["level"] != "ok"], "passed": sum(1 for f in found if f["level"] == "ok")}
 
 
 def list_payslips(conn, a=None):
@@ -421,6 +473,7 @@ MODULE = Module(
         Tool("finance_document_totals", "Add up invoices, receipts, insurance ... by kind, month or who they are from.",
              {"by": S("kind, month or party", enum=["kind", "month", "party"]), "kind": S("Only this kind"), "since": S("YYYY-MM-DD"),
               "until": S("YYYY-MM-DD")}, finance_document_totals),
+        Tool("verification_report", "What each verifier agent checked (balances, totals, second reading, payslip vs bank, invoice vs bank, continuity): counts, warnings and failures.", {}, verification_report),
         Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool("top_merchants", "Where the money went: spend per merchant, biggest first. Optional month YYYY-MM or since/until dates.",
