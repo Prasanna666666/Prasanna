@@ -43,7 +43,7 @@ def _fake_ctx(calls):
 
 def test_warm_up_loads_models_only_when_no_scan_is_running(monkeypatch):
     monkeypatch.setattr(threading, "Thread", _InlineThread)
-    for running, expected in ((False, ["index", "places", "facts", "llm", "clip"]), (True, ["index", "places", "facts"])):
+    for running, expected in ((False, ["index", "places", "facts", "clip", "llm"]), (True, ["index", "places", "facts"])):
         calls = []
         monkeypatch.setattr("aperture.indexing.progress.ScanLock.running", lambda self, verify=False, r=running: r)
         bootstrap.AppContext.warm_up(_fake_ctx(calls))

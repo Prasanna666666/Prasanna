@@ -7,11 +7,15 @@ offline guard sees a plain 127.0.0.1 connection.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from contextvars import ContextVar
 import urllib.error
 import urllib.request
 from typing import Any, Protocol
+
+
+log = logging.getLogger(__name__)
 
 
 class LLMError(RuntimeError):
@@ -176,6 +180,7 @@ class OllamaClient:
                                     calls.append({"name": function.get("name"), "arguments": function.get("arguments")})
                         yield chunk
                         if chunk.get("done"):
+                            self._log_timing(chunk)
                             return
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
@@ -208,6 +213,16 @@ class OllamaClient:
             text = str(message.get("content", "")) if isinstance(message, dict) else ""
             if text:
                 yield text
+
+    @staticmethod
+    def _log_timing(chunk: dict[str, Any]) -> None:
+        """Where the model's time went (Ollama reports it): loading the model, reading the prompt, writing the answer."""
+        def seconds(key: str) -> float:
+            return float(chunk.get(key) or 0) / 1e9
+
+        log.info("model timing: load %.1fs, read prompt %d tokens in %.1fs, wrote %d tokens in %.1fs",
+                 seconds("load_duration"), int(chunk.get("prompt_eval_count") or 0), seconds("prompt_eval_duration"),
+                 int(chunk.get("eval_count") or 0), seconds("eval_duration"))
 
     def _chunks_with_retry(self, payload: dict[str, Any], timeout: float | None = None):
         """A server error before the first word (the model runner restarting, memory pressure) is retried once after a short pause."""

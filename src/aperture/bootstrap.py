@@ -137,9 +137,9 @@ class AppContext:
 
         def work() -> None:
             threading.Thread(target=drive_reads, name="warm-up-drive", daemon=True).start()
-            run("AI model", self.warm_ai if hasattr(self, "warm_ai") else lambda: self.llm().warm())
+            run("image search model", self.search_embedder)  # first: loading it while the chat model answers would slow the chat down
             reads_done.wait()
-            run("image search model", self.search_embedder)  # the slowest model goes last
+            run("AI model", self.warm_ai if hasattr(self, "warm_ai") else lambda: self.llm().warm())  # last, so it is hot when you start
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 
@@ -192,7 +192,7 @@ class AppContext:
 
     def search_ready(self) -> bool:
         """True once the photo index and the image-search model are loaded (the first search is then instant)."""
-        return self._index is not None
+        return self._index is not None and self._embedder is not None
 
     def embedding_index(self) -> EmbeddingIndex:
         """Cached index, rebuilt automatically when a scan changes embeddings."""
