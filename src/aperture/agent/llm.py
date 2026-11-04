@@ -74,7 +74,7 @@ class OllamaClient:
             raise LLMError(f"Ollama returned HTTP {exc.code}: {detail}") from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             raise LLMUnavailable(
-                f"Ollama is not reachable at {self.base_url}. Start it with `ollama serve` (or open the Ollama app)."
+                "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
             ) from exc
         except ValueError as exc:
             raise LLMError("Ollama sent an unreadable response") from exc
@@ -184,7 +184,7 @@ class OllamaClient:
             raise LLMError(f"Ollama returned HTTP {exc.code}" + (f": {detail}" if detail else "")) from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             raise LLMUnavailable(
-                f"Ollama is not reachable at {self.base_url}. Start it with `ollama serve` (or open the Ollama app)."
+                "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
             ) from exc
         finally:
             _record(self.model, payload, "".join(parts), calls)

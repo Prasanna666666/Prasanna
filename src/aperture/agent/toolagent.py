@@ -23,6 +23,7 @@ import difflib
 import itertools
 import json
 import re
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -35,6 +36,7 @@ from .service import CHAT_MAX_TOKENS, AgentReply, AgentService, show_previous
 
 PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool calls typed out as text
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
+CONTEXT_LIMIT = 4.0  # seconds the facts lookup may take before the model runs without it
 HARD_LIMIT = 20.0  # no message may take longer than this: each model call gets only the time that is left, then the app answers by itself
 TIME_BUDGET = 12.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
 SLOW_TOOL_MIN_REMAINING = 8.0  # the vision model needs several seconds per photo: it is refused when less time than this is left
@@ -266,10 +268,7 @@ class ToolAgent:
         timings: dict[str, float] = {}
         started = time.perf_counter()
         began = time.monotonic()
-        try:
-            facts = self._context(request)
-        except Exception:
-            facts = ""  # the facts are help, not a requirement
+        facts = self._facts_within(request, CONTEXT_LIMIT)
         timings["context"] = round(time.perf_counter() - started, 2)
         system, messages = self.system_message(facts, previous_ids is not None), self._messages(request, history)
         shown: AgentReply | None = None  # the last search that found photos: those photos go on screen
@@ -345,6 +344,22 @@ class ToolAgent:
                 leftover.append(event)
                 break
         return head, itertools.chain(leftover, events)
+
+    def _facts_within(self, request: str, limit: float) -> str:
+        """The facts are help, not a requirement: if looking them up is slow (a cold external drive) the model runs without them while the
+        lookup carries on in the background, so the next message finds everything cached."""
+        box: list[str] = []
+
+        def work() -> None:
+            try:
+                box.append(self._context(request))
+            except Exception:
+                box.append("")
+
+        worker = threading.Thread(target=work, name="facts", daemon=True)
+        worker.start()
+        worker.join(limit)
+        return box[0] if box else ""
 
     def _keyword_search(self, request: str, previous_ids: Any, history: Any, timings: dict[str, float]) -> AgentReply | None:
         """The model could not answer in time. The content words of the message are looked up as a place, folder, person or written

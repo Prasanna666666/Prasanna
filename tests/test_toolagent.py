@@ -586,3 +586,19 @@ def test_a_slow_model_never_holds_the_answer_past_the_limit_the_stored_data_answ
     reply = agent.ask("show me the Tokyo trip photos")
     assert len(plans) == 1 and [c.query for c in plans[0][0].clauses] == ["tokyo", "trip"]  # words looked up without the model
     assert list(reply.ids) == [11, 12, 13] and slow.timeouts[0] <= toolagent.HARD_LIMIT
+
+
+def test_slow_fact_lookups_never_hold_up_the_model_and_keep_working_in_the_background(monkeypatch):
+    import threading
+    import time
+
+    from aperture.agent import toolagent
+
+    release = threading.Event()
+    agent, _, _ = agent_with([[("delta", "Hello there, this is a long friendly greeting that is more than ninety characters in total. " * 2)]])
+    agent._context = lambda request: release.wait(5) or "FACTS"
+    started = time.monotonic()
+    monkeypatch.setattr(toolagent, "CONTEXT_LIMIT", 0.2)
+    reply = agent.ask("Hi")
+    assert time.monotonic() - started < 2.0 and "".join(reply.stream).startswith("Hello")
+    release.set()

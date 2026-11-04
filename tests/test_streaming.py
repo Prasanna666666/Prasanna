@@ -53,7 +53,7 @@ def test_stream_chat_yields_pieces_and_stops_at_done(monkeypatch):
 
 @pytest.mark.parametrize("error,expected", [
     (urllib.error.HTTPError("u", 404, "nf", {}, None), (LLMError, "not installed")),
-    (urllib.error.URLError("refused"), (LLMUnavailable, "not reachable")),
+    (urllib.error.URLError("refused"), (LLMUnavailable, "isn.t running")),
 ])
 def test_stream_chat_errors_are_friendly(monkeypatch, error, expected):
     def boom(req, timeout=None):
