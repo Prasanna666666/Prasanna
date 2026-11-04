@@ -467,3 +467,18 @@ def test_a_tool_call_typed_out_as_text_is_not_accepted_the_model_must_really_cal
     reply = agent.ask("Tokyo")
     assert len(plans) == 1 and plans[0][0].clauses and list(reply.ids) == [11, 12, 13]
     assert "never write a tool call" in llm.calls[0][0]
+
+
+def test_a_call_typed_out_in_pieces_is_caught_and_a_second_failure_falls_back_to_the_planner():
+    pieces = [("delta", "`"), ("delta", "probe"), ("delta", '("'), ("delta", 'tokyo")` -> 12 occurrences found.')]
+    agent, llm, plans = agent_with([pieces, pieces])  # told to act, and it types the call out again
+    sentinel = object()
+    agent._service.ask = lambda request, previous_ids=None, history=None: sentinel  # the planner pipeline
+    assert agent.ask("Tokyo") is sentinel and not plans
+    assert len(llm.calls) == 2  # asked once, nudged once, then handed to the planner
+
+
+def test_a_normal_reply_is_shown_in_full_after_the_peek():
+    agent, _, _ = agent_with([[("delta", "Hello "), ("delta", "there, "), ("delta", "this is a long enough friendly greeting to pass the peek window, "), ("delta", "and more.")]])
+    reply = agent.ask("hi")
+    assert "".join(reply.stream) == "Hello there, this is a long enough friendly greeting to pass the peek window, and more."

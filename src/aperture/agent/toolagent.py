@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import itertools
 import json
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -31,6 +33,7 @@ from .llm import LLMError, OllamaClient
 from .schema import _DATE_PROPS, _FILTER_PROPS, Plan, plan_from_raw
 from .service import CHAT_MAX_TOKENS, AgentReply, AgentService
 
+PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool calls typed out as text
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
 TIME_BUDGET = 15.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
 SLOW_TOOL_MIN_REMAINING = 8.0  # the vision model needs several seconds per photo: it is refused when less time than this is left
@@ -213,6 +216,7 @@ class ToolAgent:
         self._read_text, self._look, self._probe, self._inspect = read_text, look, probe, inspect
         self._deadline = float("inf")
         self._tools = [TOOL_DEFS[name] for name in spec.tools]
+        self._call_text = re.compile(r"\b(" + "|".join(map(re.escape, spec.tools)) + r")\b[`'\"\s]*\(")
 
     # ---- 1. RETRIEVE ---------------------------------------------------------------------------------------------------
     def system_message(self, facts: str, has_previous: bool) -> str:
@@ -261,6 +265,7 @@ class ToolAgent:
         system, messages = self.system_message(facts, previous_ids is not None), self._messages(request, history)
         shown: AgentReply | None = None  # the last search that found photos: those photos go on screen
         nudged = False
+        acted = False  # becomes True once a tool really ran
         read = False  # a reading tool was used: then the model's own words are grounded in what it read
         self._deadline = time.monotonic() + TIME_BUDGET
         for step in range(MAX_STEPS + 1):
@@ -274,18 +279,21 @@ class ToolAgent:
             if first is None or (final and first[0] == "tool"):
                 break
             kind, value = first
-            wrote_a_call = kind != "tool" and any(f"{name}(" in value for name in self.spec.tools)  # a call typed out as text did nothing
-            if kind != "tool" and step == 0 and shown is None and not nudged and (wrote_a_call or self._about_photos(request, previous_ids)):
-                # It started talking, but the message is about the photos: make it act first, then talk.
-                nudged = True
-                messages.append({"role": "assistant", "content": ""})
-                messages.append({"role": "user", "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns."})
-                continue
-            if kind != "tool":  # ---- 4. ANSWER: the model has what it needs and talks
-                return self._answer(value, events, shown, timings, read)
+            if kind != "tool":
+                head, events = self._peek(value, events)  # words arrive in pieces: look at the start of the reply before showing it
+                typed = bool(self._call_text.search("".join(head)))  # a tool call typed out as text did nothing and its "results" are invented
+                if not acted and shown is None and (typed or (not nudged and self._about_photos(request, previous_ids))):
+                    if nudged:  # told twice and it still will not act: the planner does the search instead, so the answer is always real
+                        return self._service.ask(request, previous_ids, history)
+                    nudged = True
+                    messages.append({"role": "assistant", "content": ""})
+                    messages.append({"role": "user", "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns."})
+                    continue
+                return self._answer("".join(head), events, shown, timings, read)  # ---- 4. ANSWER: the model talks
             calls = [value] + [v for k, v in events if k == "tool"]
             messages.append({"role": "assistant", "content": "",
                              "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]})
+            acted = True
             for call in calls:  # ---- 3. OBSERVE
                 read = read or call["name"] in ("read_photo_text", "look_at_photos")
                 started = time.perf_counter()
@@ -295,6 +303,20 @@ class ToolAgent:
                 if reply is not None and len(reply.ids):
                     shown = reply
         return AgentReply("chat", "I could not finish that. Could you say it another way?", timings=timings)
+
+    def _peek(self, first: str, events: Any) -> tuple[list[str], Any]:
+        """Read the first words of a reply (up to PEEK_CHARS) without losing anything: returns those words and the rest of the stream."""
+        head, size, leftover = [first], len(first), []
+        for event in events:
+            if event[0] == "delta":
+                head.append(event[1])
+                size += len(event[1])
+                if size >= PEEK_CHARS:
+                    break
+            else:
+                leftover.append(event)
+                break
+        return head, itertools.chain(leftover, events)
 
     def _about_photos(self, request: str, previous_ids: Any) -> bool:
         """A tiny model call (the same model): is this message about the user's photos, or just conversation?"""
