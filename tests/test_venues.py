@@ -82,3 +82,21 @@ def test_a_little_text_around_the_models_json_is_tolerated(tmp_path):
             return 'Sure! {"sports_venue": true, "sport": "hockey", "venue_type": "arena", "evidence": "nets"} Hope that helps.'
 
     assert venues.run(conn, tmp_path, Chatty())["sports_venues"] == 1
+
+
+def test_the_real_vision_client_asks_ollama_for_a_constrained_answer_about_one_picture(monkeypatch):
+    """The stand-in model above hides a missing method: this uses the real OllamaVision class."""
+    from aperture.agent.llm import OllamaVision
+
+    sent = {}
+
+    def fake_request(self, path, payload=None):
+        sent["path"], sent["payload"] = path, payload
+        return {"message": {"content": '{"sports_venue": true}'}}
+
+    monkeypatch.setattr(OllamaVision, "_request", fake_request)
+    client = OllamaVision("http://127.0.0.1:11434", "ministral-3:3b")
+    assert client.extract(b"jpegbytes", "look", venues.SCHEMA, 500) == '{"sports_venue": true}'
+    message = sent["payload"]["messages"][0]
+    assert sent["path"] == "/api/chat" and sent["payload"]["format"] == venues.SCHEMA and sent["payload"]["stream"] is False
+    assert message["content"] == "look" and len(message["images"]) == 1  # one picture, as base64
