@@ -200,4 +200,4 @@ def test_a_request_with_several_conditions_answers_with_where_they_all_hold_even
     plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")))
     reply = service.run_plan("hockey game in nagoya", plan)  # the strict search on 'looks like hockey' finds nothing here: no image model
     assert sorted(reply.ids.tolist()) == [1, 2] and "hockey and Nagoya" in reply.text
-    assert reply.groups[0][0] == "hockey and Nagoya"
+    assert [g[0] for g in reply.groups] == ["hockey and Nagoya"]  # just the answer, no other tabs

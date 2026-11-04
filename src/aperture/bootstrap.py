@@ -155,6 +155,7 @@ class AppContext:
             VisualSearch(index, embedder).search("a photo of people")
 
     _cloud_chat: Any = None
+    cloud_on: bool = False  # the switch in the header: every launch starts fully local
 
     def _cloud_interpreter(self, people_names: Any) -> Any:
         """The optional cloud question reader (off unless switched on); it only ever receives the redacted words of the question."""
@@ -174,8 +175,8 @@ class AppContext:
             return self.memo("cloud_places", 300.0, load)
 
         interpreter = CloudInterpreter(self.settings.cloud_port, people_names, places)
-        self._cloud_chat = interpreter.chat
-        return interpreter
+        self._cloud_chat = lambda request, history: interpreter.chat(request, history) if self.cloud_on else None
+        return lambda question, has_previous: interpreter(question, has_previous) if self.cloud_on else None
 
     def warm_ai(self) -> None:
         agent = self.agent()

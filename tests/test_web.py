@@ -273,9 +273,24 @@ def test_the_header_says_whether_the_cloud_is_reading_the_questions_and_what_it_
 
     assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "off"}  # the default: fully local
     app.web.ctx.settings.cloud_interpreter = True
+    assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "local"}  # set up but switched off: still nothing leaves the Mac
+    app.web.ctx.cloud_on = True
     app.web._cache.pop("cloud_up", None)
     monkeypatch.setattr(launcher, "gateway_status", lambda port: {"spent_usd": 0.0123, "cap_usd": 5.0})
     assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "connected", "spent": 0.0123, "cap": 5.0}
     app.web._cache.pop("cloud_up", None)
     monkeypatch.setattr(launcher, "gateway_status", lambda port: None)
     assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "down"}  # on, but not reachable: the local model is doing the work
+
+
+def test_the_cloud_switch_starts_off_and_only_turns_on_when_the_cloud_is_set_up_and_running(app, monkeypatch):
+    from aperture import launcher
+
+    assert app.web.set_cloud(True)["ok"] is False  # not set up
+    app.web.ctx.settings.cloud_interpreter = True
+    monkeypatch.setattr(launcher, "gateway_up", lambda port: False)
+    assert app.web.set_cloud(True)["ok"] is False and not getattr(app.web.ctx, "cloud_on", False)  # set up, but no connection
+    monkeypatch.setattr(launcher, "gateway_up", lambda port: True)
+    monkeypatch.setattr(launcher, "gateway_status", lambda port: {"spent_usd": 0.0, "cap_usd": 5.0})
+    assert app.web.set_cloud(True)["cloud"]["state"] == "connected"
+    assert app.web.set_cloud(False)["cloud"] == {"state": "local"}

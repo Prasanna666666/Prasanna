@@ -156,10 +156,24 @@ class Web:
         self._cache[key] = (now, value)
         return value
 
+    def set_cloud(self, on: bool) -> dict[str, Any]:
+        """The header switch. Turning it on needs the cloud to be set up and its gateway running; every launch starts with it off."""
+        from ..launcher import gateway_up
+
+        if on and not self.ctx.settings.cloud_interpreter:
+            return {"ok": False, "error": "The cloud is not set up. Run: .venv/bin/python -m aperture cloud enable"}
+        if on and not gateway_up(self.ctx.settings.cloud_port):
+            return {"ok": False, "error": "The cloud connection is not running. Restart the app: .venv/bin/python -m aperture install-service"}
+        self.ctx.cloud_on = on
+        self._cache.pop("cloud_up", None)
+        return {"ok": True, "cloud": self.cloud_info()}
+
     def cloud_info(self) -> dict[str, Any]:
         """Whether a cloud model is reading the typed questions (names hidden) and what it has cost this month, shown in the header."""
         if not self.ctx.settings.cloud_interpreter:
-            return {"state": "off"}
+            return {"state": "off"}  # not set up
+        if not getattr(self.ctx, "cloud_on", False):
+            return {"state": "local"}  # set up, switched off: nothing leaves the Mac
         from ..launcher import gateway_status
 
         info = self.cached("cloud_up", 10, lambda: gateway_status(self.ctx.settings.cloud_port))
@@ -432,6 +446,11 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                 return
             if path == "/api/scan/resume":
                 self._json({"started": web.resume_indexing()})
+                return
+            if path == "/api/cloud":
+                body = self._body()
+                if body is not None:
+                    self._json(web.set_cloud(bool(body.get("on"))))
                 return
             if path != "/api/chat":
                 self._deny(HTTPStatus.NOT_FOUND, "not found")

@@ -379,7 +379,7 @@ class AgentService:
                     # Several conditions: each is judged by its OWN best evidence (a folder, a place, GPS, a trusted label ...) and the answer is
                     # where all of them hold, not whatever the model's guessed search method happened to give.
                     lead, outcome.ids = " and ".join(exploration.terms) if exploration.terms else "all of it", together
-                    groups = _merge_groups((lead, together), readings)
+                    groups = [(lead, together)]  # one clear answer, no pile of other categories
                 elif readings and _asks_for_one_thing(plan):
                     # One thing was asked for: the most reliable way it can be found leads (place and GPS before folders, people, written
                     # text and finally what the picture looks like), instead of a mixed search that silently narrows it to a few photos.

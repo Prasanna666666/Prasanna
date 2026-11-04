@@ -276,13 +276,21 @@
     if (action) { const b = el('button', '', action.text); b.type = 'button'; b.addEventListener('click', action.run); c.append(b); }
     return c;
   }
+  async function setCloud(on) {
+    try {
+      const r = await (await api('/api/cloud', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })).json();
+      if (!r.ok) alert(r.error);
+    } catch (e) { /* the next status refresh shows the truth */ }
+    refreshStatus();
+  }
   async function refreshStatus() {
     try {
       const s = await (await api('/api/status')).json();
       const chips = [chip(s.search_ready ? 'Search ready' : (s.warm_problem ? 'Search unavailable' : 'Search warming up'), s.search_ready ? 'ok' : (s.warm_problem ? 'bad' : 'warn')),
                      chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad'),
-                     ...(s.cloud && s.cloud.state === 'connected' ? [chip('Hybrid \u00b7 $' + Number(s.cloud.spent || 0).toFixed(2) + ' of $' + Number(s.cloud.cap || 0).toFixed(0), 'ok')]
-                       : s.cloud && s.cloud.state === 'down' ? [chip('Cloud not connected: local only', 'warn')] : []),
+                     ...(s.cloud && s.cloud.state === 'connected' ? [chip('Cloud on \u00b7 $' + Number(s.cloud.spent || 0).toFixed(2) + ' of $' + Number(s.cloud.cap || 0).toFixed(0), 'ok', { text: 'Turn off', run: () => setCloud(false) })]
+                       : s.cloud && s.cloud.state === 'down' ? [chip('Cloud not connected: local only', 'warn', { text: 'Turn off', run: () => setCloud(false) })]
+                       : s.cloud && s.cloud.state === 'local' ? [chip('Local only', 'ok', { text: 'Use cloud', run: () => setCloud(true) })] : []),
                      ];
       $('#build').textContent = s.build ? `build ${s.build}` : '';
       if (s.photos) chips.push(chip(`${s.photos.toLocaleString()} photos`, 'ok'));
