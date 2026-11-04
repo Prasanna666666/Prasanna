@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import agent, applenotes, db, llm, netguard, tagging
+from . import agent, applenotes, db, insight, llm, netguard, tagging
 from .modules import ALL, documents, events, money
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -169,7 +169,8 @@ def make_handler(state: State):
             try:
                 if path == "/api/home":
                     return self._json({"ok": True, "currency": db.display_currency(conn), "view": db.view_currency(conn),
-                                       "briefing": briefing_for(conn, date.today()), "trend": money.monthly_trend(conn, {"months": 6})})
+                                       "briefing": briefing_for(conn, date.today()), "trend": money.monthly_trend(conn, {"months": 6}),
+                                       "upcoming": insight.upcoming_payments(conn, {"days": 21})[:4]})
                 if path == "/api/status":
                     try:
                         client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
@@ -260,6 +261,7 @@ def serve(host: str = "127.0.0.1", port: int = 8501) -> int:
     state = State()
     httpd = ThreadingHTTPServer((host, port), make_handler(state))
     threading.Thread(target=_warm, daemon=True).start()
+    threading.Thread(target=_self_check, daemon=True).start()
     print(f"Orbit is running on http://{host}:{port}", flush=True)
     try:
         httpd.serve_forever()
@@ -279,3 +281,17 @@ def _warm() -> None:
         client.warm(model)
     except Exception:  # noqa: BLE001 - only a head start
         pass
+
+
+def _self_check() -> None:
+    """At start: run the self-test, take today's backup, and say aloud only if something is wrong."""
+    try:
+        conn = db.connect()
+        try:
+            for f in [*insight.self_test(conn), *insight.backup_status(conn)]:
+                if f.level != "ok":
+                    print(f"Orbit: {f.agent}: {f.message}", flush=True)
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001 - never stop the app for a check
+        print(f"Orbit: start-up check could not run: {exc}", flush=True)

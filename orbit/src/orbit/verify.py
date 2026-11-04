@@ -364,9 +364,9 @@ CROSS_AGENTS = (link_transfers, conversion, payslip_vs_bank, documents_vs_bank, 
 
 def run_cross_checks(conn) -> list[Finding]:
     """Run every cross-document agent and store the findings (the previous cross-document findings are replaced)."""
-    from . import notes_check
+    from . import insight, notes_check
 
-    found = [f for agent in (*CROSS_AGENTS, notes_check.notes_arithmetic, notes_check.notes_vs_app) for f in agent(conn)]
+    found = [f for agent in (*CROSS_AGENTS, notes_check.notes_arithmetic, notes_check.notes_vs_app, *insight.EXTRA_AGENTS) for f in agent(conn)]
     conn.execute("DELETE FROM findings WHERE cross=1")
     conn.executemany("INSERT INTO findings (agent, level, subject, message, cross) VALUES (?,?,?,?,1)", [(f.agent, f.level, f.subject, f.message) for f in found])
     conn.commit()
@@ -404,34 +404,34 @@ AGENTS: list[dict[str, str]] = [
     {"group": "Proving the numbers", "name": "Continuity", "does": "Each statement starts where the last ended; no month missing", "status": "built"},
     {"group": "Proving the numbers", "name": "Tally", "does": "The reports equal the raw ledger every month, in euros and per currency", "status": "built"},
     {"group": "Proving the numbers", "name": "Plausibility", "does": "Nothing dated in the future or outside its statement", "status": "built"},
-    {"group": "Proving the numbers", "name": "Self-test canary", "does": "Runs known sample statements through the readers at every start and fails loudly if anything changed", "status": "planned"},
-    {"group": "Proving the numbers", "name": "Audit log", "does": "An unchangeable record of every import and correction", "status": "planned"},
+    {"group": "Proving the numbers", "name": "Self-test canary", "does": "Runs known sample statements through the readers at every start and fails loudly if anything changed", "status": "built"},
+    {"group": "Proving the numbers", "name": "Audit log", "does": "An unchangeable record of every import and correction", "status": "built"},
     # money in euros
     {"group": "Euros", "name": "Converter", "does": "Every payment in euros at the ECB reference rate of its own day", "status": "built"},
     {"group": "Euros", "name": "Transfer matcher", "does": "Pairs money moved between your own accounts, in one currency or two", "status": "built"},
     {"group": "Euros", "name": "Conversion-cost agent", "does": "Fee and spread of a currency transfer, booked as its own expense", "status": "built"},
     {"group": "Euros", "name": "Statement-rate agent", "does": "Uses the rate and fee printed on a statement or Wise CSV instead of the reference rate", "status": "planned"},
-    {"group": "Euros", "name": "Rate freshness agent", "does": "Warns when the rate file is out of date", "status": "planned"},
+    {"group": "Euros", "name": "Rate freshness agent", "does": "Warns when the rate file is out of date", "status": "built"},
     # comparing documents with each other
     {"group": "Cross-checking documents", "name": "Payslip <-> bank", "does": "Net pay arrives in the bank to the cent", "status": "built"},
     {"group": "Cross-checking documents", "name": "Invoice/receipt <-> bank", "does": "Every invoice and receipt total appears as a payment", "status": "built"},
     {"group": "Cross-checking documents", "name": "Notes arithmetic", "does": "Your calculations in Apple Notes add up", "status": "built"},
     {"group": "Cross-checking documents", "name": "Notes <-> app", "does": "Your notes agree with the app, line by line", "status": "built"},
-    {"group": "Cross-checking documents", "name": "Tax letter agent", "does": "Tax assessments and refunds vs payments", "status": "planned"},
-    {"group": "Cross-checking documents", "name": "Insurance and contract agent", "does": "Premiums and rent vs what was actually paid", "status": "planned"},
-    {"group": "Cross-checking documents", "name": "Year-end agent", "does": "Your annual income statement (jaaropgave) vs twelve payslips and the bank", "status": "planned"},
-    {"group": "Cross-checking documents", "name": "VAT agent", "does": "Adds up the VAT on invoices and receipts", "status": "planned"},
-    {"group": "Cross-checking documents", "name": "Refund matcher", "does": "Ties each refund to its original purchase", "status": "planned"},
+    {"group": "Cross-checking documents", "name": "Tax letter agent", "does": "Tax assessments and refunds vs payments", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Insurance and contract agent", "does": "Premiums and rent vs what was actually paid", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Year-end agent", "does": "Your annual income statement (jaaropgave) vs twelve payslips and the bank", "status": "built"},
+    {"group": "Cross-checking documents", "name": "VAT agent", "does": "Adds up the VAT on invoices and receipts", "status": "built"},
+    {"group": "Cross-checking documents", "name": "Refund matcher", "does": "Ties each refund to its original purchase", "status": "built"},
     # understanding
     {"group": "Understanding", "name": "Categoriser", "does": "Rules, then the local model, then your corrections", "status": "built"},
     {"group": "Understanding", "name": "Event grouper", "does": "Groups tickets, flights, stays and refunds into trips, matches and shows", "status": "built"},
-    {"group": "Understanding", "name": "Merchant normaliser", "does": "Treats 'AH 1234' and 'Albert Heijn' as one shop", "status": "planned"},
-    {"group": "Understanding", "name": "Duplicate-payment agent", "does": "Spots the same payment charged twice", "status": "planned"},
-    {"group": "Understanding", "name": "Price-change agent", "does": "Tells you when a regular bill or subscription changes", "status": "planned"},
-    {"group": "Understanding", "name": "Unusual-payment agent", "does": "Flags payments that do not fit your pattern", "status": "planned"},
-    {"group": "Understanding", "name": "Net-worth agent", "does": "All account balances in euros, over time", "status": "planned"},
-    {"group": "Understanding", "name": "Forecast agent", "does": "Upcoming regular payments and what is left", "status": "planned"},
+    {"group": "Understanding", "name": "Merchant normaliser", "does": "Treats 'AH 1234' and 'Albert Heijn' as one shop", "status": "built"},
+    {"group": "Understanding", "name": "Duplicate-payment agent", "does": "Spots the same payment charged twice", "status": "built"},
+    {"group": "Understanding", "name": "Price-change agent", "does": "Tells you when a regular bill or subscription changes", "status": "built"},
+    {"group": "Understanding", "name": "Unusual-payment agent", "does": "Flags payments that do not fit your pattern", "status": "built"},
+    {"group": "Understanding", "name": "Net-worth agent", "does": "All account balances in euros, over time", "status": "built"},
+    {"group": "Understanding", "name": "Forecast agent", "does": "Upcoming regular payments and what is left", "status": "built"},
     # safety
     {"group": "Safety", "name": "Privacy sentinel", "does": "Nothing in the app can use the network; the model and the data stay on this Mac", "status": "built"},
-    {"group": "Safety", "name": "Backup and integrity agent", "does": "Encrypted backup of the database and a check that it is intact", "status": "planned"},
+    {"group": "Safety", "name": "Backup and integrity agent", "does": "Encrypted backup of the database and a check that it is intact", "status": "built"},
 ]

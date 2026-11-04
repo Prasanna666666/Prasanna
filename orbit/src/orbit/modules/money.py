@@ -8,7 +8,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import categorize, dates, extract, payslips, rates, standards, statements, verify
+from .. import audit, categorize, insight, dates, extract, payslips, rates, standards, statements, verify
 from ..db import get_setting, rows
 from ..module import Module, N, S, Tool
 
@@ -79,6 +79,17 @@ MIGRATIONS = (
     ALTER TABLE transactions ADD COLUMN rate TEXT NOT NULL DEFAULT '';            -- units of the payment's currency per 1 EUR that were used
     ALTER TABLE transactions ADD COLUMN rate_source TEXT NOT NULL DEFAULT '';     -- 'euro' | 'ecb <day>' | 'transfer'
     CREATE TABLE rates (day TEXT NOT NULL, currency TEXT NOT NULL, per_eur TEXT NOT NULL, PRIMARY KEY (day, currency));
+    """,
+    """
+    ALTER TABLE finance_docs ADD COLUMN gross_minor INTEGER;                      -- payslips and annual statements: the figures as verified against the text
+    ALTER TABLE finance_docs ADD COLUMN tax_minor INTEGER;
+    ALTER TABLE finance_docs ADD COLUMN net_minor INTEGER;
+    ALTER TABLE finance_docs ADD COLUMN period TEXT NOT NULL DEFAULT '';
+    ALTER TABLE transactions ADD COLUMN refund_of INTEGER;                        -- the purchase a refund gives money back for
+    CREATE TABLE merchant_alias (alias TEXT PRIMARY KEY, canonical TEXT NOT NULL); -- 'ah 1234' and 'albert heijn' are one shop
+    CREATE TABLE audit_log (                                                      -- every import and correction, each entry sealed with the one before
+        id INTEGER PRIMARY KEY, at TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, prev TEXT NOT NULL, hash TEXT NOT NULL
+    );
     """,
 )
 
@@ -176,6 +187,7 @@ def set_budget(conn, a):
 
 
 def delete_transaction(conn, a):
+    audit.record(conn, "payment deleted", f"id {a['id']}")
     conn.execute("DELETE FROM transactions WHERE id=?", (a["id"],))
     conn.commit()
     return {"deleted": a["id"]}
@@ -206,11 +218,14 @@ def _money(value) -> int | None:
 
 
 def _remember_doc(conn, d, info) -> None:
-    """Keep what the model read from a finance file: what it is, who it is from, when, how much."""
-    conn.execute("INSERT OR REPLACE INTO finance_docs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+    """Keep what the model read from a finance file: what it is, who it is from, when, how much (every amount was verified against the text)."""
+    period = str(info.get("period") or "")
+    conn.execute("INSERT OR REPLACE INTO finance_docs (sha256, name, kind, title, summary, party, doc_date, due_date, reference, total_minor, vat_minor, currency, "
+                 "gross_minor, tax_minor, net_minor, period) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                  (d["sha256"], d["name"], info.get("kind", "other"), str(info.get("title") or "")[:120], str(info.get("summary") or "")[:300],
                   str(info.get("party") or "")[:120], _day(info.get("date")), _day(info.get("due_date")), str(info.get("reference") or "")[:60],
-                  _money(info.get("total")), _money(info.get("vat")), str(info.get("currency") or "")[:5].upper()))
+                  _money(info.get("total")), _money(info.get("vat")), str(info.get("currency") or "")[:5].upper(),
+                  _money(info.get("gross")), _money(info.get("tax")), _money(info.get("net")), period if re.fullmatch(r"20\d{2}(-\d{2})?", period) else ""))
 
 
 def finance_documents(conn, a=None):
@@ -342,6 +357,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             payslip_count += 1
         conn.execute("INSERT INTO statement_files (sha256, name, found, added, status, issues, account, period_start, period_end, opening_minor, closing_minor, proofs, currency) "
                      "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500], *extra, rd.currency if rd is not None else ""))
+        audit.record(conn, "file read", f"{d['name']}: {status}, {len(txns)} payments, {new} new")
         files += 1
         added += new
         duplicates += len(txns) - new
@@ -484,6 +500,7 @@ def uncategorised(conn, a=None):
 def set_category(conn, a):
     """Put every transaction from a merchant into a category, now and in future imports."""
     m = categorize.teach(conn, a["merchant"], a["category"])
+    audit.record(conn, "category set", f"{m} -> {a['category']}")
     return {"merchant": m, "category": a["category"].lower()}
 
 
@@ -513,6 +530,8 @@ MODULE = Module(
              {"by": S("kind, month or party", enum=["kind", "month", "party"]), "kind": S("Only this kind"), "since": S("YYYY-MM-DD"),
               "until": S("YYYY-MM-DD")}, finance_document_totals),
         Tool("currencies", "The currencies in the ledger and which one the totals are showing.", {}, currencies),
+        Tool("upcoming_payments", "The regular payments coming up (subscriptions, rent, bills): who, how much, and when.", {"days": N("How many days ahead, default 35")}, insight.upcoming_payments),
+        Tool("net_worth", "The balance of every account in euros, month by month, from your proven statements.", {}, insight.net_worth),
         Tool("agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, agent_list),
         Tool("verification_report", "What each verifier agent checked (balances, totals, second reading, payslip vs bank, invoice vs bank, continuity): counts, warnings and failures.", {}, verification_report),
         Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),

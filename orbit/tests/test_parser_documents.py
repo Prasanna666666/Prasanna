@@ -66,7 +66,7 @@ def test_search_and_read_documents(conn, tmp_path):
 
 def test_documents_agent_is_read_only_and_routed():
     spec = agents.BY_NAME["documents"]
-    assert spec.tools == {"search_documents", "get_document"}
+    assert spec.tools == {"search_documents", "get_document", "search_files"}  # every one of them only reads
     assert agents.route("find the pdf statement from the hospital") == "documents"
     # no tool anywhere can create/modify/delete documents
     assert not [t for t in tools(ALL) if "document" in t and t.split("_")[0] in ("add", "delete", "update", "edit")]

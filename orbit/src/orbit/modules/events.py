@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import re
 
+from .. import audit
 from ..db import rows
 from ..module import I, Module, S, Tool
 
@@ -75,6 +76,7 @@ def update_event(conn, a):
     conn.execute("UPDATE events SET name=?, main=?, starts=COALESCE(?,starts), ends=COALESCE(?,ends), confirmed=? WHERE id=?",
                  (name, main, a.get("start"), a.get("end"), 1 if a.get("confirmed", True) else 0, ev["id"]))
     conn.commit()
+    audit.record(conn, "event changed", f"{ev['name']} -> {name} ({main})")
     return {"id": ev["id"], "name": name, "main": main}
 
 
@@ -85,6 +87,7 @@ def delete_event(conn, a):
     conn.execute("UPDATE transactions SET event_id=NULL, sub='' WHERE event_id=?", (ev["id"],))
     conn.execute("DELETE FROM events WHERE id=?", (ev["id"],))
     conn.commit()
+    audit.record(conn, "event deleted", ev["name"])
     return {"deleted": ev["name"]}
 
 
@@ -107,6 +110,7 @@ def assign(conn, a, confirmed: int = 1):
         conn.execute("UPDATE transactions SET event_id=?, sub=? WHERE id=?", (ev["id"], chosen, i))
         moved += 1
     conn.commit()
+    audit.record(conn, "payments added to an event", f"{ev['name']}: {moved}")
     return {"event": ev["name"], "id": ev["id"], "payments": moved}
 
 

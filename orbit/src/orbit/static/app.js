@@ -170,7 +170,10 @@ pages.home = async () => {
     b.tasks_due.length ? h('div', { class: 'list' }, b.tasks_due.map((t) => h('div', { class: 'item' },
       h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
       h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, t.due || 'no date'))))) : h('div', { class: 'empty' }, 'All done.'));
+  const bills = d.upcoming || [];
   const upCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Coming up')),
+    bills.length ? h('div', { class: 'list' }, bills.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.merchant) } }, initials(u.merchant)),
+      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, u.merchant), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days <= 0 ? 'now' : `in ${u.in_days} days`)), h('span', { class: 'num' }, money(u.amount))))) :
     b.upcoming_dates.length ? h('div', { class: 'list' }, b.upcoming_dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.name) } }, initials(u.name)),
       h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${u.name} · ${u.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days === 0 ? 'today' : `in ${u.in_days} days`)), u.turning ? h('span', { class: 'chip' }, `turning ${u.turning}`) : null))) : h('div', { class: 'empty' }, 'Nothing coming up.'));
   return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask, ...money_.filter(Boolean), h('div', { class: 'grid g2' }, tasksCard, upCard));
