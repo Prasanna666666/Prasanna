@@ -29,6 +29,54 @@ def _unavailable_message(exc: BaseException) -> str:
     return "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
 
 
+
+_KEEP_ZERO = ("min_people", "max_people")
+
+
+def _clean_arguments(arguments: Any) -> dict[str, Any]:
+    """A small model fills in every field it can see with an empty value: only what carries meaning is kept."""
+    if not isinstance(arguments, dict):
+        return {}
+    clean: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if value is None or value == "" or value == [] or value == {} or value is False:
+            continue
+        if value == 0 and key not in _KEEP_ZERO:
+            continue
+        if isinstance(value, list):
+            value = [v for v in value if v not in (None, "")]
+            if not value:
+                continue
+        clean[str(key)] = value
+    return clean
+
+
+def tools_text(tools: list[dict[str, Any]]) -> str:
+    """One short line per tool: its name, its argument names and what it is for."""
+    lines = ["Choose ONE tool and fill in only the arguments the user's words support; leave every other argument out."]
+    for tool in tools:
+        function = tool["function"]
+        params = ", ".join((function.get("parameters") or {}).get("properties", {}))
+        what = str(function.get("description", "")).split(". ")[0].strip().rstrip(".")[:150]
+        lines.append(f"- {function['name']}({params}): {what}")
+    lines.append('- reply: no tool; put your words in "reply".')
+    return "\n".join(lines)
+
+
+def _flatten(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Plain chat turns: an earlier tool call and its result become ordinary text the model can read."""
+    out: list[dict[str, str]] = []
+    for message in messages:
+        if message.get("tool_calls"):
+            calls = [c.get("function", {}) for c in message["tool_calls"]]
+            out.append({"role": "assistant", "content": "TOOL CALL: " + json.dumps([{"tool": c.get("name"), "arguments": c.get("arguments")} for c in calls])})
+        elif message.get("role") == "tool":
+            out.append({"role": "user", "content": "TOOL RESULT: " + str(message.get("content", ""))})
+        else:
+            out.append({"role": str(message.get("role", "user")), "content": str(message.get("content", ""))})
+    return out
+
+
 class LLMError(RuntimeError):
     """The model answered, but not usefully (missing model, bad request...)."""
 
@@ -259,27 +307,39 @@ class OllamaClient:
                     raise
                 time.sleep(2.0)
 
-    def chat_events(self, system: str, messages: list[dict[str, str]], tools: list[dict[str, Any]], max_tokens: int = 400,
+    def chat_events(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_tokens: int = 400,
                     timeout: float | None = None):
-        """One streaming call where the model chooses: yield ("delta", text) while it talks, or ("tool", {name, arguments}) when it
-        decides to use one of the tools. This is the heart of an agent: the model decides, our code only carries it out."""
-        for chunk in self._chunks_with_retry(self._chat_payload(system, messages, max_tokens, tools), timeout):
-            message = chunk.get("message")
-            if not isinstance(message, dict):
-                continue
-            for call in message.get("tool_calls") or []:
-                function = call.get("function") if isinstance(call, dict) else None
-                function = function if isinstance(function, dict) else {}
-                arguments = function.get("arguments")
-                if isinstance(arguments, str):
-                    try:
-                        arguments = json.loads(arguments)
-                    except ValueError:
-                        arguments = {}
-                yield "tool", {"name": str(function.get("name", "")), "arguments": arguments if isinstance(arguments, dict) else {}}
-            text = str(message.get("content") or "")
-            if text:
-                yield "delta", text
+        """The model decides: yield ("tool", {name, arguments}) when it picks a tool, or ("delta", text) when it just talks.
+
+        The choice is a short JSON answer that Ollama forces to be valid (a constrained answer), not the model's native tool-call format:
+        the tools are described in a few short lines instead of thousands of tokens of schema, the model cannot write a malformed or
+        typed-out call, and the prompt it has to read stays small."""
+        names = [t["function"]["name"] for t in tools or []]
+        if not names:  # no tools offered (the budget is spent): plain words
+            for chunk in self._chunks_with_retry(self._chat_payload(system, _flatten(messages), max_tokens), timeout):
+                text = str((chunk.get("message") or {}).get("content") or "")
+                if text:
+                    yield "delta", text
+            return
+        payload = self._chat_payload(tools_text(tools) + "\n\n" + system, _flatten(messages), max(max_tokens, 400))  # the unchanging part first: it can be reused
+        payload["format"] = {
+            "type": "object",
+            "properties": {"tool": {"type": "string", "enum": [*names, "reply"]}, "arguments": {"type": "object"}, "reply": {"type": "string"}},
+            "required": ["tool"],
+        }
+        payload["options"]["temperature"] = 0.1
+        raw = "".join(str((chunk.get("message") or {}).get("content") or "") for chunk in self._chunks_with_retry(payload, timeout))
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            yield "delta", raw  # not JSON after all: treat it as words
+            return
+        data = data if isinstance(data, dict) else {}
+        tool = str(data.get("tool") or "")
+        if tool in names:
+            yield "tool", {"name": tool, "arguments": _clean_arguments(data.get("arguments"))}
+        else:
+            yield "delta", str(data.get("reply") or "")
 
     def complete_text(self, system: str, user: str) -> str:
         """Plain-text answer (no JSON), for conversational replies grounded in supplied facts."""

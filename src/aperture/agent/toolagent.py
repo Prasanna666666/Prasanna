@@ -151,9 +151,7 @@ TOOLS = [TOOL_DEFS[name] for name in ASSISTANT.tools]
 # said, talk when it is conversation); they are deliberately different from the phrases the evaluation sets use.
 EXAMPLES = "\n".join([
     "'mountains' -> search for pictures showing a mountain",
-    "'a cup of coffee' -> search for pictures showing a cup of coffee",
     "'pictures of Maya at the market' -> search for the person Maya and pictures showing a market",
-    "'photos from last week' -> search with the relative time last_week",
     "'beach photos from the summer of 2022' -> search for a beach, year 2022, season summer",
     "'how many pictures did I take in 2018?' -> count the photos of year 2018",
     "'find the invoice that mentions Acme' -> search for the text Acme written in a photo",
@@ -161,15 +159,9 @@ EXAMPLES = "\n".join([
     "'put my Rome photos into a folder called Italy' -> copy the photos from the place Rome into the folder Italy",
     "'keep just the ones from May' (results are on screen) -> narrow the previous results to month 5",
     "'show them' (results are on screen) -> use the show_results tool",
-    "'germany' (results from another place are on screen) -> a new search for Germany, never the old photos",
-    "'thanks, that helps' -> reply in words, no tool",
-    "'what is a RAW file?' -> reply in words, no tool",
     "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
-    "'pics from 2 months back' -> use the calc_date tool for that one month, then search with date_from and date_to",
     "'pictures from the last 3 months' -> use the calc_date tool with until_today set, from 3 months ago until today, then search",
-    "'all the photos I took in Tokyo' -> search the place; if only text mentions it, use inspect_results to learn when and where, then search those dates or places",
-    "Only fill in what the user said: 'sunset photos' is a search for a sunset with no time of day and no kind.",
-    "Always call tools through the tool interface; never write a tool call out as text.",
+    "'thanks, that helps' -> reply in words, no tool",
 ])
 
 

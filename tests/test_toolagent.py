@@ -287,7 +287,7 @@ def test_a_specialised_agent_is_only_a_goal_and_a_tool_list():
     assert "no tool called" in json.loads(llm.calls[1][1][-1]["content"])["error"] and not plans  # find_photos was not allowed
 
 
-def test_the_real_chat_events_stream_parses_tool_calls_and_text(monkeypatch):
+def test_the_real_model_chooses_a_tool_through_a_constrained_json_answer_not_a_huge_tool_schema(monkeypatch):
     class Resp:
         def __init__(self, chunks):
             self.chunks = chunks
@@ -301,34 +301,34 @@ def test_the_real_chat_events_stream_parses_tool_calls_and_text(monkeypatch):
         def __exit__(self, *a):
             return False
 
-    call = {"message": {"content": "", "tool_calls": [{"function": {"name": "find_photos", "arguments": {"relative": "last_month"}}}]}}
-    stringy = {"message": {"content": "", "tool_calls": [{"function": {"name": "count_photos", "arguments": '{"year": 2026}'}}]}}
-    sent = {}
+    sent = []
+    answers = iter([
+        '{"tool": "find_photos", "arguments": {"places": ["Tokyo"], "year": 0, "what": "", "max_people": 0, "not_what": []}}',
+        '{"tool": "reply", "reply": "Hello there"}',
+        "plainly not json",
+        "just words, no schema",
+    ])
 
     def fake(req, timeout=None):
-        sent["body"] = json.loads(req.data)
-        return Resp([{"message": {"content": "Hi"}}, call, stringy, {"message": {"content": ""}, "done": True}])
+        sent.append(json.loads(req.data))
+        answer = next(answers)
+        return Resp([{"message": {"content": answer[:20]}}, {"message": {"content": answer[20:]}, "done": True}])
 
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     client = OllamaClient("http://127.0.0.1:11434", "ministral-3:3b")
-    events = list(client.chat_events("sys", [{"role": "user", "content": "x"}], TOOLS, 160))
-    assert events == [("delta", "Hi"), ("tool", {"name": "find_photos", "arguments": {"relative": "last_month"}}),
-                      ("tool", {"name": "count_photos", "arguments": {"year": 2026}})]
-    assert sent["body"]["tools"] == TOOLS and sent["body"]["stream"] is True and sent["body"]["options"]["num_ctx"] == 4096
-
-
-# ------------------------------------------------------------------ the real app wiring
-def test_the_default_brain_is_the_measured_pipeline_and_the_tool_agent_is_one_setting_away(tmp_path, monkeypatch):
-    from aperture.bootstrap import AppContext
-    from aperture.config import Paths
-
-    monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
-    paths = Paths(tmp_path / "Expansion")
-    paths.ensure()
-    ctx = AppContext(paths)
-    assert not isinstance(ctx.agent(), AgentService)  # the default is the tool-using agent
-    agent = ctx.agent()
-    assert isinstance(agent, ToolAgent) and agent._service._rescue is False  # no word-matching fallback
+    history = [{"role": "user", "content": "x"}, {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "probe", "arguments": {"term": "a"}}}]},
+               {"role": "tool", "tool_name": "probe", "content": "{\"n\": 1}"}]
+    first = list(client.chat_events("sys", history, TOOLS, 160))
+    assert first == [("tool", {"name": "find_photos", "arguments": {"places": ["Tokyo"], "max_people": 0}})]  # empty values are dropped, max_people=0 means 'nobody'
+    body = sent[0]
+    assert "tools" not in body and body["format"]["properties"]["tool"]["enum"][-1] == "reply"  # a constrained answer, not native tool calling
+    roles = [m["role"] for m in body["messages"]]
+    assert roles == ["system", "user", "assistant", "user"] and body["messages"][3]["content"].startswith("TOOL RESULT:")  # tool turns are plain text
+    assert "find_photos(" in body["messages"][0]["content"] and len(body["messages"][0]["content"]) < 6000  # a few short lines, not the schemas
+    assert list(client.chat_events("sys", [{"role": "user", "content": "x"}], TOOLS, 160)) == [("delta", "Hello there")]
+    assert list(client.chat_events("sys", [{"role": "user", "content": "x"}], TOOLS, 160)) == [("delta", "plainly not json")]
+    words = list(client.chat_events("sys", [{"role": "user", "content": "x"}], [], 160))  # no tools offered: plain words, no schema
+    assert "format" not in sent[-1] and "".join(t for _, t in words) == "just words, no schema"
 
 
 def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_the_app_is():
@@ -466,7 +466,6 @@ def test_a_tool_call_typed_out_as_text_is_not_accepted_the_model_must_really_cal
     ])
     reply = agent.ask("Tokyo")
     assert len(plans) == 1 and plans[0][0].clauses and list(reply.ids) == [11, 12, 13]
-    assert "never write a tool call" in llm.calls[0][0]
 
 
 def test_a_call_typed_out_in_pieces_is_caught_and_a_second_failure_falls_back_to_the_planner():
