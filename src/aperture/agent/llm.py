@@ -179,7 +179,8 @@ class OllamaClient:
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise LLMError(f"Model '{self.model}' is not installed. Run: ollama pull {self.model}") from exc
-            raise LLMError(f"Ollama returned HTTP {exc.code}") from exc
+            detail = exc.read().decode("utf-8", "replace")[:200].replace("\n", " ")  # Ollama says why (out of memory, runner stopped ...)
+            raise LLMError(f"Ollama returned HTTP {exc.code}" + (f": {detail}" if detail else "")) from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
             raise LLMUnavailable(
                 f"Ollama is not reachable at {self.base_url}. Start it with `ollama serve` (or open the Ollama app)."
@@ -207,10 +208,24 @@ class OllamaClient:
             if text:
                 yield text
 
+    def _chunks_with_retry(self, payload: dict[str, Any]):
+        """A server error before the first word (the model runner restarting, memory pressure) is retried once after a short pause."""
+        for attempt in (1, 2):
+            started = False
+            try:
+                for chunk in self._stream_chunks(payload):
+                    started = True
+                    yield chunk
+                return
+            except LLMError as exc:
+                if attempt == 2 or started or "HTTP 5" not in str(exc):
+                    raise
+                time.sleep(2.0)
+
     def chat_events(self, system: str, messages: list[dict[str, str]], tools: list[dict[str, Any]], max_tokens: int = 400):
         """One streaming call where the model chooses: yield ("delta", text) while it talks, or ("tool", {name, arguments}) when it
         decides to use one of the tools. This is the heart of an agent: the model decides, our code only carries it out."""
-        for chunk in self._stream_chunks(self._chat_payload(system, messages, max_tokens, tools)):
+        for chunk in self._chunks_with_retry(self._chat_payload(system, messages, max_tokens, tools)):
             message = chunk.get("message")
             if not isinstance(message, dict):
                 continue

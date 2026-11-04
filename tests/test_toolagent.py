@@ -482,3 +482,17 @@ def test_a_normal_reply_is_shown_in_full_after_the_peek():
     agent, _, _ = agent_with([[("delta", "Hello "), ("delta", "there, "), ("delta", "this is a long enough friendly greeting to pass the peek window, "), ("delta", "and more.")]])
     reply = agent.ask("hi")
     assert "".join(reply.stream) == "Hello there, this is a long enough friendly greeting to pass the peek window, and more."
+
+
+def test_when_the_model_call_fails_the_planner_still_does_a_real_search():
+    from aperture.agent.llm import LLMError
+
+    class Broken:
+        def chat_events(self, *a, **k):
+            raise LLMError("Ollama returned HTTP 500")
+
+    agent, _, _ = agent_with([[("delta", "x")]])
+    agent._llm = Broken()
+    sentinel = object()
+    agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
+    assert agent.ask("Tokyo") is sentinel

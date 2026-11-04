@@ -19,8 +19,9 @@ from ..config import preview_rel
 from ..ml.vision_details import Details
 
 VERSION = 2  # 2: all the Vision readers + the perceptual hash; pictures read at version 1 are read again
-CLIP_TOP = 8
-CLIP_MIN_SCORE = 0.22  # cosine between image and "a photo of <label>" below which a tag is noise
+CLIP_TOP = 5
+CLIP_MIN_SCORE = 0.18  # cosine between image and "a photo of <label>" below which a tag is noise
+CLIP_MIN_P = 0.25  # and the label must win a real share of the vocabulary (a landmark tag on a plain street photo is wrong)
 
 
 def vocabulary() -> list[str]:
@@ -93,7 +94,7 @@ def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0,
 
 
 def clip_tags(conn: sqlite3.Connection, index: Any, embedder: Any, labels: list[str] | None = None, top: int = CLIP_TOP,
-              min_score: float = CLIP_MIN_SCORE) -> int:
+              min_score: float = CLIP_MIN_SCORE, min_p: float = CLIP_MIN_P) -> int:
     """Tag every photo with the vocabulary labels its stored embedding is closest to (no image is decoded: seconds, not hours)."""
     labels = labels or vocabulary()
     if len(index) == 0 or not labels:
@@ -104,11 +105,13 @@ def clip_tags(conn: sqlite3.Connection, index: Any, embedder: Any, labels: list[
     rows = 0
     for start, block in index.chunks():
         scores = block @ text.T
+        shifted = 100.0 * scores - (100.0 * scores).max(axis=1, keepdims=True)  # CLIP's own temperature
+        probs = np.exp(shifted) / np.exp(shifted).sum(axis=1, keepdims=True)
         best = np.argsort(-scores, axis=1)[:, :top]
         batch = []
         for r in range(len(block)):
             item = int(index.ids[start + r])
-            batch += [(item, labels[j].lower(), float(scores[r, j])) for j in best[r] if scores[r, j] >= min_score]
+            batch += [(item, labels[j].lower(), float(scores[r, j])) for j in best[r] if scores[r, j] >= min_score and probs[r, j] >= min_p]
         conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'clip')", batch)
         rows += len(batch)
     conn.commit()

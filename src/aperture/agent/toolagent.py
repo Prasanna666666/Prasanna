@@ -274,6 +274,11 @@ class ToolAgent:
             try:
                 first, events = self._decide(system, messages, [] if final else None)
             except LLMError as exc:
+                if shown is None:  # the model failed: the planner can still do a real search, so the user is not left with nothing
+                    try:
+                        return self._service.ask(request, previous_ids, history)
+                    except Exception:  # the fallback failed as well: report the original problem
+                        pass
                 return AgentReply("error", str(exc), timings=timings)
             timings["decide"] = round(timings.get("decide", 0.0) + time.perf_counter() - started, 2)
             if first is None or (final and first[0] == "tool"):
