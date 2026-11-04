@@ -158,8 +158,16 @@
     body.append(text); m.append(sparkle(), body); thread.append(m);
     return { root: m, body, text, typing, gallery: null, raw: '' };
   }
+  function showStatus(msg, text) {            // what it is doing right now, under the dots, until the answer starts
+    if (!msg.typing.isConnected) return;
+    let line = msg.text.querySelector('.stage');
+    if (!line) { line = el('div', 'stage'); msg.text.append(line); }
+    line.textContent = text + '\u2026';
+  }
   function handle(msg, event, d) {
-    if (event === 'preview') showPreview(msg, d.ids, d.total);
+    if (event !== 'status') { const s = msg.text.querySelector('.stage'); if (s) s.remove(); }  // the answer has started: no more progress line
+    if (event === 'status') showStatus(msg, d.text);
+    else if (event === 'preview') showPreview(msg, d.ids, d.total);
     else if (event === 'delta') { msg.raw += d.text; msg.text.classList.add('streaming'); renderText(msg.text, msg.raw); }
     else if (event === 'reply') { msg.raw = d.text; renderText(msg.text, d.text); }
     else if (event === 'results') showResults(msg, d);

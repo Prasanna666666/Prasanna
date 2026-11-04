@@ -247,3 +247,22 @@ def test_an_abandoned_question_cannot_keep_the_model_busy():
     assert ask_within(work, 20.0) == "done"
     assert 1.0 <= seen[0] <= 20.0  # not 180: the question's own deadline applies
     assert llm_mod._time_left(180.0) == 180.0  # outside a question there is no deadline
+
+
+def test_the_page_is_told_what_the_app_is_doing_while_a_question_runs(caplog):
+    import logging
+
+    from aperture.agent.progress import say
+    from aperture.web.server import ask_within
+
+    seen = []
+
+    def work():
+        say("Understanding your message")
+        say("Searching your photos")
+        return "answer"
+
+    with caplog.at_level(logging.INFO, logger="aperture.progress"):
+        assert ask_within(work, 5, seen.append) == "answer"
+    assert seen == ["Understanding your message", "Searching your photos"]
+    assert any("stage: Searching your photos (+" in r.getMessage() for r in caplog.records)  # and every stage is logged with its time

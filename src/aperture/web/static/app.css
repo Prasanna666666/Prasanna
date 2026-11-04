@@ -151,3 +151,5 @@ body.warming .warm { display: block; }
 .reading { font: inherit; font-size: .8rem; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
 .reading:hover { color: var(--text, inherit); border-color: var(--accent, #5b5bf0); }
 .reading.active { background: var(--accent, #5b5bf0); border-color: var(--accent, #5b5bf0); color: #fff; }
+
+.stage { color: var(--muted); font-size: .85rem; padding-bottom: 6px; }

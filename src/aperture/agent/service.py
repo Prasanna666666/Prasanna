@@ -19,6 +19,7 @@ import numpy as np
 
 from .executor import ClauseReport, Executor
 from .llm import LLMError
+from .progress import say
 from .planner import PlannerContext, Planner, PlanResult, PlanningError
 from .schema import Clause, Plan
 
@@ -359,6 +360,7 @@ class AgentService:
             log.exception("plan execution failed")
             return AgentReply("error", f"Something went wrong while searching: {exc}", **base)
 
+        say("Checking the results")
         groups: list[tuple[str, np.ndarray]] = []
         lead = ""
         hard_ids = None

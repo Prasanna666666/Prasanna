@@ -31,6 +31,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from .llm import LLMError, OllamaClient
+from .progress import say
 from .schema import _DATE_PROPS, _FILTER_PROPS, Plan, plan_from_raw
 from .service import CHAT_MAX_TOKENS, AgentReply, AgentService, show_previous
 
@@ -274,10 +275,13 @@ class ToolAgent:
         timings: dict[str, float] = {}
         started = time.perf_counter()
         began = time.monotonic()
+        say("Understanding your message")
         route = self._route(request, previous_ids)
-        if route in ("chat", "about"):  # conversation, or a comment on the earlier answer: talk, do not search again
+        if route in ("chat", "about"):
+            say("Writing a reply")  # conversation, or a comment on the earlier answer: talk, do not search again
             timings["route"] = round(time.perf_counter() - started, 2)
             return self._service._chat_reply(request, history, {"timings": timings}, "")
+        say("Looking up what your library knows about this")
         facts = self._facts_within(request, CONTEXT_LIMIT)
         timings["context"] = round(time.perf_counter() - started, 2)
         system, messages = self.system_message(facts, previous_ids is not None), self._messages(request, history)
@@ -291,6 +295,7 @@ class ToolAgent:
         for step in range(MAX_STEPS + 1):
             final = step == MAX_STEPS or time.monotonic() >= self._deadline  # out of rounds or time: no more tools, just answer
             started = time.perf_counter()
+            say("Deciding how to search" if step == 0 else "Checking what it found")
             try:
                 first, events = self._decide(system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began)))
             except LLMError as exc:
@@ -458,6 +463,7 @@ class ToolAgent:
                 note = "There were no earlier results, so the whole library was searched."
             if not plan.has_constraints:
                 return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
+            say("Searching your photos")
             reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)
             if note:
                 reply.notes.insert(0, note)  # the user is told too
