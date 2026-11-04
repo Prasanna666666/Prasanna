@@ -48,8 +48,8 @@ def build_parser() -> argparse.ArgumentParser:
     jd.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     jd.add_argument("--limit", type=int, default=0)
     jd.add_argument("--calibrate", type=int, default=0, help="first measure how right the judge is on this many photos whose place is known")
-    ex = sub.add_parser("explain", help="for one word: every reading the app builds, with how many photos and which places they are really from (read-only)")
-    ex.add_argument("word")
+    ex = sub.add_parser("explain", help="for one or more words (e.g. hockey Nagoya): every reading the app builds, how many photos, which places, and where all the words hold together (read-only)")
+    ex.add_argument("words", nargs="+")
     sub.add_parser("clear-estimates", help="remove every location the app worked out (photos keep only the GPS in their own files); a clean start")
     vn = sub.add_parser("venues", help="the vision model reads the photos that look like a sports venue: which sport, with evidence (slow, resumable, answers kept for good)")
     vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
@@ -408,15 +408,22 @@ def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
     conn = ctx.db.connect()
     try:
         executor = Executor(conn, ctx.embedding_index, ctx.search_embedder, geo_provider=ctx.geo)
-        plan = Plan(intent="find", clauses=(Clause(engines=("place", "path", "text"), query=args.word),))
-        word = args.word.strip().lower()
+        words = [w for w in args.words if w.strip()]
+        plan = Plan(intent="find", clauses=tuple(Clause(engines=("place", "path", "text"), query=w) for w in words))
+        word = words[0].strip().lower()
         stored = conn.execute("SELECT source, label, COUNT(DISTINCT item_id), ROUND(MAX(score), 2) FROM photo_labels WHERE label LIKE ? "
                               "GROUP BY source, label ORDER BY 3 DESC LIMIT 8", (f"%{word}%",)).fetchall()
         faces = conn.execute("SELECT age, COUNT(*), ROUND(AVG(age_p), 2) FROM face_attributes WHERE age LIKE ? GROUP BY age", (f"%{word}%",)).fetchall()
         print("Labels stored from the pictures: " + ("; ".join(f"{r[0]}:'{r[1]}' on {r[2]:,} photos (best score {r[3]})" for r in stored) or "none"))
         if faces:
             print("Faces whose age group matches: " + "; ".join(f"{r[0]} ({r[1]:,} faces, average confidence {r[2]})" for r in faces))
-        for label, ids in executor.readings(plan):
+        exploration = executor.explore(plan)
+        for term, ids in exploration.terms.items():
+            print(f"Best evidence for '{term}': {len(ids):,} photos")
+        both = exploration.together()
+        if both is not None:
+            print(f"All of them together: {len(both):,} photos")
+        for label, ids in exploration.readings:
             marks = ",".join("?" * min(len(ids), 900))
             rows = conn.execute(f"SELECT COALESCE(place, gps_est_place, '(no place)'), gps_lat IS NOT NULL FROM items WHERE id IN ({marks})", ids[:900].tolist()).fetchall()
             top = Counter(r[0] for r in rows).most_common(4)

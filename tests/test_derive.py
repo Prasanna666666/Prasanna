@@ -168,7 +168,7 @@ def test_explain_shows_every_reading_with_the_places_its_photos_are_really_from(
             return (lambda: None) if name == "close" else getattr(conn, name)
 
     ctx = SimpleNamespace(db=SimpleNamespace(connect=lambda: Keep()), embedding_index=lambda: None, search_embedder=lambda: None, geo=lambda: geo)
-    cli.cmd_explain(ctx, argparse.Namespace(word="Tokyo"))
+    cli.cmd_explain(ctx, argparse.Namespace(words=["Tokyo"]))
     out = capsys.readouterr().out
     assert "Taken in or near Tokyo" in out and "Shinjuku, Japan" in out and "Iceland" not in out
 
