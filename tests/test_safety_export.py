@@ -181,3 +181,10 @@ def test_the_vault_script_keeps_the_password_in_the_keychain_only():
     script = (Path(__file__).parent.parent / "scripts" / "aperture-vault.sh").read_text()
     assert "security add-generic-password" in script and "-encryption AES-256" in script and "-stdinpass" in script
     assert "echo \"$pw\"" not in script and "> " not in script.split("create)")[1].split("open)")[0].replace("&&", "")  # never written to a file
+
+
+def test_the_run_wrapper_keeps_the_sandbox_and_the_mac_awake():
+    from pathlib import Path
+
+    script = (Path(__file__).parent.parent / "scripts" / "aperture-run.sh").read_text()
+    assert "caffeinate -i scripts/aperture-sandboxed.sh" in script and "AP_ROOT" in script and '"$@"' in script
