@@ -228,8 +228,8 @@ class Executor:
                 ("estimated", f"Probably taken in {term}"),
                 ("path", f"In folders named {term}"),
                 ("person", f"People called {term}"),
-                ("text", f"The word {term} in the photo"),
                 ("tag", f"Looks like {term}"),
+                ("text", f"The word {term} in the photo"),
                 ("visual", f"Similar to {term}"),
             )
             readings: list[tuple[str, str, np.ndarray]] = []
@@ -259,6 +259,9 @@ class Executor:
             agreed = np.array(sorted(i for i, n in support.items() if n >= 2), np.int64)  # two independent clues agree
             if len(agreed):
                 confirmed = np.union1d(confirmed, agreed)
+            for engine, _, ids in readings:
+                if engine == "tag":  # a picture label that is already strong, or backed by two sources, is evidence in its own right
+                    confirmed = np.union1d(confirmed, ids)
             for engine, label, ids in readings:
                 if engine in self.SOFT:
                     ids = np.intersect1d(ids, confirmed)  # a clue counts only where hard evidence or a second clue backs it
@@ -450,7 +453,11 @@ class Executor:
         if len(word) < 2:
             return np.zeros(0, np.int64)
         try:
-            rows = self._conn.execute("SELECT DISTINCT item_id FROM photo_labels WHERE label=? AND (source<>'vision' OR score>=0.5)", (word,))  # the exact label, never a part of one
+            # The exact label, never a part of one. Trusted when strong on its own (>= 0.8) or when two different sources agree (>= 0.5 each),
+            # for example the face reader and Apple Vision both seeing a baby.
+            rows = self._conn.execute(
+                "SELECT item_id FROM photo_labels WHERE label=? AND score>=0.5 GROUP BY item_id "
+                "HAVING MAX(score) >= 0.8 OR COUNT(DISTINCT source) >= 2", (word,))
             return np.array(sorted(r[0] for r in rows), np.int64)
         except sqlite3.Error:
             return np.zeros(0, np.int64)  # the details pass has not run yet

@@ -73,7 +73,7 @@ def test_labels_are_searchable_as_a_reading_of_a_word():
     from aperture.agent.executor import Executor
 
     conn = _db(3)
-    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.4, 'clip')")
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.9, 'clip')")
     conn.row_factory = sqlite3.Row
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._tag_ids("Tokyo Tower").tolist() == [2] and ex._tag_ids("zzz").tolist() == []
@@ -86,11 +86,12 @@ def test_a_word_found_as_a_place_gets_no_guesses_from_appearance_and_tags_match_
     conn = _db(4)
     conn.row_factory = sqlite3.Row
     conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76, place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1")
-    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.5, 'clip')")  # a landmark guess on a different photo
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.9, 'clip')")  # a landmark guess on a different photo
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._tag_ids("tokyo").tolist() == [] and ex._tag_ids("tokyo tower").tolist() == [2]  # exact label, not a part of one
     labels = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Shinjuku"),)))]
     assert labels == ["Taken in Shinjuku"] and not any("Looks like" in l or "Similar" in l for l in labels)
+    conn.execute("UPDATE photo_labels SET score=0.6 WHERE label='tokyo tower'")  # now only moderately sure, from one source
     lone = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
     assert lone == []  # a single look-alike clue with nothing else behind it is not shown
     conn.execute("UPDATE items SET meta_text=' tokyo tower' WHERE id=2")  # a second, independent clue (a folder name) agrees
@@ -148,3 +149,20 @@ def test_a_place_gives_one_combined_answer_of_everything_taken_in_or_near_it():
     ex = Executor(conn, lambda: None, lambda: None, geo_provider=lambda: geo)
     readings = dict(ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Nagoya"),))))
     assert readings["Taken in or near Nagoya"].tolist() == [1, 2]  # the place name alone would have found only photo 1
+
+
+def test_a_concept_word_is_answered_by_its_trusted_picture_labels_and_they_lead():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _db(6)
+    conn.row_factory = sqlite3.Row
+    conn.execute("INSERT INTO photo_labels VALUES (1, 'baby', 0.95, 'face')")  # strong on its own
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'baby', 0.6, 'face')")  # only moderately sure ...
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'baby', 0.7, 'vision')")  # ... but a second source agrees
+    conn.execute("INSERT INTO photo_labels VALUES (3, 'baby', 0.6, 'face')")  # one moderate source: not enough
+    conn.execute("INSERT INTO photo_labels VALUES (4, 'baby', 0.4, 'vision')")  # below the floor
+    ex = Executor(conn, lambda: None, lambda: None)
+    assert ex._tag_ids("baby").tolist() == [1, 2]
+    readings = ex.readings(Plan(intent="find", clauses=(Clause(engines=("visual",), query="baby"),)))
+    assert readings[0][0] == "Looks like baby" and readings[0][1].tolist() == [1, 2]  # and it leads, ahead of a stray written word
