@@ -24,9 +24,10 @@ def test_app_reads_parser_output_read_only_and_has_no_internet():
     assert a["read_only"] is True and a["cap_drop"] == ["ALL"]
 
 
-def test_database_key_is_a_secret_not_a_file_in_the_repo():
-    assert "orbit_key" in S["app"]["secrets"] and C["secrets"]["orbit_key"] == {"environment": "ORBIT_DB_KEY"}
-    assert S["app"]["environment"]["ORBIT_DB_KEY_FILE"] == "/run/secrets/orbit_key"
+def test_database_key_comes_from_the_environment_never_from_a_file_in_the_repo():
+    assert "secrets" not in S["app"] and "secrets" not in C  # a read-only container cannot be given a Docker secret
+    assert S["app"]["environment"]["ORBIT_DB_KEY"].startswith("${ORBIT_DB_KEY:?")  # up.sh must supply it from the Keychain
+    assert not any("key" in v.lower() and "=" in v for v in S["app"].get("volumes", []))
     assert S["gateway"]["ports"] == ["127.0.0.1:8501:8501"]
 
 

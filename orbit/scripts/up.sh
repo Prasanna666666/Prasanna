@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start Orbit. The database key lives in the macOS Keychain (created on first run) and is handed to Docker as a secret.
+# Start Orbit. The database key lives in the macOS Keychain (created on first run) and is handed to the app container as an environment variable (a Docker secret cannot be used with a read-only container).
 #   ./scripts/up.sh            start / rebuild
 #   ./scripts/up.sh --show-key print the key once so you can back it up (lose the key = lose the data)
 set -euo pipefail

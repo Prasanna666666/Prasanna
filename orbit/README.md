@@ -32,7 +32,7 @@ Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` a
 - **parser**: the only code that opens untrusted files. No network at all (`network_mode: none`), inbox read-only, each file
   parsed in a throw-away subprocess with CPU/memory/time limits. Outputs plain JSON only.
 - **app**: sees parser output **read-only**, contains no PDF/parsing libraries, internal Docker network (no internet).
-- **Encrypted database** (SQLCipher, AES-256): key in the macOS Keychain, passed as a Docker secret, never written to disk.
+- **Encrypted database** (SQLCipher, AES-256): key in the macOS Keychain, handed to the app container as an environment variable by `up.sh` (Docker stores container settings inside its own disk image on your Mac, so keep FileVault on). It is never in this folder or in git.
   `ORBIT_REQUIRE_ENCRYPTION=1` makes the app refuse to start without it - no silent plain-text fallback.
 - All containers: non-root, read-only filesystem, all capabilities dropped, no-new-privileges. UI on 127.0.0.1 only.
 - `gateway` and `ollama` are byte forwarders on Docker's default network (needed to show the page and reach Ollama on the Mac).

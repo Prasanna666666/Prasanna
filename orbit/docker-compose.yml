@@ -4,7 +4,7 @@
 #   app     - assistant + UI + encrypted database. Internal network (no internet). Sees `parsed` READ-ONLY, has no parser code.
 #   gateway / ollama bridge - dumb byte forwarders (UI on 127.0.0.1 only; Ollama on your Mac).
 #
-# Start with ./scripts/up.sh (it keeps the database key in the macOS Keychain and passes it as a Docker secret).
+# Start with ./scripts/up.sh (it keeps the database key in the macOS Keychain and passes it to the app as an environment variable: Docker cannot give a secret to a read-only container).
 # Prereq (Mac): Ollama installed natively and `ollama pull ministral-3:3b` (needs internet once).
 name: orbit
 
@@ -38,8 +38,7 @@ services:
       OLLAMA_HOST: http://ollama:11434
       ORBIT_INBOX: /inbox
       ORBIT_PARSED: /parsed
-      ORBIT_DB_KEY_FILE: /run/secrets/orbit_key
-    secrets: [orbit_key]
+      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
     volumes:
       - orbit-data:/data
       - orbit-parsed:/parsed:ro   # parser output, read-only
@@ -64,10 +63,6 @@ services:
 
 networks:
   private: {internal: true}
-
-secrets:
-  orbit_key:
-    environment: ORBIT_DB_KEY    # exported by scripts/up.sh from the Keychain; never written to disk
 
 volumes:
   orbit-data:
