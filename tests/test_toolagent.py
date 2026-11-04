@@ -496,3 +496,13 @@ def test_when_the_model_call_fails_the_planner_still_does_a_real_search():
     sentinel = object()
     agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
     assert agent.ask("Tokyo") is sentinel
+
+
+def test_a_greeting_costs_no_extra_model_call_and_warm_up_uses_the_real_prompt():
+    agent, llm, _ = agent_with([[("delta", "Hello! What can I help you find today? " * 3)]], facts="PLACES IN THIS LIBRARY: Goa")
+    reply = agent.ask("Hi")
+    assert "".join(reply.stream).startswith("Hello") and len(llm.calls) == 1  # no router call, no nudge: nothing from the message is in the library
+    agent2, llm2, _ = agent_with([[("delta", "x")]])
+    agent2.warm()
+    system, messages, tools, max_tokens = llm2.calls[0]
+    assert "ACT FIRST" in system and tools == agent2._tools and max_tokens == 1

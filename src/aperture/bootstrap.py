@@ -137,11 +137,18 @@ class AppContext:
 
         def work() -> None:
             threading.Thread(target=drive_reads, name="warm-up-drive", daemon=True).start()
-            run("AI model", lambda: self.llm().warm())
+            run("AI model", self.warm_ai if hasattr(self, "warm_ai") else lambda: self.llm().warm())
             reads_done.wait()
             run("image search model", self.search_embedder)  # the slowest model goes last
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
+
+    def warm_ai(self) -> None:
+        agent = self.agent()
+        if hasattr(agent, "warm"):
+            agent.warm()  # model + the real instructions and tools
+        else:
+            self.llm().warm()
 
     def _fill_places(self) -> None:
         """Name photos that have GPS but no place yet (cheap: no file is read)."""

@@ -287,7 +287,7 @@ class ToolAgent:
             if kind != "tool":
                 head, events = self._peek(value, events)  # words arrive in pieces: look at the start of the reply before showing it
                 typed = bool(self._call_text.search("".join(head)))  # a tool call typed out as text did nothing and its "results" are invented
-                if not acted and shown is None and (typed or (not nudged and self._about_photos(request, previous_ids))):
+                if not acted and shown is None and (typed or (not nudged and self._mentions_library(facts, previous_ids))):
                     if nudged:  # told twice and it still will not act: the planner does the search instead, so the answer is always real
                         return self._service.ask(request, previous_ids, history)
                     nudged = True
@@ -322,6 +322,18 @@ class ToolAgent:
                 leftover.append(event)
                 break
         return head, itertools.chain(leftover, events)
+
+    @staticmethod
+    def _mentions_library(facts: str, previous_ids: Any) -> bool:
+        """Free check (no model call): a word of the message exists in the library, or results are on screen to refine."""
+        return "DATA MATCHES" in facts or previous_ids is not None
+
+    def warm(self) -> None:
+        """Load the model AND process the full instruction block and tool list once, so the first real message is not the slow one."""
+        events = self._llm.chat_events(self.system_message("", False), [{"role": "user", "content": "hi"}], self._tools, 1)
+        next(events, None)
+        if hasattr(events, "close"):
+            events.close()
 
     def _about_photos(self, request: str, previous_ids: Any) -> bool:
         """A tiny model call (the same model): is this message about the user's photos, or just conversation?"""
