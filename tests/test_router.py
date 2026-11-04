@@ -208,7 +208,7 @@ def test_search_readiness_and_settings_switch(tmp_path, monkeypatch):
 
     ctx = _context(tmp_path, monkeypatch)
     assert ctx.search_ready() is False
-    ctx._index, ctx._embedder = object(), object()
+    ctx._index, ctx._embedder, ctx._replica_tried = object(), object(), True
     assert ctx.search_ready() is True
     assert Settings().fast_search is True
     assert "fast_search" in inspect.getsource(settings) and "Search warming up" in inspect.getsource(app)

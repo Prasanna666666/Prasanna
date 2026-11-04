@@ -137,12 +137,12 @@ class AppContext:
 
         def drive_reads() -> None:  # reading the index and the library facts waits on the drive: do it while the model loads
             try:
+                if hasattr(self, "db"):
+                    run("question copy", self._build_replica)  # first: it is what makes every question fast, and nothing else should compete for the drive
+                    run("photo list", self._prime_photo_list)
                 run("photo index", self.embedding_index)
                 if hasattr(self, "geo"):
                     run("place data", self.geo)
-                if hasattr(self, "db"):
-                    run("question copy", self._build_replica)
-                    run("photo list", self._prime_photo_list)
                 run("place names", self._fill_places)
                 run("library facts", self._prime_library_facts)
             finally:
@@ -240,7 +240,7 @@ class AppContext:
 
     def search_ready(self) -> bool:
         """True once the photo index and the image-search model are loaded (the first search is then instant)."""
-        return self._index is not None and self._embedder is not None
+        return self._index is not None and self._embedder is not None and (self._replica is not None or self._replica_tried)
 
     def embedding_index(self) -> EmbeddingIndex:
         """Cached index, rebuilt automatically when a scan changes embeddings."""
@@ -296,6 +296,7 @@ class AppContext:
             return self._geo
 
     _replica: Any = None
+    _replica_tried: bool = False  # the in-memory copy was attempted (built, or it failed and questions read the drive file)
 
     def question_db(self) -> Any:
         """The connection a question reads: the in-memory copy when it is ready, otherwise the library file."""
@@ -309,9 +310,12 @@ class AppContext:
         from .search.replica import Replica
 
         replica = Replica(self.paths.db)
-        if replica.build():
-            self._replica = replica
-            replica.keep_fresh()
+        try:
+            if replica.build():
+                self._replica = replica
+                replica.keep_fresh()
+        finally:
+            self._replica_tried = True
 
     def _prime_photo_list(self) -> None:
         """Read the list of live photos once at start-up (it is remembered until the library file changes)."""
