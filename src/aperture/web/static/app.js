@@ -215,11 +215,12 @@
     }
     return [event, data ? JSON.parse(data) : {}];
   }
-  function setBusy(on) { busy = on; document.body.classList.toggle('busy', on); send.disabled = !on && !input.value.trim(); }
+  let notReady = false;  // the library is still loading: a question would only time out, so the box waits
+  function setBusy(on) { busy = on; document.body.classList.toggle('busy', on); send.disabled = notReady || (!on && !input.value.trim()); }
 
   async function ask(text) {
     text = text.trim();
-    if (!text || busy) return;
+    if (!text || busy || notReady) return;
     welcome.hidden = true;
     addUser(text);
     const bot = addBot();
@@ -260,7 +261,7 @@
   }
 
   // ---------------------------------------------------------------- composer
-  function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 150) + 'px'; send.disabled = !busy && !input.value.trim(); }
+  function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 150) + 'px'; send.disabled = notReady || (!busy && !input.value.trim()); }
   input.addEventListener('input', autosize);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); } });
   form.addEventListener('submit', (e) => { e.preventDefault(); if (busy && controller) controller.abort(); else ask(input.value); });
@@ -297,7 +298,10 @@
       if (s.indexing) chips.push(chip('Indexing', 'warn'));
       else if (s.paused_for_chat) chips.push(chip('Indexing paused', 'warn', { text: 'Resume', run: async () => { await api('/api/scan/resume', { method: 'POST' }); refreshStatus(); } }));
       $('#chips').replaceChildren(...chips);
-      $('#warm').textContent = s.warm_problem ? `Image search could not start: ${s.warm_problem}` : (!s.ai ? 'The AI model is not reachable. Is Ollama running?' : 'Warming up: the first answer can take a little longer.');
+      notReady = !s.search_ready && !s.warm_problem;
+      input.placeholder = notReady ? 'Getting ready\u2026' : 'Ask for photos, or ask anything\u2026';
+      send.disabled = notReady || (!busy && !input.value.trim());
+      $('#warm').textContent = s.warm_problem ? `Image search could not start: ${s.warm_problem}` : (!s.ai ? 'The AI model is not reachable. Is Ollama running?' : (notReady ? 'Getting ready: loading your library into memory. You can ask as soon as this message goes away.' : 'Warming up: the first answer can take a little longer.'));
       document.body.classList.toggle('warming', !s.search_ready || !s.ai);
     } catch (_) { $('#chips').replaceChildren(chip('Lumo is not responding', 'bad')); }
   }
