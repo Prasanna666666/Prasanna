@@ -536,6 +536,7 @@ def test_words_before_a_real_tool_call_are_dropped_and_the_call_still_runs():
 
 def test_model_words_after_tools_without_any_photos_are_never_shown_the_real_search_answers():
     agent, _, _ = agent_with([[tool("probe", term="Tokyo")], [("delta", "Let me check where and when those photos were taken ... " * 2)]])
+    agent._probe = lambda term: {"term": term, "photos_with_this_word_written_in_them": 25}
     sentinel = object()
     agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
     assert agent.ask("Tokyo") is sentinel
