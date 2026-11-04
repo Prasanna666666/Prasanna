@@ -235,6 +235,9 @@ def ask_within(work: Any, limit: float) -> Any:
     box: dict[str, Any] = {}
 
     def run() -> None:
+        from ..agent.llm import DEADLINE
+
+        DEADLINE.set(time.monotonic() + limit)  # every model call for this question gives up at the same moment
         try:
             box["reply"] = work()
         except BaseException as exc:  # carried back to the request that asked

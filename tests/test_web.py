@@ -229,3 +229,21 @@ def test_a_question_that_never_finishes_ends_with_an_apology_not_a_spinner():
         ask_within(lambda: (_ for _ in ()).throw(ValueError("boom")), 5)
     except ValueError as exc:
         assert str(exc) == "boom"  # a real failure still reaches the error handling
+
+
+def test_an_abandoned_question_cannot_keep_the_model_busy():
+    import threading
+    import time
+
+    from aperture.agent import llm as llm_mod
+    from aperture.web.server import ask_within
+
+    seen = []
+
+    def work():
+        seen.append(llm_mod._time_left(180.0))  # what a model call made now would be allowed to wait
+        return "done"
+
+    assert ask_within(work, 20.0) == "done"
+    assert 1.0 <= seen[0] <= 20.0  # not 180: the question's own deadline applies
+    assert llm_mod._time_left(180.0) == 180.0  # outside a question there is no deadline

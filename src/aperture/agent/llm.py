@@ -50,6 +50,16 @@ NUM_CTX = 4096
 # While a request is being answered the web app sets this to an empty list; every model call then records what it was given and
 # what it returned. That is the "How I answered" panel: nothing is hidden about what the model saw.
 CALL_LOG: ContextVar[list[dict[str, Any]] | None] = ContextVar("aperture_llm_log", default=None)
+# The moment (time.monotonic) by which the current question must be finished. Every model call made for it gives up at that moment, so a question
+# the app has stopped waiting for cannot keep the model busy and make the next message queue behind it.
+DEADLINE: ContextVar[float | None] = ContextVar("aperture_deadline", default=None)
+
+
+def _time_left(default: float) -> float:
+    limit = DEADLINE.get()
+    if limit is None:
+        return default
+    return max(1.0, min(default, limit - time.monotonic()))
 
 
 def _record(model: str, payload: dict[str, Any] | None, output: str, tool_calls: list[dict[str, Any]] | None = None) -> None:
@@ -69,7 +79,7 @@ def _record(model: str, payload: dict[str, Any] | None, output: str, tool_calls:
 
 
 class OllamaClient:
-    def __init__(self, base_url: str, model: str, timeout: float = 180.0, keep_alive: str = "30m") -> None:
+    def __init__(self, base_url: str, model: str, timeout: float = 90.0, keep_alive: str = "30m") -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout = timeout
@@ -80,7 +90,7 @@ class OllamaClient:
         data = json.dumps(payload).encode() if payload is not None else None
         request = urllib.request.Request(self.base_url + path, data=data, headers={"Content-Type": "application/json"})
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=_time_left(self.timeout)) as response:
                 body = json.loads(response.read().decode("utf-8", "replace"))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")[:300]
@@ -172,7 +182,7 @@ class OllamaClient:
         parts: list[str] = []
         calls: list[dict[str, Any]] = []
         try:
-            with urllib.request.urlopen(request, timeout=timeout or self.timeout) as response:
+            with urllib.request.urlopen(request, timeout=_time_left(timeout or self.timeout)) as response:
                 for raw in response:
                     line = raw.strip()
                     if not line:
