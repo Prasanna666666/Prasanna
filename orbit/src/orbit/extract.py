@@ -23,13 +23,18 @@ CHUNK_LINES = 18  # small enough for the 4096-token window Orbit shares with Ape
 MAX_LINES = 20_000
 SIGNAL = re.compile(r"\d")  # a line with no digit at all cannot hold a date or an amount
 
+KINDS = ("bank_statement", "payslip", "invoice", "receipt", "tax", "insurance", "contract", "other")
+_NUM = {"type": ["number", "null"]}
 KIND_SCHEMA = {
     "type": "object",
     "properties": {
-        "kind": {"type": "string", "enum": ["bank_statement", "payslip", "other"]},
+        "kind": {"type": "string", "enum": list(KINDS)},
+        "title": {"type": "string"}, "summary": {"type": "string"},
+        "party": {"type": "string"},  # who it is from / to: the shop, supplier, employer, insurer, tax office ...
+        "date": {"type": "string"}, "due_date": {"type": "string"}, "reference": {"type": "string"},  # YYYY-MM-DD; invoice / policy / case number
+        "total": _NUM, "vat": _NUM, "currency": {"type": "string"},
         "period": {"type": "string"},  # YYYY-MM for a payslip
-        "gross": {"type": ["number", "null"]}, "net": {"type": ["number", "null"]}, "tax": {"type": ["number", "null"]},
-        "pension": {"type": ["number", "null"]}, "holiday_pay": {"type": ["number", "null"]},
+        "gross": _NUM, "net": _NUM, "tax": _NUM, "pension": _NUM, "holiday_pay": _NUM,
     },
     "required": ["kind"],
 }
@@ -44,9 +49,12 @@ TXN_SCHEMA = {
 }
 KIND_PROMPT = (
     "You read the start of a personal finance document. It may be in Dutch or English. Say what it is: bank_statement (a list of account "
-    "transactions), payslip (a salary slip / loonstrook), or other. For a payslip also give the pay period as YYYY-MM and the amounts "
-    "(gross = bruto, net = netto paid out, tax = loonheffing, pension = pensioen, holiday_pay = vakantiegeld) as plain numbers with a dot decimal, "
-    "or null when absent. Copy numbers exactly. Never invent."
+    "transactions), payslip (salary slip / loonstrook), invoice (factuur), receipt (bon / kassabon), tax (belasting: aanslag, aangifte), insurance "
+    "(verzekering: polis, premie), contract (agreement, lease, loan), or other. Then give: title (a few words), summary (one short sentence), party "
+    "(who it is from or to: shop, supplier, employer, insurer, tax office), date and due_date as YYYY-MM-DD, reference (invoice / policy / case "
+    "number), total (the total amount) and vat as plain numbers with a dot decimal, currency (EUR, INR ...). For a payslip also: period as YYYY-MM "
+    "and gross = bruto, net = netto paid out, tax = loonheffing, pension = pensioen, holiday_pay = vakantiegeld. Leave out or use null what is not "
+    "there. Copy numbers exactly. Never invent."
 )
 TXN_PROMPT = (
     "You read lines of a bank statement. It may be Dutch or English, from any bank. Dutch numbers write 1.234,56 (dot for thousands, comma for "
@@ -75,9 +83,9 @@ def _ask(client, model: str, system: str, text: str, schema: dict) -> dict:
 
 
 def classify(client, model: str, name: str, text: str) -> dict:
-    """What the file is, and for a payslip its figures. Only the first part of the text is sent to the (local) model."""
+    """What the file is and its key facts (who, when, how much; a payslip's figures). Only the first part of the text goes to the (local) model."""
     data = _ask(client, model, KIND_PROMPT, f"File name: {name}\n\n{text[:3500]}", KIND_SCHEMA)
-    return data if data.get("kind") in ("bank_statement", "payslip", "other") else {"kind": "other"}
+    return data if data.get("kind") in KINDS else {"kind": "other"}
 
 
 def _valid(item: dict) -> Txn | None:

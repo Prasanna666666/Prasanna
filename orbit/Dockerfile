@@ -13,11 +13,10 @@ ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ORBIT_HOME=/data
 FROM base AS app
 # The secure (encrypted) database: sqlcipher3-binary has no prebuilt version for Linux on Apple chips, so build the library against the
 # system SQLCipher, then remove the compilers again (the runtime library, installed as a dependency, stays: no auto-remove).
-RUN apt-get update \
- && apt-get install -y --no-install-recommends build-essential libsqlcipher-dev \
- && pip install --no-cache-dir ".[ui]" sqlcipher3 \
- && apt-get purge -y build-essential libsqlcipher-dev \
- && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libsqlcipher-dev
+RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
+RUN pip install --no-cache-dir ".[ui]"
+RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false ORBIT_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["orbit"]

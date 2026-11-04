@@ -168,9 +168,10 @@ elif page == "Documents":
 
 elif page == "Money":
     st.title("Money")
-    st.caption("Your bank statements are read by the isolated, offline parser from the finance folder (read-only), then sorted into categories here.")
+    st.caption("Everything in your finance folder (statements, payslips, invoices, receipts, tax and insurance letters, contracts) is read by the isolated, "
+               "offline parser and understood by the local model. Nothing leaves this Mac.")
     parsed = Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))
-    if st.button("Get new statements"):
+    if st.button("Read new finance files"):
         if parsed.is_dir():
             documents.ingest_dir(C, parsed)
             bar = st.empty()
@@ -184,7 +185,7 @@ elif page == "Money":
             bar.empty()
             for problem in r["problems"]:
                 st.error(problem)
-            st.success(f"{r['new_transactions']} new transactions from {r['files']} new file(s); {r['already_had']} were already there.")
+            st.success(f"Read {r['files']} new file(s): {r['new_transactions']} new transactions, {r['payslips']} payslip(s); {r['already_had']} lines were already there.")
             if r["files_with_no_transactions"]:
                 st.warning("No transactions could be read from: " + ", ".join(r["files_with_no_transactions"]) +
                            ". (Password-protected or scanned PDFs cannot be read yet; a CSV download from your bank works best.)")
@@ -193,6 +194,14 @@ elif page == "Money":
     with st.expander("What did Orbit make of each file?"):
         st.caption("Counts only, no content. A PDF with 0 dated lines is probably scanned or password-protected.")
         st.dataframe(money.statement_report(C), width="stretch")
+    docs = money.finance_documents(C, {"limit": 200})
+    if docs:
+        with st.expander(f"Invoices, receipts and other files ({len(docs)})"):
+            kinds = sorted({d["kind"] for d in docs})
+            pick = st.selectbox("Show", ["all", *kinds])
+            st.dataframe([d for d in docs if pick == "all" or d["kind"] == pick], width="stretch")
+            st.caption("Totals by kind:")
+            st.dataframe(money.finance_document_totals(C, {"by": "kind"}), width="stretch")
     slips = money.list_payslips(C)
     if slips:
         with st.expander(f"Payslips ({len(slips)})"):

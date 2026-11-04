@@ -24,7 +24,12 @@ class FakeModel:
         if system == extract.KIND_PROMPT:
             if "LOONSTROOK" in text:
                 return {"content": json.dumps({"kind": "payslip", "period": "2026-10", "gross": 3500.0, "net": 2512.6, "tax": 812.4, "pension": 175.0, "holiday_pay": 280.0})}
-            return {"content": json.dumps({"kind": "bank_statement" if "|" in text else "other"})}
+            if "FACTUUR" in text:
+                return {"content": json.dumps({"kind": "invoice", "title": "Internet oktober", "party": "Ziggo", "date": "2026-10-03", "due_date": "2026-10-17",
+                                               "reference": "F-1001", "total": 60.5, "vat": 10.5, "currency": "EUR", "summary": "Monthly internet bill"})}
+            if "KASSABON" in text:
+                return {"content": json.dumps({"kind": "receipt", "title": "Groceries", "party": "Albert Heijn", "date": "2026-10-04", "total": 23.45, "vat": 1.9, "currency": "EUR"})}
+            return {"content": json.dumps({"kind": "bank_statement" if "|" in text else "other", "title": "A letter"})}
         items = []
         for line in text.splitlines():
             parts = line.split("|")
@@ -161,3 +166,17 @@ def test_nonsense_from_the_model_never_crashes_the_import(bad):
             return {"content": json.dumps(bad)}
 
     assert extract.read_statement(Odd(), "fake", ["2026-01-01 x 1"]).txns == []
+
+
+def test_invoices_receipts_and_other_files_are_read_filed_and_summed_without_becoming_transactions(conn, tmp_path):
+    _load(conn, tmp_path, "factuur-ziggo.pdf", ["x"], text="FACTUUR Ziggo oktober")
+    _load(conn, tmp_path, "bon-ah.pdf", ["x"], text="KASSABON Albert Heijn")
+    _load(conn, tmp_path, "brief.pdf", ["x"], text="Dear Sir")
+    r = run(conn)
+    assert r["files"] == 3 and r["new_transactions"] == 0 and r["files_with_no_transactions"] == []  # none of them is a failed statement
+    inv = money.finance_documents(conn, {"kind": "invoice"})[0]
+    assert (inv["party"], inv["date"], inv["due_date"], inv["reference"], inv["total"], inv["vat"], inv["currency"]) == ("Ziggo", "2026-10-03", "2026-10-17", "F-1001", 60.5, 10.5, "EUR")
+    assert [d["party"] for d in money.finance_documents(conn, {"party": "albert"})] == ["Albert Heijn"]
+    by_kind = {r["grp"]: r["total"] for r in money.finance_document_totals(conn, {"by": "kind"})}
+    assert by_kind == {"invoice": 60.5, "receipt": 23.45}
+    assert money.finance_document_totals(conn, {"by": "month"})[0]["grp"] == "2026-10"

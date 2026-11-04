@@ -43,12 +43,15 @@ Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` a
   `docker compose exec app sh -c "touch /parsed/x"` must fail (read-only).
 - Untested on a real Mac (no Docker engine where this was written). Send only error text if a step fails.
 
-## Your finance folder (bank statements, payslips, any bank, any language)
+## Your finance folder (statements, payslips, invoices, receipts, tax and insurance letters, contracts - any bank, any language)
 Keep your PDFs where they are and point Orbit at the folder; it is mounted **read-only** and only the offline parser can open it:
 ```bash
 ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance. Subfolders are fine (ing/2026/, payslips/ ...)
 ```
-Then open **Money -> Get new statements** (or `orbit import-statements`).
+Then open **Money -> Read new finance files** (or `orbit import-statements`).
+- **Any finance file:** the model says what each file is (bank statement, payslip, invoice, receipt, tax, insurance, contract or other) and pulls
+  out who it is from, the date, due date, reference, total and VAT. Invoices and receipts are filed and summed by kind, month or supplier; they are not
+  added as bank transactions (the payment already appears on the statement). Ask in chat: "what invoices are due?", "how much VAT on receipts?".
 - **The local model reads the files** (Ministral via Ollama, on your Mac). No bank, language or layout is coded in: it decides what each file is
   (bank statement, payslip, other), reads each transaction (date, description, amount, in/out, balance) and each payslip's figures
   (gross, tax, pension, holiday pay, net). Dutch, English, any new account: drop the PDFs in and import again.

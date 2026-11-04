@@ -36,6 +36,12 @@ MIGRATIONS = (
         sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, period TEXT NOT NULL, gross_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL,
         tax_minor INTEGER, pension_minor INTEGER, holiday_minor INTEGER
     );
+    CREATE TABLE finance_docs (
+        sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',
+        party TEXT NOT NULL DEFAULT '', doc_date TEXT, due_date TEXT, reference TEXT NOT NULL DEFAULT '',
+        total_minor INTEGER, vat_minor INTEGER, currency TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX finance_docs_kind ON finance_docs(kind, doc_date);
     CREATE TABLE statement_files (
         sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, found INTEGER NOT NULL, added INTEGER NOT NULL,
         at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -121,6 +127,61 @@ def _store(conn, d, txns, learned) -> int:
     return new
 
 
+def _day(value) -> str | None:
+    try:
+        return date.fromisoformat(str(value)[:10]).isoformat()
+    except (ValueError, TypeError):
+        return None
+
+
+def _money(value) -> int | None:
+    return round(abs(float(value)) * 100) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _remember_doc(conn, d, info) -> None:
+    """Keep what the model read from a finance file: what it is, who it is from, when, how much."""
+    conn.execute("INSERT OR REPLACE INTO finance_docs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                 (d["sha256"], d["name"], info.get("kind", "other"), str(info.get("title") or "")[:120], str(info.get("summary") or "")[:300],
+                  str(info.get("party") or "")[:120], _day(info.get("date")), _day(info.get("due_date")), str(info.get("reference") or "")[:60],
+                  _money(info.get("total")), _money(info.get("vat")), str(info.get("currency") or "")[:5].upper()))
+
+
+def finance_documents(conn, a=None):
+    """Finance files by what they are (invoice, receipt, payslip, tax, insurance, contract ...) with who/when/how much."""
+    a = a or {}
+    where, args = [], []
+    for key, col in (("kind", "kind"),):
+        if a.get(key):
+            where.append(f"{col}=?")
+            args.append(a[key])
+    if a.get("party"):
+        where.append("(party LIKE ? OR title LIKE ? OR name LIKE ?)")
+        args += [f"%{a['party']}%"] * 3
+    for key, op in (("since", ">="), ("until", "<=")):
+        if a.get(key):
+            where.append(f"doc_date {op} ?")
+            args.append(a[key])
+    sql = ("SELECT kind, title, party, doc_date AS date, due_date, reference, total_minor/100.0 AS total, vat_minor/100.0 AS vat, currency, summary, name "
+           "FROM finance_docs" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY doc_date DESC, name LIMIT ?")
+    return rows(conn.execute(sql, [*args, int(a.get("limit", 50))]))
+
+
+def finance_document_totals(conn, a=None):
+    """Totals of invoices / receipts / insurance ... by kind, month or who it is from."""
+    a = a or {}
+    group = {"month": "substr(doc_date,1,7)", "party": "party", "kind": "kind"}.get(a.get("by", "kind"), "kind")
+    where, args = ["total_minor IS NOT NULL", "kind NOT IN ('bank_statement','payslip')"], []
+    if a.get("kind"):
+        where.append("kind=?")
+        args.append(a["kind"])
+    for key, op in (("since", ">="), ("until", "<=")):
+        if a.get(key):
+            where.append(f"doc_date {op} ?")
+            args.append(a[key])
+    return rows(conn.execute(f"SELECT {group} AS grp, COUNT(*) AS documents, SUM(total_minor)/100.0 AS total, SUM(COALESCE(vat_minor,0))/100.0 AS vat "
+                             f"FROM finance_docs WHERE {' AND '.join(where)} GROUP BY grp ORDER BY total DESC LIMIT 50", args))
+
+
 def import_statements(conn, a=None, client=None, model=None, progress=None):
     """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice.
 
@@ -142,11 +203,13 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             lines = [" | ".join(str(c) for c in r) for r in data["rows"] if isinstance(r, list)]
         lines = lines or d["text"].splitlines()
         slip = None
+        info: dict = {}
         txns: list[statements.Txn] = []
         new = 0
         if client is not None and model:
             try:
                 info = extract.classify(client, model, d["name"], d["text"])
+                _remember_doc(conn, d, info)
                 if info["kind"] == "payslip":
                     slip = payslips.from_model(info)
                 elif info["kind"] == "bank_statement":
@@ -171,7 +234,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         files += 1
         added += new
         duplicates += len(txns) - new
-        if not txns and slip is None:
+        if not txns and slip is None and info.get("kind") == "bank_statement":
             empty.append(d["name"])
         conn.commit()
     if client is not None and model and added:  # merchants the rules could not place: the local model sees only their names
@@ -293,6 +356,13 @@ MODULE = Module(
              ("category", "monthly_amount")),
         Tool("import_statements", "Import new bank/UPI/card statements from the finance folder into transactions (safe to repeat).",
              {}, import_statements),
+        Tool("finance_documents", "Find invoices, receipts, tax letters, insurance, contracts and other finance files, with who/when/how much. "
+             "Filter by kind, party (who it is from) and dates.",
+             {"kind": S("invoice, receipt, payslip, tax, insurance, contract, bank_statement or other"), "party": S("Name, or part of it"),
+              "since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "limit": N("Max rows")}, finance_documents),
+        Tool("finance_document_totals", "Add up invoices, receipts, insurance ... by kind, month or who they are from.",
+             {"by": S("kind, month or party", enum=["kind", "month", "party"]), "kind": S("Only this kind"), "since": S("YYYY-MM-DD"),
+              "until": S("YYYY-MM-DD")}, finance_document_totals),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool("top_merchants", "Where the money went: spend per merchant, biggest first. Optional month YYYY-MM or since/until dates.",
              {"month": S("YYYY-MM"), "since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "limit": N("Max rows")}, top_merchants),
