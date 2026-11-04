@@ -113,9 +113,9 @@ def test_enabling_stores_the_key_in_the_keychain_only_and_turns_the_option_on(mo
     calls = []
     monkeypatch.setattr(cli.sys, "platform", "darwin")
     monkeypatch.setattr(cli.subprocess if hasattr(cli, "subprocess") else __import__("subprocess"), "run", lambda cmd, **k: calls.append(cmd) or SimpleNamespace(returncode=0))
-    monkeypatch.setattr(launcher, "keychain_key", lambda: "sk-secret")
+    monkeypatch.setattr(launcher, "keychain_key", lambda: "sk-ant-secret")
     assert cli.cmd_cloud(paths, argparse.Namespace(action="enable", forget_key=False)) == 0
-    assert calls[0][:2] == ["/usr/bin/security", "add-generic-password"] and "-w" in calls[0] and "sk-secret" not in " ".join(calls[0])  # the key is never an argument
+    assert calls[0][:2] == ["/usr/bin/security", "add-generic-password"] and "-w" in calls[0] and "sk-ant-secret" not in " ".join(calls[0])  # the key is never an argument
     assert Settings.load(paths).cloud_interpreter is True
     cli.cmd_cloud(paths, argparse.Namespace(action="off", forget_key=True))
     assert Settings.load(paths).cloud_interpreter is False and calls[-1][1] == "delete-generic-password"
