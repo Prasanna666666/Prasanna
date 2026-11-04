@@ -154,6 +154,25 @@ class AppContext:
         if embedder is not None and len(index):
             VisualSearch(index, embedder).search("a photo of people")
 
+    def _cloud_interpreter(self, people_names: Any) -> Any:
+        """The optional cloud question reader (off unless switched on); it only ever receives the redacted words of the question."""
+        if not self.settings.cloud_interpreter:
+            return None
+        from .cloud.client import CloudInterpreter
+
+        def places() -> list[str]:
+            def load() -> list[str]:
+                conn = self.db.connect()
+                try:
+                    rows = conn.execute("SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0").fetchall()
+                    return sorted({str(r[0]).split(",")[0].strip() for r in rows if r[0]})
+                finally:
+                    conn.close()
+
+            return self.memo("cloud_places", 300.0, load)
+
+        return CloudInterpreter(self.settings.cloud_port, people_names, places)
+
     def warm_ai(self) -> None:
         agent = self.agent()
         if hasattr(agent, "warm"):
@@ -551,7 +570,7 @@ class AppContext:
                 fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
             )
             self._service = service  # the search executor the agent uses (tests exercise it directly)
-            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results)
+            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results, cloud=self._cloud_interpreter(people_names))
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

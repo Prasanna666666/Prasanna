@@ -216,7 +216,9 @@ class ToolAgent:
                  look: Callable[[list[int], str], list[dict[str, Any]]] | None = None,
                  probe: Callable[[str], dict[str, Any]] | None = None,
                  inspect: Callable[[list[int]], dict[str, Any]] | None = None,
-                 today: Callable[[], date] = date.today, max_tokens: int = CHAT_MAX_TOKENS, spec: AgentSpec = ASSISTANT) -> None:
+                 today: Callable[[], date] = date.today, max_tokens: int = CHAT_MAX_TOKENS, spec: AgentSpec = ASSISTANT,
+                 cloud: Callable[[str, bool], dict[str, Any] | None] | None = None) -> None:
+        self._cloud = cloud
         self._llm, self._service, self._context, self._today = llm, service, context, today
         self._overview, self._lookup, self._max_tokens, self.spec = overview, lookup, max_tokens, spec
         self._read_text, self._look, self._probe, self._inspect = read_text, look, probe, inspect
@@ -291,7 +293,14 @@ class ToolAgent:
             started = time.perf_counter()
             say("Deciding how to search" if step == 0 else "Checking what it found")
             try:
-                first, events = self._decide(system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began)))
+                decided = None
+                if self._cloud is not None and step == 0 and not final:  # a stronger model reads the typed words (names hidden); anything wrong: local
+                    say("Asking the cloud model to understand your request (only its words are sent)")
+                    decided = self._cloud(request, previous_ids is not None)
+                if decided is not None:
+                    first, events = ("tool", decided), iter(())
+                else:
+                    first, events = self._decide(system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began)))
             except LLMError as exc:
                 if shown is None:  # the model is too slow or failed: answer from the stored data, without the model, so the user is never left waiting
                     reply = self._keyword_search(request, previous_ids, history, timings)

@@ -151,6 +151,12 @@ class Settings:
     export_dir: str = ""
     rescue_search: bool = False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
+    cloud_interpreter: bool = False  # let a cloud model understand the typed question (only its words, names hidden); off unless asked for
+    cloud_model: str = "claude-haiku-5-5"
+    cloud_cap_usd: float = 5.0  # the gateway stops asking the cloud once this much is spent in a month
+    cloud_port: int = 8770
+    cloud_price_in: float = 1.0  # USD per million tokens: set the real prices of your provider
+    cloud_price_out: float = 5.0
     estimate_locations: bool = False  # work out a location for photos without GPS (by time and by picture): off unless asked for
     quick_preview: bool = False  # instant matches by the typed WORDS (milliseconds, no AI); off: they can show photos that merely contain the words
     auto_scan: bool = False  # indexing competes with the language model for 8 GB of RAM and the external disk: start it on purpose

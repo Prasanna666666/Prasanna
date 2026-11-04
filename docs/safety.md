@@ -30,3 +30,14 @@
     `APERTURE_SANDBOXED=1` (set by `scripts/aperture-sandboxed.sh` and by the Docker image). `aperture secure-ui` is the one-command way;
     `aperture --insecure <command>` is the deliberate override. Existing background services started before this change keep running the
     old, unsandboxed code until you stop them.
+12. **Optional cloud understanding (off by default).** `aperture cloud enable` lets a cloud model read the *words you type*, nothing else.
+    - **What leaves the Mac:** the question, with every person and place name from your library replaced by a placeholder (`<PERSON_1>`,
+      `<PLACE_1>`) on your Mac before it is sent, whether photos are on screen (yes or no), and today's date. Never photos, faces, places, dates in
+      your library, labels, counts or results. The placeholders in the answer are mapped back locally.
+    - **Who talks to the cloud:** only the *gateway*, a separate program that has no access to your library, runs in its own Seatbelt profile
+      (`scripts/aperture-gateway.sb`: no reading of `/Volumes` or personal folders) and may reach only the provider's host
+      (`APERTURE_TRUSTED_HOSTS`). The app itself stays air-gapped and talks to the gateway over loopback.
+    - **The key** lives in the macOS Keychain (never in a file, an argument or this repository) and is handed to the gateway through its environment.
+    - **Limits:** a monthly spending cap (default $5; the prices are placeholders, set your provider's in the settings), a strict check of every plan
+      the provider returns (only known tools and arguments are accepted), and automatic fallback to the local model on any problem.
+    - **Off:** `aperture cloud off` (and `--forget-key` to delete the key).

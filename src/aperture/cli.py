@@ -10,6 +10,7 @@ import shutil
 import signal
 import sys
 import threading
+import urllib.request
 from datetime import date
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -52,6 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
     vn = sub.add_parser("venues", help="the vision model reads the photos that look like a sports venue: which sport, with evidence (slow, resumable, answers kept for good)")
     vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     vn.add_argument("--limit", type=int, default=0)
+    cl = sub.add_parser("cloud", help="optional: let a cloud model understand what you type (only the words, names hidden); enable | off | status")
+    cl.add_argument("action", choices=["enable", "off", "status"])
+    cl.add_argument("--forget-key", action="store_true", help="with `off`: also delete the API key from the Keychain")
+    sub.add_parser("cloud-gateway", help="(internal) the sandboxed program that talks to the cloud provider; started for you")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -453,6 +458,62 @@ def cmd_venues(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cloud_gateway() -> int:
+    """Run the gateway. It never opens the library: everything it needs arrives in its environment."""
+    from .cloud import gateway as gw
+
+    key = os.environ.pop("APERTURE_CLOUD_KEY", "")
+    if not key:
+        print("no API key was given to the gateway")
+        return 2
+    prices = tuple(float(x) for x in os.environ.get("APERTURE_CLOUD_PRICES", "1.0,5.0").split(","))
+    usage = gw.Usage(Path.home() / "Library" / "Application Support" / "Lumo" / "cloud-usage.json")
+    gateway = gw.Gateway(key, usage, os.environ.get("APERTURE_CLOUD_MODEL", gw.DEFAULT_MODEL), float(os.environ.get("APERTURE_CLOUD_CAP", "5")),
+                         (prices[0], prices[1]))
+    return gw.serve(gateway, int(os.environ.get("APERTURE_CLOUD_PORT", "8770")))
+
+
+def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
+    import subprocess
+
+    from . import launcher
+
+    settings = Settings.load(paths)
+    user = os.environ.get("USER", "")
+    if args.action == "enable":
+        if sys.platform != "darwin":
+            print("The cloud option stores its key in the macOS Keychain, so it needs a Mac.")
+            return 2
+        print("Paste your provider API key when asked (it is hidden and goes straight into your Keychain, never into a file).")
+        done = subprocess.run(["/usr/bin/security", "add-generic-password", "-U", "-s", launcher.KEYCHAIN_SERVICE, "-a", user, "-w"], check=False)  # noqa: S603
+        if done.returncode != 0 or not launcher.keychain_key():
+            print("The key was not saved, so the cloud option stays off.")
+            return 1
+        settings.cloud_interpreter = True
+        settings.save(paths)
+        print(f"On. Only the words of what you type leave this Mac, with the names from your library replaced by placeholders. Never photos, faces, "
+              f"places, dates or results. Monthly cap ${settings.cloud_cap_usd:.2f}; if the cloud is unreachable the local model is used. "
+              "Restart the app: aperture secure-ui")
+        return 0
+    if args.action == "off":
+        settings.cloud_interpreter = False
+        settings.save(paths)
+        if args.forget_key:
+            subprocess.run(["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False)  # noqa: S603
+            print("Off, and the key was removed from the Keychain.")
+        else:
+            print("Off. Nothing is sent to the cloud. (The key is still in the Keychain; add --forget-key to remove it.)")
+        return 0
+    print(f"cloud understanding: {'ON' if settings.cloud_interpreter else 'off'}; model {settings.cloud_model}; monthly cap ${settings.cloud_cap_usd:.2f}")
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{settings.cloud_port}/status", timeout=2) as response:
+            info = json.loads(response.read())
+        print(f"gateway running: spent ${info['spent_usd']:.4f} of ${info['cap_usd']:.2f} this month ({info['month']})")
+    except OSError:
+        print("gateway: not running (it starts with `aperture secure-ui` when this is on)")
+    return 0
+
+
 def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     reply = ctx.agent().ask(" ".join(args.request))
     print(reply.text)
@@ -645,11 +706,16 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
             return 2
         if port != wanted:
             print(f"Port {wanted} is used by another program, so I am using {port}.")
+    from . import launcher
     from .launcher import ensure_ollama
 
     print("Starting the AI engine (Ollama) if it is not running ...", flush=True)
     if not ensure_ollama():
         print("The AI engine did not answer within 45 seconds. Open the Ollama app yourself; the page will say when it is ready.")
+    if settings.cloud_interpreter:
+        problem = launcher.ensure_gateway(settings)
+        print("Cloud understanding is on: only the words you type are sent, with names hidden." if not problem
+              else f"Cloud understanding is on but unavailable ({problem}); the local model is used.")
     cmd = [str(script), str(photo)]
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():
@@ -853,6 +919,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_environment(paths, online=online)
     enable_offline_guard()  # no-op while fetching models
 
+    if args.command == "cloud-gateway":
+        return cmd_cloud_gateway()
+    if args.command == "cloud":
+        if _require_drive(paths):
+            return 2
+        return cmd_cloud(paths, args)
     if args.command == "secure-ui":
         return cmd_secure_ui(paths, args)
     if args.command in ("app", "ui", "install-launcher", "install-service"):

@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
+from typing import Any
 
 from .config import Paths, default_paths
 from .safety import enable_offline_guard
@@ -146,6 +147,68 @@ def ensure_ollama(wait: float = 45.0) -> bool:
             return True
         time.sleep(1.0)
     return False
+
+
+KEYCHAIN_SERVICE = "aperture-cloud"
+
+
+def keychain_key() -> str | None:
+    """The cloud API key from the macOS Keychain (never stored in a file)."""
+    user = os.environ.get("USER", "")
+    out = _run(["/usr/bin/security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", user, "-w"]).strip()
+    return out or None
+
+
+def gateway_up(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=1.0):
+            return True
+    except OSError:
+        return False
+
+
+def gateway_command() -> list[str]:
+    """The gateway runs in its own sandbox that cannot read the drive, photos or personal folders."""
+    command = [sys.executable, "-m", "aperture", "cloud-gateway"]
+    profile = Path(__file__).resolve().parents[2] / "scripts" / "aperture-gateway.sb"
+    if profile.exists() and Path("/usr/bin/sandbox-exec").exists():
+        command = ["/usr/bin/sandbox-exec", "-f", str(profile), "-D", f"HOME={Path.home()}", *command]
+    return command
+
+
+def gateway_environment(settings: Any, key: str) -> dict[str, str]:
+    """Everything the gateway gets: the key, the one host it may reach, and its limits. Never the library path."""
+    from .cloud.gateway import PROVIDER_HOST
+
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(Path.home()), "APERTURE_CLOUD_KEY": key,
+           "APERTURE_TRUSTED_HOSTS": PROVIDER_HOST, "APERTURE_CLOUD_MODEL": settings.cloud_model, "APERTURE_CLOUD_CAP": str(settings.cloud_cap_usd),
+           "APERTURE_CLOUD_PORT": str(settings.cloud_port), "APERTURE_CLOUD_PRICES": f"{settings.cloud_price_in},{settings.cloud_price_out}"}
+    return env
+
+
+def ensure_gateway(settings: Any, wait: float = 6.0) -> str:
+    """Start the cloud gateway if it is not running. Returns "" when it is up, otherwise why not (the local model is used instead)."""
+    import time
+
+    if gateway_up(settings.cloud_port):
+        return ""
+    key = keychain_key()
+    if not key:
+        return "there is no API key in the Keychain (run: aperture cloud enable)"
+    log_dir = Path.home() / "Library" / "Logs" / APP_NAME
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "gateway.log", "ab") as log:
+        try:
+            subprocess.Popen(gateway_command(), env=gateway_environment(settings, key), stdin=subprocess.DEVNULL, stdout=log, stderr=log,  # noqa: S603
+                             start_new_session=True)
+        except OSError as exc:
+            return f"the gateway could not start ({exc.__class__.__name__})"
+    deadline = time.monotonic() + wait
+    while time.monotonic() < deadline:
+        if gateway_up(settings.cloud_port):
+            return ""
+        time.sleep(0.3)
+    return "the gateway did not start in time"
 
 
 def _update_in_background() -> None:
