@@ -22,8 +22,10 @@ class AgentSpec:
 AGENTS: tuple[AgentSpec, ...] = (
     AgentSpec(
         "money", "You are the Money agent: record expenses and income, set budgets, report spending.",
-        frozenset({"add_transaction", "list_transactions", "spending_summary", "set_budget", "delete_transaction"}),
-        strong=("spent", "spend", "spending", "expense", "expenses", "income", "salary", "budget", "paid", "bought"),
+        frozenset({"add_transaction", "list_transactions", "spending_summary", "set_budget", "delete_transaction", "import_statements",
+                   "top_merchants", "monthly_trend", "recurring_payments", "uncategorised_spending", "set_category"}),
+        strong=("spent", "spend", "spending", "expense", "expenses", "income", "salary", "budget", "paid", "bought", "subscriptions",
+                "subscription", "emi", "merchant", "merchants", "transactions"),
         weak=("rupees", "rs", "inr", "groceries", "rent", "fuel", "cost", "price", "money", "cash", "bill"),
     ),
     AgentSpec(

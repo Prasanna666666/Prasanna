@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
+import statistics
+from collections import defaultdict
 from datetime import date
 
-from .. import dates
+from .. import categorize, dates, statements
 from ..db import get_setting, rows
-from ..module import N, Module, S, Tool
+from ..module import Module, N, S, Tool
 
 MIGRATIONS = (
     """
@@ -21,6 +24,18 @@ MIGRATIONS = (
     );
     CREATE INDEX tx_day ON transactions(day);
     CREATE TABLE budgets (category TEXT PRIMARY KEY, monthly_minor INTEGER NOT NULL);
+    """,
+    """
+    ALTER TABLE transactions ADD COLUMN ref TEXT;                          -- stable id of an imported line: the same line is never added twice
+    ALTER TABLE transactions ADD COLUMN source TEXT NOT NULL DEFAULT '';   -- the statement it came from
+    ALTER TABLE transactions ADD COLUMN balance_minor INTEGER;
+    ALTER TABLE transactions ADD COLUMN auto INTEGER NOT NULL DEFAULT 0;   -- 1 = category chosen by rules/model, 0 = chosen by you
+    CREATE UNIQUE INDEX tx_ref ON transactions(ref) WHERE ref IS NOT NULL;
+    CREATE TABLE merchant_rules (merchant TEXT PRIMARY KEY, category TEXT NOT NULL);
+    CREATE TABLE statement_files (
+        sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, found INTEGER NOT NULL, added INTEGER NOT NULL,
+        at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
     """,
 )
 
@@ -65,9 +80,9 @@ def summary(conn, a):
     start, end = dates.month_bounds(a.get("month") or date.today().strftime("%Y-%m"))
     by_cat = rows(conn.execute(
         "SELECT category, SUM(amount_minor)/100.0 AS spent FROM transactions "
-        "WHERE kind='expense' AND day>=? AND day<? GROUP BY category ORDER BY spent DESC", (start, end)))
+        "WHERE kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY category ORDER BY spent DESC", (start, end)))
     tot = {r["kind"]: r["t"] for r in conn.execute(
-        "SELECT kind, SUM(amount_minor)/100.0 AS t FROM transactions WHERE day>=? AND day<? GROUP BY kind",
+        "SELECT kind, SUM(amount_minor)/100.0 AS t FROM transactions WHERE category<>'transfers' AND day>=? AND day<? GROUP BY kind",
         (start, end))}
     budgets = {r["category"]: r["monthly_minor"] / 100 for r in conn.execute("SELECT * FROM budgets")}
     for r in by_cat:
@@ -90,6 +105,111 @@ def delete_transaction(conn, a):
     return {"deleted": a["id"]}
 
 
+# ---- statements -------------------------------------------------------------------------------------------------------
+def import_statements(conn, a=None):
+    """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice."""
+    learned = categorize.learned_rules(conn)
+    done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
+    files = added = duplicates = 0
+    empty: list[str] = []
+    for d in conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall():
+        if d["sha256"] in done:
+            continue
+        try:
+            data = json.loads(d["data"]) if d["data"] else {}
+        except ValueError:
+            data = {}
+        txns = statements.from_document(data) or statements.from_lines(d["text"].splitlines())
+        new = 0
+        for ref, t in statements.with_references(txns):
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, balance_minor, auto) VALUES (?,?,?,?,?,?,?,?,1)",
+                (t.day, t.amount_minor, t.kind, categorize.categorise(t.desc, t.kind, learned), t.desc[:300], ref, d["name"][:200], t.balance_minor))
+            new += cur.rowcount
+        conn.execute("INSERT INTO statement_files (sha256, name, found, added) VALUES (?,?,?,?)", (d["sha256"], d["name"], len(txns), new))
+        files += 1
+        added += new
+        duplicates += len(txns) - new
+        if not txns:
+            empty.append(d["name"])
+    conn.commit()
+    return {"files": files, "new_transactions": added, "already_had": duplicates, "files_with_no_transactions": empty}
+
+
+def _range(a):
+    where, args = ["kind='expense'", "category<>'transfers'"], []
+    if a.get("month"):
+        start, end = dates.month_bounds(a["month"])
+        where += ["day>=?", "day<?"]
+        args += [start, end]
+    for col, op, key in (("day", ">=", "since"), ("day", "<=", "until")):
+        if a.get(key):
+            where.append(f"{col} {op} ?")
+            args.append(a[key])
+    return " AND ".join(where), args
+
+
+def top_merchants(conn, a):
+    """Where the money went: spend grouped by merchant, biggest first."""
+    where, args = _range(a)
+    totals: dict[str, list[float]] = defaultdict(lambda: [0.0, 0])
+    for r in conn.execute(f"SELECT note, amount_minor FROM transactions WHERE {where}", args):
+        m = categorize.merchant(r["note"]) or "(unnamed)"
+        totals[m][0] += r["amount_minor"] / 100
+        totals[m][1] += 1
+    ranked = sorted(totals.items(), key=lambda kv: -kv[1][0])[: int(a.get("limit", 15))]
+    return [{"merchant": m, "spent": round(t, 2), "times": n} for m, (t, n) in ranked]
+
+
+def monthly_trend(conn, a):
+    months = max(1, min(int(a.get("months", 6)), 60))
+    out = rows(conn.execute(
+        "SELECT substr(day,1,7) AS month, SUM(CASE WHEN kind='expense' THEN amount_minor ELSE 0 END)/100.0 AS spent, "
+        "SUM(CASE WHEN kind='income' THEN amount_minor ELSE 0 END)/100.0 AS income FROM transactions "
+        "WHERE category<>'transfers' GROUP BY month ORDER BY month DESC LIMIT ?", (months,)))
+    for r in out:
+        r["net"] = round(r["income"] - r["spent"], 2)
+    return list(reversed(out))
+
+
+def recurring_payments(conn, a=None):
+    """Payments that repeat about monthly for about the same amount: subscriptions, rent, EMIs, bills."""
+    by: dict[str, list[tuple[str, int]]] = defaultdict(list)
+    for r in conn.execute("SELECT day, note, amount_minor FROM transactions WHERE kind='expense' AND category<>'transfers' ORDER BY day"):
+        m = categorize.merchant(r["note"])
+        if m:
+            by[m].append((r["day"], r["amount_minor"]))
+    found = []
+    for m, items in by.items():
+        if len(items) < 3:
+            continue
+        days = [dates.parse(d) for d, _ in items]
+        gaps = [(b - a_).days for a_, b in zip(days, days[1:], strict=False) if (b - a_).days > 0]
+        amounts = [x for _, x in items]
+        mid = statistics.median(amounts)
+        if gaps and 25 <= statistics.median(gaps) <= 35 and sum(abs(x - mid) <= 0.15 * mid for x in amounts) >= 0.7 * len(amounts):
+            found.append({"merchant": m, "typical_amount": round(mid / 100, 2), "times": len(items), "last": items[-1][0],
+                          "per_month": round(mid / 100, 2)})
+    return sorted(found, key=lambda x: -x["typical_amount"])
+
+
+def uncategorised(conn, a=None):
+    """The merchants still in 'other', biggest first, so a few corrections place most of the rest."""
+    totals: dict[str, list[float]] = defaultdict(lambda: [0.0, 0])
+    for r in conn.execute("SELECT note, amount_minor FROM transactions WHERE category='other'"):
+        m = categorize.merchant(r["note"])
+        if m:
+            totals[m][0] += r["amount_minor"] / 100
+            totals[m][1] += 1
+    return [{"merchant": m, "spent": round(t, 2), "times": n} for m, (t, n) in sorted(totals.items(), key=lambda kv: -kv[1][0])[:25]]
+
+
+def set_category(conn, a):
+    """Put every transaction from a merchant into a category, now and in future imports."""
+    m = categorize.teach(conn, a["merchant"], a["category"])
+    return {"merchant": m, "category": a["category"].lower()}
+
+
 MODULE = Module(
     "money",
     MIGRATIONS,
@@ -106,6 +226,17 @@ MODULE = Module(
         Tool("set_budget", "Set a monthly budget for a category.",
              {"category": S("Category"), "monthly_amount": N("Amount per month")}, set_budget,
              ("category", "monthly_amount")),
+        Tool("import_statements", "Import new bank/UPI/card statements from the finance folder into transactions (safe to repeat).",
+             {}, import_statements),
+        Tool("top_merchants", "Where the money went: spend per merchant, biggest first. Optional month YYYY-MM or since/until dates.",
+             {"month": S("YYYY-MM"), "since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "limit": N("Max rows")}, top_merchants),
+        Tool("monthly_trend", "Spent, income and net for each of the last N months.", {"months": N("How many months, default 6")}, monthly_trend),
+        Tool("recurring_payments", "Subscriptions, rent, EMIs and bills: payments that repeat about monthly for a similar amount.", {},
+             recurring_payments),
+        Tool("uncategorised_spending", "Merchants still in the 'other' category, biggest first.", {}, uncategorised),
+        Tool("set_category", "Put all transactions from a merchant into a category (remembered for future imports).",
+             {"merchant": S("Merchant name or a description containing it"), "category": S("One of: " + ", ".join(categorize.CATEGORIES))},
+             set_category, ("merchant", "category")),
         Tool("delete_transaction", "Delete a transaction by id.", {"id": N("Transaction id")}, delete_transaction, ("id",)),
     ),
 )

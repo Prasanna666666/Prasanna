@@ -21,9 +21,10 @@ services:
     build: {context: ., target: parser}
     image: orbit-parser:local
     network_mode: none          # cannot talk to anything, not even the app: the only exchange is files
-    environment: {ORBIT_INBOX: /inbox, ORBIT_PARSED: /parsed}
+    environment: {ORBIT_INBOX: /inbox, ORBIT_PARSED: /parsed, ORBIT_FINANCE: /finance}
     volumes:
       - ${HOME}/OrbitInbox:/inbox:ro
+      - ${ORBIT_FINANCE_DIR:-${HOME}/OrbitFinance}:/finance:ro   # your bank statements and finance files: read-only, only the parser sees them
       - orbit-parsed:/parsed
     mem_limit: 1g
     pids_limit: 128

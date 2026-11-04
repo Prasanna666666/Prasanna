@@ -24,9 +24,13 @@ MIGRATIONS = (
         created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """,
+    """
+    ALTER TABLE documents ADD COLUMN area TEXT NOT NULL DEFAULT '';   -- 'finance' for files from the finance folder
+    ALTER TABLE documents ADD COLUMN data TEXT NOT NULL DEFAULT '';   -- structured rows (CSV) or reconstructed lines (PDF), as JSON
+    """,
 )
 KINDS = {"text", "csv", "pdf"}
-MAX_JSON = 6_000_000
+MAX_JSON = 30_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -50,8 +54,11 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
             rejected += 1
             continue
         tags = ",".join(rule_tags(f"{d['name']} {d['text'][:5000]}", people))
-        cur = conn.execute("INSERT OR IGNORE INTO documents (sha256, name, kind, text, tags, parsed_at) VALUES (?,?,?,?,?,?)",
-                           (d["sha256"], d["name"], d["kind"], d["text"], tags, str(d.get("parsed_at", ""))[:25]))
+        area = "finance" if d.get("area") == "finance" else ""
+        structured = {k: d["data"][k] for k in ("rows", "lines") if isinstance(d.get("data"), dict) and isinstance(d["data"].get(k), list)}
+        cur = conn.execute("INSERT OR IGNORE INTO documents (sha256, name, kind, text, tags, parsed_at, area, data) VALUES (?,?,?,?,?,?,?,?)",
+                           (d["sha256"], d["name"], d["kind"], d["text"], tags, str(d.get("parsed_at", ""))[:25], area,
+                            json.dumps(structured) if structured else ""))
         new += cur.rowcount
         known += 1 - cur.rowcount
     conn.commit()

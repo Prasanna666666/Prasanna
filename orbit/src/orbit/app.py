@@ -12,7 +12,7 @@ from orbit import netguard
 
 netguard.install()
 
-from orbit import agent, applenotes, db, llm, tagging
+from orbit import agent, applenotes, categorize, db, llm, tagging
 from orbit.modules import ALL, documents, money, notes, people, tasks
 from orbit.modules.today import briefing_for
 
@@ -149,22 +149,61 @@ elif page == "Documents":
 
 elif page == "Money":
     st.title("Money")
-    with st.form("add_tx", clear_on_submit=True):
-        c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 3, 2])
-        amt = c1.number_input(f"Amount ({cur})", min_value=0.0, step=10.0)
-        kind = c2.selectbox("Type", ["expense", "income"])
-        cat = c3.text_input("Category", "other")
-        note = c4.text_input("Note")
-        day = c5.date_input("Date", date.today())
-        if st.form_submit_button("Add") and amt > 0:
-            money.add_transaction(C, {"amount": amt, "kind": kind, "category": cat, "note": note, "date": day.isoformat()})
-            st.rerun()
+    st.caption("Your bank statements are read by the isolated, offline parser from the finance folder (read-only), then sorted into categories here.")
+    parsed = Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))
+    if st.button("Get new statements"):
+        if parsed.is_dir():
+            documents.ingest_dir(C, parsed)
+            r = money.import_statements(C)
+            st.success(f"{r['new_transactions']} new transactions from {r['files']} new file(s); {r['already_had']} were already there.")
+            if r["files_with_no_transactions"]:
+                st.warning("No transactions could be read from: " + ", ".join(r["files_with_no_transactions"]) +
+                           ". (Password-protected or scanned PDFs cannot be read yet; a CSV download from your bank works best.)")
+        else:
+            st.error(f"{parsed} not found - start the parser")
     month = st.text_input("Month", date.today().strftime("%Y-%m"))
     s = money.summary(C, {"month": month})
-    st.metric("Spent", f"{cur} {s['spent']:,.2f}")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Spent", f"{cur} {s['spent']:,.2f}")
+    m2.metric("Income", f"{cur} {s['income']:,.2f}")
+    m3.metric("Net", f"{cur} {s['net']:,.2f}")
     if s["by_category"]:
+        st.subheader("By category")
         st.bar_chart({r["category"]: r["spent"] for r in s["by_category"]})
-    st.dataframe(money.list_transactions(C, {"since": f"{month}-01", "until": f"{month}-31"}), width="stretch")
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Top merchants")
+        st.dataframe(money.top_merchants(C, {"month": month}), width="stretch")
+    with right:
+        st.subheader("Repeating payments")
+        st.dataframe(money.recurring_payments(C), width="stretch")
+    trend = money.monthly_trend(C, {"months": 12})
+    if trend:
+        st.subheader("Month by month")
+        st.bar_chart({r["month"]: r["spent"] for r in trend})
+    todo = money.uncategorised(C)
+    if todo:
+        st.subheader("Help me sort these")
+        st.caption("Choose a category once; every payment to that merchant, now and in future statements, follows it.")
+        for t in todo[:10]:
+            c1, c2, c3 = st.columns([3, 2, 1])
+            c1.write(f"**{t['merchant']}** · {cur} {t['spent']:,.0f} · {t['times']}x")
+            pick = c2.selectbox("Category", categorize.CATEGORIES, index=categorize.CATEGORIES.index("other"), key=f"cat{t['merchant']}", label_visibility="collapsed")
+            if c3.button("Save", key=f"save{t['merchant']}") and pick != "other":
+                money.set_category(C, {"merchant": t["merchant"], "category": pick})
+                st.rerun()
+    with st.expander("Add one by hand"):
+        with st.form("add_tx", clear_on_submit=True):
+            c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 3, 2])
+            amt = c1.number_input(f"Amount ({cur})", min_value=0.0, step=10.0)
+            kind = c2.selectbox("Type", ["expense", "income"])
+            cat = c3.text_input("Category", "other")
+            note = c4.text_input("Note")
+            day = c5.date_input("Date", date.today())
+            if st.form_submit_button("Add") and amt > 0:
+                money.add_transaction(C, {"amount": amt, "kind": kind, "category": cat, "note": note, "date": day.isoformat()})
+                st.rerun()
+    st.dataframe(money.list_transactions(C, {"since": f"{month}-01", "until": f"{month}-31", "limit": 500}), width="stretch")
 
 elif page == "People":
     st.title("Family & people")

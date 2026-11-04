@@ -14,6 +14,8 @@ if ! KEY="$(security find-generic-password -a "$USER" -s "$SERVICE" -w 2>/dev/nu
   echo "BACK IT UP NOW:  ./scripts/up.sh --show-key   (store it somewhere safe, offline). Without it the data cannot be recovered."
 fi
 mkdir -p "$HOME/OrbitInbox/notes"
+export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep your finance folder where it is: ORBIT_FINANCE_DIR=/path ./scripts/up.sh
+mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
 docker compose up -d --build
-echo "Orbit: http://127.0.0.1:8501   (drop files into ~/OrbitInbox; the parser picks them up)"
+echo "Orbit: http://127.0.0.1:8501   (drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"

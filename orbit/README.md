@@ -43,6 +43,22 @@ Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` a
   `docker compose exec app sh -c "touch /parsed/x"` must fail (read-only).
 - Untested on a real Mac (no Docker engine where this was written). Send only error text if a step fails.
 
+## Your finance folder (bank statements, UPI, cards)
+Keep your statements where they are and point Orbit at the folder; it is mounted **read-only** and only the offline parser can open it:
+```bash
+ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance
+```
+Then open **Money -> Get new statements**. The parser keeps the exact rows of every CSV and rebuilds the lines of every PDF; Orbit finds the
+columns itself (Date, Narration/Description, Debit/Withdrawal, Credit/Deposit, Amount, Dr/Cr, Balance), reads dates day-first and amounts
+with commas, Rs/INR/₹, brackets and Dr/Cr, and skips opening-balance, total and footer lines. Nothing is guessed from a row it cannot read.
+- **Safe to repeat.** A line is never added twice, even when two statements overlap.
+- **Categories:** rules first (food, groceries, transport, subscriptions, EMI, rent ...), then your own corrections (**Help me sort these** - pick
+  a category once and that merchant follows it forever), then `orbit categorise` for the local model (it sees only merchant names, never amounts).
+  Moves between your own accounts are kept out of spending and income.
+- **Views:** spent / income / net, by category, top merchants, month by month, repeating payments (subscriptions, rent, EMIs), and chat:
+  "what did I spend on food last month?", "which subscriptions do I pay?", "top merchants this year".
+- Password-protected or scanned PDFs cannot be read yet; for those, download the CSV from your bank. Without Docker: `orbit ingest`, `orbit import-statements`.
+
 ## Your data boundary
 - Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).
   It is never in this folder. `.gitignore` and `tests/test_data_boundary.py` block data files from git.
@@ -77,7 +93,7 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
 1. **Health & parents' care** - medicines with dose schedules, appointments, vitals log, per-parent records.
 2. **Reminders that reach you** - push/WhatsApp/Telegram/email delivery of due items (today they are only shown).
 3. **Calendar** - read/write Google or Apple calendar; briefing merges events.
-4. **Money import** - bank/UPI CSV import with auto-categorisation, recurring bills, subscriptions.
+4. **Money import** (done: CSV/PDF statements, categories, repeating payments). Next: budgets from history, alerts for unusual spending, OCR for scans.
 5. **Home** - appliance warranties, service dates, maintenance, shopping list, documents.
 6. **Documents vault** - scan/photo of bills, prescriptions, IDs; extraction by Claude; searchable.
 7. **Proactive agent** - morning briefing, nudges ("rent due in 3 days, balance low").

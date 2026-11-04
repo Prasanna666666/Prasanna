@@ -28,6 +28,8 @@ MAX_BYTES = 50 * 1024 * 1024
 MAX_TEXT = 2_000_000
 MAX_PAGES = 500
 MAX_CSV_ROWS = 200_000
+MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
+MAX_CELL = 300
 TIMEOUT_S = 60
 KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".pdf": "pdf"}
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -41,6 +43,7 @@ def extract(path: Path) -> dict:
     """In-process extraction. Called only inside the limited subprocess (or by tests)."""
     kind = KINDS.get(path.suffix.lower())
     meta: dict = {}
+    data: dict = {}
     if kind == "text":
         text = path.read_text(encoding="utf-8", errors="replace")
     elif kind == "csv":
@@ -54,17 +57,42 @@ def extract(path: Path) -> dict:
         meta["rows"] = len(rows)
         meta["columns"] = [clean(c)[:80] for c in rows[0]][:50] if rows else []
         text = "\n".join(" | ".join(r) for r in rows)
+        data["rows"] = [[clean(c)[:MAX_CELL] for c in r][:60] for r in rows[:MAX_DATA_ROWS]]  # exact cells, for statements
     elif kind == "pdf":
         import pymupdf  # only installed in the parser image
 
         with pymupdf.open(path) as doc:
             meta["pages"] = doc.page_count
             text = "\n\n".join(doc[i].get_text() for i in range(min(doc.page_count, MAX_PAGES)))
+            lines: list[str] = []
+            for i in range(min(doc.page_count, MAX_PAGES)):
+                lines += _visual_lines(doc[i].get_text("words"))
+            data["lines"] = [clean(x)[:600] for x in lines[:MAX_DATA_ROWS]]
             if doc.page_count > MAX_PAGES:
                 meta["truncated"] = True
     else:
         raise ValueError(f"unsupported file type: {path.suffix}")
-    return {"kind": kind, "text": clean(text), "meta": meta}
+    if kind == "text":
+        data["lines"] = [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]
+    return {"kind": kind, "text": clean(text), "meta": meta, "data": data}
+
+
+def _visual_lines(words: list) -> list[str]:
+    """Rebuild the lines of a page as they look: words with nearly the same height are one line, in left-to-right order.
+    A statement table is then 'date  description  amount  balance' on one line, however the PDF stores its cells."""
+    items = sorted(((round((w[1] + w[3]) / 2), w[0], w[2], str(w[4])) for w in words), key=lambda t: (t[0], t[1]))
+    lines: list[list[tuple[float, float, str]]] = []
+    last_y = None
+    for y, x0, x1, text in items:
+        if last_y is None or abs(y - last_y) > 3:
+            lines.append([])
+            last_y = y
+        lines[-1].append((x0, x1, text))
+    out = []
+    for line in lines:
+        line.sort()
+        out.append(" ".join(t for _, _, t in line))
+    return out
 
 
 def _limits() -> None:  # runs in the child before exec (Linux/macOS)
@@ -91,7 +119,7 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def process_inbox(inbox: Path, out: Path, isolated: bool = True) -> dict[str, int]:
+def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "") -> dict[str, int]:
     """Parse every new supported file under inbox into out/<sha256>.json. Same content is never parsed twice."""
     out.mkdir(parents=True, exist_ok=True)
     root = inbox.resolve()
@@ -103,6 +131,8 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True) -> dict[str, in
             skipped += 1
             continue
         digest = sha256(f)
+        if area:
+            digest = hashlib.sha256((area + digest).encode()).hexdigest()  # the same file in two folders is two documents
         target = out / f"{digest}.json"
         if target.exists():
             continue
@@ -113,7 +143,7 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True) -> dict[str, in
             failed += 1
             continue
         doc = {"schema": SCHEMA, "sha256": digest, "name": clean(f.name)[:255], "bytes": f.stat().st_size,
-               "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **res}
+               "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **({"area": area} if area else {}), **res}
         tmp = out / f".{digest}.tmp"
         tmp.write_text(json.dumps(doc, ensure_ascii=False))
         os.replace(tmp, target)  # atomic: the app never sees a half-written file
@@ -125,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="orbit-parser")
     ap.add_argument("--inbox", default=os.environ.get("ORBIT_INBOX", str(Path.home() / "OrbitInbox")))
     ap.add_argument("--out", default=os.environ.get("ORBIT_PARSED", str(Path.home() / "OrbitParsed")))
+    ap.add_argument("--finance", default=os.environ.get("ORBIT_FINANCE", ""), help="folder of bank statements and finance files (read-only)")
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)
@@ -134,6 +165,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     while True:
         res = process_inbox(Path(a.inbox), Path(a.out))
+        if a.finance and Path(a.finance).is_dir():
+            fin = process_inbox(Path(a.finance), Path(a.out), area="finance")
+            res = {k: res[k] + fin[k] for k in res}
         if res["parsed"] or res["failed"]:
             print(res, flush=True)
         if not a.watch:

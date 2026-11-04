@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir] | ingest [dir]"""
+"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir] | ingest [dir] | import-statements | categorise"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ def open_db():
 
 # Commands that touch your database. They need the encryption key (set by the Docker deployment / scripts/up.sh),
 # or an explicit ORBIT_ALLOW_PLAIN=1 for throwaway test data.
-NEEDS_SECURE = {"ui", "chat", "brief", "tag", "import-notes", "ingest"}
+NEEDS_SECURE = {"ui", "chat", "brief", "tag", "import-notes", "ingest", "import-statements", "categorise"}
 REFUSAL = (
     "Refusing to open the database without encryption.\n"
     "  Normal way:   ./scripts/up.sh          (Docker: encrypted, offline, isolated)\n"
@@ -63,6 +63,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(briefing_for(conn, date.today()), indent=2, default=str))
     elif cmd == "ingest":
         print(documents.ingest_dir(conn, Path(rest[0]) if rest else Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))))
+    elif cmd == "import-statements":  # after `ingest`: turns the parsed finance files into transactions
+        from .modules import money
+
+        print(money.import_statements(conn))
+    elif cmd == "categorise":  # the local model places merchants the rules could not
+        from . import categorize
+
+        client = agent.llm.OllamaClient()
+        print("updated", categorize.recategorise_with_model(conn, client, client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))), "transactions")
     elif cmd == "import-notes":
         print(applenotes.import_dir(conn, Path(rest[0]) if rest else inbox))
     elif cmd == "tag":
