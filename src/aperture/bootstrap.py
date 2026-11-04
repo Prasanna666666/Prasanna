@@ -138,6 +138,8 @@ class AppContext:
         def drive_reads() -> None:  # reading the index and the library facts waits on the drive: do it while the model loads
             try:
                 run("photo index", self.embedding_index)
+                if hasattr(self, "geo"):
+                    run("place data", self.geo)
                 run("place names", self._fill_places)
                 run("library facts", self._prime_library_facts)
             finally:
@@ -290,6 +292,13 @@ class AppContext:
                 self._geo = GeoIndex.load(self.paths)
             return self._geo
 
+    def ready_geo(self) -> GeoIndex | None:
+        """The place list for a question: only if already loaded (loading it took 25 s from the drive). It loads at start-up, never during a question."""
+        if self._geo is None and not self._geo_tried and not getattr(self, "_geo_loading", False):
+            self._geo_loading = True
+            threading.Thread(target=self.geo, name="load-places", daemon=True).start()
+        return self._geo
+
     # -- agent ------------------------------------------------------------
     def llm(self) -> OllamaClient:
         return OllamaClient(self.settings.ollama_url, self.settings.ollama_model)
@@ -321,7 +330,7 @@ class AppContext:
                 self.embedding_index,
                 self.ready_embedder,
                 strictness=self.settings.visual_strictness,
-                geo_provider=self.geo,
+                geo_provider=self.ready_geo,
             )
 
         def people_names() -> list[str]:

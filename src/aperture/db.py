@@ -243,7 +243,12 @@ _MIGRATION_15 = """
 CREATE INDEX IF NOT EXISTS faces_count ON faces(item_id, score, px);
 """
 
-MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12, _MIGRATION_13, _MIGRATION_14, _MIGRATION_15]
+_MIGRATION_16 = """
+-- "Every live photo" read the whole items table (wide rows) from the drive on each question. This index answers it without touching the rows.
+CREATE INDEX IF NOT EXISTS items_live ON items(missing, meta_done, id);
+"""
+
+MIGRATIONS: list[str] = [_MIGRATION_1, _MIGRATION_2, _MIGRATION_3, _MIGRATION_4, _MIGRATION_5, _MIGRATION_6, _MIGRATION_7, _MIGRATION_8, _MIGRATION_9, _MIGRATION_10, _MIGRATION_11, _MIGRATION_12, _MIGRATION_13, _MIGRATION_14, _MIGRATION_15, _MIGRATION_16]
 
 
 class Database:
