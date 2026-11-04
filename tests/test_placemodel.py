@@ -68,3 +68,20 @@ def test_a_place_is_trusted_only_if_it_tested_well_on_its_own():
     conn, index, easy, ambiguous = _library()
     report = placemodel.locate_by_picture(conn, index, None)
     assert report["trusted_places"] == 2 and report["accuracy_at_threshold"] >= 0.95  # both cities were tested often and recognised
+
+
+def test_the_model_places_nothing_if_it_disagrees_with_photos_that_have_no_gps_but_a_trusted_location():
+    conn, index, easy, ambiguous = _library()
+    rng = np.random.default_rng(5)
+    n = len(index.ids)
+    extra_ids, extra_vecs = [], []
+    for k in range(150):  # no GPS, located by time to the OTHER city than they look like: the picture model must be wrong on them
+        n += 1
+        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif, gps_est_lat, gps_est_lon, gps_est_conf) VALUES (?,?,?,?,?,?,1,?,1,52.37,4.90,0.98)",
+                     (n, f"/p/{n}", f"{n}", "image", 0, 0, f"2026-06-{(k % 28) + 1:02d} 10:00:00"))
+        extra_ids.append(n)
+        extra_vecs.append(np.array([1.0, 0.0, 0.0, 0.0]) + rng.normal(0, 0.15, 4))
+    index = EmbeddingIndex(np.concatenate([index.ids, extra_ids]), np.vstack([index.vectors.astype(np.float32), np.array(extra_vecs, np.float32)]))
+    report = placemodel.locate_by_picture(conn, index, None)
+    assert report.get("blocked") is True and report["located"] == 0
+    assert conn.execute("SELECT COUNT(*) FROM items WHERE id IN (%s) AND gps_est_conf IS NOT NULL AND gps_est_place IS NOT NULL" % ",".join(map(str, easy))).fetchone()[0] == 0

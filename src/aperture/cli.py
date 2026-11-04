@@ -263,11 +263,16 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
 
         print("learning what your places look like from the photos that have GPS, then placing the rest by picture and time:", flush=True)
         seen = placemodel.locate_by_picture(conn, ctx.embedding_index(), ctx.geo())
-        if seen.get("threshold") is None:
+        if seen.get("blocked"):
+            print(f"  blocked: accurate on photos with GPS, but only {seen['agreement_on_no_gps']:.0%} right on {seen['checked_on_no_gps']:,} photos without GPS "
+                  "whose place is known from the time. Nothing was placed.")
+        elif seen.get("threshold") is None:
             print("  no level reached 95% accuracy on your own test photos, so no more photos were placed")
         else:
             print(f"  tested on {seen['tested']:,} of your photos: {seen['accuracy_at_threshold']:.0%} accurate above probability {seen['threshold']}; "
                   f"placed {seen['located']:,} more photos")
+            if "agreement_on_no_gps" in seen:
+                print(f"  also checked on {seen['checked_on_no_gps']:,} photos without GPS placed by time: {seen['agreement_on_no_gps']:.0%} agree")
     finally:
         conn.close()
     return 0

@@ -92,10 +92,10 @@ def _top(candidates, w):
 
 
 def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = MIN_PRECISION, min_accepted: int = 30, seed: int = 7) -> dict:
-    rows = conn.execute("SELECT id, taken_at, gps_lat, gps_lon, gps_est_lat FROM items WHERE missing=0 AND meta_done=1").fetchall()
+    rows = conn.execute("SELECT id, taken_at, gps_lat, gps_lon, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND meta_done=1").fetchall()
     row_of = {int(i): r for r, i in enumerate(index.ids.tolist())}
-    ids, times, lat, lon, est = [], [], [], [], []
-    for item_id, taken, la, lo, e in rows:
+    ids, times, lat, lon, est, elat, elon = [], [], [], [], [], [], []
+    for item_id, taken, la, lo, e, eo in rows:
         if item_id not in row_of:
             continue
         try:
@@ -107,7 +107,10 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
         lat.append(np.nan if la is None else la)
         lon.append(np.nan if lo is None else lo)
         est.append(e is not None)
+        elat.append(np.nan if e is None else e)
+        elon.append(np.nan if eo is None else eo)
     ids, times, lat, lon, est = np.array(ids, np.int64), np.array(times, float), np.array(lat, float), np.array(lon, float), np.array(est, bool)
+    elat, elon = np.array(elat, float), np.array(elon, float)
     has = ~np.isnan(lat)
     report: dict[str, Any] = {"tested": 0, "accuracy_at_threshold": 0.0, "threshold": None, "located": 0, "without_gps": int((~has & ~est).sum())}
     if has.sum() < 200:
@@ -172,6 +175,19 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
     # a picture that matches known photos of its place much less closely than the correctly placed test photos did is out of its depth
     floor = float(np.percentile(looks[ok], 10)) if ok.any() else 1.0
     report.update(threshold=round(threshold, 3), accuracy_at_threshold=round(precision, 3), accepted_in_test=int(cut + 1), similarity_floor=round(floor, 3))
+    # 1b. The test photos have GPS, the photos to place do not, and they may look different (screenshots, forwarded pictures, other cameras).
+    # So also check the model on photos that have NO GPS but were located by time at >= 95%: if it disagrees with them, it places nothing.
+    checked = np.flatnonzero(~has & est & ~np.isnan(elat))
+    if len(checked) >= 100:
+        s, c = neighbours(vec[checked], times[checked], None)
+        verdicts = [cell == t for (cell, p, look), t in zip(_top(_features(s, c, times[checked], tg, cells, None), w), _cell(elat[checked], elon[checked]))
+                    if cell is not None and p >= threshold and look >= floor and int(cell) in trusted]
+        if len(verdicts) >= 100:
+            agreement = float(np.mean(verdicts))
+            report.update(checked_on_no_gps=len(verdicts), agreement_on_no_gps=round(agreement, 3))
+            if agreement < min_precision:
+                report["blocked"] = True  # right on photos with GPS, wrong on photos like the ones to place: not trusted
+                return report
     # 2. apply to photos that have no GPS and no estimate yet
     q = np.flatnonzero(~has & ~est)
     if len(q) == 0:
