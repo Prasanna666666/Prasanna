@@ -298,9 +298,13 @@ class AppContext:
         """Read the list of live photos once at start-up (it is remembered until the library file changes)."""
         from .search.metadata import all_ids
 
+        from .search.metadata import TEXT_COLUMNS, _text_column
+
         conn = self.db.connect()
         try:
             all_ids(conn)
+            for column in TEXT_COLUMNS:
+                _text_column(conn, column)
         finally:
             conn.close()
 

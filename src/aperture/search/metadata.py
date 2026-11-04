@@ -23,6 +23,12 @@ def _word_prefix_ids(conn: sqlite3.Connection, column: str, query: str) -> np.nd
     words = tokens(query, min_len=2)
     if not words:
         return np.zeros(0, np.int64)
+    cached = _text_column(conn, column)
+    if cached is not None:  # in memory: the table is read from the drive once, not on every search
+        ids, texts = cached
+        needles = [" " + w for w in words]  # stored text starts with a space; a word may start anywhere after one
+        keep = [i for i, text in enumerate(texts) if all(n in text for n in needles)]
+        return ids[keep] if keep else np.zeros(0, np.int64)
     clause = " AND ".join(f"{column} LIKE ? ESCAPE '\\'" for _ in words)
     params = [f"% {like_escape(w)}%" for w in words]  # stored text starts with a space
     return _ids(conn.execute(f"SELECT id FROM items WHERE missing=0 AND {clause} ORDER BY id", params).fetchall())
@@ -64,6 +70,26 @@ def all_ids(conn: sqlite3.Connection, *, indexed_only: bool = True) -> np.ndarra
 
 
 _ALL_IDS: dict[Any, np.ndarray] = {}
+_TEXT: dict[str, tuple[Any, np.ndarray, list[str]]] = {}
+TEXT_COLUMNS = ("meta_text", "place_text", "gps_est_place_text")
+
+
+def _text_column(conn: sqlite3.Connection, column: str) -> tuple[np.ndarray, list[str]] | None:
+    """(ids, lower-cased texts) of every live photo for one text column, remembered until the library file changes. None when that cannot be
+    told safely (the caller then asks the database directly)."""
+    if column not in TEXT_COLUMNS:
+        return None
+    key = _file_signature(conn, True)
+    if key is None:
+        return None
+    hit = _TEXT.get(column)
+    if hit is not None and hit[0] == key:
+        return hit[1], hit[2]
+    rows = conn.execute(f"SELECT id, {column} FROM items WHERE missing=0 ORDER BY id").fetchall()
+    ids = np.fromiter((r[0] for r in rows), np.int64, count=len(rows))
+    texts = [(r[1] or "").lower() for r in rows]
+    _TEXT[column] = (key, ids, texts)
+    return ids, texts
 
 
 def _file_signature(conn: sqlite3.Connection, indexed_only: bool) -> Any:

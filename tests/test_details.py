@@ -227,3 +227,21 @@ def test_a_named_place_is_a_requirement_whatever_else_found_the_photos():
     plan = Plan(intent="find", clauses=(Clause(engines=("place", "path"), query="Nagoya"), Clause(engines=("visual",), query="hockey")))
     reply = service.run_plan("hockey in nagoya", plan)
     assert set(reply.ids.tolist()) <= {1, 2, 4, 5} and all(set(ids.tolist()) <= {1, 2, 4, 5} for _, ids in reply.groups)
+
+
+def test_word_search_in_memory_gives_the_same_answer_as_the_database_and_follows_changes(tmp_path):
+    from aperture.search import metadata
+
+    conn = sqlite3.connect(tmp_path / "lib.db")
+    conn.row_factory = sqlite3.Row
+    for m in MIGRATIONS:
+        conn.executescript(m)
+    for i, (path, place) in enumerate([(" hockey club eindhoven", " amstelveen netherlands"), (" holiday nagoya", " nagoya japan"), (" hockey nagoya", " nagoya japan")], 1):
+        conn.execute("INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)", (i, f"/p{i}", f"p{i}", "image", path, place))
+    conn.commit()
+    cached = metadata.path_ids(conn, "hockey nagoya").tolist()
+    direct = np.fromiter((r[0] for r in conn.execute("SELECT id FROM items WHERE meta_text LIKE '% hockey%' AND meta_text LIKE '% nagoya%'")), np.int64).tolist()
+    assert cached == direct == [3] and metadata.place_ids(conn, "nagoya").tolist() == [2, 3]
+    conn.execute("UPDATE items SET meta_text=' hockey nagoya' WHERE id=2")
+    conn.commit()
+    assert metadata.path_ids(conn, "hockey nagoya").tolist() == [2, 3]  # the file changed, so the remembered text was read again
