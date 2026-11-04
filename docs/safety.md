@@ -26,7 +26,7 @@
    code has no access to your Mac or drive.
 10. **Install-time exposure.** `scripts/install.sh` downloads packages from PyPI. Run it once on a trusted network, then use
     the sandbox for daily use. Hash-pinned requirements are a possible later step.
-11. **Secure by default.** `ui`, `app`, `scan`, `ask`, `caption`, `export-job`, `install-service` and `install-launcher` refuse to run unless
+11. **Secure by default.** `ui`, `app`, `scan`, `ask`, `caption` and `export-job` refuse to run unless
     `APERTURE_SANDBOXED=1` (set by `scripts/aperture-sandboxed.sh` and by the Docker image). `aperture secure-ui` is the one-command way;
     `aperture --insecure <command>` is the deliberate override. Existing background services started before this change keep running the
     old, unsandboxed code until you stop them.

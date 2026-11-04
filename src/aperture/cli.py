@@ -401,7 +401,7 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
-GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "ask", "caption", "export-job", "install-service", "install-launcher"}
+GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "ask", "caption", "export-job"}  # install-service / install-launcher only write start-up files; the app they start is sandboxed
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"

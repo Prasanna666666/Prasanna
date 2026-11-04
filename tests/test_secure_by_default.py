@@ -26,7 +26,7 @@ def clean_env(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "listener_pid", lambda port: None)  # never touch the real process table in tests
 
 
-@pytest.mark.parametrize("cmd", ["ui", "web", "app", "scan", "ask hi", "caption", "install-service", "install-launcher"])
+@pytest.mark.parametrize("cmd", ["ui", "web", "app", "scan", "ask hi", "caption"])
 def test_photo_commands_refuse_outside_the_secure_environment(cmd, capsys):
     assert cli.main(cmd.split()) == 2
     out = capsys.readouterr().out
@@ -287,3 +287,7 @@ def test_secure_ui_can_start_the_classic_screens(monkeypatch, tmp_path):
     monkeypatch.setattr(cli, "port_is_free", lambda port: True)
     assert cli.main(["secure-ui", "--classic", "--no-browser"]) == 0
     assert calls[0][-4:-2] == ["aperture", "ui"]
+
+
+def test_installing_the_start_up_service_is_allowed_outside_the_sandbox_because_it_only_writes_a_start_up_file():
+    assert "install-service" not in cli.GUARDED and "install-launcher" not in cli.GUARDED
