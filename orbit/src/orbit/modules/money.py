@@ -36,16 +36,19 @@ MIGRATIONS = (
         sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, period TEXT NOT NULL, gross_minor INTEGER NOT NULL, net_minor INTEGER NOT NULL,
         tax_minor INTEGER, pension_minor INTEGER, holiday_minor INTEGER
     );
-    CREATE TABLE finance_docs (
-        sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',
-        party TEXT NOT NULL DEFAULT '', doc_date TEXT, due_date TEXT, reference TEXT NOT NULL DEFAULT '',
-        total_minor INTEGER, vat_minor INTEGER, currency TEXT NOT NULL DEFAULT ''
-    );
-    CREATE INDEX finance_docs_kind ON finance_docs(kind, doc_date);
     CREATE TABLE statement_files (
         sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, found INTEGER NOT NULL, added INTEGER NOT NULL,
         at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    """,
+    """
+    -- what the model read from every finance file: invoices, receipts, tax, insurance ... (a new step: existing databases get it too)
+    CREATE TABLE IF NOT EXISTS finance_docs (
+        sha256 TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, title TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',
+        party TEXT NOT NULL DEFAULT '', doc_date TEXT, due_date TEXT, reference TEXT NOT NULL DEFAULT '',
+        total_minor INTEGER, vat_minor INTEGER, currency TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS finance_docs_kind ON finance_docs(kind, doc_date);
     """,
 )
 

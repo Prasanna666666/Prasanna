@@ -180,3 +180,17 @@ def test_invoices_receipts_and_other_files_are_read_filed_and_summed_without_bec
     by_kind = {r["grp"]: r["total"] for r in money.finance_document_totals(conn, {"by": "kind"})}
     assert by_kind == {"invoice": 60.5, "receipt": 23.45}
     assert money.finance_document_totals(conn, {"by": "month"})[0]["grp"] == "2026-10"
+
+
+def test_a_database_made_before_the_finance_files_table_gets_it_on_upgrade(tmp_path):
+    from orbit import db
+    from orbit.modules import ALL
+
+    c = db.connect(tmp_path / "old.db")
+    db.migrate(c, ALL)
+    c.execute("DROP TABLE finance_docs")
+    c.execute("UPDATE _migrations SET version=2 WHERE module='money'")  # as a database created by the earlier version looks
+    c.commit()
+    db.migrate(c, ALL)
+    assert c.execute("SELECT COUNT(*) FROM finance_docs").fetchone()[0] == 0
+    assert c.execute("SELECT version FROM _migrations WHERE module='money'").fetchone()[0] == 3
