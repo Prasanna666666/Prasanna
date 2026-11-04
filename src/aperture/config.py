@@ -151,6 +151,7 @@ class Settings:
     export_dir: str = ""
     rescue_search: bool = False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     fast_search: bool = True  # one-subject searches skip the AI plan (about 6 s) and go straight to the image search
+    estimate_locations: bool = False  # work out a location for photos without GPS (by time and by picture): off unless asked for
     quick_preview: bool = False  # instant matches by the typed WORDS (milliseconds, no AI); off: they can show photos that merely contain the words
     auto_scan: bool = False  # indexing competes with the language model for 8 GB of RAM and the external disk: start it on purpose
     ollama_url: str = "http://127.0.0.1:11434"

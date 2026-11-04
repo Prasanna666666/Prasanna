@@ -68,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
+    cfg.add_argument("--estimate-locations", choices=["on", "off"], help="give photos without GPS a worked-out location (measured >= 95% accurate); off by default")
     sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
     sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
     sec.add_argument("--classic", action="store_true", help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app")
@@ -256,6 +257,9 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
     conn = ctx.db.connect()
     try:
         print(f"capture flags: {derive.derive_meta_labels(conn):,}; trips and events: {derive.build_events(conn):,}")
+        if not ctx.settings.estimate_locations:
+            print("photos without GPS keep no location (turn on worked-out locations with: aperture settings --estimate-locations on)")
+            return 0
         print("locating photos that have no GPS from the photos around them (tested on your photos that do have GPS):", flush=True)
         outcome = derive.infer_locations(conn, ctx.geo())
         for kind in outcome["kinds"]:
@@ -884,7 +888,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             s.export_dir = str(resolve_export_dir(paths, args.export_dir, s.photo_dir))
         if args.ollama_model:
             s.ollama_model = args.ollama_model
-        if args.photo_dir or args.export_dir or args.ollama_model:
+        if args.estimate_locations:
+            s.estimate_locations = args.estimate_locations == "on"
+        if args.photo_dir or args.export_dir or args.ollama_model or args.estimate_locations:
             s.save(paths)
         print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
         return 0

@@ -153,3 +153,9 @@ def test_model_calls_are_recorded_with_what_the_model_saw_and_said(monkeypatch):
     assert log[0]["system"] == "SYS PROMPT" and log[0]["output"] == "Hi there" and log[0]["messages"] == [{"role": "user", "text": "hello"}]
     assert log[0]["tool_calls"] == [{"name": "find_photos", "arguments": {"what": "dog"}}]
     assert log[1]["system"] == "ROUTER PROMPT" and log[1]["output"] == '{"route": "chat"}'
+
+
+def test_worked_out_locations_are_off_unless_asked_for():
+    from aperture.config import Settings
+
+    assert Settings().estimate_locations is False
