@@ -16,7 +16,7 @@ import numpy as np
 
 from ..ml.protocols import ImageEmbedder
 from .embeddings import EmbeddingIndex
-from .metadata import path_ids, place_ids
+from .metadata import path_ids, place_ids, remembered
 from .text import search_text_ids
 from .textnorm import tokens
 from .visual import VisualSearch
@@ -36,7 +36,7 @@ def quick_ids(
     strictness: str = "balanced",
 ) -> np.ndarray:
     """Ids likely to match ``request``, best guess first; empty when nothing fits."""
-    total = conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0] or 1
+    total = remembered(conn, "live_count", lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0]) or 1
     narrowed: np.ndarray | None = None
     for word in dict.fromkeys(tokens(request, min_len=3)):
         ids = _word_ids(conn, word)
@@ -66,7 +66,7 @@ def probe(conn: sqlite3.Connection, request: str, people: Callable[[str], int] |
     counts, so the model picks the engine that really holds the word instead of guessing."""
     words = [w for w in tokens(request, min_len=2) if w not in FILLER]  # filler words match everything and cost a lookup each
     phrases = list(dict.fromkeys([w for w in words if len(w) >= 3] + [f"{a} {b}" for a, b in itertools.pairwise(words)]))
-    total = conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0] or 1
+    total = remembered(conn, "live_count", lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0]) or 1
     lines: list[str] = []
     for phrase in phrases[:8]:
         hits = {

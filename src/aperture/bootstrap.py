@@ -305,6 +305,15 @@ class AppContext:
             all_ids(conn)
             for column in TEXT_COLUMNS:
                 _text_column(conn, column)
+            # One practice search on a real place, so the counts and GPS positions a question needs are already in memory for your first one.
+            row = conn.execute("SELECT place FROM items WHERE missing=0 AND place<>'' LIMIT 1").fetchone()
+            if row:
+                from .agent.executor import Executor
+                from .agent.schema import Clause, Plan
+
+                term = str(row[0]).split(",")[0].strip()
+                executor = Executor(conn, self.embedding_index, self.ready_embedder, geo_provider=self.ready_geo)
+                executor.explore(Plan(intent="find", clauses=(Clause(engines=("place", "path"), query=term),)))
         finally:
             conn.close()
 

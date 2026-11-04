@@ -70,6 +70,22 @@ def all_ids(conn: sqlite3.Connection, *, indexed_only: bool = True) -> np.ndarra
 
 
 _ALL_IDS: dict[Any, np.ndarray] = {}
+_MEMO: dict[Any, Any] = {}
+
+
+def remembered(conn: sqlite3.Connection, name: Any, compute: Any) -> Any:
+    """The answer to a whole-library question (a count, a list of positions ...), kept until the library file changes. Reading the library from
+    the external drive takes seconds, and a question used to repeat it many times."""
+    signature = _file_signature(conn, True)
+    if signature is None:
+        return compute()
+    key = (name, signature)
+    if key not in _MEMO:
+        if len(_MEMO) > 64:
+            _MEMO.clear()
+        _MEMO[key] = compute()
+    value = _MEMO[key]
+    return value.copy() if isinstance(value, np.ndarray) else value
 _TEXT: dict[str, tuple[Any, np.ndarray, list[str]]] = {}
 TEXT_COLUMNS = ("meta_text", "place_text", "gps_est_place_text")
 

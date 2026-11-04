@@ -28,7 +28,7 @@ from ..search.dates import resolve
 from ..search.embeddings import EmbeddingIndex
 from ..search.filters import Filters, apply_filters
 from ..search.geo import GeoIndex
-from ..search.metadata import all_ids, date_ids, path_ids, place_ids
+from ..search.metadata import all_ids, date_ids, path_ids, place_ids, remembered
 from ..search.quick import quick_ids
 from ..search.text import search_text_ids
 from ..search.visual import VisualSearch
@@ -344,10 +344,13 @@ class Executor:
 
     def _place_vocabulary(self) -> list[str]:
         if self._vocabulary is None:
-            words: set[str] = set()
-            for (text,) in self._conn.execute("SELECT DISTINCT place_text FROM items WHERE missing=0 AND place_text IS NOT NULL"):
-                words.update(w for w in text.split() if len(w) >= 5)
-            self._vocabulary = sorted(words)
+            def build() -> list[str]:
+                words: set[str] = set()
+                for (text,) in self._conn.execute("SELECT DISTINCT place_text FROM items WHERE missing=0 AND place_text IS NOT NULL"):
+                    words.update(w for w in text.split() if len(w) >= 5)
+                return sorted(words)
+
+            self._vocabulary = remembered(self._conn, "place_vocabulary", build)
         return self._vocabulary
 
     def _similar_place_ids(self, query: str, result: ExecResult) -> np.ndarray:
@@ -396,7 +399,8 @@ class Executor:
             geo = self._geo_provider()
             found = geo.find(query) if geo is not None else None
             if found is not None:
-                rows = self._conn.execute("SELECT id, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND gps_est_lat IS NOT NULL").fetchall()
+                rows = remembered(self._conn, "estimated_positions", lambda: self._conn.execute(
+                    "SELECT id, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND gps_est_lat IS NOT NULL").fetchall())
                 if rows:
                     from ..search.filters import haversine_km
 
@@ -543,9 +547,8 @@ class Executor:
     def _coverage_note(self, result: ExecResult) -> None:
         """Only mention photos that are really still waiting. Files that failed to index (unreadable, unsupported) are flagged as
         errors and will never be indexed: counting them would keep this note on screen forever, even when indexing is finished."""
-        total, pending = self._conn.execute(
-            "SELECT COUNT(*), SUM(meta_done=0 AND error IS NULL) FROM items WHERE missing=0"
-        ).fetchone()
+        total, pending = remembered(self._conn, "coverage", lambda: tuple(self._conn.execute(
+            "SELECT COUNT(*), SUM(meta_done=0 AND error IS NULL) FROM items WHERE missing=0").fetchone()))
         if total and (pending or 0) > 0:
             result.notes.append(f"{pending:,} of {total:,} photos not indexed yet.")
 
