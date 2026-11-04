@@ -107,10 +107,10 @@ def test_the_model_decides_to_talk_and_words_stream_without_a_search():
 
 
 def test_the_model_is_not_told_what_the_app_is_only_given_data():
-    agent, llm, _ = agent_with([[("delta", "x")]])
+    agent, llm, _ = agent_with([[("delta", "x")]], facts="DATA MATCHES FOR WORDS IN THE REQUEST: 'goa' -> place: 40 photos")
     agent.ask("hello")
     system = llm.calls[0][0]
-    assert "Today is Tuesday 03 November 2026." in system and "LIBRARY FACTS" in system and "PLACES IN THIS LIBRARY: Goa" in system
+    assert "Today is Tuesday 03 November 2026." in system and "LIBRARY FACTS" in system and "'goa' -> place: 40 photos" in system
     for persona in ("photo app", "You are", "Lumo", "assistant inside"):
         assert persona not in system
 
@@ -602,3 +602,9 @@ def test_slow_fact_lookups_never_hold_up_the_model_and_keep_working_in_the_backg
     reply = agent.ask("Hi")
     assert time.monotonic() - started < 2.0 and "".join(reply.stream).startswith("Hello")
     release.set()
+
+
+def test_the_long_list_of_every_place_is_not_sent_to_the_model_because_every_token_costs_time():
+    agent, _, _ = agent_with([[("delta", "x")]])
+    system = agent.system_message("PLACES IN THIS LIBRARY: Goa; Paris; Kyoto\nDATA MATCHES FOR WORDS IN THE REQUEST: 'tokyo' -> text: 25", False)
+    assert "PLACES IN THIS LIBRARY" not in system and "'tokyo' -> text: 25" in system
