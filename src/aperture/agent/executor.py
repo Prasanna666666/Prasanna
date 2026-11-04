@@ -13,6 +13,7 @@ import dataclasses
 import difflib
 import logging
 import sqlite3
+import time
 from collections.abc import Callable
 from typing import Any
 from dataclasses import dataclass, field
@@ -75,6 +76,7 @@ class Exploration:
         return both
 
 
+EXPLORE_SECONDS = 10.0  # listing the other readings may never take longer than this
 FALLBACK_ENGINES = ("place", "path", "text", "visual")  # cheap, exact ones first; people are never guessed
 
 
@@ -236,6 +238,7 @@ class Executor:
         photos: a photo is kept only if it has hard evidence (its GPS, place tag, folder or a named person) or at least two independent
         clues agree. Single weak clues (one word in a receipt, one look-alike guess) are dropped. Then the trip of the confirmed photos."""
         scratch = ExecResult(ids=np.zeros(0, np.int64))
+        until = time.monotonic() + EXPLORE_SECONDS
         universe = all_ids(self._conn)
         limit = max(50, int(0.2 * len(universe)))  # a meaning that matches a fifth of the library says nothing
         found: list[tuple[str, np.ndarray]] = []
@@ -257,6 +260,9 @@ class Executor:
             for engine, label in wording:
                 if identified and engine in ("tag", "visual"):
                     continue
+                if time.monotonic() > until:  # a hard stop: whatever was found so far is the answer
+                    scratch.notes.append("Some ways of matching were skipped to keep this fast.")
+                    break
                 ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
                 if engine == "visual" and len(ids):
                     ids = np.intersect1d(ids, self._vision_agrees(term))  # a guess from appearance counts only if Apple Vision agrees
@@ -522,9 +528,10 @@ class Executor:
         return np.array(sorted(r[0] for r in rows), np.int64)
 
     def _visual_ids(self, query: str, result: ExecResult) -> np.ndarray:
-        index, embedder = self._index_provider(), self._embedder_provider()
-        if embedder is None or len(index) == 0:
-            result.notes.append("The visual index is not ready yet (CLIP embeddings are still being built).")
+        embedder = self._embedder_provider()  # first, and never waited for: loading the library's picture index from the drive is slow too
+        index = self._index_provider() if embedder is not None else None
+        if embedder is None or index is None or len(index) == 0:
+            result.notes.append("Picture search is still starting up, so this answer does not use how the photos look yet.")
             return np.zeros(0, np.int64)
         hits = VisualSearch(index, embedder, self._strictness).search(query)
         for item_id, score in zip(hits.ids.tolist(), hits.scores.tolist(), strict=True):
