@@ -1,4 +1,4 @@
-# Documents: one source, two images with different contents (build from the repository root: the app image also carries the shared code in ../orbit).
+# Documents: one source, two images with different contents (build from the repository root: the app image carries the shared kit in ../kit, and nothing of Finance).
 #   app    - the service, its encrypted database and the model calls. Has the encryption library, but NO document-parsing libraries.
 #   parser - opens untrusted files (PDF, images, spreadsheets, mail). Runs with no network and sees the files read-only; the app never contains this code.
 FROM python:3.12-slim AS base
@@ -11,9 +11,9 @@ FROM base AS app
 # sqlcipher3-binary has no prebuilt version for Linux on Apple chips, so build the library against the system SQLCipher, then remove the compilers again.
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libsqlcipher-dev
 RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
-COPY orbit /app/orbit
+COPY kit /app/kit
 COPY library /app/library
-RUN pip install --no-cache-dir ./orbit ./library
+RUN pip install --no-cache-dir ./kit ./library
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
 ENV ORBIT_REQUIRE_ENCRYPTION=1

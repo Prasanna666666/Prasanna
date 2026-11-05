@@ -14,6 +14,8 @@ import re
 from collections import Counter
 from datetime import date, timedelta
 
+from kit.amounts import money_from_printed
+
 from . import clock, tables
 from . import currency as currencies
 from .findings import Finding, Read
@@ -36,7 +38,7 @@ def totals_prover(layout: tables.Layout, text: str, txns: list[Txn], subject: st
     haystack = _squash(text)
     values = []
     for printed in (layout.opening_text, layout.closing_text):
-        minor = tables.money_from_printed(printed) if _squash(printed) in haystack else None
+        minor = money_from_printed(printed) if _squash(printed) in haystack else None
         if minor is None:
             return Finding("totals prover", "warn", subject, "the printed opening/closing balance could not be found in the document"), False
         values.append(minor)

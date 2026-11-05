@@ -1,4 +1,6 @@
-from orbit import agent, answers, llm
+from kit import llm
+
+from orbit import agent, answers
 from tests.test_tally import tx
 
 
@@ -69,7 +71,7 @@ def test_regular_and_upcoming_and_empty_database(conn):
 
 
 def test_instant_answers_work_even_when_the_model_server_is_off(conn, monkeypatch):
-    from orbit import llm
+    from kit import llm
 
     seed(conn)
     monkeypatch.setattr(llm.OllamaClient, "_call", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Ollama is not running")))

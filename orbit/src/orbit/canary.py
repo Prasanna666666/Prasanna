@@ -3,6 +3,8 @@ If a code change, a library update or a corrupted file ever makes the readers gi
 
 from __future__ import annotations
 
+from kit.amounts import money_from_printed
+
 from . import rates, standards, tables
 from .findings import Finding
 
@@ -43,7 +45,7 @@ def run() -> list[Finding]:
     (s,) = standards.read_mt940(MT940)
     if s.status != "verified" or len(s.txns) != 1 or s.txns[0].amount_minor != 1000:
         problems.append("an MT940 sample is no longer read exactly")
-    if tables.money_from_printed("3.500,00") != 350000 or tables.money_from_printed("1,234.56") != 123456:
+    if money_from_printed("3.500,00") != 350000 or money_from_printed("1,234.56") != 123456:
         problems.append("amounts are no longer read correctly")
     from decimal import Decimal
 

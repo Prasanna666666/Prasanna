@@ -92,3 +92,27 @@ def test_a_newsletter_is_judged_once_without_the_model_and_a_waiting_document_st
     done = store.judge_pending(conn, None, None)  # the model is not running
     assert done["skipped"] == 1 and done["waiting"] == 1 and "Ollama" in done["problem"]
     assert store.counts(conn)["waiting"] == 1
+
+
+def test_a_picture_with_no_text_is_a_photo_and_one_with_text_is_a_document(conn, tmp_path):
+    _put(tmp_path, _doc(name="holiday.jpg", kind="image", text="", sha256="e" * 64))
+    _put(
+        tmp_path,
+        _doc(name="receipt.jpg", kind="image", text="Albert Heijn kassabon totaal 23,45 EUR betaald met pinpas, bedankt voor uw bezoek", sha256="f" * 64),
+    )
+    store.ingest_dir(conn, tmp_path)
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": json.dumps({"kind": "receipt", "title": "Albert Heijn", "total": "23,45", "currency": "EUR"})}
+
+    store.judge_pending(conn, Model(), "fake")
+    assert [d["name"] for d in store.list_documents(conn, ["photo"])] == ["holiday.jpg"]  # for the Photos app to take; no model was asked
+    assert [d["name"] for d in store.list_documents(conn, ["receipt"])] == ["receipt.jpg"]
+
+
+def test_every_kind_of_file_has_one_reader_in_the_registry():
+    assert set(parser.PARSERS) == set(parser.KINDS.values()) - {
+        "mbox",
+        "zip",
+    }  # archives and mailboxes are opened first, then each file inside is read by its own reader

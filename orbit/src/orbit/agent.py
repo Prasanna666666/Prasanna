@@ -13,7 +13,9 @@ import time
 from datetime import date
 from typing import Any
 
-from . import agents, answers, clock, llm
+from kit import llm
+
+from . import agents, answers, clock
 from .db import get_setting
 from .modules import ALL
 from .modules import tools as registry

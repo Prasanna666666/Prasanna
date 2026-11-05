@@ -17,7 +17,7 @@ x-hardened: &hardened
 services:
   app:
     <<: *hardened
-    build: {context: ., target: app}
+    build: {context: .., dockerfile: orbit/Dockerfile, target: app}
     image: orbit:local
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted

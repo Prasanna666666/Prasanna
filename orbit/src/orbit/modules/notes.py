@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from kit.module import INT, Module, S, Tool
+
 from ..db import rows
-from ..module import INT, Module, S, Tool
 
 MIGRATIONS = (
     """

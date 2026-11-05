@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import date
 
+from kit.module import INT, Module, S, Tool
+
 from .. import clock, dates
 from ..db import rows
-from ..module import INT, Module, S, Tool
 
 MIGRATIONS = (
     """

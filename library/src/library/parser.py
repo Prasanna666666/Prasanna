@@ -20,6 +20,7 @@ import re
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -69,49 +70,57 @@ def clean(text: str) -> str:
     return _CTRL.sub("", text)[:MAX_TEXT]
 
 
-def extract(path: Path) -> dict:
-    """In-process extraction. Called only inside the limited subprocess (or by tests)."""
-    kind = KINDS.get(path.suffix.lower())
+def _read_text(path: Path) -> dict:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    data: dict = {"lines": [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]}
+    rows = _delimited_rows(text)  # a plain tab- or semicolon-separated export (some banks give these with no header row)
+    if rows:
+        data["rows"] = rows
+    return {"kind": "text", "text": clean(text), "meta": {}, "data": data}
+
+
+def _read_csv(path: Path) -> dict:
+    head = path.read_bytes()[:4096].decode("utf-8", "replace")
+    delimiter = max((",", ";", "\t"), key=head.split("\n")[0].count)  # Dutch banks export with ; or tab
     meta: dict = {}
-    data: dict = {}
-    if kind == "text":
-        text = path.read_text(encoding="utf-8", errors="replace")
-    elif kind == "csv":
-        head = path.read_bytes()[:4096].decode("utf-8", "replace")
-        delimiter = max((",", ";", "\t"), key=head.split("\n")[0].count)  # Dutch banks export with ; or tab
-        with path.open(newline="", encoding="utf-8-sig", errors="replace") as f:
-            rows = []
-            for i, row in enumerate(csv.reader(f, delimiter=delimiter)):
-                if i >= MAX_CSV_ROWS:
-                    meta["truncated"] = True
-                    break
-                rows.append(row)
-        meta["rows"] = len(rows)
-        meta["columns"] = [clean(c)[:80] for c in rows[0]][:50] if rows else []
-        text = "\n".join(" | ".join(r) for r in rows)
-        data["rows"] = [[clean(c)[:MAX_CELL] for c in r][:60] for r in rows[:MAX_DATA_ROWS]]  # exact cells, for statements
-    elif kind == "pdf":
-        return readers.read_pdf(path, load_passwords())
-    elif kind == "image":
-        return readers.read_image(path)
-    elif kind == "sheet":
-        return readers.read_sheet(path)
-    elif kind == "doc":
-        return readers.read_docx(path)
-    elif kind == "html":
-        return readers.read_html(path)
-    elif kind == "email":
-        return (readers.read_emlx(path) if path.suffix.lower() == ".emlx" else readers.read_eml(path))[0]
-    elif kind == "json":
-        return readers.read_json(path)
-    else:
+    rows: list[list[str]] = []
+    with path.open(newline="", encoding="utf-8-sig", errors="replace") as f:
+        for i, row in enumerate(csv.reader(f, delimiter=delimiter)):
+            if i >= MAX_CSV_ROWS:
+                meta["truncated"] = True
+                break
+            rows.append(row)
+    meta["rows"] = len(rows)
+    meta["columns"] = [clean(c)[:80] for c in rows[0]][:50] if rows else []
+    text = "\n".join(" | ".join(r) for r in rows)
+    return {"kind": "csv", "text": clean(text), "meta": meta, "data": {"rows": [[clean(c)[:MAX_CELL] for c in r][:60] for r in rows[:MAX_DATA_ROWS]]}}
+
+
+def _read_email(path: Path) -> dict:
+    return (readers.read_emlx(path) if path.suffix.lower() == ".emlx" else readers.read_eml(path))[0]
+
+
+# One reader per kind of file. A new kind of file is a new function here and its extensions in KINDS: nothing else changes. Each returns the same shape
+# ({kind, text, meta, data}); a picture comes back with the text OCR found in it, which is how the service later tells a photographed receipt from a holiday photo.
+PARSERS: dict[str, Callable[[Path], dict]] = {
+    "text": _read_text,
+    "csv": _read_csv,
+    "pdf": lambda path: readers.read_pdf(path, load_passwords()),
+    "image": readers.read_image,
+    "sheet": readers.read_sheet,
+    "doc": readers.read_docx,
+    "html": readers.read_html,
+    "email": _read_email,
+    "json": readers.read_json,
+}
+
+
+def extract(path: Path) -> dict:
+    """In-process extraction with the reader for this kind of file. Called only inside the limited subprocess (or by tests)."""
+    reader = PARSERS.get(KINDS.get(path.suffix.lower(), ""))
+    if reader is None:
         raise ValueError(f"unsupported file type: {path.suffix}")
-    if kind == "text":
-        data["lines"] = [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]
-        rows = _delimited_rows(text)  # a plain tab- or semicolon-separated export (some banks give these with no header row)
-        if rows:
-            data["rows"] = rows
-    return {"kind": kind, "text": clean(text), "meta": meta, "data": data}
+    return reader(path)
 
 
 _table_lines = readers.table_lines

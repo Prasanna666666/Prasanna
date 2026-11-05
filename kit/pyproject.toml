@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kit"
+version = "0.1.0"
+description = "What every app of the platform shares: the encrypted database, the local model client, the no-network guard, retrieval, and the checks on what a model reads out of a document"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+secure = ["sqlcipher3-binary>=0.5"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
+ignore = ["S101", "S608", "PLR0913", "PLR2004", "PLC0415", "PLR0917", "E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.per-file-ignores]
+"src/kit/llm.py" = ["S310"]  # the URL scheme and host are validated in OllamaClient.__init__
+"src/kit/netguard.py" = ["PLW0603"]  # the guard is process-wide state by design
+"tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
+[tool.bandit]
+skips = ["B404", "B603", "B607", "B310", "B314", "B405", "B608"]

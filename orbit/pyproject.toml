@@ -7,7 +7,7 @@ name = "orbit"
 version = "0.1.0"
 description = "Private personal assistant: tasks, notes, money, family - one local database, one chat"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = []  # and the shared kit (../kit): pip install -e ../kit
 
 [project.optional-dependencies]
 ui = []  # kept so older install commands still work; the interface needs no extra packages
@@ -25,7 +25,7 @@ orbit = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "../kit/src"]
 
 [tool.ruff]
 line-length = 160
@@ -56,8 +56,6 @@ max-statements = 50
 "src/orbit/standards.py" = ["S314"]  # DOCTYPE and entities are refused before parsing
 "src/orbit/applenotes.py" = ["S603", "S607", "PLW1510", "S324"]  # osascript with a fixed script; the hash is only an identifier
 "src/orbit/statements.py" = ["S324"]  # sha1 is a stable identifier here, not security
-"src/orbit/llm.py" = ["S310"]  # the URL scheme and host are validated in OllamaClient.__init__
-"src/orbit/netguard.py" = ["PLW0603"]  # the guard is process-wide state by design
 "src/orbit/tables.py" = ["DTZ007"]  # statement dates have no time zone
 "src/orbit/rates.py" = ["PLW2901"]
 "tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
@@ -67,6 +65,7 @@ python_version = "3.10"
 ignore_missing_imports = true
 warn_unused_ignores = true
 check_untyped_defs = true
+mypy_path = "src:../kit/src"
 
 [tool.coverage.run]
 source = ["src/orbit"]

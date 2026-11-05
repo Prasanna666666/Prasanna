@@ -5,7 +5,8 @@ import json
 import urllib.parse
 
 import pytest
-from orbit import db, extract, library_client
+from kit import db, extract
+from orbit import library_client
 from orbit.modules import ALL, money
 
 from library import parser, store

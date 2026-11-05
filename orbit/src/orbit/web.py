@@ -21,7 +21,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from . import agent, applenotes, browse, clock, db, insight, library_client, llm, log, netguard, report, tagging
+from kit import llm, log, netguard
+
+from . import agent, applenotes, browse, clock, db, insight, library_client, report, tagging
 from .modules import ALL, money
 from .modules import tools as registry
 from .modules.today import briefing_for

@@ -6,9 +6,10 @@ from __future__ import annotations
 import json
 import re
 
+from kit.module import INT, Module, S, Tool
+
 from .. import rag
 from ..db import rows
-from ..module import INT, Module, S, Tool
 from ..tagging import rule_tags
 
 MIGRATIONS = (

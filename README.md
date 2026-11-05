@@ -7,6 +7,7 @@ Two private, offline apps live in this repository, one per branch:
 | `aperture` | Aperture | A private, offline AI photo assistant for macOS |
 | `orbit` | Finance (folder `orbit/`) | A private, offline finance and personal assistant. Start with `orbit/README.md` |
 | `orbit` | Documents (folder `library/`) | The one reader and store for every file and mail; Finance, Health, Travel ask it for what is relevant. Start with `library/README.md` |
+| `orbit` | Shared kit (folder `kit/`) | What every app shares: encrypted database, local model client, no-network guard, retrieval. Both Finance and Documents depend on it |
 
 Nothing in either app talks to a cloud service while it runs.
 

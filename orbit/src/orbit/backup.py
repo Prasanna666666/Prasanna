@@ -7,7 +7,9 @@ import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import clock, db, log
+from kit import log
+
+from . import clock, db
 from .findings import Finding
 
 

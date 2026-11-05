@@ -6,7 +6,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 
-from . import log
+from kit import log
 
 
 def _seal(prev: str, at: str, action: str, detail: str) -> str:

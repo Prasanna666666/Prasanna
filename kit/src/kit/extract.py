@@ -11,7 +11,7 @@ import json
 import re
 from datetime import date
 
-from .tables import money_from_printed
+from .amounts import money_from_printed
 
 KINDS = ("bank_statement", "payslip", "annual_statement", "invoice", "receipt", "tax", "insurance", "contract", "ticket", "booking", "medical", "other")
 MONEY_FIELDS = ("total", "vat", "gross", "net", "tax", "pension", "holiday_pay")

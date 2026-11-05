@@ -26,7 +26,7 @@ library = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "../orbit/src"]   # the shared code (database, model client, rules) is still in Finance's package
+pythonpath = ["src", "../kit/src", "../orbit/src"]   # the kit is shared; ../orbit only for the end-to-end test that hands documents to Finance
 
 [tool.ruff]
 line-length = 160
@@ -55,7 +55,7 @@ python_version = "3.10"
 ignore_missing_imports = true
 warn_unused_ignores = true
 check_untyped_defs = true
-mypy_path = "src:../orbit/src"
+mypy_path = "src:../kit/src"
 
 [tool.bandit]
 skips = ["B404", "B603", "B607", "B310", "B314", "B405", "B608"]

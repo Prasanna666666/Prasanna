@@ -18,10 +18,10 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from orbit import extract, rag, rates, standards
-from orbit.module import Module
+from kit import extract, rag
+from kit.module import Module
 
-from . import relevance
+from . import recognise, relevance
 
 MIGRATIONS = (
     """
@@ -122,11 +122,13 @@ def _data(d) -> dict:
 
 
 def _exact_facts(d) -> dict | None:
-    """Documents that need no model: a bank standard (MT940, camt.053) or the ECB's exchange-rate file."""
-    if standards.sniff(d["text"]):
+    """Documents that need no model: a bank standard (MT940, camt.053), the ECB's exchange-rate file, or a picture with no text in it (a photo)."""
+    if recognise.bank_standard(d["text"]):
         return {"kind": "bank_statement", "title": "Bank statement"}
-    if rates.looks_like_ecb(_data(d).get("rows")):
+    if recognise.exchange_rate_file(_data(d).get("rows")):
         return {"kind": "other", "title": "ECB exchange rates"}
+    if d["kind"] == "image" and len(d["text"].strip()) < relevance.MIN_TEXT:  # a picture with no text in it is a photo, not a document: Photos' business
+        return {"kind": "photo", "title": d["name"]}
     return None
 
 

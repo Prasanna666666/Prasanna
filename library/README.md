@@ -31,5 +31,14 @@ Open `http://documents.localhost:8502`, or Atlas (`atlas/modules.d/documents.jso
 ## Security
 Sources read-only; the reader has no network; the service has no internet; the database is encrypted; no readable copy is left on disk (only empty marker files); only this computer's own host names are answered and changes need the service's own header. Other programs on this computer can still reach the port (no login, by decision); the data itself stays encrypted.
 
+## One reader per kind of file
+`parser.PARSERS` maps each kind of file (text, csv, pdf, image, sheet, doc, html, email, json; archives and mailboxes are opened first) to its own reader. A new kind of file is a new function and its extensions, nothing else. Formats that can be recognised exactly need no model (`recognise.py`: bank standards, the ECB rate file).
+
+## Pictures
+A picture is read with offline OCR. If there is text in it (a photographed receipt, a letter), it is a document and is judged like any other. If there is none, it is a **photo**: it is stored with the kind `photo` and no model is asked, and `GET /api/documents?kind=photo` lists them, for the Photos app to take. Photos keeps its own deep index (faces, places, picture search); it does not yet read this list, so nothing is handed over today.
+
+## Independent
+Documents depends only on the shared `kit` (`../kit`: encrypted database, local model client, no-network guard, retrieval, and the checks on what a model reads out of a document). It imports nothing from Finance, and its image contains nothing of Finance. Finance and Documents each build from the repository root.
+
 ## Not done yet
-Photos: the Photos app keeps its own deep picture index (faces, CLIP, places); documents that are pictures (a photographed receipt) are read here, but pictures of people and places are not routed from here to Photos yet. The shared code (database, model client, answer rules) still lives in Finance's package (`../orbit`); it moves into its own kit later. Not run on a real Mac or with the real model: the Docker images have not been built and the Apple Mail folder has not been read.
+Not run on a real Mac or with the real model: the Docker images have not been built and the Apple Mail folder has not been read. Photos does not yet take its pictures from here.

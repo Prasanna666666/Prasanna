@@ -1,6 +1,7 @@
 import pytest
+from kit import llm
 
-from orbit import agent, agents, llm, tagging
+from orbit import agent, agents, tagging
 from orbit.modules import ALL, notes, people, tools
 
 

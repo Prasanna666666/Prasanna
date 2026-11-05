@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from kit.amounts import CURRENCY
+
 from .statements import Txn
 
 ROLES = ("date", "description", "debit", "credit", "amount", "direction", "balance", "ignore")
@@ -50,7 +52,6 @@ LAYOUT_PROMPT = (
     "balance and a closing balance (or previous and new balance), give each EXACTLY AS PRINTED as text, otherwise null; balance_is_amount_owed = true for a "
     "credit card statement (the balance is what you owe). account = the account or card number exactly as printed, or null."
 )
-CURRENCY = re.compile(r"[€$£₹]|\b(?:eur|usd|inr|gbp|rs)\b\.?", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -227,17 +228,6 @@ def parse_money(text: str, layout: Layout) -> tuple[int, str | None] | None:
     except InvalidOperation:
         return None
     return (-minor if negative else minor), side
-
-
-def money_from_printed(text: str) -> int | None:
-    """An amount exactly as printed in a document ('3.500,00', '1,234.56', '€ 61'): the notation is read from the figure itself."""
-    s = CURRENCY.sub("", str(text)).replace(" ", "").replace(" ", "").strip("()+-")
-    if not re.fullmatch(r"\d[\d.,]*", s):
-        return None
-    m = re.search(r"[.,](\d{1,2})$", s)
-    whole, frac = (s[: m.start()], m.group(1)) if m else (s, "0")
-    whole = re.sub(r"[.,]", "", whole)
-    return int(whole) * 100 + int(frac.ljust(2, "0")) if whole.isdigit() else None
 
 
 # ---------------------------------------------------------------------------------------------------------------------------

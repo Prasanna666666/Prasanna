@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from ..module import Module, S, Tool
+from kit.module import Module, S, Tool
 
 
 def current_time(conn, a):

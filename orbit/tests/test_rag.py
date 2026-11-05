@@ -1,3 +1,5 @@
+from kit import rag as kit_rag
+
 from orbit import rag
 from orbit.modules import documents, notes
 
@@ -11,8 +13,8 @@ def test_long_text_is_cut_into_overlapping_passages_and_short_text_is_kept_whole
     assert rag.chunks("") == []
     assert rag.chunks("short text") == ["short text"]
     parts = rag.chunks("word " * 600)
-    assert len(parts) > 3 and all(len(p) <= rag.CHUNK for p in parts)
-    assert parts[0][-rag.OVERLAP :].strip() in parts[1]  # neighbouring passages share text, so an answer split across a boundary is still found
+    assert len(parts) > 3 and all(len(p) <= kit_rag.CHUNK for p in parts)
+    assert parts[0][-kit_rag.OVERLAP :].strip() in parts[1]  # neighbouring passages share text, so an answer split across a boundary is still found
 
 
 def test_the_best_passage_comes_first_and_says_where_it_is_from(conn):
@@ -47,7 +49,7 @@ def test_quotes_and_operators_in_a_question_never_break_the_search(conn):
 
 def test_without_full_text_search_a_word_match_still_finds_the_passage(conn, monkeypatch):
     add_doc(conn, "rent.pdf", "Rental agreement: the monthly rent is 1150 euro.")
-    monkeypatch.setattr(rag, "_fts", lambda c: False)
+    monkeypatch.setattr(kit_rag, "_fts", lambda c: False)
     assert rag.reindex(conn) == 0
     hits = rag.retrieve(conn, "monthly rent")
     assert hits and hits[0]["title"] == "rent.pdf"

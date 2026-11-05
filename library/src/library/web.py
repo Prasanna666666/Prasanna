@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from orbit import db, llm, log, netguard
+from kit import db, llm, log, netguard
 
 from . import ask, store
 

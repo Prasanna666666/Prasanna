@@ -17,7 +17,9 @@ import urllib.request
 from collections.abc import Callable
 from typing import Any
 
-from . import db, netguard
+from kit import netguard
+
+from . import db
 from .modules import documents
 
 FINANCE_KINDS = ("bank_statement", "payslip", "annual_statement", "invoice", "receipt", "tax", "insurance", "contract", "ticket", "booking")

@@ -109,7 +109,9 @@ def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leav
 
 
 def test_reading_the_files_also_groups_the_payments_into_trips_and_events_without_any_clicks(conn, tmp_path):
-    from orbit import extract, tables
+    from kit import extract
+
+    from orbit import tables
     from orbit.modules import documents
 
     layout = {

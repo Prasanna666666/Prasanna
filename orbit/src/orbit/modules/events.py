@@ -13,9 +13,10 @@ from __future__ import annotations
 import json
 import re
 
+from kit.module import INT, Module, S, Tool
+
 from .. import audit, clock
 from ..db import rows
-from ..module import INT, Module, S, Tool
 
 MAINS = ("sports", "events", "trips", "cancellations", "others")
 SUBS = {

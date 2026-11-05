@@ -4,7 +4,8 @@ Rule: no module may use the network. The egress guard (netguard.py) enforces thi
 tests/test_privacy.py checks it at build time.
 """
 
-from ..module import Module, Tool
+from kit.module import Module, Tool
+
 from . import clock, documents, events, money, notes, people, tasks
 from .today import MODULE as today
 

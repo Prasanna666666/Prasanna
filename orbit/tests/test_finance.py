@@ -4,8 +4,10 @@ All data here is invented."""
 import json
 
 import pytest
+from kit import extract
+from kit.amounts import money_from_printed
 
-from orbit import categorize, db, extract, tables
+from orbit import categorize, db, tables
 from orbit.modules import documents, money
 
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
@@ -185,8 +187,8 @@ def test_the_layout_the_model_describes_is_checked_before_it_is_used():
 
 
 def test_printed_amounts_are_read_from_the_figure_itself():
-    assert tables.money_from_printed("3.500,00") == 350000 and tables.money_from_printed("1,234.56") == 123456
-    assert tables.money_from_printed("€ 61") == 6100 and tables.money_from_printed("60,5") == 6050 and tables.money_from_printed("abc") is None
+    assert money_from_printed("3.500,00") == 350000 and money_from_printed("1,234.56") == 123456
+    assert money_from_printed("€ 61") == 6100 and money_from_printed("60,5") == 6050 and money_from_printed("abc") is None
 
 
 def test_an_amount_the_model_made_up_is_dropped_because_it_is_not_in_the_document():

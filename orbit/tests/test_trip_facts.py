@@ -1,6 +1,7 @@
 """Dates and places a ticket or booking states must be written in the document; trips are listed from the documents the Documents service handed over."""
 
-from orbit import extract
+from kit import extract
+
 from orbit.modules import money
 from tests.test_finance import FakeModel, _load
 

@@ -7,7 +7,7 @@ import time
 from http.server import ThreadingHTTPServer
 
 import pytest
-from orbit import db
+from kit import db
 
 from library import parser, store, web
 

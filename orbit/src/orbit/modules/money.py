@@ -10,10 +10,12 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
-from .. import audit, browse, categorize, clock, dates, db, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
+from kit import extract
+from kit.module import INT, Module, N, S, Tool
+
+from .. import audit, browse, categorize, clock, dates, db, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
-from ..module import INT, Module, N, S, Tool
 
 MIGRATIONS = (
     """

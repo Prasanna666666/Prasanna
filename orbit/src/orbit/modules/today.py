@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import date
 
+from kit.module import Module, Tool
+
 from .. import clock
-from ..module import Module, Tool
 from . import money, people, tasks
 
 

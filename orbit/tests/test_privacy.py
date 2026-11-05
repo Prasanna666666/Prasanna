@@ -4,8 +4,8 @@ import socket
 import threading
 
 import pytest
+from kit import netguard
 
-from orbit import netguard
 from orbit.modules import ALL, tools
 
 SRC = pathlib.Path(__file__).parent.parent / "src" / "orbit"
@@ -61,7 +61,7 @@ def test_no_network_libraries_imported_anywhere():
 
 
 def test_the_model_server_can_only_be_on_this_computer_or_its_private_network():
-    from orbit import llm
+    from kit import llm
 
     for ok in ("http://127.0.0.1:11434", "http://localhost:11434", "http://ollama.internal:11434", "http://192.168.1.20:11434", "http://[::1]:11434"):
         llm.OllamaClient(ok)

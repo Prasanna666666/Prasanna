@@ -7,7 +7,9 @@ import os
 import sys
 from pathlib import Path
 
-from . import agent, agents, applenotes, clock, db, netguard, tagging
+from kit import netguard
+
+from . import agent, agents, applenotes, clock, db, tagging
 from .modules import ALL, tools
 from .modules.today import briefing_for
 
@@ -29,7 +31,7 @@ REFUSAL = (
 
 
 def secure_ok() -> bool:
-    return bool(db._key()) or os.environ.get("ORBIT_ALLOW_PLAIN") == "1"
+    return bool(db.database_key()) or os.environ.get("ORBIT_ALLOW_PLAIN") == "1"
 
 
 def _inbox() -> Path:
