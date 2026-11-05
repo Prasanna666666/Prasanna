@@ -144,8 +144,9 @@ def _fallback(conn, history, start, user_text, trace, exc, problems=()):
 def _chat(conn, history, user_text, client, model, today, trace):
     name = agents.route(user_text, _classifier(client, model))
     spec = agents.BY_NAME.get(name)
-    allowed = frozenset() if name == "chat" else (spec.tools if spec else None)  # chat = no tools; None = general: every tool
-    schemas = [t.schema() for t in registry(ALL).values() if allowed is None or t.name in allowed]
+    everything = frozenset(registry(ALL)) - agents.NEVER_BY_AI  # a module's new tools reach the general agent with no further wiring
+    allowed = frozenset() if name == "chat" else ((spec.tools & everything) if spec else everything)  # chat = no tools
+    schemas = [t.schema() for t in registry(ALL).values() if t.name in allowed]
     used: list[str] = []
     if trace is not None:
         trace.append({"agent": name, "tools": used})
@@ -166,11 +167,7 @@ def _chat(conn, history, user_text, client, model, today, trace):
         for c in calls:
             fn = c["function"]
             used.append(fn["name"])
-            if (
-                fn["name"].startswith("delete_")
-                and (allowed is None or fn["name"] in allowed)
-                and not re.search(r"\b(delete|remove|erase|clear|get rid)\b", user_text.lower())
-            ):
+            if fn["name"].startswith("delete_") and fn["name"] in allowed and not re.search(r"\b(delete|remove|erase|clear|get rid)\b", user_text.lower()):
                 # text inside a document must never be able to make the agent delete your data: only your own words can
                 out, _err = json.dumps({"error": "refused: deleting needs you to ask for it in your own words"}), True
             else:

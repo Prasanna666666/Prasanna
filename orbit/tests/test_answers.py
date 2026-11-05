@@ -159,3 +159,23 @@ def test_text_inside_a_document_cannot_make_the_agent_delete_anything(conn):
 
     agent.chat(conn, [], "what was on the Ziggo invoice?", client=Hijacked(), model="m")
     assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == before
+
+
+def test_the_assistant_can_never_delete_an_imported_payment_even_when_asked(conn):
+    seed(conn)
+    before = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+    offered: list[str] = []
+
+    class Asked:
+        n = 0
+
+        def chat(self, model, messages, tools=None, **kw):
+            Asked.n += 1
+            offered.extend(t["function"]["name"] for t in tools or [])
+            if Asked.n == 1:
+                return {"content": "", "tool_calls": [{"function": {"name": "delete_transaction", "arguments": {"id": 1}}}]}
+            return {"content": "I cannot do that."}
+
+    agent.chat(conn, [], "please delete transaction 1", client=Asked(), model="m")
+    assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == before
+    assert "delete_transaction" not in offered and offered  # not even shown to the model

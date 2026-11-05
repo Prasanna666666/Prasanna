@@ -188,3 +188,20 @@ Dev: `pip install -e ".[dev]" && pytest`.
 | The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
 | Chat | the round button in the corner, or `Ctrl/⌘ J` |
 | Search everything | `Ctrl/⌘ K` or `/` |
+
+## How it thinks (the same in Orbit and Lumo)
+
+```
+You ask  ->  AI: understand the question, choose the area and the tools
+         ->  Router: Money / Documents / Tasks / Notes / Family / Briefing  (Lumo: photos, places, people, text in photos)
+         ->  Tools do the actual work: code and SQL for figures, dates, totals and filters; RAG only for documents and notes;
+             specialised readers (EXIF, CLIP, faces, OCR) for photos, never the language model
+         ->  Every figure is checked against your data
+         ->  AI: explain the result in plain words  ->  You
+```
+
+Rules:
+- AI for understanding, routing, searching by meaning and explaining. Code for every calculation, filter, date and total.
+- RAG only for unstructured text (documents, notes), never for the ledger.
+- Source data is never changed by the AI. Orbit's assistant cannot delete an imported payment at all; other deletions need your own words.
+- One shared router. A new module registers its tools and they are reachable at once (the general agent sees every tool); give it its own agent in `agents.py` when it needs a narrower role.

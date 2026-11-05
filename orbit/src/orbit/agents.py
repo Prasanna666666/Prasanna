@@ -9,6 +9,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+# Imported payments come from your statements, which are the source of truth: the assistant may read, sort and explain them,
+# but it can never delete one, whatever it is asked. (You can still correct things yourself in the app.)
+NEVER_BY_AI = frozenset({"delete_transaction"})
+
 
 @dataclass(frozen=True)
 class AgentSpec:
@@ -29,7 +33,6 @@ AGENTS: tuple[AgentSpec, ...] = (
                 "list_transactions",
                 "spending_summary",
                 "set_budget",
-                "delete_transaction",
                 "import_statements",
                 "list_events",
                 "create_event",
