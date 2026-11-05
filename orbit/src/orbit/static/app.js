@@ -96,6 +96,8 @@ async function refreshStatus() {
 const route = () => (location.hash.replace('#/', '') || 'home').split('?')[0];
 async function render() {
   const wanted = ALIAS[route()] || route(), id = PAGES.some(([p]) => p === wanted) ? wanted : 'home';
+  document.body.dataset.page = id;
+  if (id === 'chat' && corner.open) setCorner(false);
   document.querySelectorAll('.nav-item').forEach((a) => a.classList.toggle('active', a.dataset.id === id));
   const main = $('#main');
   main.replaceChildren(h('div', { class: 'empty' }, 'Loading...'));
@@ -250,7 +252,7 @@ function goExplore(filters) {
 }
 const PAGE_LINKS = [['Home', 'home', () => { location.hash = '#/home'; }], ['Payments', 'money', () => goExplore({})], ['Spending', 'money', () => { location.hash = '#/money'; }], ['Income', 'income', () => { location.hash = '#/income'; }],
   ['Wealth', 'wealth', () => { location.hash = '#/wealth'; }], ['Plan', 'plan', () => { location.hash = '#/plan'; }], ['Tax', 'documents', () => { location.hash = '#/tax'; }], ['Documents', 'documents', () => { location.hash = '#/documents'; }],
-  ['Ask Orbit', 'chat', () => { location.hash = '#/chat'; }], ['Tasks', 'tasks', () => { location.hash = '#/tasks'; }], ['Notes', 'notes', () => { location.hash = '#/notes'; }], ['People', 'people', () => { location.hash = '#/people'; }], ['Settings', 'settings', () => { location.hash = '#/settings'; }]];
+  ['Ask Orbit', 'chat', () => setCorner(true)], ['Tasks', 'tasks', () => { location.hash = '#/tasks'; }], ['Notes', 'notes', () => { location.hash = '#/notes'; }], ['People', 'people', () => { location.hash = '#/people'; }], ['Settings', 'settings', () => { location.hash = '#/settings'; }]];
 
 /** A side panel with everything known about one payment. */
 async function openPayment(id) {
@@ -294,6 +296,7 @@ function openPalette() {
     const r = await tool('search_everything', { query: q });
     if (mine !== seq) return;
     const pg = pageItems(q);
+    const ask = { label: `Ask Orbit: “${input.value.trim()}”`, sub: 'Chat', icon: 'chat', run: () => askOrbit(input.value.trim()) };
     items = [
       ...(pg.length ? [{ head: 'Pages' }, ...pg.slice(0, 4)] : []),
       ...(r.merchants.length ? [{ head: 'Shops and payees' }, ...r.merchants.map((m) => ({ label: m.merchant, sub: `${m.payments} payments`, right: money(m.spent), cat: 'other', run: () => goExplore({ q: m.merchant }) }))] : []),
@@ -301,7 +304,8 @@ function openPalette() {
       ...(r.documents.length ? [{ head: 'Files' }, ...r.documents.map((d) => ({ label: d.party || d.name, sub: `${d.kind} · ${d.date || ''}`, right: d.total ? money(d.total, 2) : '', icon: 'documents', run: () => { location.hash = '#/documents'; } }))] : []),
       ...(r.people.length ? [{ head: 'People' }, ...r.people.map((p) => ({ label: p.name, sub: p.relation, icon: 'people', run: () => { location.hash = '#/people'; } }))] : []),
       ...(r.notes.length ? [{ head: 'Notes' }, ...r.notes.map((n) => ({ label: n.title, icon: 'notes', run: () => { location.hash = '#/notes'; } }))] : []),
-      ...(r.tasks.length ? [{ head: 'Tasks' }, ...r.tasks.map((t) => ({ label: t.title, sub: t.due || '', icon: 'tasks', run: () => { location.hash = '#/tasks'; } }))] : [])];
+      ...(r.tasks.length ? [{ head: 'Tasks' }, ...r.tasks.map((t) => ({ label: t.title, sub: t.due || '', icon: 'tasks', run: () => { location.hash = '#/tasks'; } }))] : []),
+      { head: 'Or ask' }, ask];
     firstReal(); paint();
   };
   let timer;
@@ -363,7 +367,7 @@ pages.home = async () => {
   const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net, oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0), spent = monthly + oneTime;
   const before = daily.reduce((x, r) => x + r.before, 0), delta = before > 0 ? ((monthly - before) / before) * 100 : null;
   const ask = h('input', { class: 'field ask', placeholder: 'Ask anything about your money…' });
-  ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { sessionStorage.setItem('orbit.ask', ask.value.trim()); location.hash = '#/chat'; } });
+  ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { askOrbit(ask.value.trim()); ask.value = ''; } });
   const big = h('div', { class: 'big num' }); countUp(big, spent, (v) => money(v));
   const hero = h('div', { class: 'card hero' },
     h('div', { class: 'hero-top' }, h('div', {}, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)), big,
@@ -399,36 +403,87 @@ pages.home = async () => {
     h('div', { class: 'grid g2' }, ...[attentionCard, today].filter(Boolean)));
 };
 
-pages.chat = async () => {
-  const { history } = await api('/api/history');
-  const msgs = h('div', { class: 'msgs', id: 'msgs' });
-  const input = h('textarea', { rows: 1, placeholder: 'Ask anything…' });
-  const sendBtn = h('button', { class: 'send', 'aria-label': 'Send' }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>', style: { display: 'contents' } }));
+// ------------------------------------------------------------------ the chat: one conversation, in a corner panel and on its own page
+const IDEAS = {
+  home: ['How much did I spend last month?', 'What are my regular payments?', "What's on today?"],
+  money: ['How much did I spend last month?', 'What was my biggest payment this year?', 'Why was my last month so high?'],
+  wealth: ["What's my net worth?", 'How much did I invest this year?', 'What interest did I earn?'],
+  plan: ['Am I on track for my goals?', 'What bills are coming up?', "What's my savings rate this year?"],
+  documents: ['Which invoices are still unpaid?', 'What does my insurance cost per year?', 'Find my latest tax letter'],
+  tasks: ["What's on today?", 'What is overdue?'], notes: ['What did I write about my trip?'], people: ['Whose birthday is next?'], settings: ['What can you do?'],
+};
+/** The conversation itself: bubbles with an avatar, a typing indicator, suggested questions and a message box. Both copies talk to the same server-side chat. */
+function buildChat(compact) {
+  const msgs = h('div', { class: 'msgs' });
+  const input = h('textarea', { rows: 1, placeholder: 'Ask anything about your money…', 'aria-label': 'Message' });
+  const sendBtn = h('button', { class: 'send', 'aria-label': 'Send', type: 'button' }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>', style: { display: 'contents' } }));
   let busy = false;
   const scroll = () => { msgs.scrollTop = msgs.scrollHeight; };
-  const bubble = (role, text, tags) => { const b = h('div', { class: 'bubble ' + role }, text, tags && tags.length ? h('div', { class: 'tags' }, tags.map((t) => h('span', { class: 'chip' }, t))) : null); msgs.append(b); scroll(); return b; };
-  const welcome = () => h('div', { class: 'welcome' }, h('div', { class: 'orb' }), h('h2', {}, 'How can I help?'), h('div', { class: 'muted' }, 'Private, on this Mac.'),
-    h('div', { class: 'suggest', style: { justifyContent: 'center', marginTop: '22px' } }, ['How much did I spend last month?', 'What are my regular payments?', "What's on today?"].map((q) => h('button', { onclick: () => send(q) }, q))));
-  if (!history.length) msgs.append(welcome()); else history.forEach((m) => bubble(m.role === 'user' ? 'user' : 'bot', m.content));
+  const avatar = () => h('span', { class: 'orb tiny', 'aria-hidden': 'true' });
+  const say = (role, text, tags) => {
+    const bubble = h('div', { class: 'bubble ' + role }, text, tags && tags.length ? h('div', { class: 'tags' }, tags.map((t) => h('span', { class: 'chip' }, t))) : null);
+    const row = h('div', { class: 'msg ' + role }, role === 'bot' ? avatar() : null, bubble);
+    msgs.append(row); scroll(); return row;
+  };
+  const welcome = () => h('div', { class: 'welcome' }, h('div', { class: 'orb' }), h('h2', {}, 'Hi, I’m Orbit'), h('div', { class: 'muted' }, 'Ask about your money, files, tasks or notes. Private, on this Mac.'),
+    h('div', { class: 'suggest' }, (IDEAS[document.body.dataset.page] || IDEAS.home).map((q) => h('button', { type: 'button', onclick: () => send(q) }, q))));
+  async function load() {
+    const { history } = await api('/api/history');
+    msgs.replaceChildren(); if (!history.length) msgs.append(welcome()); else history.forEach((m) => say(m.role === 'user' ? 'user' : 'bot', m.content));
+  }
   async function send(text) {
     text = (text || input.value).trim();
     if (!text || busy) return;
     busy = true; sendBtn.disabled = true; input.value = ''; input.style.height = ''; msgs.querySelector('.welcome')?.remove();
-    bubble('user', text);
-    const typing = h('div', { class: 'bubble bot' }, h('div', { class: 'typing' }, h('i'), h('i'), h('i'))); msgs.append(typing); scroll();
+    say('user', text);
+    const note = h('div', { class: 'faint small' }), typing = h('div', { class: 'msg bot' }, avatar(), h('div', { class: 'bubble bot' }, h('div', { class: 'typing' }, h('i'), h('i'), h('i')), note)); msgs.append(typing); scroll();
+    const slow = setTimeout(() => { note.textContent = 'Checking your numbers…'; scroll(); }, 3500);
     try {
       const r = await api('/api/chat', { text });
-      typing.remove(); bubble('bot', r.reply || '(no answer)', [r.agent + ' agent', ...(r.tools || [])]);
-    } catch (e) { typing.remove(); bubble('bot', e.message); }
-    busy = false; sendBtn.disabled = false; input.focus();
+      typing.remove(); say('bot', r.reply || '(no answer)', [...(r.tools || [])].filter((t) => t !== 'checked').slice(0, 3).concat(r.tools && r.tools.includes('checked') ? ['✓ checked'] : []));
+    } catch (e) { typing.remove(); say('bot', e.message); }
+    clearTimeout(slow); busy = false; sendBtn.disabled = false; input.focus();
   }
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
-  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
+  input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 130) + 'px'; });
   sendBtn.addEventListener('click', () => send());
+  const root = h('div', { class: 'chatbox' + (compact ? ' compact' : '') }, msgs, h('div', { class: 'composer' }, input, sendBtn));
+  return { root, send, load, focus: () => input.focus() };
+}
+const corner = { chat: null, open: false };
+async function resetChat() { await api('/api/chat/reset', {}); if (corner.chat) await corner.chat.load(); if (route() === 'chat') render(); }
+/** The round button in the corner of every page, and the panel it opens. */
+function mountCornerChat() {
+  corner.chat = buildChat(true);
+  const close = () => setCorner(false);
+  const panel = h('section', { class: 'chat-panel', id: 'chat-panel', hidden: true, role: 'dialog', 'aria-label': 'Ask Orbit' },
+    h('header', { class: 'chat-head' }, h('span', { class: 'orb' }), h('div', { class: 'grow' }, h('b', {}, 'Orbit'), h('div', { class: 'faint small' }, 'Private · on this Mac')),
+      h('button', { class: 'btn ghost small', title: 'Start a new chat', onclick: guard(resetChat) }, 'New'),
+      h('button', { class: 'btn ghost small', title: 'Open on its own page', onclick: () => { close(); location.hash = '#/chat'; } }, 'Expand'),
+      h('button', { class: 'btn ghost small', 'aria-label': 'Close', onclick: close }, '✕')),
+    corner.chat.root);
+  const fab = h('button', { class: 'fab', id: 'chat-fab', type: 'button', 'aria-label': 'Ask Orbit', title: 'Ask Orbit  (Ctrl/⌘ J)', onclick: () => setCorner(!corner.open) }, icon('chat'), h('span', {}, 'Ask Orbit'));
+  document.body.append(panel, fab);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && corner.open && !$('.overlay')) setCorner(false);
+    else if ((e.key === 'j' || e.key === 'J') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); setCorner(!corner.open); }
+  });
+  $('#ask-btn').addEventListener('click', () => setCorner(!corner.open));
+}
+async function setCorner(on, text) {
+  const panel = $('#chat-panel'); if (!panel) return;
+  if (on && route() === 'chat') { if (text) sessionStorage.setItem('orbit.ask', text); return; }  // the full page is already a chat
+  corner.open = on; panel.hidden = !on; document.body.classList.toggle('chat-open', on);
+  if (on) { await guard(corner.chat.load)(); corner.chat.focus(); if (text) corner.chat.send(text); }
+}
+/** Open the chat (from anywhere) and ask this. */
+function askOrbit(text) { if (route() === 'chat') { sessionStorage.setItem('orbit.ask', text); render(); } else setCorner(true, text); }
+
+pages.chat = async () => {
+  const chat = buildChat(false); await chat.load();
   const pending = sessionStorage.getItem('orbit.ask'); sessionStorage.removeItem('orbit.ask');
-  if (pending) setTimeout(() => send(pending), 50);
-  return h('div', {}, head('Ask Orbit', null, h('button', { class: 'btn ghost', onclick: guard(async () => { await api('/api/chat/reset', {}); render(); }) }, 'New chat')),
-    h('div', { class: 'chat' }, msgs, h('div', { class: 'composer' }, input, sendBtn)));
+  if (pending) setTimeout(() => chat.send(pending), 50);
+  return h('div', {}, head('Ask Orbit', null, h('button', { class: 'btn ghost', onclick: guard(resetChat) }, 'New chat')), h('div', { class: 'chat' }, chat.root));
 };
 
 async function moneyPage(title, allowed, startTab) {
@@ -728,5 +783,6 @@ pages.settings = async () => {
 buildNav(); refreshStatus(); setInterval(refreshStatus, 20000);
 setupTheme();
 $('#search-btn').addEventListener('click', openPalette);
+mountCornerChat();
 api('/api/settings').then((s) => { cur = s.currency; }).finally(() => { window.addEventListener('hashchange', render); render(); });
 })();
