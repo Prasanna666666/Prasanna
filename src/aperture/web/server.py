@@ -295,6 +295,20 @@ class Web:
             "height": found.height,
         }
 
+    def scan_status(self) -> dict[str, Any]:
+        """Where indexing stands, in the shape every module reports it (the contract's scan status), for Atlas's one Update button."""
+        self.refresh_counts_async()
+        running = bool(ScanLock(self.ctx.paths).running(verify=True))
+        photos, indexed = self._counts["photos"], self._counts["indexed"]
+        text = f"{indexed:,} of {photos:,} photos indexed"
+        return {
+            "running": running,
+            "progress": text if running else "",
+            "summary": "" if running else text,
+            "problems": [],
+            "needs_check": 0,
+        }
+
     def search(self, query: str) -> dict[str, Any]:
         """The answer to Atlas's search box: places, people and trips that match, with where each opens."""
         found = browse.search_links(self.browse("places", {}), self.browse("people", {}), self.browse("trips", {}), query)
@@ -498,6 +512,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(web.status())
         elif path == "/api/suggestions":
             self._json({"ideas": web.suggestions()})
+        elif path == "/api/scan":
+            self._json(web.scan_status())
         elif path == "/api/search":
             self._json(web.search((query.get("q") or [""])[0][:200]))
         elif path in BROWSE_PATHS:
@@ -539,7 +555,7 @@ class _Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if not self._checked(True):
             return
-        if path == "/api/scan/resume":
+        if path in ("/api/scan", "/api/scan/resume"):
             return self._json({"started": self.web.resume_indexing()})
         if path not in ("/api/cloud", "/api/chat"):
             return self._deny(HTTPStatus.NOT_FOUND, "not found")

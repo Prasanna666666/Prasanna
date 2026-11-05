@@ -183,3 +183,21 @@ def test_the_front_door_search_is_answered_by_the_server(tmp_path):
         results = json.loads(r.read())["results"]
     assert results and results[0]["kind"] == "place"
     server.shutdown()
+
+
+def test_one_update_button_can_start_and_follow_the_indexing(tmp_path, monkeypatch):
+    ctx, _agent, _ids = make_ctx(tmp_path)
+    web, server = start_server(ctx)
+    started: list[list[str]] = []
+    monkeypatch.setattr("aperture.web.server.subprocess.Popen", lambda cmd, **kw: started.append(cmd))
+    port = server.server_address[1]
+
+    def call(method, path):
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method=method, headers={"X-Lumo-Token": web.token})
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+
+    status = call("GET", "/api/scan")
+    assert set(status) == {"running", "progress", "summary", "problems", "needs_check"} and status["running"] is False
+    assert call("POST", "/api/scan") == {"started": True} and started and started[0][-1] == "scan"
+    server.shutdown()
