@@ -29,7 +29,7 @@ shows a plain "not running" page and never blocks the others.
 - **One menu** with every app and its pages, a green dot for "running", and each app tints the page with its own colours.
 - **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments and files in Finance, places, people and trips in Photos), lists the pages, and can
   hand your question to an app's assistant.
-- **One chat** (the Ask button, or `Ctrl/⌘ J`): a single assistant for everything. Ask in plain words; it works out whether the question is about money, photos or both, asks each app (which answers with its own tools and checks), and shows the answers as labelled sections. It is a conversation first: **pictures and documents appear only when you ask to see them** ("show me photos from Goa", "give me the Ziggo invoices"). Ask "how many photos of Amma?" and you get words, with the pictures one tap away behind a "Show" button. Plain conversation is answered by the shared model. The apps' own chat panels are hidden inside Atlas.
+- **One chat** (the Ask button, or `Ctrl/⌘ J`): a single assistant for everything. Ask in plain words; the model reads your message (and the conversation so far) and decides whether it is about money, photos or both, and whether you want to *see* pictures or documents, asks each app (which answers with its own tools and checks), and shows the answers as labelled sections. It is a conversation first: **pictures and documents appear only when you ask to see them** ("show me photos from Goa", "give me the Ziggo invoices"). Ask "how many photos of Amma?" and you get words, with the pictures one tap away behind a "Show" button. Plain conversation is answered by the shared model. The apps' own chat panels are hidden inside Atlas.
 - **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Finance reads new statements and files, Photos indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
 - **One AI model status**: a chip shows whether the one shared local model (Ollama) is running and which model it holds. Every app uses that same model; point Atlas at it with `ATLAS_MODEL_URL` (default `http://host.docker.internal:11434`).
 - **One theme**: dark, light or automatic for everything.
@@ -64,7 +64,7 @@ shows a plain "not running" page and never blocks the others.
 | `search` | optional path for the search box (see the contract); leave out if the app has no search |
 | `scan` | optional path for the Update button (see the contract) |
 | `ask` | optional path for the one chat (see the contract) |
-| `keywords` | words that mean this app in a question (the router tries them before it asks the model) |
+| `keywords` | words that mean this app in a question; used only as a fallback when the model is not running or does not answer properly |
 | `media` | the only path prefix Atlas may fetch pictures from for this app |
 | `headers` | optional fixed headers Atlas adds to its own calls to the app |
 | `home` | the page the app opens on (`#/route`) |

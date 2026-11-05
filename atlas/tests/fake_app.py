@@ -103,7 +103,9 @@ class _Handler(BaseHTTPRequestHandler):
     def _post_model_chat(self) -> None:
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         self.app.model_calls.append(body)
-        self._reply(200, json.dumps({"message": {"role": "assistant", "content": self.app.model_reply}}).encode())
+        wants_json = body.get("format") == "json" and self.app.plan_reply is not None
+        reply = self.app.plan_reply if wants_json else self.app.model_reply
+        self._reply(200, json.dumps({"message": {"role": "assistant", "content": reply}}).encode())
 
     def do_POST(self) -> None:
         if self.path == "/api/ask":
@@ -133,6 +135,7 @@ class FakeApp:
         self.scanning = False
         self.asked: list[dict[str, object]] = []
         self.model_reply = "fake model reply"
+        self.plan_reply: str | None = None  # what the model answers when asked for JSON (the planner)
         self.model_calls: list[dict[str, object]] = []
         self.require_header = ""
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), type("Handler", (_Handler,), {"app": self}))

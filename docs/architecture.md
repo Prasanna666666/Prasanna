@@ -40,6 +40,7 @@ The ladder, cheapest and most reliable first. Use the lowest rung that does the 
 How much:
 - **Fast path** (recognised question, a deterministic intent matches): code answers, no model, target under 1 second.
 - **AI path**: target 10 seconds, hard limit set in settings (default 30), then the code fallback or an honest "needs more than I can do in that time".
+- **Understanding a message** is the model's job: Atlas's planner makes one short model call that returns validated JSON (which apps, plain conversation or not, whether the user asked to *see* pictures or documents) and uses the conversation so far. Simple word rules exist only as the fallback when the model is down or answers in the wrong shape; they never override the model.
 - **Cross-module questions** use fixed lenses (Trip, Person, Month, Place). Code joins the results through the link book; the model only parses the request and explains. Free-form multi-step planning by a 3B model is not relied on.
 - **Document intake**: the model classifies and describes layout; code reads every figure; proofs (balances, totals, a second independent reading, cross-checks such as ticket against payment) decide. A file that fails is left out and shown in the review queue.
 

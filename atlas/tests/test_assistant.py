@@ -1,6 +1,6 @@
 import json
 
-from atlas.assistant import clean_history, match_by_words, wants_to_see
+from atlas.assistant import clean_history, match_by_words
 
 
 def chat(running, text, history=None, origin=True, header=True):
@@ -47,15 +47,18 @@ def test_a_question_about_two_apps_asks_both_and_returns_one_part_each(running):
 
 
 def test_when_the_words_do_not_say_the_model_picks_the_app(running):
-    running.apps["photos"].model_reply = "photos"  # the fake server doubles as the model
+    running.apps[
+        "photos"
+    ].plan_reply = '{"apps": ["photos"], "chat": false, "show": {"photos": false, "documents": false}}'  # the fake server doubles as the model
     status, reply = chat(running, "anything from last summer?")
     assert reply["how"] == "model" and reply["routed"] == ["photos"] and running.apps["photos"].asked
 
 
 def test_plain_conversation_is_answered_by_the_model_without_asking_any_app(running):
+    running.apps["photos"].plan_reply = '{"apps": [], "chat": true, "show": {}}'
     running.apps["photos"].model_reply = "Hello! What can I help with?"
     status, reply = chat(running, "hello")
-    assert reply["how"] == "chat" and reply["routed"] == [] and reply["parts"][0]["text"] == "Hello! What can I help with?"
+    assert reply["how"] == "model" and reply["routed"] == [] and reply["parts"][0]["text"] == "Hello! What can I help with?"
     assert running.apps["money"].asked == [] and running.apps["photos"].asked == []
     system = running.apps["photos"].model_calls[-1]["messages"][0]["content"]
     assert "cannot see any of their data" in system and running.apps["photos"].model_calls[-1]["options"]["num_ctx"] == 4096
@@ -92,40 +95,41 @@ def test_pictures_come_through_atlas_and_only_from_the_apps_declared_picture_pat
     assert running.shell("/_atlas/api/media/nothing/x")[0] == 404
 
 
-def test_a_rambling_answer_from_the_model_is_treated_as_chat_not_as_a_choice_of_app(running):
-    running.apps["photos"].model_reply = "Hello! I can look up your money or your photos. What would you like?"
-    status, reply = chat(running, "hello")
-    assert reply["how"] == "chat" and reply["routed"] == [] and running.apps["money"].asked == [] and running.apps["photos"].asked == []
+def test_a_plan_that_is_not_the_expected_shape_falls_back_to_simple_word_rules(running):
+    for broken in ("Hello! I can look up your money or your photos.", "[1, 2]", '{"apps": "photos"}'):
+        running.apps["photos"].plan_reply = broken
+        _, reply = chat(running, "hello")
+        assert reply["how"] == "unsure" and reply["routed"] == []  # nothing in the words either: it says so instead of guessing
+        _, reply = chat(running, "how much money did I spend?")
+        assert reply["how"] == "words" and reply["routed"] == ["money"]
+    assert running.apps["photos"].asked == []
 
 
-def test_the_model_may_name_several_apps_or_both(running):
-    running.apps["photos"].model_reply = "money, photos"
+def test_the_model_may_name_several_apps(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}}'
     assert chat(running, "anything from last summer?")[1]["routed"] == ["money", "photos"]
-    running.apps["photos"].model_reply = "both"
-    assert chat(running, "anything from last summer?")[1]["routed"] == ["money", "photos"]
 
 
-def test_pictures_and_documents_are_only_wanted_when_the_user_asks_to_see_them():
-    see = wants_to_see
-    assert see("show me photos from the beach") == {"photos": True, "documents": False}
-    assert see("pictures of Amma") == {"photos": True, "documents": False}
-    assert see("give me the Ziggo invoices") == {"photos": False, "documents": True}
-    assert see("show me my payslips and photos from Goa") == {"photos": True, "documents": True}
-    assert see("how many photos of Amma do I have?") == {"photos": False, "documents": False}
-    assert see("what documents mention insurance?") == {"photos": False, "documents": False}
-    assert see("how much did I spend last month?") == {"photos": False, "documents": False}
-    assert see("show me my spending") == {"photos": False, "documents": False}  # showing is not asking for a file
-    assert see("what is a RAW file?") == {"photos": False, "documents": False}
+def test_the_model_decides_what_to_show_not_a_word_list(running):
+    plan = '{"apps": ["photos"], "chat": false, "show": {"photos": %s, "documents": false}}'
+    running.apps["photos"].plan_reply = plan % "true"
+    _, reply = chat(running, "I would love to see Goa again")  # no showing word anywhere: the words alone would say no
+    assert reply["how"] == "model" and reply["show"]["photos"] is True and reply["parts"][0]["show"]["photos"] is True
+    running.apps["photos"].plan_reply = plan % "false"
+    _, reply = chat(running, "what is the best way to send pictures to my mum?")  # showing words and a picture word: the words alone would say yes
+    assert reply["show"]["photos"] is False
 
 
-def test_the_answer_says_whether_to_show_and_documents_are_only_fetched_when_asked(running):
-    _, plain = chat(running, "how much money did I spend?")
-    assert plain["show"] == {"photos": False, "documents": False} and plain["parts"][0]["items"] == []
-    _, shown = chat(running, "show me the money invoices")
-    part = shown["parts"][0]
-    assert shown["show"]["documents"] is True and part["show"]["documents"] is True
-    assert part["items"] == [
-        {"kind": "document", "title": "ziggo.pdf", "subtitle": "from your files", "text": "Ziggo invoice", "link": "#/documents"}
-    ]  # the title-less one was dropped
-    _, photos = chat(running, "how many photo files do I have?")
-    assert photos["show"]["photos"] is False and len(photos["parts"][0]["items"]) == 1  # offered, not shown: the page keeps them folded
+def test_only_real_booleans_and_known_apps_are_accepted_from_the_model(running):
+    running.apps["photos"].plan_reply = '{"apps": ["photos", "bank"], "chat": false, "show": {"photos": "yes", "documents": 1}}'
+    _, reply = chat(running, "anything from last summer?")
+    assert reply["routed"] == ["photos"] and reply["show"] == {"photos": False, "documents": False}
+
+
+def test_the_planner_sees_the_conversation_so_that_show_me_those_works(running):
+    running.apps["photos"].plan_reply = '{"apps": ["photos"], "chat": false, "show": {"photos": true}}'
+    chat(running, "show me those", history=[["user", "how many beach shots do I have?"], ["assistant", "41"]])
+    sent = running.apps["photos"].model_calls[-1]
+    assert (
+        sent["format"] == "json" and "how many beach shots do I have?" in sent["messages"][1]["content"] and "show me those" in sent["messages"][1]["content"]
+    )

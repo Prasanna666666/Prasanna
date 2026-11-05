@@ -93,23 +93,31 @@ class ModelClient:
         self._model = next((n for n in names if n.startswith("ministral")), names[0] if names else "")
         return self._model
 
-    def chat(self, system: str, messages: list[dict[str, str]], timeout: float, max_tokens: int = 400) -> str | None:
+    def chat(self, system: str, messages: list[dict[str, str]], timeout: float, max_tokens: int = 400, json_mode: bool = False) -> str | None:
         """The model's reply, or None when it is not running or too slow."""
         if not self.url or not self.model():
             return None
-        out = self._call(
-            "POST",
-            "/api/chat",
-            {
-                "model": self.model(),
-                "stream": False,
-                "messages": [{"role": "system", "content": system}, *messages],
-                "options": {"temperature": 0, "num_ctx": NUM_CTX, "num_predict": max_tokens},
-            },
-            timeout,
-        )
+        request: dict[str, Any] = {
+            "model": self.model(),
+            "stream": False,
+            "messages": [{"role": "system", "content": system}, *messages],
+            "options": {"temperature": 0, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+        }
+        if json_mode:
+            request["format"] = "json"
+        out = self._call("POST", "/api/chat", request, timeout)
         text = ((out or {}).get("message") or {}).get("content") if isinstance(out, dict) else None
         return str(text).strip() if text else None
+
+
+@dataclass(frozen=True)
+class Plan:
+    """What a message needs: the apps to ask, whether it is plain conversation, what to show, and how this was decided ("model", "words", "unsure")."""
+
+    apps: list[Module]
+    chat: bool
+    show: dict[str, bool]
+    how: str
 
 
 class Assistant:
@@ -121,35 +129,54 @@ class Assistant:
     def _askable(self) -> list[Module]:
         return [m for m in self.modules.values() if m.ask]
 
-    # ---- 1. which app is this about? Words first (instant), the model only when the words do not say ------------------
-    def route(self, text: str) -> tuple[list[Module], str]:
-        """(apps to ask, how it was decided). An empty list with 'chat' means plain conversation; with 'unsure' it means we could not tell."""
+    # ---- 1. understand the message: which part it is about, and whether the user wants to SEE pictures or documents ----------
+    def plan(self, text: str, history: list[list[str]]) -> Plan:
+        """The model reads the message (with the conversation so far) and decides. Simple word rules are only the fallback for when the model is
+        not running or does not answer in the expected shape."""
         apps = self._askable()
-        hit = match_by_words(text, apps)
-        if hit:
-            return hit, "words"
         if not apps:
-            return [], "chat"
-        names = ", ".join(f"{m.id} = {m.tagline or m.name}" for m in apps)
+            return Plan([], True, {"photos": False, "documents": False}, "chat")
+        planned = self._model_plan(text, history, apps)
+        if planned is not None:
+            return planned
+        show = wants_to_see(text)
+        hit = match_by_words(text, apps)
+        return Plan(hit, False, show, "words") if hit else Plan([], False, show, "unsure")
+
+    def _model_plan(self, text: str, history: list[list[str]], apps: list[Module]) -> Plan | None:
+        parts = "; ".join(f"{m.id} = {m.tagline or m.name}" for m in apps)
         system = (
-            f"Decide which part of a private personal app a message is about. Parts: {names}. "
-            f"Answer with the part names separated by commas, or the single word chat when it is a greeting or a general question about neither part. "
-            "Answer with nothing else."
+            "You are the planner of a private personal assistant. Read the user's last message, with the conversation so far, and decide what it needs. "
+            f"Parts of the app: {parts}. "
+            'Reply with JSON only, in this shape: {"apps": [names of the parts the message is about, or an empty list], '
+            '"chat": true if it is a greeting or general conversation about none of the parts, '
+            '"show": {"photos": true only if the user asks to SEE pictures, "documents": true only if the user asks to SEE files or documents}}. '
+            "Questions, counts and summaries are not requests to see anything, so show stays false for them. "
+            'A follow-up such as "show me those" refers to the conversation so far.'
         )
-        said = self.model.chat(system, [{"role": "user", "content": text}], ROUTE_SECONDS, max_tokens=12)
-        if said is None:
-            return [], "unsure"
-        return self._parse_route(said, apps)
+        context = "\n".join(f"{role}: {turn[:300]}" for role, turn in history[-4:])
+        said = self.model.chat(
+            system, [{"role": "user", "content": f"Conversation so far:\n{context or '(none)'}\n\nMessage: {text}"}], ROUTE_SECONDS, 120, True
+        )
+        return self._parse_plan(said, apps) if said else None
 
     @staticmethod
-    def _parse_route(said: str, apps: list[Module]) -> tuple[list[Module], str]:
-        """Accept only a short answer made of app names (or "both"/"chat"). A rambling reply means the model did not follow the instruction: treat it as chat."""
-        ids = {m.id for m in apps}
-        tokens = re.findall(r"[a-z]+", said.lower())
-        if len(said) > 40 or not tokens or any(t not in ids | {"chat", "both", "and", "none"} for t in tokens):
-            return [], "chat"
-        chosen = apps if "both" in tokens else [m for m in apps if m.id in tokens]
-        return (chosen, "model") if chosen else ([], "chat")
+    def _parse_plan(said: str, apps: list[Module]) -> Plan | None:
+        """The model's plan, checked: only known app names, only real booleans. Anything else means it did not follow the instruction (None)."""
+        try:
+            data = json.loads(said)
+        except ValueError:
+            return None
+        if not isinstance(data, dict):
+            return None
+        named = data.get("apps")
+        if not isinstance(named, list):
+            return None
+        raw_show = data.get("show")
+        shown: dict[str, Any] = raw_show if isinstance(raw_show, dict) else {}
+        chosen = [m for m in apps if m.id in named]
+        show = {"photos": shown.get("photos") is True, "documents": shown.get("documents") is True}
+        return Plan(chosen, data.get("chat") is True or not chosen, show, "model")
 
     # ---- 2. the answer -----------------------------------------------------------------------------------------------
     def _chat_only(self, text: str, history: list[list[str]]) -> dict[str, Any]:
@@ -165,16 +192,15 @@ class Assistant:
         return {"module": "atlas", "name": "Atlas", "ok": True, "text": reply, "items": [], "notes": []}
 
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
-        """Route the question, ask each chosen app (side by side), and return their answers as labelled parts."""
+        """Understand the message, ask each chosen app (side by side), and return their answers as labelled parts."""
         text = text.strip()[:MAX_TEXT]
-        show = wants_to_see(text)
-        targets, how = self.route(text)
-        if how == "unsure":
+        plan = self.plan(text, history)
+        if plan.how == "unsure":
             msg = "I could not tell whether that is about " + " or ".join(m.name.lower() for m in self._askable()) + ". Try saying which."
-            return {"how": how, "routed": [], "show": show, "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
-        if not targets:
-            return {"how": how, "routed": [], "show": show, "parts": [self._chat_only(text, history)]}
-        with ThreadPoolExecutor(max_workers=len(targets)) as pool:
-            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, show), targets))
-        parts = [{"module": m.id, "name": m.name, "show": show, **r} for m, r in zip(targets, results, strict=True)]
-        return {"how": how, "routed": [m.id for m in targets], "show": show, "parts": parts}
+            return {"how": plan.how, "routed": [], "show": plan.show, "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
+        if not plan.apps:
+            return {"how": plan.how, "routed": [], "show": plan.show, "parts": [self._chat_only(text, history)]}
+        with ThreadPoolExecutor(max_workers=len(plan.apps)) as pool:
+            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, plan.show), plan.apps))
+        parts = [{"module": m.id, "name": m.name, "show": plan.show, **r} for m, r in zip(plan.apps, results, strict=True)]
+        return {"how": plan.how, "routed": [m.id for m in plan.apps], "show": plan.show, "parts": parts}
