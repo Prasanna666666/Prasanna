@@ -8,14 +8,14 @@ library (tested design target: ~500 GB) on an external drive and lets you search
 - **Smart filters.** The AI search understands time of day ("evening", "night", hours), weekend/weekday, portrait/landscape, how many people are in a photo (groups, selfies, no people), photos near a place ("within 30 km of Eindhoven"), defect labels and file type, alongside what is seen, written, who and where. Filters are plain SQL on stored data: the LLM only fills them in.
 - **Similar shots and defects.** Groups bursts and retakes by visual similarity and capture time and suggests the sharpest, best-exposed photo to keep. Blurry, too-dark, too-bright and blank shots are suggested as defects; nothing is labelled until you confirm, and labels never touch files.
 - **Tidy up.** Finds byte-identical duplicates, shows each group side by side (KEEP / MOVE), moves the extra copies to a folder after you confirm, and keeps an undo history. Any chat result can also be moved to a folder.
-- **Agentic search.** A local LLM (Ollama) turns any phrasing into a structured plan over five engines: visual (CLIP), text (Apple Vision OCR + PDF text), path/filename, people (face clusters) and place (EXIF GPS -> offline GeoNames). No keyword heuristics: if the LLM is unavailable you get a clear error, not a guess.
+- **Agentic search.** A local LLM (Ollama) turns any phrasing into a structured plan over five engines: visual (CLIP), text (Apple Vision or Tesseract OCR + PDF text), path/filename, people (face clusters) and place (EXIF GPS -> offline GeoNames). No keyword heuristics: if the LLM is unavailable you get a clear error, not a guess.
 - **Zero false positives, zero caps.** Engines combine by set algebra; no match means no results. Every id is kept and the UI paginates (36/page by default).
 - **Safe export.** Copies (never moves) to a folder outside the library: temp file, fsync, SHA-256 verify, atomic rename, no overwrites, manifest.
 - **Resumable indexing** in passes (index, faces, text), low priority, small memory footprint for 8 GB machines.
 
 ## Quick start (Docker, the normal way)
 
-`ollama pull ministral-3:3b`, then `./scripts/up.sh` and open http://lumo.localhost:8765. Docker has no Apple text-reading for photos and no GPU (slower indexing); if you want speed instead, use the native install below.
+`ollama pull ministral-3:3b`, then `./scripts/up.sh` and open http://lumo.localhost:8765. Docker reads text in photos with Tesseract instead of Apple Vision and has no GPU (slower indexing); if you want speed instead, use the native install below.
 
 ## Install natively (macOS, Python 3.10+)
 
@@ -56,7 +56,7 @@ Not in the new app yet: naming or merging people, Tidy up, Settings and the expo
 
 Measure it: `aperture check` (seconds per step), `aperture eval-routes`, `aperture eval-plans`. See `docs/safety.md` (items 8-11).
 
-Prefer a container? `scripts/up.sh` runs Lumo isolated (no internet, photos read-only); see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
+Prefer a container? `scripts/up.sh` runs Lumo isolated (no internet, photos read-only); see `docs/docker.md` for the trade-offs (CPU only, so slower indexing; text in photos is read by Tesseract).
 
 ## Best setup for an 8 GB M1 (what this app is built for)
 - The AI model (Ministral 3B) only understands language, with short prompts and tiny outputs. Search, matching and counting are plain code and image search: milliseconds.
@@ -109,4 +109,5 @@ MIT licensed.
 | Your files | read-only |
 | What it learns | a Docker volume, not a folder on your Mac |
 | The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
-| Chat | the round button in the corner, or `Ctrl/⌘ J`; `/` jumps to search |
+| Chat | the round button in the corner, or `Ctrl/⌘ J` |
+| Search everything | `Ctrl/⌘ K` or `/` (or click the top search bar) |

@@ -293,12 +293,16 @@ class AppContext:
                 raise ServiceUnavailableError(f"Face models unavailable ({exc}).") from exc
             return Services(faces=faces)
         if stage == STAGE_OCR:
-            from .ml.ocr import VisionOCR, vision_available
+            from .ml.ocr import TesseractOCR, VisionOCR, tesseract_available, vision_available
 
-            if not vision_available():
-                log.warning("Apple Vision is not available: images will not be OCR'd (PDFs/text still are).")
-                return Services()
-            return Services(ocr=VisionOCR())
+            if vision_available():
+                return Services(ocr=VisionOCR())
+            if tesseract_available():
+                return Services(ocr=TesseractOCR())
+            log.warning(
+                "No text reader (Apple Vision or Tesseract) is available: images will not be OCR'd (PDFs/text still are)."
+            )
+            return Services()
         return Services()
 
     def scanner(self, stop: threading.Event | None = None) -> Scanner:

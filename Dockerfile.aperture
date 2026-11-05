@@ -1,6 +1,8 @@
-# Aperture in a container (Linux). Trade-offs vs the native Mac install: no Apple Vision OCR (photos are not text-searched,
-# PDFs still are) and no Metal GPU (CLIP runs on CPU: indexing is much slower). See docs/docker.md.
+# Aperture in a container (Linux). Trade-offs vs the native Mac install: Tesseract reads text in photos instead of Apple Vision
+# (a little less accurate) and there is no Metal GPU (CLIP runs on CPU: indexing is much slower). See docs/docker.md.
 FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld \
+ && rm -rf /var/lib/apt/lists/*
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin aperture
 WORKDIR /app
 COPY pyproject.toml README.md ./

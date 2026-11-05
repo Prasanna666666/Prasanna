@@ -270,8 +270,73 @@
   $('#topsearch').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#topq').value.trim(); if (!t) return; $('#topq').value = ''; askLumo(t); });
   document.addEventListener('keydown', (e) => {
     if (!lb.hidden) { e.stopImmediatePropagation(); if (e.key === 'Escape') lbClose(); else if (e.key === 'ArrowLeft') lbStep(-1); else if (e.key === 'ArrowRight') lbStep(1); return; }
-    if (e.key === '/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '')) { e.preventDefault(); (where().page === 'search' ? input : $('#topq')).focus(); }
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '');
+    if (((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); openPalette(); }
   });
+  $('#topq').addEventListener('focus', () => { $('#topq').blur(); openPalette(); });   // the top bar opens the same search-everything box as Ctrl/Cmd+K and "/"
+
+  // ---------------------------------------------------------------- one search box for everything: pages, places, people, trips, years. Opens with Ctrl/Cmd+K or "/".
+  let finder = null;
+  const loadFinder = async () => {
+    if (finder) return finder;
+    const [places, people, trips, tl] = await Promise.all(['places', 'people', 'trips', 'timeline'].map((n) => getJson('/api/' + n)));
+    finder = { places, people: people.filter((p) => p.name), trips, years: tl.years || [] };
+    return finder;
+  };
+  function openPalette() {
+    if ($('.palette')) return;
+    const box = el('input', 'palette-input'); box.placeholder = 'Search places, people, trips, years… or jump to a page'; box.autocomplete = 'off'; box.spellcheck = false; box.setAttribute('aria-label', 'Search everything');
+    const list = el('div', 'palette-list');
+    let items = [], active = 0, seq = 0;
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
+    const run = (it) => { close(); it.run(); };
+    const mark = () => list.querySelectorAll('.palette-item').forEach((b) => b.classList.toggle('on', +b.dataset.i === active));
+    const paint = () => {
+      list.replaceChildren(...(items.length ? items.map((it, i) => {
+        if (it.head) return el('div', 'palette-head', it.head);
+        const b = el('button', 'palette-item' + (i === active ? ' on' : '')); b.type = 'button'; b.dataset.i = i;
+        const text = el('span', 'grow'); text.append(el('div', 'strong', it.label)); if (it.sub) text.append(el('div', 'faint small', it.sub));
+        b.append(icon(it.icon), text); if (it.right) b.append(el('span', 'faint', it.right));
+        b.addEventListener('click', () => run(it)); b.addEventListener('mouseenter', () => { active = i; mark(); });
+        return b;
+      }) : [el('div', 'empty', 'No results')]));
+      list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+    };
+    const firstReal = () => { active = Math.max(0, items.findIndex((x) => !x.head)); };
+    const pages = (q) => NAV.filter(([, n]) => !q || n.toLowerCase().includes(q)).map(([id, n, d]) => ({ label: n, sub: 'Go to', icon: d, run: () => go(id) }));
+    const has = (text, q) => (text || '').toLowerCase().includes(q);
+    const build = async () => {
+      const raw = box.value.trim(), q = raw.toLowerCase(), mine = ++seq;
+      if (q.length < 2) { items = [{ head: 'Jump to' }, ...pages(q)]; firstReal(); paint(); return; }
+      let f; try { f = await loadFinder(); } catch (_) { f = { places: [], people: [], trips: [], years: [] }; }
+      if (mine !== seq) return;
+      const pg = pages(q);
+      const ask = { label: `Ask Lumo: “${raw}”`, sub: 'Chat', icon: NAV[0][2], run: () => askLumo(raw) };
+      const pl = f.places.filter((x) => has(x.place, q)).slice(0, 6), pe = f.people.filter((x) => has(x.name, q)).slice(0, 6), tr = f.trips.filter((x) => has(x.title, q) || has(x.place, q)).slice(0, 6);
+      const yr = /^\d{4}$/.test(q) ? f.years.filter((y) => y.year === q) : [];
+      items = [
+        ...(pg.length ? [{ head: 'Pages' }, ...pg.slice(0, 4)] : []),
+        ...(yr.length ? [{ head: 'Years' }, ...yr.map((y) => ({ label: y.year, sub: 'Photos from this year', right: y.total.toLocaleString(), icon: NAV[1][2], run: () => go('library', { year: y.year }) }))] : []),
+        ...(pl.length ? [{ head: 'Places' }, ...pl.map((x) => ({ label: x.place, right: x.n.toLocaleString(), icon: NAV[3][2], run: () => go('library', { place: x.place }) }))] : []),
+        ...(pe.length ? [{ head: 'People' }, ...pe.map((x) => ({ label: x.name, right: x.n.toLocaleString(), icon: NAV[4][2], run: () => go('library', { person: String(x.id) }) }))] : []),
+        ...(tr.length ? [{ head: 'Trips' }, ...tr.map((x) => ({ label: x.title, sub: dateRange(x.start, x.stop), right: x.n.toLocaleString(), icon: NAV[2][2], run: () => go('library', { from: x.start, to: x.stop }) }))] : []),
+        { head: 'Or ask' }, ask];
+      firstReal(); paint();
+    };
+    let timer; box.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(build, 120); });
+    const move = (d) => { const idx = items.map((x, i) => (x.head ? -1 : i)).filter((i) => i >= 0); if (!idx.length) return; active = idx[(idx.indexOf(active) + d + idx.length) % idx.length]; mark(); list.querySelector('.on')?.scrollIntoView({ block: 'nearest' }); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter' && items[active] && !items[active].head) { e.preventDefault(); run(items[active]); }
+    };
+    const bar = el('div', 'palette-bar'); bar.append(icon('M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3'), box, el('kbd', '', 'esc'));
+    const overlay = el('div', 'overlay top'); const pal = el('div', 'palette'); pal.append(bar, list); overlay.append(pal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.body.append(overlay); document.addEventListener('keydown', onKey, true);
+    items = [{ head: 'Jump to' }, ...pages('')]; firstReal(); paint(); box.focus();
+  }
 
   // ---------------------------------------------------------------- the corner chat: the same conversation, one tap away from every page
   const corner = { open: false };

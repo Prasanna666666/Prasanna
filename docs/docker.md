@@ -5,12 +5,11 @@ Two ways to run Aperture safely. Pick one.
 | | Native + macOS sandbox | Docker container |
 |---|---|---|
 | Speed (CLIP/faces) | Fast: Apple GPU | Slow: CPU only (hours to days for a big library) |
-| Text in photos (OCR) | Yes: Apple Vision | **No** (PDFs and text files still work) |
+| Text in photos (OCR) | Yes: Apple Vision | Yes: Tesseract (English and Dutch; a little less accurate than Apple Vision) |
 | Isolation | Kernel sandbox: no network (also locked in code), photos read-only | Internal network, no download job, locked in code, read-only photos, only 3 folders visible |
 | Setup | `scripts/aperture-sandboxed.sh` | `docker-compose.aperture.yml` |
 
-Docker on a Mac runs a Linux VM, so Apple Vision and the GPU are unavailable inside it. If you care about search speed
-and photo text search, use the sandbox. If you care most about isolation, use Docker.
+Docker on a Mac runs a Linux VM, so Apple Vision and the GPU are unavailable inside it: text in photos is read by Tesseract instead, and the picture models run on the CPU. If you care about indexing speed, use the sandbox. If you care most about isolation, use Docker.
 
 ## Disk space
 The Docker image includes PyTorch and is several GB, and Docker Desktop keeps its own disk file. On a Mac that is short of space, the
@@ -53,7 +52,7 @@ docker compose -f docker-compose.aperture.yml exec aperture sh -c "touch /Volume
 ## Not covered
 - Encrypt the drive (Finder > right-click > Encrypt) and keep FileVault on; Docker does not encrypt your data.
 - Untested on a real Mac: this was written without a Docker engine. If a step fails, send only the error text.
-- A Linux OCR engine (so photo text search works in Docker) is a possible later addition.
+- Tesseract needs its language packs: the image installs English and Dutch. Add more in `Dockerfile.aperture` (`tesseract-ocr-<lang>`).
 
 - The container now starts Lumo's fast web app (`aperture web`). The older screens: `docker compose -f docker-compose.aperture.yml run --rm --service-ports aperture ui`.
 - Not built or run in the sandbox this was written in (no Docker daemon there): the first build on your Mac is the first real test.

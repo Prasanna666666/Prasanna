@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from .agent.llm import LLMError
 from .bootstrap import AppContext
-from .ml.ocr import vision_available
+from .ml.ocr import text_available
 from .safety import drive_problem
 
 
@@ -54,6 +54,11 @@ def run_checks(ctx: AppContext) -> list[Check]:
     geo = (p.geo / "cities15000.txt").exists()
     checks.append(Check(geo, "Place data", "ready" if geo else "run: aperture fetch-models", required=False))
     checks.append(
-        Check(vision_available(), "Apple text recognition", "ready" if vision_available() else "macOS only", required=False)
+        Check(
+            text_available(),
+            "Text recognition",
+            "ready" if text_available() else "needs Apple Vision or Tesseract",
+            required=False,
+        )
     )
     return checks

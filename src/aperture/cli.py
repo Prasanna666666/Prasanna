@@ -196,9 +196,9 @@ def cmd_doctor(ctx: AppContext, with_stats: bool = False) -> int:
         line(False, "folders", str(exc))
     line(all((p.face_models / f).exists() for f in ("det_10g.onnx", "w600k_r50.onnx")), "face models", str(p.face_models))
     line((p.geo / "cities15000.txt").exists(), "place data (GeoNames)", "optional")
-    from .ml.ocr import vision_available
+    from .ml.ocr import text_available
 
-    line(vision_available(), "Apple Vision OCR", "macOS only")
+    line(text_available(), "text recognition (Apple Vision or Tesseract)", "optional")
     try:
         ctx.build_embedder().close()
         line(True, "CLIP model", f"{s.clip_model}/{s.clip_pretrained}")
