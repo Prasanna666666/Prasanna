@@ -19,7 +19,7 @@ import urllib.parse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from . import agent, applenotes, clock, db, insight, llm, log, netguard, report, tagging
 from .modules import ALL, documents, money
@@ -119,258 +119,303 @@ def start_import(state: State) -> bool:
     return True
 
 
-def make_handler(state: State):
-    class Handler(BaseHTTPRequestHandler):
-        server_version = "Orbit"
+class _Fail(Exception):
+    """A request that cannot be served: the status and the plain-words message sent back."""
 
-        def log_message(self, *args) -> None:  # quiet: requests may contain private words
-            return
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.message = message
 
-        # ---- plumbing ---------------------------------------------------------------------------------------------
-        def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8", extra: dict | None = None) -> None:
-            self.send_response(status)
-            self.send_header("Content-Type", ctype)
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header(
-                "Content-Security-Policy",
-                "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
-            )
-            for k, v in (extra or {}).items():
-                self.send_header(k, v)
-            self.end_headers()
-            self.wfile.write(body)
 
-        def _json(self, obj: Any, status: int = 200) -> None:
-            self._send(status, json.dumps(obj, default=str).encode())
+# ---- the API: one small function per route, found in a table (the handler below only does plumbing) -----------------
+def _get_home(state: State, conn) -> dict:
+    return {
+        "ok": True,
+        "currency": db.display_currency(conn),
+        "view": db.view_currency(conn),
+        "briefing": briefing_for(conn, clock.today()),
+        "trend": money.monthly_trend(conn, {"months": 6}),
+        "upcoming": insight.upcoming_payments(conn, {"days": 21})[:4],
+    }
 
-        def _fail(self, status: int, message: str) -> None:
-            self._json({"ok": False, "error": message}, status)
 
-        def _authorised(self) -> bool:
-            """Other programs on this computer can reach the port too. With a token set, only a browser that opened the link printed by up.sh (which sets a cookie) gets in."""
-            if not state.token:
-                return True
-            now = time.monotonic()
-            state.refused[:] = [t for t in state.refused if now - t < 60]
-            cookie = next((c.split("=", 1)[1] for c in self.headers.get("Cookie", "").split("; ") if c.startswith("orbit_k=")), "")
-            if hmac.compare_digest(cookie.encode(), state.session.encode()):
-                return True
-            log.event("request refused: no valid token", level=logging.WARNING)
-            state.refused.append(now)
-            if len(state.refused) > 10:
-                self._send(429, b'{"ok": false, "error": "Too many attempts. Wait a minute."}')
-            else:
-                self._send(401, _login_page(), "text/html; charset=utf-8")
-            return False
+def _get_status(state: State, conn) -> dict:
+    try:
+        client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
+        return {"ok": True, "ai": True, "model": client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))}
+    except RuntimeError as exc:
+        return {"ok": True, "ai": False, "problem": str(exc)}
 
-        def _guard(self, writing: bool) -> bool:
-            host = self.headers.get("Host", "")
-            if not _host_ok(host):
-                self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8501")
-                return False
-            if not self._authorised():
-                return False
-            if writing:
-                origin = self.headers.get("Origin")
-                if self.headers.get("X-Orbit") != "1" or (origin and not _host_ok(origin.split("://", 1)[-1])):
-                    self._fail(HTTPStatus.FORBIDDEN, "Request refused.")
-                    return False
+
+def _get_settings(state: State, conn) -> dict:
+    return {
+        "ok": True,
+        "currency": db.display_currency(conn),
+        "view": db.view_currency(conn),
+        "main_currency": db.get_setting(conn, "currency", "EUR"),
+        "model": db.get_setting(conn, "model", llm.DEFAULT_MODEL),
+        "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(),
+        "data": str(db.home()),
+    }
+
+
+def _get_history(state: State, conn) -> dict:
+    return {"ok": True, "history": [h for h in state.history if h["role"] in ("user", "assistant") and h.get("content")]}
+
+
+GET_ROUTES = {
+    "/api/home": _get_home,
+    "/api/status": _get_status,
+    "/api/settings": _get_settings,
+    "/api/import": lambda state, conn: {"ok": True, **state.importing},
+    "/api/history": _get_history,
+}
+
+
+def _post_tool(state: State, conn, body: dict) -> dict:
+    name = str(body.get("name", ""))
+    if name not in registry(ALL):
+        raise _Fail(400, f"unknown tool {name!r}")
+    out, error = agent.run_tool(conn, name, body.get("args") or {})
+    data = json.loads(out)
+    return {"ok": not error, "data": None if error else data, "error": data.get("error") if error else ""}
+
+
+def _post_chat(state: State, conn, body: dict) -> dict:
+    text = str(body.get("text", "")).strip()[:4000]
+    if not text:
+        raise _Fail(400, "empty message")
+    if not state.chat_lock.acquire(blocking=False):
+        raise _Fail(429, "Orbit is still answering the last message.")
+    try:
+        trace: list = []
+        reply = agent.chat(conn, state.history, text, trace=trace)
+        del state.history[:-HISTORY_LIMIT]
+        return {"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general", "tools": trace[0]["tools"] if trace else []}
+    except Exception as exc:
+        log.failed("chat failed", exc)
+        raise _Fail(502, str(exc)) from exc
+    finally:
+        state.chat_lock.release()
+
+
+def _post_chat_reset(state: State, conn, body: dict) -> dict:
+    state.history.clear()
+    return {"ok": True}
+
+
+def _post_settings(state: State, conn, body: dict) -> dict:
+    if isinstance(body.get("ollama_host"), str) and body["ollama_host"].strip():
+        try:
+            llm.OllamaClient(body["ollama_host"].strip())  # refuses anything that is not this computer or its private network
+        except ValueError as exc:
+            raise _Fail(400, str(exc)) from exc
+    for key in ("currency", "view_currency", "model", "ollama_host", "reply_seconds"):
+        if isinstance(body.get(key), str):
+            db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
+    db.ledger_view(conn)
+    return {"ok": True}
+
+
+def _post_notes_tag(state: State, conn, body: dict) -> dict:
+    try:
+        client, model = client_and_model(conn)
+        return {"ok": True, "tagged": tagging.autotag_notes(conn, client, model)}
+    except RuntimeError:
+        return {"ok": True, "tagged": tagging.autotag_notes(conn), "note": "The model was not available: rules only."}
+
+
+def _post_notes_import(state: State, conn, body: dict) -> dict:
+    if not inbox_dir().is_dir():
+        raise _Fail(404, f"{inbox_dir()} not found - run `orbit export-notes` on your Mac first")
+    return {"ok": True, **applenotes.import_dir(conn, inbox_dir())}
+
+
+POST_ROUTES = {
+    "/api/tool": _post_tool,
+    "/api/chat": _post_chat,
+    "/api/chat/reset": _post_chat_reset,
+    "/api/import": lambda state, conn, body: {"ok": True, "started": start_import(state)},
+    "/api/settings": _post_settings,
+    "/api/notes/tag": _post_notes_tag,
+    "/api/notes/import": _post_notes_import,
+}
+
+
+def _refusals_this_minute(state: State) -> float:
+    """Forget refusals older than a minute; returns now."""
+    now = time.monotonic()
+    state.refused[:] = [t for t in state.refused if now - t < 60]
+    return now
+
+
+class _Handler(BaseHTTPRequestHandler):
+    """Plumbing only: security checks, files, and handing each API route to its function in the tables above."""
+
+    state: ClassVar[State]
+    server_version = "Orbit"
+
+    def log_message(self, *args) -> None:  # quiet: requests may contain private words
+        return
+
+    # ---- plumbing ---------------------------------------------------------------------------------------------
+    def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8", extra: dict | None = None) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
+        )
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, obj: Any, status: int = 200) -> None:
+        self._send(status, json.dumps(obj, default=str).encode())
+
+    def _fail(self, status: int, message: str) -> None:
+        self._json({"ok": False, "error": message}, status)
+
+    def _redirect_with_cookie(self) -> None:
+        """Remember the visit in a cookie that scripts on other sites cannot read or send, then go to the home page."""
+        self.send_response(303)
+        self.send_header("Set-Cookie", _cookie(self.state.session))
+        self.send_header("Location", "/")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _authorised(self) -> bool:
+        """Other programs on this computer can reach the port too. With a token set, only a browser that opened the link printed by up.sh (which sets a cookie) gets in."""
+        if not self.state.token:
             return True
+        now = _refusals_this_minute(self.state)
+        cookie = next((c.split("=", 1)[1] for c in self.headers.get("Cookie", "").split("; ") if c.startswith("orbit_k=")), "")
+        if hmac.compare_digest(cookie.encode(), self.state.session.encode()):
+            return True
+        log.event("request refused: no valid token", level=logging.WARNING)
+        self.state.refused.append(now)
+        if len(self.state.refused) > 10:
+            self._send(429, b'{"ok": false, "error": "Too many attempts. Wait a minute."}')
+        else:
+            self._send(401, _login_page(), "text/html; charset=utf-8")
+        return False
 
-        def _body(self) -> dict:
-            try:
-                size = int(self.headers.get("Content-Length", "0"))
-                if not 0 <= size <= MAX_BODY:
-                    return {}
-                data = json.loads(self.rfile.read(size) or b"{}")
-                return data if isinstance(data, dict) else {}
-            except (ValueError, OSError):
+    def _guard(self, writing: bool) -> bool:
+        host = self.headers.get("Host", "")
+        if not _host_ok(host):
+            self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8501")
+            return False
+        if not self._authorised():
+            return False
+        if writing:
+            origin = self.headers.get("Origin")
+            if self.headers.get("X-Orbit") != "1" or (origin and not _host_ok(origin.split("://", 1)[-1])):
+                self._fail(HTTPStatus.FORBIDDEN, "Request refused.")
+                return False
+        return True
+
+    def _body(self) -> dict:
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 <= size <= MAX_BODY:
                 return {}
+            data = json.loads(self.rfile.read(size) or b"{}")
+            return data if isinstance(data, dict) else {}
+        except (ValueError, OSError):
+            return {}
 
-        # ---- GET --------------------------------------------------------------------------------------------------
-        def do_GET(self) -> None:
-            path, _, query = self.path.partition("?")
-            offered = urllib.parse.parse_qs(query).get("k", [""])[0]
-            if state.token and offered and path == "/" and hmac.compare_digest(offered.encode(), state.token.encode()) and _host_ok(self.headers.get("Host")):
-                # the link from up.sh: remember it in a cookie that scripts on other sites cannot read or send, then drop the token from the address bar
-                self.send_response(303)
-                self.send_header("Set-Cookie", _cookie(state.session))
-                self.send_header("Location", "/")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
-            if not self._guard(False):
-                return
-            path = self.path.split("?", 1)[0]
-            if path in ("/", "/index.html"):
-                return self._file("index.html")
-            if path.startswith("/report/"):
-                return self._report(path[len("/report/") :])
-            if path.startswith("/static/"):
-                return self._file(path[len("/static/") :])
-            if path.startswith("/api/"):
-                try:
-                    return self._api_get(path)
-                except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
-                    log.failed("request failed", exc, path=path)
-                    return self._fail(500, f"{type(exc).__name__}: {exc}")
-            self._fail(HTTPStatus.NOT_FOUND, "not found")
+    def _run_api(self, routes: dict, path: str, *args) -> None:
+        """Look the route up, run it with its own database connection, and turn every outcome into a response."""
+        route = routes.get(path)
+        if route is None:
+            return self._fail(HTTPStatus.NOT_FOUND, "not found")
+        conn = self.state.connect()
+        try:
+            self._json(route(self.state, conn, *args))
+        except _Fail as failure:
+            self._fail(failure.status, failure.message)
+        except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
+            log.failed("request failed", exc, path=path)
+            self._fail(500, f"{type(exc).__name__}: {exc}")
+        finally:
+            conn.close()
 
-        def _report(self, year: str) -> None:
-            if not (year.isdigit() and len(year) == 4):
-                return self._fail(HTTPStatus.NOT_FOUND, "not found")
-            conn = state.connect()
-            try:
-                self._send(200, report.year_report(conn, year).encode(), "text/html; charset=utf-8")
-            finally:
-                conn.close()
+    # ---- GET --------------------------------------------------------------------------------------------------
+    def do_GET(self) -> None:
+        path, _, query = self.path.partition("?")
+        offered = urllib.parse.parse_qs(query).get("k", [""])[0]
+        if (
+            self.state.token
+            and offered
+            and path == "/"
+            and hmac.compare_digest(offered.encode(), self.state.token.encode())
+            and _host_ok(self.headers.get("Host"))
+        ):
+            return self._redirect_with_cookie()  # the link from up.sh: the token is dropped from the address bar
+        if not self._guard(False):
+            return
+        if path in ("/", "/index.html"):
+            return self._file("index.html")
+        if path.startswith("/report/"):
+            return self._report(path[len("/report/") :])
+        if path.startswith("/static/"):
+            return self._file(path[len("/static/") :])
+        if path.startswith("/api/"):
+            return self._run_api(GET_ROUTES, path)
+        self._fail(HTTPStatus.NOT_FOUND, "not found")
 
-        def _file(self, name: str) -> None:
-            target = (STATIC / name).resolve()
-            if STATIC.resolve() not in target.parents or not target.is_file():
-                return self._fail(HTTPStatus.NOT_FOUND, "not found")
-            ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-            self._send(200, target.read_bytes(), f"{ctype}; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ctype)
+    def _report(self, year: str) -> None:
+        if not (year.isdigit() and len(year) == 4):
+            return self._fail(HTTPStatus.NOT_FOUND, "not found")
+        conn = self.state.connect()
+        try:
+            self._send(200, report.year_report(conn, year).encode(), "text/html; charset=utf-8")
+        finally:
+            conn.close()
 
-        def _api_get(self, path: str) -> None:
-            conn = state.connect()
-            try:
-                if path == "/api/home":
-                    return self._json(
-                        {
-                            "ok": True,
-                            "currency": db.display_currency(conn),
-                            "view": db.view_currency(conn),
-                            "briefing": briefing_for(conn, clock.today()),
-                            "trend": money.monthly_trend(conn, {"months": 6}),
-                            "upcoming": insight.upcoming_payments(conn, {"days": 21})[:4],
-                        }
-                    )
-                if path == "/api/status":
-                    try:
-                        client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
-                        model = client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))
-                        return self._json({"ok": True, "ai": True, "model": model})
-                    except RuntimeError as exc:
-                        return self._json({"ok": True, "ai": False, "problem": str(exc)})
-                if path == "/api/settings":
-                    return self._json(
-                        {
-                            "ok": True,
-                            "currency": db.display_currency(conn),
-                            "view": db.view_currency(conn),
-                            "main_currency": db.get_setting(conn, "currency", "EUR"),
-                            "model": db.get_setting(conn, "model", llm.DEFAULT_MODEL),
-                            "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(),
-                            "data": str(db.home()),
-                        }
-                    )
-                if path == "/api/import":
-                    return self._json({"ok": True, **state.importing})
-                if path == "/api/history":
-                    return self._json({"ok": True, "history": [h for h in state.history if h["role"] in ("user", "assistant") and h.get("content")]})
-            finally:
-                conn.close()
-            self._fail(HTTPStatus.NOT_FOUND, "not found")
+    def _file(self, name: str) -> None:
+        target = (STATIC / name).resolve()
+        if STATIC.resolve() not in target.parents or not target.is_file():
+            return self._fail(HTTPStatus.NOT_FOUND, "not found")
+        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        self._send(200, target.read_bytes(), f"{ctype}; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ctype)
 
-        # ---- POST -------------------------------------------------------------------------------------------------
-        def _login(self) -> None:
-            """The password form: the right password sets the cookie (once per browser); a wrong one is counted, and too many are refused for a minute."""
-            if not _host_ok(self.headers.get("Host")):
-                return self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed.")
-            now = time.monotonic()
-            state.refused[:] = [t for t in state.refused if now - t < 60]
-            if len(state.refused) > 10:
-                return self._send(429, b"Too many attempts. Wait a minute.", "text/plain; charset=utf-8")
-            try:
-                size = min(int(self.headers.get("Content-Length", "0")), 2000)
-            except ValueError:
-                size = 0
-            given = urllib.parse.parse_qs(self.rfile.read(size).decode("utf-8", "replace")).get("password", [""])[0]
-            if state.token and hmac.compare_digest(given.encode(), state.token.encode()):
-                self.send_response(303)
-                self.send_header("Set-Cookie", _cookie(state.session))
-                self.send_header("Location", "/")
-                self.send_header("Content-Length", "0")
-                self.end_headers()
-                return
-            log.event("login refused: wrong password", level=logging.WARNING)
-            state.refused.append(now)
-            self._send(401, _login_page("That is not the password."), "text/html; charset=utf-8")
+    # ---- POST -------------------------------------------------------------------------------------------------
+    def _login(self) -> None:
+        """The password form: the right password sets the cookie (once per browser); a wrong one is counted, and too many are refused for a minute."""
+        if not _host_ok(self.headers.get("Host")):
+            return self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed.")
+        now = _refusals_this_minute(self.state)
+        if len(self.state.refused) > 10:
+            return self._send(429, b"Too many attempts. Wait a minute.", "text/plain; charset=utf-8")
+        try:
+            size = min(int(self.headers.get("Content-Length", "0")), 2000)
+        except ValueError:
+            size = 0
+        given = urllib.parse.parse_qs(self.rfile.read(size).decode("utf-8", "replace")).get("password", [""])[0]
+        if self.state.token and hmac.compare_digest(given.encode(), self.state.token.encode()):
+            return self._redirect_with_cookie()
+        log.event("login refused: wrong password", level=logging.WARNING)
+        self.state.refused.append(now)
+        self._send(401, _login_page("That is not the password."), "text/html; charset=utf-8")
 
-        def do_POST(self) -> None:
-            if self.path.split("?", 1)[0] == "/login":
-                return self._login()
-            if not self._guard(True):
-                return
-            body = self._body()
-            conn = state.connect()
-            try:
-                self._api_post(self.path.split("?", 1)[0], body, conn)
-            except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
-                log.failed("request failed", exc, path=self.path.split("?", 1)[0])
-                self._fail(500, f"{type(exc).__name__}: {exc}")
-            finally:
-                conn.close()
+    def do_POST(self) -> None:
+        path = self.path.split("?", 1)[0]
+        if path == "/login":
+            return self._login()
+        if not self._guard(True):
+            return
+        self._run_api(POST_ROUTES, path, self._body())
 
-        def _api_post(self, path: str, body: dict, conn) -> None:
-            if path == "/api/tool":
-                name = str(body.get("name", ""))
-                if name not in registry(ALL):
-                    return self._fail(400, f"unknown tool {name!r}")
-                out, error = agent.run_tool(conn, name, body.get("args") or {})
-                data = json.loads(out)
-                return self._json({"ok": not error, "data": None if error else data, "error": data.get("error") if error else ""})
-            if path == "/api/chat":
-                text = str(body.get("text", "")).strip()[:4000]
-                if not text:
-                    return self._fail(400, "empty message")
-                if not state.chat_lock.acquire(blocking=False):
-                    return self._fail(429, "Orbit is still answering the last message.")
-                try:
-                    trace: list = []
-                    reply = agent.chat(conn, state.history, text, trace=trace)
-                    del state.history[:-HISTORY_LIMIT]
-                    return self._json(
-                        {"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general", "tools": trace[0]["tools"] if trace else []}
-                    )
-                except Exception as exc:  # noqa: BLE001 - for example the model is not running: say so plainly
-                    log.failed("chat failed", exc)
-                    return self._fail(502, str(exc))
-                finally:
-                    state.chat_lock.release()
-            if path == "/api/chat/reset":
-                state.history.clear()
-                return self._json({"ok": True})
-            if path == "/api/import":
-                return self._json({"ok": True, "started": start_import(state)})
-            if path == "/api/settings":
-                if isinstance(body.get("ollama_host"), str) and body["ollama_host"].strip():
-                    try:
-                        llm.OllamaClient(body["ollama_host"].strip())  # refuses anything that is not this computer or its private network
-                    except ValueError as exc:
-                        return self._fail(400, str(exc))
-                for key in ("currency", "view_currency", "model", "ollama_host", "reply_seconds"):
-                    if isinstance(body.get(key), str):
-                        db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
-                db.ledger_view(conn)
-                return self._json({"ok": True})
-            if path == "/api/notes/tag":
-                try:
-                    client, model = client_and_model(conn)
-                    return self._json({"ok": True, "tagged": tagging.autotag_notes(conn, client, model)})
-                except RuntimeError:
-                    return self._json({"ok": True, "tagged": tagging.autotag_notes(conn), "note": "The model was not available: rules only."})
-            if path == "/api/notes/import":
-                if not inbox_dir().is_dir():
-                    return self._fail(404, f"{inbox_dir()} not found - run `orbit export-notes` on your Mac first")
-                return self._json({"ok": True, **applenotes.import_dir(conn, inbox_dir())})
-            self._fail(HTTPStatus.NOT_FOUND, "not found")
 
-    return Handler
+def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
+    return type("Handler", (_Handler,), {"state": state})
 
 
 def serve(host: str = "127.0.0.1", port: int = 8501) -> int:

@@ -7,6 +7,7 @@ import json
 import re
 import statistics
 from collections import defaultdict
+from dataclasses import dataclass, field
 from datetime import date
 
 from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
@@ -385,6 +386,124 @@ def _read_standard(kind: str, text: str, name: str) -> Read:
     return r
 
 
+@dataclass
+class _Run:
+    """What one import pass did, reported to the user at the end."""
+
+    files: int = 0
+    added: int = 0
+    duplicates: int = 0
+    payslips: int = 0
+    empty: list[str] = field(default_factory=list)
+    problems: list[str] = field(default_factory=list)
+    needs_check: list[dict] = field(default_factory=list)
+
+
+@dataclass
+class _Outcome:
+    """What reading one document produced."""
+
+    read: Read | None = None
+    slip: payslips.Payslip | None = None
+    info: dict = field(default_factory=dict)
+
+
+def _pending_documents(conn) -> list:
+    done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
+    docs = conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall()
+    return [d for d in docs if d["sha256"] not in done]
+
+
+def _document_data(d) -> dict:
+    try:
+        return json.loads(d["data"]) if d["data"] else {}
+    except ValueError:
+        return {}
+
+
+def _import_rates_file(conn, d, data: dict, run: _Run) -> None:
+    """The ECB's exchange-rate file is loaded into the rates table; it is not a document about your money."""
+    n = rates.store(conn, rates.parse_ecb(data["rows"]))
+    _remember_doc(conn, d, {"kind": "other", "title": "ECB exchange rates"})
+    conn.execute("INSERT INTO statement_files (sha256, name, found, added, status) VALUES (?,?,0,0,'ok')", (d["sha256"], d["name"]))
+    verify.store_file_findings(conn, d["name"], [Finding("rates", "ok", d["name"], f"{n} exchange rates loaded")])
+    run.files += 1
+    conn.commit()
+
+
+def _read_document(conn, d, data: dict, client, model, progress, position: tuple[int, int]) -> _Outcome:
+    """Read one document: an exact standard needs no model; otherwise the model describes the layout and code reads every figure."""
+    standard = standards.sniff(d["text"])
+    if standard:
+        info = {"kind": "bank_statement", "title": "Bank statement"}
+        _remember_doc(conn, d, info)
+        return _Outcome(read=_read_standard(standard, d["text"], d["name"]), info=info)
+    out = _Outcome()
+    out.info = extract.classify(client, model, d["name"], d["text"])
+    _remember_doc(conn, d, out.info)
+    if out.info["kind"] == "payslip":
+        out.slip = payslips.from_model(out.info)
+    elif out.info["kind"] == "bank_statement":
+        if progress:
+            progress(f"Reading file {position[0]} of {position[1]}")
+        out.read = verify.read_table_statement(client, model, d["name"], data, d["text"])
+    return out
+
+
+def _record_document(conn, d, out: _Outcome, learned, run: _Run) -> None:
+    """Store what was read (only from files that pass their own proof) and remember the file so it is never read twice."""
+    rd, status, issues = out.read, "ok", []
+    txns: list[statements.Txn] = []
+    new = 0
+    extra: tuple = ("", None, None, None, None, "")
+    if rd is not None:
+        status, issues = rd.status, rd.issues
+        if status != "needs_check":  # nothing from a file that fails its own proof ever reaches your totals
+            txns = rd.txns
+            new = _store(conn, d, txns, learned, rd.account, rd.currency)
+        else:
+            run.needs_check.append({"file": d["name"], "issues": issues[:5]})
+        verify.store_file_findings(conn, d["name"], rd.findings)
+        extra = (rd.account, rd.first or None, rd.last or None, rd.opening, rd.closing, "; ".join(rd.proofs))
+    if out.slip is not None:
+        slip = out.slip
+        conn.execute(
+            "INSERT OR IGNORE INTO payslips VALUES (?,?,?,?,?,?,?,?)",
+            (d["sha256"], d["name"], slip.period, slip.gross_minor, slip.net_minor, slip.tax_minor, slip.pension_minor, slip.holiday_minor),
+        )
+        run.payslips += 1
+    conn.execute(
+        "INSERT INTO statement_files (sha256, name, found, added, status, issues, account, period_start, period_end, opening_minor, closing_minor, proofs, currency) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500], *extra, rd.currency if rd is not None else ""),
+    )
+    audit.record(conn, "file read", f"{d['name']}: {status}, {len(txns)} payments, {new} new")
+    run.files += 1
+    run.added += new
+    run.duplicates += len(txns) - new
+    if not txns and out.slip is None and out.info.get("kind") == "bank_statement" and status != "needs_check":
+        run.empty.append(d["name"])
+    conn.commit()
+
+
+def _after_import(conn, client, model, progress, run: _Run) -> None:
+    """Convert to euros, run every cross-check, then let the model sort new merchants and group trips (it sees only names)."""
+    rates.convert_all(conn)  # every payment in euros at the rate of its own day
+    verify.run_cross_checks(conn)  # payslips vs bank, invoices vs bank, continuity, plausibility: every time, on everything
+    if client is None or not model or not run.added:
+        return
+    try:
+        categorize.recategorise_with_model(conn, client, model)
+    except RuntimeError as exc:
+        run.problems.append(f"Imported, but the merchants could not be sorted by the model: {exc}")
+    try:
+        from . import events
+
+        events.suggest(conn, client, model, progress=progress)
+    except RuntimeError as exc:
+        run.problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
+
+
 def import_statements(conn, a=None, client=None, model=None, progress=None):
     """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice.
 
@@ -392,106 +511,33 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     figure, and verifier agents (balances, totals, a second independent reading) must all agree. A file that fails is not counted. Without the model,
     only the exact standards can be imported (a guess at a layout could silently give wrong numbers)."""
     learned = categorize.learned_rules(conn)
-    done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
-    files = added = duplicates = payslip_count = 0
-    empty: list[str] = []
-    problems: list[str] = []
-    needs_check: list[dict] = []
-    docs = [
-        d for d in conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall() if d["sha256"] not in done
-    ]
+    run = _Run()
+    docs = _pending_documents(conn)
+    no_model = "The local model is not running, so these statements cannot be read. Start Ollama and try again."
     for index, d in enumerate(docs, 1):
-        try:
-            data = json.loads(d["data"]) if d["data"] else {}
-        except ValueError:
-            data = {}
-        slip = None
-        info: dict = {}
-        status, issues = "ok", []
-        txns: list[statements.Txn] = []
-        new = 0
-        rd: Read | None = None
-        if rates.looks_like_ecb(data.get("rows")):  # the ECB's exchange-rate file: loaded into the rates table, not a document about your money
-            n = rates.store(conn, rates.parse_ecb(data["rows"]))
-            _remember_doc(conn, d, {"kind": "other", "title": "ECB exchange rates"})
-            conn.execute("INSERT INTO statement_files (sha256, name, found, added, status) VALUES (?,?,0,0,'ok')", (d["sha256"], d["name"]))
-            verify.store_file_findings(conn, d["name"], [Finding("rates", "ok", d["name"], f"{n} exchange rates loaded")])
-            files += 1
-            conn.commit()
+        data = _document_data(d)
+        if rates.looks_like_ecb(data.get("rows")):
+            _import_rates_file(conn, d, data, run)
             continue
-        standard = standards.sniff(d["text"])
-        if standard:
-            info = {"kind": "bank_statement", "title": "Bank statement"}
-            _remember_doc(conn, d, info)
-            rd = _read_standard(standard, d["text"], d["name"])
-        elif client is not None and model:
-            try:
-                info = extract.classify(client, model, d["name"], d["text"])
-                _remember_doc(conn, d, info)
-                if info["kind"] == "payslip":
-                    slip = payslips.from_model(info)
-                elif info["kind"] == "bank_statement":
-                    if progress:
-                        progress(f"Reading file {index} of {len(docs)}")
-                    rd = verify.read_table_statement(client, model, d["name"], data, d["text"])
-            except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
-                problems.append(str(exc))
-                break
-        else:
-            msg = "The local model is not running, so these statements cannot be read. Start Ollama and try again."
-            if msg not in problems:
-                problems.append(msg)
+        if not standards.sniff(d["text"]) and (client is None or not model):
+            if no_model not in run.problems:
+                run.problems.append(no_model)
             continue
-        extra: tuple = ("", None, None, None, None, "")
-        if rd is not None:
-            status, issues = rd.status, rd.issues
-            if status != "needs_check":  # nothing from a file that fails its own proof ever reaches your totals
-                txns = rd.txns
-                new = _store(conn, d, txns, learned, rd.account, rd.currency)
-            else:
-                needs_check.append({"file": d["name"], "issues": issues[:5]})
-            verify.store_file_findings(conn, d["name"], rd.findings)
-            extra = (rd.account, rd.first or None, rd.last or None, rd.opening, rd.closing, "; ".join(rd.proofs))
-        if slip is not None:
-            conn.execute(
-                "INSERT OR IGNORE INTO payslips VALUES (?,?,?,?,?,?,?,?)",
-                (d["sha256"], d["name"], slip.period, slip.gross_minor, slip.net_minor, slip.tax_minor, slip.pension_minor, slip.holiday_minor),
-            )
-            payslip_count += 1
-        conn.execute(
-            "INSERT INTO statement_files (sha256, name, found, added, status, issues, account, period_start, period_end, opening_minor, closing_minor, proofs, currency) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (d["sha256"], d["name"], len(txns), new, status, "; ".join(issues)[:500], *extra, rd.currency if rd is not None else ""),
-        )
-        audit.record(conn, "file read", f"{d['name']}: {status}, {len(txns)} payments, {new} new")
-        files += 1
-        added += new
-        duplicates += len(txns) - new
-        if not txns and slip is None and info.get("kind") == "bank_statement" and status != "needs_check":
-            empty.append(d["name"])
-        conn.commit()
-    rates.convert_all(conn)  # every payment in euros at the rate of its own day
-    verify.run_cross_checks(conn)  # payslips vs bank, invoices vs bank, continuity, plausibility: every time, on everything
-    if client is not None and model and added:  # merchants the rules could not place: the local model sees only their names
         try:
-            categorize.recategorise_with_model(conn, client, model)
-        except RuntimeError as exc:
-            problems.append(f"Imported, but the merchants could not be sorted by the model: {exc}")
-    if client is not None and model and added:  # trips, matches and shows: the model groups the payments that belong together
-        try:
-            from . import events
-
-            events.suggest(conn, client, model, progress=progress)
-        except RuntimeError as exc:
-            problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
+            out = _read_document(conn, d, data, client, model, progress, (index, len(docs)))
+        except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
+            run.problems.append(str(exc))
+            break
+        _record_document(conn, d, out, learned, run)
+    _after_import(conn, client, model, progress, run)
     return {
-        "files": files,
-        "new_transactions": added,
-        "already_had": duplicates,
-        "payslips": payslip_count,
-        "files_with_no_transactions": empty,
-        "needs_check": needs_check,
-        "problems": problems,
+        "files": run.files,
+        "new_transactions": run.added,
+        "already_had": run.duplicates,
+        "payslips": run.payslips,
+        "files_with_no_transactions": run.empty,
+        "needs_check": run.needs_check,
+        "problems": run.problems,
     }
 
 

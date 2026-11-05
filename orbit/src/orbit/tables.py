@@ -312,6 +312,15 @@ def _score(seq: list[dict]) -> int:
     return score
 
 
+def _settle_direction(r: dict, running: int | None) -> str | None:
+    """Money in or out: as stated, or whichever way makes the balance follow from the one before."""
+    if r["kind"] is not None or running is None or r["balance"] is None:
+        return r["kind"]
+    if running + r["amount"] == r["balance"]:
+        return "income"
+    return "expense" if running - r["amount"] == r["balance"] else None
+
+
 def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int, int | None, int | None]:
     """Put the lines in their true order, settle unknown directions with the balances, and make sure the balances add up.
     Returns (transactions, status, balance checks that matched)."""
@@ -330,9 +339,7 @@ def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int, in
             continue
         if r["amount"] is None:
             continue
-        kind = r["kind"]
-        if kind is None and running is not None and r["balance"] is not None:
-            kind = "income" if running + r["amount"] == r["balance"] else "expense" if running - r["amount"] == r["balance"] else None
+        kind = _settle_direction(r, running)
         if kind is None:
             issues.append(f"cannot tell whether {r['day']} {r['amount'] / 100:.2f} is money in or out")
             running = r["balance"]

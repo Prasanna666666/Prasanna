@@ -35,16 +35,24 @@ target-version = "py310"
 extend-exclude = ["build"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "PIE", "PL", "BLE"]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
 ignore = [
     "S101",    # assert is used in tests
     "S608",    # SQL is built from column names written in code, never from user input (reviewed)
-    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",  # complexity is tracked by radon in review, not by line counts
+    "PLR0913", "PLR2004",  # many keyword arguments are normal here; magic numbers in readers are format widths
     "PLC0415", # imports inside functions are deliberate: optional dependencies and the parser container must not load each other
     "PLR0917", # call sites use keywords where it matters
     "E501",    # the formatter owns line length
     "RUF001", "RUF002", "RUF003",  # text deliberately uses typographic characters
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15   # a function above this is split, not excused
+
+[tool.ruff.lint.pylint]
+max-branches = 15
+max-returns = 8
+max-statements = 50
 
 [tool.ruff.lint.per-file-ignores]
 "src/orbit/readers.py" = ["S603", "S607", "S314", "PLW2901"]  # fixed executables (tesseract, pdftotext) with list arguments and no shell; XML with a DOCTYPE or entities is refused before parsing
