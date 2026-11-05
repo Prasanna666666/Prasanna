@@ -75,3 +75,17 @@ def test_search_everything_finds_payments_shops_documents_people_notes_and_tasks
     )
     assert browse.search_all(pays, {"query": "a"})["payments"] == []  # one letter is not a search
     assert browse.search_all(pays, {"query": "zzzz"})["merchants"] == []
+
+
+def test_search_results_become_a_flat_list_with_where_each_one_opens():
+    found = {
+        "merchants": [{"merchant": "Albert Heijn", "spent": 120.5, "payments": 7}],
+        "payments": [{"id": 1, "day": "2026-10-03", "category": "groceries", "note": "AH Utrecht", "kind": "expense", "amount": 5}],
+        "documents": [{"sha256": "x", "name": "inv.pdf", "kind": "invoice", "party": "Ziggo", "date": "2026-10-01", "total": 62.5}],
+        "people": [{"id": 1, "name": "Amma", "relation": "mother"}],
+        "notes": [],
+        "tasks": [],
+    }
+    flat = browse.search_links(found)
+    assert [r["kind"] for r in flat] == ["shop", "payment", "file", "person"]
+    assert flat[0]["link"] == "#/expenses?q=Albert%20Heijn" and flat[2]["title"] == "Ziggo" and flat[3]["link"] == "#/people"

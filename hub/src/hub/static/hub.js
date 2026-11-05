@@ -1,0 +1,450 @@
+/* Home front end. Plain JavaScript. All text from the apps is added with textContent, never as markup. */
+(() => {
+    'use strict';
+    const $ = (selector) => document.querySelector(selector);
+    const SVG = 'http://www.w3.org/2000/svg';
+    const el = (tag, cls, text) => {
+        const node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text != null) node.textContent = text;
+        return node;
+    };
+    const icon = (path) => {
+        const svg = document.createElementNS(SVG, 'svg');
+        const shape = document.createElementNS(SVG, 'path');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        shape.setAttribute('d', path || 'M4 12h16M12 4v16');
+        svg.append(shape);
+        return svg;
+    };
+    const tint = (node, module) => {
+        node.style.setProperty('--c1', module.accent[0]);
+        node.style.setProperty('--c2', module.accent[1]);
+    };
+    const ICON = {
+        home: 'M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1v-8Z',
+        search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3',
+        chat: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z',
+        dark: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
+        light: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+        auto: 'M12 3a9 9 0 1 0 0 18V3Z',
+        plus: 'M12 5v14M5 12h14',
+    };
+
+    const state = { modules: [], health: {}, frames: new Map(), mode: 'dark', chatting: {} };
+    const byId = (id) => state.modules.find((m) => m.id === id);
+    const origin = (module) => `${location.protocol}//${module.id}.${location.host}`;
+
+    // ---------------------------------------------------------------- the address: #/  or  #/<module>  or  #/<module>/<page>?<query>
+    const parse = () => {
+        const [first, ...rest] = location.hash.replace(/^#\/?/, '').split('/');
+        const module = byId(first);
+        return module ? { module, route: rest.join('/') } : { module: null, route: '' };
+    };
+    const defaultRoute = (module) =>
+        (module.home || (module.pages[0] ? '#/' + module.pages[0].id : '#/')).replace(/^#\/?/, '');
+    const address = (module, route) => '#/' + module.id + (route ? '/' + route : '');
+    const go = (module, route) => {
+        location.hash = module ? address(module, route == null ? '' : route) : '#/';
+    };
+
+    // ---------------------------------------------------------------- talking to an app's page
+    const tell = (module, message) => {
+        const frame = state.frames.get(module.id);
+        if (frame && frame.contentWindow) frame.contentWindow.postMessage({ hub: 1, ...message }, origin(module));
+    };
+    const broadcastTheme = () => state.modules.forEach((m) => tell(m, { type: 'theme', mode: state.mode }));
+    window.addEventListener('message', (event) => {
+        const module = state.modules.find((m) => event.origin === origin(m));
+        const data = event.data;
+        if (!module || !data || data.hub !== 1) return;
+        if (data.type === 'ready') tell(module, { type: 'theme', mode: state.mode });
+        else if (data.type === 'palette') openPalette();
+        else if (data.type === 'chat') {
+            state.chatting[module.id] = Boolean(data.open);
+            markChatting();
+        } else if (data.type === 'route' && typeof data.hash === 'string') followApp(module, data.hash);
+    });
+    const followApp = (module, hash) => {
+        const now = parse();
+        if (now.module !== module) return;
+        const route = hash.replace(/^#\/?/, '');
+        history.replaceState(null, '', address(module, route));
+        markActive();
+    };
+
+    // ---------------------------------------------------------------- the frame for each app (kept alive so switching is instant)
+    const frameFor = (module, route) => {
+        let frame = state.frames.get(module.id);
+        const wanted = '#/' + (route || defaultRoute(module));
+        if (!frame) {
+            frame = el('iframe');
+            frame.title = module.name;
+            frame.src = origin(module) + '/' + wanted;
+            frame.addEventListener('load', () => tell(module, { type: 'theme', mode: state.mode }));
+            state.frames.set(module.id, frame);
+            $('#stage').append(frame);
+        } else {
+            tell(module, { type: 'navigate', hash: wanted });
+        }
+        return frame;
+    };
+
+    // ---------------------------------------------------------------- the menu
+    const statusClass = (module) => (state.health[module.id] ? (state.health[module.id].up ? 'up' : 'down') : '');
+    const renderNav = () => {
+        const nav = $('#nav');
+        const home = el('a', 'item');
+        home.href = '#/';
+        home.dataset.key = '';
+        home.append(icon(ICON.home), el('span', '', 'Home'));
+        nav.replaceChildren(home);
+        for (const module of state.modules) {
+            const group = el('div', 'group');
+            group.dataset.module = module.id;
+            tint(group, module);
+            const head = el('a', 'item');
+            head.href = address(module, '');
+            head.dataset.key = module.id;
+            head.append(icon(module.icon), el('span', '', module.name), el('i', 'dot ' + statusClass(module)));
+            const pages = el('div', 'pages');
+            for (const page of module.pages) {
+                const link = el('a', 'item');
+                link.href = address(module, page.id);
+                link.dataset.key = module.id + '/' + page.id;
+                link.append(icon(page.icon), el('span', '', page.label));
+                pages.append(link);
+            }
+            group.append(head, pages);
+            nav.append(group);
+        }
+        markActive();
+    };
+    const markActive = () => {
+        const { module, route } = parse();
+        const page = route.split('?')[0] || (module ? defaultRoute(module).split('?')[0] : '');
+        document.querySelectorAll('#nav .item').forEach((a) => {
+            const key = a.dataset.key;
+            a.classList.toggle(
+                'active',
+                module ? key === module.id + '/' + page || (key === module.id && !module.pages.length) : key === ''
+            );
+        });
+        document
+            .querySelectorAll('#nav .group')
+            .forEach((g) => g.classList.toggle('open', Boolean(module) && g.dataset.module === module.id));
+        document.title = module ? `${module.name} · Home` : 'Home';
+        $('#fab').querySelector('span').textContent = module ? 'Ask ' + (module.app || module.name) : 'Ask';
+        const host = $('#fab');
+        if (module) tint(host, module);
+        host.style.setProperty('--a1', module ? module.accent[0] : '#6366f1');
+        host.style.setProperty('--a2', module ? module.accent[1] : '#ec4899');
+        document.documentElement.style.setProperty('--a1', module ? module.accent[0] : '#6366f1');
+        document.documentElement.style.setProperty('--a2', module ? module.accent[1] : '#ec4899');
+    };
+
+    // the shared Ask button steps aside while the open app shows its own chat panel
+    const markChatting = () => {
+        const { module } = parse();
+        document.body.classList.toggle('chatting', Boolean(module && state.chatting[module.id]));
+    };
+
+    // ---------------------------------------------------------------- the stage: the overview, or one app
+    const renderDashboard = () => {
+        const wrap = el('div', 'dash');
+        wrap.append(
+            el('h1', '', 'Welcome home'),
+            el('div', 'sub', 'Everything private, in one place. Nothing here leaves this computer.')
+        );
+        const cards = el('div', 'cards');
+        for (const module of state.modules) {
+            const card = el('div', 'card');
+            tint(card, module);
+            const badge = el('div', 'badge');
+            badge.append(icon(module.icon));
+            const title = el('div');
+            title.append(el('h2', '', module.name), el('div', 'tag', module.tagline));
+            const health = state.health[module.id];
+            const status = el(
+                'span',
+                'state ' + statusClass(module),
+                health ? (health.up ? 'Running' : 'Not running') : 'Checking'
+            );
+            status.prepend(el('i'));
+            const head = el('div', 'head');
+            head.append(badge, title, status);
+            const links = el('div', 'links');
+            for (const page of module.pages.slice(0, 6)) {
+                const link = el('a', '', page.label);
+                link.href = address(module, page.id);
+                links.append(link);
+            }
+            const open = el('a', 'launch', 'Open ' + module.name);
+            open.href = address(module, '');
+            card.append(head, links, open);
+            cards.append(card);
+        }
+        const add = el('div', 'card add');
+        add.append(
+            el(
+                'div',
+                '',
+                'Health, documents, anything next: add a small file to modules.d and it appears here, in the menu and in search.'
+            )
+        );
+        cards.append(add);
+        wrap.append(cards);
+        return wrap;
+    };
+    const render = () => {
+        const stage = $('#stage');
+        const { module, route } = parse();
+        stage.querySelector('.dash')?.remove();
+        state.frames.forEach((frame, id) => {
+            frame.hidden = !module || module.id !== id;
+        });
+        if (module) frameFor(module, route);
+        else stage.prepend(renderDashboard());
+        markActive();
+        markChatting();
+    };
+
+    // ---------------------------------------------------------------- chips and health
+    const renderChips = () => {
+        $('#chips').replaceChildren(
+            ...state.modules.map((module) => {
+                const chip = el('span', 'chip ' + statusClass(module), module.name);
+                chip.prepend(el('i'));
+                return chip;
+            })
+        );
+    };
+    const refreshHealth = async () => {
+        try {
+            state.health = await (await fetch('/_hub/api/health')).json();
+        } catch (_) {
+            state.health = {};
+        }
+        renderChips();
+        document.querySelectorAll('#nav .group .dot').forEach((dot) => {
+            const module = byId(dot.closest('.group').dataset.module);
+            dot.className = 'dot ' + statusClass(module);
+        });
+        if (!parse().module) render();
+    };
+
+    // ---------------------------------------------------------------- one search box for everything
+    let palette = null;
+    function openPalette() {
+        if (palette) return;
+        const box = el('input');
+        box.placeholder = 'Search every app, jump to a page, or ask…';
+        box.autocomplete = 'off';
+        box.spellcheck = false;
+        box.setAttribute('aria-label', 'Search everything');
+        const list = el('div', 'plist');
+        let items = [];
+        let active = 0;
+        let seq = 0;
+        const close = () => {
+            overlay.remove();
+            document.removeEventListener('keydown', onKey, true);
+            palette = null;
+        };
+        const run = (item) => {
+            close();
+            item.run();
+        };
+        const mark = () =>
+            list.querySelectorAll('.pitem').forEach((b) => b.classList.toggle('on', Number(b.dataset.i) === active));
+        const paint = () => {
+            list.replaceChildren(
+                ...(items.length
+                    ? items.map((item, i) => {
+                          if (item.head) return el('div', 'phead', item.head);
+                          const row = el('button', 'pitem' + (i === active ? ' on' : ''));
+                          row.type = 'button';
+                          row.dataset.i = i;
+                          const dot = el('span', 'dotc');
+                          if (item.module) tint(row, item.module);
+                          const text = el('span', 'grow');
+                          text.append(el('div', 'strong', item.label));
+                          if (item.sub) text.append(el('div', 'small', item.sub));
+                          row.append(dot, text);
+                          row.addEventListener('click', () => run(item));
+                          row.addEventListener('mouseenter', () => {
+                              active = i;
+                              mark();
+                          });
+                          return row;
+                      })
+                    : [el('div', 'empty', 'No results')])
+            );
+            list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+        };
+        const firstReal = () => {
+            active = Math.max(
+                0,
+                items.findIndex((x) => !x.head)
+            );
+        };
+        const pageItems = (q) =>
+            state.modules.flatMap((m) =>
+                [{ id: '', label: m.name }, ...m.pages]
+                    .filter((p) => !q || `${m.name} ${p.label}`.toLowerCase().includes(q))
+                    .map((p) => ({
+                        module: m,
+                        label: p.id ? `${m.name} · ${p.label}` : m.name,
+                        sub: 'Go to',
+                        run: () => go(m, p.id),
+                    }))
+            );
+        const build = async () => {
+            const raw = box.value.trim();
+            const q = raw.toLowerCase();
+            const mine = ++seq;
+            const pages = pageItems(q);
+            if (q.length < 2) {
+                items = [{ head: 'Jump to' }, ...pages.slice(0, 12)];
+                firstReal();
+                paint();
+                return;
+            }
+            let found = [];
+            try {
+                found = (await (await fetch('/_hub/api/search?q=' + encodeURIComponent(raw))).json()).results || [];
+            } catch (_) {
+                found = [];
+            }
+            if (mine !== seq) return;
+            const asks = state.modules.map((m) => ({
+                module: m,
+                label: `Ask ${m.app || m.name}: “${raw}”`,
+                sub: 'Chat',
+                run: () => {
+                    go(m, '');
+                    setTimeout(() => tell(m, { type: 'ask', text: raw }), 600);
+                },
+            }));
+            items = [
+                ...(pages.length ? [{ head: 'Pages' }, ...pages.slice(0, 5)] : []),
+                ...(found.length
+                    ? [
+                          { head: 'Found' },
+                          ...found.map((r) => ({
+                              module: byId(r.module),
+                              label: r.title,
+                              sub: [byId(r.module)?.name, r.subtitle].filter(Boolean).join(' · '),
+                              run: () => go(byId(r.module), r.link.replace(/^#\/?/, '')),
+                          })),
+                      ]
+                    : []),
+                { head: 'Or ask' },
+                ...asks,
+            ];
+            firstReal();
+            paint();
+        };
+        let timer;
+        box.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(build, 140);
+        });
+        const move = (d) => {
+            const real = items.map((x, i) => (x.head ? -1 : i)).filter((i) => i >= 0);
+            if (!real.length) return;
+            active = real[(real.indexOf(active) + d + real.length) % real.length];
+            mark();
+            list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                move(1);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                move(-1);
+            } else if (e.key === 'Enter' && items[active] && !items[active].head) {
+                e.preventDefault();
+                run(items[active]);
+            }
+        };
+        const bar = el('div', 'pbar');
+        bar.append(icon(ICON.search), box, el('kbd', '', 'esc'));
+        const overlay = el('div', 'overlay');
+        const card = el('div', 'palette');
+        card.append(bar, list);
+        overlay.append(card);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
+        document.body.append(overlay);
+        document.addEventListener('keydown', onKey, true);
+        palette = overlay;
+        items = [{ head: 'Jump to' }, ...pageItems('').slice(0, 12)];
+        firstReal();
+        paint();
+        box.focus();
+    }
+
+    // ---------------------------------------------------------------- theme, keys, the one chat button
+    const applyTheme = () => {
+        document.documentElement.dataset.theme = state.mode;
+        $('#theme').replaceChildren(icon(ICON[state.mode]));
+        $('#theme').title = 'Theme: ' + state.mode;
+        broadcastTheme();
+    };
+    const setupTheme = () => {
+        try {
+            state.mode = localStorage.getItem('home.theme') || 'dark';
+        } catch (_) {
+            state.mode = 'dark';
+        }
+        $('#theme').addEventListener('click', () => {
+            state.mode = state.mode === 'auto' ? 'dark' : state.mode === 'dark' ? 'light' : 'auto';
+            try {
+                localStorage.setItem('home.theme', state.mode);
+            } catch (_) {
+                /* private window: the choice just is not remembered */
+            }
+            applyTheme();
+        });
+        applyTheme();
+    };
+    const toggleChat = () => {
+        const { module } = parse();
+        if (module) tell(module, { type: 'toggle-chat' });
+        else openPalette();
+    };
+    document.addEventListener('keydown', (e) => {
+        const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '');
+        if (((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+            e.preventDefault();
+            openPalette();
+        } else if ((e.key === 'j' || e.key === 'J') && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            toggleChat();
+        }
+    });
+    $('#search-btn').addEventListener('click', openPalette);
+    $('#fab').addEventListener('click', toggleChat);
+    window.addEventListener('hashchange', render);
+
+    // ---------------------------------------------------------------- start
+    (async () => {
+        setupTheme();
+        try {
+            state.modules = (await (await fetch('/_hub/api/modules')).json()).modules;
+        } catch (_) {
+            state.modules = [];
+        }
+        renderNav();
+        renderChips();
+        render();
+        refreshHealth();
+        setInterval(refreshHealth, 15000);
+    })();
+})();

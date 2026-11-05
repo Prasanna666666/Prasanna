@@ -150,3 +150,24 @@ def search_all(conn, a):
     ]
     tasks = [dict(r) for r in conn.execute("SELECT id, title, due FROM tasks WHERE done=0 AND title LIKE ? LIMIT 5", (like,))]
     return {"query": q, "payments": payments, "merchants": merchants, "documents": documents, "people": people, "notes": notes, "tasks": tasks}
+
+
+def search_links(found: dict) -> list[dict]:
+    """The search result as one flat list for the front door: what it is, a line of detail, and the address inside Orbit that opens it."""
+    from urllib.parse import quote
+
+    out: list[dict] = []
+    for m in found.get("merchants", []):
+        out.append({"title": m["merchant"], "subtitle": f"{m['payments']} payments", "kind": "shop", "link": "#/expenses?q=" + quote(m["merchant"])})
+    for p in found.get("payments", []):
+        out.append({"title": p["note"], "subtitle": f"{p['day']} · {p['category']}", "kind": "payment", "link": "#/expenses?q=" + quote(p["note"][:60])})
+    for d in found.get("documents", []):
+        out.append(
+            {"title": d.get("party") or d["name"], "subtitle": f"{d['kind']} · {d.get('date') or ''}".strip(" ·"), "kind": "file", "link": "#/documents"}
+        )
+    for key, route, kind in (("people", "people", "person"), ("notes", "notes", "note"), ("tasks", "tasks", "task")):
+        for x in found.get(key, []):
+            out.append(
+                {"title": x.get("name") or x.get("title") or "", "subtitle": x.get("relation") or x.get("due") or "", "kind": kind, "link": "#/" + route}
+            )
+    return [r for r in out if r["title"]]

@@ -114,6 +114,7 @@
         if (!d.ok) throw new Error(d.error || 'Something went wrong.');
         return d;
     }
+    const EMBEDDED = window.self !== window.top;
     const tool = (name, args = {}) => api('/api/tool', { name, args }).then((d) => d.data);
     function toast(text, bad) {
         const t = h('div', { class: 'toast' + (bad ? ' err' : '') }, text);
@@ -1056,7 +1057,8 @@
         const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
         if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
             e.preventDefault();
-            openPalette();
+            if (EMBEDDED) toParent({ type: 'palette' });
+            else openPalette();
         }
     });
 
@@ -1718,6 +1720,7 @@
             return;
         } // the full page is already a chat
         corner.open = on;
+        if (EMBEDDED) toParent({ type: 'chat', open: on });
         panel.hidden = !on;
         document.body.classList.toggle('chat-open', on);
         if (on) {
@@ -1753,9 +1756,12 @@
         cur = settings.currency;
         let month = location.hash.split('?m=')[1] || startMonth(trend0);
         let jump = null;
+        const asked = new URLSearchParams(location.hash.split('?')[1] || '').get('q');
+        if (asked) jump = { q: asked };
         try {
-            jump = JSON.parse(sessionStorage.getItem('orbit.explore') || 'null');
+            const kept = JSON.parse(sessionStorage.getItem('orbit.explore') || 'null');
             sessionStorage.removeItem('orbit.explore');
+            jump = jump || kept;
         } catch (_) {
             /* ignore */
         }
@@ -3914,7 +3920,30 @@
         );
     };
 
+    // ------------------------------------------------------------------ shown inside Home (the front door): its menu, search and chat button replace ours
+    const toParent = (message) => {
+        window.parent.postMessage(
+            { hub: 1, ...message },
+            (location.ancestorOrigins && location.ancestorOrigins[0]) || '*'
+        );
+    };
+    function setupEmbedding() {
+        if (!EMBEDDED) return;
+        document.documentElement.classList.add('embedded');
+        window.addEventListener('message', (event) => {
+            const m = event.data;
+            if (event.source !== window.parent || !m || m.hub !== 1) return;
+            if (m.type === 'navigate' && typeof m.hash === 'string') location.hash = m.hash;
+            else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode)) applyTheme(m.mode);
+            else if (m.type === 'toggle-chat') setCorner(!corner.open);
+            else if (m.type === 'ask' && typeof m.text === 'string') askOrbit(m.text);
+        });
+        window.addEventListener('hashchange', () => toParent({ type: 'route', hash: location.hash }));
+        toParent({ type: 'ready' });
+    }
+
     // ------------------------------------------------------------------ start
+    setupEmbedding();
     buildNav();
     refreshStatus();
     setInterval(refreshStatus, 20000);

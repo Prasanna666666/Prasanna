@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from . import agent, applenotes, clock, db, insight, llm, log, netguard, report, tagging
+from . import agent, applenotes, browse, clock, db, insight, llm, log, netguard, report, tagging
 from .modules import ALL, documents, money
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -129,7 +129,7 @@ class _Fail(Exception):
 
 
 # ---- the API: one small function per route, found in a table (the handler below only does plumbing) -----------------
-def _get_home(state: State, conn) -> dict:
+def _get_home(state: State, conn, query: dict[str, str]) -> dict:
     return {
         "ok": True,
         "currency": db.display_currency(conn),
@@ -140,7 +140,7 @@ def _get_home(state: State, conn) -> dict:
     }
 
 
-def _get_status(state: State, conn) -> dict:
+def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     try:
         client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
         return {"ok": True, "ai": True, "model": client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))}
@@ -148,7 +148,7 @@ def _get_status(state: State, conn) -> dict:
         return {"ok": True, "ai": False, "problem": str(exc)}
 
 
-def _get_settings(state: State, conn) -> dict:
+def _get_settings(state: State, conn, query: dict[str, str]) -> dict:
     return {
         "ok": True,
         "currency": db.display_currency(conn),
@@ -160,15 +160,22 @@ def _get_settings(state: State, conn) -> dict:
     }
 
 
-def _get_history(state: State, conn) -> dict:
+def _get_history(state: State, conn, query: dict[str, str]) -> dict:
     return {"ok": True, "history": [h for h in state.history if h["role"] in ("user", "assistant") and h.get("content")]}
 
 
+def _get_search(state: State, conn, query: dict[str, str]) -> dict:
+    """Search for Home, the front door that searches every app: the same results as the search box, as a flat list with where each opens."""
+    return {"results": browse.search_links(browse.search_all(conn, {"query": query.get("q", "")[:200]}))}
+
+
 GET_ROUTES = {
+    "/api/health": lambda state, conn, query: {"ok": True},
+    "/api/search": _get_search,
     "/api/home": _get_home,
     "/api/status": _get_status,
     "/api/settings": _get_settings,
-    "/api/import": lambda state, conn: {"ok": True, **state.importing},
+    "/api/import": lambda state, conn, query: {"ok": True, **state.importing},
     "/api/history": _get_history,
 }
 
@@ -367,7 +374,7 @@ class _Handler(BaseHTTPRequestHandler):
         if path.startswith("/static/"):
             return self._file(path[len("/static/") :])
         if path.startswith("/api/"):
-            return self._run_api(GET_ROUTES, path)
+            return self._run_api(GET_ROUTES, path, {k: v[0] for k, v in urllib.parse.parse_qs(query).items() if v})
         self._fail(HTTPStatus.NOT_FOUND, "not found")
 
     def _report(self, year: str) -> None:

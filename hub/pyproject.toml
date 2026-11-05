@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "home-hub"
+version = "1.0.0"
+description = "One address and one look for every private app. Standard library only."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hub = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
+ignore = ["S101", "PLR0913", "PLR2004", "E501", "S310"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S105", "S106", "PLC0415", "RUF059"]  # test tokens are invented; local imports keep each test self-contained
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.mypy]
+strict = true
+python_version = "3.10"

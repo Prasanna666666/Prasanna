@@ -2081,3 +2081,13 @@ body.chat-open .fab {
         transition: none !important;
     }
 }
+
+/* shown inside Home: the front door provides the menu, the search and the chat button */
+.embedded .side,
+.embedded .top,
+.embedded .fab {
+    display: none;
+}
+.embedded .shell {
+    grid-template-columns: 1fr;
+}

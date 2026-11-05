@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
+        <title>Home</title>
+        <link rel="icon" href="/_hub/static/icon.svg" type="image/svg+xml" />
+        <link rel="stylesheet" href="/_hub/static/hub.css" />
+    </head>
+    <body>
+        <div class="shell">
+            <aside class="rail" id="rail" aria-label="Main">
+                <a class="brand" href="#/" aria-label="Home"><span class="logo"></span><b>Home</b></a>
+                <nav id="nav"></nav>
+                <button class="theme" id="theme" type="button" aria-label="Change theme"></button>
+            </aside>
+            <div class="col">
+                <header class="top">
+                    <button class="searchbar" id="search-btn" type="button" aria-label="Search everything">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3" />
+                        </svg>
+                        <span>Search everything, or ask…</span>
+                        <kbd>&#8984;K</kbd>
+                    </button>
+                    <div class="chips" id="chips" role="status" aria-live="polite"></div>
+                </header>
+                <main class="stage" id="stage" tabindex="-1"></main>
+            </div>
+        </div>
+        <button class="fab" id="fab" type="button" aria-label="Ask">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z" /></svg
+            ><span>Ask</span>
+        </button>
+        <script src="/_hub/static/hub.js" defer></script>
+    </body>
+</html>

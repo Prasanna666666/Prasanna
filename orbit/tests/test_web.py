@@ -265,3 +265,12 @@ def test_guessing_the_password_on_the_form_is_slowed_down():
         assert codes[0] == 401 and codes[-1] == 429
     finally:
         srv.shutdown()
+
+
+def test_the_front_door_can_check_health_and_search_orbit(server):
+    assert json.loads(call(server, "GET", "/api/health")[1]) == {"ok": True}
+    post(server, "/api/tool", {"name": "add_task", "args": {"title": "Pay the Ziggo invoice"}})
+    found = json.loads(call(server, "GET", "/api/search?q=ziggo")[1])["results"]
+    assert {"title": "Pay the Ziggo invoice", "subtitle": "", "kind": "task", "link": "#/tasks"} in found
+    assert json.loads(call(server, "GET", "/api/search?q=z")[1]) == {"results": []}  # too short to search
+    assert call(server, "GET", "/api/search?q=ziggo", host="evil.example.com")[0] == 403
