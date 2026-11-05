@@ -14,8 +14,9 @@
 
   // ---------------------------------------------------------------- small helpers
   const sparkle = () => { const a = el('div', 'avatar'); a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.2 6.3L21 10l-6.8 1.7L12 18l-2.2-6.3L3 10l6.8-1.7z"/></svg>'; return a; };
-  const scrollDown = (force) => { if (force || stick) window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); };
-  window.addEventListener('scroll', () => { stick = window.innerHeight + window.scrollY >= document.body.scrollHeight - 160; }, { passive: true });
+  const scroller = $('#chatscroll');
+  const scrollDown = (force) => { if (force || stick) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' }); };
+  scroller.addEventListener('scroll', () => { stick = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 160; }, { passive: true });
 
   // markdown-lite, built with DOM nodes: **bold**, `code`, - lists, paragraphs
   function inline(parent, text) {
@@ -257,7 +258,7 @@
   function newChat() {                       // instant: nothing is asked of the server
     if (controller) controller.abort();
     conv = uid(); history = []; thread.replaceChildren(); welcome.hidden = false; setBusy(false);
-    input.value = ''; autosize(); window.scrollTo({ top: 0 }); input.focus();
+    input.value = ''; autosize(); scroller.scrollTo({ top: 0 }); input.focus();
   }
 
   // ---------------------------------------------------------------- composer
@@ -266,17 +267,35 @@
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); } });
   form.addEventListener('submit', (e) => { e.preventDefault(); if (busy && controller) controller.abort(); else ask(input.value); });
   $('#newchat').addEventListener('click', newChat);
-  $('#topsearch').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#topq').value.trim(); if (!t) return; $('#topq').value = ''; go('search'); ask(t); });
+  $('#topsearch').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#topq').value.trim(); if (!t) return; $('#topq').value = ''; askLumo(t); });
   document.addEventListener('keydown', (e) => {
-    if (!lb.hidden) { if (e.key === 'Escape') lbClose(); else if (e.key === 'ArrowLeft') lbStep(-1); else if (e.key === 'ArrowRight') lbStep(1); return; }
+    if (!lb.hidden) { e.stopImmediatePropagation(); if (e.key === 'Escape') lbClose(); else if (e.key === 'ArrowLeft') lbStep(-1); else if (e.key === 'ArrowRight') lbStep(1); return; }
     if (e.key === '/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '')) { e.preventDefault(); (where().page === 'search' ? input : $('#topq')).focus(); }
+  });
+
+  // ---------------------------------------------------------------- the corner chat: the same conversation, one tap away from every page
+  const corner = { open: false };
+  function setCorner(on) {
+    if (on && where().page === 'search') return;              // the full page is already the chat
+    corner.open = on; document.body.classList.toggle('chat-open', on);
+    if (on) { stick = true; scrollDown(true); input.focus(); }
+  }
+  function askLumo(text) { go('search'); ask(text); }
+  $('#chat-fab').addEventListener('click', () => setCorner(true));
+  $('#ask-btn').addEventListener('click', () => setCorner(!corner.open));
+  $('#chat-close').addEventListener('click', () => setCorner(false));
+  $('#chat-expand').addEventListener('click', () => { setCorner(false); go('search'); });
+  document.addEventListener('keydown', (e) => {
+    if (lb && !lb.hidden) return;
+    if (e.key === 'Escape' && corner.open) setCorner(false);
+    else if ((e.key === 'j' || e.key === 'J') && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (where().page === 'search') input.focus(); else setCorner(!corner.open); }
   });
 
   // ---------------------------------------------------------------- navigation, theme and the browsing pages
   const SVG = 'http://www.w3.org/2000/svg';
   const icon = (d) => { const svg = document.createElementNS(SVG, 'svg'), path = document.createElementNS(SVG, 'path'); svg.setAttribute('viewBox', '0 0 24 24'); path.setAttribute('d', d); svg.append(path); return svg; };
   const NAV = [
-    ['search', 'Search', 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3'],
+    ['search', 'Chat', 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z'],
     ['library', 'Library', 'M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01'],
     ['trips', 'Trips', 'M2 14l20-8-8 20-3-9-9-3Z'],
     ['places', 'Places', 'M12 21s-7-5.3-7-11a7 7 0 0 1 14 0c0 5.7-7 11-7 11ZM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'],
@@ -392,11 +411,13 @@
     const { page, params } = where();
     document.body.dataset.page = page;
     document.querySelectorAll('.nav-item').forEach((a) => a.classList.toggle('active', a.dataset.id === page));
-    for (const id of PAGES) $('#page-' + id).hidden = id !== page;
+    for (const id of PAGES) { const section = $('#page-' + id); if (section) section.hidden = id !== page; }
+    if (page === 'search' && corner.open) setCorner(false);
     try {
       if (page === 'library') await showLibrary(params); else if (page === 'trips') await showTrips(); else if (page === 'places') await showPlaces(); else if (page === 'people') await showPeople();
     } catch (e) { const host = $('#page-' + page); host.replaceChildren(el('div', 'empty', `Could not load this page: ${e.message}`)); }
     if (page !== 'search') window.scrollTo({ top: 0 });
+    else input.focus();
   }
 
   // ---------------------------------------------------------------- status chips + first screen

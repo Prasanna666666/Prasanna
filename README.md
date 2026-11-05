@@ -46,6 +46,7 @@ It is laid out like a regular website: a slim menu (Search, Library, Trips, Plac
 **Search** is the chat. **Library** shows every photo, newest first, narrowed by year and month, and loads more as you scroll. **Trips** lists trips and occasions
 (from the library's own events, or runs of photos taken close together); **Places** lists every place with its photo count; **People** shows the faces found, each with
 their clearest photo. Open any of them to see just those photos, with a removable filter chip; click a photo for the full-size view with arrow-key navigation.
+The chat is always one tap away: **Chat** in the menu is the full-page conversation, and on every other page a round **Ask Lumo** button in the corner (or `Ctrl/⌘ J`) opens the same conversation as a panel, photos included, so you can ask without leaving what you are looking at; **Expand** makes it full-page.
 Dark (Lagoon, the default), light (Shoreline) or automatic theme from the button at the bottom of the menu; on a phone the menu becomes a tab bar.
 Not in the new app yet: naming or merging people, Tidy up, Settings and the export/move cards (use `--classic` for those).
 
