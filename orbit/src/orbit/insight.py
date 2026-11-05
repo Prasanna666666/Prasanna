@@ -484,8 +484,8 @@ def month_breakdown(conn, a=None):
         "month": month,
         "total": total / 100,
         "payments": len(rows),
-        "trips_and_events": in_events / 100,
-        "everyday": (total - in_events) / 100,
+        "one_time": in_events / 100,
+        "monthly": (total - in_events) / 100,
         "by_file": _files(by_file),
         "biggest": [
             {

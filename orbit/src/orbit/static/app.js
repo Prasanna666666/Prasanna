@@ -129,7 +129,7 @@ function plain(m) {
     .replace(/the stored payments add up to .* but the statements say .*/, "the payments don't match the statements")
     .replace(/closing .* does not match the next opening .*/, "it does not join the next statement");
 }
-/** Day-to-day category tiles, shared by Home and Money. `isOn(category)` and `onTap(category)` are optional. */
+/** Monthly category tiles, shared by Home and Money. `isOn(category)` and `onTap(category)` are optional. */
 function dailyTiles(daily, isOn, onTap) {
   const max = Math.max(...daily.map((d) => d.amount), 1);
   return h('div', { class: 'tiles' }, daily.map((d) => h(onTap ? 'button' : 'div', { class: 'tile' + (isOn && isOn(d.category) ? ' on' : ''), onclick: onTap ? () => onTap(d.category) : null },
@@ -159,11 +159,11 @@ pages.home = async () => {
   const link = (label, value, good) => h('a', { class: 'quiet', href: '#/money' }, h('span', { class: 'faint' }, label), h('span', { class: 'num ' + (good ? 'good' : ''), style: { fontWeight: 650 } }, value));
   const money_ = d.trend.length ? [
     h('div', { class: 'card summary' },
-      h('div', {}, h('div', { class: 'eyebrow' }, 'Everyday · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
+      h('div', {}, h('div', { class: 'eyebrow' }, 'Monthly · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
         h('div', { class: 'muted' }, ch == null || Math.abs(ch) < 10 ? '\u00a0' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}%`)),
       h('div', {}, h('div', { class: 'eyebrow' }, 'Money in'), h('div', { class: 'num good', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(sum.income)),
         h('div', { class: 'muted' }, '\u00a0')),
-      h('div', { class: 'quiets' }, link('Trips & events', signed(outings, 0)), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'Money'))),
+      h('div', { class: 'quiets' }, link('One-time', signed(outings, 0)), h('a', { class: 'btn small', href: '#/money', style: { alignSelf: 'flex-start' } }, 'Money'))),
     daily.length ? dailyTiles(daily.slice(0, 8), null, null) : null] :
     [h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, tasks and notes. Private, on this Mac.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my files'))];
   const tasksCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'To do')),
@@ -253,7 +253,7 @@ pages.money = async () => {
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
     const outingTotal = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
     const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
-      h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Everyday'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'Trips & events'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
+      h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
         h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
     const trendCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),
       trend.length ? barChart(trend.slice(-8), month, (m) => { month = m; openCats.clear(); draw(false); }) : h('div', { class: 'empty' }, 'No data yet.'));
@@ -326,7 +326,7 @@ pages.money = async () => {
         ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${plain(c.issues) || 'could not be read'}`))) :
       unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} not double-checked`))) : null;
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['daily', 'Everyday'], ['income', 'Income'], ['events', 'Trips & events'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
+    const tabs = [['daily', 'Monthly'], ['income', 'Income'], ['events', 'One-time'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
     const tabBar = h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
     const content = { daily: dailyPane, income: incomePane, events: eventsPane, regular: [recCard],
       documents: [statusCard, docCard, detailsFold, h('div', { class: 'muted', style: { textAlign: 'center' } }, h('a', { href: '#/files' }, 'Search all files'))] }[tab];

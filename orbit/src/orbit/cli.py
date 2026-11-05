@@ -143,7 +143,7 @@ def _explain_month(conn, rest: list[str]) -> int:  # shows amounts on YOUR scree
     from . import insight
 
     r = insight.month_breakdown(conn, {"month": rest[0]} if rest else {})
-    print(f"{r['month']}: spent {r['total']:,.2f} in {r['payments']} payments (everyday {r['everyday']:,.2f}, trips and events {r['trips_and_events']:,.2f})")
+    print(f"{r['month']}: spent {r['total']:,.2f} in {r['payments']} payments (monthly {r['monthly']:,.2f}, one-time {r['one_time']:,.2f})")
     print("\nBy file:")
     for f in r["by_file"]:
         print(f"  {f['total']:>12,.2f}  {f['payments']:>4} payments  {f['file']}")

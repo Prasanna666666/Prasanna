@@ -139,7 +139,7 @@ def _spending(q: _Ask) -> str:
         return "\n".join(f"{_label(month)}: {c} {_m(cats[c], cur)}." for c in asked)
     top = "\n".join(f"- {c['category'].title()}: {_m(c['spent'], cur)}" for c in s["by_category"][:6])
     split = q.run("month_breakdown", {"month": month})
-    parts = f" (everyday {_m(split['everyday'], cur)}, trips and events {_m(split['trips_and_events'], cur)})" if split["trips_and_events"] else ""
+    parts = f" (monthly {_m(split['monthly'], cur)}, one-time {_m(split['one_time'], cur)})" if split["one_time"] else ""
     return f"You spent {_m(s['spent'], cur)} in {_label(month)}{parts}; money in {_m(s['income'], cur)}.\n{top}"
 
 

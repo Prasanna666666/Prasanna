@@ -195,7 +195,7 @@ def spending_by_main(conn, a=None):
 
 
 def daily_by_category(conn, a=None):
-    """Day-to-day spending by category (groceries, food, shopping, transport ...) for a month: payments in no event, own-account moves left out.
+    """Monthly spending by category (groceries, food, shopping, transport ...) for a month: payments in no event, own-account moves left out.
     Each row also carries the month before, for comparison."""
     from datetime import date
 
@@ -265,7 +265,7 @@ PROMPT = (
     "trips (travel: flights, hotels, tours), cancellations (an event or trip that was cancelled, with its refund), and others. Each line is: id | date | "
     "amount (minus = money paid, plus = money received) | description. Payments that clearly belong to the SAME event or trip share one short event name "
     "(for example 'Asian Games 2026' or 'Max Amini'); give each a sub-category (tickets, flights, stay, travel, food, refund ...). A refund for a "
-    "cancelled event goes in the same event, main 'cancellations'. Everyday spending (shops, bills, subscriptions) belongs to no event: use event ''. "
+    "cancelled event goes in the same event, main 'cancellations'. Monthly spending (shops, bills, subscriptions) belongs to no event: use event ''. "
     "Reuse an existing event name when it fits: "
 )
 CHUNK = 20
@@ -358,7 +358,7 @@ MODULE = Module(
         Tool("delete_event", "Delete an event (its payments stay, ungrouped).", {"id": INT("Event id")}, delete_event, ("id",)),
         Tool(
             "daily_spending",
-            "Day-to-day spending by category (groceries, food, shopping, transport ...) for a month YYYY-MM, with the month before for comparison.",
+            "Monthly spending by category (groceries, food, shopping, transport ...) for a month YYYY-MM, with the month before for comparison.",
             {"month": S("YYYY-MM")},
             daily_by_category,
         ),

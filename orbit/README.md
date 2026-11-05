@@ -75,7 +75,7 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   matched exactly (same amount and currency, opposite directions, different accounts, within three days, and each the other's only candidate) and kept out of
   spending and income on both sides; ambiguous or lonely ones are reported, never guessed. *Account ledger:* for each run of consecutive proven statements,
   opening + every payment stored for that account = closing, which catches a payment lost or counted twice between a statement and your ledger. *Tally:* every
-  month and currency, the raw ledger's net change must equal money in - day to day - trips and events + transfers, so no report can drop or double-count a payment.
+  month and currency, the raw ledger's net change must equal money in - monthly - one-time + transfers, so no report can drop or double-count a payment.
 - **Your own calculations are checked too.** Notes you imported (Apple Notes) with blocks like "Asian games 2026 / Tickets: 634.1 / ... / Total: 2438.36"
   are read by code: *notes arithmetic* checks that the lines add up to the total you wrote, to the cent (refunds negative), and *notes <-> app* compares each
   block with the event of the same name, line by line and total, listing every difference in words. Neither your notes nor the app is trusted until they agree.
@@ -111,11 +111,11 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   - **ICICI / SBI:** use the **CSV** or Excel-as-CSV export from net banking. ICICI PDFs are usually password-protected, which Orbit cannot open. SBI PDFs show
     Txn/Post Date, Value Date, Description, Ref/Cheque No, Debit, Credit and a running Balance (sometimes with a CR/DR marker); they are read by layout.
   - **Credit cards (e.g. ABN AMRO card):** read by layout and proved by the previous/new balance printed on the statement.
-- **Categories, automatic.** Everyday spending: a few cheap keyword rules, then the local model for the merchants left (it sees only names, never
+- **Categories, automatic.** Monthly spending: a few cheap keyword rules, then the local model for the merchants left (it sees only names, never
   amounts). **Trips, matches, shows and cancellations:** after every import the local model groups payments that belong together into named events
   (Asian Games 2026: Tickets, Flights, Stay ... Total), each under sports, events, trips or cancellations; refunds count negative, so a cancellation can
   end below zero. Each payment is looked at once. Nothing to click: if something is wrong, tell Orbit in chat ("move the Ajax tickets to the PSV event").
-- **Views:** day-to-day tiles by category, trips and events with totals, month by month, regular payments, payslips, and chat ("what did I spend on food
+- **Views:** monthly tiles by category, one-time expenses (trips, events) with totals, month by month, regular payments, payslips, and chat ("what did I spend on food
   last month?", "how much tax did I pay this year?"). **What did Orbit make of each file?** lists every file with counts only, never content.
 - Scanned (image-only) or password-protected PDFs have no text to read: Orbit lists them as "read: 0 transactions". Remove the password or use the bank's
   CSV/PDF download instead.

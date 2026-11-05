@@ -110,7 +110,7 @@ def test_a_month_is_broken_down_so_a_surprising_total_can_be_explained(conn):
     tx(conn, "2026-09-20", 7777, note="Mystery", cat="other")
     tx(conn, "2026-09-20", 7777, note="Mystery", cat="other")
     r = insight.month_breakdown(conn, {"month": "2026-09"})
-    assert r["total"] == 20000.0 + 800.0 + 50.0 + 155.54 and r["payments"] == 5 and r["everyday"] == r["total"]
+    assert r["total"] == 20000.0 + 800.0 + 50.0 + 155.54 and r["payments"] == 5 and r["monthly"] == r["total"]
     assert r["biggest"][0]["amount"] == 20000.0
     flagged = {p["note"]: p["why"] for p in r["look_at"]}
     assert any("card bill" in w for w in flagged["ABN AMRO Creditcard 1234"])
