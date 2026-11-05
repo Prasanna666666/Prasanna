@@ -126,16 +126,16 @@ def upcoming_payments(conn, a=None):
 def duplicate_payments(conn) -> list[Finding]:
     """The same shop, the same amount, the same account, within two days: possibly charged twice."""
     main, al = _main(conn), _aliases(conn)
-    out = []
-    for r in conn.execute(
-        "SELECT a.id, a.day AS d1, b.day AS d2, a.amount_minor, a.note AS n1, b.note AS n2, COALESCE(NULLIF(a.currency,''), ?) AS cur FROM transactions a JOIN transactions b "
-        "ON a.id<b.id AND a.account=b.account AND a.kind='expense' AND b.kind='expense' AND a.amount_minor=b.amount_minor AND COALESCE(a.currency,'')=COALESCE(b.currency,'') "
-        "AND abs(julianday(a.day)-julianday(b.day))<=2 WHERE a.amount_minor>=500 AND a.category<>'transfers' AND b.category<>'transfers' AND a.transfer_id IS NULL "
-        "AND a.event_id IS NULL AND b.event_id IS NULL ORDER BY a.day DESC LIMIT 200", (main,)):
-        m1, m2 = _name(al, r["n1"]), _name(al, r["n2"])
-        if m1 and m1 == m2:
-            out.append(Finding("duplicate payments", "warn", m1, f"{m1}: {_money(r['amount_minor'])} {r['cur']} on {r['d1']}" + (f" and again on {r['d2']}" if r["d2"] != r["d1"] else " twice the same day") + ": charged twice?"))
-    return out[:10]
+    out, last = [], None
+    # sorted so that equal payments sit next to each other: one pass, no pairwise comparison
+    for r in conn.execute("SELECT day, amount_minor, note, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND amount_minor>=500 "
+                          "AND category<>'transfers' AND transfer_id IS NULL AND event_id IS NULL ORDER BY account, cur, amount_minor, day", (main,)):
+        name = _name(al, r["note"])
+        if last and name and last["name"] == name and last["key"] == (r["account"], r["cur"], r["amount_minor"]) and 0 <= (_d(r["day"]) - _d(last["day"])).days <= 2:
+            out.append((r["day"], Finding("duplicate payments", "warn", name, f"{name}: {_money(r['amount_minor'])} {r['cur']} on {last['day']}" +
+                                          (f" and again on {r['day']}" if r["day"] != last["day"] else " twice the same day") + ": charged twice?")))
+        last = {"name": name, "key": (r["account"], r["cur"], r["amount_minor"]), "day": r["day"]}
+    return [f for _, f in sorted(out, key=lambda x: x[0], reverse=True)[:10]]
 
 
 def unusual_payments(conn, today: date | None = None) -> list[Finding]:

@@ -91,6 +91,12 @@ MIGRATIONS = (
         id INTEGER PRIMARY KEY, at TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, prev TEXT NOT NULL, hash TEXT NOT NULL
     );
     """,
+    """
+    -- speed: the reports and the agents look payments up by month, account and amount
+    CREATE INDEX IF NOT EXISTS tx_day ON transactions(day);
+    CREATE INDEX IF NOT EXISTS tx_acc_amount ON transactions(account, amount_minor, day);
+    CREATE INDEX IF NOT EXISTS tx_refund ON transactions(refund_of) WHERE refund_of IS NOT NULL;
+    """,
 )
 
 

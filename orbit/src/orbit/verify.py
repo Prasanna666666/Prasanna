@@ -334,11 +334,13 @@ def tally(conn) -> list[Finding]:
         for cur in ["ALL", *[r[0] for r in conn.execute("SELECT DISTINCT COALESCE(NULLIF(currency,''), ?) FROM transactions", (main,))]]:
             db.set_setting(conn, "view_currency", cur)
             db.ledger_view(conn)
-            months = [r[0] for r in conn.execute("SELECT DISTINCT substr(day,1,7) FROM ledger ORDER BY 1")]
+            net = "COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END),0)"
+            raws = {r[0]: r[1] for r in conn.execute(f"SELECT substr(day,1,7), {net} FROM ledger GROUP BY 1 ORDER BY 1")}  # one pass, not one per month
+            trs = {r[0]: r[1] for r in conn.execute(f"SELECT substr(day,1,7), {net} FROM ledger WHERE category='transfers' AND event_id IS NULL GROUP BY 1")}
+            months = list(raws)
             bad = 0
             for m in months:
-                raw = conn.execute("SELECT COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END),0) FROM ledger WHERE substr(day,1,7)=?", (m,)).fetchone()[0]
-                tr = conn.execute("SELECT COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END),0) FROM ledger WHERE substr(day,1,7)=? AND category='transfers' AND event_id IS NULL", (m,)).fetchone()[0]
+                raw, tr = raws[m], trs.get(m, 0)
                 shown = round(money.income_summary(conn, {"month": m})["total"] * 100) - sum(round(x["net"] * 100) for x in events.spending_by_main(conn, {"month": m}))
                 if raw != shown + tr:
                     bad += 1

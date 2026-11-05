@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import socket
+import time
 import os
 import urllib.parse
 import urllib.request
@@ -19,7 +21,16 @@ def host() -> str:
     return os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 
 
+KEEP = "2m"  # the same value Aperture sends, so one loaded model is shared on an 8 GB Mac
+
+
+class Slow(RuntimeError):
+    """The model did not answer within the time allowed for this reply."""
+
+
 class OllamaClient:
+    deadline: float | None = None  # a time.monotonic() moment; calls made after it fail at once, and no call may run past it
+
     def __init__(self, base: str | None = None):
         self.base = base or host()
         netguard.allow_local(urllib.parse.urlparse(self.base).hostname or "localhost")
@@ -27,10 +38,17 @@ class OllamaClient:
     def _call(self, path: str, body: dict | None = None, timeout: int = 300) -> dict:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(f"{self.base}{path}", data, {"Content-Type": "application/json"})
+        if self.deadline is not None:
+            left = self.deadline - time.monotonic()
+            if left <= 0.5:
+                raise Slow("out of time")
+            timeout = min(timeout, left)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - local host only (netguard)
                 return json.load(r)
         except OSError as e:
+            if self.deadline is not None and isinstance(e, TimeoutError | socket.timeout) or "timed out" in str(e):
+                raise Slow("out of time") from e
             raise RuntimeError(f"Cannot reach the local model server at {self.base} ({e}). Is Ollama running?") from e
 
     def installed(self) -> list[str]:
@@ -54,7 +72,7 @@ class OllamaClient:
     def warm(self, model: str) -> None:
         """Load the model into memory now (so the first message does not wait for it). Failures are ignored: it is only a head start."""
         try:
-            self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": "2m",
+            self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": KEEP,
                                          "options": {"num_ctx": 4096}}, timeout=120)
         except RuntimeError:
             pass
@@ -62,8 +80,8 @@ class OllamaClient:
     def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None,
              num_ctx: int = 4096) -> dict[str, Any]:
         """`schema` forces the answer to be JSON of that shape (Ollama's constrained output)."""
-        body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": "2m",
-                                "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx}}
+        body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": KEEP,
+                                "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx, "num_predict": 600 if schema else 350}}
         if schema:
             body["format"] = schema
         if tools:

@@ -116,3 +116,23 @@ def test_small_talk_gets_a_short_reply_with_no_tools_and_no_big_prompt(conn):
     out = agent.chat(conn, [], "hi", client=Client(), model="m")
     assert out == "Hello! How can I help?"
     assert len(seen) == 2 and seen[1][1] == [] and len(seen[1][0]) < 400  # the answer call carries no tool definitions
+
+
+def test_a_reply_never_runs_past_its_time_and_says_so(conn, monkeypatch):
+    from orbit import agent
+
+    class Stuck:
+        def chat(self, model, messages, tools=None, **kw):
+            raise llm.Slow("out of time")
+
+    reply = agent.chat(conn, [], "how much did I spend on groceries?", client=Stuck(), model="m")
+    assert "longer than" in reply and Stuck().__class__ is not None
+
+
+def test_the_client_refuses_to_start_a_call_after_the_deadline(monkeypatch):
+    import time as _t
+
+    c = llm.OllamaClient("http://127.0.0.1:11434")
+    c.deadline = _t.monotonic() - 1
+    with pytest.raises(llm.Slow):
+        c._call("/api/chat", {})

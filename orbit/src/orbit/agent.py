@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from datetime import date
 from typing import Any
 
@@ -16,6 +17,7 @@ from .db import get_setting
 from .modules import ALL, tools as registry
 
 MAX_STEPS = 8
+REPLY_SECONDS = 10
 
 
 def system_prompt(conn: sqlite3.Connection, today: date | None = None, role: str = "") -> str:
@@ -82,6 +84,18 @@ def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=N
     model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
     if hasattr(client, "resolve"):
         model = client.resolve(model)
+    client.deadline = time.monotonic() + REPLY_SECONDS  # one reply never takes longer than this
+    try:
+        return _chat(conn, history, user_text, client, model, today, trace)
+    except llm.Slow:
+        done = [m["content"] for m in history[::-1] if m.get("role") == "tool"][:1]
+        return ("That took longer than " + str(REPLY_SECONDS) + " seconds, so I stopped. Try a shorter or more specific question." +
+                (f"\n\nWhat I had found so far:\n{done[0][:700]}" if done else ""))
+    finally:
+        client.deadline = None
+
+
+def _chat(conn, history, user_text, client, model, today, trace):
     name = agents.route(user_text, _classifier(client, model))
     spec = agents.BY_NAME.get(name)
     allowed = frozenset() if name == "chat" else (spec.tools if spec else None)  # chat = no tools; None = general: every tool
