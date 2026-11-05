@@ -218,3 +218,6 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 
 .proof { margin-left: 10px; border: 0; border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; background: rgba(255,255,255,.22); color: #fff; }
 .proof.bad { background: #fff; color: var(--bad); }
+
+.progress { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.progress i { display: block; height: 100%; border-radius: 99px; background: var(--grad); }

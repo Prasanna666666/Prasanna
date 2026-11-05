@@ -9,10 +9,10 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import audit, categorize, clock, dates, extract, insight, payslips, proof, rates, standards, statements, verify
+from .. import audit, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify
 from ..db import get_setting, rows
 from ..findings import Finding, Read
-from ..module import Module, N, S, Tool
+from ..module import INT, Module, N, S, Tool
 
 MIGRATIONS = (
     """
@@ -98,6 +98,11 @@ MIGRATIONS = (
     CREATE INDEX IF NOT EXISTS tx_day ON transactions(day);
     CREATE INDEX IF NOT EXISTS tx_acc_amount ON transactions(account, amount_minor, day);
     CREATE INDEX IF NOT EXISTS tx_refund ON transactions(refund_of) WHERE refund_of IS NOT NULL;
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS goals (                                           -- something you are saving for
+        id INTEGER PRIMARY KEY, name TEXT NOT NULL, target_minor INTEGER NOT NULL, by_date TEXT, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
     """,
 )
 
@@ -695,6 +700,23 @@ MODULE = Module(
             {"month": S("YYYY-MM, default the newest month")},
             proof.month_proof,
         ),
+        Tool("yearly_overview", "Per year: salary, money in, spent, saved, savings rate, interest, invested, insurance paid.", {}, planning.yearly_overview),
+        Tool("interest_earned", "Interest received per year and the estimated yearly rate for each account that earns it.", {}, planning.interest),
+        Tool("investments", "What was paid into investments each year. The portfolio value needs broker statements.", {}, planning.investments),
+        Tool("insurances", "Each insurance: what the documents say it costs and what was paid per year.", {}, planning.insurances),
+        Tool(
+            "add_goal",
+            "Add something to save for.",
+            {"name": S("What it is for"), "target": N("Amount to reach"), "by": S("Date YYYY-MM-DD, optional")},
+            planning.add_goal,
+            ("name", "target"),
+        ),
+        Tool("list_goals", "Your savings goals with progress and whether you are on track.", {}, planning.list_goals),
+        Tool("delete_goal", "Remove a goal.", {"id": INT("Goal id")}, planning.delete_goal, ("id",)),
+        Tool("forecast", "An estimate of the next months from your last six months.", {"months": INT("How many months ahead, default 6")}, planning.forecast),
+        Tool("timeline", "What happened, newest first: salary changes, trips, regular payments started or stopped.", {}, planning.timeline),
+        Tool("suggestions", "Things worth a look, from rules applied to your own figures.", {}, planning.suggestions),
+        Tool("money_detective", "Everything odd in one list: double charges, price changes, large or unclear payments.", {}, planning.money_detective),
         Tool("net_worth", "The balance of every account in euros, month by month, from your proven statements.", {}, insight.net_worth),
         Tool("agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, agent_list),
         Tool(
