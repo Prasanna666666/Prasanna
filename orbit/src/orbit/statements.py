@@ -29,7 +29,7 @@ def reference(txn: Txn, occurrence: int, scope: str = "") -> str:
         key = f"{scope}|{txn.day}|{txn.amount_minor}|{txn.kind}|{occurrence}"
     else:
         key = f"{txn.day}|{txn.amount_minor}|{txn.kind}|{normalise(txn.desc)}|{txn.balance_minor}|{occurrence}"
-    return hashlib.sha1(key.encode()).hexdigest()[:24]
+    return hashlib.sha1(key.encode(), usedforsecurity=False).hexdigest()[:24]
 
 
 def with_references(txns: list[Txn], scope: str = "") -> list[tuple[str, Txn]]:

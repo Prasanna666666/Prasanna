@@ -97,7 +97,7 @@ def write_notes(records: list[dict], outdir: Path) -> dict[str, int]:
         title = _one_line(r.get("title") or "")
         d = outdir / slug(r.get("folder") or "", "unfiled")
         d.mkdir(exist_ok=True)
-        name = f"{slug(title)}-{hashlib.sha1(str(r['id']).encode()).hexdigest()[:8]}.md"
+        name = f"{slug(title)}-{hashlib.sha1(str(r['id']).encode(), usedforsecurity=False).hexdigest()[:8]}.md"
         head = "\n".join(
             [
                 "---",
