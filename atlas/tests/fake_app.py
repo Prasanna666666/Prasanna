@@ -87,10 +87,6 @@ class _Handler(BaseHTTPRequestHandler):
             return self._reply(403, b'{"error": "header"}')
         if self.app.token and self.headers.get("X-App-Token") != self.app.token:
             return self._reply(403, b'{"error": "token"}')
-        if body.get("fast"):
-            self.app.fast_calls.append(body["text"])
-            handled = "exactly" in body["text"] and not self.app.token
-            return self._reply(200, json.dumps({"handled": handled, "text": "the exact answer" if handled else ""}).encode())
         self.app.asked.append(body)
         items = (
             [{"kind": "photo", "id": 1, "thumb": "/api/photo/1/thumb", "link": "#/library"}, {"kind": "photo", "thumb": "/etc/passwd"}]
@@ -138,7 +134,6 @@ class FakeApp:
         self.seen: list[dict[str, str]] = []
         self.scanning = False
         self.asked: list[dict[str, object]] = []
-        self.fast_calls: list[str] = []
         self.model_reply = "fake model reply"
         self.plan_reply: str | None = None  # what the model answers when asked for JSON (the planner)
         self.model_calls: list[dict[str, object]] = []

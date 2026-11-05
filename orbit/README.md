@@ -147,7 +147,7 @@ orbit import-notes               # or the button on the Notes page; safe to repe
 Locked notes are skipped and counted; images/attachments are not exported (text only). Untested on a real Mac.
 
 ## Agents and tagging
-- A router picks a **specialist agent** per message (instant keyword routing; the local model only breaks ties):
+- A router picks a **specialist agent** per message (the local model decides; nothing is routed by keywords):
   `money`, `tasks`, `family`, `notes`, `briefing`, else `general` (all tools). `orbit agents` lists them.
 - Each agent is offered, and allowed to call, **only its own tools** (enforced in code). Fewer tools = faster and more
   reliable on a 3B model, and a confused agent can only affect its own area. The chat shows which agent answered.

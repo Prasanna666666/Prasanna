@@ -40,27 +40,5 @@
   ],
   "scan": "/api/scan",
   "ask": "/api/ask",
-  "media": "/api/photo/",
-  "keywords": [
-    "photo",
-    "photos",
-    "picture",
-    "pictures",
-    "pic",
-    "pics",
-    "image",
-    "images",
-    "selfie",
-    "selfies",
-    "album",
-    "albums",
-    "camera",
-    "screenshot",
-    "screenshots",
-    "portrait",
-    "landscape",
-    "sunset",
-    "beach",
-    "faces"
-  ]
+  "media": "/api/photo/"
 }

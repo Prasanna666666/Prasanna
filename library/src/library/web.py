@@ -188,8 +188,6 @@ def _picture_items(state: State, text: str, search: list[str]) -> list[dict]:
 
 def _post_ask(state: State, conn, body: dict) -> dict:
     """The one chat's question: files about it when the user asked to see them, otherwise an answer in words from what the files say."""
-    if body.get("fast"):  # nothing here is answered by code alone
-        return {"ok": True, "handled": False, "text": "", "items": [], "agent": "instant"}
     text = str(body.get("text", ""))[:2000]
     search = [str(x) for x in (body.get("search") or []) if isinstance(x, str)][:4]
     raw_show = body.get("show")

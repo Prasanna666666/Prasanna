@@ -19,8 +19,6 @@ class AgentSpec:
     name: str
     role: str
     tools: frozenset[str]
-    strong: tuple[str, ...] = ()  # words that clearly mean this agent (score 2)
-    weak: tuple[str, ...] = ()  # words that hint at it (score 1)
 
 
 AGENTS: tuple[AgentSpec, ...] = (
@@ -90,70 +88,21 @@ AGENTS: tuple[AgentSpec, ...] = (
                 "get_document",
             }
         ),
-        strong=(
-            "spent",
-            "spend",
-            "spending",
-            "expense",
-            "expenses",
-            "income",
-            "salary",
-            "budget",
-            "paid",
-            "bought",
-            "subscriptions",
-            "subscription",
-            "emi",
-            "merchant",
-            "merchants",
-            "transactions",
-            "income",
-            "incomes",
-            "earned",
-            "salary",
-            "payslip",
-            "payslips",
-            "loonstrook",
-            "invoice",
-            "invoices",
-            "receipt",
-            "receipts",
-            "factuur",
-            "tax",
-            "vat",
-            "trip",
-            "trips",
-            "event",
-            "events",
-            "tickets",
-            "flight",
-            "flights",
-            "cancelled",
-            "cancellation",
-            "refund",
-        ),
-        weak=("rupees", "rs", "inr", "groceries", "rent", "fuel", "cost", "price", "money", "cash", "bill"),
     ),
     AgentSpec(
         "tasks",
         "You are the Tasks agent: create, list, complete and reschedule tasks and reminders.",
         frozenset({"add_task", "list_tasks", "complete_task", "reschedule_task", "delete_task", "list_people", "current_time"}),
-        strong=("remind", "reminder", "reminders", "task", "tasks", "todo", "due", "overdue", "reschedule"),
-        weak=("tomorrow", "tonight", "every", "weekly", "daily", "monthly", "done", "finish", "schedule"),
     ),
     AgentSpec(
         "family",
         "You are the Family agent: keep track of family, parents and close people and their important dates.",
         frozenset({"add_person", "list_people", "update_person", "add_important_date", "upcoming_dates", "delete_person"}),
-        strong=("birthday", "birthdays", "anniversary", "family", "parents", "relative", "relatives"),
-        weak=("mom", "mother", "amma", "dad", "father", "appa", "wife", "husband", "son", "daughter", "sister", "brother", "friend", "grandma", "grandpa"),
     ),
     AgentSpec(
         "notes",
         "You are the Notes agent: save, find and edit the user's notes.",
         frozenset({"add_note", "search_notes", "search_files", "update_note", "delete_note", "list_people"}),
-        strong=("note", "notes", "jot", "write down", "memo"),
-        weak=("remember", "idea", "ideas", "wrote", "saved"),
     ),
     AgentSpec(
         "documents",
@@ -163,45 +112,24 @@ AGENTS: tuple[AgentSpec, ...] = (
         "wording); if nothing useful comes back, search again with different words; open the best document with get_document when you need an exact figure "
         "or date; and if the files do not say, answer that they do not say rather than guessing.",
         frozenset({"get_document", "search_files"}),
-        strong=("document", "documents", "pdf", "statement", "statements", "prescription", "invoice", "receipt", "report"),
-        weak=("file", "files", "scanned", "uploaded", "attachment"),
     ),
     AgentSpec(
         "briefing",
         "You are the Briefing agent: summarise what needs attention across tasks, family dates and money.",
         frozenset({"daily_briefing", "list_tasks", "upcoming_dates", "spending_summary", "current_time"}),
-        strong=("brief", "briefing", "agenda", "overview", "what's on", "whats on"),
-        weak=("today", "week", "summary", "summarise", "summarize"),
     ),
 )
 BY_NAME = {a.name: a for a in AGENTS}
 
 
-def _score(text: str, spec: AgentSpec) -> int:
-    t = text.lower()
-
-    def hits(words):
-        return sum(1 for w in words if re.search(rf"(?<!\w){re.escape(w)}(?!\w)", t))
-
-    return 2 * hits(spec.strong) + hits(spec.weak)
-
-
-def route_by_keywords(text: str) -> str | None:
-    """The agent with a clear keyword win, else None (ambiguous or no signal)."""
-    scored = sorted(((_score(text, a), a.name) for a in AGENTS), reverse=True)
-    top, second = scored[0], scored[1]
-    return top[1] if top[0] > 0 and top[0] > second[0] else None
-
-
-def route(text: str, classify=None) -> str:
-    """Pick an agent. The model decides what the message is about (`classify(text, names)`); the word rules only step in when there is no model
-    or it does not answer properly, so a message is never sent to the wrong specialist just because it contains a familiar word."""
-    if classify:
-        try:
-            answer = (classify(text, [a.name for a in AGENTS]) or "").strip().lower()
-        except Exception:  # noqa: BLE001 - the model being slow or down must not stop the question: the word rules decide
-            answer = ""
-        for name in (*BY_NAME, "chat", "general"):
-            if re.search(rf"\b{name}\b", answer):
-                return name
-    return route_by_keywords(text) or "general"
+def route(text: str, classify) -> str:
+    """Pick an agent. The model decides what the message is about (`classify(text, names)`). If it does not answer properly the general agent, which
+    can use every tool, takes the message: nothing is routed by words."""
+    try:
+        answer = (classify(text, [a.name for a in AGENTS]) or "").strip().lower()
+    except Exception:  # noqa: BLE001 - the model being slow or down must not stop the question: the general agent tries
+        answer = ""
+    for name in (*BY_NAME, "chat", "general"):
+        if re.search(rf"\b{name}\b", answer):
+            return name
+    return "general"

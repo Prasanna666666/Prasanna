@@ -64,7 +64,6 @@ shows a plain "not running" page and never blocks the others.
 | `search` | optional path for the search box (see the contract); leave out if the app has no search |
 | `scan` | optional path for the Update button (see the contract) |
 | `ask` | optional path for the one chat (see the contract) |
-| `keywords` | words that mean this app in a question; used only as a fallback when the model is not running or does not answer properly |
 | `media` | the only path prefix Atlas may fetch pictures from for this app |
 | `headers` | optional fixed headers Atlas adds to its own calls to the app |
 | `home` | the page the app opens on (`#/route`) |
@@ -108,5 +107,5 @@ PYTHONPATH=src python3 -m atlas.evaluate --live http://atlas.localhost:8000   # 
 ```
 `eval/cases.json` has 30 messages in five levels (plain, other wording, several parts, follow-ups that need the conversation, reasoning and conversation).
 Each is scored on whether the model picked the right apps, recognised plain conversation, and decided correctly whether you asked to *see* pictures or documents.
-The simple word rules are scored on the same cases, so you can see what the model adds. With `--live` it also reports, for each path (`instant`,
+Every message is understood by the model alone; there is no word-rule fallback.
 `model`, `words`), the median and slowest answer time and lists anything over 10 seconds. Add your own cases to the file; nothing in it is your data.

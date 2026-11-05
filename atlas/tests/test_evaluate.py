@@ -22,14 +22,14 @@ def test_a_plan_is_understood_only_when_apps_conversation_and_what_to_show_are_a
     assert not understood(None, {"apps": [], "chat": True, "photos": False, "documents": False})
 
 
-def test_the_understanding_run_scores_the_model_against_the_word_rules_and_times_it(running):
+def test_the_understanding_run_scores_the_model_and_times_it(running):
     running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'
     cases = [
         {"level": 1, "text": "how much money did I spend?", "expect": {"apps": ["money"], "chat": False, "photos": False, "documents": False}},
         {"level": 2, "text": "I would love to see the beach", "expect": {"apps": ["photos"], "chat": False, "photos": True, "documents": False}},
     ]
     results = run_understanding(running.atlas.assistant, cases)
-    assert [r["model_ok"] for r in results] == [True, False] and results[0]["words_ok"] is True and results[1]["words_ok"] is False
+    assert [r["model_ok"] for r in results] == [True, False]
     rows = summarise(results)
     assert [(r["level"], r["cases"], r["model"]) for r in rows] == [(1, 1, 1.0), (2, 1, 0.0)] and rows[0]["p50"] >= 0
 
@@ -43,9 +43,10 @@ def test_a_model_that_does_not_answer_is_counted_as_wrong_not_as_a_crash(running
 
 
 def test_live_questions_report_which_path_answered_and_how_long(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'
     cases = [{"level": 1, "text": "tell me exactly what I spent"}, {"level": 2, "text": "how much money did I spend?"}]
     out = run_live(f"http://atlas.localhost:{running.port}", cases)
-    assert [r["how"] for r in out] == ["instant", "words"] and all(r["answered"] >= 1 and r["seconds"] >= 0 for r in out)
+    assert [r["how"] for r in out] == ["model", "model"] and all(r["answered"] >= 1 and r["seconds"] >= 0 for r in out)
     assert run_live("http://atlas.localhost:1", cases[:1])[0]["how"] == "unreachable"
 
 

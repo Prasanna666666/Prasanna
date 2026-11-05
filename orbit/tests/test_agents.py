@@ -5,36 +5,16 @@ from orbit import agent, agents, tagging
 from orbit.modules import ALL, notes, people, tools
 
 
-@pytest.mark.parametrize(
-    "text,expected",
-    [
-        ("spent 450 on groceries", "money"),
-        ("remind me to call Amma every Sunday", "tasks"),
-        ("when is dad's birthday", "family"),
-        ("note: wifi password is on the router", "notes"),
-        ("give me my morning brief", "briefing"),
-        ("what's due today", "tasks"),
-    ],
-)
-def test_keyword_routing(text, expected):
-    assert agents.route(text) == expected
-
-
-def test_ambiguous_uses_classifier_else_general():
-    assert agents.route("hello there") == "general"
-    assert agents.route("hello there", classify=lambda t, n: "Money.") == "money"
-    assert agents.route("hello there", classify=lambda t, n: "banana") == "general"
-
-
-def test_the_model_decides_which_specialist_and_the_word_rules_only_step_in_when_it_cannot():
+def test_the_model_decides_which_specialist_and_nothing_is_routed_by_words():
     # the words say money, the model says it is about tasks: the model wins
     assert agents.route("remind me about my spending review", classify=lambda t, n: "tasks") == "tasks"
+    assert agents.route("hello there", classify=lambda t, n: "Money.") == "money"
+    assert agents.route("how much did I spend on groceries", classify=lambda t, n: "banana") == "general"  # an answer that is no specialist
 
     def broken(text, names):
         raise RuntimeError("model not running")
 
-    assert agents.route("how much did I spend on groceries", classify=broken) == "money"  # no model: the word rules decide
-    assert agents.route("hello there", classify=broken) == "general"
+    assert agents.route("how much did I spend on groceries", classify=broken) == "general"  # no model: the general agent, never a word guess
 
 
 def test_agent_tools_exist_and_are_least_privilege():
@@ -51,7 +31,9 @@ class Scripted:
     def __init__(self, first_call):
         self.first, self.calls = first_call, []
 
-    def chat(self, model, messages, tools=None):
+    def chat(self, model, messages, tools=None, **kw):
+        if kw.get("schema"):  # the routing question: the model says this message is for the money agent
+            return {"content": '{"agent": "money"}'}
         self.calls.append((messages, tools))
         if len(self.calls) == 1:
             return {"content": "", "tool_calls": [{"function": {"name": self.first, "arguments": {"id": 1}}}]}

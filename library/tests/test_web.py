@@ -88,7 +88,6 @@ def test_one_update_reads_judges_and_serves_everything(server):
     assert asked["items"][0]["title"] == "hotel.txt" and "1 file" in asked["text"]
     in_words = post(port, "/api/ask", {"text": "what did the hotel cost"})[1]
     assert "480" in in_words["text"] and in_words["items"] == []
-    assert post(port, "/api/ask", {"text": "hello", "fast": True})[1]["handled"] is False
 
 
 def test_an_unknown_document_and_unknown_route_say_so(server):

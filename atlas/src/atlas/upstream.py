@@ -218,18 +218,6 @@ class Upstreams:
             return {"kind": kind, "thumb": f"/_atlas/api/media/{module.id}{thumb}", "link": link}
         return None
 
-    def fast(self, module: Module, text: str, conv: str, history: list[list[str]]) -> dict[str, Any] | None:
-        """The app's instant answer (exact, from code, no model) if it recognises the question; otherwise None. Never raises."""
-        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history, "fast": True}).encode()
-        try:
-            status, body, _ = self._authed_full(module, "POST", module.ask, FAST_SECONDS, payload)
-            raw = json.loads(body)
-        except (OSError, http.client.HTTPException, ValueError):
-            return None
-        if status != 200 or not isinstance(raw, dict) or raw.get("handled") is not True or not raw.get("text"):
-            return None
-        return {"ok": True, "text": str(raw["text"])[:6000], "items": [], "total": 0, "notes": []}
-
     def media(self, module: Module, path: str) -> tuple[int, bytes, str]:
         """A picture from an app, fetched on the page's behalf (the app's token never reaches the page). Only the app's declared media path is allowed."""
         if not module.media or not path.startswith(module.media) or ".." in path or "?" in path:

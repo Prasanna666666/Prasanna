@@ -572,8 +572,6 @@ class _Handler(BaseHTTPRequestHandler):
         message = str(body.get("message", body.get("text", ""))).strip()[:2000]
         if not message:
             return self._deny(HTTPStatus.BAD_REQUEST, "empty message")
-        if path == "/api/ask" and body.get("fast"):
-            return self._json({"handled": False})  # no photo question is answered without the model yet
         if path == "/api/ask":
             return self._json(
                 self.web.ask_once(message, str(body.get("conv", ""))[:64] or "atlas", _clean_history(body.get("history")))

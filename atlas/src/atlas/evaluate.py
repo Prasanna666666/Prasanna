@@ -5,7 +5,7 @@
 
 The cases live in ``eval/cases.json`` (levels 1 to 5: plain, other wording, several parts, follow-ups, reasoning). A case is understood correctly when
 the model picks the right apps, says plain conversation or not correctly, and decides correctly whether the user asked to SEE pictures or documents.
-The simple word rules (the fallback) are scored on the same cases so the gain from the model is visible."""
+Every message is understood by the model alone: there is no word-rule fallback to compare against."""
 
 from __future__ import annotations
 
@@ -55,20 +55,18 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def run_understanding(assistant: Assistant, cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Each case, planned by the model (timed) and by the word rules, both scored against what was expected."""
+    """Each case, planned by the model (timed) and scored against what was expected."""
     results = []
     for case in cases:
         history = case.get("history", [])
         started = time.perf_counter()
         model = assistant.model_plan(case["text"], history)
         seconds = time.perf_counter() - started
-        words = assistant.word_plan(case["text"])
         results.append(
             {
                 "level": case["level"],
                 "text": case["text"],
                 "model_ok": understood(model, case["expect"]),
-                "words_ok": understood(words, case["expect"]),
                 "model_answered": model is not None,
                 "seconds": seconds,
                 "got": None if model is None else {"apps": [m.id for m in model.apps], "chat": model.chat, "show": model.show},
@@ -88,7 +86,6 @@ def summarise(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "level": level,
                 "cases": len(group),
                 "model": sum(r["model_ok"] for r in group) / len(group),
-                "words": sum(r["words_ok"] for r in group) / len(group),
                 "p50": statistics.median(times) if times else 0.0,
                 "p95": percentile(times, 95),
             }
@@ -124,14 +121,12 @@ def run_live(base_url: str, cases: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 
 def print_understanding(rows: list[dict[str, Any]], results: list[dict[str, Any]]) -> None:
-    print("\nHow well the model understands (by level)      model   word rules   median   slowest")
+    print("\nHow well the model understands (by level)      model   median   slowest")
     names = {1: "1 plain", 2: "2 other wording", 3: "3 several parts", 4: "4 follow-ups", 5: "5 reasoning"}
     for r in rows:
-        print(
-            f"  {names.get(r['level'], r['level']):<28} {r['cases']:>3} cases   {r['model']:>5.0%}    {r['words']:>5.0%}      {r['p50']:>5.2f}s   {r['p95']:>5.2f}s"
-        )
+        print(f"  {names.get(r['level'], r['level']):<28} {r['cases']:>3} cases   {r['model']:>5.0%}      {r['p50']:>5.2f}s   {r['p95']:>5.2f}s")
     total = len(results)
-    print(f"  {'all':<28} {total:>3} cases   {sum(r['model_ok'] for r in results) / total:>5.0%}    {sum(r['words_ok'] for r in results) / total:>5.0%}")
+    print(f"  {'all':<28} {total:>3} cases   {sum(r['model_ok'] for r in results) / total:>5.0%}")
     if not any(r["model_answered"] for r in results):
         print("\nThe model gave no usable plan for any case: is Ollama running at the address above?")
     for r in results:

@@ -1,6 +1,6 @@
 import json
 
-from atlas.assistant import clean_history, match_by_words
+from atlas.assistant import clean_history
 
 
 def chat(running, text, history=None, origin=True, header=True):
@@ -14,15 +14,6 @@ def chat(running, text, history=None, origin=True, header=True):
     return status, json.loads(data) if data.startswith(b"{") else data
 
 
-def test_a_question_is_matched_to_the_app_whose_own_words_it_uses(running):
-    modules = list(running.atlas.modules.values())
-    assert [m.id for m in match_by_words("How much did I spend on money stuff?", modules)] == ["money"]
-    assert [m.id for m in match_by_words("show me a PHOTO of the beach", modules)] == ["photos"]
-    assert [m.id for m in match_by_words("my photo and money from India", modules)] == ["money", "photos"]
-    assert match_by_words("hello there", modules) == []
-    assert match_by_words("photographer", modules) == []  # whole words only
-
-
 def test_history_keeps_only_well_formed_recent_turns():
     raw = [["user", "a"], ["assistant", "b"], ["system", "x"], "junk", ["user", 5]] + [["user", str(i)] for i in range(20)]
     cleaned = clean_history(raw)
@@ -30,14 +21,16 @@ def test_history_keeps_only_well_formed_recent_turns():
 
 
 def test_one_question_is_answered_by_the_app_it_is_about_and_says_which(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'  # the fake server doubles as the model
     status, reply = chat(running, "how much money did I spend?")
-    assert status == 200 and reply["how"] == "words" and reply["routed"] == ["money"]
+    assert status == 200 and reply["how"] == "model" and reply["routed"] == ["money"]
     part = reply["parts"][0]
     assert part["module"] == "money" and part["name"] == "Money" and part["text"] == "answer to: how much money did I spend?" and part["ok"] is True
     assert running.apps["photos"].asked == []  # the other app was never asked
 
 
 def test_a_question_about_two_apps_asks_both_and_returns_one_part_each(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}}'
     status, reply = chat(running, "my photo and my money from India", history=[["user", "hi"], ["assistant", "hello"]])
     assert status == 200 and reply["routed"] == ["money", "photos"] and [p["module"] for p in reply["parts"]] == ["money", "photos"]
     assert running.apps["money"].asked[0]["history"] == [["user", "hi"], ["assistant", "hello"]]  # the conversation so far reaches the app
@@ -46,7 +39,7 @@ def test_a_question_about_two_apps_asks_both_and_returns_one_part_each(running):
     assert photos["items"] == [{"kind": "photo", "thumb": "/_atlas/api/media/photos/api/photo/1/thumb", "link": "#/library"}]  # the unsafe path was dropped
 
 
-def test_when_the_words_do_not_say_the_model_picks_the_app(running):
+def test_the_model_picks_the_app(running):
     running.apps[
         "photos"
     ].plan_reply = '{"apps": ["photos"], "chat": false, "show": {"photos": false, "documents": false}}'  # the fake server doubles as the model
@@ -64,15 +57,16 @@ def test_plain_conversation_is_answered_by_the_model_without_asking_any_app(runn
     assert "cannot see any of their data" in system and running.apps["photos"].model_calls[-1]["options"]["num_ctx"] == 4096
 
 
-def test_without_the_model_an_unclear_question_says_so_instead_of_guessing(running):
+def test_without_the_model_every_question_says_so_and_nothing_is_guessed_from_words(running):
     running.atlas.assistant.model.url = "http://127.0.0.1:1"
-    status, reply = chat(running, "hello")
-    assert reply["how"] == "unsure" and reply["parts"][0]["ok"] is False and "Try saying which" in reply["parts"][0]["error"]
-    status, reply = chat(running, "how much money did I spend?")  # a clear question still works: the apps do not need Atlas's model
-    assert reply["parts"][0]["ok"] is True
+    for text in ("hello", "how much money did I spend?"):
+        _, reply = chat(running, text)
+        assert reply["how"] == "down" and reply["routed"] == [] and "not running" in reply["parts"][0]["error"]
+    assert running.apps["money"].asked == [] and running.apps["photos"].asked == []
 
 
 def test_an_app_that_is_down_answers_with_a_plain_error_and_the_other_still_answers(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}}'
     running.apps["money"].close()
     status, reply = chat(running, "my photo and my money")
     by = {p["module"]: p for p in reply["parts"]}
@@ -95,14 +89,12 @@ def test_pictures_come_through_atlas_and_only_from_the_apps_declared_picture_pat
     assert running.shell("/_atlas/api/media/nothing/x")[0] == 404
 
 
-def test_a_plan_that_is_not_the_expected_shape_falls_back_to_simple_word_rules(running):
+def test_a_plan_that_is_not_the_expected_shape_is_not_guessed_from_words(running):
     for broken in ("Hello! I can look up your money or your photos.", "[1, 2]", '{"apps": "photos"}'):
         running.apps["photos"].plan_reply = broken
-        _, reply = chat(running, "hello")
-        assert reply["how"] == "unsure" and reply["routed"] == []  # nothing in the words either: it says so instead of guessing
         _, reply = chat(running, "how much money did I spend?")
-        assert reply["how"] == "words" and reply["routed"] == ["money"]
-    assert running.apps["photos"].asked == []
+        assert reply["how"] == "down" and reply["routed"] == []
+    assert running.apps["photos"].asked == [] and running.apps["money"].asked == []
 
 
 def test_the_model_may_name_several_apps(running):
@@ -135,21 +127,6 @@ def test_the_planner_sees_the_conversation_so_that_show_me_those_works(running):
     )
 
 
-def test_a_question_an_app_recognises_is_answered_instantly_with_no_model_call(running):
-    running.apps["photos"].plan_reply = '{"apps": ["photos"], "chat": false, "show": {}}'
-    status, reply = chat(running, "tell me exactly what I spent")
-    assert reply["how"] == "instant" and reply["routed"] == ["money"] and reply["parts"][0]["text"] == "the exact answer"
-    assert running.apps["photos"].model_calls == []  # the model was never asked: not to plan, not to answer
-    assert running.apps["money"].asked == [] and running.apps["photos"].asked == []  # and no app's assistant ran either
-
-
-def test_every_app_is_asked_whether_it_recognises_the_question_before_the_model_plans(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'
-    _, reply = chat(running, "anything from last summer?")
-    assert running.apps["money"].fast_calls == ["anything from last summer?"] and running.apps["photos"].fast_calls == ["anything from last summer?"]
-    assert reply["how"] == "model" and reply["routed"] == ["money"] and running.apps["money"].asked  # nobody recognised it, so the model planned
-
-
 def test_the_model_supplies_search_phrasings_in_both_languages_and_they_reach_the_app(running):
     running.apps["photos"].plan_reply = json.dumps(
         {"apps": ["money"], "chat": False, "show": {"documents": True}, "search": ["flight", " vlucht ", "reservering", "ticket", "a fifth is dropped", 7, ""]}
@@ -157,9 +134,3 @@ def test_the_model_supplies_search_phrasings_in_both_languages_and_they_reach_th
     _, reply = chat(running, "show me the email about my flight")
     assert running.apps["money"].asked[-1]["search"] == ["flight", "vlucht", "reservering", "ticket"]  # strings only, trimmed, at most four
     assert reply["parts"][0]["show"]["documents"] is True
-
-
-def test_without_a_model_there_are_no_extra_phrasings_and_the_literal_words_are_used(running):
-    running.atlas.assistant.model.url = "http://127.0.0.1:1"
-    chat(running, "show me the money invoices")
-    assert running.apps["money"].asked[-1]["search"] == []

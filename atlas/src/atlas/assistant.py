@@ -1,14 +1,14 @@
 """The one assistant. A question is routed to the app (or apps) it is about, each answers with its own tools and its own checks, and the answers are put
 together. Plain conversation is answered by the shared model directly.
 
-The model is used for two small jobs only: deciding which app a question is about when its words do not say, and chatting. It never produces a figure:
-figures come from the apps' tools and are checked there."""
+Every question is understood and answered by the model: it decides which app a question is about and what to show, and each app's own model-driven
+agent answers. The model never produces a figure on its own: figures come from the apps' tools and are checked there. When the model is not running,
+the answer says so; nothing is guessed from words."""
 
 from __future__ import annotations
 
 import http.client
 import json
-import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
@@ -32,37 +32,6 @@ def clean_history(raw: Any) -> list[list[str]]:
         if isinstance(entry, (list, tuple)) and len(entry) == 2 and entry[0] in ("user", "assistant") and isinstance(entry[1], str):
             turns.append([entry[0], entry[1][:MAX_TEXT]])
     return turns[-MAX_TURNS:]
-
-
-SHOW_VERBS = re.compile(
-    r"\b(show|display|give|send|bring|pull up|let me see|can i see|could i see|open|list|get me|fetch|browse|find me|find all|find the|find some)\b"
-)
-PHOTO_WORDS = r"photos?|pictures?|pics?|images?|selfies|selfie|albums?|screenshots?"
-DOCUMENT_WORDS = r"documents?|docs?|files?|invoices?|payslips?|receipts?|statements?|pdfs?|tickets?|reports?|contracts?|letters?"
-QUESTION_START = re.compile(r"^\s*(how many|how much|how often|how long|when|what|which|who|where|why|do i|did i|have i|am i|is there|are there|count)\b")
-
-
-def wants_to_see(text: str) -> dict[str, bool]:
-    """Did the user ask to SEE pictures or documents? Only then are they shown; otherwise the answer is words (with the pictures one tap away).
-    "How many photos of Amma do I have?" is a question; "show me photos of Amma" or "pictures from Goa" is a request."""
-    low = text.lower()
-    asked = bool(SHOW_VERBS.search(low))
-    if QUESTION_START.match(low) and not asked:
-        return {"photos": False, "documents": False}
-    return {
-        "photos": bool(re.search(rf"\b({PHOTO_WORDS})\b", low)) and (asked or bool(re.search(rf"\b({PHOTO_WORDS}) (of|from|with|at|in|taken)\b", low))),
-        "documents": bool(re.search(rf"\b({DOCUMENT_WORDS})\b", low)) and (asked or bool(re.search(rf"\b({DOCUMENT_WORDS}) (of|from|about|for)\b", low))),
-    }
-
-
-def _words(text: str) -> str:
-    return " " + re.sub(r"[^\w€₹£]+", " ", text.lower()) + " "
-
-
-def match_by_words(text: str, modules: list[Module]) -> list[Module]:
-    """The apps whose own keywords appear in the question (whole words or phrases), in menu order."""
-    haystack = _words(text)
-    return [m for m in modules if any(_words(k) in haystack for k in m.keywords)]
 
 
 @dataclass
@@ -118,7 +87,7 @@ class ModelClient:
 
 @dataclass(frozen=True)
 class Plan:
-    """What a message needs: the apps to ask, whether it is plain conversation, what to show, and how this was decided ("model", "words", "unsure")."""
+    """What a message needs: the apps to ask, whether it is plain conversation, what to show, and how this was decided ("model", or "down" when the model could not plan)."""
 
     apps: list[Module]
     chat: bool
@@ -138,19 +107,12 @@ class Assistant:
 
     # ---- 1. understand the message: which part it is about, and whether the user wants to SEE pictures or documents ----------
     def plan(self, text: str, history: list[list[str]]) -> Plan:
-        """The model reads the message (with the conversation so far) and decides. Simple word rules are only the fallback for when the model is
-        not running or does not answer in the expected shape."""
-        apps = self._askable()
-        if not apps:
+        """The model reads the message (with the conversation so far) and decides. If it is not running or does not answer in the expected shape,
+        the plan says so ("down") and nothing is guessed."""
+        if not self._askable():
             return Plan([], True, {"photos": False, "documents": False}, "chat")
         planned = self.model_plan(text, history)
-        return planned if planned is not None else self.word_plan(text)
-
-    def word_plan(self, text: str) -> Plan:
-        """The fallback: simple word rules, used only when the model cannot plan."""
-        show = wants_to_see(text)
-        hit = match_by_words(text, self._askable())
-        return Plan(hit, False, show, "words") if hit else Plan([], False, show, "unsure")
+        return planned if planned is not None else Plan([], False, {"photos": False, "documents": False}, "down")
 
     def model_plan(self, text: str, history: list[list[str]]) -> Plan | None:
         """The model's plan, or None when it is not running or does not answer in the expected shape."""
@@ -207,30 +169,12 @@ class Assistant:
             return {"module": "atlas", "name": "Atlas", "ok": False, "error": "The AI model is not running. Start Ollama and ask again."}
         return {"module": "atlas", "name": "Atlas", "ok": True, "text": reply, "items": [], "notes": []}
 
-    def _instant(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any] | None:
-        """Ask every app, side by side, whether it recognises the question as one it can answer exactly from code. If one does, that is the answer:
-        no model call, no waiting. Otherwise None and the model plans."""
-        apps = self._askable()
-        if not apps:
-            return None
-        with ThreadPoolExecutor(max_workers=len(apps)) as pool:
-            results = list(pool.map(lambda m: self.upstreams.fast(m, text, conv, history), apps))
-        hit = [(m, r) for m, r in zip(apps, results, strict=True) if r is not None]
-        if not hit:
-            return None
-        show = {"photos": False, "documents": False}
-        parts = [{"module": m.id, "name": m.name, "show": show, **r} for m, r in hit]
-        return {"how": "instant", "routed": [m.id for m, _ in hit], "show": show, "parts": parts}
-
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """Understand the message, ask each chosen app (side by side), and return their answers as labelled parts."""
         text = text.strip()[:MAX_TEXT]
-        quick = self._instant(text, conv, history)
-        if quick is not None:
-            return quick
         plan = self.plan(text, history)
-        if plan.how == "unsure":
-            msg = "I could not tell whether that is about " + " or ".join(m.name.lower() for m in self._askable()) + ". Try saying which."
+        if plan.how == "down":
+            msg = "The AI model is not running. Start Ollama and ask again."
             return {"how": plan.how, "routed": [], "show": plan.show, "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
         if not plan.apps:
             return {"how": plan.how, "routed": [], "show": plan.show, "parts": [self._chat_only(text, history)]}

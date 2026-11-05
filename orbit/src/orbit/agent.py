@@ -94,16 +94,6 @@ def _classifier(client, model: str):
     return classify
 
 
-def quick_answer(conn: sqlite3.Connection, user_text: str) -> tuple[str | None, list[str]]:
-    """The exact answer, from code, for a question the app recognises, or None. It is held to the same checks as every other answer. No model is used."""
-    used: list[str] = []
-    quick = answers.answer(conn, user_text, used)
-    if not quick:
-        return None, []
-    bad, notes = answers.audit(conn, quick, [], used)
-    return (None, bad) if bad else (quick + ("\n\n" + " ".join(notes) if notes else ""), [])
-
-
 def chat(
     conn: sqlite3.Connection, history: list[dict], user_text: str, client=None, model: str | None = None, today: date | None = None, trace: list | None = None
 ) -> str:
@@ -112,12 +102,6 @@ def chat(
     `trace` (optional) receives {'agent': name, 'tools': [names]} so the UI can show who answered.
     """
     start = len(history)
-    quick, _ = quick_answer(conn, user_text)  # a recognised question never waits for the model
-    if quick is not None:
-        history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": quick}])
-        if trace is not None:
-            trace.append({"agent": "instant", "tools": ["checked"]})
-        return quick
     try:
         client = client or llm.OllamaClient(get_setting(conn, "ollama_host", "") or None)
         model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
@@ -139,21 +123,10 @@ def chat(
 
 
 def _fallback(conn, history, start, user_text, trace, exc, problems=()):
-    """The agent could not finish, or its answer failed a check. Code gives the exact answer for a common question - itself checked - else says plainly why not."""
+    """The agent could not finish, or its answer failed a check. Nothing is answered without the model: say plainly why not."""
     del history[start:]
-    used: list[str] = []
-    quick = answers.answer(conn, user_text, used)
-    if quick:
-        bad, notes = answers.audit(conn, quick, [], used)  # the code answer is held to the ledger tie-out and the data-health note as well
-        if not bad:
-            reply = quick + ("\n\n" + " ".join(notes) if notes else "")
-            history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": reply}])
-            if trace is not None:
-                trace.append({"agent": "instant", "tools": ["checked"]})
-            return reply
-        problems = [*problems, *bad]
     if isinstance(exc, RuntimeError) and not isinstance(exc, llm.Slow):
-        raise exc  # the model is not running and this is not a question code can answer: say so plainly
+        raise exc  # the model is not running: say so plainly
     if problems:
         reply = "I can't give you that figure with confidence: " + problems[0] + ". Open Money > Files to see what needs a check."
     else:

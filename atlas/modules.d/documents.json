@@ -24,29 +24,5 @@
     "X-Library": "1"
   },
   "ask": "/api/ask",
-  "media": "/api/pictures/thumb/",
-  "keywords": [
-    "document",
-    "documents",
-    "file",
-    "files",
-    "pdf",
-    "email",
-    "emails",
-    "mail",
-    "letter",
-    "letters",
-    "ticket",
-    "tickets",
-    "booking",
-    "bookings",
-    "reservation",
-    "report",
-    "reports",
-    "prescription",
-    "contract",
-    "contracts",
-    "attachment",
-    "attachments"
-  ]
+  "media": "/api/pictures/thumb/"
 }

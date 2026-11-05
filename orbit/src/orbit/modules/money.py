@@ -13,7 +13,7 @@ from datetime import date
 from kit import extract
 from kit.module import INT, Module, N, S, Tool
 
-from .. import audit, browse, categorize, clock, dates, db, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
+from .. import audit, browse, categorize, clock, dates, db, insight, payslips, planning, proof, rates, standards, statements, tables, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 
@@ -438,7 +438,15 @@ class _Outcome:
     info: dict = field(default_factory=dict)
 
 
-READER_VERSION = "2"  # raise it whenever reading statements gets better: files that were left out are then tried again, once
+def _reader_version() -> str:
+    """A fingerprint of how statements are read (the instructions and the shape of the answer the model must give). When it changes, files that were
+    left out are tried again once; nothing has to be remembered by hand."""
+    import hashlib
+
+    return hashlib.sha256((tables.LAYOUT_PROMPT + json.dumps(tables.LAYOUT_SCHEMA, sort_keys=True)).encode()).hexdigest()[:12]
+
+
+READER_VERSION = _reader_version()
 
 
 def _retry_left_out_files(conn) -> None:

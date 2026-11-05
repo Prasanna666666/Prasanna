@@ -95,6 +95,8 @@ jobs:
           node-version: 22
       - run: npx --yes eslint@10.1.0 src/orbit/static/app.js
       - run: npx --yes prettier@3.8.1 --check src/orbit/static
+      - run: npx --yes eslint@10.1.0 ../photos/src/aperture/web/static/app.js
+      - run: npx --yes prettier@3.8.1 --check ../photos/src/aperture/web/static
   atlas:
     runs-on: ubuntu-latest
     defaults:
