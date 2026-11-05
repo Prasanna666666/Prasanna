@@ -3827,7 +3827,8 @@
                         : h('div', { class: 'empty' }, 'No files yet.')
                 );
             } else {
-                const docs = await tool('search_documents', { query: q, limit: 25 });
+                const found = await tool('search_files', { question: q, limit: 10 });
+                const docs = found.passages;
                 out.replaceChildren(
                     docs.length
                         ? h(
@@ -3840,14 +3841,14 @@
                                       h(
                                           'div',
                                           { class: 'grow' },
-                                          h('div', { style: { fontWeight: 600 } }, d.name),
-                                          h('div', { class: 'muted', style: { fontSize: '13px' } }, d.snippet)
+                                          h('div', { style: { fontWeight: 600 } }, d.title),
+                                          h('div', { class: 'muted', style: { fontSize: '13px' } }, d.text)
                                       ),
-                                      h('span', { class: 'chip' }, d.kind)
+                                      h('span', { class: 'chip' }, d.source)
                                   )
                               )
                           )
-                        : h('div', { class: 'empty' }, 'No documents found.')
+                        : h('div', { class: 'empty' }, 'Nothing found. Try other words.')
                 );
             }
         });

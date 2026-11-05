@@ -205,3 +205,7 @@ Rules:
 - RAG only for unstructured text (documents, notes), never for the ledger.
 - Source data is never changed by the AI. Orbit's assistant cannot delete an imported payment at all; other deletions need your own words.
 - One shared router. A new module registers its tools and they are reachable at once (the general agent sees every tool); give it its own agent in `agents.py` when it needs a narrower role.
+
+## Where AI and RAG are used, and how
+- **Documents and notes (RAG).** Questions about what a file says go to the documents agent, which works in steps: it searches with several phrasings it chooses itself (synonyms, and the Dutch or English wording), searches again with other words if nothing useful comes back, opens the best document for an exact figure or date, and says plainly when the files do not say. Each phrasing is searched (SQLite full-text, BM25, any word ending) and the results are fused by rank, so a passage several phrasings agree on comes first. Every passage shows which document it came from. The Money and Notes agents can use the same search, and the Files page searches this way too.
+- **Figures** never come from retrieval or from the model: they come from code and SQL, and each one in an answer is checked against your data.

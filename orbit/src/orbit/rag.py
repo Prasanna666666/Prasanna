@@ -109,23 +109,64 @@ def terms(question: str) -> list[str]:
     return out[:12]
 
 
-def retrieve(conn, question: str, k: int = 6) -> list[dict]:
-    """The best passages for a question, each with where it came from: [{source, title, text, score}]."""
-    words = terms(question)
-    if not words:
+RRF_K = 60  # reciprocal-rank fusion: how quickly a lower rank stops counting
+
+
+def _stem(word: str) -> str:
+    """A rough stem for English and Dutch endings, so "invoices" and "invoiced" both look for "invoic"."""
+    for ending in ("ing", "ed", "es", "en", "s", "e"):
+        if word.endswith(ending) and len(word) - len(ending) >= 4:
+            return word[: -len(ending)]
+    return word
+
+
+def _match_query(words: list[str]) -> str:
+    """Every word, matching any ending of its stem (longer words only, so short words stay exact)."""
+    parts = []
+    for raw in words:
+        w = raw.replace('"', "")
+        stem = _stem(w)
+        parts.append(f'"{stem}"*' if len(stem) >= 4 else f'"{w}"')
+    return " OR ".join(parts)
+
+
+def _ranked(conn, words: list[str], k: int) -> list[dict] | None:
+    """Passages for one phrasing, best first. None when full-text search could not run the query."""
+    try:
+        rows = conn.execute(
+            "SELECT source, ref, rowid AS rid, title, snippet(search_index, 3, '[', ']', '…', 40) AS text, bm25(search_index, 0.0, 0.0, 3.0, 1.0) AS score "
+            "FROM search_index WHERE search_index MATCH ? ORDER BY score LIMIT ?",
+            (_match_query(words), k * 3),
+        ).fetchall()
+    except sqlite3.Error as exc:  # a query FTS5 cannot parse: fall back to word counting
+        log.failed("fts5 query failed", exc)
+        return None
+    return [{"rid": r["rid"], "source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
+
+
+def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None) -> list[dict]:
+    """The best passages for a question, each with where it came from: [{source, title, text, score}].
+
+    The assistant may pass other ways of asking the same thing (synonyms, the other language: "dekking" for "cover"). Each phrasing is searched and the
+    results are fused by rank, so a passage that several phrasings agree on comes first."""
+    phrasings = [question, *[a for a in (alternatives or []) if isinstance(a, str)]][:5]
+    searches = [w for w in (terms(p) for p in phrasings) if w]
+    if not searches:
         return []
     if _fts(conn):
         reindex(conn)
-        query = " OR ".join('"' + w.replace('"', "") + '"' for w in words)
-        try:
-            rows = conn.execute(
-                "SELECT source, ref, title, snippet(search_index, 3, '[', ']', '…', 40) AS text, bm25(search_index, 0.0, 0.0, 3.0, 1.0) AS score "
-                "FROM search_index WHERE search_index MATCH ? ORDER BY score LIMIT ?",
-                (query, k),
-            ).fetchall()
-            return [{"source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
-        except sqlite3.Error as exc:  # a query FTS5 cannot parse: fall back to word counting
-            log.failed("fts5 query failed", exc)
+        fused: dict[int, dict] = {}
+        for words in searches:
+            ranked = _ranked(conn, words, k)
+            if ranked is None:
+                break
+            for rank, hit in enumerate(ranked):
+                got = fused.setdefault(hit["rid"], {**hit, "score": 0.0})
+                got["score"] += 1.0 / (RRF_K + rank)
+        else:
+            best = sorted(fused.values(), key=lambda h: -h["score"])[:k]
+            return [{"source": h["source"], "title": h["title"], "text": h["text"], "score": round(h["score"] * RRF_K, 3)} for h in best]
+    words = [w for group in searches for w in group]
     out = []  # no full-text search: count the words each item contains
     for _ref, source, title, body in _sources(conn):
         hay = (title + " " + body).lower()

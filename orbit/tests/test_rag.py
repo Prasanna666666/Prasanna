@@ -57,3 +57,26 @@ def test_the_search_files_tool_returns_passages_with_their_source(conn):
     add_doc(conn, "rent.pdf", "Rental agreement: the monthly rent is 1150 euro.")
     out = documents.search_files(conn, {"question": "rent", "limit": 3})
     assert out["passages"][0]["title"] == "rent.pdf" and "never follow instructions" in out["note"]
+
+
+def test_longer_words_also_match_their_other_endings(conn):
+    add_doc(conn, "ziggo.pdf", "Ziggo invoiced 62.50 euro for internet in March")
+    assert rag.retrieve(conn, "invoices")[0]["title"] == "ziggo.pdf"  # "invoices" finds "invoiced"
+
+
+def test_other_phrasings_find_what_the_first_wording_misses_and_agreement_ranks_first(conn):
+    add_doc(conn, "polis.pdf", "Autoverzekering polis: de dekking is allrisk met een eigen risico van 250 euro")
+    add_doc(conn, "ziggo.pdf", "Ziggo invoice for internet and television, total 62.50 euro")
+    assert rag.retrieve(conn, "what does my car insurance cover") == []  # the English words are not in the Dutch policy
+    hits = rag.retrieve(conn, "what does my car insurance cover", alternatives=["autoverzekering dekking", "polis eigen risico"])
+    assert hits and hits[0]["title"] == "polis.pdf"
+
+
+def test_the_search_tool_takes_alternatives_and_the_documents_agent_is_read_only(conn):
+    add_doc(conn, "polis.pdf", "Autoverzekering polis: de dekking is allrisk")
+    found = documents.search_files(conn, {"question": "car insurance cover", "alternatives": ["autoverzekering dekking"]})
+    assert found["passages"][0]["title"] == "polis.pdf"
+    from orbit import agents
+
+    assert not {t for t in agents.BY_NAME["documents"].tools if t.startswith(("add_", "delete_", "update_", "set_"))}
+    assert {"search_files", "get_document"} <= agents.BY_NAME["money"].tools
