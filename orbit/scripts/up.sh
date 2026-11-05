@@ -2,7 +2,6 @@
 # Start Orbit. The database key lives in the macOS Keychain (created on first run) and is handed to the app container as an environment variable (a Docker secret cannot be used with a read-only container).
 #   ./scripts/up.sh            start / rebuild
 #   ./scripts/up.sh --show-key print the key once so you can back it up (lose the key = lose the data)
-#   ./scripts/up.sh --set-password  choose a new Orbit password
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OLD=orbit-db-key        # first version of the entry: macOS asked for your password every time it was read
@@ -23,24 +22,12 @@ if ! KEY="$(read_key "$SERVICE")"; then
     echo "BACK IT UP NOW:  ./scripts/up.sh --show-key   (store it somewhere safe, offline). Without it the data cannot be recovered."
   fi
 fi
-TOKSERVICE=orbit-web-token   # your Orbit password: without it, other programs on this Mac cannot use Orbit's port
-set_password() {
-  local P P2
-  read -rsp "Choose a password for Orbit (you type it once per browser, at least 6 characters): " P; echo
-  read -rsp "Same password again: " P2; echo
-  if [ "$P" != "$P2" ] || [ "${#P}" -lt 6 ]; then echo "The passwords differ or are shorter than 6 characters. Nothing was changed."; exit 1; fi
-  security add-generic-password -a "$USER" -s "$TOKSERVICE" -w "$P" -T /usr/bin/security -U
-  echo "Password saved."
-}
-[ "${1:-}" = "--set-password" ] && set_password
-if ! TOKEN="$(read_key "$TOKSERVICE")"; then
-  if [ -t 0 ]; then set_password; else security add-generic-password -a "$USER" -s "$TOKSERVICE" -w "$(openssl rand -hex 24)" -T /usr/bin/security -U; fi
-  TOKEN="$(read_key "$TOKSERVICE")"
-fi
-export ORBIT_TOKEN="$TOKEN"
+# No login password: this is your own laptop. (A password you set earlier is removed from the Keychain.) The database is still encrypted, with a key kept for you in the Keychain, so you never type anything.
+security delete-generic-password -a "$USER" -s orbit-web-token >/dev/null 2>&1 || true
+export ORBIT_TOKEN=""
 mkdir -p "$HOME/OrbitInbox/notes"
 export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep your finance folder where it is: ORBIT_FINANCE_DIR=/path ./scripts/up.sh
 mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
 docker compose up -d --build
-echo "Orbit: http://orbit.localhost:8501   (type your password once per browser; change it with ./scripts/up.sh --set-password; drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"
+echo "Orbit: http://orbit.localhost:8501   (no password; drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"
