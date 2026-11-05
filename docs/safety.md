@@ -21,8 +21,7 @@
    private data. Keep them in the encrypted vault: `scripts/aperture-vault.sh create`, then `open`, then run with
    `APERTURE_DRIVE=/Volumes/ApertureVault`. The vault is an AES-256 APFS image; its password is generated and kept only in your
    login Keychain (never printed, never in a file or in this repository). `close` makes everything unreadable. Aperture also sets
-   folders to owner-only (0700) and the index and settings to 0600. Without the vault, at least use an encrypted APFS drive
-   (Disk Utility, *APFS (Encrypted)*) and keep FileVault on. None of this data is ever in git, and the assistant that wrote the
+   folders to owner-only (0700) and the index and settings to 0600. Theft or loss of the computer or drive is out of scope here (you ruled it out), so disk encryption is optional. None of this data is ever in git, and the assistant that wrote the
    code has no access to your Mac or drive.
 10. **Install-time exposure.** `scripts/install.sh` downloads packages from PyPI. Run it once on a trusted network, then use
     the sandbox for daily use. Hash-pinned requirements are a possible later step.
@@ -41,7 +40,6 @@
     - **Limits:** a monthly spending cap (default $5; the prices are placeholders, set your provider's in the settings), a strict check of every plan
       the provider returns (only known tools and arguments are accepted), and automatic fallback to the local model on any problem.
     - **Off:** `aperture cloud off` (and `--forget-key` to delete the key).
-13. **The best protection (recommended).** Encrypt the whole external drive in place so the originals and the index are protected if it is lost or
-    stolen (`diskutil apfs encryptVolume /Volumes/<drive> -user disk`, APFS only), keep FileVault on for the Mac, run the app in the sandbox (no
+13. **Strongest setup.** Theft or loss of the computer or drive is out of scope (optional extra: encrypt the drive, `diskutil apfs encryptVolume /Volumes/<drive> -user disk`). Run the app in the sandbox (no
     internet, photos read-only, personal folders unreadable: `scripts/aperture-sandbox.sb` rule 4) and eject the drive when you are done. No
     option protects data from malware already running as you while the drive is unlocked; Docker does not either.

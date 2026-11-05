@@ -50,7 +50,7 @@ docker compose -f docker-compose.aperture.yml exec aperture sh -c "touch /Volume
   or switch Wi-Fi off while using Aperture for a hard guarantee.
 
 ## Not covered
-- Encrypt the drive (Finder > right-click > Encrypt) and keep FileVault on; Docker does not encrypt your data.
+- Theft or loss of the computer is out of scope (so no FileVault or drive encryption is needed). Docker does not encrypt your data.
 - Untested on a real Mac: this was written without a Docker engine. If a step fails, send only the error text.
 - Tesseract needs its language packs: the image installs English and Dutch. Add more in `Dockerfile.aperture` (`tesseract-ocr-<lang>`).
 
