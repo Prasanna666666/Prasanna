@@ -223,6 +223,45 @@ def _assign(line: list[Cell], columns: list[tuple[float, float, str]]) -> dict[i
     return {i: " ".join(v) for i, v in out.items()}
 
 
+_FIGURE_LIKE_AMOUNT = re.compile(r"\(?-?\d{1,3}([.,\s]\d{3})*[.,]\d{2}\)?")
+
+
+def _fields(line: list[Cell], columns: list[tuple[float, float, str]], role_of: dict[int, str], layout: Layout):
+    """One printed line as the layout sees it: the column each cell is in, the text per role, and the date and amounts read from it."""
+    cols = _assign(line, columns)
+    text = {r: " ".join(v for i, v in cols.items() if role_of[i] == r).strip() for r in ROLES}
+
+    def money(role: str):
+        return parse_money(text[role], layout) if text[role] else None
+
+    debit, credit, amount, balance = money("debit"), money("credit"), money("amount"), money("balance")
+    d = parse_date(text["date"], layout) if text["date"] else None
+    has_money = any(x is not None and x[0] != 0 for x in (debit, credit, amount))
+    return cols, text, d, debit, credit, amount, balance, has_money
+
+
+def _direction(text: dict[str, str], debit, credit, amount, layout: Layout) -> tuple[str | None, int | None]:
+    """Money out or in, and how much, from whichever of the debit, credit or amount columns holds the figure."""
+    if debit and debit[0]:
+        return "expense", abs(debit[0])
+    if credit and credit[0]:
+        return "income", abs(credit[0])
+    if amount and amount[0]:
+        words = text["direction"].strip().lower()
+        side = amount[1] or ("dr" if words in layout.debit_words else "cr" if words in layout.credit_words else None)
+        return ("expense" if (amount[0] < 0 or side == "dr") else "income" if side == "cr" else None), abs(amount[0])
+    return None, None
+
+
+def _misread_columns(cols: dict[int, str], role_of: dict[int, str], n: int) -> list[str]:
+    """A figure that looks like an amount sitting in a text column means the columns were misread."""
+    return [
+        f"line {n}: the figure {shown.strip()} sits in a column read as text"
+        for i, shown in cols.items()
+        if role_of[i] in ("description", "ignore", "direction") and _FIGURE_LIKE_AMOUNT.fullmatch(shown.strip())
+    ]
+
+
 def parse_table(table: list[list[Cell]], layout: Layout) -> Parsed:
     reference = table[layout.header_line] if layout.header_line >= 0 else table[0]  # no titles: the first data line shows where the columns are
     columns = [(c.x0, c.x1, role) for c, role in zip(reference, layout.roles, strict=True)]
@@ -234,52 +273,25 @@ def parse_table(table: list[list[Cell]], layout: Layout) -> Parsed:
     for n, line in enumerate(table):
         if n <= layout.header_line or (header_text is not None and [c.text.strip().lower() for c in line] == header_text):
             continue  # titles, and the titles repeated on every page
-        cols = _assign(line, columns)
-        text = {r: " ".join(v for i, v in cols.items() if role_of[i] == r).strip() for r in ROLES}
-        d = parse_date(text["date"], layout) if text["date"] else None
-        debit = parse_money(text["debit"], layout) if text["debit"] else None
-        credit = parse_money(text["credit"], layout) if text["credit"] else None
-        amount = parse_money(text["amount"], layout) if text["amount"] else None
-        balance = parse_money(text["balance"], layout) if text["balance"] else None
-        has_money = any(x is not None and x[0] != 0 for x in (debit, credit, amount))
-        if d is None and not has_money and balance is None:
-            if text["description"] and rows and not text["date"]:
-                rows[-1]["desc"] += " " + text["description"]  # a description continued on the next line
-            continue
-        if d is None and not has_money and balance is not None:
-            rows.append(
-                {"day": day, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True}
-            )  # e.g. 'opening balance' with no date
-            continue
-        if d is not None and not has_money:
-            if balance is not None:
+        cols, text, d, debit, credit, amount, balance, has_money = _fields(line, columns, role_of, layout)
+        if not has_money:
+            if d is None and balance is None:
+                if text["description"] and rows and not text["date"]:
+                    rows[-1]["desc"] += " " + text["description"]  # a description continued on the next line
+            elif balance is not None:  # a balance with no payment: e.g. an opening balance, dated or not
                 rows.append(
-                    {"day": d, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True}
-                )  # e.g. an opening balance
+                    {"day": d if d is not None else day, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True}
+                )
+            continue  # a line with only a date (a heading for the lines below) carries nothing to read
+        if d is None and not layout.date_on_every_row and day:
+            d = day  # this statement prints a date once for several lines
+        if d is None:
+            issues.append(f"line {n} has an amount but no date")
             continue
-        if has_money:
-            if d is None and not layout.date_on_every_row and day:
-                d = day  # this statement prints a date once for several lines
-            if d is None:
-                issues.append(f"line {n} has an amount but no date")
-                continue
-            day = d
-            kind, minor = None, None
-            if debit and debit[0]:
-                kind, minor = "expense", abs(debit[0])
-            elif credit and credit[0]:
-                kind, minor = "income", abs(credit[0])
-            elif amount and amount[0]:
-                minor = abs(amount[0])
-                words = text["direction"].strip().lower()
-                side = amount[1] or ("dr" if words in layout.debit_words else "cr" if words in layout.credit_words else None)
-                kind = "expense" if (amount[0] < 0 or side == "dr") else "income" if side == "cr" else None
-            rows.append({"day": d, "amount": minor, "kind": kind, "desc": text["description"], "balance": balance[0] if balance else None})
-            for i, shown in cols.items():  # a figure that looks like an amount sitting in a text column means the columns were misread
-                if role_of[i] in ("description", "ignore", "direction") and re.fullmatch(r"\(?-?\d{1,3}([.,\s]\d{3})*[.,]\d{2}\)?", shown.strip()):
-                    issues.append(f"line {n}: the figure {shown.strip()} sits in a column read as text")
-        elif d is not None and text["description"] == "" and balance is None:
-            issues.append(f"line {n} has a date but nothing else")
+        day = d
+        kind, minor = _direction(text, debit, credit, amount, layout)
+        rows.append({"day": d, "amount": minor, "kind": kind, "desc": text["description"], "balance": balance[0] if balance else None})
+        issues.extend(_misread_columns(cols, role_of, n))
     txns, status, checked, opening, closing = _prove(rows, issues)
     return Parsed(txns, status, issues, checked, opening, closing, ["running balances"] if checked else [])
 
