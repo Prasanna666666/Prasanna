@@ -1556,7 +1556,7 @@ body.chat-open .fab {
     color: var(--faint);
 }
 
-/* shown inside Home: the front door provides the menu, the search and the chat button */
+/* shown inside Atlas: the shared page provides the menu, the search and the chat button */
 .embedded .side,
 .embedded .top,
 .embedded .fab {

@@ -296,7 +296,7 @@ class Web:
         }
 
     def search(self, query: str) -> dict[str, Any]:
-        """The answer to the front door's search box: places, people and trips that match, with where each opens."""
+        """The answer to Atlas's search box: places, people and trips that match, with where each opens."""
         found = browse.search_links(self.browse("places", {}), self.browse("people", {}), self.browse("trips", {}), query)
         return {"results": found}
 
