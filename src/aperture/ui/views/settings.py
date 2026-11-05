@@ -71,7 +71,7 @@ def _form(ctx: AppContext) -> None:
             )
             size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
             contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
-        auto = st.checkbox("Resume indexing when Lumo opens", s.auto_scan)
+        auto = st.checkbox("Resume indexing when Photos opens", s.auto_scan)
         fast = st.checkbox(
             "Skip the AI for simple one-subject searches (fastest)",
             s.fast_search,

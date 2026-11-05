@@ -1,26 +1,26 @@
 # Safety model
 
 1. Drive check: mounted, writable, not on the internal disk (`drive_problem`).
-2. `WriteGuard`: every write is checked to be inside `Aperture/` or the export root; the photo folder is never a write target.
-3. Export folder must be on the drive, outside the photo folder and Aperture data.
+2. `WriteGuard`: every write is checked to be inside `Photos/` or the export root; the photo folder is never a write target.
+3. Export folder must be on the drive, outside the photo folder and Photos data.
 4. Offline guard: `socket.connect/getaddrinfo/...` refuse non-loopback hosts; HF/transformers offline env is forced. Only `aperture fetch-models` lifts it, and only when `APERTURE_NEVER_ONLINE` is not set (the container and sandbox set it).
 5. Export copies with verification and never overwrites different files.
 6. No deletion API exists for originals.
 7. Moves (`organize.py`) are the only change to the library: off by default (`allow_moves`), refused while indexing runs, same-volume `os.rename` only, destination inside the photo folder, never overwrite, write-ahead journal in the `moves` table, per-batch undo.
-8. **OS-level sandbox (macOS).** `scripts/aperture-sandboxed.sh PHOTO_DIR [EXPORT_DIR] -- aperture ui` runs Aperture under a
+8. **OS-level sandbox (macOS).** `scripts/aperture-sandboxed.sh PHOTO_DIR [EXPORT_DIR] -- aperture ui` runs Photos under a
    Seatbelt profile (`scripts/aperture-sandbox.sb`): the kernel denies every non-loopback connection and every write to the
    photo folder (unless `ALLOW_MOVES=yes`), even if a native library or dependency ignores the Python-level guard. Prove it
    on your Mac with `scripts/aperture-sandboxed.sh --selftest PHOTO_DIR` (expects three PASS lines). The wrapper also sets
    `APERTURE_NEVER_ONLINE=1`, which refuses to enable the network at all (`aperture fetch-models` is refused inside it). `sandbox-exec` is deprecated by Apple but still works; this profile
    was written without access to a Mac, so run the self-test before relying on it.
-9. **Private storage.** With Docker (`docker-compose.aperture.yml`) everything Aperture learns about your photos lives in the named volume
+9. **Private storage.** With Docker (`docker-compose.aperture.yml`) everything Photos learns about your photos lives in the named volume
    `aperture-data`, inside Docker's own disk image: no folder on the Mac, so no program or assistant on the Mac can browse it. Move an
    existing index in with `scripts/aperture-docker-migrate.sh`. `.claude/settings.json` additionally denies the coding assistant
    any read of `/Volumes`, the vault and docker cp/exec/volume/run commands. Without Docker, use the encrypted vault below.
-   **Encryption at rest.** Aperture's index (dates, GPS, places, faces, text, labels, full metadata), thumbnails and previews are
+   **Encryption at rest.** Photos's index (dates, GPS, places, faces, text, labels, full metadata), thumbnails and previews are
    private data. Keep them in the encrypted vault: `scripts/aperture-vault.sh create`, then `open`, then run with
    `APERTURE_DRIVE=/Volumes/ApertureVault`. The vault is an AES-256 APFS image; its password is generated and kept only in your
-   login Keychain (never printed, never in a file or in this repository). `close` makes everything unreadable. Aperture also sets
+   login Keychain (never printed, never in a file or in this repository). `close` makes everything unreadable. Photos also sets
    folders to owner-only (0700) and the index and settings to 0600. Theft or loss of the computer or drive is out of scope here (you ruled it out), so disk encryption is optional. None of this data is ever in git, and the assistant that wrote the
    code has no access to your Mac or drive.
 10. **Install-time exposure.** `scripts/install.sh` downloads packages from PyPI. Run it once on a trusted network, then use

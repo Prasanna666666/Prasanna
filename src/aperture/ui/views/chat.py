@@ -189,7 +189,7 @@ def render(ctx: AppContext) -> None:
         _welcome(ctx)
     else:
         left, right = st.columns([5, 1], vertical_alignment="center")
-        left.html('<div class="ap-chat-head"><b>Ask Lumo</b><span>Private - nothing leaves your Mac</span></div>')
+        left.html('<div class="ap-chat-head"><b>Ask Photos</b><span>Private - nothing leaves your Mac</span></div>')
         if right.button("New chat", icon=":material/add_comment:", type="secondary", use_container_width=True):
             history.clear()
             st.rerun()

@@ -143,7 +143,7 @@ def people(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 def search_links(
     places_: list[dict[str, Any]], people_: list[dict[str, Any]], trips_: list[dict[str, Any]], query: str, limit: int = 12
 ) -> list[dict[str, str]]:
-    """What matches a typed word among places, named people and trips, each with the address inside Lumo that opens it (for Atlas, the shared search)."""
+    """What matches a typed word among places, named people and trips, each with the address inside Photos that opens it (for Atlas, the shared search)."""
     from urllib.parse import quote
 
     q = query.strip().lower()

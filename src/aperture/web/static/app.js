@@ -1,4 +1,4 @@
-/* Lumo front end. Plain JavaScript, no libraries. All dynamic text is added with textContent (never innerHTML). */
+/* Photos front end. Plain JavaScript, no libraries. All dynamic text is added with textContent (never innerHTML). */
 (() => {
     'use strict';
     const token = document.querySelector('meta[name="lumo-token"]').content;
@@ -442,7 +442,7 @@
                 }
             }
         } catch (err) {
-            if (err.name !== 'AbortError') handle(bot, 'error', { message: `Lumo could not answer: ${err.message}` });
+            if (err.name !== 'AbortError') handle(bot, 'error', { message: `Photos could not answer: ${err.message}` });
         } finally {
             bot.text.classList.remove('streaming');
             if (bot.typing.isConnected) bot.typing.remove();
@@ -490,7 +490,7 @@
         const t = $('#topq').value.trim();
         if (!t) return;
         $('#topq').value = '';
-        askLumo(t);
+        askAssistant(t);
     });
     document.addEventListener('keydown', (e) => {
         if (!lb.hidden) {
@@ -599,7 +599,12 @@
             }
             if (mine !== seq) return;
             const pg = pages(q);
-            const askItem = { label: `Ask Lumo: “${raw}”`, sub: 'Chat', icon: NAV[0][2], run: () => askLumo(raw) };
+            const askItem = {
+                label: `Ask Photos: “${raw}”`,
+                sub: 'Chat',
+                icon: NAV[0][2],
+                run: () => askAssistant(raw),
+            };
             const pl = f.places.filter((x) => has(x.place, q)).slice(0, 6),
                 pe = f.people.filter((x) => has(x.name, q)).slice(0, 6),
                 tr = f.trips.filter((x) => has(x.title, q) || has(x.place, q)).slice(0, 6);
@@ -716,7 +721,7 @@
             input.focus();
         }
     }
-    function askLumo(text) {
+    function askAssistant(text) {
         go('search');
         ask(text);
     }
@@ -1153,7 +1158,7 @@
             $('#warm').textContent = warmMessage(s);
             document.body.classList.toggle('warming', !s.search_ready || !s.ai);
         } catch (_) {
-            $('#chips').replaceChildren(chip('Lumo is not responding', 'bad'));
+            $('#chips').replaceChildren(chip('Photos is not responding', 'bad'));
         }
     }
     async function loadIdeas() {
@@ -1189,7 +1194,7 @@
             else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode))
                 document.documentElement.dataset.theme = m.mode;
             else if (m.type === 'toggle-chat') setCorner(!corner.open);
-            else if (m.type === 'ask' && typeof m.text === 'string') askLumo(m.text);
+            else if (m.type === 'ask' && typeof m.text === 'string') askAssistant(m.text);
         });
         window.addEventListener('hashchange', () => toParent({ type: 'route', hash: location.hash }));
         toParent({ type: 'ready' });

@@ -322,7 +322,7 @@ def test_real_chat_requests_are_short_and_calm(tmp_path, monkeypatch):
     assert (
         "photo app" in p["messages"][0]["content"]
         and "emojis" in p["messages"][0]["content"]
-        and "Lumo:" in p["messages"][0]["content"]
+        and "Assistant:" in p["messages"][0]["content"]
     )
 
 

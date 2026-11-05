@@ -154,7 +154,7 @@ def test_the_model_is_not_told_what_the_app_is_only_given_data():
     agent.ask("hello")
     system = llm.calls[0][0]
     assert "Today is Tuesday 03 November 2026." in system and "LIBRARY FACTS" in system and "'goa' -> place: 40 photos" in system
-    for persona in ("photo app", "You are", "Lumo", "assistant inside"):
+    for persona in ("photo app", "You are", "Photos assistant", "assistant inside"):
         assert persona not in system
 
 
@@ -449,7 +449,7 @@ def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_t
         .replace("(a bare word)", "")
         and "reply in words, no tool" in system
     )
-    for persona in ("photo app", "You are", "Lumo", "assistant inside"):
+    for persona in ("photo app", "You are", "Photos assistant", "assistant inside"):
         assert persona not in system
     eval_requests = {c["request"].lower() for c in __import__("aperture.evaluation", fromlist=["x"]).load_plan_cases()}
     routes = {

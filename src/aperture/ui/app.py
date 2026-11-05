@@ -11,7 +11,7 @@ from aperture.ui import theme
 from aperture.ui.state import cached_coverage, drive_ok, get_context
 from aperture.ui.views import chat, library, organize, people, settings, status
 
-st.set_page_config(page_title="Lumo", page_icon=":material/photo_camera:", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Photos", page_icon=":material/photo_camera:", layout="wide", initial_sidebar_state="expanded")
 
 
 def _sidebar_status(ctx) -> None:

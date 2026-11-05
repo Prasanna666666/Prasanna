@@ -1,4 +1,4 @@
-"""Lumo's web app: real server, real files, scripted agent."""
+"""Photos's web app: real server, real files, scripted agent."""
 
 import json
 import urllib.error

@@ -17,7 +17,7 @@ from ..db import chunked, in_clause
 from ..indexing.progress import ScanLock, read_progress
 
 SYSTEM_PROMPT = (
-    "You are Lumo, a private photo assistant. Answer the user's question in plain, friendly English, in 1 to 6 short "
+    "You are the Photos assistant, a private photo assistant. Answer the user's question in plain, friendly English, in 1 to 6 short "
     "sentences or a short list. Use ONLY the FACTS below; copy numbers exactly. If the facts do not contain the answer, "
     "say what you do not know and what the user could ask or do instead. Never invent photos, places, names or numbers. "
     "Folder paths are real: quote them as given."

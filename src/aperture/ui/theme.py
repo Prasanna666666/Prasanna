@@ -100,7 +100,7 @@ button[kind="primary"] { border-radius:10px; font-weight:600; }
   background:linear-gradient(135deg, var(--ap-accent), #7c6ff7); box-shadow:0 6px 18px color-mix(in srgb, var(--ap-accent) 28%, transparent); }
 [data-testid="stChatMessage"]:has(.ap-user-marker) [data-testid="stChatMessageContent"] * { color:#fff; }
 
-/* Lumo: gradient sparkle badge, roomy text, quiet extras */
+/* Photos: gradient sparkle badge, roomy text, quiet extras */
 [data-testid="stChatMessage"]:has(.ap-bot-marker) > [data-testid^="stChatMessageAvatar"] {
   background:linear-gradient(135deg, var(--ap-accent), #06b6d4); color:#fff; border-radius:12px; width:2.2rem; height:2.2rem;
   box-shadow:0 4px 12px color-mix(in srgb, var(--ap-accent) 30%, transparent); }

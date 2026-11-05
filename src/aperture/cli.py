@@ -146,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="let Tidy up move files inside the photo folder (off in the sandbox by default)",
     )
-    web = sub.add_parser("web", help="serve Lumo's fast web app on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
+    web = sub.add_parser("web", help="serve Photos's fast web app on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
     web.add_argument("--port", type=int, default=8765)
     ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
     ui.add_argument("--port", type=int, default=8765)
@@ -157,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     cap = sub.add_parser("caption", help="describe every photo with the vision model, in the background (slow, resumable)")
     cap.add_argument("--limit", type=int, default=0)
     sub.add_parser("bench", help="time the app's pages on this machine and show where time goes")
-    sub.add_parser("install-service", help="keep Lumo running in the background; prints the address to bookmark")
+    sub.add_parser("install-service", help="keep Photos running in the background; prints the address to bookmark")
     return parser
 
 
@@ -1223,7 +1223,7 @@ def _launcher_command(paths, args) -> int:
         return 2
     if args.command == "install-service":
         url = launcher.install_service(paths)
-        print(f"Lumo is running in the background and starts at every login.\nOpen: {url}\n(also works: http://127.0.0.1:8765)")
+        print(f"Photos is running in the background and starts at every login.\nOpen: {url}\n(also works: http://127.0.0.1:8765)")
         return 0
     if args.command == "app":
         return launcher.run_window(args.port)

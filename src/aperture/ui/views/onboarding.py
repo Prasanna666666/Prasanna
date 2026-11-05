@@ -1,4 +1,4 @@
-"""First-run checklist: what is left to do before Lumo is useful."""
+"""First-run checklist: what is left to do before Photos is useful."""
 
 from __future__ import annotations
 

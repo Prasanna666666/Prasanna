@@ -1,4 +1,4 @@
-"""A fake-but-real Lumo backend for tests and design previews: real database, real thumbnail files, scripted agent."""
+"""A fake-but-real Photos backend for tests and design previews: real database, real thumbnail files, scripted agent."""
 
 from __future__ import annotations
 

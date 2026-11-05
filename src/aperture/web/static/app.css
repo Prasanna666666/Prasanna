@@ -1,4 +1,4 @@
-/* Lumo design system. System fonts only (offline), no external assets, no inline styles (the page's security policy forbids them).
+/* Photos design system. System fonts only (offline), no external assets, no inline styles (the page's security policy forbids them).
    Lagoon (dark, the default) and Shoreline (a tinted light theme); a slim icon rail on wide screens and a tab bar on phones. */
 :root {
     /* Shoreline */

@@ -90,7 +90,7 @@ def test_chat_voice_is_natural_short_and_photo_focused_with_examples():
     assert "photo app" in CHAT_SYSTEM and "one or two short sentences" in CHAT_SYSTEM and "without emojis" in CHAT_SYSTEM
     assert "never claim to have found any" in CHAT_SYSTEM and "cannot browse the web" in CHAT_SYSTEM
     assert (
-        "User: Hello\nLumo: " in CHAT_SYSTEM
+        "User: Hello\nAssistant: " in CHAT_SYSTEM
         and "like a thoughtful friend" not in CHAT_SYSTEM
         and "talk about anything" not in CHAT_SYSTEM
     )
@@ -132,5 +132,5 @@ def test_the_date_comes_before_the_examples_and_is_not_glued_to_one(tmp_path, mo
     ctx = AppContext(paths)
     ctx.service()._chatter("hello", [])
     system = sent[0]["messages"][0]["content"]
-    assert system.startswith(f"Today's date is {date.today():%A %d %B %Y}.\nYou are Lumo")
+    assert system.startswith(f"Today's date is {date.today():%A %d %B %Y}.\nYou are the Photos assistant")
     assert system.rstrip().endswith("than a JPEG.")  # the last example answer ends cleanly: nothing glued after it

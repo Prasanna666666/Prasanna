@@ -1,4 +1,4 @@
-"""The local server behind Lumo's web app (standard library only).
+"""The local server behind Photos's web app (standard library only).
 
 Why not Streamlit for the chat: Streamlit re-runs the whole page on every click, and each run touches the external drive.
 Here the page is static, the browser keeps the conversation, and the server only does real work: planning, searching and
@@ -425,7 +425,7 @@ def _int_param(query: dict[str, list[str]], key: str, default: int) -> int:
 class _Handler(BaseHTTPRequestHandler):
     """Plumbing only: host, origin and token checks, files, and the server-sent-event chat stream."""
 
-    server_version = "Lumo"
+    server_version = "Photos"
     sys_version = ""
     web: ClassVar[Web]
     allowed_hosts: ClassVar[frozenset[str]]
@@ -671,7 +671,9 @@ class _Handler(BaseHTTPRequestHandler):
 
 def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
     # *.localhost always resolves to this Mac (RFC 6761), so the friendly address the installer prints is as safe as 127.0.0.1
-    hosts = frozenset({f"127.0.0.1:{web.port}", f"localhost:{web.port}", f"lumo.localhost:{web.port}"})
+    hosts = frozenset(
+        {f"127.0.0.1:{web.port}", f"localhost:{web.port}", f"lumo.localhost:{web.port}", f"photos.localhost:{web.port}"}
+    )
     origins = frozenset(f"http://{h}" for h in hosts)
     return type("Handler", (_Handler,), {"web": web, "allowed_hosts": hosts, "allowed_origins": origins})
 
@@ -687,7 +689,7 @@ def serve(ctx: Any, port: int = 8765, ready: threading.Event | None = None) -> i
         ctx.warm_up()  # preload the photo index, the image-search model and the AI model in the background
     except Exception:
         pass
-    print(f"Lumo is running on http://127.0.0.1:{port}  (Ctrl+C to stop)", flush=True)
+    print(f"Photos is running on http://127.0.0.1:{port}  (Ctrl+C to stop)", flush=True)
     if ready is not None:
         ready.set()
     try:
