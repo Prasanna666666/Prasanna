@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -108,6 +109,11 @@ class _Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
+    def _start_scan(self) -> None:
+        if not _scan_allowed(self, self.atlas):
+            return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
+        self._json(self.atlas.upstreams.scan(start=True))
+
     def _json(self, obj: Any, status: int = 200) -> None:
         self._send(status, json.dumps(obj).encode(), "application/json; charset=utf-8")
 
@@ -119,22 +125,37 @@ class _Handler(BaseHTTPRequestHandler):
 
     # ---- the atlas's own page and API ----------------------------------------------------------------------------------
     def _shell(self) -> None:
+        url = urlsplit(self.path)
+        if self.command == "POST":
+            if url.path != "/_atlas/api/scan":
+                return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")
+            return self._start_scan()
         if self.command not in ("GET", "HEAD"):
             return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")
-        url = urlsplit(self.path)
-        if url.path in ("/", "/index.html"):
-            return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
-        if url.path.startswith("/_atlas/static/") and url.path.rsplit("/", 1)[-1] in STATIC_TYPES:
-            name = url.path.rsplit("/", 1)[-1]
+        name = url.path.rsplit("/", 1)[-1]
+        if url.path.startswith("/_atlas/static/") and name in STATIC_TYPES:
             return self._send(200, (STATIC / name).read_bytes(), STATIC_TYPES[name])
-        if url.path == "/_atlas/api/modules":
-            return self._json({"modules": [m.public() for m in self.atlas.modules.values()]})
-        if url.path == "/_atlas/api/health":
-            return self._json(self.atlas.upstreams.health())
-        if url.path == "/_atlas/api/search":
-            query = (parse_qs(url.query).get("q") or [""])[0][:200]
-            return self._json({"results": self.atlas.upstreams.search(query)})
-        self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
+        route = self._get_routes().get(url.path)
+        if route is None:
+            return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
+        route(parse_qs(url.query))
+
+    def _get_routes(self) -> dict[str, Callable[[dict[str, list[str]]], None]]:
+        atlas = self.atlas
+        page = lambda _q: self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")  # noqa: E731
+        return {
+            "/": page,
+            "/index.html": page,
+            "/_atlas/api/modules": lambda _q: self._json({"modules": [m.public() for m in atlas.modules.values()]}),
+            "/_atlas/api/health": lambda _q: self._json(atlas.upstreams.health()),
+            "/_atlas/api/scan": lambda _q: self._json(atlas.upstreams.scan()),
+            "/_atlas/api/search": lambda q: self._json({"results": atlas.upstreams.search((q.get("q") or [""])[0][:200])}),
+        }
+
+
+def _scan_allowed(handler: BaseHTTPRequestHandler, atlas: Atlas) -> bool:
+    """Starting an update changes things, so it needs the page's own origin and header: another website cannot start one."""
+    return handler.headers.get("Origin") == atlas.shell_origin and handler.headers.get("X-Atlas") == "1"
 
 
 def build(modules_dir: Path | None = None, domain: str | None = None, port: int | None = None) -> Atlas:

@@ -46,8 +46,10 @@ class Module:
     accent: tuple[str, str] = ("#6366f1", "#ec4899")
     health: str = "/api/health"
     search: str = ""
+    scan: str = ""  # optional: a path that reads everything new (GET = status, POST = start)
     home: str = ""
     auth: Auth | None = None
+    headers: tuple[tuple[str, str], ...] = ()  # fixed headers on Atlas's own calls (an app's change-protection header, for example)
     host: str = ""  # the Host the app is told it was called by; empty means 127.0.0.1 with its port
     pages: tuple[Page, ...] = field(default_factory=tuple)
 
@@ -72,6 +74,7 @@ class Module:
             "accent": list(self.accent),
             "home": self.home,
             "searchable": bool(self.search),
+            "scannable": bool(self.scan),
             "pages": [{"id": p.id, "label": p.label, "icon": p.icon} for p in self.pages],
         }
 
@@ -119,6 +122,8 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         accent=(str(accent[0]), str(accent[1])),
         health=str(raw.get("health", "/api/health")),
         search=str(raw.get("search", "")),
+        scan=str(raw.get("scan", "")),
+        headers=tuple((str(k), str(v)) for k, v in (raw.get("headers") or {}).items()),
         home=str(raw.get("home", "")),
         auth=Auth(str(auth["meta"]), str(auth["header"])) if isinstance(auth, dict) else None,
         host=str(raw.get("host", "")),

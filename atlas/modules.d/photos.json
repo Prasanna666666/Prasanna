@@ -4,10 +4,7 @@
   "app": "Lumo",
   "tagline": "Find any photo by describing it",
   "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01",
-  "accent": [
-    "#06b6d4",
-    "#84cc16"
-  ],
+  "accent": ["#06b6d4", "#84cc16"],
   "upstream": "http://host.docker.internal:8765",
   "health": "/api/health",
   "search": "/api/search",
@@ -42,5 +39,6 @@
       "label": "People",
       "icon": "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2A6 6 0 0 1 21 20"
     }
-  ]
+  ],
+  "scan": "/api/scan"
 }

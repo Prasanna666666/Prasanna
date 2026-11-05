@@ -17,17 +17,25 @@ HEALTH_SECONDS = 1.5
 SEARCH_SECONDS = 2.5
 HEALTH_CACHE_SECONDS = 4.0
 MAX_RESULTS_PER_MODULE = 8
+SCAN_SECONDS = 4.0
 
 
-def _get(module: Module, path: str, timeout: float, extra: dict[str, str] | None = None) -> tuple[int, bytes]:
+def _call(module: Module, method: str, path: str, timeout: float, extra: dict[str, str] | None = None) -> tuple[int, bytes]:
     host, _, port = module.netloc.partition(":")
     conn = http.client.HTTPConnection(host, int(port or 80), timeout=timeout)
+    headers = {"Host": module.presented, **dict(module.headers), **(extra or {})}
+    if method == "POST":
+        headers["Content-Length"] = "0"
     try:
-        conn.request("GET", path, headers={"Host": module.presented, **(extra or {})})
+        conn.request(method, path, headers=headers)
         response = conn.getresponse()
         return response.status, response.read(2_000_000)
     finally:
         conn.close()
+
+
+def _get(module: Module, path: str, timeout: float, extra: dict[str, str] | None = None) -> tuple[int, bytes]:
+    return _call(module, "GET", path, timeout, extra)
 
 
 class Upstreams:
@@ -50,13 +58,16 @@ class Upstreams:
             self._tokens[module.id] = token
         return token
 
-    def _authed_get(self, module: Module, path: str, timeout: float) -> tuple[int, bytes]:
+    def _authed(self, module: Module, method: str, path: str, timeout: float) -> tuple[int, bytes]:
         if module.auth is None:
-            return _get(module, path, timeout)
-        status, body = _get(module, path, timeout, {module.auth.header: self._token(module)})
+            return _call(module, method, path, timeout)
+        status, body = _call(module, method, path, timeout, {module.auth.header: self._token(module)})
         if status == 403:  # the app was restarted and printed a new token
-            status, body = _get(module, path, timeout, {module.auth.header: self._token(module, refresh=True)})
+            status, body = _call(module, method, path, timeout, {module.auth.header: self._token(module, refresh=True)})
         return status, body
+
+    def _authed_get(self, module: Module, path: str, timeout: float) -> tuple[int, bytes]:
+        return self._authed(module, "GET", path, timeout)
 
     # ---- health ------------------------------------------------------------------------------------------------------
     def _check(self, module: Module) -> dict[str, Any]:
@@ -106,3 +117,34 @@ class Upstreams:
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
             lists = list(pool.map(lambda m: self._search_one(m, query), targets))
         return [item for items in lists for item in items]
+
+    # ---- one Update button: read everything new, in every app that can -----------------------------------------------
+    def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
+        down = {"up": False, "running": False, "progress": "", "summary": "", "problems": [f"{module.name} is not running"], "needs_check": 0}
+        try:
+            if start:
+                self._authed(module, "POST", module.scan, SCAN_SECONDS)
+            status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
+            raw = json.loads(body) if status == 200 else None
+        except (OSError, http.client.HTTPException, ValueError):
+            return down
+        if not isinstance(raw, dict):
+            return down
+        return {
+            "up": True,
+            "running": bool(raw.get("running")),
+            "progress": str(raw.get("progress", ""))[:200],
+            "summary": str(raw.get("summary", ""))[:200],
+            "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
+            "needs_check": int(raw.get("needs_check") or 0),
+        }
+
+    def scan(self, start: bool = False) -> dict[str, Any]:
+        """Start (or just read) the update of every app that supports it; one app being down never stops the others."""
+        targets = [m for m in self.modules.values() if m.scan]
+        if not targets:
+            return {"running": False, "modules": {}}
+        with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+            results = list(pool.map(lambda m: self._scan_one(m, start), targets))
+        modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
+        return {"running": any(r["running"] for r in results), "modules": modules}

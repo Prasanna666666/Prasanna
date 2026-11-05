@@ -105,7 +105,8 @@ def start_import(state: State) -> bool:
             try:
                 client, model = client_and_model(conn)
             except RuntimeError as exc:
-                state.importing["error"] = f"The local model is not available: {exc}"
+                log.failed("model unavailable for the import", exc)
+                state.importing["error"] = "The local model is not running. Start Ollama and try again."
                 return
             state.importing["result"] = money.import_statements(conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
         except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
@@ -169,7 +170,24 @@ def _get_search(state: State, conn, query: dict[str, str]) -> dict:
     return {"results": browse.search_links(browse.search_all(conn, {"query": query.get("q", "")[:200]}))}
 
 
+def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
+    """Where "read my new files" stands, in the shape every module reports it (the contract's scan status), for Atlas's one Update button."""
+    job = state.importing
+    result = job.get("result") or {}
+    problems = [*([job["error"]] if job.get("error") else []), *result.get("problems", [])]
+    read = result.get("files", 0)
+    summary = f"{read} file{'s' if read != 1 else ''} read, {result.get('new_transactions', 0)} new payments" if result else ""
+    return {
+        "running": job["running"],
+        "progress": job.get("progress", ""),
+        "summary": summary,
+        "problems": problems,
+        "needs_check": len(result.get("needs_check", [])),
+    }
+
+
 GET_ROUTES = {
+    "/api/scan": _scan_status,
     "/api/health": lambda state, conn, query: {"ok": True},
     "/api/search": _get_search,
     "/api/home": _get_home,
@@ -240,6 +258,7 @@ def _post_notes_import(state: State, conn, body: dict) -> dict:
 
 
 POST_ROUTES = {
+    "/api/scan": lambda state, conn, body: {"ok": True, "started": start_import(state)},
     "/api/tool": _post_tool,
     "/api/chat": _post_chat,
     "/api/chat/reset": _post_chat_reset,

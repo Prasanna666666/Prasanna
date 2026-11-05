@@ -3,6 +3,7 @@
 import http.client
 import json
 import threading
+import time
 from http.server import ThreadingHTTPServer
 
 import pytest
@@ -274,3 +275,16 @@ def test_the_front_door_can_check_health_and_search_orbit(server):
     assert {"title": "Pay the Ziggo invoice", "subtitle": "", "kind": "task", "link": "#/tasks"} in found
     assert json.loads(call(server, "GET", "/api/search?q=z")[1]) == {"results": []}  # too short to search
     assert call(server, "GET", "/api/search?q=ziggo", host="evil.example.com")[0] == 403
+
+
+def test_one_update_button_can_start_and_follow_the_file_reading(server):
+    status = json.loads(call(server, "GET", "/api/scan")[1])
+    assert status["running"] is False and set(status) >= {"progress", "summary", "problems", "needs_check"}
+    assert json.loads(post(server, "/api/scan", {})[1])["started"] is True
+    for _ in range(50):  # the job runs in the background; with no model it ends at once with a plain problem
+        status = json.loads(call(server, "GET", "/api/scan")[1])
+        if not status["running"]:
+            break
+        time.sleep(0.1)
+    assert not status["running"] and status["problems"] and "ollama" in status["problems"][0].lower()
+    assert call(server, "POST", "/api/scan", {})[0] == 403  # a change needs Orbit's own header

@@ -53,8 +53,11 @@ def manifest(mid: str, upstream: str, **extra: Any) -> dict[str, Any]:
 @pytest.fixture
 def running(tmp_path: Path) -> Iterator[Running]:
     photos, money = FakeApp(token="secret"), FakeApp()
-    (tmp_path / "money.json").write_text(json.dumps(manifest("money", money.url, health="/api/health")))
-    (tmp_path / "photos.json").write_text(json.dumps(manifest("photos", photos.url, search="/api/search", auth={"meta": "app-token", "header": "X-App-Token"})))
+    money.require_header = "X-Fake"
+    (tmp_path / "money.json").write_text(json.dumps(manifest("money", money.url, health="/api/health", scan="/api/scan", headers={"X-Fake": "1"})))
+    (tmp_path / "photos.json").write_text(
+        json.dumps(manifest("photos", photos.url, search="/api/search", scan="/api/scan", auth={"meta": "app-token", "header": "X-App-Token"}))
+    )
     port = free_port()
     modules = load(tmp_path)
     atlas = Atlas(modules, "atlas.localhost", port, Upstreams(modules))

@@ -55,3 +55,38 @@ def test_an_app_that_is_down_adds_nothing_to_search_and_shows_a_plain_page(runni
     status, _, body = running.request("GET", "/", f"photos.atlas.localhost:{running.port}")
     assert status == 502 and b"is not running" in body
     json.dumps(running.json("/_atlas/api/modules"))
+
+
+def start_update(running, origin=True, header=True):
+    headers = {}
+    if origin:
+        headers["Origin"] = f"http://atlas.localhost:{running.port}"
+    if header:
+        headers["X-Atlas"] = "1"
+    return running.request("POST", "/_atlas/api/scan", f"atlas.localhost:{running.port}", b"", headers)
+
+
+def test_one_update_button_starts_every_app_and_reports_each_one(running):
+    status, _, body = start_update(running)
+    assert status == 200
+    report = json.loads(body)
+    assert set(report["modules"]) == {"money", "photos"} and report["running"] is True
+    assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
+    assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it
+    running.apps["money"].scanning = running.apps["photos"].scanning = False
+    done = running.json("/_atlas/api/scan")
+    assert done["running"] is False and done["modules"]["photos"]["summary"] == "3 files read" and done["modules"]["photos"]["needs_check"] == 1
+
+
+def test_another_website_cannot_start_an_update(running):
+    assert start_update(running, origin=False)[0] == 403
+    assert start_update(running, header=False)[0] == 403
+    status, _, _ = running.request("POST", "/_atlas/api/scan", f"atlas.localhost:{running.port}", b"", {"Origin": "http://evil.example", "X-Atlas": "1"})
+    assert status == 403 and not running.apps["money"].scanning
+
+
+def test_an_app_that_is_down_is_reported_and_does_not_stop_the_others(running):
+    running.apps["money"].close()
+    report = json.loads(start_update(running)[2])
+    assert report["modules"]["money"]["up"] is False and "not running" in report["modules"]["money"]["problems"][0]
+    assert report["modules"]["photos"]["up"] is True and running.apps["photos"].scanning

@@ -30,6 +30,7 @@ shows a plain "not running" page and never blocks the others.
 - **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments and files in Orbit, places, people and trips in Lumo), lists the pages, and can
   hand your question to an app's assistant.
 - **One chat button** (`Ctrl/⌘ J`): it opens the assistant of the app you are looking at.
+- **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Orbit reads new statements and files, Lumo indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
 - **One theme**: dark, light or automatic for everything.
 
 ## Add an app (health, documents, anything)
@@ -60,6 +61,8 @@ shows a plain "not running" page and never blocks the others.
 | `upstream` | `http://` address on this computer or its private network (anything else is refused at start-up) |
 | `health` | a path that answers 200 when the app is up (default `/api/health`) |
 | `search` | optional path for the search box (see the contract); leave out if the app has no search |
+| `scan` | optional path for the Update button (see the contract) |
+| `headers` | optional fixed headers Atlas adds to its own calls to the app |
 | `home` | the page the app opens on (`#/route`) |
 | `pages` | menu entries; each `id` is a route of the app (`#/<id>`) |
 | `auth` | only if the app's API needs a token the app prints into its own page: `{"meta": "<meta name>", "header": "<header>"}` |
@@ -69,6 +72,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 
 ## The contract an app follows
 - `GET /api/health` answers 200 when the app is up.
+- `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Orbit: `{"X-Orbit": "1"}`).
 - `GET /api/search?q=text` (optional) answers `{"results": [{"title", "subtitle", "kind", "link"}]}`. `link` is a route inside the app, such as `#/library?place=Lisbon`.
 - The app keeps its own routes as `#/<page>` (a hash), so Atlas can send you to a page and follow where you go.
 - When it is shown inside Atlas (`window.self !== window.top`) the app hides its own menu, top bar and chat button, and listens for messages from Atlas:

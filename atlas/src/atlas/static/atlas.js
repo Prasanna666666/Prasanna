@@ -29,6 +29,7 @@
         light: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
         auto: 'M12 3a9 9 0 1 0 0 18V3Z',
         plus: 'M12 5v14M5 12h14',
+        refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
     };
 
     const state = { modules: [], health: {}, frames: new Map(), mode: 'dark', chatting: {} };
@@ -299,13 +300,17 @@
                         run: () => go(m, p.id),
                     }))
             );
+        const actions = (q) =>
+            !q || 'update scan read new files photos'.includes(q) || q.includes('update') || q.includes('scan')
+                ? [{ head: 'Do' }, { label: 'Update everything', sub: 'Read all new files and photos', run: startScan }]
+                : [];
         const build = async () => {
             const raw = box.value.trim();
             const q = raw.toLowerCase();
             const mine = ++seq;
             const pages = pageItems(q);
             if (q.length < 2) {
-                items = [{ head: 'Jump to' }, ...pages.slice(0, 12)];
+                items = [...actions(q), { head: 'Jump to' }, ...pages.slice(0, 12)];
                 firstReal();
                 paint();
                 return;
@@ -327,6 +332,7 @@
                 },
             }));
             items = [
+                ...actions(q),
                 ...(pages.length ? [{ head: 'Pages' }, ...pages.slice(0, 5)] : []),
                 ...(found.length
                     ? [
@@ -384,11 +390,67 @@
         document.body.append(overlay);
         document.addEventListener('keydown', onKey, true);
         palette = overlay;
-        items = [{ head: 'Jump to' }, ...pageItems('').slice(0, 12)];
+        items = [...actions(''), { head: 'Jump to' }, ...pageItems('').slice(0, 12)];
         firstReal();
         paint();
         box.focus();
     }
+
+    // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
+    const scan = { timer: null, hide: null };
+    const scanLine = (module, info) => {
+        const row = el(
+            'div',
+            'scan-row' + (info.running ? ' busy' : info.problems.length || info.needs_check ? ' warn' : '')
+        );
+        const text = el('div', 'scan-text');
+        const detail = info.running ? info.progress || 'Reading…' : info.summary || (info.up ? 'Nothing new' : '');
+        text.append(el('b', '', module.name), el('span', '', detail));
+        info.problems.forEach((p) => text.append(el('span', 'scan-problem', p)));
+        if (info.needs_check) text.append(el('span', 'scan-problem', `${info.needs_check} need a check`));
+        row.append(el('i'), text);
+        return row;
+    };
+    const showScan = (report) => {
+        const panel = $('#scan');
+        const close = el('button', 'scan-close', '×');
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Close');
+        close.addEventListener('click', () => {
+            panel.hidden = true;
+        });
+        const head = el('div', 'scan-head');
+        head.append(el('b', '', report.running ? 'Updating…' : 'Update finished'), close);
+        panel.replaceChildren(
+            head,
+            ...state.modules.filter((m) => report.modules[m.id]).map((m) => scanLine(m, report.modules[m.id]))
+        );
+        panel.hidden = false;
+        $('#update').classList.toggle('busy', report.running);
+        $('#update span').textContent = report.running ? 'Updating…' : 'Update';
+    };
+    const followScan = async () => {
+        clearTimeout(scan.timer);
+        let report;
+        try {
+            report = await (await fetch('/_atlas/api/scan')).json();
+        } catch (_) {
+            return;
+        }
+        showScan(report);
+        if (report.running) scan.timer = setTimeout(followScan, 1200);
+        else refreshHealth();
+    };
+    const startScan = async () => {
+        try {
+            const reply = await fetch('/_atlas/api/scan', { method: 'POST', headers: { 'X-Atlas': '1' } });
+            if (!reply.ok) return;
+            showScan(await reply.json());
+            scan.timer = setTimeout(followScan, 1200);
+        } catch (_) {
+            /* the page keeps working; the button can be pressed again */
+        }
+    };
 
     // ---------------------------------------------------------------- theme, keys, the one chat button
     const applyTheme = () => {
@@ -430,6 +492,7 @@
         }
     });
     $('#search-btn').addEventListener('click', openPalette);
+    $('#update').addEventListener('click', startScan);
     $('#fab').addEventListener('click', toggleChat);
     window.addEventListener('hashchange', render);
 

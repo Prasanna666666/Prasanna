@@ -80,7 +80,7 @@ Conventions: ULID ids; money as integer minor units plus ISO currency (original 
 A module never trusts the router: finance still proves balances. A misrouted file lands in the review queue, not in your numbers.
 
 ## 6. Module contract (v1 today, v2 target)
-- v1 (implemented in Orbit and Lumo): `GET /api/health`; `GET /api/search?q=`; routes as `#/<page>`; embed messages; one manifest file in `atlas/modules.d/`.
+- v1 (implemented in Orbit and Lumo): `GET /api/health`; `GET /api/search?q=`; `GET`/`POST /api/scan` (the one Update button: start reading everything new, report progress, summary, problems, items needing a check); routes as `#/<page>`; embed messages; one manifest file in `atlas/modules.d/`.
 - v2 (target): `GET /api/manifest` (pages, icon, accent, contract version); `GET /api/tools` (name, JSON schema, **read or write**, **sensitivity tier**); the standard `items_in_window(start, end, place?)` returning `{module, kind, title, when, where, amount?, ref, artifact_id?}`; `GET /api/entities` (people, places, trips this module knows); `GET /api/feed` (what needs a look); `accepts` (which artifact kinds the module can ingest); all calls signed by the platform (section 7).
 - Any module that implements `items_in_window` appears in every lens (trip, month, person) with no change to Atlas.
 
@@ -126,7 +126,7 @@ Tickets and health reports are served from the shared document store (by classif
 Own database and key; migrations and backup; tools declared with read or write and sensitivity; `items_in_window`; entities and feed; ingestors for the kinds it accepts, each with a proof or a review-queue path; contract tests; no import of another module; documented in `modules.d/`.
 
 ## 12. Where the code is today
-Implemented: Atlas shell, search and chat button across Orbit and Lumo; contract v1; Orbit's answer checker, fast-path intents, agent-with-fallback, hybrid document search, balance proofs and cross-checks; no-network guards in both apps; separate databases; Orbit's database encryption; complexity gate, ESLint and Prettier in CI.
+Implemented: Atlas shell, search, chat button and one Update button across Orbit and Lumo; contract v1; Orbit's answer checker, fast-path intents, agent-with-fallback, hybrid document search, balance proofs and cross-checks; no-network guards in both apps; separate databases; Orbit's database encryption; complexity gate, ESLint and Prettier in CI.
 Not yet: core database and shared intake (Orbit's reader is still inside Orbit); the link book, lenses and `items_in_window`; the shared assistant and AI gateway (each app still has its own chat engine); service-to-service signing (any local program can call a module's port); at-rest encryption for Lumo and the core; strict types everywhere; strict CSP in Orbit (it still allows inline styles); hash-pinned dependencies and digest-pinned images; fuzzing, mutation testing, import-linter, `make verify`; health and travel modules; the Docker images have not been built on a real Mac.
 
 ## 13. Open decisions (defaults in bold; change by ADR)
