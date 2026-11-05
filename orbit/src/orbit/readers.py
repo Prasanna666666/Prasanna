@@ -21,6 +21,7 @@ import subprocess
 import zipfile
 from datetime import date, datetime
 from functools import lru_cache
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree as ET  # noqa: S405 - DOCTYPE/entities are rejected before parsing
@@ -141,8 +142,55 @@ def read_pdf(path: Path, passwords: list[str] | None = None) -> dict:
         if ocr_pages:
             meta["ocr_pages"] = ocr_pages
             meta["ocr_confidence"] = round(sum(confs) / len(confs), 1) if confs else 0.0
-    return {"kind": "pdf", "text": clean("\n\n".join(pages_text)), "meta": meta,
-            "data": {"lines": [clean(x, 600) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}}
+    data = {"lines": [clean(x, 600) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}
+    if not meta.get("ocr_pages"):  # a real text layer: read it with other, independent engines too, so the readings can be compared
+        for engine, alt in other_engines(path, passwords, min(meta["pages"], 500)).items():
+            data[f"table_{engine}"] = alt[:MAX_ROWS]
+            meta.setdefault("engines", []).append(engine)
+    return {"kind": "pdf", "text": clean("\n\n".join(pages_text)), "meta": meta, "data": data}
+
+
+def _pdfplumber_pages(path: Path, passwords: list[str], pages: int) -> list[list[tuple]]:
+    import pdfplumber
+
+    for pw in [*passwords, ""]:
+        try:
+            with pdfplumber.open(path, password=pw or None) as pdf:
+                return [[(w["x0"], w["top"], w["x1"], w["bottom"], w["text"]) for w in page.extract_words()] for page in pdf.pages[:pages]]
+        except Exception as exc:  # noqa: BLE001 - wrong password or damaged: try the next one
+            last = exc
+    raise last
+
+
+_BBOX_PAGE = re.compile(r"<page\b.*?</page>", re.S)
+_BBOX_WORD = re.compile(r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">(.*?)</word>', re.S)
+
+
+def _poppler_pages(path: Path, passwords: list[str], pages: int) -> list[list[tuple]]:
+    exe = shutil.which("pdftotext")
+    if not exe:
+        raise RuntimeError("poppler is not installed")
+    for pw in [*passwords, ""]:
+        cmd = [exe, "-bbox", "-l", str(pages), *(["-upw", pw] if pw else []), str(path), "-"]
+        done = subprocess.run(cmd, capture_output=True, timeout=120, check=False)  # noqa: S603
+        if done.returncode == 0:
+            html = done.stdout.decode("utf-8", "replace")
+            return [[(float(a), float(b), float(c), float(d), unescape(t)) for a, b, c, d, t in _BBOX_WORD.findall(page)] for page in _BBOX_PAGE.findall(html)]
+    raise RuntimeError("poppler could not open the file")
+
+
+def other_engines(path: Path, passwords: list[str] | None, pages: int) -> dict[str, list]:
+    """The same pages read by other PDF engines (pdfminer via pdfplumber, and poppler): each as a table, like the main reading. An engine that fails is simply absent."""
+    out = {}
+    for name, read in (("pdfplumber", _pdfplumber_pages), ("poppler", _poppler_pages)):
+        try:
+            table: list = []
+            for words in read(path, list(passwords or []), pages):
+                table += table_lines(words)
+            out[name] = table
+        except Exception:  # noqa: BLE001 - never lose the file because a second opinion is unavailable
+            continue
+    return out
 
 
 def read_image(path: Path) -> dict:

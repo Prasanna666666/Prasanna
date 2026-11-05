@@ -93,6 +93,9 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   A transfer between two of your accounts in different currencies (e.g. rupees to euros) is matched when the euro values are within 6% and the days within 3; the
   fee and spread (what was sent at the day's rate minus what arrived) becomes an expense of its own, so the euros still tally. By default every currency is shown **as it is**
   (your main currency first); the switch at the top of Money has **Convert to EUR** as an option, and a converted payment still shows its original amount beside it.
+- **Three PDF engines.** Every digital PDF is read by PyMuPDF, pdfminer (pdfplumber) and poppler. Every printed figure must appear the same number of times in all three, and the
+  same column layout must give identical transactions from each. A misread digit or a dropped line in one engine fails the file, and it is not counted. Scans use OCR with a
+  second check instead (no second engine for pixels).
 - **Watchers (plain rules, no model).** Duplicate charges, price changes on regular payments, unusually large payments, refunds tied to their purchase, one name per shop,
   upcoming regular payments (shown on Home), net worth in euros from proven closing balances, tax letters / insurance / VAT / annual statement vs payslips, exchange-rate
   freshness, a self-test of the readers, a tamper-evident audit log and a daily backup (kept 7 days, next to the database - also copy the folder elsewhere).

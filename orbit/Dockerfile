@@ -23,7 +23,7 @@ CMD ["ui", "--host", "0.0.0.0", "--port", "8501"]
 
 FROM base AS parser
 # Tesseract (offline OCR, Dutch + English) reads scanned PDFs and photos of statements; everything else is read with Python libraries.
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld poppler-utils && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir ".[parse]"
 USER 10001
 ENTRYPOINT ["orbit-parser"]

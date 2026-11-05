@@ -56,7 +56,7 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
             continue
         tags = ",".join(rule_tags(f"{d['name']} {d['text'][:5000]}", people))
         area = "finance" if d.get("area") == "finance" else ""
-        structured = {k: d["data"][k] for k in ("rows", "lines", "table") if isinstance(d.get("data"), dict) and isinstance(d["data"].get(k), list)}
+        structured = {k: d["data"][k] for k in ("rows", "lines", "table", "table_pdfplumber", "table_poppler") if isinstance(d.get("data"), dict) and isinstance(d["data"].get(k), list)}
         if isinstance(d.get("meta"), dict) and d["meta"]:
             structured["meta"] = d["meta"]  # how it was read: scanned, how confident, how many pages
         cur = conn.execute("INSERT OR IGNORE INTO documents (sha256, name, kind, text, tags, parsed_at, area, data) VALUES (?,?,?,?,?,?,?,?)",

@@ -10,6 +10,7 @@ A statement with a fail is NOT counted in your totals. Everything is arithmetic 
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
@@ -92,6 +93,44 @@ def second_reader(client, model: str, table: list[list[tables.Cell]], first_layo
     return Finding("second reader", "fail", subject, f"two independent readings of the layout disagree ({len(first.txns)} vs {len(other.txns)} transactions)")
 
 
+_FIGURE = re.compile(r"\d[\d.,' ]*\d|\d")
+
+
+def _figures(table: list[list[tables.Cell]]) -> Counter:
+    """Every printed figure (amounts, dates, balances) with how many times it appears: the fingerprint of what an engine saw."""
+    return Counter(re.sub(r"[ ']", "", m) for line in table for c in line for m in _FIGURE.findall(c.text))
+
+
+def engine_agreement(name: str, data: dict, layout: tables.Layout, first: tables.Parsed) -> list[Finding]:
+    """The same PDF read by independent engines (PyMuPDF, pdfminer, poppler). Every printed figure must appear the same number of times in each reading,
+    and the same column layout must give exactly the same transactions from each. One engine misreading a digit or dropping a line shows up here."""
+    if not isinstance(data.get("table"), list):
+        return []  # not a PDF text layer (a spreadsheet, CSV or scan has no second engine)
+    alts = {k[6:]: v for k, v in data.items() if k.startswith("table_") and isinstance(v, list)}
+    if not alts:
+        return [Finding("engine agreement", "warn", name, "only one PDF engine could read this file, so the reading was not compared with another")]
+    base_table = tables.table_from_data(data)
+    base = _figures(base_table)
+    out = []
+    for engine, raw in alts.items():
+        table = tables.table_from_data({"table": raw})
+        theirs = _figures(table)
+        if theirs != base:
+            lost, extra = base - theirs, theirs - base
+            out.append(Finding("engine agreement", "fail", name, f"{engine} sees different figures than the main reader ({sum(lost.values())} missing, {sum(extra.values())} extra): check this file"))
+            continue
+        try:
+            other = tables.parse_table(table, layout)
+        except (ValueError, IndexError):
+            out.append(Finding("engine agreement", "fail", name, f"{engine} could not be read with the same layout"))
+            continue
+        if signature(other.txns) != signature(first.txns):
+            out.append(Finding("engine agreement", "fail", name, f"{engine} gives different transactions ({len(other.txns)} vs {len(first.txns)}): check this file"))
+        else:
+            out.append(Finding("engine agreement", "ok", name, f"{engine} reads the same {len(first.txns)} transactions and the same figures"))
+    return out
+
+
 def read_table_statement(client, model: str, name: str, data: dict, text: str) -> Read:
     """A PDF or CSV statement: layout by the model, figures by code, then every agent has its say."""
     r = Read()
@@ -123,6 +162,10 @@ def read_table_statement(client, model: str, name: str, data: dict, text: str) -
             r.issues.append(finding.message)
         elif proven:
             r.proofs.append("opening + transactions = closing")
+    for finding in engine_agreement(name, data, layout, parsed):
+        r.findings.append(finding)
+        if finding.level == "fail":
+            r.issues.append(finding.message)
     if not r.issues and r.txns:
         second = second_reader(client, model, table, layout, parsed, name)
         r.findings.append(second)
