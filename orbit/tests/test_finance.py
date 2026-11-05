@@ -271,7 +271,8 @@ def test_without_the_model_nothing_is_imported_and_you_are_told(conn, tmp_path):
 
 def test_files_outside_the_finance_folder_are_never_imported(conn, tmp_path):
     _load(conn, tmp_path, "notes.pdf", GOOD, area="")
-    assert run(conn)["files"] == 0
+    r = run(conn)
+    assert r["new_transactions"] == 0 and conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0
 
 
 def test_categories_rules_then_your_corrections(conn, tmp_path):

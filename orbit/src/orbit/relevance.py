@@ -1,4 +1,4 @@
-"""Which mail documents are worth the model's time.
+"""Which documents are worth the model's time.
 
 The model decides what a document IS (invoice, ticket, booking, medical report, payslip ...). This only decides whether it is worth asking, so that a
 mailbox with thousands of newsletters does not cost a model call each. A mail attachment (a PDF, a scan, a spreadsheet) always is; the text of an
@@ -12,7 +12,6 @@ import re
 
 MIN_TEXT = 40  # an attachment with no readable text (an empty scan, a banner) has nothing to say
 ATTACHMENT_KINDS = frozenset({"pdf", "image", "sheet", "doc", "csv"})
-ATTACHMENT_OF_MAIL = re.compile(r"\.(eml|emlx)(/|$)", re.IGNORECASE)
 AMOUNT = re.compile(r"(?:€|\$|£|₹|\b(?:eur|usd|gbp|inr|rs\.?)\s?)\s?\d[\d.,]*\d|\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b", re.IGNORECASE)
 TERMS = frozenset(
     [
@@ -75,9 +74,9 @@ TERMS = frozenset(
 
 
 def worth_reading(name: str, kind: str, text: str) -> bool:
-    """Is this mail document worth asking the model about?"""
-    if kind != "email":
-        return bool(ATTACHMENT_OF_MAIL.search(name)) and kind in ATTACHMENT_KINDS and len(text.strip()) >= MIN_TEXT
+    """Is this document worth asking the model about?"""
+    if kind in ATTACHMENT_KINDS:  # a PDF, scan, sheet or Word file: worth reading when it has text (mail attachments and loose files alike)
+        return len(text.strip()) >= MIN_TEXT
     if not AMOUNT.search(text):
         return False
     return any(word in TERMS for word in re.findall(r"[^\W\d_]+", text.lower()))

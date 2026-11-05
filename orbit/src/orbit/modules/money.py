@@ -326,7 +326,13 @@ def _remember_doc(conn, d, info) -> None:
 
 def travel_documents(conn, a=None):
     """Tickets and bookings found in your files and mail: where to, from when to when (as the document itself writes them), and what they cost."""
-    where, args = ["kind IN ('ticket','booking')"], []
+    return documents_of_kind(conn, {**(a or {}), "kind": "ticket,booking"})
+
+
+def documents_of_kind(conn, a=None):
+    """Documents of the given kinds (any of ticket, booking, medical, insurance, contract, tax, invoice ...) from every file and mail, whichever app asks: what they are, who from, when, where, and what they cost."""
+    kinds = [k for k in str((a or {}).get("kind", "")).replace(" ", "").split(",") if k in extract.KINDS]
+    where, args = [f"kind IN ({','.join('?' * len(kinds))})" if kinds else "kind<>'other'"], list(kinds)
     if (a or {}).get("place"):
         where.append("place LIKE ?")
         args.append(f"%{str(a['place'])[:60]}%")
@@ -335,7 +341,7 @@ def travel_documents(conn, a=None):
         args.append(str(a["year"])[:4])
     return rows(
         conn.execute(
-            "SELECT name, kind, party, place, start_date, end_date, doc_date, reference, total_minor/100.0 AS total, currency FROM finance_docs WHERE "
+            "SELECT name, kind, title, party, place, start_date, end_date, doc_date, reference, total_minor/100.0 AS total, currency FROM finance_docs WHERE "
             + " AND ".join(where)
             + " ORDER BY COALESCE(start_date, doc_date), name LIMIT 100",
             args,
@@ -440,7 +446,7 @@ def _pending_documents(conn) -> list:
     """The finance files not yet read, and all mail documents worth reading (a cheap check, no model). One press reads everything."""
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
     skipped = {r[0] for r in conn.execute("SELECT sha256 FROM mail_skipped")}
-    rows = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents WHERE area IN ('finance','mail') ORDER BY id").fetchall()
+    rows = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents ORDER BY id").fetchall()
     docs: list = []
     for d in rows:
         if d["sha256"] in done:
@@ -476,7 +482,8 @@ def _import_rates_file(conn, d, data: dict, run: _Run) -> None:
 
 def _read_document(conn, d, data: dict, client, model, progress, position: tuple[int, int]) -> _Outcome:
     """Read one document: an exact standard needs no model; otherwise the model describes the layout and code reads every figure."""
-    standard = standards.sniff(d["text"])
+    own = d["area"] == "finance"  # bank statements are read only from the finance folder; anything else is read for its facts only
+    standard = standards.sniff(d["text"]) if own else None
     if standard:
         info = {"kind": "bank_statement", "title": "Bank statement"}
         _remember_doc(conn, d, info)
@@ -486,7 +493,7 @@ def _read_document(conn, d, data: dict, client, model, progress, position: tuple
     _remember_doc(conn, d, out.info)
     if out.info["kind"] == "payslip":
         out.slip = payslips.from_model(out.info)
-    elif out.info["kind"] == "bank_statement":
+    elif out.info["kind"] == "bank_statement" and own:
         if progress:
             progress(f"Reading file {position[0]} of {position[1]}")
         out.read = verify.read_table_statement(client, model, d["name"], data, d["text"])
@@ -562,7 +569,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         if rates.looks_like_ecb(data.get("rows")):
             _import_rates_file(conn, d, data, run)
             continue
-        if not standards.sniff(d["text"]) and (client is None or not model):
+        if not (d["area"] == "finance" and standards.sniff(d["text"])) and (client is None or not model):
             if no_model not in run.problems:
                 run.problems.append(no_model)
             continue
@@ -920,6 +927,12 @@ MODULE = Module(
             "Tickets and bookings found in the user's files and mail: destination, start and end dates as written in the document, and the cost. Use it for trips and travel.",
             {"place": S("Part of a destination, for example India"), "year": S("Year, for example 2026")},
             travel_documents,
+        ),
+        Tool(
+            "documents_of_kind",
+            "Documents of given kinds found in the user's files and mail (comma separated: ticket, booking, medical, insurance, contract, tax, invoice, receipt, payslip): who from, when, where, cost.",
+            {"kind": S("Kinds, for example medical or ticket,booking"), "place": S("Part of a place"), "year": S("Year, for example 2026")},
+            documents_of_kind,
         ),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool(

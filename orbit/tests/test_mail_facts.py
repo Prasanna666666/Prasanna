@@ -82,3 +82,15 @@ def test_travel_documents_lists_trips_from_tickets(tmp_path, conn):
     money.import_statements(conn, client=FakeModel(kind=kind), model="fake")
     rows = money.travel_documents(conn, {"place": "delhi", "year": "2026"})
     assert len(rows) == 1 and rows[0]["start_date"] == "2026-01-12" and rows[0]["total"] == 480.0
+
+
+def test_any_document_is_read_once_and_any_app_can_ask_for_its_kind(tmp_path, conn):
+    def kind(text):
+        return {"kind": "medical", "title": "Blood test", "party": "Clinic", "date": "2026-03-01"}
+
+    _load(
+        conn, tmp_path, "blood-test-report-from-the-inbox", text="Uitslag bloedonderzoek: alle waarden normaal, kliniek centrum, datum 1 maart 2026.", area=""
+    )
+    money.import_statements(conn, client=FakeModel(kind=kind), model="fake")
+    rows = money.documents_of_kind(conn, {"kind": "medical"})
+    assert [r["title"] for r in rows] == ["Blood test"] and money.documents_of_kind(conn, {"kind": "ticket"}) == []

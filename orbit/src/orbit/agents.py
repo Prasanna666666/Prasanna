@@ -81,6 +81,7 @@ AGENTS: tuple[AgentSpec, ...] = (
                 "list_payslips",
                 "finance_documents",
                 "travel_documents",
+                "documents_of_kind",
                 "finance_document_totals",
                 "monthly_trend",
                 "recurring_payments",

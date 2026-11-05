@@ -176,6 +176,11 @@ def _get_search(state: State, conn, query: dict[str, str]) -> dict:
     return {"results": browse.search_links(browse.search_all(conn, {"query": query.get("q", "")[:200]}))}
 
 
+def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
+    """What the one document reader found, for any app: /api/documents?kind=medical,ticket&place=&year=. Each module takes what is relevant to it."""
+    return {"documents": money.documents_of_kind(conn, {k: query.get(k, "")[:80] for k in ("kind", "place", "year")})}
+
+
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     """Where "read my new files" stands, in the shape every module reports it (the contract's scan status), for Atlas's one Update button."""
     job = state.importing
@@ -196,6 +201,7 @@ GET_ROUTES = {
     "/api/scan": _scan_status,
     "/api/health": lambda state, conn, query: {"ok": True},
     "/api/search": _get_search,
+    "/api/documents": _get_documents,
     "/api/home": _get_home,
     "/api/status": _get_status,
     "/api/settings": _get_settings,
