@@ -15,8 +15,8 @@ import difflib
 import re
 from dataclasses import dataclass, field
 
+from .findings import Finding
 from .tables import money_from_printed
-from .verify import Finding
 
 MARKS = "✅✔✓☑✔️"
 AMOUNT_LINE = re.compile(r"^(?P<label>[^:=\n]{1,60}?)\s*[:=]\s*(?P<amt>[-−–]?\s*(?:€|EUR|₹|Rs\.?)?\s*\d[\d.,]*)\s*(?:EUR|€)?\s*$", re.IGNORECASE)

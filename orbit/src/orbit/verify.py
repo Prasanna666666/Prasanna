@@ -12,37 +12,12 @@ from __future__ import annotations
 import itertools
 import re
 from collections import Counter
-from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from . import clock, tables
 from . import currency as currencies
+from .findings import Finding, Read
 from .statements import Txn
-
-
-@dataclass(frozen=True)
-class Finding:
-    agent: str
-    level: str  # ok | warn | fail
-    subject: str
-    message: str
-
-
-@dataclass
-class Read:
-    """The result of reading one statement file."""
-
-    txns: list[Txn] = field(default_factory=list)
-    status: str = "needs_check"  # verified | unverified | needs_check
-    issues: list[str] = field(default_factory=list)
-    account: str = ""
-    first: str = ""
-    last: str = ""
-    opening: int | None = None
-    closing: int | None = None
-    proofs: list[str] = field(default_factory=list)
-    findings: list[Finding] = field(default_factory=list)
-    currency: str = ""
 
 
 def _squash(s: str) -> str:

@@ -8,7 +8,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from . import clock, db, log
-from .verify import Finding
+from .findings import Finding
 
 
 def integrity(conn) -> str:

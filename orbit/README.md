@@ -96,6 +96,8 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
 - **Three PDF engines.** Every digital PDF is read by PyMuPDF, pdfminer (pdfplumber) and poppler. Every printed figure must appear the same number of times in all three, and the
   same column layout must give identical transactions from each. A misread digit or a dropped line in one engine fails the file, and it is not counted. Scans use OCR with a
   second check instead (no second engine for pixels).
+- **Backups.** A copy is made daily (7 kept) and before every upgrade of the database, inside the app's data volume. They protect against mistakes, not against losing the disk: run `./scripts/backup.sh /path/to/external/drive` now and then. The copies stay encrypted.
+- **Safe to open.** The web page needs the link printed by `./scripts/up.sh` (it carries a secret kept in your Keychain), so other programs on the Mac cannot read or change your data through the port.
 - **Watchers (plain rules, no model).** Duplicate charges, price changes on regular payments, unusually large payments, refunds tied to their purchase, one name per shop,
   upcoming regular payments (shown on Home), net worth in euros from proven closing balances, tax letters / insurance / VAT / annual statement vs payslips, exchange-rate
   freshness, a self-test of the readers, a tamper-evident audit log and a daily backup (kept 7 days, next to the database - also copy the folder elsewhere).

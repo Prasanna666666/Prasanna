@@ -4,7 +4,7 @@ If a code change, a library update or a corrupted file ever makes the readers gi
 from __future__ import annotations
 
 from . import rates, standards, tables
-from .verify import Finding
+from .findings import Finding
 
 SAMPLE = [
     ["Datum", "Omschrijving", "Af", "Bij", "Saldo"],

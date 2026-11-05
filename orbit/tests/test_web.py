@@ -92,3 +92,58 @@ def test_chat_reports_a_missing_model_plainly(server, monkeypatch):
     monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:9")  # nothing is listening
     status, body, _ = post(server, "/api/chat", {"text": "hello"})
     assert status == 502 and "Ollama" in json.loads(body)["error"]
+
+
+def test_with_a_token_nothing_is_served_without_the_cookie(tmp_path, monkeypatch):
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from orbit import db, web
+    from orbit.modules import ALL
+
+    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
+    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    c = db.connect()
+    db.migrate(c, ALL)
+    c.close()
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(web.State(token="s3cret-token")))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+
+    def get(path, cookie=None):
+        conn = http.client.HTTPConnection("127.0.0.1", port)
+        conn.request("GET", path, headers={"Host": f"127.0.0.1:{port}", **({"Cookie": cookie} if cookie else {})})
+        r = conn.getresponse()
+        return r.status, r.getheader("Set-Cookie"), r.read()
+
+    try:
+        assert get("/")[0] == 401 and get("/api/home")[0] == 401 and get("/static/app.js")[0] == 401
+        assert get("/?k=wrong")[0] == 401
+        status, cookie, _ = get("/?k=s3cret-token")
+        assert status == 303 and "orbit_k=s3cret-token" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
+        assert get("/api/home", "orbit_k=s3cret-token")[0] == 200
+        assert get("/", "orbit_k=nope")[0] == 401
+    finally:
+        srv.shutdown()
+
+
+def test_guessing_the_token_is_slowed_down(tmp_path, monkeypatch):
+    import http.client
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from orbit import web
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(web.State(token="x" * 20)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+    try:
+        codes = []
+        for _ in range(14):
+            conn = http.client.HTTPConnection("127.0.0.1", port)
+            conn.request("GET", "/api/home", headers={"Host": f"127.0.0.1:{port}"})
+            codes.append(conn.getresponse().status)
+        assert codes[0] == 401 and codes[-1] == 429
+    finally:
+        srv.shutdown()

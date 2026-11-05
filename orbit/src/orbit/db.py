@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .module import Module
@@ -112,14 +113,45 @@ def display_currency(conn: sqlite3.Connection) -> str:
     return "EUR" if v == "ALL" else v
 
 
+class MigrationError(RuntimeError):
+    """An upgrade of the database failed. Your data from before the upgrade is in the copy named in the message."""
+
+
+def _copy_before_upgrade(conn: sqlite3.Connection) -> Path | None:
+    """A full copy of the database (same encryption) taken just before it is changed, so a failed or unwanted upgrade can always be undone. None for an in-memory database."""
+    file = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
+    if not file:
+        return None
+    folder = Path(file).parent / "backups"
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / f"before-upgrade-{datetime.now(timezone.utc):%Y%m%dT%H%M%S}.db"
+    copy = connect(target)
+    try:
+        conn.backup(copy)
+        copy.commit()
+    finally:
+        copy.close()
+    for old in sorted(folder.glob("before-upgrade-*.db"))[:-3]:  # keep the last three
+        old.unlink(missing_ok=True)
+    return target
+
+
 def migrate(conn: sqlite3.Connection, modules: list[Module]) -> None:
+    """Bring the database up to the current schema. Each module's steps run in order and are recorded; a database that already holds data is copied first."""
     conn.execute("CREATE TABLE IF NOT EXISTS _migrations (module TEXT PRIMARY KEY, version INTEGER NOT NULL)")
     conn.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-    for m in modules:
-        row = conn.execute("SELECT version FROM _migrations WHERE module=?", (m.name,)).fetchone()
-        done = row["version"] if row else 0
+    have = {r["module"]: r["version"] for r in conn.execute("SELECT module, version FROM _migrations")}
+    pending = [m for m in modules if len(m.migrations) > have.get(m.name, 0)]
+    saved = _copy_before_upgrade(conn) if pending and have else None
+    for m in pending:
+        done = have.get(m.name, 0)
         for i, sql in enumerate(m.migrations[done:], start=done + 1):
-            conn.executescript(sql)
+            try:
+                conn.executescript(sql)
+            except sqlite3.Error as exc:
+                raise MigrationError(
+                    f"Upgrading '{m.name}' to version {i} failed ({type(exc).__name__})." + (f" Your data from before is safe in {saved}." if saved else "")
+                ) from exc
             conn.execute("INSERT OR REPLACE INTO _migrations VALUES (?, ?)", (m.name, i))
         conn.commit()
     ledger_view(conn)

@@ -38,6 +38,7 @@ services:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ORBIT_INBOX: /inbox
       ORBIT_PARSED: /parsed
+      ORBIT_TOKEN: ${ORBIT_TOKEN:-}   # the web token from up.sh; empty = no token required (development only)
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
     volumes:
       - orbit-data:/data

@@ -11,6 +11,7 @@ from datetime import date
 
 from .. import audit, categorize, clock, dates, extract, insight, payslips, rates, standards, statements, verify
 from ..db import get_setting, rows
+from ..findings import Finding, Read
 from ..module import Module, N, S, Tool
 
 MIGRATIONS = (
@@ -335,10 +336,10 @@ def finance_document_totals(conn, a=None):
     )
 
 
-def _read_standard(kind: str, text: str, name: str) -> verify.Read:
+def _read_standard(kind: str, text: str, name: str) -> Read:
     """MT940 / camt.053: exact formats, no model needed."""
     statements_ = standards.read_mt940(text) if kind == "mt940" else standards.read_camt(text)
-    r = verify.Read()
+    r = Read()
     for s in statements_:
         r.txns += s.txns
         r.issues += s.issues
@@ -353,7 +354,7 @@ def _read_standard(kind: str, text: str, name: str) -> verify.Read:
     r.proofs = ["opening + transactions = closing"] if proven else []
     r.status = "needs_check" if r.issues else ("verified" if proven else "unverified")
     r.findings = [
-        verify.Finding(
+        Finding(
             "standard reader",
             "fail" if r.issues else "ok",
             name,
@@ -388,12 +389,12 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         status, issues = "ok", []
         txns: list[statements.Txn] = []
         new = 0
-        rd: verify.Read | None = None
+        rd: Read | None = None
         if rates.looks_like_ecb(data.get("rows")):  # the ECB's exchange-rate file: loaded into the rates table, not a document about your money
             n = rates.store(conn, rates.parse_ecb(data["rows"]))
             _remember_doc(conn, d, {"kind": "other", "title": "ECB exchange rates"})
             conn.execute("INSERT INTO statement_files (sha256, name, found, added, status) VALUES (?,?,0,0,'ok')", (d["sha256"], d["name"]))
-            verify.store_file_findings(conn, d["name"], [verify.Finding("rates", "ok", d["name"], f"{n} exchange rates loaded")])
+            verify.store_file_findings(conn, d["name"], [Finding("rates", "ok", d["name"], f"{n} exchange rates loaded")])
             files += 1
             conn.commit()
             continue

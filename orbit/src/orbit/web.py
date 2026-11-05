@@ -7,10 +7,14 @@ stops DNS-rebinding), and anything that changes data must carry a custom header 
 from __future__ import annotations
 
 import contextlib
+import hmac
 import json
+import logging
 import mimetypes
 import os
 import threading
+import time
+import urllib.parse
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,7 +43,9 @@ def _host_ok(value: str | None) -> bool:
 class State:
     """What the server remembers between requests. One person uses it, so this is simple on purpose."""
 
-    def __init__(self) -> None:
+    def __init__(self, token: str | None = None) -> None:
+        self.token = os.environ.get("ORBIT_TOKEN", "") if token is None else token  # when set, every request must carry it (see _authorised)
+        self.refused: list[float] = []  # when recent requests were refused, to slow down guessing
         self.history: list[dict] = []
         self.chat_lock = threading.Lock()
         self.importing: dict[str, Any] = {"running": False, "progress": "", "result": None, "error": ""}
@@ -122,10 +128,33 @@ def make_handler(state: State):
         def _fail(self, status: int, message: str) -> None:
             self._json({"ok": False, "error": message}, status)
 
+        def _authorised(self) -> bool:
+            """Other programs on this computer can reach the port too. With a token set, only a browser that opened the link printed by up.sh (which sets a cookie) gets in."""
+            if not state.token:
+                return True
+            now = time.monotonic()
+            state.refused[:] = [t for t in state.refused if now - t < 60]
+            cookie = next((c.split("=", 1)[1] for c in self.headers.get("Cookie", "").split("; ") if c.startswith("orbit_k=")), "")
+            if hmac.compare_digest(cookie.encode(), state.token.encode()):
+                return True
+            log.event("request refused: no valid token", level=logging.WARNING)
+            state.refused.append(now)
+            if len(state.refused) > 10:
+                self._send(429, b'{"ok": false, "error": "Too many attempts. Wait a minute."}')
+            else:
+                self._send(
+                    401,
+                    b"<!doctype html><meta charset=utf-8><title>Orbit</title><body style='font:16px system-ui;margin:3rem'>Open Orbit with the link that <code>./scripts/up.sh</code> printed.",
+                    "text/html; charset=utf-8",
+                )
+            return False
+
         def _guard(self, writing: bool) -> bool:
             host = self.headers.get("Host", "")
             if not _host_ok(host):
                 self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8501")
+                return False
+            if not self._authorised():
                 return False
             if writing:
                 origin = self.headers.get("Origin")
@@ -146,6 +175,16 @@ def make_handler(state: State):
 
         # ---- GET --------------------------------------------------------------------------------------------------
         def do_GET(self) -> None:
+            path, _, query = self.path.partition("?")
+            offered = urllib.parse.parse_qs(query).get("k", [""])[0]
+            if state.token and offered and path == "/" and hmac.compare_digest(offered.encode(), state.token.encode()) and _host_ok(self.headers.get("Host")):
+                # the link from up.sh: remember it in a cookie that scripts on other sites cannot read or send, then drop the token from the address bar
+                self.send_response(303)
+                self.send_header("Set-Cookie", f"orbit_k={state.token}; HttpOnly; SameSite=Strict; Path=/")
+                self.send_header("Location", "/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             if not self._guard(False):
                 return
             path = self.path.split("?", 1)[0]

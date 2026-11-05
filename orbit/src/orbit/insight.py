@@ -15,7 +15,7 @@ from datetime import date, timedelta
 
 from . import audit, backup, canary, categorize, clock, rates, tables
 from .db import get_setting
-from .verify import Finding
+from .findings import Finding
 
 
 def _main(conn) -> str:

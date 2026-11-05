@@ -22,9 +22,15 @@ if ! KEY="$(read_key "$SERVICE")"; then
     echo "BACK IT UP NOW:  ./scripts/up.sh --show-key   (store it somewhere safe, offline). Without it the data cannot be recovered."
   fi
 fi
+TOKSERVICE=orbit-web-token   # the secret in the link below: without it, other programs on this Mac cannot talk to Orbit's port
+if ! TOKEN="$(read_key "$TOKSERVICE")"; then
+  TOKEN="$(openssl rand -hex 24)"
+  security add-generic-password -a "$USER" -s "$TOKSERVICE" -w "$TOKEN" -T /usr/bin/security -U
+fi
+export ORBIT_TOKEN="$TOKEN"
 mkdir -p "$HOME/OrbitInbox/notes"
 export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep your finance folder where it is: ORBIT_FINANCE_DIR=/path ./scripts/up.sh
 mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
 docker compose up -d --build
-echo "Orbit: http://127.0.0.1:8501   (drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"
+echo "Orbit: http://127.0.0.1:8501/?k=$TOKEN   (open THIS link once per browser; drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"
