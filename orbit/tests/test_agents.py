@@ -4,14 +4,17 @@ from orbit import agent, agents, llm, tagging
 from orbit.modules import ALL, notes, people, tools
 
 
-@pytest.mark.parametrize("text,expected", [
-    ("spent 450 on groceries", "money"),
-    ("remind me to call Amma every Sunday", "tasks"),
-    ("when is dad's birthday", "family"),
-    ("note: wifi password is on the router", "notes"),
-    ("give me my morning brief", "briefing"),
-    ("what's due today", "tasks"),
-])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("spent 450 on groceries", "money"),
+        ("remind me to call Amma every Sunday", "tasks"),
+        ("when is dad's birthday", "family"),
+        ("note: wifi password is on the router", "notes"),
+        ("give me my morning brief", "briefing"),
+        ("what's due today", "tasks"),
+    ],
+)
 def test_keyword_routing(text, expected):
     assert agents.route(text) == expected
 
@@ -52,7 +55,7 @@ def test_agent_only_sees_and_may_call_its_own_tools(conn):
     assert offered == set(agents.BY_NAME["money"].tools)
     assert trace[0]["agent"] == "money"
     assert conn.execute("SELECT COUNT(*) FROM people").fetchone()[0] == 1  # still there
-    tool_msg = [m for m in c.calls[1][0] if m["role"] == "tool"][0]
+    tool_msg = next(m for m in c.calls[1][0] if m["role"] == "tool")
     assert "not available" in tool_msg["content"]
 
 

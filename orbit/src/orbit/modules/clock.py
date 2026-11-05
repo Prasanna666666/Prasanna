@@ -17,7 +17,15 @@ def current_time(conn, a):
     return {"timezone": tz, "iso": now.isoformat(timespec="minutes"), "weekday": now.strftime("%A")}
 
 
-MODULE = Module("clock", (), (
-    Tool("current_time", "Current local time in an IANA timezone (from the computer's clock).",
-         {"timezone": S("e.g. Asia/Kolkata, America/New_York")}, current_time),
-))
+MODULE = Module(
+    "clock",
+    (),
+    (
+        Tool(
+            "current_time",
+            "Current local time in an IANA timezone (from the computer's clock).",
+            {"timezone": S("e.g. Asia/Kolkata, America/New_York")},
+            current_time,
+        ),
+    ),
+)

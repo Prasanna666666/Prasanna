@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 
+from . import log
+
 
 def _seal(prev: str, at: str, action: str, detail: str) -> str:
     return hashlib.sha256(f"{prev}|{at}|{action}|{detail}".encode()).hexdigest()
@@ -20,8 +22,8 @@ def record(conn, action: str, detail: str = "") -> None:
         detail = detail[:300]
         conn.execute("INSERT INTO audit_log (at, action, detail, prev, hash) VALUES (?,?,?,?,?)", (at, action, detail, prev, _seal(prev, at, action, detail)))
         conn.commit()
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - the record is best-effort: a failed note must never stop the action it describes
+        log.failed("audit write failed", exc)
 
 
 def verify_chain(conn) -> tuple[bool, int, str]:

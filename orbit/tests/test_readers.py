@@ -12,7 +12,12 @@ from orbit import parser, readers
 from orbit.modules import documents, money
 
 HEAD = ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
-ROWS = [HEAD, ["01-10-2026", "Opening", "", "", "2.000,00"], ["02-10-2026", "Albert Heijn", "23,45", "", "1.976,55"], ["25-10-2026", "Salaris", "", "2.850,00", "4.826,55"]]
+ROWS = [
+    HEAD,
+    ["01-10-2026", "Opening", "", "", "2.000,00"],
+    ["02-10-2026", "Albert Heijn", "23,45", "", "1.976,55"],
+    ["25-10-2026", "Salaris", "", "2.850,00", "4.826,55"],
+]
 X = [(40, 90), (100, 230), (260, 310), (330, 390), (420, 480)]
 
 
@@ -24,7 +29,9 @@ def tsv_of(rows):
         for c, text in enumerate(row):
             if text:
                 x0, x1 = X[c]
-                out.append(f"5\t1\t1\t1\t{r + 1}\t{c + 1}\t{round(x0 * scale)}\t{round((100 + r * 20) * scale)}\t{round((x1 - x0) * scale)}\t{round(12 * scale)}\t{93 if c else 90}\t{text}")
+                out.append(
+                    f"5\t1\t1\t1\t{r + 1}\t{c + 1}\t{round(x0 * scale)}\t{round((100 + r * 20) * scale)}\t{round((x1 - x0) * scale)}\t{round(12 * scale)}\t{93 if c else 90}\t{text}"
+                )
     return "\n".join(out)
 
 
@@ -121,8 +128,10 @@ def test_spreadsheets_word_files_web_pages_and_json_all_give_rows_and_text(tmp_p
     assert sheet["kind"] == "sheet" and sheet["data"]["rows"] == [["Datum", "Bedrag"], ["2026-10-01", "23.45"], ["2026-10-02", "1000"]]
 
     w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-    xml = (f'<w:document xmlns:w="{w}"><w:body><w:p><w:r><w:t>Factuur Ziggo</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Totaal</w:t></w:r></w:p></w:tc>'
-           f'<w:tc><w:p><w:r><w:t>60,50</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>')
+    xml = (
+        f'<w:document xmlns:w="{w}"><w:body><w:p><w:r><w:t>Factuur Ziggo</w:t></w:r></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Totaal</w:t></w:r></w:p></w:tc>'
+        f"<w:tc><w:p><w:r><w:t>60,50</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>"
+    )
     with zipfile.ZipFile(tmp_path / "d.docx", "w") as z:
         z.writestr("word/document.xml", xml)
     doc = parser.extract(tmp_path / "d.docx")
@@ -176,12 +185,22 @@ def test_a_scanned_statement_goes_all_the_way_to_a_verified_import(tmp_path, fak
     parser.process_inbox(fin, tmp_path / "parsed", isolated=False, area="finance")
     documents.ingest_dir(conn, tmp_path / "parsed")
 
-    layout = {"header_line": 0, "roles": ["date", "description", "debit", "credit", "balance"], "date_format": "%d-%m-%Y", "month_names": [], "decimal": ",", "thousands": ".",
-              "debit_words": [], "credit_words": [], "date_on_every_row": True}
+    layout = {
+        "header_line": 0,
+        "roles": ["date", "description", "debit", "credit", "balance"],
+        "date_format": "%d-%m-%Y",
+        "month_names": [],
+        "decimal": ",",
+        "thousands": ".",
+        "debit_words": [],
+        "credit_words": [],
+        "date_on_every_row": True,
+    }
 
     class Model:
         def chat(self, model, messages, schema=None, **kw):
             from orbit import extract
+
             return {"content": json.dumps({"kind": "bank_statement"} if messages[0]["content"] == extract.KIND_PROMPT else layout)}
 
     r = money.import_statements(conn, client=Model(), model="fake")

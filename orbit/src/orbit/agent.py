@@ -13,7 +13,7 @@ import time
 from datetime import date
 from typing import Any
 
-from . import agents, answers, llm
+from . import agents, answers, clock, llm
 from .db import get_setting
 from .modules import ALL
 from .modules import tools as registry
@@ -30,7 +30,7 @@ def reply_seconds(conn) -> int:
 
 
 def system_prompt(conn: sqlite3.Connection, today: date | None = None, role: str = "") -> str:
-    today = today or date.today()
+    today = today or clock.today()
     return (
         "You are Orbit, the user's private personal assistant, running fully on their own computer. "
         + (role + " " if role else "You can use every tool. ")
@@ -59,32 +59,39 @@ def _coerce(tool, args: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str,
-             allowed: frozenset[str] | None = None) -> tuple[str, bool]:
+def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str, allowed: frozenset[str] | None = None) -> tuple[str, bool]:
     tool = registry(ALL).get(name)
     if tool is None or (allowed is not None and name not in allowed):
         return json.dumps({"error": f"tool {name!r} is not available"}), True
     try:
-        if isinstance(args, str):
-            args = json.loads(args or "{}")
-        return json.dumps(tool.fn(conn, _coerce(tool, args)), default=str), False
-    except Exception as e:  # reported to the model so it can correct itself
+        parsed: dict[str, Any] = json.loads(args or "{}") if isinstance(args, str) else args
+        return json.dumps(tool.fn(conn, _coerce(tool, parsed)), default=str), False
+    except Exception as e:  # noqa: BLE001 - any tool failure is reported to the model so it can correct itself
         conn.rollback()
         return json.dumps({"error": f"{type(e).__name__}: {e}"}), True
 
 
 def _classifier(client, model: str):
     def classify(text: str, names: list[str]) -> str:
-        msg = client.chat(model, [
-            {"role": "system", "content": "Reply with exactly one word: " + ", ".join(names) + ", chat (greetings, thanks, small talk or a "
-             "general question that needs none of the user's data), or general (a request that spans several areas or fits none). No other text."},
-            {"role": "user", "content": text}])
+        msg = client.chat(
+            model,
+            [
+                {
+                    "role": "system",
+                    "content": "Reply with exactly one word: " + ", ".join(names) + ", chat (greetings, thanks, small talk or a "
+                    "general question that needs none of the user's data), or general (a request that spans several areas or fits none). No other text.",
+                },
+                {"role": "user", "content": text},
+            ],
+        )
         return msg.get("content") or ""
+
     return classify
 
 
-def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=None, model: str | None = None,
-         today: date | None = None, trace: list | None = None) -> str:
+def chat(
+    conn: sqlite3.Connection, history: list[dict], user_text: str, client=None, model: str | None = None, today: date | None = None, trace: list | None = None
+) -> str:
     """Route to a specialist, run its tool loop, append every turn to `history`, return the final text.
 
     `trace` (optional) receives {'agent': name, 'tools': [names]} so the UI can show who answered.
@@ -129,7 +136,7 @@ def _fallback(conn, history, start, user_text, trace, exc, problems=()):
     if problems:
         reply = "I can't give you that figure with confidence: " + problems[0] + ". Open Money > Files to see what needs a check."
     else:
-        reply = f"This needs more thinking than I can do in {reply_seconds(conn)} seconds. Try a shorter question, such as \"How much did I spend last month?\"."
+        reply = f'This needs more thinking than I can do in {reply_seconds(conn)} seconds. Try a shorter question, such as "How much did I spend last month?".'
     history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": reply}])
     return reply
 
@@ -145,8 +152,10 @@ def _chat(conn, history, user_text, client, model, today, trace):
     history.append({"role": "user", "content": user_text})
     for _ in range(MAX_STEPS):
         if name == "chat":  # no tools, a short prompt: this is what keeps "Hi" fast
-            system = ("You are Orbit, the user's private personal assistant, running on their own computer. Chat briefly and warmly. "
-                      "You cannot see their data in this reply; if they want something done, tell them to ask for it.")
+            system = (
+                "You are Orbit, the user's private personal assistant, running on their own computer. Chat briefly and warmly. "
+                "You cannot see their data in this reply; if they want something done, tell them to ask for it."
+            )
         else:
             system = system_prompt(conn, today, spec.role if spec else "")
         msg = client.chat(model, [{"role": "system", "content": system}, *history], schemas)
@@ -157,7 +166,11 @@ def _chat(conn, history, user_text, client, model, today, trace):
         for c in calls:
             fn = c["function"]
             used.append(fn["name"])
-            if fn["name"].startswith("delete_") and (allowed is None or fn["name"] in allowed) and not re.search(r"\b(delete|remove|erase|clear|get rid)\b", user_text.lower()):
+            if (
+                fn["name"].startswith("delete_")
+                and (allowed is None or fn["name"] in allowed)
+                and not re.search(r"\b(delete|remove|erase|clear|get rid)\b", user_text.lower())
+            ):
                 # text inside a document must never be able to make the agent delete your data: only your own words can
                 out, _err = json.dumps({"error": "refused: deleting needs you to ask for it in your own words"}), True
             else:

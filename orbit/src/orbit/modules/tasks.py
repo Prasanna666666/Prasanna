@@ -6,7 +6,7 @@ from datetime import date
 
 from .. import dates
 from ..db import rows
-from ..module import I, Module, S, Tool
+from ..module import INT, Module, S, Tool
 
 MIGRATIONS = (
     """
@@ -87,26 +87,37 @@ def delete_task(conn, a):
 
 def overdue_and_today(conn, today: date):
     t = today.isoformat()
-    return rows(conn.execute(
-        "SELECT * FROM tasks WHERE done=0 AND due IS NOT NULL AND substr(due,1,10) <= ? ORDER BY due", (t,)))
+    return rows(conn.execute("SELECT * FROM tasks WHERE done=0 AND due IS NOT NULL AND substr(due,1,10) <= ? ORDER BY due", (t,)))
 
 
 MODULE = Module(
     "tasks",
     MIGRATIONS,
     (
-        Tool("add_task", "Create a task or reminder. Give `due` to make it a reminder.",
-             {"title": S("What to do"), "due": S("YYYY-MM-DD or YYYY-MM-DDTHH:MM"),
-              "recurrence": S("How it repeats", enum=RECURRENCES), "person_id": I("Related person id")},
-             add_task, ("title",)),
-        Tool("list_tasks", "List tasks, soonest due first.",
-             {"status": S("open (default), done or all", enum=["open", "done", "all"]),
-              "due_on_or_before": S("YYYY-MM-DD; use for 'what is due today/this week'"), "limit": I("Max rows")},
-             list_tasks),
-        Tool("complete_task", "Mark a task done. Recurring tasks automatically schedule the next one.",
-             {"id": I("Task id")}, complete_task, ("id",)),
-        Tool("reschedule_task", "Change a task's due date.", {"id": I("Task id"), "due": S("New due")},
-             reschedule_task, ("id", "due")),
-        Tool("delete_task", "Delete a task permanently.", {"id": I("Task id")}, delete_task, ("id",)),
+        Tool(
+            "add_task",
+            "Create a task or reminder. Give `due` to make it a reminder.",
+            {
+                "title": S("What to do"),
+                "due": S("YYYY-MM-DD or YYYY-MM-DDTHH:MM"),
+                "recurrence": S("How it repeats", enum=RECURRENCES),
+                "person_id": INT("Related person id"),
+            },
+            add_task,
+            ("title",),
+        ),
+        Tool(
+            "list_tasks",
+            "List tasks, soonest due first.",
+            {
+                "status": S("open (default), done or all", enum=["open", "done", "all"]),
+                "due_on_or_before": S("YYYY-MM-DD; use for 'what is due today/this week'"),
+                "limit": INT("Max rows"),
+            },
+            list_tasks,
+        ),
+        Tool("complete_task", "Mark a task done. Recurring tasks automatically schedule the next one.", {"id": INT("Task id")}, complete_task, ("id",)),
+        Tool("reschedule_task", "Change a task's due date.", {"id": INT("Task id"), "due": S("New due")}, reschedule_task, ("id", "due")),
+        Tool("delete_task", "Delete a task permanently.", {"id": INT("Task id")}, delete_task, ("id",)),
     ),
 )

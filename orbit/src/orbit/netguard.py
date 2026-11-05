@@ -10,11 +10,12 @@ from __future__ import annotations
 
 import ipaddress
 import socket
+from typing import Any
 
 _local_hosts: set[str] = {"localhost"}
 _allowed_ips: set[str] = set()
 _installed = False
-_orig = {}
+_orig: dict[str, Any] = {}
 
 
 class EgressBlocked(OSError):
@@ -28,7 +29,7 @@ def allow_local(host: str) -> None:
 
 def _is_loopback(ip: str) -> bool:
     try:
-        return ipaddress.ip_address(ip.split("%")[0]).is_loopback
+        return ipaddress.ip_address(ip.split("%", maxsplit=1)[0]).is_loopback
     except ValueError:
         return False
 
@@ -64,13 +65,17 @@ def install() -> None:
             check(addr)
         return _orig["connect_ex"](self, addr)
 
-    socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex = gai, connect, connect_ex
+    socket.getaddrinfo = gai
+    socket.socket.connect = connect  # type: ignore[method-assign]
+    socket.socket.connect_ex = connect_ex  # type: ignore[method-assign]
     _installed = True
 
 
 def uninstall() -> None:  # tests only
     global _installed
     if _installed:
-        socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex = _orig["gai"], _orig["connect"], _orig["connect_ex"]
+        socket.getaddrinfo = _orig["gai"]
+        socket.socket.connect = _orig["connect"]  # type: ignore[method-assign]
+        socket.socket.connect_ex = _orig["connect_ex"]  # type: ignore[method-assign]
         _installed = False
         _allowed_ips.clear()

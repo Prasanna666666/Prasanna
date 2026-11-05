@@ -9,8 +9,7 @@ from orbit import netguard
 from orbit.modules import ALL, tools
 
 SRC = pathlib.Path(__file__).parent.parent / "src" / "orbit"
-NETWORK_MODULES = {"requests", "httpx", "aiohttp", "http.client", "ftplib", "smtplib", "imaplib", "poplib",
-                   "telnetlib", "websockets", "anthropic", "openai"}
+NETWORK_MODULES = {"requests", "httpx", "aiohttp", "http.client", "ftplib", "smtplib", "imaplib", "poplib", "telnetlib", "websockets", "anthropic", "openai"}
 
 
 @pytest.fixture
@@ -34,7 +33,11 @@ def test_loopback_still_works(guard):
     srv = socket.socket()
     srv.bind(("127.0.0.1", 0))
     srv.listen(1)
-    threading.Thread(target=lambda: srv.accept()[0].close(), daemon=True).start()
+
+    def accept_once():
+        srv.accept()[0].close()
+
+    threading.Thread(target=accept_once, daemon=True).start()
     socket.create_connection(("127.0.0.1", srv.getsockname()[1])).close()
     srv.close()
 
@@ -48,8 +51,7 @@ def test_no_network_libraries_imported_anywhere():
     """Build-time check: only llm.py (local Ollama over urllib) may touch the network, and egress is guarded."""
     for f in SRC.rglob("*.py"):
         for node in ast.walk(ast.parse(f.read_text())):
-            names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
-                    [node.module or ""] if isinstance(node, ast.ImportFrom) else []
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module or ""] if isinstance(node, ast.ImportFrom) else []
             for n in names:
                 assert n not in NETWORK_MODULES, f"{f.name} imports {n}"
                 if n.startswith("urllib") and "request" in n:
@@ -61,7 +63,14 @@ def test_the_model_server_can_only_be_on_this_computer_or_its_private_network():
 
     for ok in ("http://127.0.0.1:11434", "http://localhost:11434", "http://ollama.internal:11434", "http://192.168.1.20:11434", "http://[::1]:11434"):
         llm.OllamaClient(ok)
-    for bad in ("http://example.com", "https://api.openai.com", "http://8.8.8.8:11434", "http://evil.internal.example.com", "file:///etc/passwd", "ftp://127.0.0.1"):
+    for bad in (
+        "http://example.com",
+        "https://api.openai.com",
+        "http://8.8.8.8:11434",
+        "http://evil.internal.example.com",
+        "file:///etc/passwd",
+        "ftp://127.0.0.1",
+    ):
         with pytest.raises(ValueError):
             llm.OllamaClient(bad)
 
@@ -79,16 +88,24 @@ def test_the_settings_page_cannot_point_the_assistant_at_the_internet(tmp_path, 
     from orbit import db
     from orbit.modules import ALL
 
-    c = db.connect(); db.migrate(c, ALL); c.close()
+    c = db.connect()
+    db.migrate(c, ALL)
+    c.close()
     srv = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(web.State()))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
+
         def post(host):
-            req = urllib.request.Request(f"http://127.0.0.1:{srv.server_address[1]}/api/settings", json.dumps({"ollama_host": host}).encode(), {"X-Orbit": "1", "Content-Type": "application/json"})
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{srv.server_address[1]}/api/settings",
+                json.dumps({"ollama_host": host}).encode(),
+                {"X-Orbit": "1", "Content-Type": "application/json"},
+            )
             try:
                 return urllib.request.urlopen(req).status
             except urllib.error.HTTPError as e:
                 return e.code
+
         assert post("http://example.com:11434") == 400
         assert post("http://127.0.0.1:11434") == 200
     finally:

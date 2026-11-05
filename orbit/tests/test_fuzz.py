@@ -24,7 +24,10 @@ def build(rng):
     n = rng.randint(3, 25)
     opening = rng.randint(0, 2_000_000)
     bal, truth, rows = opening, [], []
-    f = lambda v: fmt(v, decimal, thousands)
+
+    def f(v):
+        return fmt(v, decimal, thousands)
+
     head = ["Datum", "Omschrijving", "Bedrag", "Saldo"] if signed else ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
     rows.append(["01-10-2026", "Beginsaldo", *([""] * (len(head) - 3)), f(opening)])
     for i in range(n):
@@ -38,8 +41,9 @@ def build(rng):
         else:
             rows.append([day, f"Shop {i}", "" if income else f(amount), f(amount) if income else "", f(bal)])
     rows.append(["31-10-2026", "Eindsaldo", *([""] * (len(head) - 3)), f(bal)])
-    layout = tables.Layout(0, ["date", "description", "amount", "balance"] if signed else ["date", "description", "debit", "credit", "balance"],
-                           "%d-%m-%Y", decimal, thousands)
+    layout = tables.Layout(
+        0, ["date", "description", "amount", "balance"] if signed else ["date", "description", "debit", "credit", "balance"], "%d-%m-%Y", decimal, thousands
+    )
     return head, rows, truth, layout, COLS4 if signed else COLS5
 
 
@@ -91,14 +95,14 @@ def bump(text):
     digits = [i for i, c in enumerate(text) if c.isdigit()]
     last = digits[-1]
     new = str((int(text[last]) + 1) % 10)
-    return text[:last] + new + text[last + 1:]
+    return text[:last] + new + text[last + 1 :]
 
 
 @pytest.mark.parametrize("how", ["drop", "duplicate", "balance", "amount"])
 @pytest.mark.parametrize("seed", range(40))
 def test_every_alteration_of_a_statement_is_caught(seed, how):
     rng = random.Random(5000 + seed)
-    head, rows, truth, layout, cols = build(rng)
+    head, rows, _truth, layout, cols = build(rng)
     signed = len(head) == 4
     tampered = _mutate(rows, rng, how, signed)
     p = tables.parse_table(table_of(head, tampered, cols), layout)
@@ -108,7 +112,7 @@ def test_every_alteration_of_a_statement_is_caught(seed, how):
 def test_a_missing_last_line_is_only_caught_because_the_closing_balance_is_printed():
     """Honest limit, written down as a test: without a printed closing balance the running balances cannot reveal that the LAST line is missing."""
     rng = random.Random(7)
-    head, rows, truth, layout, cols = build(rng)
+    head, rows, _truth, layout, cols = build(rng)
     without_closing = rows[:-2]  # the last transaction and the closing balance line are both gone
     p = tables.parse_table(table_of(head, without_closing, cols), layout)
     assert p.status == "verified"  # nothing contradicts it: the next statement's opening balance (continuity) is what would catch this

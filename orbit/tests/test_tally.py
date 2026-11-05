@@ -8,8 +8,10 @@ from tests.test_standards import MT940
 
 
 def tx(conn, day, amount, kind="expense", account="", cur="", cat="other", note="x", event=None):
-    return conn.execute("INSERT INTO transactions (day, amount_minor, kind, category, note, source, account, currency, event_id) VALUES (?,?,?,?,?,?,?,?,?)",
-                        (day, amount, kind, cat, note, "s.pdf", account, cur, event)).lastrowid
+    return conn.execute(
+        "INSERT INTO transactions (day, amount_minor, kind, category, note, source, account, currency, event_id) VALUES (?,?,?,?,?,?,?,?,?)",
+        (day, amount, kind, cat, note, "s.pdf", account, cur, event),
+    ).lastrowid
 
 
 # ---- currencies ------------------------------------------------------------------------------------------------------------
@@ -38,7 +40,9 @@ def test_a_payment_with_no_recorded_currency_counts_as_the_main_currency(conn):
 def test_an_mt940_statement_stores_its_currency_and_account(conn, tmp_path):
     sha = "ab" * 32
     (tmp_path / "p").mkdir()
-    (tmp_path / "p" / f"{sha}.json").write_text(json.dumps({"schema": 1, "sha256": sha, "name": "abn.sta", "kind": "text", "text": MT940, "meta": {}, "area": "finance", "data": {}}))
+    (tmp_path / "p" / f"{sha}.json").write_text(
+        json.dumps({"schema": 1, "sha256": sha, "name": "abn.sta", "kind": "text", "text": MT940, "meta": {}, "area": "finance", "data": {}})
+    )
     documents.ingest_dir(conn, tmp_path / "p")
     money.import_statements(conn)
     assert {r[0] for r in conn.execute("SELECT currency FROM transactions")} == {"EUR"}
@@ -68,8 +72,10 @@ def test_an_ambiguous_or_lonely_transfer_is_never_guessed(conn):
 
 # ---- statements vs the payments stored for them ---------------------------------------------------------------------------
 def _statement(conn, name, start, end, opening, closing, account="NLABN"):
-    conn.execute("INSERT INTO statement_files (sha256,name,found,added,status,account,period_start,period_end,opening_minor,closing_minor) VALUES (?,?,0,0,'verified',?,?,?,?,?)",
-                 (name, name, account, start, end, opening, closing))
+    conn.execute(
+        "INSERT INTO statement_files (sha256,name,found,added,status,account,period_start,period_end,opening_minor,closing_minor) VALUES (?,?,0,0,'verified',?,?,?,?,?)",
+        (name, name, account, start, end, opening, closing),
+    )
 
 
 def test_the_stored_payments_must_add_up_to_what_the_statements_say_and_a_lost_payment_is_caught(conn):
@@ -88,7 +94,9 @@ def test_two_overlapping_statements_do_not_count_a_payment_twice(conn):
     tx(conn, "2026-10-17", 20000, "income", account="NLABN")  # stored once, as dedupe guarantees
     tx(conn, "2026-10-28", 20000, "income", account="NLABN")
     levels = {f.subject: f.level for f in verify.account_ledger(conn)}
-    assert levels["NLABN 2026-10-01 to 2026-10-20"] == "ok" and levels["NLABN 2026-10-15 to 2026-10-31"] == "fail"  # b should see 40000 more but only sees 40000 - 10000
+    assert (
+        levels["NLABN 2026-10-01 to 2026-10-20"] == "ok" and levels["NLABN 2026-10-15 to 2026-10-31"] == "fail"
+    )  # b should see 40000 more but only sees 40000 - 10000
 
 
 # ---- the reports against the raw ledger -----------------------------------------------------------------------------------

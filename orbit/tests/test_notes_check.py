@@ -53,7 +53,11 @@ def test_the_note_is_compared_line_by_line_with_what_the_app_computed(conn):
         events.assign(conn, {"event": "Max Amini", "main": "events", "sub": sub, "transaction_ids": [pay(conn, amt)]})
     levels = {f.subject: f for f in notes_check.notes_vs_app(conn)}
     assert levels["Asian games 2026"].level == "ok"
-    assert levels["Max Amini"].level == "fail" and "'food': note 10.00, app 11.00" in levels["Max Amini"].message and "total: note 96.46, app 97.46" in levels["Max Amini"].message
+    assert (
+        levels["Max Amini"].level == "fail"
+        and "'food': note 10.00, app 11.00" in levels["Max Amini"].message
+        and "total: note 96.46, app 97.46" in levels["Max Amini"].message
+    )
     assert levels["Psv vs Bayern"].level == "warn" and "no event with that name" in levels["Psv vs Bayern"].message
 
 
@@ -61,7 +65,7 @@ def test_a_line_missing_on_either_side_is_reported(conn):
     notes.add_note(conn, {"title": "Trips", "body": "Derby\nTickets: 50\nBeer: 7\nTotal: 57"})
     events.assign(conn, {"event": "Derby", "main": "sports", "sub": "tickets", "transaction_ids": [pay(conn, 50)]})
     events.assign(conn, {"event": "Derby", "sub": "train", "transaction_ids": [pay(conn, 9)]})
-    msg = [f for f in notes_check.notes_vs_app(conn) if f.subject == "Derby"][0].message
+    msg = next(f for f in notes_check.notes_vs_app(conn) if f.subject == "Derby").message
     assert "'beer' 7.00 is in your note but not in the app" in msg and "'train' 9.00 is in the app but not in your note" in msg
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+from .. import clock
 from ..module import Module, Tool
 from . import money, people, tasks
 
@@ -18,8 +19,18 @@ def briefing_for(conn, today: date) -> dict:
 
 
 def daily_briefing(conn, a):
-    return briefing_for(conn, date.today())
+    return briefing_for(conn, clock.today())
 
 
-MODULE = Module("today", (), (Tool("daily_briefing", "Overdue and due-today tasks, birthdays in the next 14 days, "
-                                   "and this month's spending. Use for 'what's on today' or 'brief me'.", {}, daily_briefing),))
+MODULE = Module(
+    "today",
+    (),
+    (
+        Tool(
+            "daily_briefing",
+            "Overdue and due-today tasks, birthdays in the next 14 days, and this month's spending. Use for 'what's on today' or 'brief me'.",
+            {},
+            daily_briefing,
+        ),
+    ),
+)

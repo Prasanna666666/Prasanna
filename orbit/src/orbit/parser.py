@@ -23,6 +23,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import readers
+
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
 MAX_TEXT = 2_000_000
@@ -31,12 +33,32 @@ MAX_CSV_ROWS = 200_000
 MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
 MAX_CELL = 300
 TIMEOUT_S = 300  # scanned PDFs are read with OCR, which takes a while
-KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".tsv": "csv", ".pdf": "pdf", ".mt940": "text", ".sta": "text", ".xml": "text",
-         ".png": "image", ".jpg": "image", ".jpeg": "image", ".tif": "image", ".tiff": "image", ".bmp": "image", ".webp": "image",
-         ".xlsx": "sheet", ".xlsm": "sheet", ".docx": "doc", ".html": "html", ".htm": "html", ".eml": "email", ".json": "json", ".zip": "zip"}
+KINDS = {
+    ".txt": "text",
+    ".md": "text",
+    ".csv": "csv",
+    ".tsv": "csv",
+    ".pdf": "pdf",
+    ".mt940": "text",
+    ".sta": "text",
+    ".xml": "text",
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".tif": "image",
+    ".tiff": "image",
+    ".bmp": "image",
+    ".webp": "image",
+    ".xlsx": "sheet",
+    ".xlsm": "sheet",
+    ".docx": "doc",
+    ".html": "html",
+    ".htm": "html",
+    ".eml": "email",
+    ".json": "json",
+    ".zip": "zip",
+}
 SKIP_NAMES = {"passwords.txt", ".passwords"}  # the passwords for protected PDFs live here: never read as a document
-from . import readers
-
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -95,7 +117,9 @@ _visual_lines = readers.visual_lines
 
 def load_passwords() -> list[str]:
     """Passwords for protected PDFs: one per line in passwords.txt (in your finance folder, or the file named by ORBIT_PASSWORDS_FILE). Never stored."""
-    candidates = [os.environ.get("ORBIT_PASSWORDS_FILE", "")] + [str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ORBIT_FINANCE", "ORBIT_INBOX") if os.environ.get(k)]
+    candidates = [os.environ.get("ORBIT_PASSWORDS_FILE", "")] + [
+        str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ORBIT_FINANCE", "ORBIT_INBOX") if os.environ.get(k)
+    ]
     for c in candidates:
         if c and Path(c).is_file():
             try:
@@ -114,7 +138,7 @@ def _delimited_rows(text: str) -> list[list[str]]:
         counts = {ln.count(delimiter) for ln in head[:5]}
         if len(counts) == 1 and counts != {0} and next(iter(counts)) >= 2:
             reader = csv.reader(text.splitlines(), delimiter=delimiter)
-            return [[clean(c)[:MAX_CELL] for c in r][:60] for _, r in zip(range(MAX_DATA_ROWS), reader)]
+            return [[clean(c)[:MAX_CELL] for c in r][:60] for _, r in zip(range(MAX_DATA_ROWS), reader, strict=False)]
     return []
 
 
@@ -127,8 +151,9 @@ def _limits() -> None:  # runs in the child before exec (Linux/macOS)
 
 
 def extract_isolated(path: Path, timeout: int = TIMEOUT_S) -> dict:
-    r = subprocess.run([sys.executable, "-I", "-m", "orbit.parser", "--extract-one", str(path)],
-                       capture_output=True, timeout=timeout, preexec_fn=_limits, check=False)
+    r = subprocess.run(
+        [sys.executable, "-I", "-m", "orbit.parser", "--extract-one", str(path)], capture_output=True, timeout=timeout, preexec_fn=_limits, check=False
+    )
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-300:] or f"parser exited {r.returncode}")
     return json.loads(r.stdout)
@@ -143,8 +168,15 @@ def sha256(path: Path) -> str:
 
 
 def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) -> None:
-    doc = {"schema": SCHEMA, "sha256": digest, "name": clean(label)[:255], "bytes": size,
-           "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **({"area": area} if area else {}), **res}
+    doc = {
+        "schema": SCHEMA,
+        "sha256": digest,
+        "name": clean(label)[:255],
+        "bytes": size,
+        "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        **({"area": area} if area else {}),
+        **res,
+    }
     tmp = out / f".{digest}.tmp"
     tmp.write_text(json.dumps(doc, ensure_ascii=False))
     os.replace(tmp, out / f"{digest}.json")  # atomic: the app never sees a half-written file
@@ -181,7 +213,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
                     inner = Path(tmp) / Path(name).name
                     inner.write_bytes(content)
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
 

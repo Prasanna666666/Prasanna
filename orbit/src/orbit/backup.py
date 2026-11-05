@@ -3,27 +3,35 @@ Backups live next to the database, so they protect against a mistake or a damage
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import db
+from . import clock, db, log
 from .verify import Finding
 
 
 def integrity(conn) -> str:
     try:
         return str(conn.execute("PRAGMA integrity_check").fetchone()[0])
-    except Exception as e:
+    except sqlite3.Error as e:
         return f"{type(e).__name__}: {e}"
 
 
 def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None = None) -> list[Finding]:
     """Make today's backup if there is none, prune old ones, and report. Never raises."""
     directory = directory or (db.home() / "backups")
-    today = today or date.today()
+    today = today or clock.today()
     found = []
     state = integrity(conn)
-    found.append(Finding("integrity", "ok" if state == "ok" else "fail", "database", "the database is intact" if state == "ok" else f"the database reports a problem: {state[:120]}"))
+    found.append(
+        Finding(
+            "integrity",
+            "ok" if state == "ok" else "fail",
+            "database",
+            "the database is intact" if state == "ok" else f"the database reports a problem: {state[:120]}",
+        )
+    )
     try:
         directory.mkdir(parents=True, exist_ok=True)
         target = directory / f"orbit-{today.isoformat()}.db"
@@ -46,7 +54,8 @@ def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None
         newest = sorted(directory.glob("orbit-*.db"))[-1].stem.removeprefix("orbit-")
         age = (today - date.fromisoformat(newest)).days
         found.append(Finding("backup", "ok" if age <= 1 else "warn", "backup", f"last backup: {newest}" + ("" if age <= 1 else f" ({age} days ago)")))
-    except Exception as e:
+    except (OSError, sqlite3.Error, ValueError, IndexError) as e:
+        log.failed("backup failed", e)
         found.append(Finding("backup", "warn", "backup", f"no backup could be made ({type(e).__name__})"))
     return found
 

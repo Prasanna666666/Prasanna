@@ -30,8 +30,6 @@ def test_key_or_explicit_override_allows_it(monkeypatch, tmp_path, capsys):
     assert cli.secure_ok()
 
 
-
-
 def test_tools_and_agents_never_create_a_database(monkeypatch, tmp_path, capsys):
     monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
     assert cli.main(["tools"]) == 0 and cli.main(["agents"]) == 0

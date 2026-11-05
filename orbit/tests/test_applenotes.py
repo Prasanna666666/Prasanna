@@ -2,12 +2,25 @@ from orbit import applenotes as an
 from orbit.modules import notes, people
 
 FAKE = [
-    {"folder": "Trips", "id": "x-coredata://A/ICNote/p1", "title": "Packing list - Singapore", "locked": False,
-     "created": "2024-03-01T09:00:00.000Z", "modified": "2024-03-02T10:30:00.000Z",
-     "html": "<div><h1>Packing</h1></div><div>passport&nbsp;&amp; visa</div><ul><li>charger</li><li>adapter</li></ul>"
-             "<div><img src='data:image/png;base64,AAAA'></div>"},
-    {"folder": "../../etc", "id": "p2", "title": "Evil\nname: x", "locked": False, "created": "", "modified": "",
-     "html": "<p>Ramesh BP tablet after breakfast</p>"},
+    {
+        "folder": "Trips",
+        "id": "x-coredata://A/ICNote/p1",
+        "title": "Packing list - Singapore",
+        "locked": False,
+        "created": "2024-03-01T09:00:00.000Z",
+        "modified": "2024-03-02T10:30:00.000Z",
+        "html": "<div><h1>Packing</h1></div><div>passport&nbsp;&amp; visa</div><ul><li>charger</li><li>adapter</li></ul>"
+        "<div><img src='data:image/png;base64,AAAA'></div>",
+    },
+    {
+        "folder": "../../etc",
+        "id": "p2",
+        "title": "Evil\nname: x",
+        "locked": False,
+        "created": "",
+        "modified": "",
+        "html": "<p>Ramesh BP tablet after breakfast</p>",
+    },
     {"folder": "Private", "id": "p3", "title": "Secret", "locked": True, "html": ""},
 ]
 
@@ -60,6 +73,7 @@ def test_import_ignores_junk_and_symlinks(conn, tmp_path):
 
 def test_export_needs_a_mac(monkeypatch):
     import pytest
+
     monkeypatch.setattr(an.sys, "platform", "linux")
     with pytest.raises(RuntimeError, match="macOS"):
         an.fetch_notes()

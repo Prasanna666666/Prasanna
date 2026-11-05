@@ -85,7 +85,14 @@ def notes_arithmetic(conn) -> list[Finding]:
             if added == b.total:
                 out.append(Finding("notes arithmetic", "ok", b.title, f"in your note '{title}': the lines add up to {added / 100:.2f}, as the total says"))
             else:
-                out.append(Finding("notes arithmetic", "fail", b.title, f"in your note '{title}': the lines add up to {added / 100:.2f} but you wrote {b.total / 100:.2f} (difference {(b.total - added) / 100:.2f})"))
+                out.append(
+                    Finding(
+                        "notes arithmetic",
+                        "fail",
+                        b.title,
+                        f"in your note '{title}': the lines add up to {added / 100:.2f} but you wrote {b.total / 100:.2f} (difference {(b.total - added) / 100:.2f})",
+                    )
+                )
     return out
 
 
@@ -127,6 +134,9 @@ def notes_vs_app(conn) -> list[Finding]:
             total = round(ev["total"] * 100)
             if b.total is not None and b.total != total:
                 problems.append(f"total: note {b.total / 100:.2f}, app {total / 100:.2f}")
-            out.append(Finding("notes ↔ app", "ok", ev["name"], f"your note '{title}' and the app agree on every line and the total ({total / 100:.2f})") if not problems else
-                       Finding("notes ↔ app", "fail", ev["name"], "; ".join(problems[:4])))
+            out.append(
+                Finding("notes ↔ app", "ok", ev["name"], f"your note '{title}' and the app agree on every line and the total ({total / 100:.2f})")
+                if not problems
+                else Finding("notes ↔ app", "fail", ev["name"], "; ".join(problems[:4]))
+            )
     return out

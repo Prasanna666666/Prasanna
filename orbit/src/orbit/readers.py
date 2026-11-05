@@ -15,6 +15,7 @@ import email
 import email.policy
 import io
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -25,6 +26,8 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree as ET
+
+from . import log
 
 MAX_ROWS = 50_000
 MAX_CELL = 300
@@ -157,7 +160,7 @@ def _pdfplumber_pages(path: Path, passwords: list[str], pages: int) -> list[list
         try:
             with pdfplumber.open(path, password=pw or None) as pdf:
                 return [[(w["x0"], w["top"], w["x1"], w["bottom"], w["text"]) for w in page.extract_words()] for page in pdf.pages[:pages]]
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pdfplumber raises many kinds of error for a wrong password or a damaged file: try the next password
             last = exc
     raise last
 
@@ -188,8 +191,8 @@ def other_engines(path: Path, passwords: list[str] | None, pages: int) -> dict[s
             for words in read(path, list(passwords or []), pages):
                 table += table_lines(words)
             out[name] = table
-        except Exception:
-            continue
+        except Exception as exc:  # noqa: BLE001 - a second engine failing must never lose the file: it is only a second opinion
+            log.failed("extra pdf engine failed", exc, engine=name)
     return out
 
 
@@ -204,8 +207,12 @@ def read_image(path: Path) -> dict:
     words, conf = ocr_words(buf.getvalue(), 1.0)
     table = table_lines(words)
     lines = visual_lines(words)
-    return {"kind": "image", "text": clean("\n".join(lines)), "meta": {"ocr_pages": 1, "ocr_confidence": round(conf, 1), "width": width},
-            "data": {"lines": [clean(x, 600) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}}
+    return {
+        "kind": "image",
+        "text": clean("\n".join(lines)),
+        "meta": {"ocr_pages": 1, "ocr_confidence": round(conf, 1), "width": width},
+        "data": {"lines": [clean(x, 600) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]},
+    }
 
 
 # ---- spreadsheets, Word, web pages, email, JSON ------------------------------------------------------------------------------
@@ -215,7 +222,7 @@ def _cell(v) -> str:
     if isinstance(v, (datetime, date)):
         return v.date().isoformat() if isinstance(v, datetime) else v.isoformat()
     if isinstance(v, float):
-        return format(v, "f").rstrip("0").rstrip(".") if v == v else ""
+        return format(v, "f").rstrip("0").rstrip(".") if not math.isnan(v) else ""
     return clean(str(v), MAX_CELL)
 
 
@@ -259,7 +266,12 @@ def read_docx(path: Path) -> dict:
         elif el.tag == f"{w}tr":
             rows.append([clean("".join(t.text or "" for t in tc.iter(f"{w}t")), MAX_CELL) for tc in el.iter(f"{w}tc")])
     text = "\n".join(p for p in paras if p.strip())
-    return {"kind": "doc", "text": clean(text), "meta": {}, "data": {"lines": [clean(p, 600) for p in text.splitlines()[:MAX_ROWS]], **({"rows": rows[:MAX_ROWS]} if rows else {})}}
+    return {
+        "kind": "doc",
+        "text": clean(text),
+        "meta": {},
+        "data": {"lines": [clean(p, 600) for p in text.splitlines()[:MAX_ROWS]], **({"rows": rows[:MAX_ROWS]} if rows else {})},
+    }
 
 
 class _Html(HTMLParser):
@@ -305,7 +317,12 @@ def read_html_text(html: str) -> dict:
     p = _Html()
     p.feed(html[:20_000_000])
     text = "\n".join(" ".join(ln.split()) for ln in "".join(p.parts).splitlines() if ln.strip())
-    return {"kind": "html", "text": clean(text), "meta": {}, "data": {"lines": [clean(x, 600) for x in text.splitlines()[:MAX_ROWS]], **({"rows": p.rows[:MAX_ROWS]} if p.rows else {})}}
+    return {
+        "kind": "html",
+        "text": clean(text),
+        "meta": {},
+        "data": {"lines": [clean(x, 600) for x in text.splitlines()[:MAX_ROWS]], **({"rows": p.rows[:MAX_ROWS]} if p.rows else {})},
+    }
 
 
 def read_html(path: Path) -> dict:
@@ -319,11 +336,18 @@ def read_eml(path: Path) -> tuple[dict, list[tuple[str, bytes]]]:
     parsed = read_html_text(content) if body is not None and body.get_content_type() == "text/html" else None
     text = parsed["text"] if parsed else clean(content)
     head = f"From: {msg.get('From', '')}\nTo: {msg.get('To', '')}\nDate: {msg.get('Date', '')}\nSubject: {msg.get('Subject', '')}\n"
-    attachments = [(a.get_filename() or "attachment", a.get_content() if isinstance(a.get_content(), bytes) else str(a.get_content()).encode())
-                   for a in msg.iter_attachments() if a.get_filename()]
+    attachments = [
+        (a.get_filename() or "attachment", a.get_content() if isinstance(a.get_content(), bytes) else str(a.get_content()).encode())
+        for a in msg.iter_attachments()
+        if a.get_filename()
+    ]
     full = clean(head + "\n" + text)
-    return {"kind": "email", "text": full, "meta": {"subject": clean(str(msg.get("Subject", "")), 200), "attachments": len(attachments)},
-            "data": {"lines": [clean(x, 600) for x in full.splitlines()[:MAX_ROWS]]}}, attachments
+    return {
+        "kind": "email",
+        "text": full,
+        "meta": {"subject": clean(str(msg.get("Subject", "")), 200), "attachments": len(attachments)},
+        "data": {"lines": [clean(x, 600) for x in full.splitlines()[:MAX_ROWS]]},
+    }, attachments
 
 
 def read_json(path: Path) -> dict:
@@ -333,7 +357,12 @@ def read_json(path: Path) -> dict:
         keys = list(dict.fromkeys(k for x in obj[:500] for k in x))[:60]
         rows = [keys] + [[_cell(x.get(k)) for k in keys] for x in obj[:MAX_ROWS]]
     text = json.dumps(obj, ensure_ascii=False, indent=1)
-    return {"kind": "json", "text": clean(text), "meta": {}, "data": {"lines": [clean(x, 600) for x in text.splitlines()[:MAX_ROWS]], **({"rows": rows} if rows else {})}}
+    return {
+        "kind": "json",
+        "text": clean(text),
+        "meta": {},
+        "data": {"lines": [clean(x, 600) for x in text.splitlines()[:MAX_ROWS]], **({"rows": rows} if rows else {})},
+    }
 
 
 # ---- archives ----------------------------------------------------------------------------------------------------------------

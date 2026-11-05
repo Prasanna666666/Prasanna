@@ -31,7 +31,11 @@ def test_mt940_is_read_exactly_and_the_balances_prove_it():
     assert standards.sniff(MT940) == "mt940"
     (s,) = standards.read_mt940(MT940)
     assert s.status == "verified" and s.account == "NL00ABNA0123456789" and s.opening == 200000 and s.closing == 372655
-    assert [(t.day, t.amount_minor, t.kind) for t in s.txns] == [("2026-10-01", 2345, "expense"), ("2026-10-25", 285000, "income"), ("2026-10-26", 110000, "expense")]
+    assert [(t.day, t.amount_minor, t.kind) for t in s.txns] == [
+        ("2026-10-01", 2345, "expense"),
+        ("2026-10-25", 285000, "income"),
+        ("2026-10-26", 110000, "expense"),
+    ]
     assert "Albert Heijn 1234" in s.txns[0].desc and "Salaris oktober" in s.txns[1].desc and (s.first_day, s.last_day) == ("2026-10-01", "2026-10-26")
 
 
@@ -41,7 +45,11 @@ def test_mt940_with_one_wrong_amount_does_not_add_up_and_is_refused():
 
 
 def test_mt940_reversals_and_overdrawn_balances():
-    text = MT940.replace(":60F:C261001EUR2000,00", ":60F:D261001EUR10,00").replace(":62F:C261031EUR3726,55", ":62F:C261031EUR1716,55").replace("D23,45N", "RC23,45N")
+    text = (
+        MT940.replace(":60F:C261001EUR2000,00", ":60F:D261001EUR10,00")
+        .replace(":62F:C261031EUR3726,55", ":62F:C261031EUR1716,55")
+        .replace("D23,45N", "RC23,45N")
+    )
     (s,) = standards.read_mt940(text)
     assert s.opening == -1000 and s.txns[0].kind == "expense"  # RC: a credit that was reversed takes the money back out
     assert s.status in ("verified", "needs_check")
@@ -51,12 +59,16 @@ def test_camt053_is_read_exactly_and_the_balances_prove_it():
     assert standards.sniff(CAMT) == "camt053"
     (s,) = standards.read_camt(CAMT)
     assert s.status == "verified" and s.account == "NL00ABNA0123456789" and s.opening == 200000 and s.closing == 372655
-    assert [(t.day, t.amount_minor, t.kind) for t in s.txns] == [("2026-10-01", 2345, "expense"), ("2026-10-25", 285000, "income"), ("2026-10-26", 110000, "expense")]
+    assert [(t.day, t.amount_minor, t.kind) for t in s.txns] == [
+        ("2026-10-01", 2345, "expense"),
+        ("2026-10-25", 285000, "income"),
+        ("2026-10-26", 110000, "expense"),
+    ]
     assert "Albert Heijn 1234" in s.txns[0].desc and "Boodschappen" in s.txns[0].desc
 
 
 def test_camt053_that_does_not_add_up_or_carries_entities_is_refused():
-    (s,) = standards.read_camt(CAMT.replace("<Amt Ccy=\"EUR\">1100.00", "<Amt Ccy=\"EUR\">1100.01"))
+    (s,) = standards.read_camt(CAMT.replace('<Amt Ccy="EUR">1100.00', '<Amt Ccy="EUR">1100.01'))
     assert s.status == "needs_check"
     (e,) = standards.read_camt('<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><Document/>')
     assert e.status == "needs_check" and "entity" in e.issues[0]

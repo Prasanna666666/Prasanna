@@ -62,7 +62,9 @@ def convert_all(conn) -> dict[str, int]:
 
     main = get_setting(conn, "currency", "EUR")
     done = {"euro": 0, "converted": 0, "missing": 0}
-    for r in conn.execute("SELECT id, day, amount_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE eur_minor IS NULL", (main,)).fetchall():
+    for r in conn.execute(
+        "SELECT id, day, amount_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE eur_minor IS NULL", (main,)
+    ).fetchall():
         if r["cur"] == REPORTING:
             conn.execute("UPDATE transactions SET eur_minor=?, rate='1', rate_source='euro' WHERE id=?", (r["amount_minor"], r["id"]))
             done["euro"] += 1
@@ -72,7 +74,10 @@ def convert_all(conn) -> dict[str, int]:
             done["missing"] += 1
             continue
         per_eur, rate_day = found
-        conn.execute("UPDATE transactions SET eur_minor=?, rate=?, rate_source=? WHERE id=?", (to_eur(r["amount_minor"], per_eur), str(per_eur), f"ecb {rate_day}", r["id"]))
+        conn.execute(
+            "UPDATE transactions SET eur_minor=?, rate=?, rate_source=? WHERE id=?",
+            (to_eur(r["amount_minor"], per_eur), str(per_eur), f"ecb {rate_day}", r["id"]),
+        )
         done["converted"] += 1
     conn.commit()
     return done

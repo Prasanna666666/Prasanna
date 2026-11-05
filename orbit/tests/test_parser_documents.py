@@ -35,8 +35,14 @@ def test_process_inbox_isolated_dedupes_skips_and_survives_bad_files(tmp_path):
 
 
 def _doc(**kw):
-    d = {"schema": 1, "sha256": "a" * 64, "name": "bp.txt", "kind": "text", "text": "Dad BP 150/90 doctor said reduce salt",
-         "parsed_at": "2026-11-03T10:00:00+00:00"}
+    d = {
+        "schema": 1,
+        "sha256": "a" * 64,
+        "name": "bp.txt",
+        "kind": "text",
+        "text": "Dad BP 150/90 doctor said reduce salt",
+        "parsed_at": "2026-11-03T10:00:00+00:00",
+    }
     return {**d, **kw}
 
 
@@ -46,13 +52,13 @@ def _put(dirpath, d, stem=None):
 
 def test_ingest_validates_strictly(conn, tmp_path):
     _put(tmp_path, _doc())
-    _put(tmp_path, _doc(sha256="b" * 64, schema=2))                       # wrong schema
-    _put(tmp_path, _doc(sha256="c" * 64, kind="exe"))                     # unknown kind
-    _put(tmp_path, _doc(sha256="d" * 64, text=["not", "a", "string"]))    # wrong type
-    _put(tmp_path, _doc(sha256="e" * 64), stem="f" * 64)                  # name/hash mismatch
+    _put(tmp_path, _doc(sha256="b" * 64, schema=2))  # wrong schema
+    _put(tmp_path, _doc(sha256="c" * 64, kind="exe"))  # unknown kind
+    _put(tmp_path, _doc(sha256="d" * 64, text=["not", "a", "string"]))  # wrong type
+    _put(tmp_path, _doc(sha256="e" * 64), stem="f" * 64)  # name/hash mismatch
     (tmp_path / "junk.json").write_text("{not json")
     assert documents.ingest_dir(conn, tmp_path) == {"new": 1, "known": 0, "rejected": 5}
-    assert documents.ingest_dir(conn, tmp_path)["known"] == 1             # idempotent
+    assert documents.ingest_dir(conn, tmp_path)["known"] == 1  # idempotent
 
 
 def test_search_and_read_documents(conn, tmp_path):

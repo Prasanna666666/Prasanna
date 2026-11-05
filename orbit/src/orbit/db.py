@@ -88,11 +88,15 @@ def ledger_view(conn: sqlite3.Connection) -> None:
         if "eur_minor" in columns:
             # 'ALL' = everything in euros at the rate of its own day; a payment that could not be converted is left out and reported, never guessed
             everything = ", ".join("eur_minor AS amount_minor" if c == "amount_minor" else c for c in columns) + ", amount_minor AS native_minor"
-            conn.execute(f"CREATE TEMP VIEW ledger AS SELECT {everything} FROM main.transactions WHERE {viewed} = 'ALL' AND eur_minor IS NOT NULL "
-                         f"UNION ALL SELECT {plain} FROM main.transactions WHERE {viewed} = 'ALL' AND eur_minor IS NULL AND COALESCE(NULLIF(currency, ''), {main}) = 'EUR' "
-                         f"UNION ALL SELECT {plain} FROM main.transactions WHERE {viewed} <> 'ALL' AND COALESCE(NULLIF(currency, ''), {main}) = {viewed}")
+            conn.execute(
+                f"CREATE TEMP VIEW ledger AS SELECT {everything} FROM main.transactions WHERE {viewed} = 'ALL' AND eur_minor IS NOT NULL "
+                f"UNION ALL SELECT {plain} FROM main.transactions WHERE {viewed} = 'ALL' AND eur_minor IS NULL AND COALESCE(NULLIF(currency, ''), {main}) = 'EUR' "
+                f"UNION ALL SELECT {plain} FROM main.transactions WHERE {viewed} <> 'ALL' AND COALESCE(NULLIF(currency, ''), {main}) = {viewed}"
+            )
         else:
-            conn.execute(f"CREATE TEMP VIEW ledger AS SELECT {plain} FROM main.transactions WHERE {viewed} <> 'ALL' AND COALESCE(NULLIF(currency, ''), {main}) = {viewed}")
+            conn.execute(
+                f"CREATE TEMP VIEW ledger AS SELECT {plain} FROM main.transactions WHERE {viewed} <> 'ALL' AND COALESCE(NULLIF(currency, ''), {main}) = {viewed}"
+            )
     except sqlite3.Error:
         pass  # before the first migration there is nothing to view
 

@@ -13,13 +13,18 @@ from __future__ import annotations
 import json
 import re
 
-from .. import audit
+from .. import audit, clock
 from ..db import rows
-from ..module import I, Module, S, Tool
+from ..module import INT, Module, S, Tool
 
 MAINS = ("sports", "events", "trips", "cancellations", "others")
-SUBS = {"sports": ("tickets", "travel", "food", "merchandise", "stay"), "events": ("tickets", "travel", "food", "stay"),
-        "trips": ("flights", "stay", "travel", "tickets", "food and others", "insurance"), "cancellations": ("tickets", "refund", "fees"), "others": ()}
+SUBS = {
+    "sports": ("tickets", "travel", "food", "merchandise", "stay"),
+    "events": ("tickets", "travel", "food", "stay"),
+    "trips": ("flights", "stay", "travel", "tickets", "food and others", "insurance"),
+    "cancellations": ("tickets", "refund", "fees"),
+    "others": (),
+}
 
 MIGRATIONS = (
     """
@@ -73,8 +78,10 @@ def update_event(conn, a):
     main = str(a.get("main") or ev["main"]).lower()
     if main not in MAINS:
         raise ValueError(f"main category must be one of: {', '.join(MAINS)}")
-    conn.execute("UPDATE events SET name=?, main=?, starts=COALESCE(?,starts), ends=COALESCE(?,ends), confirmed=? WHERE id=?",
-                 (name, main, a.get("start"), a.get("end"), 1 if a.get("confirmed", True) else 0, ev["id"]))
+    conn.execute(
+        "UPDATE events SET name=?, main=?, starts=COALESCE(?,starts), ends=COALESCE(?,ends), confirmed=? WHERE id=?",
+        (name, main, a.get("start"), a.get("end"), 1 if a.get("confirmed", True) else 0, ev["id"]),
+    )
     conn.commit()
     audit.record(conn, "event changed", f"{ev['name']} -> {name} ({main})")
     return {"id": ev["id"], "name": name, "main": main}
@@ -123,10 +130,14 @@ def unassign(conn, a):
 
 
 def _lines(conn, event_id):
-    out = rows(conn.execute(
-        "SELECT CASE WHEN sub='' THEN 'other' ELSE sub END AS sub, "
-        "ROUND(SUM(CASE WHEN kind='income' THEN -amount_minor ELSE amount_minor END)/100.0, 2) AS amount, COUNT(*) AS payments "
-        "FROM ledger WHERE event_id=? GROUP BY 1 ORDER BY (sub='refund'), amount DESC", (event_id,)))
+    out = rows(
+        conn.execute(
+            "SELECT CASE WHEN sub='' THEN 'other' ELSE sub END AS sub, "
+            "ROUND(SUM(CASE WHEN kind='income' THEN -amount_minor ELSE amount_minor END)/100.0, 2) AS amount, COUNT(*) AS payments "
+            "FROM ledger WHERE event_id=? GROUP BY 1 ORDER BY (sub='refund'), amount DESC",
+            (event_id,),
+        )
+    )
     return out
 
 
@@ -137,8 +148,11 @@ def list_events(conn, a=None):
     if a.get("main"):
         where.append("e.main=?")
         args.append(str(a["main"]).lower())
-    sql = ("SELECT e.id, e.name, e.main, e.confirmed, e.starts, e.ends, MIN(t.day) AS first, MAX(t.day) AS last FROM events e LEFT JOIN ledger t ON t.event_id=e.id"
-           + (" WHERE " + " AND ".join(where) if where else "") + " GROUP BY e.id ORDER BY MAX(t.day) DESC, e.name")
+    sql = (
+        "SELECT e.id, e.name, e.main, e.confirmed, e.starts, e.ends, MIN(t.day) AS first, MAX(t.day) AS last FROM events e LEFT JOIN ledger t ON t.event_id=e.id"
+        + (" WHERE " + " AND ".join(where) if where else "")
+        + " GROUP BY e.id ORDER BY MAX(t.day) DESC, e.name"
+    )
     out = rows(conn.execute(sql, args))
     for ev in out:
         ev["lines"] = _lines(conn, ev["id"])
@@ -158,12 +172,23 @@ def spending_by_main(conn, a=None):
         start, end = dates.month_bounds(a["month"])
         span, args = " AND t.day>=? AND t.day<?", [start, end]
     net = "SUM(CASE WHEN t.kind='income' THEN -t.amount_minor ELSE t.amount_minor END)/100.0"
-    ev = {r["main"]: r for r in rows(conn.execute(
-        f"SELECT e.main AS main, ROUND({net}, 2) AS net, COUNT(DISTINCT e.id) AS events FROM ledger t JOIN events e ON e.id=t.event_id "
-        f"WHERE 1=1{span} GROUP BY e.main", args))}
-    others = rows(conn.execute(
-        f"SELECT CASE WHEN t.category='other' THEN 'unsorted' ELSE t.category END AS sub, ROUND(SUM(t.amount_minor)/100.0, 2) AS amount FROM ledger t "
-        f"WHERE t.event_id IS NULL AND t.kind='expense' AND t.category<>'transfers'{span} GROUP BY 1 ORDER BY amount DESC", args))
+    ev = {
+        r["main"]: r
+        for r in rows(
+            conn.execute(
+                f"SELECT e.main AS main, ROUND({net}, 2) AS net, COUNT(DISTINCT e.id) AS events FROM ledger t JOIN events e ON e.id=t.event_id "
+                f"WHERE 1=1{span} GROUP BY e.main",
+                args,
+            )
+        )
+    }
+    others = rows(
+        conn.execute(
+            f"SELECT CASE WHEN t.category='other' THEN 'unsorted' ELSE t.category END AS sub, ROUND(SUM(t.amount_minor)/100.0, 2) AS amount FROM ledger t "
+            f"WHERE t.event_id IS NULL AND t.kind='expense' AND t.category<>'transfers'{span} GROUP BY 1 ORDER BY amount DESC",
+            args,
+        )
+    )
     out = [{"main": m, "net": (ev.get(m) or {}).get("net", 0.0), "events": (ev.get(m) or {}).get("events", 0)} for m in MAINS if m != "others"]
     out.append({"main": "others", "net": round(sum(o["amount"] for o in others), 2), "events": 0, "subs": others})
     return out
@@ -177,14 +202,21 @@ def daily_by_category(conn, a=None):
     from .. import dates
 
     a = a or {}
-    month = a.get("month") or date.today().strftime("%Y-%m")
+    month = a.get("month") or clock.today().strftime("%Y-%m")
     start, end = dates.month_bounds(month)
     before_start = dates.add_months(date.fromisoformat(start), -1).isoformat()
 
     def totals(lo, hi):
-        return {r["sub"]: (r["amount"], r["n"]) for r in rows(conn.execute(
-            "SELECT CASE WHEN category='other' THEN 'unsorted' ELSE category END AS sub, ROUND(SUM(amount_minor)/100.0, 2) AS amount, COUNT(*) AS n FROM ledger "
-            "WHERE event_id IS NULL AND kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY 1", (lo, hi)))}
+        return {
+            r["sub"]: (r["amount"], r["n"])
+            for r in rows(
+                conn.execute(
+                    "SELECT CASE WHEN category='other' THEN 'unsorted' ELSE category END AS sub, ROUND(SUM(amount_minor)/100.0, 2) AS amount, COUNT(*) AS n FROM ledger "
+                    "WHERE event_id IS NULL AND kind='expense' AND category<>'transfers' AND day>=? AND day<? GROUP BY 1",
+                    (lo, hi),
+                )
+            )
+        }
 
     now, before = totals(start, end), totals(before_start, start)
     out = [{"category": c, "amount": v[0], "payments": v[1], "before": before.get(c, (0.0, 0))[0]} for c, v in now.items()]
@@ -192,11 +224,42 @@ def daily_by_category(conn, a=None):
 
 
 # ---- the model proposes groups -------------------------------------------------------------------------------------------
-ROUTINE = ("rent", "emi", "insurance", "utilities", "salary", "interest", "groceries", "fuel", "cash", "fees", "transfers", "investments", "medical", "education",
-           "subscriptions")
-SCHEMA = {"type": "object", "properties": {"assignments": {"type": "array", "items": {"type": "object", "properties": {
-    "id": {"type": "integer"}, "event": {"type": "string"}, "main": {"type": "string", "enum": list(MAINS)}, "sub": {"type": "string"}},
-    "required": ["id", "event", "main"]}}}, "required": ["assignments"]}
+ROUTINE = (
+    "rent",
+    "emi",
+    "insurance",
+    "utilities",
+    "salary",
+    "interest",
+    "groceries",
+    "fuel",
+    "cash",
+    "fees",
+    "transfers",
+    "investments",
+    "medical",
+    "education",
+    "subscriptions",
+)
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "assignments": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "event": {"type": "string"},
+                    "main": {"type": "string", "enum": list(MAINS)},
+                    "sub": {"type": "string"},
+                },
+                "required": ["id", "event", "main"],
+            },
+        }
+    },
+    "required": ["assignments"],
+}
 PROMPT = (
     "You group a person's payments into named events. The main categories are: sports (matches, games, tournaments), events (concerts, shows, festivals), "
     "trips (travel: flights, hotels, tours), cancellations (an event or trip that was cancelled, with its refund), and others. Each line is: id | date | "
@@ -210,12 +273,17 @@ CHUNK = 20
 
 def suggest(conn, client, model: str, progress=None) -> dict:
     """Ask the local model to attach new payments to events. Runs by itself after every import; each payment is looked at once."""
-    todo = rows(conn.execute(
-        "SELECT id, day, kind, note, category, ROUND(amount_minor/100.0, 2) AS amount FROM transactions WHERE event_id IS NULL AND event_checked=0 AND category NOT IN (%s) ORDER BY day"
-        % ",".join("?" * len(ROUTINE)), ROUTINE))
+    todo = rows(
+        conn.execute(
+            "SELECT id, day, kind, note, category, ROUND(amount_minor/100.0, 2) AS amount FROM transactions WHERE event_id IS NULL AND event_checked=0 AND category NOT IN ("
+            + ",".join("?" * len(ROUTINE))
+            + ") ORDER BY day",
+            ROUTINE,
+        )
+    )
     grouped = 0
     for n in range(0, len(todo), CHUNK):
-        chunk = todo[n:n + CHUNK]
+        chunk = todo[n : n + CHUNK]
         known = ", ".join(f"{e['name']} ({e['main']})" for e in rows(conn.execute("SELECT name, main FROM events"))) or "none yet"
         text = "\n".join(f"{t['id']} | {t['day']} | {'+' if t['kind'] == 'income' else '-'}{t['amount']} | {t['note']}" for t in chunk)
         if progress:
@@ -239,22 +307,66 @@ def suggest(conn, client, model: str, progress=None) -> dict:
     return {"considered": len(todo), "grouped": grouped, "events": len(rows(conn.execute("SELECT 1 FROM events WHERE confirmed=0")))}
 
 
-MODULE = Module("events", MIGRATIONS, (
-    Tool("list_events", "Events grouped by main category (sports, events, trips, cancellations), each with sub-lines (tickets, flights, stay, refund ...) and a total.",
-         {"main": S("sports, events, trips, cancellations or others", enum=list(MAINS))}, list_events),
-    Tool("create_event", "Create a named event under a main category.", {"name": S("e.g. Asian Games 2026"), "main": S("Main category", enum=list(MAINS)),
-                                                                           "start": S("YYYY-MM-DD"), "end": S("YYYY-MM-DD")}, create_event, ("name",)),
-    Tool("assign_to_event", "Put payments (by transaction id) into an event with a sub-category such as tickets, flights, stay, travel, food, refund.",
-         {"event": S("Event name or id (created if new)"), "main": S("Main category if the event is new", enum=list(MAINS)),
-          "sub": S("Sub-category"), "transaction_ids": {"type": "array", "items": {"type": "integer"}, "description": "Transaction ids"}}, assign, ("event", "transaction_ids")),
-    Tool("remove_from_event", "Take payments out of their event.", {"transaction_ids": {"type": "array", "items": {"type": "integer"}, "description": "Transaction ids"}},
-         unassign, ("transaction_ids",)),
-    Tool("update_event", "Rename an event, change its main category, or confirm a proposed one.", {"id": I("Event id"), "name": S("New name"),
-                                                                                                  "main": S("Main category", enum=list(MAINS)), "confirmed": {"type": "boolean", "description": "true to accept"}},
-         update_event, ("id",)),
-    Tool("delete_event", "Delete an event (its payments stay, ungrouped).", {"id": I("Event id")}, delete_event, ("id",)),
-    Tool("daily_spending", "Day-to-day spending by category (groceries, food, shopping, transport ...) for a month YYYY-MM, with the month before for comparison.",
-         {"month": S("YYYY-MM")}, daily_by_category),
-    Tool("spending_by_main", "Net cost per main category (refunds subtracted) for a month YYYY-MM, with 'others' split by sub-category.",
-         {"month": S("YYYY-MM")}, spending_by_main),
-))
+MODULE = Module(
+    "events",
+    MIGRATIONS,
+    (
+        Tool(
+            "list_events",
+            "Events grouped by main category (sports, events, trips, cancellations), each with sub-lines (tickets, flights, stay, refund ...) and a total.",
+            {"main": S("sports, events, trips, cancellations or others", enum=list(MAINS))},
+            list_events,
+        ),
+        Tool(
+            "create_event",
+            "Create a named event under a main category.",
+            {"name": S("e.g. Asian Games 2026"), "main": S("Main category", enum=list(MAINS)), "start": S("YYYY-MM-DD"), "end": S("YYYY-MM-DD")},
+            create_event,
+            ("name",),
+        ),
+        Tool(
+            "assign_to_event",
+            "Put payments (by transaction id) into an event with a sub-category such as tickets, flights, stay, travel, food, refund.",
+            {
+                "event": S("Event name or id (created if new)"),
+                "main": S("Main category if the event is new", enum=list(MAINS)),
+                "sub": S("Sub-category"),
+                "transaction_ids": {"type": "array", "items": {"type": "integer"}, "description": "Transaction ids"},
+            },
+            assign,
+            ("event", "transaction_ids"),
+        ),
+        Tool(
+            "remove_from_event",
+            "Take payments out of their event.",
+            {"transaction_ids": {"type": "array", "items": {"type": "integer"}, "description": "Transaction ids"}},
+            unassign,
+            ("transaction_ids",),
+        ),
+        Tool(
+            "update_event",
+            "Rename an event, change its main category, or confirm a proposed one.",
+            {
+                "id": INT("Event id"),
+                "name": S("New name"),
+                "main": S("Main category", enum=list(MAINS)),
+                "confirmed": {"type": "boolean", "description": "true to accept"},
+            },
+            update_event,
+            ("id",),
+        ),
+        Tool("delete_event", "Delete an event (its payments stay, ungrouped).", {"id": INT("Event id")}, delete_event, ("id",)),
+        Tool(
+            "daily_spending",
+            "Day-to-day spending by category (groceries, food, shopping, transport ...) for a month YYYY-MM, with the month before for comparison.",
+            {"month": S("YYYY-MM")},
+            daily_by_category,
+        ),
+        Tool(
+            "spending_by_main",
+            "Net cost per main category (refunds subtracted) for a month YYYY-MM, with 'others' split by sub-category.",
+            {"month": S("YYYY-MM")},
+            spending_by_main,
+        ),
+    ),
+)

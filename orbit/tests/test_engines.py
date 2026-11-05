@@ -7,8 +7,12 @@ from orbit import readers, tables, verify
 pymupdf = pytest.importorskip("pymupdf")
 pytest.importorskip("pdfplumber")
 
-ROWS = [("01-03-2026", "Opening balance", "", "1.000,00"), ("02-03-2026", "Albert Heijn", "-45,20", "954,80"),
-        ("05-03-2026", "Salary Acme", "3.000,00", "3.954,80"), ("09-03-2026", "Huur", "-1.150,00", "2.804,80")]
+ROWS = [
+    ("01-03-2026", "Opening balance", "", "1.000,00"),
+    ("02-03-2026", "Albert Heijn", "-45,20", "954,80"),
+    ("05-03-2026", "Salary Acme", "3.000,00", "3.954,80"),
+    ("09-03-2026", "Huur", "-1.150,00", "2.804,80"),
+]
 
 
 def make_pdf(path, rows=ROWS):

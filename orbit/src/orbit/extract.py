@@ -19,12 +19,15 @@ KIND_SCHEMA = {
     "type": "object",
     "properties": {
         "kind": {"type": "string", "enum": list(KINDS)},
-        "title": {"type": "string"}, "summary": {"type": "string"},
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
         "party": {"type": "string"},  # who it is from / to: the shop, supplier, employer, insurer, tax office ...
-        "date": {"type": "string"}, "due_date": {"type": "string"}, "reference": {"type": "string"},  # YYYY-MM-DD; invoice / policy / case number
+        "date": {"type": "string"},
+        "due_date": {"type": "string"},
+        "reference": {"type": "string"},  # YYYY-MM-DD; invoice / policy / case number
         "currency": {"type": "string"},
         "period": {"type": "string"},  # YYYY-MM for a payslip
-        **{f: _STR for f in MONEY_FIELDS},  # each amount exactly as printed in the document, e.g. "3.500,00"
+        **dict.fromkeys(MONEY_FIELDS, _STR),  # each amount exactly as printed in the document, e.g. "3.500,00"
     },
     "required": ["kind"],
 }
@@ -33,7 +36,7 @@ KIND_PROMPT = (
     "transactions), payslip (salary slip / loonstrook), annual_statement (a yearly income statement / jaaropgave: gross, tax and net for a whole year), invoice (factuur), receipt (bon / kassabon), tax (belasting: aanslag, aangifte), insurance "
     "(verzekering: polis, premie), contract (agreement, lease, loan), or other. Then give: title (a few words), summary (one short sentence), party "
     "(who it is from or to: shop, supplier, employer, insurer, tax office), date and due_date as YYYY-MM-DD, reference (invoice / policy / case "
-    "number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example \"3.500,00\"): "
+    'number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example "3.500,00"): '
     "total and vat for invoices and receipts; for a payslip also period as YYYY-MM and gross = bruto, net = netto paid out, tax = loonheffing, "
     "pension = pensioen, holiday_pay = vakantiegeld; for an annual_statement give period as the year YYYY and gross, tax and net the same way. Leave out or use null what is not there. Never invent or recalculate."
 )

@@ -53,8 +53,13 @@ def test_a_request_for_any_other_host_name_is_refused(server):
 
 def test_changes_need_the_custom_header_and_a_local_origin(server):
     assert call(server, "POST", "/api/tool", {"name": "add_task", "args": {"title": "x"}})[0] == 403  # a web page on another site cannot send this
-    assert call(server, "POST", "/api/tool", {"name": "add_task", "args": {"title": "x"}}, headers={"X-Orbit": "1", "Origin": "http://evil.example.com"})[0] == 403
-    assert call(server, "POST", "/api/tool", {"name": "add_task", "args": {"title": "x"}}, headers={"X-Orbit": "1", "Origin": f"http://127.0.0.1:{server}"})[0] == 200
+    assert (
+        call(server, "POST", "/api/tool", {"name": "add_task", "args": {"title": "x"}}, headers={"X-Orbit": "1", "Origin": "http://evil.example.com"})[0] == 403
+    )
+    assert (
+        call(server, "POST", "/api/tool", {"name": "add_task", "args": {"title": "x"}}, headers={"X-Orbit": "1", "Origin": f"http://127.0.0.1:{server}"})[0]
+        == 200
+    )
 
 
 def test_tools_run_through_the_same_code_as_the_assistant(server):

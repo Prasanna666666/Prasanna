@@ -12,7 +12,10 @@ def pay(conn, day, amount, note, kind="expense", category="other"):
 
 
 def test_the_asian_games_example_adds_up_to_its_total(conn):
-    ids = {sub: pay(conn, "2026-09-10", amt, sub) for sub, amt in [("tickets", 634.10), ("flights", 1179.31), ("stay", 280.36), ("travel", 130.93), ("food and others", 213.66)]}
+    ids = {
+        sub: pay(conn, "2026-09-10", amt, sub)
+        for sub, amt in [("tickets", 634.10), ("flights", 1179.31), ("stay", 280.36), ("travel", 130.93), ("food and others", 213.66)]
+    }
     for sub, i in ids.items():
         events.assign(conn, {"event": "Asian games 2026", "main": "trips", "sub": sub, "transaction_ids": [i]})
     ev = events.list_events(conn)[0]
@@ -69,9 +72,19 @@ def test_the_model_groups_payments_by_itself_and_looks_at_each_payment_once(conn
 
         def chat(self, model, messages, schema=None, **kw):
             Model.seen = messages[1]["content"]
-            return {"content": json.dumps({"assignments": [
-                {"id": a, "event": "Asian Games 2026", "main": "trips", "sub": "tickets"}, {"id": b, "event": "Asian Games 2026", "main": "trips", "sub": "flights"},
-                {"id": c, "event": "", "main": "others", "sub": ""}, {"id": 9999, "event": "Invented", "main": "trips", "sub": "x"}, {"id": c, "event": "Bad", "main": "nonsense"}]})}
+            return {
+                "content": json.dumps(
+                    {
+                        "assignments": [
+                            {"id": a, "event": "Asian Games 2026", "main": "trips", "sub": "tickets"},
+                            {"id": b, "event": "Asian Games 2026", "main": "trips", "sub": "flights"},
+                            {"id": c, "event": "", "main": "others", "sub": ""},
+                            {"id": 9999, "event": "Invented", "main": "trips", "sub": "x"},
+                            {"id": c, "event": "Bad", "main": "nonsense"},
+                        ]
+                    }
+                )
+            }
 
     r = events.suggest(conn, Model(), "fake")
     assert r["considered"] == 3 and r["grouped"] == 2 and "Rent" not in Model.seen
@@ -86,7 +99,10 @@ def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leav
     pay(conn, "2026-10-05", 130, "AH", category="groceries")
     pay(conn, "2026-10-06", 20, "Kiosk", category="other")
     pay(conn, "2026-10-07", 500, "own account", category="transfers")
-    events.assign(conn, {"event": "Max Amini", "main": "events", "sub": "tickets", "transaction_ids": [pay(conn, "2026-10-08", 63.48, "tickets", category="entertainment")]})
+    events.assign(
+        conn,
+        {"event": "Max Amini", "main": "events", "sub": "tickets", "transaction_ids": [pay(conn, "2026-10-08", 63.48, "tickets", category="entertainment")]},
+    )
     rows = {r["category"]: r for r in events.daily_by_category(conn, {"month": "2026-10"})}
     assert rows["groceries"]["amount"] == 130.0 and rows["groceries"]["before"] == 100.0 and rows["groceries"]["payments"] == 1
     assert rows["unsorted"]["amount"] == 20.0 and set(rows) == {"groceries", "unsorted"}  # the event payment and the own-account move are not day-to-day
@@ -96,8 +112,17 @@ def test_reading_the_files_also_groups_the_payments_into_trips_and_events_withou
     from orbit import extract, tables
     from orbit.modules import documents
 
-    layout = {"header_line": 0, "roles": ["date", "description", "debit", "credit", "balance"], "date_format": "%d-%m-%Y", "month_names": [], "decimal": ",",
-              "thousands": ".", "debit_words": [], "credit_words": [], "date_on_every_row": True}
+    layout = {
+        "header_line": 0,
+        "roles": ["date", "description", "debit", "credit", "balance"],
+        "date_format": "%d-%m-%Y",
+        "month_names": [],
+        "decimal": ",",
+        "thousands": ".",
+        "debit_words": [],
+        "credit_words": [],
+        "date_on_every_row": True,
+    }
 
     class Model:
         def chat(self, model, messages, schema=None, **kw):
@@ -107,18 +132,27 @@ def test_reading_the_files_also_groups_the_payments_into_trips_and_events_withou
             if system == tables.LAYOUT_PROMPT:
                 return {"content": json.dumps(layout)}
             if system.startswith(events.PROMPT[:40]):
-                found = [{"id": int(line.split("|")[0]), "event": "Asian Games 2026", "main": "trips", "sub": "flights" if "KLM" in line else "tickets"}
-                         for line in text.splitlines() if "Asian" in line or "KLM" in line]
+                found = [
+                    {"id": int(line.split("|")[0]), "event": "Asian Games 2026", "main": "trips", "sub": "flights" if "KLM" in line else "tickets"}
+                    for line in text.splitlines()
+                    if "Asian" in line or "KLM" in line
+                ]
                 return {"content": json.dumps({"assignments": found})}
             return {"content": "{}"}
 
     cols = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
-    rows = [["Datum", "Omschrijving", "Af", "Bij", "Saldo"], ["10-09-2026", "Asian Games tickets", "634,10", "", ""], ["11-09-2026", "KLM flights Hangzhou", "1.179,31", "", ""],
-            ["12-09-2026", "Albert Heijn", "23,45", "", ""]]
+    rows = [
+        ["Datum", "Omschrijving", "Af", "Bij", "Saldo"],
+        ["10-09-2026", "Asian Games tickets", "634,10", "", ""],
+        ["11-09-2026", "KLM flights Hangzhou", "1.179,31", "", ""],
+        ["12-09-2026", "Albert Heijn", "23,45", "", ""],
+    ]
     table = [[[cols[i][0], cols[i][1], c] for i, c in enumerate(r) if c] for r in rows]
     sha = "cd" * 32
     (tmp_path / "p").mkdir()
-    (tmp_path / "p" / f"{sha}.json").write_text(json.dumps({"schema": 1, "sha256": sha, "name": "ing.pdf", "kind": "pdf", "text": "Datum", "meta": {}, "area": "finance", "data": {"table": table}}))
+    (tmp_path / "p" / f"{sha}.json").write_text(
+        json.dumps({"schema": 1, "sha256": sha, "name": "ing.pdf", "kind": "pdf", "text": "Datum", "meta": {}, "area": "finance", "data": {"table": table}})
+    )
     documents.ingest_dir(conn, tmp_path / "p")
     r = money.import_statements(conn, client=Model(), model="fake")
     assert r["new_transactions"] == 3 and r["problems"] == [] and r["needs_check"] == []

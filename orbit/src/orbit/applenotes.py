@@ -36,7 +36,7 @@ JSON.stringify(out);
 
 # --------------------------------------------------------------------------- html -> text
 class _Text(HTMLParser):
-    BLOCK = {"p", "div", "br", "tr", "ul", "ol", "h1", "h2", "h3", "h4", "table"}
+    BLOCK = frozenset({"p", "div", "br", "tr", "ul", "ol", "h1", "h2", "h3", "h4", "table"})
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -98,10 +98,18 @@ def write_notes(records: list[dict], outdir: Path) -> dict[str, int]:
         d = outdir / slug(r.get("folder") or "", "unfiled")
         d.mkdir(exist_ok=True)
         name = f"{slug(title)}-{hashlib.sha1(str(r['id']).encode()).hexdigest()[:8]}.md"
-        head = "\n".join([
-            "---", f"title: {title}", f"folder: {_one_line(r.get('folder') or '')}",
-            f"created: {_one_line(r.get('created') or '')}", f"modified: {_one_line(r.get('modified') or '')}",
-            f"source_id: {_one_line(r['id'])}", "---", ""])
+        head = "\n".join(
+            [
+                "---",
+                f"title: {title}",
+                f"folder: {_one_line(r.get('folder') or '')}",
+                f"created: {_one_line(r.get('created') or '')}",
+                f"modified: {_one_line(r.get('modified') or '')}",
+                f"source_id: {_one_line(r['id'])}",
+                "---",
+                "",
+            ]
+        )
         (d / name).write_text(head + html_to_text(r.get("html", "")) + "\n", encoding="utf-8")
         done += 1
     return {"exported": done, "locked_skipped": locked}
@@ -115,8 +123,10 @@ def fetch_notes() -> list[dict]:
     except subprocess.TimeoutExpired as e:
         raise RuntimeError("Notes took too long to answer (900 s). Try again with Notes open.") from e
     if r.returncode != 0:
-        raise RuntimeError("Could not read Notes. If macOS asked, allow your terminal to control Notes "
-                           f"(System Settings > Privacy & Security > Automation). Details: {r.stderr.strip()[:300]}")
+        raise RuntimeError(
+            "Could not read Notes. If macOS asked, allow your terminal to control Notes "
+            f"(System Settings > Privacy & Security > Automation). Details: {r.stderr.strip()[:300]}"
+        )
     return json.loads(r.stdout)
 
 
@@ -157,18 +167,19 @@ def import_dir(conn, directory: Path) -> dict[str, int]:
             if row["title"] == n.get("title", "") and row["body"] == n["body"]:
                 unchanged += 1
             else:
-                conn.execute("UPDATE notes SET title=?, body=?, updated=COALESCE(?, CURRENT_TIMESTAMP) WHERE id=?",
-                             (n.get("title", ""), n["body"], _ts(n.get("modified", "")), row["id"]))
+                conn.execute(
+                    "UPDATE notes SET title=?, body=?, updated=COALESCE(?, CURRENT_TIMESTAMP) WHERE id=?",
+                    (n.get("title", ""), n["body"], _ts(n.get("modified", "")), row["id"]),
+                )
                 updated += 1
             continue
         tags = set(rule_tags(f"{n.get('title', '')} {n['body']}", people))
         if n.get("folder"):
             tags.add(slug(n["folder"], "unfiled"))
         conn.execute(
-            "INSERT INTO notes (title, body, tags, created, updated, source_id) VALUES (?,?,?,COALESCE(?, CURRENT_TIMESTAMP),"
-            "COALESCE(?, CURRENT_TIMESTAMP),?)",
-            (n.get("title", ""), n["body"], ",".join(sorted(tags)), _ts(n.get("created", "")),
-             _ts(n.get("modified", "")), n["source_id"]))
+            "INSERT INTO notes (title, body, tags, created, updated, source_id) VALUES (?,?,?,COALESCE(?, CURRENT_TIMESTAMP),COALESCE(?, CURRENT_TIMESTAMP),?)",
+            (n.get("title", ""), n["body"], ",".join(sorted(tags)), _ts(n.get("created", "")), _ts(n.get("modified", "")), n["source_id"]),
+        )
         new += 1
     conn.commit()
     return {"new": new, "updated": updated, "unchanged": unchanged, "skipped": skipped}

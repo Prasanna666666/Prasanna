@@ -9,19 +9,48 @@ from __future__ import annotations
 
 import hashlib
 import re
+import sqlite3
+
+from . import log
 
 CHUNK = 700
 OVERLAP = 120
 WORD = re.compile(r"[\w€₹£.,'-]{3,}", re.UNICODE)
-STOP = {"the", "and", "for", "with", "what", "was", "how", "much", "did", "does", "are", "from", "about", "that", "this", "have", "van", "het", "een", "voor", "wat", "hoeveel"}
+STOP = {
+    "the",
+    "and",
+    "for",
+    "with",
+    "what",
+    "was",
+    "how",
+    "much",
+    "did",
+    "does",
+    "are",
+    "from",
+    "about",
+    "that",
+    "this",
+    "have",
+    "van",
+    "het",
+    "een",
+    "voor",
+    "wat",
+    "hoeveel",
+}
 
 
 def _fts(conn) -> bool:
     try:
-        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(source UNINDEXED, ref UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2')")
+        conn.execute(
+            "CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(source UNINDEXED, ref UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2')"
+        )
         conn.execute("CREATE TABLE IF NOT EXISTS search_seen (ref TEXT PRIMARY KEY, digest TEXT NOT NULL)")
         return True
-    except Exception:
+    except sqlite3.Error as exc:  # no FTS5 in this SQLite build: search falls back to counting words
+        log.failed("fts5 unavailable", exc)
         return False
 
 
@@ -31,7 +60,7 @@ def chunks(text: str) -> list[str]:
         return [text] if text else []
     out, i = [], 0
     while i < len(text):
-        out.append(text[i:i + CHUNK])
+        out.append(text[i : i + CHUNK])
         i += CHUNK - OVERLAP
     return out
 
@@ -57,7 +86,10 @@ def reindex(conn) -> int:
         if seen.get(ref) == digest:
             continue
         conn.execute("DELETE FROM search_index WHERE ref=?", (ref,))
-        conn.executemany("INSERT INTO search_index (source, ref, title, body) VALUES (?,?,?,?)", [(source, ref, title, c) for c in chunks(body)] or [(source, ref, title, "")])
+        conn.executemany(
+            "INSERT INTO search_index (source, ref, title, body) VALUES (?,?,?,?)",
+            [(source, ref, title, c) for c in chunks(body)] or [(source, ref, title, "")],
+        )
         conn.execute("INSERT OR REPLACE INTO search_seen (ref, digest) VALUES (?,?)", (ref, digest))
         done += 1
     for gone in set(seen) - live:  # a deleted document or note leaves the index too
@@ -69,8 +101,8 @@ def reindex(conn) -> int:
 
 def terms(question: str) -> list[str]:
     seen, out = set(), []
-    for w in WORD.findall(question.lower()):
-        w = w.strip(".,'-")
+    for raw in WORD.findall(question.lower()):
+        w = raw.strip(".,'-")
         if len(w) >= 3 and w not in STOP and w not in seen:
             seen.add(w)
             out.append(w)
@@ -86,16 +118,19 @@ def retrieve(conn, question: str, k: int = 6) -> list[dict]:
         reindex(conn)
         query = " OR ".join('"' + w.replace('"', "") + '"' for w in words)
         try:
-            rows = conn.execute("SELECT source, ref, title, snippet(search_index, 3, '[', ']', '…', 40) AS text, bm25(search_index, 0.0, 0.0, 3.0, 1.0) AS score "
-                                "FROM search_index WHERE search_index MATCH ? ORDER BY score LIMIT ?", (query, k)).fetchall()
+            rows = conn.execute(
+                "SELECT source, ref, title, snippet(search_index, 3, '[', ']', '…', 40) AS text, bm25(search_index, 0.0, 0.0, 3.0, 1.0) AS score "
+                "FROM search_index WHERE search_index MATCH ? ORDER BY score LIMIT ?",
+                (query, k),
+            ).fetchall()
             return [{"source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
-        except Exception:
-            pass
+        except sqlite3.Error as exc:  # a query FTS5 cannot parse: fall back to word counting
+            log.failed("fts5 query failed", exc)
     out = []  # no full-text search: count the words each item contains
-    for ref, source, title, body in _sources(conn):
+    for _ref, source, title, body in _sources(conn):
         hay = (title + " " + body).lower()
         score = sum(hay.count(w) for w in words)
         if score:
             i = max(hay.find(words[0]), 0)
-            out.append({"source": source, "title": title, "text": " ".join(body[max(0, i - 80): i + 220].split()), "score": float(score)})
+            out.append({"source": source, "title": title, "text": " ".join(body[max(0, i - 80) : i + 220].split()), "score": float(score)})
     return sorted(out, key=lambda r: -r["score"])[:k]

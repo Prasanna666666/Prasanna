@@ -9,9 +9,31 @@ from __future__ import annotations
 import json
 import re
 
-CATEGORIES = ("groceries", "food", "transport", "fuel", "shopping", "utilities", "rent", "emi", "insurance", "medical", "education",
-              "travel", "entertainment", "subscriptions", "cash", "investments", "transfers", "fees", "salary", "interest", "refund",
-              "income", "other")
+CATEGORIES = (
+    "groceries",
+    "food",
+    "transport",
+    "fuel",
+    "shopping",
+    "utilities",
+    "rent",
+    "emi",
+    "insurance",
+    "medical",
+    "education",
+    "travel",
+    "entertainment",
+    "subscriptions",
+    "cash",
+    "investments",
+    "transfers",
+    "fees",
+    "salary",
+    "interest",
+    "refund",
+    "income",
+    "other",
+)
 
 # (category, words). A word matches whole-word, case-insensitive. Order matters: the first matching rule wins.
 RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -22,31 +44,113 @@ RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("rent", ("rent", "landlord", "nobroker")),
     ("insurance", ("insurance", "lic", "premium", "policybazaar", "hdfc life", "star health", "icici pru")),
     ("investments", ("zerodha", "groww", "upstox", "mutual fund", "sip", "nps", "ppf", "coin", "kuvera", "smallcase")),
-    ("subscriptions", ("netflix", "spotify", "prime video", "hotstar", "youtube", "apple.com", "google play", "icloud", "linkedin",
-                       "openai", "chatgpt", "notion", "dropbox", "jio cinema", "sonyliv", "zee5")),
-    ("utilities", ("electricity", "bescom", "tneb", "msedcl", "water", "gas", "broadband", "airtel", "jio", "vodafone", "vi ", "bsnl",
-                   "recharge", "dth", "tata play", "act fibernet", "postpaid", "prepaid")),
+    (
+        "subscriptions",
+        (
+            "netflix",
+            "spotify",
+            "prime video",
+            "hotstar",
+            "youtube",
+            "apple.com",
+            "google play",
+            "icloud",
+            "linkedin",
+            "openai",
+            "chatgpt",
+            "notion",
+            "dropbox",
+            "jio cinema",
+            "sonyliv",
+            "zee5",
+        ),
+    ),
+    (
+        "utilities",
+        (
+            "electricity",
+            "bescom",
+            "tneb",
+            "msedcl",
+            "water",
+            "gas",
+            "broadband",
+            "airtel",
+            "jio",
+            "vodafone",
+            "vi ",
+            "bsnl",
+            "recharge",
+            "dth",
+            "tata play",
+            "act fibernet",
+            "postpaid",
+            "prepaid",
+        ),
+    ),
     ("fuel", ("petrol", "diesel", "hpcl", "bpcl", "iocl", "indian oil", "shell", "fuel")),
     ("transport", ("uber", "ola", "rapido", "metro", "irctc", "redbus", "fastag", "parking", "toll", "namma yatri")),
     ("travel", ("makemytrip", "goibibo", "cleartrip", "indigo", "air india", "vistara", "airbnb", "booking.com", "oyo", "hotel", "yatra")),
-    ("groceries", ("bigbasket", "blinkit", "zepto", "dmart", "d mart", "grofers", "instamart", "reliance fresh", "more retail", "nature's basket",
-                   "grocery", "supermarket", "vegetable", "milk", "kirana")),
-    ("food", ("swiggy", "zomato", "restaurant", "cafe", "coffee", "starbucks", "dominos", "domino", "mcdonald", "kfc", "pizza", "biryani",
-              "bakery", "eatfit", "dining", "food")),
-    ("medical", ("pharmacy", "apollo", "medplus", "1mg", "netmeds", "hospital", "clinic", "diagnostic", "lab", "doctor", "medical", "dental",
-                 "pharmeasy")),
+    (
+        "groceries",
+        (
+            "bigbasket",
+            "blinkit",
+            "zepto",
+            "dmart",
+            "d mart",
+            "grofers",
+            "instamart",
+            "reliance fresh",
+            "more retail",
+            "nature's basket",
+            "grocery",
+            "supermarket",
+            "vegetable",
+            "milk",
+            "kirana",
+        ),
+    ),
+    (
+        "food",
+        (
+            "swiggy",
+            "zomato",
+            "restaurant",
+            "cafe",
+            "coffee",
+            "starbucks",
+            "dominos",
+            "domino",
+            "mcdonald",
+            "kfc",
+            "pizza",
+            "biryani",
+            "bakery",
+            "eatfit",
+            "dining",
+            "food",
+        ),
+    ),
+    ("medical", ("pharmacy", "apollo", "medplus", "1mg", "netmeds", "hospital", "clinic", "diagnostic", "lab", "doctor", "medical", "dental", "pharmeasy")),
     ("education", ("school", "college", "tuition", "course", "udemy", "coursera", "byju", "unacademy", "university", "exam", "fees")),
     ("entertainment", ("bookmyshow", "pvr", "inox", "cinema", "movie", "game", "steam", "playstation")),
     ("shopping", ("amazon", "flipkart", "myntra", "ajio", "nykaa", "meesho", "croma", "decathlon", "ikea", "lifestyle", "westside", "mall")),
     ("cash", ("atm", "cash withdrawal", "cash wdl", "nfs", "cwdr")),
     ("fees", ("charges", "gst", "annual fee", "sms charges", "penalty", "late fee", "service charge")),
-    ("transfers", ("self transfer", "own account", "self trf", "sweep in", "sweep out")),  # only money moved between your OWN accounts; UPI/NEFT to others is spending
+    (
+        "transfers",
+        ("self transfer", "own account", "self trf", "sweep in", "sweep out"),
+    ),  # only money moved between your OWN accounts; UPI/NEFT to others is spending
 )
 _COMPILED = [(cat, re.compile(r"(?<![a-z0-9])(?:" + "|".join(re.escape(w.strip()) for w in words) + r")(?![a-z0-9])", re.IGNORECASE)) for cat, words in RULES]
 
-_NOISE = re.compile(r"\b(upi|imps|neft|rtgs|pos|ach|nach|ecs|atm|ref|txn|payment|paid|to|from|by|via|debit|credit|card|purchase|dr|cr|ib|mb|mobile|"
-                    r"banking|bank|ltd|pvt|private|limited|india|inr|rs|com|order|ybl|okaxis|okhdfcbank|oksbi|okicici|icici|axl|apl|paytm|ibl|"
-                    r"hdfcbank|sbi|axis|upiqr)\b", re.IGNORECASE)
+_NOISE = re.compile(
+    r"\b(upi|imps|neft|rtgs|pos|ach|nach|ecs|atm|ref|txn|payment|paid|to|from|by|via|debit|credit|card|purchase|dr|cr|ib|mb|mobile|"
+    r"banking|bank|ltd|pvt|private|limited|india|inr|rs|com|order|ybl|okaxis|okhdfcbank|oksbi|okicici|icici|axl|apl|paytm|ibl|"
+    r"hdfcbank|sbi|axis|upiqr)\b",
+    re.IGNORECASE,
+)
 
 
 def merchant(desc: str) -> str:
@@ -95,10 +199,18 @@ def teach(conn, desc: str, category: str) -> str:
 
 def model_categories(client, model: str, names: list[str]) -> dict[str, str]:
     """Ask the local model to place merchant names (only names) into the fixed category list."""
-    msg = client.chat(model, [
-        {"role": "system", "content": "Put each merchant into exactly one category from this list: " + ", ".join(CATEGORIES) +
-         '. Reply with only a JSON object mapping each merchant to its category, e.g. {"swiggy": "food"}. Use "other" if unsure.'},
-        {"role": "user", "content": json.dumps(names)}])
+    msg = client.chat(
+        model,
+        [
+            {
+                "role": "system",
+                "content": "Put each merchant into exactly one category from this list: "
+                + ", ".join(CATEGORIES)
+                + '. Reply with only a JSON object mapping each merchant to its category, e.g. {"swiggy": "food"}. Use "other" if unsure.',
+            },
+            {"role": "user", "content": json.dumps(names)},
+        ],
+    )
     m = re.search(r"\{.*\}", msg.get("content") or "", re.DOTALL)
     try:
         found = json.loads(m.group(0)) if m else {}
@@ -117,7 +229,7 @@ def recategorise_with_model(conn, client, model: str, batch: int = 40) -> int:
     names = sorted(pending, key=lambda n: -len(pending[n]))[:200]
     updated = 0
     for i in range(0, len(names), batch):
-        for name, category in model_categories(client, model, names[i:i + batch]).items():
+        for name, category in model_categories(client, model, names[i : i + batch]).items():
             if category != "other":
                 for tid in pending[name]:
                     conn.execute("UPDATE transactions SET category=? WHERE id=?", (category, tid))

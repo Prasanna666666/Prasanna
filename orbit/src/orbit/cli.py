@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import date
 from pathlib import Path
 
-from . import agent, agents, applenotes, db, netguard, tagging
+from . import agent, agents, applenotes, clock, db, netguard, tagging
 from .modules import ALL, documents, tools
 from .modules.today import briefing_for
 
@@ -61,15 +60,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     conn = open_db()
     if cmd == "brief":
-        print(json.dumps(briefing_for(conn, date.today()), indent=2, default=str))
+        print(json.dumps(briefing_for(conn, clock.today()), indent=2, default=str))
     elif cmd == "ingest":
         print(documents.ingest_dir(conn, Path(rest[0]) if rest else Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))))
     elif cmd == "import-statements":  # after `ingest`: turns the parsed finance files into transactions
         from .modules import money
 
         try:
-            client = agent.llm.OllamaClient()
-            model = client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))
+            ollama = agent.llm.OllamaClient()
+            client: agent.llm.OllamaClient | None = ollama
+            model: str | None = ollama.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))
         except RuntimeError as exc:
             print(f"The local model is not available ({exc}). Statements are read by the local model, so nothing was imported.")
             client = model = None
@@ -83,7 +83,9 @@ def main(argv: list[str] | None = None) -> int:
         from . import categorize
 
         client = agent.llm.OllamaClient()
-        print("updated", categorize.recategorise_with_model(conn, client, client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))), "transactions")
+        print(
+            "updated", categorize.recategorise_with_model(conn, client, client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))), "transactions"
+        )
     elif cmd == "import-notes":
         print(applenotes.import_dir(conn, Path(rest[0]) if rest else inbox))
     elif cmd == "tag":

@@ -7,7 +7,9 @@ import re
 
 from .modules import ALL, tools
 
-MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"], 1)}
+MONTHS = {
+    m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"], 1)
+}
 SYMBOL = {"EUR": "€", "USD": "$", "GBP": "£", "INR": "₹"}
 ADVICE = re.compile(r"\b(why|should|advice|advise|recommend|suggest|how can i|how do i|what if|plan|budget|save more|explain)\b")
 
@@ -45,10 +47,15 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
     if not t or not asking or ADVICE.search(t) or len(t) > 160:
         return None  # not a question (for example "I spent 100 on food" is a note to record), or one that needs thinking
     T = tools(ALL)
-    run = lambda name, a=None: T[name].fn(conn, a or {})
+
+    def run(name, a=None):
+        return T[name].fn(conn, a or {})
+
     trend = run("monthly_trend", {"months": 120})
     months = [r["month"] for r in trend]
-    has = lambda *words: any(re.search(rf"\b{w}", t) for w in words)
+
+    def has(*words):
+        return any(re.search(rf"\b{w}", t) for w in words)
 
     if has("coming up", "upcoming", "next bill", "due soon", "bills due", "what.?s due", "payments due"):
         rows = run("upcoming_payments", {"days": 45})
@@ -60,15 +67,26 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
         if not rows:
             return "I don't see any payments that repeat every month yet."
         total = sum(r["per_month"] for r in rows)
-        return f"Your regular payments come to about {_m(total, 'EUR')} a month:\n" + "\n".join(f"- {r['merchant'].title()}: {_m(r['typical_amount'], 'EUR')}" for r in rows[:10])
+        return f"Your regular payments come to about {_m(total, 'EUR')} a month:\n" + "\n".join(
+            f"- {r['merchant'].title()}: {_m(r['typical_amount'], 'EUR')}" for r in rows[:10]
+        )
     if has("top merchant", "biggest", "most money", "where does my money", "where did my money", "spend the most", "spent the most", "top spend"):
         rows = run("top_merchants")[:8]
-        return "Where most of your money went:\n" + "\n".join(f"- {r['merchant'].title()}: {_m(r['spent'], 'EUR')} ({r['times']}x)" for r in rows) if rows else "No payments yet."
+        return (
+            "Where most of your money went:\n" + "\n".join(f"- {r['merchant'].title()}: {_m(r['spent'], 'EUR')} ({r['times']}x)" for r in rows)
+            if rows
+            else "No payments yet."
+        )
     if has("net worth", "balance", "how much do i have", "how much money do i have", "my accounts"):
         nw = run("net_worth")
         if nw["latest"] is None:
             return "I can't show balances yet: no statement has been proven with a closing balance."
-        lines = [f"- {a['account']}: {_m(a['balance'], a['currency'])}" + (f" (about {_m(a['eur'], 'EUR')})" if a["currency"] != "EUR" and a["eur"] is not None else "") + f", as of {a['as_of']}" for a in nw["accounts"]]
+        lines = [
+            f"- {a['account']}: {_m(a['balance'], a['currency'])}"
+            + (f" (about {_m(a['eur'], 'EUR')})" if a["currency"] != "EUR" and a["eur"] is not None else "")
+            + f", as of {a['as_of']}"
+            for a in nw["accounts"]
+        ]
         return f"All your accounts together: {_m(nw['latest'], 'EUR')}.\n" + "\n".join(lines)
     if has("problem", "wrong", "verified", "verify", "tally", "tallies", "check", "mistake", "reliable", "trust"):
         bad = run("files_to_check")
@@ -92,7 +110,11 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
         return "\n".join(parts)
     if has("month by month", "trend", "compare", "history", "each month", "per month"):
         rows = trend[-6:]
-        return "Last months (spent / money in):\n" + "\n".join(f"- {_label(r['month'])}: {_m(r['spent'], 'EUR')} / {_m(r['income'], 'EUR')}" for r in rows) if rows else "No data yet."
+        return (
+            "Last months (spent / money in):\n" + "\n".join(f"- {_label(r['month'])}: {_m(r['spent'], 'EUR')} / {_m(r['income'], 'EUR')}" for r in rows)
+            if rows
+            else "No data yet."
+        )
     if has("spend", "spent", "spending", "cost", "expense", "paid for", "how much"):
         month = _month(t, months)
         if month is None:
@@ -114,7 +136,12 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
 def render_any(data) -> str:
     """A readable text for any tool result, used when the assistant ran out of time after a tool had already answered."""
     if isinstance(data, list):
-        return "\n".join("- " + ", ".join(f"{k}: {v}" for k, v in row.items() if v not in (None, "")) if isinstance(row, dict) else f"- {row}" for row in data[:10]) or "Nothing found."
+        return (
+            "\n".join(
+                "- " + ", ".join(f"{k}: {v}" for k, v in row.items() if v not in (None, "")) if isinstance(row, dict) else f"- {row}" for row in data[:10]
+            )
+            or "Nothing found."
+        )
     if isinstance(data, dict):
         return "\n".join(f"{k}: {v}" for k, v in data.items() if not isinstance(v, (list, dict)) and v not in (None, ""))
     return str(data)
@@ -142,8 +169,23 @@ def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:
 
 
 # ---- the answer checker: runs on every answer, whoever wrote it ----------------------------------------------------------------
-REPORTS = frozenset({"spending_summary", "income_summary", "daily_spending", "spending_by_main", "monthly_trend", "top_merchants", "recurring_payments",
-                     "upcoming_payments", "net_worth", "list_transactions", "list_events", "list_payslips", "uncategorised_spending"})
+REPORTS = frozenset(
+    {
+        "spending_summary",
+        "income_summary",
+        "daily_spending",
+        "spending_by_main",
+        "monthly_trend",
+        "top_merchants",
+        "recurring_payments",
+        "upcoming_payments",
+        "net_worth",
+        "list_transactions",
+        "list_events",
+        "list_payslips",
+        "uncategorised_spending",
+    }
+)
 
 
 def _calls(turns: list[dict]) -> list[tuple[str, dict, str]]:

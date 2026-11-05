@@ -10,10 +10,24 @@ from orbit.modules import documents, money
 
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
 HEAD = ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
-LAYOUT = {"header_line": 0, "roles": ["date", "description", "debit", "credit", "balance"], "date_format": "%d-%m-%Y", "month_names": [],
-          "decimal": ",", "thousands": ".", "debit_words": ["af"], "credit_words": ["bij"], "date_on_every_row": True}
-GOOD = [HEAD, ["01-10-2026", "Opening", "", "", "2.000,00"], ["01-10-2026", "Albert Heijn Utrecht", "23,45", "", "1.976,55"],
-        ["25-10-2026", "Acme BV Salaris oktober", "", "2.850,00", "4.826,55"], ["26-10-2026", "Huur oktober", "1.100,00", "", "3.726,55"]]
+LAYOUT = {
+    "header_line": 0,
+    "roles": ["date", "description", "debit", "credit", "balance"],
+    "date_format": "%d-%m-%Y",
+    "month_names": [],
+    "decimal": ",",
+    "thousands": ".",
+    "debit_words": ["af"],
+    "credit_words": ["bij"],
+    "date_on_every_row": True,
+}
+GOOD = [
+    HEAD,
+    ["01-10-2026", "Opening", "", "", "2.000,00"],
+    ["01-10-2026", "Albert Heijn Utrecht", "23,45", "", "1.976,55"],
+    ["25-10-2026", "Acme BV Salaris oktober", "", "2.850,00", "4.826,55"],
+    ["26-10-2026", "Huur oktober", "1.100,00", "", "3.726,55"],
+]
 
 
 def table_of(rows, cols=COLS):
@@ -35,9 +49,34 @@ class FakeModel:
             if self.kind:
                 return {"content": json.dumps(self.kind(text))}
             if "LOONSTROOK" in text:
-                return {"content": json.dumps({"kind": "payslip", "period": "2026-10", "gross": "3.500,00", "net": "2.512,60", "tax": "812,40", "pension": "175,00", "holiday_pay": "280,00"})}
+                return {
+                    "content": json.dumps(
+                        {
+                            "kind": "payslip",
+                            "period": "2026-10",
+                            "gross": "3.500,00",
+                            "net": "2.512,60",
+                            "tax": "812,40",
+                            "pension": "175,00",
+                            "holiday_pay": "280,00",
+                        }
+                    )
+                }
             if "FACTUUR" in text:
-                return {"content": json.dumps({"kind": "invoice", "title": "Internet", "party": "Ziggo", "date": "2026-10-03", "reference": "F-1001", "total": "60,50", "vat": "10,50", "currency": "EUR"})}
+                return {
+                    "content": json.dumps(
+                        {
+                            "kind": "invoice",
+                            "title": "Internet",
+                            "party": "Ziggo",
+                            "date": "2026-10-03",
+                            "reference": "F-1001",
+                            "total": "60,50",
+                            "vat": "10,50",
+                            "currency": "EUR",
+                        }
+                    )
+                }
             return {"content": json.dumps({"kind": "bank_statement" if "Datum" in text else "other", "title": "x"})}
         if system == tables.LAYOUT_PROMPT:
             return {"content": json.dumps(self.layout)}
@@ -47,7 +86,16 @@ class FakeModel:
 def _load(conn, tmp_path, name, rows=None, text=None, area="finance", cols=COLS):
     sha = (name.encode().hex() * 8)[:64]
     shown = text if text is not None else "\n".join(" ".join(r) for r in (rows or []))
-    d = {"schema": 1, "sha256": sha, "name": name, "kind": "pdf", "text": shown, "meta": {}, "area": area, "data": {"table": table_of(rows, cols)} if rows else {"lines": [shown]}}
+    d = {
+        "schema": 1,
+        "sha256": sha,
+        "name": name,
+        "kind": "pdf",
+        "text": shown,
+        "meta": {},
+        "area": area,
+        "data": {"table": table_of(rows, cols)} if rows else {"lines": [shown]},
+    }
     out = tmp_path / "parsed"
     out.mkdir(exist_ok=True)
     (out / f"{sha}.json").write_text(json.dumps(d))
@@ -68,7 +116,10 @@ def test_a_statement_is_read_by_code_and_proved_by_its_balances():
     p = read(GOOD)
     assert p.status == "verified" and p.issues == [] and p.checked == 3
     assert [(t.day, t.amount_minor, t.kind, t.balance_minor) for t in p.txns] == [
-        ("2026-10-01", 2345, "expense", 197655), ("2026-10-25", 285000, "income", 482655), ("2026-10-26", 110000, "expense", 372655)]
+        ("2026-10-01", 2345, "expense", 197655),
+        ("2026-10-25", 285000, "income", 482655),
+        ("2026-10-26", 110000, "expense", 372655),
+    ]
 
 
 def test_a_statement_printed_newest_first_is_still_proved():
@@ -102,7 +153,12 @@ def test_a_statement_that_prints_the_date_once_per_group_carries_it_forward():
 
 def test_an_unsigned_amount_with_a_direction_word_is_settled_by_the_words_and_the_balances():
     layout = {**LAYOUT, "roles": ["date", "description", "amount", "direction", "balance"]}
-    rows = [HEAD, ["01-10-2026", "Opening", "", "", "100,00"], ["02-10-2026", "Shop", "10,00", "Af", "90,00"], ["03-10-2026", "Salary", "50,00", "Bij", "140,00"]]
+    rows = [
+        HEAD,
+        ["01-10-2026", "Opening", "", "", "100,00"],
+        ["02-10-2026", "Shop", "10,00", "Af", "90,00"],
+        ["03-10-2026", "Salary", "50,00", "Bij", "140,00"],
+    ]
     p = read(rows, layout)
     assert p.status == "verified" and [t.kind for t in p.txns] == ["expense", "income"]
     layout["debit_words"] = layout["credit_words"] = []  # no words at all: the balances alone decide
@@ -178,7 +234,13 @@ def test_a_layout_nobody_can_understand_is_refused_not_guessed(conn, tmp_path):
 
 
 def test_a_payslip_is_read_from_its_printed_figures_and_not_a_bank_transaction(conn, tmp_path):
-    _load(conn, tmp_path, "loonstrook-2026-10.pdf", None, text="LOONSTROOK oktober 2026 Bruto loon 3.500,00 Pensioen 175,00 Loonheffing 812,40 Vakantiegeld 280,00 Netto loon 2.512,60")
+    _load(
+        conn,
+        tmp_path,
+        "loonstrook-2026-10.pdf",
+        None,
+        text="LOONSTROOK oktober 2026 Bruto loon 3.500,00 Pensioen 175,00 Loonheffing 812,40 Vakantiegeld 280,00 Netto loon 2.512,60",
+    )
     r = run(conn)
     assert r["payslips"] == 1 and r["new_transactions"] == 0
     slip = money.list_payslips(conn)[0]
@@ -186,7 +248,9 @@ def test_a_payslip_is_read_from_its_printed_figures_and_not_a_bank_transaction(c
 
 
 def test_a_payslip_with_an_amount_not_in_the_document_is_rejected(conn, tmp_path):
-    _load(conn, tmp_path, "loonstrook.pdf", None, text="LOONSTROOK oktober 2026 Bruto loon 3.500,00 Loonheffing 812,40")  # no net amount printed: the model's net is invented
+    _load(
+        conn, tmp_path, "loonstrook.pdf", None, text="LOONSTROOK oktober 2026 Bruto loon 3.500,00 Loonheffing 812,40"
+    )  # no net amount printed: the model's net is invented
     assert run(conn)["payslips"] == 0
 
 
@@ -217,7 +281,10 @@ def test_categories_rules_then_your_corrections(conn, tmp_path):
     assert categorize.merchant("UPI-SWIGGY-swiggy@icici-4567-Order") == "swiggy"
     _load(conn, tmp_path, "oct.pdf", [HEAD, ["01-10-2026", "Kiran Stores Utrecht", "3,00", "", ""]])
     run(conn)
-    assert conn.execute("SELECT category FROM transactions").fetchone()["category"] == "other" and money.uncategorised(conn)[0]["merchant"] == "kiran stores utrecht"
+    assert (
+        conn.execute("SELECT category FROM transactions").fetchone()["category"] == "other"
+        and money.uncategorised(conn)[0]["merchant"] == "kiran stores utrecht"
+    )
     money.set_category(conn, {"merchant": "Kiran Stores Utrecht", "category": "groceries"})
     assert conn.execute("SELECT category FROM transactions").fetchone()["category"] == "groceries" and categorize.learned_rules(conn)
 
@@ -259,9 +326,18 @@ def test_the_parser_keeps_exact_csv_rows_with_any_delimiter_and_marks_the_financ
 
 
 def test_pdf_words_become_cells_with_positions():
-    words = [(50, 100, 80, 110, "01/10/2026"), (120, 101, 160, 111, "SWIGGY"), (164, 101, 190, 111, "Utrecht"), (300, 99, 340, 109, "450.00"), (50, 130, 80, 140, "Page")]
+    words = [
+        (50, 100, 80, 110, "01/10/2026"),
+        (120, 101, 160, 111, "SWIGGY"),
+        (164, 101, 190, 111, "Utrecht"),
+        (300, 99, 340, 109, "450.00"),
+        (50, 130, 80, 140, "Page"),
+    ]
     cells = parser._table_lines(words)
-    assert [[c[2] for c in line] for line in cells] == [["01/10/2026", "SWIGGY Utrecht", "450.00"], ["Page"]]  # close words share a cell, a wide gap starts another
+    assert [[c[2] for c in line] for line in cells] == [
+        ["01/10/2026", "SWIGGY Utrecht", "450.00"],
+        ["Page"],
+    ]  # close words share a cell, a wide gap starts another
     assert cells[0][2][0] == 300
 
 

@@ -13,7 +13,7 @@ dependencies = []
 ui = []  # kept so older install commands still work; the interface needs no extra packages
 secure = ["sqlcipher3-binary>=0.5"]
 parse = ["pymupdf>=1.24", "pdfplumber>=0.11", "openpyxl>=3.1", "pillow>=10"]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "mypy>=1.10"]
 
 [project.scripts]
 orbit = "orbit.cli:main"
@@ -30,5 +30,42 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 
 [tool.ruff]
-line-length = 110
+line-length = 160
 target-version = "py310"
+extend-exclude = ["build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "PIE", "PL", "BLE"]
+ignore = [
+    "S101",    # assert is used in tests
+    "S608",    # SQL is built from column names written in code, never from user input (reviewed)
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",  # complexity is tracked by radon in review, not by line counts
+    "PLC0415", # imports inside functions are deliberate: optional dependencies and the parser container must not load each other
+    "PLR0917", # call sites use keywords where it matters
+    "E501",    # the formatter owns line length
+    "RUF001", "RUF002", "RUF003",  # text deliberately uses typographic characters
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/orbit/readers.py" = ["S603", "S607", "S314", "PLW2901"]  # fixed executables (tesseract, pdftotext) with list arguments and no shell; XML with a DOCTYPE or entities is refused before parsing
+"src/orbit/parser.py" = ["S603"]  # re-runs this program in a subprocess to isolate each file
+"src/orbit/standards.py" = ["S314"]  # DOCTYPE and entities are refused before parsing
+"src/orbit/applenotes.py" = ["S603", "S607", "PLW1510", "S324"]  # osascript with a fixed script; the hash is only an identifier
+"src/orbit/statements.py" = ["S324"]  # sha1 is a stable identifier here, not security
+"src/orbit/llm.py" = ["S310"]  # the URL scheme and host are validated in OllamaClient.__init__
+"src/orbit/netguard.py" = ["PLW0603"]  # the guard is process-wide state by design
+"src/orbit/tables.py" = ["DTZ007"]  # statement dates have no time zone
+"src/orbit/rates.py" = ["PLW2901"]
+"tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+
+[tool.coverage.run]
+source = ["src/orbit"]
+
+[tool.bandit]
+skips = ["B608"]

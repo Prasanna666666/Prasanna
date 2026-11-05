@@ -26,10 +26,13 @@ LAYOUT_SCHEMA = {
         "roles": {"type": "array", "items": {"type": "string", "enum": list(ROLES)}},  # one per cell of the header line, left to right
         "date_format": {"type": "string"},  # Python strptime, e.g. %d-%m-%Y, %d %b %Y, %Y-%m-%d
         "month_names": {"type": "array", "items": {"type": "string"}},  # the 12 month names exactly as printed, or [] when months are numbers
-        "decimal": {"type": "string"}, "thousands": {"type": "string"},  # as printed: "," and "." for 1.234,56
-        "debit_words": {"type": "array", "items": {"type": "string"}}, "credit_words": {"type": "array", "items": {"type": "string"}},  # words marking direction (Af/Bij, Dr/Cr)
+        "decimal": {"type": "string"},
+        "thousands": {"type": "string"},  # as printed: "," and "." for 1.234,56
+        "debit_words": {"type": "array", "items": {"type": "string"}},
+        "credit_words": {"type": "array", "items": {"type": "string"}},  # words marking direction (Af/Bij, Dr/Cr)
         "date_on_every_row": {"type": "boolean"},
-        "opening_balance": {"type": ["string", "null"]}, "closing_balance": {"type": ["string", "null"]},  # as printed, if the statement shows them
+        "opening_balance": {"type": ["string", "null"]},
+        "closing_balance": {"type": ["string", "null"]},  # as printed, if the statement shows them
         "balance_is_amount_owed": {"type": "boolean"},  # true for a credit card, where the balance is what you owe
         "account": {"type": ["string", "null"]},  # the account or card number as printed
     },
@@ -97,7 +100,9 @@ def table_from_data(data: dict) -> list[list[Cell]]:
         return out
     if isinstance(data.get("rows"), list):
         # empty cells are kept: they hold a column's place (a plain data file has no titles to tell the columns apart)
-        return [[Cell(i * 100.0, i * 100.0 + 99, str(c)) for i, c in enumerate(r)] for r in data["rows"] if isinstance(r, list) and any(str(c).strip() for c in r)]
+        return [
+            [Cell(i * 100.0, i * 100.0 + 99, str(c)) for i, c in enumerate(r)] for r in data["rows"] if isinstance(r, list) and any(str(c).strip() for c in r)
+        ]
     return []
 
 
@@ -120,10 +125,25 @@ def infer_layout(client, model: str, table: list[list[Cell]]) -> Layout | None:
         return None
     if not (("debit" in roles or "credit" in roles) or "amount" in roles):
         return None
-    words = lambda k: [str(w).strip().lower() for w in d.get(k, []) if str(w).strip()]
-    return Layout(header, roles, str(d["date_format"]), str(d.get("decimal") or ".")[:1] or ".", str(d.get("thousands") or "")[:1],
-                  [str(m).strip().lower() for m in d.get("month_names", [])][:12], words("debit_words"), words("credit_words"), bool(d.get("date_on_every_row", True)),
-                  str(d.get("opening_balance") or ""), str(d.get("closing_balance") or ""), bool(d.get("balance_is_amount_owed", False)), str(d.get("account") or "")[:40])
+
+    def words(k):
+        return [str(w).strip().lower() for w in d.get(k, []) if str(w).strip()]
+
+    return Layout(
+        header,
+        roles,
+        str(d["date_format"]),
+        str(d.get("decimal") or ".")[:1] or ".",
+        str(d.get("thousands") or "")[:1],
+        [str(m).strip().lower() for m in d.get("month_names", [])][:12],
+        words("debit_words"),
+        words("credit_words"),
+        bool(d.get("date_on_every_row", True)),
+        str(d.get("opening_balance") or ""),
+        str(d.get("closing_balance") or ""),
+        bool(d.get("balance_is_amount_owed", False)),
+        str(d.get("account") or "")[:40],
+    )
 
 
 def parse_date(text: str, layout: Layout) -> str | None:
@@ -157,7 +177,7 @@ def parse_money(text: str, layout: Layout) -> tuple[int, str | None] | None:
     low = s.lower()
     for word, tag in [(w, "dr") for w in layout.debit_words] + [(w, "cr") for w in layout.credit_words]:
         if low.endswith(" " + word) or low.startswith(word + " ") or low == word:
-            side, s = tag, s[: len(s) - len(word)].strip() if low.endswith(word) else s[len(word):].strip()
+            side, s = tag, s[: len(s) - len(word)].strip() if low.endswith(word) else s[len(word) :].strip()
             break
     s = CURRENCY.sub("", s).replace("+", "").replace(" ", "").replace(" ", "")
     negative = s.startswith("-") or s.endswith("-") or (s.startswith("(") and s.endswith(")"))
@@ -227,11 +247,15 @@ def parse_table(table: list[list[Cell]], layout: Layout) -> Parsed:
                 rows[-1]["desc"] += " " + text["description"]  # a description continued on the next line
             continue
         if d is None and not has_money and balance is not None:
-            rows.append({"day": day, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True})  # e.g. 'opening balance' with no date
+            rows.append(
+                {"day": day, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True}
+            )  # e.g. 'opening balance' with no date
             continue
         if d is not None and not has_money:
             if balance is not None:
-                rows.append({"day": d, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True})  # e.g. an opening balance
+                rows.append(
+                    {"day": d, "amount": None, "kind": None, "desc": text["description"], "balance": balance[0], "checkpoint": True}
+                )  # e.g. an opening balance
             continue
         if has_money:
             if d is None and not layout.date_on_every_row and day:

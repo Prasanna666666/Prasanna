@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ipaddress
 import json
 import os
@@ -50,7 +51,7 @@ class OllamaClient:
             raise ValueError(f"The model server must be on this computer or its private network, not {name or self.base!r}")
         netguard.allow_local(urllib.parse.urlparse(self.base).hostname or "localhost")
 
-    def _call(self, path: str, body: dict | None = None, timeout: int = 300) -> dict:
+    def _call(self, path: str, body: dict | None = None, timeout: float = 300) -> dict:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(f"{self.base}{path}", data, {"Content-Type": "application/json"})
         if self.deadline is not None:
@@ -62,7 +63,7 @@ class OllamaClient:
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.load(r)
         except OSError as e:
-            if self.deadline is not None and isinstance(e, TimeoutError | socket.timeout) or "timed out" in str(e):
+            if (self.deadline is not None and isinstance(e, TimeoutError | socket.timeout)) or "timed out" in str(e):
                 raise Slow("out of time") from e
             raise RuntimeError(f"Cannot reach the local model server at {self.base} ({e}). Is Ollama running?") from e
 
@@ -75,28 +76,27 @@ class OllamaClient:
         have = set(names) | {n.removesuffix(":latest") for n in names}
         if preferred in have:
             return preferred
-        same_family = [n for n in names if n.lower().startswith(preferred.split(":")[0].split("-")[0].lower())]
+        same_family = [n for n in names if n.lower().startswith(preferred.split(":", maxsplit=1)[0].split("-", maxsplit=1)[0].lower())]
         if len(same_family) == 1:
             return same_family[0]
         if same_family:
-            raise RuntimeError(f"Several {preferred.split(':')[0]} models are installed ({', '.join(same_family)}): "
-                               "pick one in Settings.")
-        raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). "
-                           f"Run:  ollama pull {preferred}")
+            raise RuntimeError(f"Several {preferred.split(':', maxsplit=1)[0]} models are installed ({', '.join(same_family)}): pick one in Settings.")
+        raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). Run:  ollama pull {preferred}")
 
     def warm(self, model: str) -> None:
         """Load the model into memory now (so the first message does not wait for it). Failures are ignored: it is only a head start."""
-        try:
-            self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": KEEP,
-                                         "options": {"num_ctx": 4096}}, timeout=120)
-        except RuntimeError:
-            pass
+        with contextlib.suppress(RuntimeError):
+            self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": KEEP, "options": {"num_ctx": 4096}}, timeout=120)
 
-    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None,
-             num_ctx: int = 4096) -> dict[str, Any]:
+    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None, num_ctx: int = 4096) -> dict[str, Any]:
         """`schema` forces the answer to be JSON of that shape (Ollama's constrained output)."""
-        body: dict[str, Any] = {"model": model, "messages": messages, "stream": False, "keep_alive": KEEP,
-                                "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx, "num_predict": 600 if schema else 350}}
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "keep_alive": KEEP,
+            "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx, "num_predict": 600 if schema else 350},
+        }
         if schema:
             body["format"] = schema
         if tools:

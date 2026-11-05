@@ -47,5 +47,5 @@ def N(description: str) -> dict[str, Any]:
     return {"type": "number", "description": description}
 
 
-def I(description: str) -> dict[str, Any]:
+def INT(description: str) -> dict[str, Any]:
     return {"type": "integer", "description": description}

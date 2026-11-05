@@ -11,7 +11,7 @@ def names(found):
 
 def test_two_spellings_of_one_shop_become_one(conn):
     for i in range(3):
-        tx(conn, f"2026-0{i+1}-05", 1000, note="Albert Heijn Utrecht 1234")
+        tx(conn, f"2026-0{i + 1}-05", 1000, note="Albert Heijn Utrecht 1234")
     tx(conn, "2026-04-05", 1000, note="Albert Heijn")
     insight.merchant_aliases(conn)
     assert len({insight._name(insight._aliases(conn), n) for n in ("Albert Heijn Utrecht 1234", "Albert Heijn")}) == 1
@@ -41,7 +41,7 @@ def test_upcoming_payments_predict_the_next_date(conn):
 
 def test_an_unusually_large_payment_is_flagged(conn):
     for i in range(8):
-        tx(conn, f"2026-0{i+1}-0{i+1}", 2000 + i * 10, note="Jumbo")
+        tx(conn, f"2026-0{i + 1}-0{i + 1}", 2000 + i * 10, note="Jumbo")
     tx(conn, "2026-09-15", 20000, note="Jumbo")
     assert insight.unusual_payments(conn, today=date(2026, 9, 20))
 
@@ -54,9 +54,13 @@ def test_a_refund_is_tied_to_its_purchase(conn):
 
 
 def test_year_end_must_match_the_payslips(conn):
-    conn.execute("INSERT INTO finance_docs (sha256,name,kind,gross_minor,tax_minor,net_minor,period) VALUES ('a','jaar','annual_statement',200000,50000,150000,'2026')")
+    conn.execute(
+        "INSERT INTO finance_docs (sha256,name,kind,gross_minor,tax_minor,net_minor,period) VALUES ('a','jaar','annual_statement',200000,50000,150000,'2026')"
+    )
     for m in (1, 2):
-        conn.execute("INSERT INTO payslips (sha256,name,period,gross_minor,net_minor,tax_minor) VALUES (?,?,?,?,?,?)", (f"s{m}", "p", f"2026-0{m}", 100000, 75000, 25000))
+        conn.execute(
+            "INSERT INTO payslips (sha256,name,period,gross_minor,net_minor,tax_minor) VALUES (?,?,?,?,?,?)", (f"s{m}", "p", f"2026-0{m}", 100000, 75000, 25000)
+        )
     assert insight.year_end(conn)[0].level == "ok"
     conn.execute("UPDATE finance_docs SET net_minor=151000")
     assert insight.year_end(conn)[0].level == "fail"
@@ -86,7 +90,9 @@ def test_missing_rates_and_a_broken_audit_chain_are_reported(conn):
 
 
 def test_net_worth_from_proven_closing_balances(conn):
-    conn.execute("INSERT INTO statement_files (sha256,name,found,added,status,account,period_end,closing_minor,currency) VALUES ('f','a',1,1,'verified','NL1','2026-02-28',150000,'EUR')")
+    conn.execute(
+        "INSERT INTO statement_files (sha256,name,found,added,status,account,period_end,closing_minor,currency) VALUES ('f','a',1,1,'verified','NL1','2026-02-28',150000,'EUR')"
+    )
     nw = money.tools if False else insight.net_worth(conn)
     assert nw["latest"] == 1500.0
 

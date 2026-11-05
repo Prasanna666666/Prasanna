@@ -6,17 +6,17 @@ stops DNS-rebinding), and anything that changes data must carry a custom header 
 
 from __future__ import annotations
 
+import contextlib
 import json
 import mimetypes
 import os
 import threading
-from datetime import date
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import agent, applenotes, db, insight, llm, netguard, tagging
+from . import agent, applenotes, clock, db, insight, llm, log, netguard, tagging
 from .modules import ALL, documents, money
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -80,9 +80,9 @@ def start_import(state: State) -> bool:
             except RuntimeError as exc:
                 state.importing["error"] = f"The local model is not available: {exc}"
                 return
-            state.importing["result"] = money.import_statements(
-                conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
-        except Exception as exc:
+            state.importing["result"] = money.import_statements(conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
+        except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
+            log.failed("import failed", exc)
             state.importing["error"] = f"{type(exc).__name__}: {exc}"
         finally:
             state.importing["running"] = False
@@ -107,7 +107,10 @@ def make_handler(state: State):
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
-            self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
+            )
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -149,11 +152,12 @@ def make_handler(state: State):
             if path in ("/", "/index.html"):
                 return self._file("index.html")
             if path.startswith("/static/"):
-                return self._file(path[len("/static/"):])
+                return self._file(path[len("/static/") :])
             if path.startswith("/api/"):
                 try:
                     return self._api_get(path)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
+                    log.failed("request failed", exc, path=path)
                     return self._fail(500, f"{type(exc).__name__}: {exc}")
             self._fail(HTTPStatus.NOT_FOUND, "not found")
 
@@ -168,9 +172,16 @@ def make_handler(state: State):
             conn = state.connect()
             try:
                 if path == "/api/home":
-                    return self._json({"ok": True, "currency": db.display_currency(conn), "view": db.view_currency(conn),
-                                       "briefing": briefing_for(conn, date.today()), "trend": money.monthly_trend(conn, {"months": 6}),
-                                       "upcoming": insight.upcoming_payments(conn, {"days": 21})[:4]})
+                    return self._json(
+                        {
+                            "ok": True,
+                            "currency": db.display_currency(conn),
+                            "view": db.view_currency(conn),
+                            "briefing": briefing_for(conn, clock.today()),
+                            "trend": money.monthly_trend(conn, {"months": 6}),
+                            "upcoming": insight.upcoming_payments(conn, {"days": 21})[:4],
+                        }
+                    )
                 if path == "/api/status":
                     try:
                         client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
@@ -179,9 +190,17 @@ def make_handler(state: State):
                     except RuntimeError as exc:
                         return self._json({"ok": True, "ai": False, "problem": str(exc)})
                 if path == "/api/settings":
-                    return self._json({"ok": True, "currency": db.display_currency(conn), "view": db.view_currency(conn), "main_currency": db.get_setting(conn, "currency", "EUR"),
-                                       "model": db.get_setting(conn, "model", llm.DEFAULT_MODEL),
-                                       "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(), "data": str(db.home())})
+                    return self._json(
+                        {
+                            "ok": True,
+                            "currency": db.display_currency(conn),
+                            "view": db.view_currency(conn),
+                            "main_currency": db.get_setting(conn, "currency", "EUR"),
+                            "model": db.get_setting(conn, "model", llm.DEFAULT_MODEL),
+                            "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(),
+                            "data": str(db.home()),
+                        }
+                    )
                 if path == "/api/import":
                     return self._json({"ok": True, **state.importing})
                 if path == "/api/history":
@@ -198,7 +217,8 @@ def make_handler(state: State):
             conn = state.connect()
             try:
                 self._api_post(self.path.split("?", 1)[0], body, conn)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
+                log.failed("request failed", exc, path=self.path.split("?", 1)[0])
                 self._fail(500, f"{type(exc).__name__}: {exc}")
             finally:
                 conn.close()
@@ -221,9 +241,11 @@ def make_handler(state: State):
                     trace: list = []
                     reply = agent.chat(conn, state.history, text, trace=trace)
                     del state.history[:-HISTORY_LIMIT]
-                    return self._json({"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general",
-                                       "tools": trace[0]["tools"] if trace else []})
-                except Exception as exc:
+                    return self._json(
+                        {"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general", "tools": trace[0]["tools"] if trace else []}
+                    )
+                except Exception as exc:  # noqa: BLE001 - for example the model is not running: say so plainly
+                    log.failed("chat failed", exc)
                     return self._fail(502, str(exc))
                 finally:
                     state.chat_lock.release()
@@ -268,10 +290,8 @@ def serve(host: str = "127.0.0.1", port: int = 8501) -> int:
     threading.Thread(target=_warm, daemon=True).start()
     threading.Thread(target=_self_check, daemon=True).start()
     print(f"Orbit is running on http://{host}:{port}", flush=True)
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 
@@ -284,8 +304,8 @@ def _warm() -> None:
         finally:
             conn.close()
         client.warm(model)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - warming up is only a head start
+        log.failed("model warm-up failed", exc)
 
 
 def _self_check() -> None:
@@ -298,5 +318,6 @@ def _self_check() -> None:
                     print(f"Orbit: {f.agent}: {f.message}", flush=True)
         finally:
             conn.close()
-    except Exception as exc:
-        print(f"Orbit: start-up check could not run: {exc}", flush=True)
+    except Exception as exc:  # noqa: BLE001 - a failing check must never stop the app from starting
+        log.failed("start-up check failed", exc)
+        print(f"Orbit: start-up check could not run: {type(exc).__name__}", flush=True)

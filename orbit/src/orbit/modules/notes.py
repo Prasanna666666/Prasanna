@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ..db import rows
-from ..module import I, Module, S, Tool
+from ..module import INT, Module, S, Tool
 
 MIGRATIONS = (
     """
@@ -56,8 +56,7 @@ def update_note(conn, a):
         raise ValueError(f"no note {a['id']}")
     conn.execute(
         "UPDATE notes SET title=?, body=?, tags=?, updated=CURRENT_TIMESTAMP WHERE id=?",
-        (a.get("title", n["title"]), a.get("body", n["body"]),
-         _tags(a["tags"]) if "tags" in a else n["tags"], n["id"]),
+        (a.get("title", n["title"]), a.get("body", n["body"]), _tags(a["tags"]) if "tags" in a else n["tags"], n["id"]),
     )
     conn.commit()
     return {"id": n["id"]}
@@ -73,13 +72,26 @@ MODULE = Module(
     "notes",
     MIGRATIONS,
     (
-        Tool("add_note", "Save a note.", {"body": S("Note text"), "title": S("Optional title"),
-             "tags": S("Comma separated tags"), "person_id": I("Related person id")}, add_note, ("body",)),
-        Tool("search_notes", "Find notes by words (all must match) and/or tag. Empty query lists recent notes.",
-             {"query": S("Words to look for"), "tag": S("Tag"), "limit": I("Max rows")}, search_notes),
-        Tool("update_note", "Edit a note (only the given fields change).",
-             {"id": I("Note id"), "title": S("New title"), "body": S("New body"), "tags": S("New tags")},
-             update_note, ("id",)),
-        Tool("delete_note", "Delete a note permanently.", {"id": I("Note id")}, delete_note, ("id",)),
+        Tool(
+            "add_note",
+            "Save a note.",
+            {"body": S("Note text"), "title": S("Optional title"), "tags": S("Comma separated tags"), "person_id": INT("Related person id")},
+            add_note,
+            ("body",),
+        ),
+        Tool(
+            "search_notes",
+            "Find notes by words (all must match) and/or tag. Empty query lists recent notes.",
+            {"query": S("Words to look for"), "tag": S("Tag"), "limit": INT("Max rows")},
+            search_notes,
+        ),
+        Tool(
+            "update_note",
+            "Edit a note (only the given fields change).",
+            {"id": INT("Note id"), "title": S("New title"), "body": S("New body"), "tags": S("New tags")},
+            update_note,
+            ("id",),
+        ),
+        Tool("delete_note", "Delete a note permanently.", {"id": INT("Note id")}, delete_note, ("id",)),
     ),
 )

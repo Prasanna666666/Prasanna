@@ -7,8 +7,17 @@ from orbit import parser, tables, verify
 from orbit.modules import documents, money
 from tests.test_standards import CAMT, MT940
 
-LAYOUT = {"header_line": 0, "roles": ["date", "description", "debit", "credit", "balance"], "date_format": "%d-%m-%Y", "month_names": [], "decimal": ",",
-          "thousands": ".", "debit_words": [], "credit_words": [], "date_on_every_row": True}
+LAYOUT = {
+    "header_line": 0,
+    "roles": ["date", "description", "debit", "credit", "balance"],
+    "date_format": "%d-%m-%Y",
+    "month_names": [],
+    "decimal": ",",
+    "thousands": ".",
+    "debit_words": [],
+    "credit_words": [],
+    "date_on_every_row": True,
+}
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
 
 
@@ -45,7 +54,13 @@ def long_statement(n=14):
 def test_a_statement_read_the_same_way_twice_passes_the_second_reader():
     r = verify.read_table_statement(Model(LAYOUT), "m", "ing.pdf", data_of(long_statement()), "")
     agents = {f.agent: f.level for f in r.findings}
-    assert r.status == "verified" and agents == {"layout reader": "ok", "currency": "warn", "balance prover": "ok", "engine agreement": "warn", "second reader": "ok"}  # no currency is printed in this sample
+    assert r.status == "verified" and agents == {
+        "layout reader": "ok",
+        "currency": "warn",
+        "balance prover": "ok",
+        "engine agreement": "warn",
+        "second reader": "ok",
+    }  # no currency is printed in this sample
 
 
 def test_two_independent_readings_that_disagree_fail_the_file():
@@ -56,24 +71,52 @@ def test_two_independent_readings_that_disagree_fail_the_file():
 
 def test_a_credit_card_statement_without_running_balances_is_proved_by_its_totals():
     rows = [["Datum", "Omschrijving", "Bedrag"], ["02-10-2026", "Albert Heijn", "40,00 Af"], ["05-10-2026", "Betaling ontvangen", "10,00 Bij"]]
-    layout = {"header_line": 0, "roles": ["date", "description", "amount"], "date_format": "%d-%m-%Y", "month_names": [], "decimal": ",", "thousands": ".",
-              "debit_words": ["af"], "credit_words": ["bij"], "date_on_every_row": True, "opening_balance": "100,00", "closing_balance": "130,00", "balance_is_amount_owed": True}
+    layout = {
+        "header_line": 0,
+        "roles": ["date", "description", "amount"],
+        "date_format": "%d-%m-%Y",
+        "month_names": [],
+        "decimal": ",",
+        "thousands": ".",
+        "debit_words": ["af"],
+        "credit_words": ["bij"],
+        "date_on_every_row": True,
+        "opening_balance": "100,00",
+        "closing_balance": "130,00",
+        "balance_is_amount_owed": True,
+    }
     cols = [(0, 60), (70, 200), (210, 260)]
     text = "Vorig saldo 100,00 Nieuw saldo 130,00"
     good = verify.read_table_statement(Model(layout), "m", "card.pdf", data_of(rows, cols), text)
     assert good.status == "verified" and "opening + transactions = closing" in good.proofs  # 100 + 40 purchases - 10 payment = 130
-    bad = verify.read_table_statement(Model({**layout, "closing_balance": "131,00"}), "m", "card.pdf", data_of(rows, cols), "Vorig saldo 100,00 Nieuw saldo 131,00")
+    bad = verify.read_table_statement(
+        Model({**layout, "closing_balance": "131,00"}), "m", "card.pdf", data_of(rows, cols), "Vorig saldo 100,00 Nieuw saldo 131,00"
+    )
     assert bad.status == "needs_check" and any(f.agent == "totals prover" and f.level == "fail" for f in bad.findings)
-    invented = verify.read_table_statement(Model(layout), "m", "card.pdf", data_of(rows, cols), "Vorig saldo 100,00")  # the closing balance is not in the document
+    invented = verify.read_table_statement(
+        Model(layout), "m", "card.pdf", data_of(rows, cols), "Vorig saldo 100,00"
+    )  # the closing balance is not in the document
     assert invented.status == "unverified" and any(f.level == "warn" for f in invented.findings)
 
 
 def test_a_file_with_no_header_row_is_read_from_the_first_line():
     rows = [["20261001", "Opening", "", "2.000,00"], ["20261002", "Shop", "-23,45", "1.976,55"], ["20261025", "Salaris", "2.850,00", "4.826,55"]]
-    layout = {"header_line": -1, "roles": ["date", "description", "amount", "balance"], "date_format": "%Y%m%d", "month_names": [], "decimal": ",", "thousands": ".",
-              "debit_words": [], "credit_words": [], "date_on_every_row": True}
+    layout = {
+        "header_line": -1,
+        "roles": ["date", "description", "amount", "balance"],
+        "date_format": "%Y%m%d",
+        "month_names": [],
+        "decimal": ",",
+        "thousands": ".",
+        "debit_words": [],
+        "credit_words": [],
+        "date_on_every_row": True,
+    }
     parsed = tables.parse_table(tables.table_from_data({"rows": rows}), tables.Layout(**layout))  # loaded the way the app loads a plain file
-    assert parsed.status == "verified" and [(t.day, t.amount_minor, t.kind) for t in parsed.txns] == [("2026-10-02", 2345, "expense"), ("2026-10-25", 285000, "income")]
+    assert parsed.status == "verified" and [(t.day, t.amount_minor, t.kind) for t in parsed.txns] == [
+        ("2026-10-02", 2345, "expense"),
+        ("2026-10-25", 285000, "income"),
+    ]
 
 
 def test_an_amount_shifted_into_a_text_column_is_caught():
@@ -85,7 +128,12 @@ def test_an_amount_shifted_into_a_text_column_is_caught():
 
 
 def test_a_balance_line_with_no_date_is_used_as_a_proof_point_not_dropped():
-    rows = [["Datum", "Omschrijving", "Af", "Bij", "Saldo"], ["", "Beginsaldo", "", "", "100,00"], ["02-10-2026", "Shop", "10,00", "", "90,00"], ["", "Eindsaldo", "", "", "91,00"]]
+    rows = [
+        ["Datum", "Omschrijving", "Af", "Bij", "Saldo"],
+        ["", "Beginsaldo", "", "", "100,00"],
+        ["02-10-2026", "Shop", "10,00", "", "90,00"],
+        ["", "Eindsaldo", "", "", "91,00"],
+    ]
     assert tables.parse_table(table(rows), tables.Layout(**LAYOUT)).status == "needs_check"  # the closing balance contradicts the transactions
     rows[3][4] = "90,00"
     assert tables.parse_table(table(rows), tables.Layout(**LAYOUT)).status == "verified"
@@ -95,7 +143,9 @@ def test_a_balance_line_with_no_date_is_used_as_a_proof_point_not_dropped():
 def _ingest(conn, tmp_path, name, text, data=None):
     sha = (name.encode().hex() * 8)[:64]
     (tmp_path / "p").mkdir(exist_ok=True)
-    (tmp_path / "p" / f"{sha}.json").write_text(json.dumps({"schema": 1, "sha256": sha, "name": name, "kind": "text", "text": text, "meta": {}, "area": "finance", "data": data or {}}))
+    (tmp_path / "p" / f"{sha}.json").write_text(
+        json.dumps({"schema": 1, "sha256": sha, "name": name, "kind": "text", "text": text, "meta": {}, "area": "finance", "data": data or {}})
+    )
     documents.ingest_dir(conn, tmp_path / "p")
 
 
@@ -104,7 +154,14 @@ def test_mt940_and_camt053_are_imported_exactly_without_any_model(conn, tmp_path
     r = money.import_statements(conn)  # no model at all
     assert r["new_transactions"] == 3 and r["needs_check"] == [] and r["problems"] == []
     f = conn.execute("SELECT * FROM statement_files").fetchone()
-    assert (f["status"], f["account"], f["period_start"], f["period_end"], f["opening_minor"], f["closing_minor"]) == ("verified", "NL00ABNA0123456789", "2026-10-01", "2026-10-26", 200000, 372655)
+    assert (f["status"], f["account"], f["period_start"], f["period_end"], f["opening_minor"], f["closing_minor"]) == (
+        "verified",
+        "NL00ABNA0123456789",
+        "2026-10-01",
+        "2026-10-26",
+        200000,
+        372655,
+    )
     _ingest(conn, tmp_path, "abn-again.xml", CAMT)  # the same period as camt.053: the same three payments, nothing added twice
     r2 = money.import_statements(conn)
     assert r2["new_transactions"] == 0 and r2["already_had"] == 3
@@ -141,14 +198,17 @@ def test_invoice_totals_must_match_a_payment_and_unrelated_months_are_not_judged
 
 
 def _file(conn, name, start, end, opening, closing, account="NL1"):
-    conn.execute("INSERT INTO statement_files (sha256,name,found,added,status,account,period_start,period_end,opening_minor,closing_minor) VALUES (?,?,0,0,'verified',?,?,?,?,?)", (name, name, account, start, end, opening, closing))
+    conn.execute(
+        "INSERT INTO statement_files (sha256,name,found,added,status,account,period_start,period_end,opening_minor,closing_minor) VALUES (?,?,0,0,'verified',?,?,?,?,?)",
+        (name, name, account, start, end, opening, closing),
+    )
 
 
 def test_each_statement_must_start_where_the_last_one_ended_with_no_month_missing(conn):
     _file(conn, "oct", "2026-10-01", "2026-10-31", 1000, 2000)
-    _file(conn, "nov", "2026-11-01", "2026-11-30", 2000, 3000)   # joins up
-    _file(conn, "jan", "2027-01-01", "2027-01-31", 3000, 4000)   # December is missing
-    _file(conn, "feb", "2027-02-01", "2027-02-28", 4001, 5000)   # does not join up
+    _file(conn, "nov", "2026-11-01", "2026-11-30", 2000, 3000)  # joins up
+    _file(conn, "jan", "2027-01-01", "2027-01-31", 3000, 4000)  # December is missing
+    _file(conn, "feb", "2027-02-01", "2027-02-28", 4001, 5000)  # does not join up
     levels = [(f.level, f.message) for f in verify.continuity(conn)]
     assert [lv for lv, _ in levels] == ["ok", "warn", "fail"] and "no statement between 2026-11-30 and 2027-01-01" in levels[1][1]
 

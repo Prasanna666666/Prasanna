@@ -7,12 +7,13 @@ Tax letters · insurance and contracts · year-end · VAT · exchange-rate fresh
 from __future__ import annotations
 
 import difflib
+import itertools
 import json
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta
 
-from . import audit, backup, canary, categorize, rates, tables
+from . import audit, backup, canary, categorize, clock, rates, tables
 from .db import get_setting
 from .verify import Finding
 
@@ -72,8 +73,11 @@ def merchant_aliases(conn) -> list[Finding]:
 def _recurring(conn) -> list[dict]:
     main, al = _main(conn), _aliases(conn)
     by: dict[tuple[str, str], list[tuple[str, int]]] = defaultdict(list)
-    for r in conn.execute("SELECT day, note, amount_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND category<>'transfers' "
-                          "AND event_id IS NULL AND source<>'derived' ORDER BY day", (main,)):
+    for r in conn.execute(
+        "SELECT day, note, amount_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND category<>'transfers' "
+        "AND event_id IS NULL AND source<>'derived' ORDER BY day",
+        (main,),
+    ):
         m = _name(al, r["note"])
         if m:
             by[(r["cur"], m)].append((r["day"], r["amount_minor"]))
@@ -82,7 +86,7 @@ def _recurring(conn) -> list[dict]:
         if len(items) < 3:
             continue
         days = [_d(d) for d, _ in items]
-        gaps = [(b - a).days for a, b in zip(days, days[1:], strict=False) if (b - a).days > 0]
+        gaps = [(b - a).days for a, b in itertools.pairwise(days) if (b - a).days > 0]
         amounts = [x for _, x in items]
         mid = statistics.median(amounts)
         if gaps and 25 <= statistics.median(gaps) <= 35 and sum(abs(x - mid) <= 0.15 * mid for x in amounts) >= 0.7 * len(amounts):
@@ -98,7 +102,14 @@ def price_changes(conn) -> list[Finding]:
         last = amounts[-1]
         if before and abs(last - before) / before > 0.03 and abs(last - before) >= 5:
             pct = (last - before) / before * 100
-            out.append(Finding("price changes", "warn", g["merchant"], f"{g['merchant']} went from {_money(round(before))} to {_money(last)} {g['cur']} ({pct:+.0f}%) on {g['items'][-1][0]}"))
+            out.append(
+                Finding(
+                    "price changes",
+                    "warn",
+                    g["merchant"],
+                    f"{g['merchant']} went from {_money(round(before))} to {_money(last)} {g['cur']} ({pct:+.0f}%) on {g['items'][-1][0]}",
+                )
+            )
     return out or [Finding("price changes", "ok", "regular payments", "no regular payment changed its price")] if _recurring_exists(conn) else out
 
 
@@ -109,7 +120,7 @@ def _recurring_exists(conn) -> bool:
 def upcoming_payments(conn, a=None):
     """The regular payments due soon: each repeating payment's last date plus its usual gap, with its usual amount."""
     a = a or {}
-    today = _d(a["today"]) if a.get("today") else date.today()
+    today = _d(a["today"]) if a.get("today") else clock.today()
     horizon = int(a.get("days", 35))
     out = []
     for g in _recurring(conn):
@@ -127,23 +138,46 @@ def duplicate_payments(conn) -> list[Finding]:
     main, al = _main(conn), _aliases(conn)
     out, last = [], None
     # sorted so that equal payments sit next to each other: one pass, no pairwise comparison
-    for r in conn.execute("SELECT day, amount_minor, note, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND amount_minor>=500 "
-                          "AND category<>'transfers' AND transfer_id IS NULL AND event_id IS NULL ORDER BY account, cur, amount_minor, day", (main,)):
+    for r in conn.execute(
+        "SELECT day, amount_minor, note, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND amount_minor>=500 "
+        "AND category<>'transfers' AND transfer_id IS NULL AND event_id IS NULL ORDER BY account, cur, amount_minor, day",
+        (main,),
+    ):
         name = _name(al, r["note"])
-        if last and name and last["name"] == name and last["key"] == (r["account"], r["cur"], r["amount_minor"]) and 0 <= (_d(r["day"]) - _d(last["day"])).days <= 2:
-            out.append((r["day"], Finding("duplicate payments", "warn", name, f"{name}: {_money(r['amount_minor'])} {r['cur']} on {last['day']}" +
-                                          (f" and again on {r['day']}" if r["day"] != last["day"] else " twice the same day") + ": charged twice?")))
+        if (
+            last
+            and name
+            and last["name"] == name
+            and last["key"] == (r["account"], r["cur"], r["amount_minor"])
+            and 0 <= (_d(r["day"]) - _d(last["day"])).days <= 2
+        ):
+            out.append(
+                (
+                    r["day"],
+                    Finding(
+                        "duplicate payments",
+                        "warn",
+                        name,
+                        f"{name}: {_money(r['amount_minor'])} {r['cur']} on {last['day']}"
+                        + (f" and again on {r['day']}" if r["day"] != last["day"] else " twice the same day")
+                        + ": charged twice?",
+                    ),
+                )
+            )
         last = {"name": name, "key": (r["account"], r["cur"], r["amount_minor"]), "day": r["day"]}
     return [f for _, f in sorted(out, key=lambda x: x[0], reverse=True)[:10]]
 
 
 def unusual_payments(conn, today: date | None = None) -> list[Finding]:
     """A recent payment far above what that shop usually costs you."""
-    today = today or date.today()
+    today = today or clock.today()
     main, al = _main(conn), _aliases(conn)
     by: dict[tuple[str, str], list[tuple[str, int]]] = defaultdict(list)
-    for r in conn.execute("SELECT day, note, amount_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND category<>'transfers' AND event_id IS NULL "
-                          "AND source<>'derived'", (main,)):
+    for r in conn.execute(
+        "SELECT day, note, amount_minor, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='expense' AND category<>'transfers' AND event_id IS NULL "
+        "AND source<>'derived'",
+        (main,),
+    ):
         m = _name(al, r["note"])
         if m:
             by[(r["cur"], m)].append((r["day"], r["amount_minor"]))
@@ -164,12 +198,18 @@ def refund_matcher(conn) -> list[Finding]:
     """Ties each refund to the purchase it gives money back for: same shop, not more than was paid, within the 90 days before."""
     main, al = _main(conn), _aliases(conn)
     matched = lone = 0
-    for r in conn.execute("SELECT id, day, note, amount_minor, category, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='income' AND refund_of IS NULL "
-                          "AND event_id IS NULL AND category NOT IN ('salary','interest','transfers') AND source<>'derived'", (main,)).fetchall():
+    for r in conn.execute(
+        "SELECT id, day, note, amount_minor, category, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE kind='income' AND refund_of IS NULL "
+        "AND event_id IS NULL AND category NOT IN ('salary','interest','transfers') AND source<>'derived'",
+        (main,),
+    ).fetchall():
         m = _name(al, r["note"])
         best = None
-        for p in conn.execute("SELECT id, day, note, amount_minor FROM transactions WHERE kind='expense' AND amount_minor>=? AND day<=? AND day>=? AND account=? "
-                              "AND COALESCE(NULLIF(currency,''), ?)=? ORDER BY day DESC", (r["amount_minor"], r["day"], (_d(r["day"]) - timedelta(days=90)).isoformat(), r["account"], main, r["cur"])):
+        for p in conn.execute(
+            "SELECT id, day, note, amount_minor FROM transactions WHERE kind='expense' AND amount_minor>=? AND day<=? AND day>=? AND account=? "
+            "AND COALESCE(NULLIF(currency,''), ?)=? ORDER BY day DESC",
+            (r["amount_minor"], r["day"], (_d(r["day"]) - timedelta(days=90)).isoformat(), r["account"], main, r["cur"]),
+        ):
             if m and _name(al, p["note"]) == m:
                 best = p
                 break
@@ -192,7 +232,11 @@ def refund_matcher(conn) -> list[Finding]:
 def net_worth(conn, a=None):
     """The balance of every account in euros, month by month, from the closing balances of your proven statements."""
     main = _main(conn)
-    files = list(conn.execute("SELECT account, currency, period_end, closing_minor FROM statement_files WHERE status='verified' AND closing_minor IS NOT NULL AND period_end IS NOT NULL AND account<>'' ORDER BY period_end"))
+    files = list(
+        conn.execute(
+            "SELECT account, currency, period_end, closing_minor FROM statement_files WHERE status='verified' AND closing_minor IS NOT NULL AND period_end IS NOT NULL AND account<>'' ORDER BY period_end"
+        )
+    )
     if not files:
         return {"latest": None, "series": [], "accounts": [], "missing_rates": 0}
 
@@ -212,7 +256,7 @@ def net_worth(conn, a=None):
     while cur_month <= end:
         total, complete = 0, True
         limit = (date(cur_month.year + (cur_month.month == 12), cur_month.month % 12 + 1, 1) - timedelta(days=1)).isoformat()
-        for acc, items in by_acc.items():
+        for items in by_acc.values():
             upto = [i for i in items if i[0] <= limit]
             if upto:
                 day, minor, c = upto[-1]
@@ -247,7 +291,11 @@ def tax_letters(conn) -> list[Finding]:
         hit = conn.execute("SELECT kind, day FROM transactions WHERE amount_minor=? AND day>=? AND day<=? LIMIT 1", (d["total_minor"], lo, hi)).fetchone()
         label = f"tax letter {d['party'] or d['name']}"
         if hit:
-            out.append(Finding("tax letters", "ok", d["name"], f"{label}: {_money(d['total_minor'])} {'received' if hit['kind'] == 'income' else 'paid'} on {hit['day']}"))
+            out.append(
+                Finding(
+                    "tax letters", "ok", d["name"], f"{label}: {_money(d['total_minor'])} {'received' if hit['kind'] == 'income' else 'paid'} on {hit['day']}"
+                )
+            )
         elif d["doc_date"][:7] in covered:
             out.append(Finding("tax letters", "warn", d["name"], f"{label}: no payment or refund of {_money(d['total_minor'])} found"))
     return out
@@ -256,10 +304,14 @@ def tax_letters(conn) -> list[Finding]:
 def insurance_contracts(conn) -> list[Finding]:
     """An insurance premium or contract amount should appear as payments (the amount, or a twelfth of it, within 1%)."""
     out, covered = [], _covered(conn)
-    for d in conn.execute("SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('insurance','contract') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"):
+    for d in conn.execute(
+        "SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('insurance','contract') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"
+    ):
         t = d["total_minor"]
-        hit = conn.execute("SELECT COUNT(*) FROM transactions WHERE kind='expense' AND day>=? AND (abs(amount_minor-?)<=? OR abs(amount_minor-?)<=?)",
-                           ((_d(d["doc_date"]) - timedelta(days=35)).isoformat(), t, max(1, t // 100), t // 12, max(1, t // 1200))).fetchone()[0]
+        hit = conn.execute(
+            "SELECT COUNT(*) FROM transactions WHERE kind='expense' AND day>=? AND (abs(amount_minor-?)<=? OR abs(amount_minor-?)<=?)",
+            ((_d(d["doc_date"]) - timedelta(days=35)).isoformat(), t, max(1, t // 100), t // 12, max(1, t // 1200)),
+        ).fetchone()[0]
         label = f"{d['kind']} {d['party'] or d['name']}"
         if hit:
             out.append(Finding("insurance and contracts", "ok", d["name"], f"{label}: {hit} payment(s) match {_money(t)} or a twelfth of it"))
@@ -284,18 +336,30 @@ def year_end(conn) -> list[Finding]:
             added = sum((s[key] or 0) for s in slips)
             if added != d[key]:
                 problems.append(f"{label}: statement {_money(d[key])}, payslips {_money(added)}")
-        out.append(Finding("year-end", "fail", d["name"], f"annual statement {year} and its {len(slips)} payslip(s) disagree: " + "; ".join(problems)) if problems else
-                   Finding("year-end", "ok", d["name"], f"annual statement {year} matches its {len(slips)} payslip(s)" + ("" if len(slips) == 12 else f" (only {len(slips)} of 12 months)")))
+        out.append(
+            Finding("year-end", "fail", d["name"], f"annual statement {year} and its {len(slips)} payslip(s) disagree: " + "; ".join(problems))
+            if problems
+            else Finding(
+                "year-end",
+                "ok",
+                d["name"],
+                f"annual statement {year} matches its {len(slips)} payslip(s)" + ("" if len(slips) == 12 else f" (only {len(slips)} of 12 months)"),
+            )
+        )
     return out
 
 
 def vat_agent(conn) -> list[Finding]:
     """VAT on invoices and receipts must be less than the total; the VAT per year is added up for you."""
     out = []
-    bad = conn.execute("SELECT name FROM finance_docs WHERE kind IN ('invoice','receipt') AND vat_minor IS NOT NULL AND total_minor IS NOT NULL AND vat_minor>total_minor").fetchall()
+    bad = conn.execute(
+        "SELECT name FROM finance_docs WHERE kind IN ('invoice','receipt') AND vat_minor IS NOT NULL AND total_minor IS NOT NULL AND vat_minor>total_minor"
+    ).fetchall()
     for b in bad:
         out.append(Finding("VAT", "fail", b["name"], "the VAT is larger than the total"))
-    for r in conn.execute("SELECT substr(doc_date,1,4) AS year, COUNT(*) AS n, SUM(vat_minor) AS vat FROM finance_docs WHERE kind IN ('invoice','receipt') AND vat_minor IS NOT NULL AND doc_date IS NOT NULL GROUP BY 1"):
+    for r in conn.execute(
+        "SELECT substr(doc_date,1,4) AS year, COUNT(*) AS n, SUM(vat_minor) AS vat FROM finance_docs WHERE kind IN ('invoice','receipt') AND vat_minor IS NOT NULL AND doc_date IS NOT NULL GROUP BY 1"
+    ):
         out.append(Finding("VAT", "ok", r["year"], f"VAT in {r['year']}: {_money(r['vat'])} on {r['n']} document(s)"))
     return out
 
@@ -308,9 +372,18 @@ def rate_freshness(conn) -> list[Finding]:
         return []
     newest = conn.execute("SELECT MAX(day) FROM rates").fetchone()[0]
     if not newest:
-        return [Finding("exchange rates", "warn", "rates", "there are payments in other currencies but no exchange rates are loaded (run ./scripts/fetch-rates.sh)")]
+        return [
+            Finding("exchange rates", "warn", "rates", "there are payments in other currencies but no exchange rates are loaded (run ./scripts/fetch-rates.sh)")
+        ]
     if (_d(foreign[1]) - _d(newest)).days > 7:
-        return [Finding("exchange rates", "warn", "rates", f"the exchange rates end on {newest}, but payments go up to {foreign[1]}: refresh them (./scripts/fetch-rates.sh)")]
+        return [
+            Finding(
+                "exchange rates",
+                "warn",
+                "rates",
+                f"the exchange rates end on {newest}, but payments go up to {foreign[1]}: refresh them (./scripts/fetch-rates.sh)",
+            )
+        ]
     return [Finding("exchange rates", "ok", "rates", f"exchange rates are loaded up to {newest}")]
 
 
@@ -337,7 +410,18 @@ def scan_quality(conn) -> list[Finding]:
 
 def audit_chain(conn) -> list[Finding]:
     ok, n, why = audit.verify_chain(conn)
-    return [Finding("audit log", "ok" if ok else "fail", "log", f"the record of imports and changes is intact ({n} entries)" if ok else f"the record of imports and changes has been tampered with: {why}")] if n or not ok else []
+    return (
+        [
+            Finding(
+                "audit log",
+                "ok" if ok else "fail",
+                "log",
+                f"the record of imports and changes is intact ({n} entries)" if ok else f"the record of imports and changes has been tampered with: {why}",
+            )
+        ]
+        if n or not ok
+        else []
+    )
 
 
 def self_test(conn) -> list[Finding]:
@@ -348,6 +432,20 @@ def backup_status(conn) -> list[Finding]:
     return backup.daily(conn)
 
 
-EXTRA_AGENTS = (merchant_aliases, price_changes, duplicate_payments, unusual_payments, refund_matcher, tax_letters, insurance_contracts, year_end, vat_agent,
-                rate_freshness, scan_quality, audit_chain, self_test, backup_status)
+EXTRA_AGENTS = (
+    merchant_aliases,
+    price_changes,
+    duplicate_payments,
+    unusual_payments,
+    refund_matcher,
+    tax_letters,
+    insurance_contracts,
+    year_end,
+    vat_agent,
+    rate_freshness,
+    scan_quality,
+    audit_chain,
+    self_test,
+    backup_status,
+)
 _ = tables  # imported for completeness of the agent toolkit
