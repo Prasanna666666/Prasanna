@@ -10,6 +10,7 @@
         return e;
     };
     const SHOW_TRACE = new URLSearchParams(location.search).has('trace'); // the step-by-step panel is for debugging: off unless asked for
+    const EMBEDDED = window.self !== window.top;
     const photoUrl = (id, kind) => `/api/photo/${id}/${kind}?t=${encodeURIComponent(token)}`;
     const api = (path, opts = {}) =>
         fetch(path, { ...opts, headers: { 'X-Lumo-Token': token, ...(opts.headers || {}) } });
@@ -502,7 +503,8 @@
         const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '');
         if (((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
             e.preventDefault();
-            openPalette();
+            if (EMBEDDED) toParent({ type: 'palette' });
+            else openPalette();
         }
     });
     $('#topq').addEventListener('focus', () => {
@@ -706,6 +708,7 @@
     function setCorner(on) {
         if (on && where().page === 'search') return; // the full page is already the chat
         corner.open = on;
+        if (EMBEDDED) toParent({ type: 'chat', open: on });
         document.body.classList.toggle('chat-open', on);
         if (on) {
             stick = true;
@@ -1169,6 +1172,29 @@
             })
         );
     }
+    // shown inside Home (the front door): its menu, search and chat button replace ours
+    const toParent = (message) => {
+        window.parent.postMessage(
+            { hub: 1, ...message },
+            (location.ancestorOrigins && location.ancestorOrigins[0]) || '*'
+        );
+    };
+    function setupEmbedding() {
+        if (!EMBEDDED) return;
+        document.documentElement.classList.add('embedded');
+        window.addEventListener('message', (event) => {
+            const m = event.data;
+            if (event.source !== window.parent || !m || m.hub !== 1) return;
+            if (m.type === 'navigate' && typeof m.hash === 'string') location.hash = m.hash;
+            else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode))
+                document.documentElement.dataset.theme = m.mode;
+            else if (m.type === 'toggle-chat') setCorner(!corner.open);
+            else if (m.type === 'ask' && typeof m.text === 'string') askLumo(m.text);
+        });
+        window.addEventListener('hashchange', () => toParent({ type: 'route', hash: location.hash }));
+        toParent({ type: 'ready' });
+    }
+    setupEmbedding();
     const h = new Date().getHours();
     $('#greeting').textContent = h < 5 ? 'Hello' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
     setupTheme();

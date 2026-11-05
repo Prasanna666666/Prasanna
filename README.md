@@ -127,3 +127,6 @@ Rules:
 - AI for understanding, routing, searching by meaning and explaining. Code for every calculation, filter, date and total.
 - RAG only for unstructured text (documents, notes), never for the ledger.
 - Source data is never changed by the AI: Lumo's assistant can only copy photos into a new folder, never move, rename or delete them.
+
+## One address for everything (Home)
+Lumo can run on its own, or as one part of **Home** (`http://home.localhost:8000`, see the `hub` folder on the `orbit` branch of this repository) together with Orbit (money) and any future app: one menu, one search, one chat button. Lumo stays its own sub-system. Inside Home it hides its own menu, top bar and chat button, and answers `GET /api/health` and `GET /api/search?q=` (places, people and trips).

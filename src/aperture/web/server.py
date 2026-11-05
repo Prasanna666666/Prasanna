@@ -295,6 +295,11 @@ class Web:
             "height": found.height,
         }
 
+    def search(self, query: str) -> dict[str, Any]:
+        """The answer to the front door's search box: places, people and trips that match, with where each opens."""
+        found = browse.search_links(self.browse("places", {}), self.browse("people", {}), self.browse("trips", {}), query)
+        return {"results": found}
+
     def photo_file(self, item_id: int, kind: str) -> Path | None:
         data = self.ctx.paths.data.resolve()
         path = (data / (thumb_rel(item_id) if kind == "thumb" else preview_rel(item_id))).resolve()
@@ -493,6 +498,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(web.status())
         elif path == "/api/suggestions":
             self._json({"ideas": web.suggestions()})
+        elif path == "/api/search":
+            self._json(web.search((query.get("q") or [""])[0][:200]))
         elif path in BROWSE_PATHS:
             self._json(web.browse(path[len("/api/") :], {k: v[0][:200] for k, v in query.items() if v}))
         elif path == "/api/results":

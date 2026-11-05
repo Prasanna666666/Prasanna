@@ -161,3 +161,25 @@ def test_serve_binds_loopback_unless_sandboxed(monkeypatch):
 
     src = inspect.getsource(server.serve)
     assert '"127.0.0.1"' in src and "APERTURE_SANDBOXED" in src
+
+
+def test_search_finds_places_people_and_trips_with_where_each_opens():
+    places = [{"place": "Goa, India", "n": 14}, {"place": "Lisbon, Portugal", "n": 8}]
+    people = [{"id": 3, "name": "Asha", "n": 20}, {"id": 4, "name": "", "n": 5}]
+    trips = [{"title": "Lisbon", "place": "Lisbon, Portugal", "start": "2025-03-02", "stop": "2025-03-09", "n": 14}]
+    found = browse.search_links(places, people, trips, "lis")
+    assert [r["kind"] for r in found] == ["place", "trip"] and found[0]["link"] == "#/library?place=Lisbon%2C%20Portugal"
+    assert found[1]["link"] == "#/library?from=2025-03-02&to=2025-03-09"
+    assert browse.search_links(places, people, trips, "asha")[0]["link"] == "#/library?person=3"
+    assert browse.search_links(places, people, trips, "l") == []  # too short
+
+
+def test_the_front_door_search_is_answered_by_the_server(tmp_path):
+    ctx, _agent, _ids = make_ctx(tmp_path)
+    web, server = start_server(ctx)
+    port = server.server_address[1]
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/search?q=goa", headers={"X-Lumo-Token": web.token})
+    with urllib.request.urlopen(req) as r:
+        results = json.loads(r.read())["results"]
+    assert results and results[0]["kind"] == "place"
+    server.shutdown()

@@ -138,3 +138,35 @@ def people(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             }
         )
     return sorted(out, key=lambda x: (-x["n"], x["id"]))
+
+
+def search_links(
+    places_: list[dict[str, Any]], people_: list[dict[str, Any]], trips_: list[dict[str, Any]], query: str, limit: int = 12
+) -> list[dict[str, str]]:
+    """What matches a typed word among places, named people and trips, each with the address inside Lumo that opens it (for the front door's search)."""
+    from urllib.parse import quote
+
+    q = query.strip().lower()
+    if len(q) < 2:
+        return []
+    out: list[dict[str, str]] = [
+        {"title": p["place"], "subtitle": f"{p['n']:,} photos", "kind": "place", "link": "#/library?place=" + quote(p["place"])}
+        for p in places_
+        if q in p["place"].lower()
+    ]
+    out += [
+        {"title": p["name"], "subtitle": f"{p['n']:,} photos", "kind": "person", "link": f"#/library?person={p['id']}"}
+        for p in people_
+        if p["name"] and q in p["name"].lower()
+    ]
+    out += [
+        {
+            "title": t["title"],
+            "subtitle": f"{t['start']} to {t['stop']} · {t['n']:,} photos",
+            "kind": "trip",
+            "link": f"#/library?from={t['start']}&to={t['stop']}",
+        }
+        for t in trips_
+        if q in (t["title"] or "").lower() or q in (t["place"] or "").lower()
+    ]
+    return out[:limit]
