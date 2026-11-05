@@ -64,8 +64,10 @@ def test_benchmark_runs_and_picks_the_faster_model(url, capsys):
 
 
 def test_verdict_flags_swapping_and_pressure():
-    rows = [{"model": "a", "tok_s": 20, "peak_mb": 3000, "swap_mb": 900, "min_free": 8},
-            {"model": "b", "tok_s": 15, "peak_mb": 2500, "swap_mb": 10, "min_free": 40}]
+    rows = [
+        {"model": "a", "tok_s": 20, "peak_mb": 3000, "swap_mb": 900, "min_free": 8},
+        {"model": "b", "tok_s": 15, "peak_mb": 2500, "swap_mb": 10, "min_free": 40},
+    ]
     v = bench.verdict(rows)
     assert "a: RISK of hanging the system: started swapping (+900 MB), memory free dropped to 8%" in v
     assert "b: stayed comfortable." in v and "Lightest on memory: b" in v

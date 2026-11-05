@@ -51,7 +51,7 @@ def run(embedder, faces, paths: list[Path], loader, batch_sizes=(4, 8, 16), prev
             t = time.perf_counter()
             done = 0
             for i in range(0, len(previews), bs):
-                batch = [embedder.preprocess(im) for im in previews[i:i + bs]]
+                batch = [embedder.preprocess(im) for im in previews[i : i + bs]]
                 embedder.embed_prepared(batch)
                 done += len(batch)
             clip[bs] = done / (time.perf_counter() - t)
@@ -83,18 +83,27 @@ def estimate_hours(res: dict, library: int, workers: int = 2) -> dict:
 
 
 def report(res: dict, library: int | None) -> str:
-    lines = [f"photos measured: {res['photos']}", f"decode:  {res['decode_s_per_photo'] * 1000:.0f} ms per photo "
-             f"(memory so far {res['rss_after_decode_mb']:.0f} MB)"]
+    lines = [
+        f"photos measured: {res['photos']}",
+        f"decode:  {res['decode_s_per_photo'] * 1000:.0f} ms per photo (memory so far {res['rss_after_decode_mb']:.0f} MB)",
+    ]
     if "clip_img_per_s" in res:
-        lines.append("clip:    " + ", ".join(f"batch {b}: {v:.1f} img/s" for b, v in res["clip_img_per_s"].items())
-                     + f"  (memory {res['rss_after_clip_mb']:.0f} MB)")
+        lines.append(
+            "clip:    "
+            + ", ".join(f"batch {b}: {v:.1f} img/s" for b, v in res["clip_img_per_s"].items())
+            + f"  (memory {res['rss_after_clip_mb']:.0f} MB)"
+        )
     if "faces_s_per_photo" in res:
-        lines.append(f"faces:   {res['faces_s_per_photo'] * 1000:.0f} ms per photo, {res['faces_found']} faces found "
-                     f"(memory {res['rss_after_faces_mb']:.0f} MB)")
+        lines.append(
+            f"faces:   {res['faces_s_per_photo'] * 1000:.0f} ms per photo, {res['faces_found']} faces found "
+            f"(memory {res['rss_after_faces_mb']:.0f} MB)"
+        )
     if library:
         est = estimate_hours(res, library)
-        lines.append(f"\nrough one-time indexing time for {library:,} photos (each stage alone): "
-                     + ", ".join(f"{k} {v:.1f} h" for k, v in est.items()))
+        lines.append(
+            f"\nrough one-time indexing time for {library:,} photos (each stage alone): "
+            + ", ".join(f"{k} {v:.1f} h" for k, v in est.items())
+        )
     return "\n".join(lines)
 
 
@@ -124,8 +133,12 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as e:
         print(f"(CLIP skipped: {e})")
     try:
-        faces = OnnxFaceAnalyzer(paths_.face_models, det_size=settings.face_det_size, det_thresh=settings.face_det_thresh,
-                                 use_coreml=settings.face_use_coreml)
+        faces = OnnxFaceAnalyzer(
+            paths_.face_models,
+            det_size=settings.face_det_size,
+            det_thresh=settings.face_det_thresh,
+            use_coreml=settings.face_use_coreml,
+        )
     except Exception as e:
         print(f"(faces skipped: {e})")
     device = getattr(embedder, "device", "n/a")

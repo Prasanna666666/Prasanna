@@ -28,7 +28,10 @@ def test_expression_and_age_group_are_read_from_saved_face_crops_and_become_sear
     for s in MIGRATIONS:
         conn.executescript(s)
     for i in (1, 2):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)", (i, f"/p/{i}", f"{i}", "image", 0, 0))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)",
+            (i, f"/p/{i}", f"{i}", "image", 0, 0),
+        )
         (tmp_path / "faces").mkdir(exist_ok=True)
         Image.new("RGB", (20, 20), (230, 230, 230) if i == 1 else (10, 10, 10)).save(tmp_path / "faces" / f"{i}.jpg")
         conn.execute("INSERT INTO faces(id, item_id, emb, crop) VALUES (?,?,?,?)", (i, i, b"x", f"faces/{i}.jpg"))

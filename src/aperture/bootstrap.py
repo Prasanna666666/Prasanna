@@ -7,17 +7,16 @@ code base testable and replaceable.
 
 from __future__ import annotations
 
-from typing import Any
-
-from collections.abc import Callable
-from functools import lru_cache
-
 import logging
 import threading
+from collections.abc import Callable
 from datetime import date
+from functools import lru_cache
+from typing import Any
 
 import numpy as np
 
+from . import library as lib
 from .agent.captions import describe_item
 from .agent.executor import Executor
 from .agent.jsonutil import extract_json
@@ -26,9 +25,17 @@ from .agent.knowledge import gather_facts
 from .agent.llm import LLMError, OllamaClient, OllamaVision
 from .agent.loop import AgentLoop, Toolbox
 from .agent.planner import Planner
-from . import library as lib
+from .agent.service import (
+    CHAT_MAX_TOKENS,
+    CHAT_SYSTEM,
+    DATE_SCHEMA,
+    DATE_SYSTEM,
+    ROUTER_SCHEMA,
+    ROUTER_SYSTEM,
+    Agent,
+    AgentService,
+)
 from .agent.toolagent import ToolAgent, close_matches
-from .agent.service import DATE_SCHEMA, DATE_SYSTEM, CHAT_MAX_TOKENS, CHAT_SYSTEM, ROUTER_SCHEMA, ROUTER_SYSTEM, Agent, AgentService
 from .config import Paths, Settings, default_paths
 from .db import Database, meta_get
 from .indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
@@ -138,7 +145,9 @@ class AppContext:
         def drive_reads() -> None:  # reading the index and the library facts waits on the drive: do it while the model loads
             try:
                 if hasattr(self, "db"):
-                    run("question copy", self._build_replica)  # first: it is what makes every question fast, and nothing else should compete for the drive
+                    run(
+                        "question copy", self._build_replica
+                    )  # first: it is what makes every question fast, and nothing else should compete for the drive
                     run("photo list", self._prime_photo_list)
                 run("photo index", self.embedding_index)
                 if hasattr(self, "geo"):
@@ -150,11 +159,17 @@ class AppContext:
 
         def work() -> None:
             threading.Thread(target=drive_reads, name="warm-up-drive", daemon=True).start()
-            run("image search model", self.search_embedder)  # first: loading it while the chat model answers would slow the chat down
+            run(
+                "image search model", self.search_embedder
+            )  # first: loading it while the chat model answers would slow the chat down
             reads_done.wait()
             if hasattr(self, "_warm_search"):
-                run("search warm-up", self._warm_search)  # the first real search compiles GPU code for several seconds: do it now, not on your first question
-            run("AI model", self.warm_ai if hasattr(self, "warm_ai") else lambda: self.llm().warm())  # last, so it is hot when you start
+                run(
+                    "search warm-up", self._warm_search
+                )  # the first real search compiles GPU code for several seconds: do it now, not on your first question
+            run(
+                "AI model", self.warm_ai if hasattr(self, "warm_ai") else lambda: self.llm().warm()
+            )  # last, so it is hot when you start
 
         threading.Thread(target=work, name="warm-up", daemon=True).start()
 
@@ -180,7 +195,9 @@ class AppContext:
             def load() -> list[str]:
                 conn = self.db.connect()
                 try:
-                    rows = conn.execute("SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0").fetchall()
+                    rows = conn.execute(
+                        "SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0"
+                    ).fetchall()
                     return sorted({str(r[0]).split(",")[0].strip() for r in rows if r[0]})
                 finally:
                     conn.close()
@@ -319,9 +336,7 @@ class AppContext:
 
     def _prime_photo_list(self) -> None:
         """Read the list of live photos once at start-up (it is remembered until the library file changes)."""
-        from .search.metadata import all_ids
-
-        from .search.metadata import TEXT_COLUMNS, _text_column
+        from .search.metadata import TEXT_COLUMNS, _text_column, all_ids
 
         conn = self.db.connect()
         try:
@@ -455,11 +470,15 @@ class AppContext:
 
         def chatter(request: str, history: list[tuple[str, str]]) -> str:
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
-            return self.llm().complete_chat(_chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS)
+            return self.llm().complete_chat(
+                _chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS
+            )
 
         def chat_stream(request: str, history: list[tuple[str, str]]):
             turns = [{"role": role, "content": text} for role, text in history[-8:] if role in ("user", "assistant") and text]
-            return self.llm().stream_chat(_chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS)
+            return self.llm().stream_chat(
+                _chat_system(), [*turns, {"role": "user", "content": request}], max_tokens=CHAT_MAX_TOKENS
+            )
 
         def library_context(request: str) -> str:
             """RAG: facts from the user's own library that matter for THIS request (matching places and people, the date span)."""
@@ -481,22 +500,27 @@ class AppContext:
 
         def date_step(request: str):
             """A short, focused model call: the time expression in the message (if any), as real date fields."""
+            from .agent import phrasebook
             from .agent.schema import plan_from_raw
 
-            from .agent import phrasebook
-
-            hit = phrasebook.match(request)  # a known phrasing: its meaning comes from the phrasebook, exactly, with no model call
+            hit = phrasebook.match(
+                request
+            )  # a known phrasing: its meaning comes from the phrasebook, exactly, with no model call
             if hit is not None:
                 phrase, fields = hit
                 return phrase, plan_from_raw({"intent": "find", "date": fields})[0].date
-            answer = self.llm().complete_json(DATE_SYSTEM, phrasebook.examples_text(request) + "Message: " + request, DATE_SCHEMA, max_tokens=60)
+            answer = self.llm().complete_json(
+                DATE_SYSTEM, phrasebook.examples_text(request) + "Message: " + request, DATE_SCHEMA, max_tokens=60
+            )
             try:
                 raw = extract_json(answer)
             except Exception:  # unreadable answer: treat as "no time expression"; an extra check must never stop a search
                 raw = None
             if not isinstance(raw, dict):
                 return "", plan_from_raw({})[0].date
-            date_fields = {k: raw[k] for k in ("year", "month", "season", "relative", "ago", "unit", "through", "span") if k in raw}
+            date_fields = {
+                k: raw[k] for k in ("year", "month", "season", "relative", "ago", "unit", "through", "span") if k in raw
+            }
             return str(raw.get("phrase") or "").strip(), plan_from_raw({"intent": "find", "date": date_fields})[0].date
 
         def reviser(request: str, plan: Any, feedback: str) -> Any:
@@ -511,7 +535,7 @@ class AppContext:
                 f"{library_context(request)}\nUser: {request}\n\n"
                 f"YOUR LAST PLAN FOUND NOTHING.\nPlan: {json.dumps(dataclasses.asdict(plan), default=str)}\nWhat happened: {feedback}\n"
                 "Write a DIFFERENT plan that finds what the user meant. Compare each query with the real places, people and folders listed above: "
-                "use a name exactly as listed, widen a place to its country or region, use scope \"library\" unless they clearly mean the earlier results, "
+                'use a name exactly as listed, widen a place to its country or region, use scope "library" unless they clearly mean the earlier results, '
                 "or drop a wrong clause. Output ONLY the JSON object."
             )
             style = plan_style()
@@ -534,7 +558,8 @@ class AppContext:
                 }
                 try:
                     counts["photos_that_look_like_this"] = conn.execute(
-                        "SELECT COUNT(DISTINCT item_id) FROM photo_labels WHERE label=?", (term.strip().lower(),)).fetchone()[0]
+                        "SELECT COUNT(DISTINCT item_id) FROM photo_labels WHERE label=?", (term.strip().lower(),)
+                    ).fetchone()[0]
                 except Exception:
                     pass
             finally:
@@ -542,13 +567,16 @@ class AppContext:
             out: dict[str, Any] = {"term": term, **counts}
             if not any(counts.values()):
                 out["similar_places"] = lookup("place", term)
-                out["note"] = "no exact match anywhere: it may be something to look for in the pictures, a date, or a place spelled differently"
+                out["note"] = (
+                    "no exact match anywhere: it may be something to look for in the pictures, a date, or a place spelled differently"
+                )
             return out
 
         def inspect_results(ids: list[int]) -> dict[str, Any]:
             """The inspect_results tool: when (date periods), where (places) and in which folders the given photos were taken."""
             from collections import Counter
-            from datetime import date as _date, timedelta
+            from datetime import date as _date
+            from datetime import timedelta
 
             conn = self.db.connect()
             try:
@@ -556,7 +584,8 @@ class AppContext:
                 for start in range(0, len(ids), 500):
                     part = ids[start : start + 500]
                     rows += conn.execute(
-                        f"SELECT substr(taken_at,1,10), place, rel_path FROM items WHERE id IN ({','.join('?' * len(part))})", part
+                        f"SELECT substr(taken_at,1,10), place, rel_path FROM items WHERE id IN ({','.join('?' * len(part))})",
+                        part,
                     ).fetchall()
             finally:
                 conn.close()
@@ -569,12 +598,23 @@ class AppContext:
                 else:
                     periods.append([day, day, 1])
             counts = Counter(d for d, _, _ in rows if d)
-            sized = [{"date_from": a.isoformat(), "date_to": b.isoformat(),
-                      "photos": sum(c for d, c in counts.items() if a.isoformat() <= d <= b.isoformat())} for a, b, _ in periods]
+            sized = [
+                {
+                    "date_from": a.isoformat(),
+                    "date_to": b.isoformat(),
+                    "photos": sum(c for d, c in counts.items() if a.isoformat() <= d <= b.isoformat()),
+                }
+                for a, b, _ in periods
+            ]
             sized.sort(key=lambda p: -p["photos"])
             places = Counter(p for _, p, _ in rows if p)
             folders = Counter(r.split("/")[0] for _, _, r in rows if r and "/" in r)
-            return {"photos": len(rows), "date_periods": sized[:6], "places": places.most_common(5), "folders": folders.most_common(5)}
+            return {
+                "photos": len(rows),
+                "date_periods": sized[:6],
+                "places": places.most_common(5),
+                "folders": folders.most_common(5),
+            }
 
         def overview(previous_ids: Any) -> str:
             """The library_overview tool: plain facts for the model to read."""
@@ -594,7 +634,14 @@ class AppContext:
                     text = " ".join(lib.item_text(conn, i, 900).split())
                     if text:
                         item = items.get(i)
-                        out.append({"photo": i, "date": (item.taken_at or "")[:10] if item else "", "place": item.place if item else "", "text": text})
+                        out.append(
+                            {
+                                "photo": i,
+                                "date": (item.taken_at or "")[:10] if item else "",
+                                "place": item.place if item else "",
+                                "text": text,
+                            }
+                        )
                 return out
             finally:
                 conn.close()
@@ -606,7 +653,14 @@ class AppContext:
                 answers = []
                 for i in ids:
                     try:
-                        answers.append({"photo": i, "answer": describe_item(conn, self.paths, self.describer(), self.settings.vision_model, i, question)})
+                        answers.append(
+                            {
+                                "photo": i,
+                                "answer": describe_item(
+                                    conn, self.paths, self.describer(), self.settings.vision_model, i, question
+                                ),
+                            }
+                        )
                     except LLMError as exc:
                         answers.append({"photo": i, "error": str(exc)})
                 return answers
@@ -615,6 +669,7 @@ class AppContext:
 
         def lookup(kind: str, text: str) -> list[str]:
             """The look_up tool: which places, people or folders really exist in this library."""
+
             def distinct(sql: str) -> list[str]:
                 conn = self.db.connect()
                 try:
@@ -625,22 +680,54 @@ class AppContext:
             if kind == "person":
                 return close_matches(people_names(), text)
             if kind == "place":
-                places = self.memo("all_places", 300.0, lambda: distinct("SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0"))
+                places = self.memo(
+                    "all_places",
+                    300.0,
+                    lambda: distinct("SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0"),
+                )
                 return close_matches(places, text)
             if kind == "folder":
-                folders = self.memo("all_folders", 300.0, lambda: distinct(
-                    "SELECT DISTINCT substr(rel_path, 1, instr(rel_path, '/') - 1) FROM items WHERE instr(rel_path, '/') > 0 AND missing=0"))
+                folders = self.memo(
+                    "all_folders",
+                    300.0,
+                    lambda: distinct(
+                        "SELECT DISTINCT substr(rel_path, 1, instr(rel_path, '/') - 1) FROM items WHERE instr(rel_path, '/') > 0 AND missing=0"
+                    ),
+                )
                 return close_matches(folders, text)
             return []
 
         if not self.settings.agentic:
             service = AgentService(
-                Planner(self.llm()), make_executor, people_names, today=date.today, library_facts=library_facts,
-                answerer=answerer, chatter=chatter, chat_stream=chat_stream, router=self.router(),
-                fast_search=self.settings.fast_search, rescue=self.settings.rescue_search, date_step=date_step, reviser=reviser,
+                Planner(self.llm()),
+                make_executor,
+                people_names,
+                today=date.today,
+                library_facts=library_facts,
+                answerer=answerer,
+                chatter=chatter,
+                chat_stream=chat_stream,
+                router=self.router(),
+                fast_search=self.settings.fast_search,
+                rescue=self.settings.rescue_search,
+                date_step=date_step,
+                reviser=reviser,
             )
             self._service = service  # the search executor the agent uses (tests exercise it directly)
-            return ToolAgent(self.llm(), service, library_context, overview=overview, lookup=lookup, read_text=read_text, look=look, probe=probe_term, inspect=inspect_results, cloud=self._cloud_interpreter(people_names), cloud_chat=self._cloud_chat, cloud_on=lambda: self.cloud_on)
+            return ToolAgent(
+                self.llm(),
+                service,
+                library_context,
+                overview=overview,
+                lookup=lookup,
+                read_text=read_text,
+                look=look,
+                probe=probe_term,
+                inspect=inspect_results,
+                cloud=self._cloud_interpreter(people_names),
+                cloud_chat=self._cloud_chat,
+                cloud_on=lambda: self.cloud_on,
+            )
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 
         def toolbox(previous: np.ndarray | None) -> Toolbox:

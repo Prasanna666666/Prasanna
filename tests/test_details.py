@@ -15,13 +15,20 @@ def _db(n=3):
     for script in MIGRATIONS:
         conn.executescript(script)
     for i in range(1, n + 1):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)", (i, f"/p/{i}.jpg", f"{i}.jpg", "image", 0, 0))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)",
+            (i, f"/p/{i}.jpg", f"{i}.jpg", "image", 0, 0),
+        )
     return conn
 
 
 class Fake:
     def analyse(self, data):
-        return Details(labels=[("Dog", 0.9)], objects=[("animal", "Dog", 0.8, (0.1, 0.2, 0.5, 0.9))], texts=[("EXIT", 0.99, (0.0, 0.0, 0.2, 0.1))])
+        return Details(
+            labels=[("Dog", 0.9)],
+            objects=[("animal", "Dog", 0.8, (0.1, 0.2, 0.5, 0.9))],
+            texts=[("EXIT", 0.99, (0.0, 0.0, 0.2, 0.1))],
+        )
 
 
 def test_vision_boxes_are_converted_to_top_left_fractions():
@@ -86,18 +93,20 @@ def test_a_word_found_as_a_place_gets_no_guesses_from_appearance_and_tags_match_
 
     conn = _db(4)
     conn.row_factory = sqlite3.Row
-    conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76, place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1")
+    conn.execute(
+        "UPDATE items SET gps_lat=35.68, gps_lon=139.76, place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1"
+    )
     conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.9, 'clip')")  # a landmark guess on a different photo
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._tag_ids("tokyo").tolist() == [] and ex._tag_ids("tokyo tower").tolist() == [2]  # exact label, not a part of one
     labels = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Shinjuku"),)))]
-    assert labels == ["Taken in Shinjuku"] and not any("Looks like" in l or "Similar" in l for l in labels)
+    assert labels == ["Taken in Shinjuku"] and not any("Looks like" in label or "Similar" in label for label in labels)
     conn.execute("UPDATE photo_labels SET score=0.6 WHERE label='tokyo tower'")  # now only moderately sure, from one source
     lone = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
     assert lone == []  # a single look-alike clue with nothing else behind it is not shown
     conn.execute("UPDATE items SET meta_text=' tokyo tower' WHERE id=2")  # a second, independent clue (a folder name) agrees
     backed = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
-    assert any("Looks like" in l or "folders named" in l for l in backed)  # backed by hard evidence: shown
+    assert any("Looks like" in label or "folders named" in label for label in backed)  # backed by hard evidence: shown
 
 
 def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees():
@@ -119,7 +128,10 @@ def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees
 
     details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "dog"], top=2, min_score=0.0, min_p=0.0, geo=geo)
     tags = sorted(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
-    assert tags == [(1, "tokyo tower"), (4, "dog")]  # the Amsterdam photo, the photo without GPS and the dog-less photos are all dropped
+    assert tags == [
+        (1, "tokyo tower"),
+        (4, "dog"),
+    ]  # the Amsterdam photo, the photo without GPS and the dog-less photos are all dropped
 
 
 def test_filler_words_are_not_looked_up_in_the_library():
@@ -145,7 +157,9 @@ def test_a_place_gives_one_combined_answer_of_everything_taken_in_or_near_it():
     conn = _db(3)
     conn.row_factory = sqlite3.Row
     conn.execute("UPDATE items SET gps_lat=35.18, gps_lon=136.90, place='Nagoya, Japan', place_text=' nagoya japan' WHERE id=1")
-    conn.execute("UPDATE items SET gps_lat=35.0, gps_lon=137.0, place='Okazaki, Japan', place_text=' okazaki japan' WHERE id=2")  # near, named after a town
+    conn.execute(
+        "UPDATE items SET gps_lat=35.0, gps_lon=137.0, place='Okazaki, Japan', place_text=' okazaki japan' WHERE id=2"
+    )  # near, named after a town
     geo = GeoIndex(["Nagoya"], ["Japan"], [" nagoya japan"], np.array([35.18]), np.array([136.90]))
     ex = Executor(conn, lambda: None, lambda: None, geo_provider=lambda: geo)
     readings = dict(ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Nagoya"),))))
@@ -166,7 +180,10 @@ def test_a_concept_word_is_answered_by_its_trusted_picture_labels_and_they_lead(
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._tag_ids("baby").tolist() == [1, 2]
     readings = ex.readings(Plan(intent="find", clauses=(Clause(engines=("visual",), query="baby"),)))
-    assert readings[0][0] == "Looks like baby" and readings[0][1].tolist() == [1, 2]  # and it leads, ahead of a stray written word
+    assert readings[0][0] == "Looks like baby" and readings[0][1].tolist() == [
+        1,
+        2,
+    ]  # and it leads, ahead of a stray written word
 
 
 def _hockey_library():
@@ -174,7 +191,9 @@ def _hockey_library():
     conn.row_factory = sqlite3.Row
     for i in (1, 2, 3):  # photos in a folder named hockey: 1 and 2 are in Nagoya, 3 is not
         conn.execute("UPDATE items SET meta_text=' hockey tournament' WHERE id=?", (i,))
-    conn.execute("UPDATE items SET place='Nagoya, Japan', place_text=' nagoya japan' WHERE id IN (1, 2, 4, 5)")  # 4 and 5 are Nagoya, not hockey
+    conn.execute(
+        "UPDATE items SET place='Nagoya, Japan', place_text=' nagoya japan' WHERE id IN (1, 2, 4, 5)"
+    )  # 4 and 5 are Nagoya, not hockey
     return conn
 
 
@@ -184,7 +203,9 @@ def test_several_conditions_are_each_judged_by_their_own_best_evidence_and_inter
 
     conn = _hockey_library()
     ex = Executor(conn, lambda: None, lambda: None)
-    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")))
+    plan = Plan(
+        intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya"))
+    )
     exploration = ex.explore(plan)
     assert exploration.terms["hockey"].tolist() == [1, 2, 3] and exploration.terms["Nagoya"].tolist() == [1, 2, 4, 5]
     assert exploration.together().tolist() == [1, 2]  # the hockey photos that are also in Nagoya
@@ -197,9 +218,15 @@ def test_a_request_with_several_conditions_answers_with_where_they_all_hold_even
     from aperture.agent.service import AgentService
 
     conn = _hockey_library()
-    service = AgentService(planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False)
-    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")))
-    reply = service.run_plan("hockey game in nagoya", plan)  # the strict search on 'looks like hockey' finds nothing here: no image model
+    service = AgentService(
+        planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False
+    )
+    plan = Plan(
+        intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya"))
+    )
+    reply = service.run_plan(
+        "hockey game in nagoya", plan
+    )  # the strict search on 'looks like hockey' finds nothing here: no image model
     assert sorted(reply.ids.tolist()) == [1, 2] and "hockey and Nagoya" in reply.text
     assert [g[0] for g in reply.groups] == ["hockey and Nagoya"]  # just the answer, no other tabs
 
@@ -210,11 +237,23 @@ def test_descriptions_from_the_cloud_find_the_subject_inside_the_place_when_noth
 
     conn = _hockey_library()
     ex = Executor(conn, lambda: None, lambda: None)
-    ex._visual_ids = lambda query, result: np.array([4, 9]) if "rink" in query else np.zeros(0, np.int64)  # 4 is in Nagoya, 9 is not
-    plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")),
-                meanings=("ice hockey players on a rink", "a crowd in an arena"))
-    assert ex.explore(plan).together().tolist() == [1, 2, 4]  # the labelled ones plus the one that only LOOKS like hockey, inside Nagoya
-    assert Executor(conn, lambda: None, lambda: None).explore(dataclasses.replace(plan, meanings=())).together().tolist() == [1, 2]
+    ex._visual_ids = lambda query, result: (
+        np.array([4, 9]) if "rink" in query else np.zeros(0, np.int64)
+    )  # 4 is in Nagoya, 9 is not
+    plan = Plan(
+        intent="find",
+        clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")),
+        meanings=("ice hockey players on a rink", "a crowd in an arena"),
+    )
+    assert ex.explore(plan).together().tolist() == [
+        1,
+        2,
+        4,
+    ]  # the labelled ones plus the one that only LOOKS like hockey, inside Nagoya
+    assert Executor(conn, lambda: None, lambda: None).explore(dataclasses.replace(plan, meanings=())).together().tolist() == [
+        1,
+        2,
+    ]
 
 
 def test_a_named_place_is_a_requirement_whatever_else_found_the_photos():
@@ -223,8 +262,12 @@ def test_a_named_place_is_a_requirement_whatever_else_found_the_photos():
     from aperture.agent.service import AgentService
 
     conn = _hockey_library()
-    service = AgentService(planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False)
-    plan = Plan(intent="find", clauses=(Clause(engines=("place", "path"), query="Nagoya"), Clause(engines=("visual",), query="hockey")))
+    service = AgentService(
+        planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False
+    )
+    plan = Plan(
+        intent="find", clauses=(Clause(engines=("place", "path"), query="Nagoya"), Clause(engines=("visual",), query="hockey"))
+    )
     reply = service.run_plan("hockey in nagoya", plan)
     assert set(reply.ids.tolist()) <= {1, 2, 4, 5} and all(set(ids.tolist()) <= {1, 2, 4, 5} for _, ids in reply.groups)
 
@@ -236,11 +279,24 @@ def test_word_search_in_memory_gives_the_same_answer_as_the_database_and_follows
     conn.row_factory = sqlite3.Row
     for m in MIGRATIONS:
         conn.executescript(m)
-    for i, (path, place) in enumerate([(" hockey club eindhoven", " amstelveen netherlands"), (" holiday nagoya", " nagoya japan"), (" hockey nagoya", " nagoya japan")], 1):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)", (i, f"/p{i}", f"p{i}", "image", path, place))
+    for i, (path, place) in enumerate(
+        [
+            (" hockey club eindhoven", " amstelveen netherlands"),
+            (" holiday nagoya", " nagoya japan"),
+            (" hockey nagoya", " nagoya japan"),
+        ],
+        1,
+    ):
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)",
+            (i, f"/p{i}", f"p{i}", "image", path, place),
+        )
     conn.commit()
     cached = metadata.path_ids(conn, "hockey nagoya").tolist()
-    direct = np.fromiter((r[0] for r in conn.execute("SELECT id FROM items WHERE meta_text LIKE '% hockey%' AND meta_text LIKE '% nagoya%'")), np.int64).tolist()
+    direct = np.fromiter(
+        (r[0] for r in conn.execute("SELECT id FROM items WHERE meta_text LIKE '% hockey%' AND meta_text LIKE '% nagoya%'")),
+        np.int64,
+    ).tolist()
     assert cached == direct == [3] and metadata.place_ids(conn, "nagoya").tolist() == [2, 3]
     conn.execute("UPDATE items SET meta_text=' hockey nagoya' WHERE id=2")
     conn.commit()
@@ -256,8 +312,10 @@ def test_the_in_memory_copy_answers_like_the_library_file_and_leaves_the_vectors
     for m in MIGRATIONS:
         conn.executescript(m)
     for i in (1, 2, 3):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)",
-                     (i, f"/p{i}", f"p{i}", "image", " hockey club" if i < 3 else " holiday", " nagoya japan" if i != 2 else " amsterdam"))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)",
+            (i, f"/p{i}", f"p{i}", "image", " hockey club" if i < 3 else " holiday", " nagoya japan" if i != 2 else " amsterdam"),
+        )
     conn.execute("INSERT INTO faces(item_id, score, px, emb) VALUES(1, 0.9, 100, ?)", (b"\x00" * 8,))
     conn.execute("INSERT INTO photo_labels(item_id, label, source, score) VALUES(3, 'baby', 'face', 0.9)")
     conn.commit()

@@ -1,7 +1,6 @@
 """Not every message is a photo search: greetings, thanks and general questions get a normal conversational answer."""
 
 from datetime import date
-from types import SimpleNamespace
 
 from aperture.agent.llm import LLMError, OllamaClient
 from aperture.agent.planner import PlanResult
@@ -34,8 +33,9 @@ def test_chat_intent_gets_a_conversational_reply_with_history_and_no_photos():
         seen.update(request=request, history=history)
         return "RAW keeps all the sensor data; JPEG is a smaller, processed copy."
 
-    reply = service(Plan(intent="chat"), chatter).ask("what is the difference between RAW and JPEG?",
-                                                      history=[("user", "hi"), ("assistant", "Hello!")])
+    reply = service(Plan(intent="chat"), chatter).ask(
+        "what is the difference between RAW and JPEG?", history=[("user", "hi"), ("assistant", "Hello!")]
+    )
     assert reply.kind == "chat" and "JPEG" in reply.text and len(reply.ids) == 0
     assert seen["history"] == [("user", "hi"), ("assistant", "Hello!")] and "RAW and JPEG" in seen["request"]
 
@@ -59,10 +59,18 @@ def test_empty_chat_reply_uses_the_fallback():
 
 def test_complete_chat_sends_the_conversation_and_stays_in_one_context(monkeypatch):
     sent = []
-    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": " Sure! "}})
+    monkeypatch.setattr(
+        OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": " Sure! "}}
+    )
     c = OllamaClient("http://127.0.0.1:11434", "ministral-3:3b")
-    out = c.complete_chat(CHAT_SYSTEM, [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "Hello"},
-                                        {"role": "user", "content": "tell me a joke"}])
+    out = c.complete_chat(
+        CHAT_SYSTEM,
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "Hello"},
+            {"role": "user", "content": "tell me a joke"},
+        ],
+    )
     p = sent[0]
     assert out == "Sure!" and p["messages"][0] == {"role": "system", "content": CHAT_SYSTEM} and len(p["messages"]) == 4
     assert p["options"]["num_ctx"] == 4096 and p["options"]["num_predict"] == 400 and "format" not in p
@@ -81,7 +89,11 @@ def test_instant_photo_preview_is_off_by_default_and_guarded():
 def test_chat_voice_is_natural_short_and_photo_focused_with_examples():
     assert "photo app" in CHAT_SYSTEM and "one or two short sentences" in CHAT_SYSTEM and "without emojis" in CHAT_SYSTEM
     assert "never claim to have found any" in CHAT_SYSTEM and "cannot browse the web" in CHAT_SYSTEM
-    assert "User: Hello\nLumo: " in CHAT_SYSTEM and "like a thoughtful friend" not in CHAT_SYSTEM and "talk about anything" not in CHAT_SYSTEM
+    assert (
+        "User: Hello\nLumo: " in CHAT_SYSTEM
+        and "like a thoughtful friend" not in CHAT_SYSTEM
+        and "talk about anything" not in CHAT_SYSTEM
+    )
 
 
 def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
@@ -96,14 +108,14 @@ def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
     agent = ctx.service()
     assert isinstance(agent, AgentService) and agent._chatter is not None
     sent = []
-    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "Hi there!"}})
+    monkeypatch.setattr(
+        OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "Hi there!"}}
+    )
     assert agent._chatter("hello", [("user", "x"), ("assistant", "y")]) == "Hi there!"
     assert [m["role"] for m in sent[0]["messages"]] == ["system", "user", "assistant", "user"]
 
 
 def test_the_date_comes_before_the_examples_and_is_not_glued_to_one(tmp_path, monkeypatch):
-    import json
-    import urllib.request
     from datetime import date
 
     from aperture.agent.llm import OllamaClient
@@ -111,7 +123,9 @@ def test_the_date_comes_before_the_examples_and_is_not_glued_to_one(tmp_path, mo
     from aperture.config import Paths
 
     sent = []
-    monkeypatch.setattr(OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "ok"}})
+    monkeypatch.setattr(
+        OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "ok"}}
+    )
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()

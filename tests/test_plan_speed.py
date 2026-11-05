@@ -25,7 +25,16 @@ def test_lean_examples_mean_the_same_plan_but_are_shorter():
 
 def test_full_style_is_the_original():
     assert planner.system_prompt("full") == planner._PROMPT_TEXT
-    assert schema.plan_schema("full")["required"] == ["intent", "message", "scope", "match", "all_photos", "clauses", "date", "folder_name"]
+    assert schema.plan_schema("full")["required"] == [
+        "intent",
+        "message",
+        "scope",
+        "match",
+        "all_photos",
+        "clauses",
+        "date",
+        "folder_name",
+    ]
 
 
 def test_lean_schema_keeps_decision_fields_and_drops_empty_ones():
@@ -41,7 +50,9 @@ def test_minimal_output_still_gives_a_valid_plan():
     assert not warnings and plan.scope == "library" and plan.match == "all" and plan.date.is_empty
 
 
-@pytest.mark.parametrize("env,expected", [(None, "full"), ("full", "full"), ("FULL", "full"), ("lean", "lean"), ("LEAN", "lean"), ("junk", "full")])
+@pytest.mark.parametrize(
+    "env,expected", [(None, "full"), ("full", "full"), ("FULL", "full"), ("lean", "lean"), ("LEAN", "lean"), ("junk", "full")]
+)
 def test_style_selection(monkeypatch, env, expected):
     monkeypatch.delenv("APERTURE_PLAN_STYLE", raising=False)
     if env:
@@ -96,6 +107,7 @@ def test_new_examples_are_valid_plans_and_teach_the_rules():
     # shares a couple of phrases with the eval set (e.g. the greeting); that predates this change.
     import json as _j
     from pathlib import Path
+
     cases = _j.loads((Path(schema.__file__).parent.parent / "eval_data" / "plan_cases.json").read_text())
     mine = {line[6:] for line in planner._EXTRA_EXAMPLES.split("\n") if line.startswith("User: ")}
     assert len(mine) == 12 and not {c["request"] for c in cases} & mine
@@ -108,8 +120,12 @@ def test_chat_examples_teach_that_not_everything_is_a_photo_search():
             req = line[6:]
         elif line.startswith("{"):
             plans[req], _ = schema.plan_from_raw(json.loads(line))
-    for req in ("thanks, that was really helpful", "what is the difference between RAW and JPEG?", "tell me a joke",
-                "how are you doing today?"):
+    for req in (
+        "thanks, that was really helpful",
+        "what is the difference between RAW and JPEG?",
+        "tell me a joke",
+        "how are you doing today?",
+    ):
         assert plans[req].intent == "chat" and plans[req].clauses == () and plans[req].date.is_empty
     text = planner.system_prompt("full")
     assert "NOT a request to find, count or copy photos" in text and "general knowledge" in text

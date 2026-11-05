@@ -72,10 +72,16 @@ def _form(ctx: AppContext) -> None:
             size = st.number_input("Photos per page", 6, 120, s.page_size, step=6)
             contrast = st.toggle("High contrast", s.high_contrast, help="Stronger borders and text for easier reading.")
         auto = st.checkbox("Resume indexing when Lumo opens", s.auto_scan)
-        fast = st.checkbox("Skip the AI for simple one-subject searches (fastest)", s.fast_search,
-                           help="'dogs' or 'birthday cake' go straight to the image search. Searches with names, places, dates or filters still use the AI.")
-        quick = st.checkbox("Show instant photo matches while the AI thinks", s.quick_preview,
-                            help="Image search answers in milliseconds, before the AI has finished. Only confident matches show.")
+        fast = st.checkbox(
+            "Skip the AI for simple one-subject searches (fastest)",
+            s.fast_search,
+            help="'dogs' or 'birthday cake' go straight to the image search. Searches with names, places, dates or filters still use the AI.",
+        )
+        quick = st.checkbox(
+            "Show instant photo matches while the AI thinks",
+            s.quick_preview,
+            help="Image search answers in milliseconds, before the AI has finished. Only confident matches show.",
+        )
         saved = st.form_submit_button("Save", type="primary")
     if not models:
         st.warning("Ollama is not reachable. Start it with `ollama serve` (or open the Ollama app).")

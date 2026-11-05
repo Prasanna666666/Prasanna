@@ -27,9 +27,28 @@ DEFAULT_PRICES = (1.0, 5.0)  # USD per million tokens in / out: a placeholder, s
 MAX_QUESTION = 400
 TOOLS = ("find_photos", "count_photos", "copy_photos", "show_results", "library_overview")
 ARGUMENTS = {
-    "what": "str", "people": "list", "places": "list", "text_in_photo": "list", "not_what": "list", "not_people": "list", "not_places": "list",
-    "year": "int", "month": "int", "season": "str", "relative": "str", "date_from": "date", "date_to": "date", "min_people": "int",
-    "max_people": "int", "time_of_day": "str", "day_type": "str", "orientation": "str", "color": "str", "narrow_previous": "bool", "folder": "str", "looks_like": "list",
+    "what": "str",
+    "people": "list",
+    "places": "list",
+    "text_in_photo": "list",
+    "not_what": "list",
+    "not_people": "list",
+    "not_places": "list",
+    "year": "int",
+    "month": "int",
+    "season": "str",
+    "relative": "str",
+    "date_from": "date",
+    "date_to": "date",
+    "min_people": "int",
+    "max_people": "int",
+    "time_of_day": "str",
+    "day_type": "str",
+    "orientation": "str",
+    "color": "str",
+    "narrow_previous": "bool",
+    "folder": "str",
+    "looks_like": "list",
 }
 SYSTEM = (
     "You turn a person's request about their photo library into ONE search call. You never see the photos. Reply with ONLY a JSON object: "
@@ -45,7 +64,7 @@ SYSTEM = (
     "a rink', 'a crowd in an arena watching a game', 'players with sticks on a pitch'). Only describe what the request itself asks for.\n"
     "Several places mean ANY of them. Words like <PERSON_1> and <PLACE_1> stand for real names: copy them exactly into people or places. "
     "'The last 3 months' means from 3 months before today until today; '2 months back' means that one month. "
-    "A request that is only conversation, or that you cannot turn into a search, is {\"tool\": \"none\"}."
+    'A request that is only conversation, or that you cannot turn into a search, is {"tool": "none"}.'
 )
 
 
@@ -68,7 +87,7 @@ def _open_provider(request: Any, timeout: float) -> Any:
         context = ssl.create_default_context(cafile=certifi.where())
     except Exception:
         context = ssl.create_default_context()
-    return urllib.request.urlopen(request, timeout=timeout, context=context)  # noqa: S310
+    return urllib.request.urlopen(request, timeout=timeout, context=context)
 
 
 class GatewayError(RuntimeError):
@@ -141,7 +160,8 @@ def clean_plan(data: Any) -> dict[str, Any] | None:
     tool = str(data.get("tool") or "")
     if tool not in TOOLS:
         return None
-    arguments = data.get("arguments") if isinstance(data.get("arguments"), dict) else {}
+    raw_arguments = data.get("arguments")
+    arguments: dict[str, Any] = raw_arguments if isinstance(raw_arguments, dict) else {}
     clean = {}
     for key, kind in ARGUMENTS.items():
         value = _clean_value(kind, arguments.get(key))
@@ -152,8 +172,13 @@ def clean_plan(data: Any) -> dict[str, Any] | None:
 
 def _provider_error(exc: urllib.error.HTTPError) -> GatewayError:
     """What the provider refused, in its own words (no credit, unknown model, bad key ...). It never contains our key."""
-    hints = {400: "the request was refused", 401: "the API key was refused (check the key)", 403: "the API key is not allowed to use this model",
-             404: "the model name was not found (set a valid one with cloud_model)", 429: "rate limit or no credit left at the provider"}
+    hints = {
+        400: "the request was refused",
+        401: "the API key was refused (check the key)",
+        403: "the API key is not allowed to use this model",
+        404: "the model name was not found (set a valid one with cloud_model)",
+        429: "rate limit or no credit left at the provider",
+    }
     detail = ""
     try:
         detail = str((json.loads(exc.read().decode("utf-8", "replace")).get("error") or {}).get("message") or "")[:200]
@@ -163,8 +188,16 @@ def _provider_error(exc: urllib.error.HTTPError) -> GatewayError:
 
 
 class Gateway:
-    def __init__(self, key: str, usage: Usage, model: str = DEFAULT_MODEL, cap_usd: float = 5.0, prices: tuple[float, float] = DEFAULT_PRICES,
-                 provider_url: str = PROVIDER_URL, opener: Any = _open_provider) -> None:
+    def __init__(
+        self,
+        key: str,
+        usage: Usage,
+        model: str = DEFAULT_MODEL,
+        cap_usd: float = 5.0,
+        prices: tuple[float, float] = DEFAULT_PRICES,
+        provider_url: str = PROVIDER_URL,
+        opener: Any = _open_provider,
+    ) -> None:
         self._key, self._usage, self.model, self.cap_usd, self.prices = key, usage, model, cap_usd, prices
         self._url, self._open = provider_url, opener
 
@@ -175,17 +208,23 @@ class Gateway:
         """One request to the provider; spending is counted and refused over the cap. Returns the provider's text."""
         if self._usage.spent() >= self.cap_usd:
             raise GatewayError(f"the monthly cap of ${self.cap_usd:.2f} is reached")
-        body = json.dumps({"model": self.model, "max_tokens": max_tokens, "system": system,
-                           "messages": [{"role": "user", "content": content}]}).encode()
-        request = urllib.request.Request(self._url, data=body, headers={"content-type": "application/json", "x-api-key": self._key,
-                                                                          "anthropic-version": "2023-06-01"})
+        body = json.dumps(
+            {"model": self.model, "max_tokens": max_tokens, "system": system, "messages": [{"role": "user", "content": content}]}
+        ).encode()
+        request = urllib.request.Request(
+            self._url,
+            data=body,
+            headers={"content-type": "application/json", "x-api-key": self._key, "anthropic-version": "2023-06-01"},
+        )
         try:
             with self._open(request, timeout=20) as response:
                 reply = json.loads(response.read().decode("utf-8", "replace"))
         except urllib.error.HTTPError as exc:
             raise _provider_error(exc) from exc
         except Exception as exc:
-            reason = getattr(exc, "reason", exc)  # why, in a few words: a certificate problem, a blocked lookup, a timeout ... (never the key)
+            reason = getattr(
+                exc, "reason", exc
+            )  # why, in a few words: a certificate problem, a blocked lookup, a timeout ... (never the key)
             raise GatewayError(f"the provider could not be reached: {type(reason).__name__}: {str(reason)[:140]}") from exc
         usage = reply.get("usage") or {}
         self._usage.add(int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0), self.prices)
@@ -206,19 +245,35 @@ class Gateway:
             raise GatewayError("empty question")
         if self._usage.spent() >= self.cap_usd:
             raise GatewayError(f"the monthly cap of ${self.cap_usd:.2f} is reached")
-        body = json.dumps({
-            "model": self.model, "max_tokens": 400, "system": SYSTEM,
-            "messages": [{"role": "user", "content": json.dumps({"today": today, "photos_already_on_screen": bool(has_previous), "request": question})}],
-        }).encode()
-        request = urllib.request.Request(self._url, data=body, headers={"content-type": "application/json", "x-api-key": self._key,
-                                                                          "anthropic-version": "2023-06-01"})
+        body = json.dumps(
+            {
+                "model": self.model,
+                "max_tokens": 400,
+                "system": SYSTEM,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": json.dumps(
+                            {"today": today, "photos_already_on_screen": bool(has_previous), "request": question}
+                        ),
+                    }
+                ],
+            }
+        ).encode()
+        request = urllib.request.Request(
+            self._url,
+            data=body,
+            headers={"content-type": "application/json", "x-api-key": self._key, "anthropic-version": "2023-06-01"},
+        )
         try:
             with self._open(request, timeout=20) as response:
                 reply = json.loads(response.read().decode("utf-8", "replace"))
         except urllib.error.HTTPError as exc:
             raise _provider_error(exc) from exc  # no body, no key
         except Exception as exc:
-            raise GatewayError(f"the provider could not be reached: {type(exc).__name__}") from exc  # never echo anything that could hold the key
+            raise GatewayError(
+                f"the provider could not be reached: {type(exc).__name__}"
+            ) from exc  # never echo anything that could hold the key
         usage = reply.get("usage") or {}
         self._usage.add(int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0), self.prices)
         text = "".join(block.get("text", "") for block in reply.get("content", []) if isinstance(block, dict))
@@ -245,12 +300,12 @@ def make_handler(gateway: Gateway, port: int) -> type[BaseHTTPRequestHandler]:
             self.end_headers()
             self.wfile.write(body)
 
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if self.headers.get("Host", "") not in hosts:
                 return self._json({"error": "unknown host"}, int(HTTPStatus.FORBIDDEN))
             self._json(gateway.status() if self.path == "/status" else {"ok": True})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             if self.headers.get("Host", "") not in hosts or self.path not in ("/interpret", "/chat"):
                 return self._json({"error": "not found"}, int(HTTPStatus.NOT_FOUND))
             if self.path == "/chat":
@@ -262,7 +317,11 @@ def make_handler(gateway: Gateway, port: int) -> type[BaseHTTPRequestHandler]:
             try:
                 size = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(min(size, 4096)))
-                plan = gateway.interpret(str(body.get("question", "")), bool(body.get("has_previous")), str(body.get("today") or date.today().isoformat()))
+                plan = gateway.interpret(
+                    str(body.get("question", "")),
+                    bool(body.get("has_previous")),
+                    str(body.get("today") or date.today().isoformat()),
+                )
             except GatewayError as exc:
                 return self._json({"error": str(exc)}, int(HTTPStatus.SERVICE_UNAVAILABLE))
             except (ValueError, TypeError):
@@ -271,8 +330,11 @@ def make_handler(gateway: Gateway, port: int) -> type[BaseHTTPRequestHandler]:
 
         def _chat(self, body: dict[str, Any]) -> None:
             try:
-                reply = gateway.chat(str(body.get("question", "")), [str(x) for x in (body.get("earlier") or [])][:MAX_TURNS],
-                                     str(body.get("today") or date.today().isoformat()))
+                reply = gateway.chat(
+                    str(body.get("question", "")),
+                    [str(x) for x in (body.get("earlier") or [])][:MAX_TURNS],
+                    str(body.get("today") or date.today().isoformat()),
+                )
             except GatewayError as exc:
                 return self._json({"error": str(exc)}, int(HTTPStatus.SERVICE_UNAVAILABLE))
             self._json({"reply": reply})

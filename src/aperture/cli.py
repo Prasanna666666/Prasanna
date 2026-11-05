@@ -13,9 +13,10 @@ import sys
 import threading
 import urllib.error
 import urllib.request
-from datetime import date
 from collections.abc import Callable, Sequence
+from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 from .bootstrap import AppContext, ServiceUnavailableError
 from .config import ENV_ONLINE, Paths, Settings, configure_environment, default_paths
@@ -26,11 +27,16 @@ from .safety import drive_problem, enable_offline_guard, resolve_export_dir, res
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aperture", description="Private, offline AI photo agent")
-    parser.add_argument("--insecure", action="store_true",
-                        help="run photo commands outside the sandbox/Docker (not recommended; before the command: aperture --insecure ui)")
+    parser.add_argument(
+        "--insecure",
+        action="store_true",
+        help="run photo commands outside the sandbox/Docker (not recommended; before the command: aperture --insecure ui)",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     doc = sub.add_parser("doctor", help="check the drive, models, Ollama and database")
-    doc.add_argument("--stats", action="store_true", help="also count photos/faces/text (slow on a big library or an external disk)")
+    doc.add_argument(
+        "--stats", action="store_true", help="also count photos/faces/text (slow on a big library or an external disk)"
+    )
     sub.add_parser("fetch-models", help="one-off model download (the only command that uses the network)")
     scan = sub.add_parser("scan", help="index the photo folder (resumable)")
     scan.add_argument("--no-clip", action="store_true")
@@ -38,26 +44,51 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--no-ocr", action="store_true")
     scan.add_argument("--retry-errors", action="store_true")
     scan.add_argument("--regroup-faces", action="store_true")
-    deep = sub.add_parser("deepmeta", help="read and store EVERY detail the photos carry (EXIF, GPS, XMP, IPTC, colour profile, fingerprint); resumable")
+    deep = sub.add_parser(
+        "deepmeta",
+        help="read and store EVERY detail the photos carry (EXIF, GPS, XMP, IPTC, colour profile, fingerprint); resumable",
+    )
     deep.add_argument("--limit", type=int, default=0, help="only this many photos (0 = all that are missing)")
-    det = sub.add_parser("details", help="read and store what is IN each picture: scene and object labels, animals and people with boxes, text with boxes, landmark tags; resumable")
+    det = sub.add_parser(
+        "details",
+        help="read and store what is IN each picture: scene and object labels, animals and people with boxes, text with boxes, landmark tags; resumable",
+    )
     det.add_argument("--limit", type=int, default=0, help="only this many photos (0 = all that are missing)")
     det.add_argument("--no-vision", action="store_true", help="skip Apple Vision (only the quick landmark and scene tags)")
-    where = sub.add_parser("where", help="numbers behind one place name: how many photos have it as a place name, by GPS, and on the same trips (read-only)")
+    where = sub.add_parser(
+        "where",
+        help="numbers behind one place name: how many photos have it as a place name, by GPS, and on the same trips (read-only)",
+    )
     where.add_argument("name")
-    jd = sub.add_parser("judge", help="the vision judge: a vision model reads everything from the photos that could not be placed any other way (slow, resumable, answers kept for good)")
+    jd = sub.add_parser(
+        "judge",
+        help="the vision judge: a vision model reads everything from the photos that could not be placed any other way (slow, resumable, answers kept for good)",
+    )
     jd.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     jd.add_argument("--limit", type=int, default=0)
-    jd.add_argument("--calibrate", type=int, default=0, help="first measure how right the judge is on this many photos whose place is known")
-    ex = sub.add_parser("explain", help="for one or more words (e.g. hockey Nagoya): every reading the app builds, how many photos, which places, and where all the words hold together (read-only)")
+    jd.add_argument(
+        "--calibrate", type=int, default=0, help="first measure how right the judge is on this many photos whose place is known"
+    )
+    ex = sub.add_parser(
+        "explain",
+        help="for one or more words (e.g. hockey Nagoya): every reading the app builds, how many photos, which places, and where all the words hold together (read-only)",
+    )
     ex.add_argument("words", nargs="+")
     pr = sub.add_parser("profile", help="time the search for a word step by step, to find what is slow (read-only)")
     pr.add_argument("word")
-    sub.add_parser("clear-estimates", help="remove every location the app worked out (photos keep only the GPS in their own files); a clean start")
-    vn = sub.add_parser("venues", help="the vision model reads the photos that look like a sports venue: which sport, with evidence (slow, resumable, answers kept for good)")
+    sub.add_parser(
+        "clear-estimates",
+        help="remove every location the app worked out (photos keep only the GPS in their own files); a clean start",
+    )
+    vn = sub.add_parser(
+        "venues",
+        help="the vision model reads the photos that look like a sports venue: which sport, with evidence (slow, resumable, answers kept for good)",
+    )
     vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     vn.add_argument("--limit", type=int, default=0)
-    cl = sub.add_parser("cloud", help="optional: let a cloud model understand what you type (only the words, names hidden); enable | off | status")
+    cl = sub.add_parser(
+        "cloud", help="optional: let a cloud model understand what you type (only the words, names hidden); enable | off | status"
+    )
     cl.add_argument("action", choices=["enable", "off", "status", "test"])
     cl.add_argument("--forget-key", action="store_true", help="with `off`: also delete the API key from the Keychain")
     sub.add_parser("cloud-gateway", help="(internal) the sandboxed program that talks to the cloud provider; started for you")
@@ -68,9 +99,14 @@ def build_parser() -> argparse.ArgumentParser:
     job.add_argument("job_id")
     sub.add_parser("stats", help="print library statistics")
     sub.add_parser("eval-plans", help="measure how accurately the local LLM turns requests into plans (no photos needed)")
-    sub.add_parser("check", help="measure every step of a search and a chat on this Mac (seconds) plus the routing accuracy: one command, all the numbers")
+    sub.add_parser(
+        "check",
+        help="measure every step of a search and a chat on this Mac (seconds) plus the routing accuracy: one command, all the numbers",
+    )
     sub.add_parser("eval-tools", help="measure the tool-using agent over ALL plan and routing test cases (about 2 minutes)")
-    sub.add_parser("eval-routes", help="measure how well the AI tells photo requests from ordinary conversation (fast, no photos needed)")
+    sub.add_parser(
+        "eval-routes", help="measure how well the AI tells photo requests from ordinary conversation (fast, no photos needed)"
+    )
     ev = sub.add_parser("eval", help="measure search precision/recall against your own golden set")
     ev.add_argument("golden", nargs="?", help="JSON file of requests and the files that truly match")
     ev.add_argument("--template", metavar="FILE", help="write a starter golden file and exit")
@@ -82,14 +118,34 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--ollama-model")
     cfg.add_argument("--cloud-model", help="the cloud model that reads your typed question (default claude-haiku-5-5)")
     cfg.add_argument("--cloud-cap", type=float, help="monthly spending cap in USD for the cloud option (default 5)")
-    cfg.add_argument("--image-model", choices=["small", "large"], help="the picture-understanding model: small (ViT-B/32, fast, the default) or large "
-                     "(ViT-L/14: clearly better at objects and scenes; needs a one-time download and a few hours of re-indexing)")
-    cfg.add_argument("--estimate-locations", choices=["on", "off"], help="give photos without GPS a worked-out location (measured >= 95% accurate); off by default")
-    sec = sub.add_parser("secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way")
-    sec.add_argument("--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)")
-    sec.add_argument("--classic", action="store_true", help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app")
+    cfg.add_argument(
+        "--image-model",
+        choices=["small", "large"],
+        help="the picture-understanding model: small (ViT-B/32, fast, the default) or large "
+        "(ViT-L/14: clearly better at objects and scenes; needs a one-time download and a few hours of re-indexing)",
+    )
+    cfg.add_argument(
+        "--estimate-locations",
+        choices=["on", "off"],
+        help="give photos without GPS a worked-out location (measured >= 95% accurate); off by default",
+    )
+    sec = sub.add_parser(
+        "secure-ui", help="serve the web UI inside the macOS sandbox (no internet, photos read-only) - the normal way"
+    )
+    sec.add_argument(
+        "--port", type=int, default=None, help="default: the first free port from 8765 (an explicit port must be free)"
+    )
+    sec.add_argument(
+        "--classic",
+        action="store_true",
+        help="start the older Streamlit screens (Photos, People, Tidy up, Settings) instead of the fast web app",
+    )
     sec.add_argument("--no-browser", action="store_true", help="do not open the page in your browser when it is ready")
-    sec.add_argument("--allow-moves", action="store_true", help="let Tidy up move files inside the photo folder (off in the sandbox by default)")
+    sec.add_argument(
+        "--allow-moves",
+        action="store_true",
+        help="let Tidy up move files inside the photo folder (off in the sandbox by default)",
+    )
     web = sub.add_parser("web", help="serve Lumo's fast web app on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
     web.add_argument("--port", type=int, default=8765)
     ui = sub.add_parser("ui", help="serve the web UI on 127.0.0.1 (needs the sandbox/Docker, or --insecure)")
@@ -278,7 +334,9 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
         print("estimating the age of every face ...", flush=True)
         conn = ctx.db.connect()
         try:
-            print(f"  {faceages.run(conn, ctx.paths.data, OnnxAgeEstimator(age_model), stop=stop):,} faces; labels: {faceages.make_labels(conn):,}")
+            print(
+                f"  {faceages.run(conn, ctx.paths.data, OnnxAgeEstimator(age_model), stop=stop):,} faces; labels: {faceages.make_labels(conn):,}"
+            )
         finally:
             conn.close()
     elif not age_model.exists():
@@ -287,28 +345,45 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
     try:
         print(f"capture flags: {derive.derive_meta_labels(conn):,}; trips and events: {derive.build_events(conn):,}")
         if not ctx.settings.estimate_locations:
-            print("photos without GPS keep no location (turn on worked-out locations with: aperture settings --estimate-locations on)")
+            print(
+                "photos without GPS keep no location (turn on worked-out locations with: aperture settings --estimate-locations on)"
+            )
             return 0
-        print("locating photos that have no GPS from the photos around them (tested on your photos that do have GPS):", flush=True)
+        print(
+            "locating photos that have no GPS from the photos around them (tested on your photos that do have GPS):", flush=True
+        )
         outcome = derive.infer_locations(conn, ctx.geo())
         for kind in outcome["kinds"]:
             if kind["tested"]:
-                print(f"  {kind['kind']}: {kind['accuracy']:.0%} accurate over {kind['tested']:,} tests -> {'USED' if kind['used'] else 'not used (below 95%)'}")
-        print(f"  located {outcome['located']:,} of {outcome['without_gps']:,} photos without GPS; the rest are left without a location")
+                print(
+                    f"  {kind['kind']}: {kind['accuracy']:.0%} accurate over {kind['tested']:,} tests -> {'USED' if kind['used'] else 'not used (below 95%)'}"
+                )
+        print(
+            f"  located {outcome['located']:,} of {outcome['without_gps']:,} photos without GPS; the rest are left without a location"
+        )
         from .indexing import placemodel
 
-        print("learning what your places look like from the photos that have GPS, then placing the rest by picture and time:", flush=True)
+        print(
+            "learning what your places look like from the photos that have GPS, then placing the rest by picture and time:",
+            flush=True,
+        )
         seen = placemodel.locate_by_picture(conn, ctx.embedding_index(), ctx.geo())
         if seen.get("blocked"):
-            print(f"  blocked: accurate on photos with GPS, but only {seen['agreement_on_no_gps']:.0%} right on {seen['checked_on_no_gps']:,} photos without GPS "
-                  "whose place is known from the time. Nothing was placed.")
+            print(
+                f"  blocked: accurate on photos with GPS, but only {seen['agreement_on_no_gps']:.0%} right on {seen['checked_on_no_gps']:,} photos without GPS "
+                "whose place is known from the time. Nothing was placed."
+            )
         elif seen.get("threshold") is None:
             print("  no level reached 95% accuracy on your own test photos, so no more photos were placed")
         else:
-            print(f"  tested on {seen['tested']:,} of your photos: {seen['accuracy_at_threshold']:.0%} accurate above probability {seen['threshold']}; "
-                  f"placed {seen['located']:,} more photos")
+            print(
+                f"  tested on {seen['tested']:,} of your photos: {seen['accuracy_at_threshold']:.0%} accurate above probability {seen['threshold']}; "
+                f"placed {seen['located']:,} more photos"
+            )
             if "agreement_on_no_gps" in seen:
-                print(f"  also checked on {seen['checked_on_no_gps']:,} photos without GPS placed by time: {seen['agreement_on_no_gps']:.0%} agree")
+                print(
+                    f"  also checked on {seen['checked_on_no_gps']:,} photos without GPS placed by time: {seen['agreement_on_no_gps']:.0%} agree"
+                )
     finally:
         conn.close()
     return 0
@@ -327,7 +402,14 @@ def cmd_deepmeta(ctx: AppContext, args: argparse.Namespace) -> int:
     conn = ctx.db.connect()
     try:
         total = len(deepmeta.pending(conn, args.limit))
-        print(f"{total:,} photos to read" + (" (exiftool found: maker notes included)" if shutil.which("exiftool") else " (install exiftool for maker notes: brew install exiftool)"))
+        print(
+            f"{total:,} photos to read"
+            + (
+                " (exiftool found: maker notes included)"
+                if shutil.which("exiftool")
+                else " (install exiftool for maker notes: brew install exiftool)"
+            )
+        )
         done, failed = deepmeta.run(conn, args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
     finally:
         conn.close()
@@ -355,11 +437,15 @@ def cmd_details(ctx: AppContext, args: argparse.Namespace) -> int:
         if args.no_vision:
             return 0
         if not vision_available():
-            print("Apple Vision is not available here (needs macOS with pyobjc-framework-Vision); skipped objects, labels and text boxes.")
+            print(
+                "Apple Vision is not available here (needs macOS with pyobjc-framework-Vision); skipped objects, labels and text boxes."
+            )
             return 0
         total = len(details.pending(conn, args.limit))
         print(f"{total:,} pictures to read", flush=True)
-        done, bad = details.run(conn, ctx.paths.data, VisionDetails(), args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
+        done, bad = details.run(
+            conn, ctx.paths.data, VisionDetails(), args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True)
+        )
         print(f"details: {done:,} stored, {bad:,} unreadable")
     finally:
         conn.close()
@@ -392,8 +478,17 @@ def cmd_judge(ctx: AppContext, args: argparse.Namespace) -> int:
             print(" ", judge.calibrate(conn, ctx.paths.data, vision, ctx.geo(), args.calibrate))
         todo = len(judge.pending(conn, args.limit))
         print(f"{todo:,} undecided photos for the judge" + (f", for up to {args.hours} hours" if args.hours else ""), flush=True)
-        outcome = judge.run(conn, ctx.paths.data, vision, ctx.geo(), ctx.settings.vision_model, args.hours * 3600, args.limit, stop,
-                            lambda n, t, loc: print(f"  {n:,} / {t:,}  ({loc:,} placed)", flush=True))
+        outcome = judge.run(
+            conn,
+            ctx.paths.data,
+            vision,
+            ctx.geo(),
+            ctx.settings.vision_model,
+            args.hours * 3600,
+            args.limit,
+            stop,
+            lambda n, t, loc: print(f"  {n:,} / {t:,}  ({loc:,} placed)", flush=True),
+        )
         print(f"judge: {outcome['analysed']:,} analysed, {outcome['located']:,} placed, {outcome['left']:,} left for next time")
         if outcome["failed"]:
             print(f"  {outcome['failed']:,} could not be read. First reason: {outcome['error']}")
@@ -414,12 +509,23 @@ def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
         words = [w for w in args.words if w.strip()]
         plan = Plan(intent="find", clauses=tuple(Clause(engines=("place", "path", "text"), query=w) for w in words))
         word = words[0].strip().lower()
-        stored = conn.execute("SELECT source, label, COUNT(DISTINCT item_id), ROUND(MAX(score), 2) FROM photo_labels WHERE label LIKE ? "
-                              "GROUP BY source, label ORDER BY 3 DESC LIMIT 8", (f"%{word}%",)).fetchall()
-        faces = conn.execute("SELECT age, COUNT(*), ROUND(AVG(age_p), 2) FROM face_attributes WHERE age LIKE ? GROUP BY age", (f"%{word}%",)).fetchall()
-        print("Labels stored from the pictures: " + ("; ".join(f"{r[0]}:'{r[1]}' on {r[2]:,} photos (best score {r[3]})" for r in stored) or "none"))
+        stored = conn.execute(
+            "SELECT source, label, COUNT(DISTINCT item_id), ROUND(MAX(score), 2) FROM photo_labels WHERE label LIKE ? "
+            "GROUP BY source, label ORDER BY 3 DESC LIMIT 8",
+            (f"%{word}%",),
+        ).fetchall()
+        faces = conn.execute(
+            "SELECT age, COUNT(*), ROUND(AVG(age_p), 2) FROM face_attributes WHERE age LIKE ? GROUP BY age", (f"%{word}%",)
+        ).fetchall()
+        print(
+            "Labels stored from the pictures: "
+            + ("; ".join(f"{r[0]}:'{r[1]}' on {r[2]:,} photos (best score {r[3]})" for r in stored) or "none")
+        )
         if faces:
-            print("Faces whose age group matches: " + "; ".join(f"{r[0]} ({r[1]:,} faces, average confidence {r[2]})" for r in faces))
+            print(
+                "Faces whose age group matches: "
+                + "; ".join(f"{r[0]} ({r[1]:,} faces, average confidence {r[2]})" for r in faces)
+            )
         exploration = executor.explore(plan)
         for term, ids in exploration.terms.items():
             print(f"Best evidence for '{term}': {len(ids):,} photos")
@@ -428,11 +534,20 @@ def cmd_explain(ctx: AppContext, args: argparse.Namespace) -> int:
             print(f"All of them together: {len(both):,} photos")
         for label, ids in exploration.readings:
             marks = ",".join("?" * min(len(ids), 900))
-            rows = conn.execute(f"SELECT COALESCE(place, gps_est_place, '(no place)'), gps_lat IS NOT NULL FROM items WHERE id IN ({marks})", ids[:900].tolist()).fetchall()
+            rows = conn.execute(
+                f"SELECT COALESCE(place, gps_est_place, '(no place)'), gps_lat IS NOT NULL FROM items WHERE id IN ({marks})",
+                ids[:900].tolist(),
+            ).fetchall()
             top = Counter(r[0] for r in rows).most_common(4)
             own = sum(1 for r in rows if r[1])
             print(f"{label}: {len(ids):,} photos ({own} of the first {len(rows)} have their own GPS)")
-            cams = Counter(r[0] for r in conn.execute(f"SELECT COALESCE(NULLIF(camera,''), 'unknown camera') FROM items WHERE id IN ({marks}) AND gps_lat IS NULL", ids[:900].tolist()))
+            cams = Counter(
+                r[0]
+                for r in conn.execute(
+                    f"SELECT COALESCE(NULLIF(camera,''), 'unknown camera') FROM items WHERE id IN ({marks}) AND gps_lat IS NULL",
+                    ids[:900].tolist(),
+                )
+            )
             if cams:
                 print("    without GPS, by camera: " + "; ".join(f"{c} ({n})" for c, n in cams.most_common(3)))
             print("    places: " + "; ".join(f"{p} ({n})" for p, n in top))
@@ -463,7 +578,10 @@ def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
             _text_column(conn, column)
         executor = Executor(conn, ctx.embedding_index, ctx.ready_embedder, geo_provider=ctx.ready_geo)
         plan = Plan(intent="find", clauses=(Clause(engines=("visual",), query=args.word),))
-        for name, work in (("answer (strict search)", lambda: executor.run(plan)), ("other readings", lambda: executor.explore(plan))):
+        for name, work in (
+            ("answer (strict search)", lambda: executor.run(plan)),
+            ("other readings", lambda: executor.explore(plan)),
+        ):
             profiler = cProfile.Profile()
             started = time.perf_counter()
             profiler.enable()
@@ -471,7 +589,14 @@ def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
             profiler.disable()
             print(f"\n{name}: {time.perf_counter() - started:.1f} s")
             stats = pstats.Stats(profiler)
-            rows = sorted(((v[3], k) for k, v in stats.stats.items() if "aperture" in k[0] or k[2] in ("execute", "executemany", "fetchall", "fetchone")), reverse=True)
+            rows = sorted(
+                (
+                    (v[3], k)
+                    for k, v in stats.stats.items()  # type: ignore[attr-defined] # pstats keeps its table here; the type stubs omit it
+                    if "aperture" in k[0] or k[2] in ("execute", "executemany", "fetchall", "fetchone")
+                ),
+                reverse=True,
+            )
             for cumulative, (file, line, function) in rows[:8]:
                 print(f"   {cumulative:6.1f} s  {function}  ({Path(file).name}:{line})")
     finally:
@@ -482,7 +607,9 @@ def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
 def cmd_clear_estimates(ctx: AppContext) -> int:
     conn = ctx.db.connect()
     try:
-        conn.execute("UPDATE items SET gps_est_lat=NULL, gps_est_lon=NULL, gps_est_conf=NULL, gps_est_place=NULL, gps_est_place_text=''")
+        conn.execute(
+            "UPDATE items SET gps_est_lat=NULL, gps_est_lon=NULL, gps_est_conf=NULL, gps_est_place=NULL, gps_est_place_text=''"
+        )
         conn.commit()
     finally:
         conn.close()
@@ -499,9 +626,23 @@ def cmd_venues(ctx: AppContext, args: argparse.Namespace) -> int:
     conn = ctx.db.connect()
     try:
         todo = len(venues.candidates(conn, args.limit))
-        print(f"{todo:,} photos look like a sports venue and have not been read yet" + (f"; up to {args.hours} hours" if args.hours else ""), flush=True)
-        outcome = venues.run(conn, ctx.paths.data, ctx.describer(), args.hours * 3600, args.limit, stop, lambda n, t: print(f"  {n:,} / {t:,}", flush=True))
-        print(f"venues: {outcome['looked_at']:,} read, {outcome['sports_venues']:,} are sports venues, {outcome['left']:,} left for next time")
+        print(
+            f"{todo:,} photos look like a sports venue and have not been read yet"
+            + (f"; up to {args.hours} hours" if args.hours else ""),
+            flush=True,
+        )
+        outcome = venues.run(
+            conn,
+            ctx.paths.data,
+            ctx.describer(),
+            args.hours * 3600,
+            args.limit,
+            stop,
+            lambda n, t: print(f"  {n:,} / {t:,}", flush=True),
+        )
+        print(
+            f"venues: {outcome['looked_at']:,} read, {outcome['sports_venues']:,} are sports venues, {outcome['left']:,} left for next time"
+        )
         if outcome["failed"]:
             print(f"  {outcome['failed']:,} could not be read. First reason: {outcome['error']}")
     finally:
@@ -519,8 +660,13 @@ def cmd_cloud_gateway() -> int:
         return 2
     prices = tuple(float(x) for x in os.environ.get("APERTURE_CLOUD_PRICES", "1.0,5.0").split(","))
     usage = gw.Usage(Path.home() / "Library" / "Application Support" / "Lumo" / "cloud-usage.json")
-    gateway = gw.Gateway(key, usage, os.environ.get("APERTURE_CLOUD_MODEL", gw.DEFAULT_MODEL), float(os.environ.get("APERTURE_CLOUD_CAP", "5")),
-                         (prices[0], prices[1]))
+    gateway = gw.Gateway(
+        key,
+        usage,
+        os.environ.get("APERTURE_CLOUD_MODEL", gw.DEFAULT_MODEL),
+        float(os.environ.get("APERTURE_CLOUD_CAP", "5")),
+        (prices[0], prices[1]),
+    )
     return gw.serve(gateway, int(os.environ.get("APERTURE_CLOUD_PORT", "8770")))
 
 
@@ -537,35 +683,54 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
             return 2
         import getpass
 
-        print("Paste your Anthropic API key when asked. It starts with sk-ant- and comes from console.anthropic.com > API keys.\n"
-              "It is NOT your Mac password or your Claude login. What you type is hidden and goes straight into your Keychain, never into a file.")
+        print(
+            "Paste your Anthropic API key when asked. It starts with sk-ant- and comes from console.anthropic.com > API keys.\n"
+            "It is NOT your Mac password or your Claude login. What you type is hidden and goes straight into your Keychain, never into a file."
+        )
         typed = getpass.getpass("API key: ")
-        found = re.search(r"sk-ant-[A-Za-z0-9_\-]{20,}", typed)  # a paste can carry invisible extras (spaces, a newline, terminal markers)
+        found = re.search(
+            r"sk-ant-[A-Za-z0-9_\-]{20,}", typed
+        )  # a paste can carry invisible extras (spaces, a newline, terminal markers)
         if not found:
-            print(f"That was not an API key: {len(typed.strip())} characters"
-                  f"{', and it does not contain sk-ant-' if 'sk-ant-' not in typed else ', but it looks cut short'}. Nothing was saved. "
-                  "Create a key at console.anthropic.com > API keys, copy all of it, and try again.")
+            print(
+                f"That was not an API key: {len(typed.strip())} characters"
+                f"{', and it does not contain sk-ant-' if 'sk-ant-' not in typed else ', but it looks cut short'}. Nothing was saved. "
+                "Create a key at console.anthropic.com > API keys, copy all of it, and try again."
+            )
             return 1
-        done = subprocess.run(["/usr/bin/security", "-i"], input=f"add-generic-password -U -s {launcher.KEYCHAIN_SERVICE} -a {user} -w {found.group(0)}\n",  # noqa: S603
-                              text=True, check=False, capture_output=True)  # typed on stdin, so the key never appears in a command line
+        done = subprocess.run(
+            ["/usr/bin/security", "-i"],
+            input=f"add-generic-password -U -s {launcher.KEYCHAIN_SERVICE} -a {user} -w {found.group(0)}\n",
+            text=True,
+            check=False,
+            capture_output=True,
+        )  # typed on stdin, so the key never appears in a command line
         if done.returncode != 0:
             print("The Keychain refused to save the key, so the cloud option stays off.")
             return 1
         if not launcher.keychain_key().startswith("sk-ant-"):
-            subprocess.run(["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False)  # noqa: S603
-            print("That was not an API key (they start with sk-ant-), so it was not kept. Create one at console.anthropic.com under API keys and try again.")
+            subprocess.run(
+                ["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False
+            )
+            print(
+                "That was not an API key (they start with sk-ant-), so it was not kept. Create one at console.anthropic.com under API keys and try again."
+            )
             return 1
         settings.cloud_interpreter = True
         settings.save(paths)
-        print(f"On. Only the words of what you type leave this Mac, with the names from your library replaced by placeholders. Never photos, faces, "
-              f"places, dates or results. Monthly cap ${settings.cloud_cap_usd:.2f}; if the cloud is unreachable the local model is used. "
-              "Restart the app: aperture secure-ui")
+        print(
+            f"On. Only the words of what you type leave this Mac, with the names from your library replaced by placeholders. Never photos, faces, "
+            f"places, dates or results. Monthly cap ${settings.cloud_cap_usd:.2f}; if the cloud is unreachable the local model is used. "
+            "Restart the app: aperture secure-ui"
+        )
         return 0
     if args.action == "off":
         settings.cloud_interpreter = False
         settings.save(paths)
         if args.forget_key:
-            subprocess.run(["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False)  # noqa: S603
+            subprocess.run(
+                ["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False
+            )
             print("Off, and the key was removed from the Keychain.")
         else:
             print("Off. Nothing is sent to the cloud. (The key is still in the Keychain; add --forget-key to remove it.)")
@@ -574,7 +739,10 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
         question = "photos of <PERSON_1> from the last 3 months"
         print(f"sending only this to the cloud: {question!r}")
         try:
-            http = urllib.request.Request(f"http://127.0.0.1:{settings.cloud_port}/interpret", data=json.dumps({"question": question, "has_previous": False}).encode())
+            http = urllib.request.Request(
+                f"http://127.0.0.1:{settings.cloud_port}/interpret",
+                data=json.dumps({"question": question, "has_previous": False}).encode(),
+            )
             with urllib.request.urlopen(http, timeout=30) as response:
                 plan = json.loads(response.read()).get("plan")
             print("the cloud understood it:", json.dumps(plan) if plan else "no usable plan (the local model would take over)")
@@ -582,9 +750,13 @@ def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
         except urllib.error.HTTPError as exc:
             print("failed:", json.loads(exc.read() or b"{}").get("error", f"HTTP {exc.code}"))
         except OSError:
-            print("the gateway is not running: start the app with `aperture secure-ui` or `aperture install-service`, then try again")
+            print(
+                "the gateway is not running: start the app with `aperture secure-ui` or `aperture install-service`, then try again"
+            )
         return 1
-    print(f"cloud understanding: {'ON' if settings.cloud_interpreter else 'off'}; model {settings.cloud_model}; monthly cap ${settings.cloud_cap_usd:.2f}")
+    print(
+        f"cloud understanding: {'ON' if settings.cloud_interpreter else 'off'}; model {settings.cloud_model}; monthly cap ${settings.cloud_cap_usd:.2f}"
+    )
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{settings.cloud_port}/status", timeout=2) as response:
             info = json.loads(response.read())
@@ -632,7 +804,19 @@ def cmd_caption(paths: Paths, limit: int) -> int:
 
 # Commands that open your photos or serve the UI: they must run inside the sandbox or Docker (APERTURE_SANDBOXED=1).
 IMAGE_MODELS = {"small": ("ViT-B-32", "laion2b_s34b_b79k"), "large": ("ViT-L-14", "laion2b_s32b_b82k")}
-GUARDED = {"ui", "web", "app", "scan", "deepmeta", "details", "judge", "venues", "ask", "caption", "export-job"}  # install-service / install-launcher only write start-up files; the app they start is sandboxed
+GUARDED = {
+    "ui",
+    "web",
+    "app",
+    "scan",
+    "deepmeta",
+    "details",
+    "judge",
+    "venues",
+    "ask",
+    "caption",
+    "export-job",
+}  # install-service / install-launcher only write start-up files; the app they start is sandboxed
 REFUSAL = (
     "Refusing to run outside the secure environment (no internet, photos read-only).\n"
     "  Normal way:    aperture secure-ui          (macOS sandbox)\n"
@@ -666,7 +850,9 @@ def listener_pid(port: int) -> int | None:
     import subprocess
 
     try:
-        out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"], capture_output=True, text=True, timeout=5).stdout
+        out = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"], capture_output=True, text=True, timeout=5
+        ).stdout
     except (OSError, subprocess.SubprocessError):
         return None
     pids = [int(x) for x in out.split() if x.isdigit()]
@@ -687,8 +873,14 @@ def is_aperture_ui(command: str) -> bool:
     c = command.lower()
     if "aperture" not in c or "scan" in c.split() or "caption" in c.split():
         return False
-    return ("-m aperture ui" in c or "aperture ui" in c or "-m aperture web" in c or "aperture web" in c
-            or "aperture/ui/app.py" in c or "aperture-sandboxed" in c)
+    return (
+        "-m aperture ui" in c
+        or "aperture ui" in c
+        or "-m aperture web" in c
+        or "aperture web" in c
+        or "aperture/ui/app.py" in c
+        or "aperture-sandboxed" in c
+    )
 
 
 def stop_process(pid: int, wait: float = 8.0) -> bool:
@@ -731,8 +923,11 @@ def stop_old_ui(pid_file: Path, port: int) -> list[str]:
         candidates.append(on_port)
     for pid in candidates:
         if pid != os.getpid() and is_aperture_ui(command_of(pid)):
-            said.append(f"Stopped the older Aperture on port {port} (process {pid})." if stop_process(pid)
-                        else f"Could not stop the older Aperture (process {pid}).")
+            said.append(
+                f"Stopped the older Aperture on port {port} (process {pid})."
+                if stop_process(pid)
+                else f"Could not stop the older Aperture (process {pid})."
+            )
     pid_file.unlink(missing_ok=True)
     return said
 
@@ -745,7 +940,7 @@ def open_when_ready(port: int, attempts: int = 90, health: str = "/api/health") 
 
     for _ in range(attempts):
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}{health}", timeout=1):  # noqa: S310 - loopback
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}{health}", timeout=1):
                 webbrowser.open(f"http://127.0.0.1:{port}")
                 return
         except OSError:
@@ -794,20 +989,25 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
         print("The AI engine did not answer within 45 seconds. Open the Ollama app yourself; the page will say when it is ready.")
     if settings.cloud_interpreter:
         problem = launcher.ensure_gateway(settings)
-        print("Cloud understanding is on: only the words you type are sent, with names hidden." if not problem
-              else f"Cloud understanding is on but unavailable ({problem}); the local model is used.")
+        print(
+            "Cloud understanding is on: only the words you type are sent, with names hidden."
+            if not problem
+            else f"Cloud understanding is on but unavailable ({problem}); the local model is used."
+        )
     cmd = [str(script), str(photo)]
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():
         cmd.append(str(export))
     cmd += ["--", sys.executable, "-m", "aperture", "ui" if args.classic else "web", "--port", str(port)]
     env = dict(os.environ, ALLOW_MOVES="yes" if args.allow_moves else "no", AP_ROOT=str(paths.root))
-    print(f"Starting Aperture in the sandbox on http://127.0.0.1:{port}  (photos: read-only"
-          f"{', moves allowed' if args.allow_moves else ''}; no internet). Press Ctrl+C to stop.")
+    print(
+        f"Starting Aperture in the sandbox on http://127.0.0.1:{port}  (photos: read-only"
+        f"{', moves allowed' if args.allow_moves else ''}; no internet). Press Ctrl+C to stop."
+    )
     if not args.no_browser:
         health = "/_stcore/health" if args.classic else "/api/health"
         threading.Thread(target=open_when_ready, args=(port, 90, health), daemon=True).start()
-    proc = subprocess.Popen(cmd, env=env)  # noqa: S603
+    proc = subprocess.Popen(cmd, env=env)
     try:
         pid_file.parent.mkdir(parents=True, exist_ok=True)
         pid_file.write_text(str(proc.pid))
@@ -859,7 +1059,10 @@ def cmd_check(ctx: AppContext) -> int:
         ("chat: first words appear", first_words),
         ("photo search: the AI plan", lambda: Planner(llm).plan("sunset photos", PlannerContext(today=date.today()))),
         ("image-search model load", ctx.search_embedder),
-        ("instant photo matches", lambda: quick_ids(conn, "sunset", ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness)),
+        (
+            "instant photo matches",
+            lambda: quick_ids(conn, "sunset", ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness),
+        ),
     ]
     print(f"model: {ctx.settings.ollama_model}\n")
     for label, seconds, error in time_steps(steps):
@@ -869,7 +1072,9 @@ def cmd_check(ctx: AppContext) -> int:
     conn.close()
     cases = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
     correct, wrong, slower = evaluate_routes(router, cases)
-    print(f"\nrouting accuracy: {correct / len(cases):.0%} ({correct}/{len(cases)}); {len(slower)} simple searches took the slower route")
+    print(
+        f"\nrouting accuracy: {correct / len(cases):.0%} ({correct}/{len(cases)}); {len(slower)} simple searches took the slower route"
+    )
     for line in wrong[:8]:
         print("  x", line)
     return 0
@@ -878,10 +1083,10 @@ def cmd_check(ctx: AppContext) -> int:
 def cmd_eval_tools(ctx: AppContext) -> int:
     import time
 
+    import numpy as np
+
     from .agent.toolagent import ToolAgent
     from .evaluation import evaluate_tool_agent, load_plan_cases
-
-    import numpy as np
 
     seconds: list[float] = []
 
@@ -897,14 +1102,22 @@ def cmd_eval_tools(ctx: AppContext) -> int:
 
     def decide(request: str, previous: bool, people: list[str]):
         """Runs the REAL loop (look-ups and overviews included) with stand-in tools, up to the first search."""
+
         def lookup(kind: str, text: str) -> list[str]:
             return [p for p in people if text.lower() in p.lower()] if kind == "person" else [text.title()]
 
-        facts = ("LIBRARY SIZE: 10,000 files, 10,000 indexed\nPHOTOS SPAN: 2014-03-02 to 2026-10-30\n"
-                 "PLACES IN THIS LIBRARY: Goa, India; Paris, France; Japan; Eindhoven, Netherlands; Amsterdam, Netherlands; Switzerland"
-                 + (("\nPEOPLE FOUND: " + ", ".join(people)) if people else ""))  # the same kind of facts the real app retrieves
-        agent = Recording(ctx.llm(), None, lambda r: facts,
-                          overview=lambda prev: "LIBRARY FACTS: 10,000 files, all indexed", lookup=lookup)
+        facts = (
+            "LIBRARY SIZE: 10,000 files, 10,000 indexed\nPHOTOS SPAN: 2014-03-02 to 2026-10-30\n"
+            "PLACES IN THIS LIBRARY: Goa, India; Paris, France; Japan; Eindhoven, Netherlands; Amsterdam, Netherlands; Switzerland"
+            + (("\nPEOPLE FOUND: " + ", ".join(people)) if people else "")
+        )  # the same kind of facts the real app retrieves
+        agent = Recording(
+            ctx.llm(),
+            cast(Any, None),
+            lambda r: facts,
+            overview=lambda prev: "LIBRARY FACTS: 10,000 files, all indexed",
+            lookup=lookup,
+        )
         started = time.perf_counter()
         try:
             reply = agent.ask(request, np.array([1]) if previous else None)
@@ -920,9 +1133,15 @@ def cmd_eval_tools(ctx: AppContext) -> int:
     routes = json.loads((Path(__file__).parent / "eval_data" / "route_cases.json").read_text())
     result = evaluate_tool_agent(decide, load_plan_cases(), routes)
     print(f"tool agent with {ctx.settings.ollama_model}")
-    print(f"  right tool and right arguments: {result.plan_correct / result.plan_total:.0%} ({result.plan_correct}/{result.plan_total})")
-    print(f"  tool-or-words decision:         {result.route_correct / result.route_total:.0%} ({result.route_correct}/{result.route_total})")
-    print(f"  average time to decide:         {sum(seconds) / max(len(seconds), 1):.1f}s (the whole loop, up to the first search)")
+    print(
+        f"  right tool and right arguments: {result.plan_correct / result.plan_total:.0%} ({result.plan_correct}/{result.plan_total})"
+    )
+    print(
+        f"  tool-or-words decision:         {result.route_correct / result.route_total:.0%} ({result.route_correct}/{result.route_total})"
+    )
+    print(
+        f"  average time to decide:         {sum(seconds) / max(len(seconds), 1):.1f}s (the whole loop, up to the first search)"
+    )
     print("\nwrong plans:")
     for request, problems in result.failures[:10]:
         print(f"  x {request!r}: {'; '.join(problems)}")
@@ -991,8 +1210,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     online = args.command == "fetch-models"
     if online and os.environ.get("APERTURE_NEVER_ONLINE") == "1":
-        print("Network access is permanently disabled here (APERTURE_NEVER_ONLINE=1). Fetch models with a normal install "
-              "outside the container/sandbox, then reuse the Aperture/models folder.")
+        print(
+            "Network access is permanently disabled here (APERTURE_NEVER_ONLINE=1). Fetch models with a normal install "
+            "outside the container/sandbox, then reuse the Aperture/models folder."
+        )
         return 2
     if online:
         os.environ[ENV_ONLINE] = "1"
@@ -1093,14 +1314,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             s.ollama_model = args.ollama_model
         if args.image_model:
             s.clip_model, s.clip_pretrained = IMAGE_MODELS[args.image_model]
-            print(f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo.")
+            print(
+                f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo."
+            )
         if args.cloud_model:
             s.cloud_model = args.cloud_model
         if args.cloud_cap is not None:
             s.cloud_cap_usd = max(0.0, args.cloud_cap)
         if args.estimate_locations:
             s.estimate_locations = args.estimate_locations == "on"
-        if args.photo_dir or args.export_dir or args.ollama_model or args.estimate_locations or args.image_model or args.cloud_model or args.cloud_cap is not None:
+        if (
+            args.photo_dir
+            or args.export_dir
+            or args.ollama_model
+            or args.estimate_locations
+            or args.image_model
+            or args.cloud_model
+            or args.cloud_cap is not None
+        ):
             s.save(paths)
         print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
         return 0

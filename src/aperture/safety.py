@@ -37,9 +37,7 @@ def drive_problem(drive: Path) -> str | None:
         # its own folder, so that is what must be writable there.
         own = drive / "Aperture"
         if not (os.environ.get("APERTURE_SANDBOXED") == "1" and own.is_dir() and os.access(own, os.W_OK)):
-            return (
-                f"{drive} is read-only. Drives formatted as NTFS are read-only on a Mac - reformat to APFS or exFAT in Disk Utility."
-            )
+            return f"{drive} is read-only. Drives formatted as NTFS are read-only on a Mac - reformat to APFS or exFAT in Disk Utility."
     if os.environ.get(ENV_INTERNAL) != "1":
         try:
             device = os.stat(drive).st_dev
@@ -164,7 +162,7 @@ def enable_offline_guard() -> bool:
     def getaddrinfo(host: Any, *args: Any, **kwargs: Any) -> Any:
         if str(host).lower() in trusted:
             result = real_getaddrinfo(host, *args, **kwargs)
-            trusted_ips.update(r[4][0] for r in result)
+            trusted_ips.update(str(r[4][0]) for r in result)
             return result
         if not is_local_host(host):
             raise socket.gaierror(socket.EAI_NONAME, f"air-gapped: lookup of {host!r} blocked")

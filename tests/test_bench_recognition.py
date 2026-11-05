@@ -52,8 +52,16 @@ def test_run_works_without_clip_or_faces():
 
 
 def test_estimate_and_report_are_readable():
-    res = {"photos": 8, "decode_s_per_photo": 0.1, "rss_after_decode_mb": 400, "clip_img_per_s": {4: 20.0, 8: 30.0},
-           "rss_after_clip_mb": 1500, "faces_s_per_photo": 0.2, "faces_found": 11, "rss_after_faces_mb": 1700}
+    res = {
+        "photos": 8,
+        "decode_s_per_photo": 0.1,
+        "rss_after_decode_mb": 400,
+        "clip_img_per_s": {4: 20.0, 8: 30.0},
+        "rss_after_clip_mb": 1500,
+        "faces_s_per_photo": 0.2,
+        "faces_found": 11,
+        "rss_after_faces_mb": 1700,
+    }
     est = bench.estimate_hours(res, 36000, workers=2)
     assert est["clip"] == pytest.approx(36000 / 30 / 3600) and est["faces"] == pytest.approx(2.0)
     text = bench.report(res, 36000)

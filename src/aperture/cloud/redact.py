@@ -12,7 +12,9 @@ from typing import Any
 
 class Redactor:
     def __init__(self, people: list[str], places: list[str]) -> None:
-        self._names = [(n.strip(), "PERSON") for n in people if len(n.strip()) >= 2] + [(n.strip(), "PLACE") for n in places if len(n.strip()) >= 3]
+        self._names = [(n.strip(), "PERSON") for n in people if len(n.strip()) >= 2] + [
+            (n.strip(), "PLACE") for n in places if len(n.strip()) >= 3
+        ]
         self._names.sort(key=lambda item: -len(item[0]))  # the longest name first: "New York" before "York"
         self.mapping: dict[str, str] = {}
 

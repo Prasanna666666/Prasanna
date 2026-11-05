@@ -9,14 +9,12 @@ from __future__ import annotations
 import json
 import logging
 import time
-from contextvars import ContextVar
 import urllib.error
 import urllib.request
+from contextvars import ContextVar
 from typing import Any, Protocol
 
-
 log = logging.getLogger(__name__)
-
 
 
 def _unavailable_message(exc: BaseException) -> str:
@@ -27,7 +25,6 @@ def _unavailable_message(exc: BaseException) -> str:
     if isinstance(exc, (TimeoutError, socket.timeout)) or isinstance(reason, (TimeoutError, socket.timeout)):
         return "The AI engine is busy or still loading its model. Give it a few seconds and ask again."
     return "The AI engine (Ollama) isn't running. Open the Ollama app, wait a few seconds, and try again."
-
 
 
 _KEEP_ZERO = ("min_people", "max_people")
@@ -69,7 +66,13 @@ def _flatten(messages: list[dict[str, Any]]) -> list[dict[str, str]]:
     for message in messages:
         if message.get("tool_calls"):
             calls = [c.get("function", {}) for c in message["tool_calls"]]
-            out.append({"role": "assistant", "content": "TOOL CALL: " + json.dumps([{"tool": c.get("name"), "arguments": c.get("arguments")} for c in calls])})
+            out.append(
+                {
+                    "role": "assistant",
+                    "content": "TOOL CALL: "
+                    + json.dumps([{"tool": c.get("name"), "arguments": c.get("arguments")} for c in calls]),
+                }
+            )
         elif message.get("role") == "tool":
             out.append({"role": "user", "content": "TOOL RESULT: " + str(message.get("content", ""))})
         else:
@@ -116,14 +119,18 @@ def _record(model: str, payload: dict[str, Any] | None, output: str, tool_calls:
         return
     messages = payload["messages"]
     system = next((str(m.get("content", "")) for m in messages if m.get("role") == "system"), "")
-    log.append({
-        "model": model,
-        "system": system[:4000],
-        "messages": [{"role": m.get("role"), "text": str(m.get("content", ""))[:600]} for m in messages if m.get("role") != "system"][-8:],
-        "tools": [t["function"]["name"] for t in payload.get("tools") or []],
-        "output": output[:2000],
-        "tool_calls": tool_calls or [],
-    })
+    log.append(
+        {
+            "model": model,
+            "system": system[:4000],
+            "messages": [
+                {"role": m.get("role"), "text": str(m.get("content", ""))[:600]} for m in messages if m.get("role") != "system"
+            ][-8:],
+            "tools": [t["function"]["name"] for t in payload.get("tools") or []],
+            "output": output[:2000],
+            "tool_calls": tool_calls or [],
+        }
+    )
 
 
 class OllamaClient:
@@ -146,9 +153,7 @@ class OllamaClient:
                 raise LLMError(f"Model '{self.model}' is not installed. Run: ollama pull {self.model}") from exc
             raise LLMError(f"Ollama returned HTTP {exc.code}: {detail}") from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
-            raise LLMUnavailable(
-                _unavailable_message(exc)
-            ) from exc
+            raise LLMUnavailable(_unavailable_message(exc)) from exc
         except ValueError as exc:
             raise LLMError("Ollama sent an unreadable response") from exc
         if isinstance(body, dict):
@@ -254,16 +259,18 @@ class OllamaClient:
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise LLMError(f"Model '{self.model}' is not installed. Run: ollama pull {self.model}") from exc
-            detail = exc.read().decode("utf-8", "replace")[:200].replace("\n", " ")  # Ollama says why (out of memory, runner stopped ...)
+            detail = (
+                exc.read().decode("utf-8", "replace")[:200].replace("\n", " ")
+            )  # Ollama says why (out of memory, runner stopped ...)
             raise LLMError(f"Ollama returned HTTP {exc.code}" + (f": {detail}" if detail else "")) from exc
         except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
-            raise LLMUnavailable(
-                _unavailable_message(exc)
-            ) from exc
+            raise LLMUnavailable(_unavailable_message(exc)) from exc
         finally:
             _record(self.model, payload, "".join(parts), calls)
 
-    def _chat_payload(self, system: str, messages: list[dict[str, str]], max_tokens: int, tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    def _chat_payload(
+        self, system: str, messages: list[dict[str, str]], max_tokens: int, tools: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *messages],
@@ -286,12 +293,18 @@ class OllamaClient:
     @staticmethod
     def _log_timing(chunk: dict[str, Any]) -> None:
         """Where the model's time went (Ollama reports it): loading the model, reading the prompt, writing the answer."""
+
         def seconds(key: str) -> float:
             return float(chunk.get(key) or 0) / 1e9
 
-        log.info("model timing: load %.1fs, read prompt %d tokens in %.1fs, wrote %d tokens in %.1fs",
-                 seconds("load_duration"), int(chunk.get("prompt_eval_count") or 0), seconds("prompt_eval_duration"),
-                 int(chunk.get("eval_count") or 0), seconds("eval_duration"))
+        log.info(
+            "model timing: load %.1fs, read prompt %d tokens in %.1fs, wrote %d tokens in %.1fs",
+            seconds("load_duration"),
+            int(chunk.get("prompt_eval_count") or 0),
+            seconds("prompt_eval_duration"),
+            int(chunk.get("eval_count") or 0),
+            seconds("eval_duration"),
+        )
 
     def _chunks_with_retry(self, payload: dict[str, Any], timeout: float | None = None):
         """A server error before the first word (the model runner restarting, memory pressure) is retried once after a short pause."""
@@ -307,8 +320,14 @@ class OllamaClient:
                     raise
                 time.sleep(2.0)
 
-    def chat_events(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]], max_tokens: int = 400,
-                    timeout: float | None = None):
+    def chat_events(
+        self,
+        system: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        max_tokens: int = 400,
+        timeout: float | None = None,
+    ):
         """The model decides: yield ("tool", {name, arguments}) when it picks a tool, or ("delta", text) when it just talks.
 
         The choice is a short JSON answer that Ollama forces to be valid (a constrained answer), not the model's native tool-call format:
@@ -321,14 +340,22 @@ class OllamaClient:
                 if text:
                     yield "delta", text
             return
-        payload = self._chat_payload(tools_text(tools) + "\n\n" + system, _flatten(messages), max(max_tokens, 400))  # the unchanging part first: it can be reused
+        payload = self._chat_payload(
+            tools_text(tools) + "\n\n" + system, _flatten(messages), max(max_tokens, 400)
+        )  # the unchanging part first: it can be reused
         payload["format"] = {
             "type": "object",
-            "properties": {"tool": {"type": "string", "enum": [*names, "reply"]}, "arguments": {"type": "object"}, "reply": {"type": "string"}},
+            "properties": {
+                "tool": {"type": "string", "enum": [*names, "reply"]},
+                "arguments": {"type": "object"},
+                "reply": {"type": "string"},
+            },
             "required": ["tool"],
         }
         payload["options"]["temperature"] = 0.1
-        raw = "".join(str((chunk.get("message") or {}).get("content") or "") for chunk in self._chunks_with_retry(payload, timeout))
+        raw = "".join(
+            str((chunk.get("message") or {}).get("content") or "") for chunk in self._chunks_with_retry(payload, timeout)
+        )
         try:
             data = json.loads(raw)
         except ValueError:

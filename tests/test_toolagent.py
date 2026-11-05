@@ -7,10 +7,8 @@ from datetime import date
 from types import SimpleNamespace
 
 import numpy as np
-import pytest
 
 from aperture.agent.llm import LLMError, OllamaClient
-from aperture.agent.schema import Plan
 from aperture.agent.service import AgentReply, AgentService
 from aperture.agent.toolagent import FILTER_KEYS, MAX_STEPS, PARAMS, TOOL_DEFS, TOOLS, ToolAgent, close_matches, plan_from_tool
 
@@ -22,11 +20,29 @@ def test_last_month_becomes_a_date_not_words():
 
 
 def test_a_rich_request_maps_to_clauses_dates_and_filters():
-    plan = plan_from_tool("find_photos", {"what": "beach", "people": ["Anna", "Raj"], "places": "Goa", "year": "2023", "season": "summer",
-                                          "not_people": ["Dev"], "time_of_day": "evening", "min_people": 2, "near": "Eindhoven", "radius_km": 20})
+    plan = plan_from_tool(
+        "find_photos",
+        {
+            "what": "beach",
+            "people": ["Anna", "Raj"],
+            "places": "Goa",
+            "year": "2023",
+            "season": "summer",
+            "not_people": ["Dev"],
+            "time_of_day": "evening",
+            "min_people": 2,
+            "near": "Eindhoven",
+            "radius_km": 20,
+        },
+    )
     queries = {(tuple(c.engines), c.query, c.exclude) for c in plan.clauses}
-    assert queries == {(("visual",), "beach", False), (("person",), "Anna", False), (("person",), "Raj", False),
-                       (("place", "path"), "Goa", False), (("person",), "Dev", True)}
+    assert queries == {
+        (("visual",), "beach", False),
+        (("person",), "Anna", False),
+        (("person",), "Raj", False),
+        (("place", "path"), "Goa", False),
+        (("person",), "Dev", True),
+    }
     assert plan.date.year == 2023 and plan.date.season == "summer"
     assert plan.filters.time_of_day == "evening" and plan.filters.min_people == 2 and plan.filters.near == "Eindhoven"
 
@@ -39,7 +55,9 @@ def test_counting_with_no_filters_means_all_photos_but_narrowing_does_not():
 
 
 def test_bad_values_are_dropped_instead_of_crashing():
-    plan = plan_from_tool("find_photos", {"relative": "last mounth", "year": "soon", "min_people": "lots", "people": 42, "what": None})
+    plan = plan_from_tool(
+        "find_photos", {"relative": "last mounth", "year": "soon", "min_people": "lots", "people": 42, "what": None}
+    )
     assert plan.date.is_empty and not plan.has_constraints
 
 
@@ -50,11 +68,29 @@ def test_copying_to_a_folder_is_an_export():
 
 def test_tool_descriptions_are_the_only_identity_and_the_choices_are_clean():
     names = [t["function"]["name"] for t in TOOLS]
-    assert names == ["find_photos", "count_photos", "copy_photos", "library_overview", "show_results", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"]
+    assert names == [
+        "find_photos",
+        "count_photos",
+        "copy_photos",
+        "library_overview",
+        "show_results",
+        "probe",
+        "inspect_results",
+        "calc_date",
+        "look_up",
+        "read_photo_text",
+        "look_at_photos",
+    ]
     assert "photo library" in TOOLS[0]["function"]["description"]
-    assert "last_month" in PARAMS["relative"]["enum"] and "none" not in PARAMS["relative"]["enum"] and "none" not in PARAMS["season"]["enum"]
+    assert (
+        "last_month" in PARAMS["relative"]["enum"]
+        and "none" not in PARAMS["relative"]["enum"]
+        and "none" not in PARAMS["season"]["enum"]
+    )
     assert all(k in PARAMS for k in FILTER_KEYS) and "required" not in TOOLS[0]["function"]["parameters"]
-    assert TOOLS[8]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"]["required"] == ["folder"]
+    assert TOOLS[8]["function"]["parameters"]["required"] == ["kind", "text"] and TOOLS[2]["function"]["parameters"][
+        "required"
+    ] == ["folder"]
     assert TOOLS[10]["function"]["parameters"]["required"] == ["question"]
 
 
@@ -70,7 +106,7 @@ class FakeLLM:
         self.turns, self.calls = list(turns), []
 
     def chat_events(self, system, messages, tools, max_tokens=400, timeout=None):
-        self.timeouts = [*getattr(self, 'timeouts', []), timeout]
+        self.timeouts = [*getattr(self, "timeouts", []), timeout]
         self.calls.append((system, [dict(m) for m in messages], tools, max_tokens))
         turn = self.turns.pop(0) if self.turns else []
         if callable(turn):
@@ -90,18 +126,25 @@ def agent_with(turns, outcome=FOUND, facts="PLACES IN THIS LIBRARY: Goa", overvi
             if outcome is None:
                 raise RuntimeError("stop here")
             return outcome
+
         return SimpleNamespace(run=run)
 
-    service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], today=lambda: date(2026, 11, 3), rescue=False)
+    service = AgentService(
+        planner=None, executor_factory=make_executor, known_people=lambda: [], today=lambda: date(2026, 11, 3), rescue=False
+    )
     llm = FakeLLM(turns)
-    return ToolAgent(llm, service, lambda request: facts, overview=overview, lookup=lookup, today=lambda: date(2026, 11, 3)), llm, plans
+    return (
+        ToolAgent(llm, service, lambda request: facts, overview=overview, lookup=lookup, today=lambda: date(2026, 11, 3)),
+        llm,
+        plans,
+    )
 
 
 def test_the_model_decides_to_talk_and_words_stream_without_a_search():
     agent, llm, plans = agent_with([[("delta", "Doing "), ("delta", "well.")]])
     reply = agent.ask("how are you?", history=[("user", "hi"), ("assistant", "Hello")])
     assert reply.kind == "chat" and "".join(reply.stream) == "Doing well." and not plans and len(reply.ids) == 0
-    system, messages, tools, max_tokens = llm.calls[0]
+    _system, messages, tools, max_tokens = llm.calls[0]
     assert [m["role"] for m in messages] == ["user", "assistant", "user"] and tools == TOOLS and max_tokens == 160
     assert reply.timings.keys() >= {"context", "decide"}
 
@@ -126,11 +169,18 @@ def test_once_photos_are_found_the_answer_is_built_from_the_data_with_no_second_
 
 def test_an_empty_result_is_told_plainly_by_the_app_not_improvised_by_the_model():
     empty = SimpleNamespace(ids=np.zeros(0, np.int64), reports=[], notes=[], date_range="2026-10-01 to 2026-10-31")
-    agent, llm, plans = agent_with([[tool("find_photos", relative="last_month")], [("delta", "Nothing from October.")]], outcome=empty)
+    agent, llm, plans = agent_with(
+        [[tool("find_photos", relative="last_month")], [("delta", "Nothing from October.")]], outcome=empty
+    )
     reply = agent.ask("pics of last month")
     observation = json.loads(llm.calls[1][1][-1]["content"])
     assert observation["matched"] == 0 and observation["summary"].startswith("No photos found")
-    assert len(plans) == 1 and len(reply.ids) == 0 and reply.text.startswith("No photos found") and "Nothing from October" not in reply.text
+    assert (
+        len(plans) == 1
+        and len(reply.ids) == 0
+        and reply.text.startswith("No photos found")
+        and "Nothing from October" not in reply.text
+    )
 
 
 def test_counting_everything_and_the_overview_tool_feed_the_model_real_data():
@@ -138,15 +188,24 @@ def test_counting_everything_and_the_overview_tool_feed_the_model_real_data():
     reply = agent.ask("how many pics are there in total")
     assert plans[0][0].all_photos is True and plans[0][0].intent == "count"
     assert reply.text.startswith("**3** photo") and len(llm.calls) == 1
-    agent2, llm2, plans2 = agent_with([[tool("library_overview")], [("delta", "A big library.")]], overview=lambda previous: "FACTS: 49,743 files from 2012 to 2025")
+    agent2, llm2, plans2 = agent_with(
+        [[tool("library_overview")], [("delta", "A big library.")]],
+        overview=lambda previous: "FACTS: 49,743 files from 2012 to 2025",
+    )
     agent2.ask("what is in my library?")
-    assert llm2.calls[1][1][-1] == {"role": "tool", "tool_name": "library_overview", "content": "FACTS: 49,743 files from 2012 to 2025"} and not plans2
+    assert (
+        llm2.calls[1][1][-1]
+        == {"role": "tool", "tool_name": "library_overview", "content": "FACTS: 49,743 files from 2012 to 2025"}
+        and not plans2
+    )
 
 
 def test_look_up_lets_the_model_check_real_names_before_searching():
     asked = []
-    agent, llm, plans = agent_with([[tool("look_up", kind="place", text="goa")], [tool("find_photos", places=["Goa, India"])], [("delta", "ok")]],
-                                   lookup=lambda kind, text: asked.append((kind, text)) or ["Goa, India"])
+    agent, llm, plans = agent_with(
+        [[tool("look_up", kind="place", text="goa")], [tool("find_photos", places=["Goa, India"])], [("delta", "ok")]],
+        lookup=lambda kind, text: asked.append((kind, text)) or ["Goa, India"],
+    )
     agent.ask("photos from goa")
     assert asked == [("place", "goa")] and json.loads(llm.calls[1][1][-1]["content"]) == {"matches": ["Goa, India"]}
     assert plans[0][0].clauses[0].query == "Goa, India"  # the second round searched with the exact name the library uses
@@ -171,7 +230,9 @@ def test_bad_tool_calls_become_observations_the_model_can_recover_from():
 
 def test_the_agent_has_a_step_budget_so_it_can_never_loop_forever():
     empty = SimpleNamespace(ids=np.zeros(0, np.int64), reports=[], notes=[], date_range="")
-    agent, llm, plans = agent_with([[tool("find_photos", what="dog")]] * 10, outcome=empty)  # nothing is ever found, so it keeps trying
+    agent, llm, plans = agent_with(
+        [[tool("find_photos", what="dog")]] * 10, outcome=empty
+    )  # nothing is ever found, so it keeps trying
     reply = agent.ask("dogs")
     assert reply.text.startswith("I could not finish") and len(llm.calls) == MAX_STEPS + 1 and len(plans) == MAX_STEPS
     assert llm.calls[-1][2] == [] and all(c[2] == TOOLS for c in llm.calls[:-1])  # the last round has no tools: it must answer
@@ -198,12 +259,20 @@ def test_the_slow_vision_tool_is_refused_when_little_time_is_left_and_capped_oth
     from aperture.agent import toolagent
 
     asked = []
-    look = lambda ids, question: asked.append((ids, question)) or [{"photo": i, "answer": "yes"} for i in ids]
+
+    def look(ids, question):
+        return asked.append((ids, question)) or [{"photo": i, "answer": "yes"} for i in ids]
+
     # the model searches and asks to look at the first photos in the same step
-    agent, llm, _ = agent_with([[tool("find_photos", what="sunset"), tool("look_at_photos", question="is it a sunset?", count=3)], [("delta", "Yes.")]])
+    agent, llm, _ = agent_with(
+        [[tool("find_photos", what="sunset"), tool("look_at_photos", question="is it a sunset?", count=3)], [("delta", "Yes.")]]
+    )
     agent._look = look
     agent.ask("sunsets")
-    assert asked == [([11, 12, 13], "is it a sunset?")] and json.loads(llm.calls[1][1][-1]["content"])["photos"][0]["answer"] == "yes"
+    assert (
+        asked == [([11, 12, 13], "is it a sunset?")]
+        and json.loads(llm.calls[1][1][-1]["content"])["photos"][0]["answer"] == "yes"
+    )
 
     clock = {"now": 0.0}
     monkeypatch.setattr(toolagent.time, "monotonic", lambda: clock["now"])
@@ -228,13 +297,26 @@ def test_the_agent_can_read_the_text_inside_photos_and_iterate_after_an_empty_se
         return SimpleNamespace(run=lambda plan, previous: plans.append(plan) or next(outcomes))
 
     service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)
-    llm = FakeLLM([[tool("find_photos", text_in_photo=["Starbux"])], [tool("find_photos", text_in_photo=["Starbucks"]), tool("read_photo_text", count=2)],
-                   [("delta", "The total was 4.50.")]])
+    llm = FakeLLM(
+        [
+            [tool("find_photos", text_in_photo=["Starbux"])],
+            [tool("find_photos", text_in_photo=["Starbucks"]), tool("read_photo_text", count=2)],
+            [("delta", "The total was 4.50.")],
+        ]
+    )
     read = []
-    agent = ToolAgent(llm, service, lambda r: "", read_text=lambda ids: read.append(ids) or [{"photo": ids[0], "text": "STARBUCKS TOTAL 4.50"}],
-                      today=lambda: date(2026, 11, 3))
+    agent = ToolAgent(
+        llm,
+        service,
+        lambda r: "",
+        read_text=lambda ids: read.append(ids) or [{"photo": ids[0], "text": "STARBUCKS TOTAL 4.50"}],
+        today=lambda: date(2026, 11, 3),
+    )
     reply = agent.ask("what was the total on my Starbucks receipt?")
-    assert [p.clauses[0].query for p in plans] == ["Starbux", "Starbucks"]  # the empty search was retried with different conditions
+    assert [p.clauses[0].query for p in plans] == [
+        "Starbux",
+        "Starbucks",
+    ]  # the empty search was retried with different conditions
     assert read == [[11, 12]] and json.loads(llm.calls[2][1][-1]["content"])["photos"][0]["text"] == "STARBUCKS TOTAL 4.50"
     assert "".join(reply.stream) == "The total was 4.50." and list(reply.ids) == [11, 12, 13]
 
@@ -246,14 +328,17 @@ def test_read_and_look_tools_need_a_search_first_and_observations_explain_each_c
     from aperture.agent.executor import ClauseReport
     from aperture.agent.toolagent import observation_of
 
-    reply = AgentReply("results", "No photos found.", reports=[ClauseReport("person Anna", 420, 420), ClauseReport("place Goa", 90, 0)])
+    reply = AgentReply(
+        "results", "No photos found.", reports=[ClauseReport("person Anna", 420, 420), ClauseReport("place Goa", 90, 0)]
+    )
     assert json.loads(observation_of(reply))["conditions"] == [
         {"condition": "person Anna", "matched_alone": 420, "left_after_combining": 420},
-        {"condition": "place Goa", "matched_alone": 90, "left_after_combining": 0}]
+        {"condition": "place Goa", "matched_alone": 90, "left_after_combining": 0},
+    ]
 
 
 def test_narrow_previous_without_earlier_results_falls_back_to_the_whole_library_and_says_so():
-    agent, llm, plans = agent_with([[tool("find_photos", what="dog", narrow_previous=True)], [("delta", "ok")]])
+    agent, _llm, plans = agent_with([[tool("find_photos", what="dog", narrow_previous=True)], [("delta", "ok")]])
     reply = agent.ask("only those")
     assert plans[0][0].scope == "library" and "whole library was searched" in reply.notes[0]  # and the user is told
     agent2, llm2, plans2 = agent_with([[tool("find_photos", year=2020, narrow_previous=True)], [("delta", "ok")]])
@@ -271,7 +356,9 @@ def test_model_errors_and_silence_are_reported_not_raised():
     agent2, _, _ = agent_with([[]])
     assert "could not finish" in agent2.ask("hi").text
     agent3, _, _ = agent_with([[("delta", "x")]])
-    agent3._context = lambda request: (_ for _ in ()).throw(RuntimeError("db busy"))  # a failing facts lookup must not stop the answer
+    agent3._context = lambda request: (_ for _ in ()).throw(
+        RuntimeError("db busy")
+    )  # a failing facts lookup must not stop the answer
     assert agent3.ask("hello").kind == "chat"
 
 
@@ -302,12 +389,14 @@ def test_the_real_model_chooses_a_tool_through_a_constrained_json_answer_not_a_h
             return False
 
     sent = []
-    answers = iter([
-        '{"tool": "find_photos", "arguments": {"places": ["Tokyo"], "year": 0, "what": "", "max_people": 0, "not_what": []}}',
-        '{"tool": "reply", "reply": "Hello there"}',
-        "plainly not json",
-        "just words, no schema",
-    ])
+    answers = iter(
+        [
+            '{"tool": "find_photos", "arguments": {"places": ["Tokyo"], "year": 0, "what": "", "max_people": 0, "not_what": []}}',
+            '{"tool": "reply", "reply": "Hello there"}',
+            "plainly not json",
+            "just words, no schema",
+        ]
+    )
 
     def fake(req, timeout=None):
         sent.append(json.loads(req.data))
@@ -316,18 +405,31 @@ def test_the_real_model_chooses_a_tool_through_a_constrained_json_answer_not_a_h
 
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     client = OllamaClient("http://127.0.0.1:11434", "ministral-3:3b")
-    history = [{"role": "user", "content": "x"}, {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "probe", "arguments": {"term": "a"}}}]},
-               {"role": "tool", "tool_name": "probe", "content": "{\"n\": 1}"}]
+    history = [
+        {"role": "user", "content": "x"},
+        {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "probe", "arguments": {"term": "a"}}}]},
+        {"role": "tool", "tool_name": "probe", "content": '{"n": 1}'},
+    ]
     first = list(client.chat_events("sys", history, TOOLS, 160))
-    assert first == [("tool", {"name": "find_photos", "arguments": {"places": ["Tokyo"], "max_people": 0}})]  # empty values are dropped, max_people=0 means 'nobody'
+    assert first == [
+        ("tool", {"name": "find_photos", "arguments": {"places": ["Tokyo"], "max_people": 0}})
+    ]  # empty values are dropped, max_people=0 means 'nobody'
     body = sent[0]
-    assert "tools" not in body and body["format"]["properties"]["tool"]["enum"][-1] == "reply"  # a constrained answer, not native tool calling
+    assert (
+        "tools" not in body and body["format"]["properties"]["tool"]["enum"][-1] == "reply"
+    )  # a constrained answer, not native tool calling
     roles = [m["role"] for m in body["messages"]]
-    assert roles == ["system", "user", "assistant", "user"] and body["messages"][3]["content"].startswith("TOOL RESULT:")  # tool turns are plain text
-    assert "find_photos(" in body["messages"][0]["content"] and len(body["messages"][0]["content"]) < 6000  # a few short lines, not the schemas
+    assert roles == ["system", "user", "assistant", "user"] and body["messages"][3]["content"].startswith(
+        "TOOL RESULT:"
+    )  # tool turns are plain text
+    assert (
+        "find_photos(" in body["messages"][0]["content"] and len(body["messages"][0]["content"]) < 6000
+    )  # a few short lines, not the schemas
     assert list(client.chat_events("sys", [{"role": "user", "content": "x"}], TOOLS, 160)) == [("delta", "Hello there")]
     assert list(client.chat_events("sys", [{"role": "user", "content": "x"}], TOOLS, 160)) == [("delta", "plainly not json")]
-    words = list(client.chat_events("sys", [{"role": "user", "content": "x"}], [], 160))  # no tools offered: plain words, no schema
+    words = list(
+        client.chat_events("sys", [{"role": "user", "content": "x"}], [], 160)
+    )  # no tools offered: plain words, no schema
     assert "format" not in sent[-1] and "".join(t for _, t in words) == "just words, no schema"
 
 
@@ -337,11 +439,25 @@ def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_t
     agent, llm, _ = agent_with([[("delta", "x")]])
     agent.ask("hello")
     system = llm.calls[0][0]
-    assert EXAMPLES in system and "search for pictures showing a mountain" in system and "(" not in EXAMPLES.split("Always call")[0].replace("(results are on screen)", "").replace("(results from another place are on screen)", "").replace("(a bare word)", "") and "reply in words, no tool" in system
+    assert (
+        EXAMPLES in system
+        and "search for pictures showing a mountain" in system
+        and "("
+        not in EXAMPLES.split("Always call")[0]
+        .replace("(results are on screen)", "")
+        .replace("(results from another place are on screen)", "")
+        .replace("(a bare word)", "")
+        and "reply in words, no tool" in system
+    )
     for persona in ("photo app", "You are", "Lumo", "assistant inside"):
         assert persona not in system
     eval_requests = {c["request"].lower() for c in __import__("aperture.evaluation", fromlist=["x"]).load_plan_cases()}
-    routes = {c["message"].lower() for c in json.loads((pathlib.Path(__file__).parent.parent / "src" / "aperture" / "eval_data" / "route_cases.json").read_text())}
+    routes = {
+        c["message"].lower()
+        for c in json.loads(
+            (pathlib.Path(__file__).parent.parent / "src" / "aperture" / "eval_data" / "route_cases.json").read_text()
+        )
+    }
     for line in EXAMPLES.splitlines():
         quoted = line.split("'")[1].lower() if line.startswith("'") else ""
         assert quoted not in eval_requests and quoted not in routes  # the examples teach the pattern, not the test
@@ -355,12 +471,18 @@ def test_library_context_is_retrieved_for_the_request(tmp_path, monkeypatch):
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()
     conn = AppContext(paths).db.connect()
-    conn.execute("INSERT INTO items(id, path, rel_path, kind, taken_at, place, meta_done) VALUES (1,'/p/a.jpg','a.jpg','image','2025-05-01 10:00:00','Goa, India',1)")
+    conn.execute(
+        "INSERT INTO items(id, path, rel_path, kind, taken_at, place, meta_done) VALUES (1,'/p/a.jpg','a.jpg','image','2025-05-01 10:00:00','Goa, India',1)"
+    )
     conn.commit()
     conn.close()
     ctx = AppContext(paths)
     facts = ctx.agent()._context("photos from Goa")
-    assert "PLACES IN THIS LIBRARY: Goa, India" in facts and "PHOTOS SPAN: 2025-05-01" in facts and "LIBRARY SIZE: 1 files, 1 indexed" in facts
+    assert (
+        "PLACES IN THIS LIBRARY: Goa, India" in facts
+        and "PHOTOS SPAN: 2025-05-01" in facts
+        and "LIBRARY SIZE: 1 files, 1 indexed" in facts
+    )
 
 
 # ------------------------------------------------------------------ the note that kept appearing after indexing finished
@@ -376,7 +498,9 @@ def test_indexing_note_only_counts_photos_that_are_really_waiting(tmp_path, monk
     conn = ctx.db.connect()
     rows = [(i, f"/p/{i}.jpg", f"{i}.jpg", "image", None, 1) for i in range(1, 11)]
     conn.executemany("INSERT INTO items(id, path, rel_path, kind, error, meta_done) VALUES (?,?,?,?,?,?)", rows)
-    conn.execute("UPDATE items SET meta_done=0, error='cannot read file' WHERE id IN (9, 10)")  # failed for good: not 'in progress'
+    conn.execute(
+        "UPDATE items SET meta_done=0, error='cannot read file' WHERE id IN (9, 10)"
+    )  # failed for good: not 'in progress'
     conn.commit()
     ex = Executor(conn, lambda: None, lambda: None)
     result = ExecResult(ids=np.zeros(0, np.int64))
@@ -393,7 +517,9 @@ def test_evaluate_tool_agent_scores_whole_sets_with_the_same_expectations_as_eva
     from aperture.evaluation import evaluate_tool_agent, load_plan_cases
 
     plans = load_plan_cases()
-    routes = json.loads((pathlib.Path(__file__).parent.parent / "src" / "aperture" / "eval_data" / "route_cases.json").read_text())
+    routes = json.loads(
+        (pathlib.Path(__file__).parent.parent / "src" / "aperture" / "eval_data" / "route_cases.json").read_text()
+    )
 
     def silent(request, previous, people):  # an agent that never uses a tool
         return "words", "hello", {}
@@ -439,7 +565,10 @@ def test_calc_date_does_the_calendar_maths_for_any_offset():
 
     today = date(2026, 11, 3)
     assert calc_date(today, {"months": -2, "period": "month"}) == {"date_from": "2026-09-01", "date_to": "2026-09-30"}
-    assert calc_date(today, {"weeks": -3, "period": "day", "until_today": True}) == {"date_from": "2026-10-13", "date_to": "2026-11-03"}
+    assert calc_date(today, {"weeks": -3, "period": "day", "until_today": True}) == {
+        "date_from": "2026-10-13",
+        "date_to": "2026-11-03",
+    }
     assert calc_date(today, {"years": -2, "months": -1, "period": "month"})["date_from"] == "2024-10-01"
     assert calc_date(today, {"period": "year"}) == {"date_from": "2026-01-01", "date_to": "2026-12-31"}
 
@@ -459,11 +588,13 @@ def test_all_tool_definitions_fit_in_a_small_part_of_the_context_window():
 
 
 def test_a_tool_call_typed_out_as_text_is_not_accepted_the_model_must_really_call_the_tool():
-    agent, llm, plans = agent_with([
-        [("delta", 'probe(term="tokyo") -> No results.')],  # text that looks like a call: it did nothing
-        [tool("find_photos", places=["Tokyo"])],
-        [("delta", "ok")],
-    ])
+    agent, _llm, plans = agent_with(
+        [
+            [("delta", 'probe(term="tokyo") -> No results.')],  # text that looks like a call: it did nothing
+            [tool("find_photos", places=["Tokyo"])],
+            [("delta", "ok")],
+        ]
+    )
     reply = agent.ask("Tokyo")
     assert len(plans) == 1 and plans[0][0].clauses and list(reply.ids) == [11, 12, 13]
 
@@ -478,7 +609,16 @@ def test_a_call_typed_out_in_pieces_is_caught_and_a_second_failure_falls_back_to
 
 
 def test_a_normal_reply_is_shown_in_full_after_the_peek():
-    agent, _, _ = agent_with([[("delta", "Hello "), ("delta", "there, "), ("delta", "this is a long enough friendly greeting to pass the peek window, "), ("delta", "and more.")]])
+    agent, _, _ = agent_with(
+        [
+            [
+                ("delta", "Hello "),
+                ("delta", "there, "),
+                ("delta", "this is a long enough friendly greeting to pass the peek window, "),
+                ("delta", "and more."),
+            ]
+        ]
+    )
     reply = agent.ask("hi")
     assert "".join(reply.stream) == "Hello there, this is a long enough friendly greeting to pass the peek window, and more."
 
@@ -499,10 +639,12 @@ def test_when_the_model_call_fails_the_stored_data_still_gives_a_real_answer():
 def test_a_greeting_costs_no_extra_model_call_and_warm_up_uses_the_real_prompt():
     agent, llm, _ = agent_with([[("delta", "Hello! What can I help you find today? " * 3)]], facts="PLACES IN THIS LIBRARY: Goa")
     reply = agent.ask("Hi")
-    assert "".join(reply.stream).startswith("Hello") and len(llm.calls) == 1  # no router call, no nudge: nothing from the message is in the library
+    assert (
+        "".join(reply.stream).startswith("Hello") and len(llm.calls) == 1
+    )  # no router call, no nudge: nothing from the message is in the library
     agent2, llm2, _ = agent_with([[("delta", "x")]])
     agent2.warm()
-    system, messages, tools, max_tokens = llm2.calls[0]
+    system, _messages, tools, max_tokens = llm2.calls[0]
     assert "ACT FIRST" in system and tools == agent2._tools and max_tokens == 1
 
 
@@ -525,14 +667,18 @@ def test_a_server_error_before_the_first_word_is_retried_once(monkeypatch):
 
 
 def test_words_before_a_real_tool_call_are_dropped_and_the_call_still_runs():
-    agent, llm, plans = agent_with([[("delta", "Let me find all photos for you. "), tool("find_photos", places=["Tokyo"])], [("delta", "ok")]])
+    agent, llm, plans = agent_with(
+        [[("delta", "Let me find all photos for you. "), tool("find_photos", places=["Tokyo"])], [("delta", "ok")]]
+    )
     reply = agent.ask("Tokyo")
     assert len(plans) == 1 and list(reply.ids) == [11, 12, 13] and "Let me find" not in reply.text
     assert "friendly person" in llm.calls[0][0] and "say nothing before you search" in llm.calls[0][0]
 
 
 def test_model_words_after_tools_without_any_photos_are_never_shown_the_real_search_answers():
-    agent, _, _ = agent_with([[tool("probe", term="Tokyo")], [("delta", "Let me check where and when those photos were taken ... " * 2)]])
+    agent, _, _ = agent_with(
+        [[tool("probe", term="Tokyo")], [("delta", "Let me check where and when those photos were taken ... " * 2)]]
+    )
     agent._probe = lambda term: {"term": term, "photos_with_this_word_written_in_them": 25}
     sentinel = object()
     agent._service.ask = lambda request, previous_ids=None, history=None: sentinel
@@ -593,7 +739,9 @@ def test_slow_fact_lookups_never_hold_up_the_model_and_keep_working_in_the_backg
     from aperture.agent import toolagent
 
     release = threading.Event()
-    agent, _, _ = agent_with([[("delta", "Hello there, this is a long friendly greeting that is more than ninety characters in total. " * 2)]])
+    agent, _, _ = agent_with(
+        [[("delta", "Hello there, this is a long friendly greeting that is more than ninety characters in total. " * 2)]]
+    )
     agent._context = lambda request: release.wait(5) or "FACTS"
     started = time.monotonic()
     monkeypatch.setattr(toolagent, "CONTEXT_LIMIT", 0.2)
@@ -604,7 +752,9 @@ def test_slow_fact_lookups_never_hold_up_the_model_and_keep_working_in_the_backg
 
 def test_the_long_list_of_every_place_is_not_sent_to_the_model_because_every_token_costs_time():
     agent, _, _ = agent_with([[("delta", "x")]])
-    system = agent.system_message("PLACES IN THIS LIBRARY: Goa; Paris; Kyoto\nDATA MATCHES FOR WORDS IN THE REQUEST: 'tokyo' -> text: 25", False)
+    system = agent.system_message(
+        "PLACES IN THIS LIBRARY: Goa; Paris; Kyoto\nDATA MATCHES FOR WORDS IN THE REQUEST: 'tokyo' -> text: 25", False
+    )
     assert "PLACES IN THIS LIBRARY" not in system and "'tokyo' -> text: 25" in system
 
 
@@ -612,8 +762,14 @@ def test_a_comment_on_the_earlier_answer_is_a_conversation_not_a_new_search():
     agent, llm, plans = agent_with([[tool("find_photos", places=["Iceland"])], [("delta", "ok")]])
     chats = []
     agent._service._router = lambda request, has_previous: "about" if "why" in request.lower() else "photos"
-    agent._service._chat_stream = lambda request, history: chats.append((request, history)) or iter(["Those came from the trip chip."])
-    reply = agent.ask("why are these from Iceland?", previous_ids=np.array([1, 2]), history=[("assistant", "**8** photos | Readings considered: Same trip (975)")])
+    agent._service._chat_stream = lambda request, history: (
+        chats.append((request, history)) or iter(["Those came from the trip chip."])
+    )
+    reply = agent.ask(
+        "why are these from Iceland?",
+        previous_ids=np.array([1, 2]),
+        history=[("assistant", "**8** photos | Readings considered: Same trip (975)")],
+    )
     assert reply.kind == "chat" and not plans and not llm.calls  # no search, no tool call
     assert chats and "Readings considered" in chats[0][1][0][1]  # the earlier answer's notes are available to answer from
     agent.ask("Tokyo")
@@ -625,7 +781,10 @@ def test_the_conversation_remembers_what_was_searched_not_only_the_words_shown()
 
     from aperture.web.server import memory_of
 
-    reply = SimpleNamespace(groups=[("Taken in or near Tokyo", np.arange(586)), ("Same trip as your Tokyo photos", np.arange(726))], notes=["No exact match."])
+    reply = SimpleNamespace(
+        groups=[("Taken in or near Tokyo", np.arange(586)), ("Same trip as your Tokyo photos", np.arange(726))],
+        notes=["No exact match."],
+    )
     memory = memory_of(reply, "**586** photos · Taken in or near Tokyo")
     assert "Same trip as your Tokyo photos (726)" in memory and "No exact match." in memory and memory.startswith("**586**")
 
@@ -652,6 +811,7 @@ def test_two_places_in_one_request_mean_either_of_them_and_the_other_conditions_
             place = next(c.query for c in plan.clauses if "place" in c.engines).lower()
             ids = {"tokyo": [1, 2], "kyoto": [3]}.get(place, [])
             return SimpleNamespace(ids=np.array(ids, np.int64), reports=[], notes=[], date_range="")
+
         return SimpleNamespace(run=run)
 
     service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)
@@ -659,4 +819,6 @@ def test_two_places_in_one_request_mean_either_of_them_and_the_other_conditions_
     agent = ToolAgent(llm, service, lambda r: "", today=lambda: date(2026, 11, 3))
     reply = agent.ask("temple photos from Tokyo and Kyoto")
     assert sorted(reply.ids.tolist()) == [1, 2, 3] and "Tokyo or Kyoto" in reply.text  # either place, not both at once
-    assert len(seen) == 2 and all(any(c.query == "temple" for c in p.clauses) for p in seen)  # every search keeps the temple condition
+    assert len(seen) == 2 and all(
+        any(c.query == "temple" for c in p.clauses) for p in seen
+    )  # every search keeps the temple condition

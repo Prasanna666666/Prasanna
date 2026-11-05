@@ -86,6 +86,8 @@ def remembered(conn: sqlite3.Connection, name: Any, compute: Any) -> Any:
         _MEMO[key] = compute()
     value = _MEMO[key]
     return value.copy() if isinstance(value, np.ndarray) else value
+
+
 _TEXT: dict[str, tuple[Any, np.ndarray, list[str]]] = {}
 TEXT_COLUMNS = ("meta_text", "place_text", "gps_est_place_text")
 
@@ -119,7 +121,7 @@ def _file_signature(conn: sqlite3.Connection, indexed_only: bool) -> Any:
         path = conn.execute("PRAGMA database_list").fetchone()[2]
         if not path:
             return None
-        stats = []
+        stats: list[tuple[int, int] | None] = []
         for name in (path, path + "-wal"):
             try:
                 info = os.stat(name)

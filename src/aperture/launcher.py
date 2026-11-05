@@ -65,14 +65,14 @@ def _healthy(port: int) -> bool:
 def _run(cmd: list[str]) -> str:
     """Run a macOS helper; a missing or failing tool just yields no output."""
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout  # noqa: S603
+        return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout
     except OSError:
         return ""
 
 
 def _run_ok(cmd: list[str]) -> bool:
     try:
-        return subprocess.run(cmd, capture_output=True, check=False).returncode == 0  # noqa: S603
+        return subprocess.run(cmd, capture_output=True, check=False).returncode == 0
     except OSError:
         return False
 
@@ -98,7 +98,7 @@ def _open_browser(url: str) -> None:
 def _notify(text: str, *, alert: bool = False) -> None:
     script = f'display alert "{APP_NAME}" message "{text}"' if alert else f'display notification "{text}" with title "{APP_NAME}"'
     try:
-        subprocess.Popen(["/usr/bin/osascript", "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603
+        subprocess.Popen(["/usr/bin/osascript", "-e", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError:
         pass
 
@@ -122,7 +122,7 @@ def _start_ollama() -> None:
     env = {**os.environ, "PATH": "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")}
     try:
         cmd = ["/usr/bin/env", "ollama", "serve"]
-        subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)  # noqa: S603
+        subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     except OSError:
         pass
 
@@ -192,9 +192,16 @@ def gateway_environment(settings: Any, key: str) -> dict[str, str]:
     """Everything the gateway gets: the key, the one host it may reach, and its limits. Never the library path."""
     from .cloud.gateway import PROVIDER_HOST
 
-    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(Path.home()), "APERTURE_CLOUD_KEY": key,
-           "APERTURE_TRUSTED_HOSTS": PROVIDER_HOST, "APERTURE_CLOUD_MODEL": settings.cloud_model, "APERTURE_CLOUD_CAP": str(settings.cloud_cap_usd),
-           "APERTURE_CLOUD_PORT": str(settings.cloud_port), "APERTURE_CLOUD_PRICES": f"{settings.cloud_price_in},{settings.cloud_price_out}"}
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": str(Path.home()),
+        "APERTURE_CLOUD_KEY": key,
+        "APERTURE_TRUSTED_HOSTS": PROVIDER_HOST,
+        "APERTURE_CLOUD_MODEL": settings.cloud_model,
+        "APERTURE_CLOUD_CAP": str(settings.cloud_cap_usd),
+        "APERTURE_CLOUD_PORT": str(settings.cloud_port),
+        "APERTURE_CLOUD_PRICES": f"{settings.cloud_price_in},{settings.cloud_price_out}",
+    }
     return env
 
 
@@ -211,8 +218,14 @@ def ensure_gateway(settings: Any, wait: float = 6.0) -> str:
     log_dir.mkdir(parents=True, exist_ok=True)
     with open(log_dir / "gateway.log", "ab") as log:
         try:
-            subprocess.Popen(gateway_command(), env=gateway_environment(settings, key), stdin=subprocess.DEVNULL, stdout=log, stderr=log,  # noqa: S603
-                             start_new_session=True)
+            subprocess.Popen(
+                gateway_command(),
+                env=gateway_environment(settings, key),
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=log,
+                start_new_session=True,
+            )
         except OSError as exc:
             return f"the gateway could not start ({exc.__class__.__name__})"
     deadline = time.monotonic() + wait
@@ -229,7 +242,7 @@ def _update_in_background() -> None:
     if os.environ.get("APERTURE_NO_UPDATE") or not (repo / ".git").is_dir():
         return
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "/usr/bin/true"}
-    subprocess.Popen(  # noqa: S603
+    subprocess.Popen(
         ["/usr/bin/git", "-C", str(repo), "pull", "--ff-only", "-q"],
         env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
     )  # fmt: skip
@@ -252,7 +265,7 @@ def run_window(port: int = DEFAULT_PORT) -> int:
     _update_in_background()
     paths.logs.mkdir(parents=True, exist_ok=True)
     with open(paths.logs / "app.log", "a") as log:
-        server = subprocess.Popen(  # noqa: S603
+        server = subprocess.Popen(
             [sys.executable, "-m", "aperture", "ui", "--port", str(port)],
             stdout=log, stderr=log, start_new_session=True,
         )  # fmt: skip
@@ -316,7 +329,7 @@ def _sign(bundle: Path) -> None:
         ["/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", "-f", str(bundle)],
     ):  # fmt: skip
         if Path(cmd[0]).exists():
-            subprocess.run(cmd, check=False, capture_output=True)  # noqa: S603
+            subprocess.run(cmd, check=False, capture_output=True)
 
 
 SERVICE_LABEL = "local.lumo.server"

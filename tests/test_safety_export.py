@@ -144,8 +144,9 @@ def test_single_mistral_model_and_old_settings_migrate(tmp_path):
     d = Settings.defaults(paths)
     assert d.ollama_model == d.vision_model == "ministral-3:3b"
     paths.settings_file.parent.mkdir(parents=True, exist_ok=True)
-    paths.settings_file.write_text(json.dumps({"schema": 3, "ollama_model": "llama3.2:3b", "vision_model": "moondream",
-                                                "page_size": 48}))
+    paths.settings_file.write_text(
+        json.dumps({"schema": 3, "ollama_model": "llama3.2:3b", "vision_model": "moondream", "page_size": 48})
+    )
     s = Settings.load(paths)
     assert s.ollama_model == s.vision_model == "ministral-3:3b" and s.page_size == 48 and s.schema == 9
 
@@ -180,7 +181,9 @@ def test_the_vault_script_keeps_the_password_in_the_keychain_only():
 
     script = (Path(__file__).parent.parent / "scripts" / "aperture-vault.sh").read_text()
     assert "security add-generic-password" in script and "-encryption AES-256" in script and "-stdinpass" in script
-    assert "echo \"$pw\"" not in script and "> " not in script.split("create)")[1].split("open)")[0].replace("&&", "")  # never written to a file
+    assert 'echo "$pw"' not in script and "> " not in script.split("create)")[1].split("open)")[0].replace(
+        "&&", ""
+    )  # never written to a file
 
 
 def test_the_run_wrapper_keeps_the_sandbox_and_the_mac_awake():
@@ -198,4 +201,7 @@ def test_the_app_sandbox_cannot_read_personal_folders_but_still_reaches_the_phot
     for folder in ("Documents", "Desktop", "Downloads", "Library/Messages", "Library/Keychains", ".ssh"):
         assert f'(deny file-read* (subpath (string-append (param "HOME") "/{folder}")))' in profile
     assert '-D "HOME=$HOME"' in script  # the profile is told which home folder to protect
-    assert '(deny file-read* (subpath "/Volumes"))' not in profile and '(deny file-read* (subpath (param "PHOTO_DIR")))' not in profile  # the photos stay readable
+    assert (
+        '(deny file-read* (subpath "/Volumes"))' not in profile
+        and '(deny file-read* (subpath (param "PHOTO_DIR")))' not in profile
+    )  # the photos stay readable

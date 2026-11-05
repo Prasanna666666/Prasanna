@@ -27,10 +27,25 @@ SCHEMA = {
     },
     "required": ["sports_venue", "sport", "venue_type", "evidence"],
 }
-PROMPT = ("Look closely at this picture. Is it a sports venue (a stadium, arena, field, court, rink, gym, pool or track)? If it is, which sport is it "
-          "for? Judge by the markings, goals, nets, hoops, rinks, equipment, scoreboards, signs and uniforms, and say what you saw as evidence. "
-          "If you cannot tell the sport from what is visible, write 'unknown' for sport. If it is not a sports venue, set sports_venue to false.")
-CANDIDATE_LABELS = ("stadium", "arena", "sport", "athletic", "court", "rink", "gym", "field", "football", "cricket", "tennis", "swimming pool")
+PROMPT = (
+    "Look closely at this picture. Is it a sports venue (a stadium, arena, field, court, rink, gym, pool or track)? If it is, which sport is it "
+    "for? Judge by the markings, goals, nets, hoops, rinks, equipment, scoreboards, signs and uniforms, and say what you saw as evidence. "
+    "If you cannot tell the sport from what is visible, write 'unknown' for sport. If it is not a sports venue, set sports_venue to false."
+)
+CANDIDATE_LABELS = (
+    "stadium",
+    "arena",
+    "sport",
+    "athletic",
+    "court",
+    "rink",
+    "gym",
+    "field",
+    "football",
+    "cricket",
+    "tennis",
+    "swimming pool",
+)
 NO_SPORT = {"", "unknown", "none", "n/a", "unclear", "not applicable"}
 LABEL_SCORE = 0.8
 
@@ -46,8 +61,10 @@ def _parse(raw: str) -> dict:
 def candidates(conn: sqlite3.Connection, limit: int = 0) -> list[int]:
     """Photos that look like a sports venue by the fast labels and have not been looked at yet, most likely first."""
     marks = " OR ".join("l.label LIKE ?" for _ in CANDIDATE_LABELS)
-    sql = (f"SELECT l.item_id, MAX(l.score) FROM photo_labels l LEFT JOIN photo_venues v ON v.item_id=l.item_id "
-           f"WHERE v.item_id IS NULL AND l.score >= 0.5 AND l.source <> 'venue' AND ({marks}) GROUP BY l.item_id ORDER BY 2 DESC, 1")
+    sql = (
+        f"SELECT l.item_id, MAX(l.score) FROM photo_labels l LEFT JOIN photo_venues v ON v.item_id=l.item_id "
+        f"WHERE v.item_id IS NULL AND l.score >= 0.5 AND l.source <> 'venue' AND ({marks}) GROUP BY l.item_id ORDER BY 2 DESC, 1"
+    )
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [r[0] for r in conn.execute(sql, [f"%{w}%" for w in CANDIDATE_LABELS])]
@@ -70,13 +87,26 @@ def labels_of(data: dict) -> list[str]:
 
 
 def store(conn: sqlite3.Connection, item_id: int, data: dict) -> None:
-    conn.execute("INSERT OR REPLACE INTO photo_venues(item_id, data, read_at) VALUES (?,?,?)", (item_id, json.dumps(data, ensure_ascii=False), time.time()))
+    conn.execute(
+        "INSERT OR REPLACE INTO photo_venues(item_id, data, read_at) VALUES (?,?,?)",
+        (item_id, json.dumps(data, ensure_ascii=False), time.time()),
+    )
     conn.execute("DELETE FROM photo_labels WHERE item_id=? AND source='venue'", (item_id,))
-    conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'venue')", [(item_id, w, LABEL_SCORE) for w in labels_of(data)])
+    conn.executemany(
+        "INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'venue')",
+        [(item_id, w, LABEL_SCORE) for w in labels_of(data)],
+    )
 
 
-def run(conn: sqlite3.Connection, data_dir: Path, vision: Any, seconds: float = 0.0, limit: int = 0, stop: Any = None,
-        report: Callable[[int, int], None] | None = None) -> dict:
+def run(
+    conn: sqlite3.Connection,
+    data_dir: Path,
+    vision: Any,
+    seconds: float = 0.0,
+    limit: int = 0,
+    stop: Any = None,
+    report: Callable[[int, int], None] | None = None,
+) -> dict:
     """Look at the candidates until the time budget (0 = no limit) or the list runs out. Resumable; every answer is kept."""
     todo = candidates(conn, limit)
     deadline = time.monotonic() + seconds if seconds else None
@@ -100,4 +130,10 @@ def run(conn: sqlite3.Connection, data_dir: Path, vision: Any, seconds: float = 
             if report:
                 report(n, len(todo))
     conn.commit()
-    return {"looked_at": done, "sports_venues": venues, "failed": failed, "left": max(len(todo) - done - failed, 0), "error": last_error}
+    return {
+        "looked_at": done,
+        "sports_venues": venues,
+        "failed": failed,
+        "left": max(len(todo) - done - failed, 0),
+        "error": last_error,
+    }

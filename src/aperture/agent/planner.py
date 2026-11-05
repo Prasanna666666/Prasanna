@@ -81,11 +81,25 @@ User: did the move finish? how many photos are in each year?
 {"intent":"chat","message":"I can find photos by what they show, text inside them, people, places, dates and folders, and copy results into a folder.","scope":"library","match":"all","all_photos":false,"clauses":[],"date":{"year":0,"month":0,"season":"none","relative":"none","start":"","end":""},"folder_name":""}
 """
 
-def _example(request: str, intent: str = "find", clauses=(), date_: dict | None = None, filters: dict | None = None,
-             scope: str = "library", folder: str = "") -> str:
-    plan = {"intent": intent, "message": "", "scope": scope, "match": "all", "all_photos": False,
-            "clauses": [{"engines": list(e), "query": q, "exclude": x} for e, q, x in clauses],
-            "date": {"year": 0, "month": 0, "season": "none", "relative": "none", "start": "", "end": "", **(date_ or {})}}
+
+def _example(
+    request: str,
+    intent: str = "find",
+    clauses=(),
+    date_: dict | None = None,
+    filters: dict | None = None,
+    scope: str = "library",
+    folder: str = "",
+) -> str:
+    plan = {
+        "intent": intent,
+        "message": "",
+        "scope": scope,
+        "match": "all",
+        "all_photos": False,
+        "clauses": [{"engines": list(e), "query": q, "exclude": x} for e, q, x in clauses],
+        "date": {"year": 0, "month": 0, "season": "none", "relative": "none", "start": "", "end": "", **(date_ or {})},
+    }
     if filters:
         plan["filters"] = filters
     plan["folder_name"] = folder
@@ -94,21 +108,29 @@ def _example(request: str, intent: str = "find", clauses=(), date_: dict | None 
 
 # Worked examples that teach PRINCIPLES (singular nouns, filters replace clauses, folder requests are not "previous",
 # "what did I shoot in <month>" is a find). They deliberately do not reuse the phrases of the eval cases.
-_EXTRA_EXAMPLES = "".join([
-    _example("photos with only one person in them", filters={"min_people": 1, "max_people": 1}),
-    _example("crowded pictures with ten or more people", filters={"min_people": 10}),
-    _example("photos within 5 km of Utrecht", filters={"near": "Utrecht", "radius_km": 5}),
-    _example("street scenes without any people", clauses=[(["visual"], "street", False)], filters={"max_people": 0}),
-    _example("what did I shoot in March 2018", date_={"year": 2018, "month": 3}),
-    _example("how many shots did I take last year", intent="count", date_={"relative": "last_year"}),
-    _example("put my Rome pictures into a folder called Italy", intent="export",
-             clauses=[(["place", "path"], "Rome", False)], folder="Italy"),
-    _example("wildlife photos not taken in Kenya", clauses=[(["visual"], "wildlife", False), (["place", "path"], "Kenya", True)]),
-    _example("thanks, that was really helpful", intent="chat"),
-    _example("what is the difference between RAW and JPEG?", intent="chat"),
-    _example("tell me a joke", intent="chat"),
-    _example("how are you doing today?", intent="chat"),
-])
+_EXTRA_EXAMPLES = "".join(
+    [
+        _example("photos with only one person in them", filters={"min_people": 1, "max_people": 1}),
+        _example("crowded pictures with ten or more people", filters={"min_people": 10}),
+        _example("photos within 5 km of Utrecht", filters={"near": "Utrecht", "radius_km": 5}),
+        _example("street scenes without any people", clauses=[(["visual"], "street", False)], filters={"max_people": 0}),
+        _example("what did I shoot in March 2018", date_={"year": 2018, "month": 3}),
+        _example("how many shots did I take last year", intent="count", date_={"relative": "last_year"}),
+        _example(
+            "put my Rome pictures into a folder called Italy",
+            intent="export",
+            clauses=[(["place", "path"], "Rome", False)],
+            folder="Italy",
+        ),
+        _example(
+            "wildlife photos not taken in Kenya", clauses=[(["visual"], "wildlife", False), (["place", "path"], "Kenya", True)]
+        ),
+        _example("thanks, that was really helpful", intent="chat"),
+        _example("what is the difference between RAW and JPEG?", intent="chat"),
+        _example("tell me a joke", intent="chat"),
+        _example("how are you doing today?", intent="chat"),
+    ]
+)
 _PROMPT_TEXT = _PROMPT_TEXT_RAW.replace("{EXTRA_EXAMPLES}", _EXTRA_EXAMPLES)
 
 # Speed: a 3B model on an 8 GB Mac writes ~19 tokens/s, so every token costs time. Two styles (APERTURE_PLAN_STYLE):

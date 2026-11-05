@@ -17,8 +17,10 @@ class FakeOllama:
 
     def __init__(self):
         self.requests = []
-        self.answers = {"vision": '{"sports_venue": true, "sport": "hockey", "venue_type": "arena", "evidence": "goals and boards"}',
-                        "decide": '{"tool": "find_photos", "arguments": {"places": ["Nagoya"], "what": "stadium"}}'}
+        self.answers = {
+            "vision": '{"sports_venue": true, "sport": "hockey", "venue_type": "arena", "evidence": "goals and boards"}',
+            "decide": '{"tool": "find_photos", "arguments": {"places": ["Nagoya"], "what": "stadium"}}',
+        }
 
         owner = self
 
@@ -26,14 +28,24 @@ class FakeOllama:
             def log_message(self, *a):
                 pass
 
-            def do_POST(self):  # noqa: N802
+            def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 owner.requests.append((self.path, body))
                 has_image = any(m.get("images") for m in body["messages"])
                 content = owner.answers["vision" if has_image else "decide"]
-                final = {"message": {"role": "assistant", "content": content}, "done": True, "prompt_eval_count": 10, "eval_count": 5}
+                final = {
+                    "message": {"role": "assistant", "content": content},
+                    "done": True,
+                    "prompt_eval_count": 10,
+                    "eval_count": 5,
+                }
                 if body.get("stream"):
-                    data = (json.dumps({"message": {"content": content[:15]}}) + "\n" + json.dumps({**final, "message": {"content": content[15:]}}) + "\n").encode()
+                    data = (
+                        json.dumps({"message": {"content": content[:15]}})
+                        + "\n"
+                        + json.dumps({**final, "message": {"content": content[15:]}})
+                        + "\n"
+                    ).encode()
                 else:
                     data = json.dumps(final).encode()
                 self.send_response(200)
@@ -67,7 +79,10 @@ def _library(tmp_path):
     for s in MIGRATIONS:
         conn.executescript(s)
     for i in (1, 2):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)", (i, f"/p/{i}", f"{i}", "image", 0, 0))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)",
+            (i, f"/p/{i}", f"{i}", "image", 0, 0),
+        )
         path = tmp_path / preview_rel(i)
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (80, 60), (30, 30, 30)).save(path, "JPEG")
@@ -82,14 +97,26 @@ def test_the_venue_pass_runs_end_to_end_through_the_real_vision_client(ollama, t
     out = venues.run(conn, tmp_path, OllamaVision(ollama.url, "ministral-3:3b"))
     assert out["looked_at"] == 1 and out["failed"] == 0 and out["error"] == "" and out["sports_venues"] == 1
     path, body = ollama.requests[0]
-    assert path == "/api/chat" and body["stream"] is False and body["format"] == venues.SCHEMA and len(body["messages"][0]["images"]) == 1
+    assert (
+        path == "/api/chat"
+        and body["stream"] is False
+        and body["format"] == venues.SCHEMA
+        and len(body["messages"][0]["images"]) == 1
+    )
     assert {r[0] for r in conn.execute("SELECT label FROM photo_labels WHERE source='venue'")} >= {"hockey arena", "hockey"}
 
 
 def test_the_vision_judge_runs_end_to_end_through_the_real_vision_client(ollama, tmp_path):
     from aperture.indexing import judge
 
-    ollama.answers["vision"] = json.dumps({"caption": "an arena", "scene": "arena", "objects": ["goal"], "place": {"city": "", "country": "", "evidence": "", "sure": False}})
+    ollama.answers["vision"] = json.dumps(
+        {
+            "caption": "an arena",
+            "scene": "arena",
+            "objects": ["goal"],
+            "place": {"city": "", "country": "", "evidence": "", "sure": False},
+        }
+    )
     conn = _library(tmp_path)
     data = judge.analyse(OllamaVision(ollama.url, "ministral-3:3b"), (tmp_path / preview_rel(1)).read_bytes())
     assert data["caption"] == "an arena" and ollama.requests[0][1]["format"] == judge.SCHEMA
@@ -112,6 +139,7 @@ def test_the_chat_decision_runs_end_to_end_through_the_real_client_and_agent(oll
         def run(plan, previous):
             seen.append(plan)
             return SimpleNamespace(ids=np.array([5, 6]), reports=[], notes=[], date_range="")
+
         return SimpleNamespace(run=run)
 
     service = AgentService(planner=None, executor_factory=make_executor, known_people=lambda: [], rescue=False)

@@ -145,7 +145,11 @@ def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) ->
         if f.max_people >= 0:
             where.append(f"{people} <= ?")
             params.append(f.max_people)
-        pending = remembered(conn, "faces_pending", lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0 AND kind='image' AND faces_done=0").fetchone()[0])
+        pending = remembered(
+            conn,
+            "faces_pending",
+            lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0 AND kind='image' AND faces_done=0").fetchone()[0],
+        )
         if pending:
             notes.append(f"Face detection has not finished for {pending:,} photos, so they cannot be counted yet.")
     sql = f"SELECT id FROM items WHERE {' AND '.join(where)}"
@@ -160,8 +164,13 @@ def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) ->
             notes.append(f"I do not know a place called '{f.near}'.")
             return np.zeros(0, np.int64), notes
         lat, lon, label = found
-        rows = remembered(conn, "gps_positions", lambda: conn.execute(
-            "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL").fetchall())
+        rows = remembered(
+            conn,
+            "gps_positions",
+            lambda: conn.execute(
+                "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL"
+            ).fetchall(),
+        )
         if rows:
             near = np.array([r["id"] for r in rows], np.int64)
             dist = haversine_km(lat, lon, np.array([r["gps_lat"] for r in rows]), np.array([r["gps_lon"] for r in rows]))

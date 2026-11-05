@@ -259,5 +259,10 @@ def evaluate_tool_agent(decide, plan_cases: list[dict[str, Any]], route_cases: l
         if (kind == "tool") == wants_tool:
             result.route_correct += 1
         else:
-            result.route_failures.append((case["message"], [f"{'called ' + name if kind == 'tool' else 'talked'}, expected {'a tool' if wants_tool else 'words'}"]))
+            result.route_failures.append(
+                (
+                    case["message"],
+                    [f"{'called ' + name if kind == 'tool' else 'talked'}, expected {'a tool' if wants_tool else 'words'}"],
+                )
+            )
     return result

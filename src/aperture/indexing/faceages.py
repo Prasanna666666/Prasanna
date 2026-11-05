@@ -16,8 +16,10 @@ LABEL_SCORE = 0.85  # an estimate that sits well inside a group counts as strong
 
 
 def pending(conn: sqlite3.Connection, limit: int = 0) -> list[tuple[int, int, str]]:
-    sql = ("SELECT f.id, f.item_id, f.crop FROM faces f LEFT JOIN face_ages a ON a.face_id=f.id "
-           "WHERE a.face_id IS NULL AND f.crop IS NOT NULL ORDER BY f.id")
+    sql = (
+        "SELECT f.id, f.item_id, f.crop FROM faces f LEFT JOIN face_ages a ON a.face_id=f.id "
+        "WHERE a.face_id IS NULL AND f.crop IS NOT NULL ORDER BY f.id"
+    )
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [(r[0], r[1], r[2]) for r in conn.execute(sql)]
@@ -51,6 +53,8 @@ def make_labels(conn: sqlite3.Connection) -> int:
         group = age_group(years)
         if group:
             seen.add((item_id, group))
-    conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'age')", [(i, g, LABEL_SCORE) for i, g in seen])
+    conn.executemany(
+        "INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'age')", [(i, g, LABEL_SCORE) for i, g in seen]
+    )
     conn.commit()
     return len(seen)

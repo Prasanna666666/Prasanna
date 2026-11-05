@@ -3,7 +3,6 @@
 import compileall
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -19,6 +18,9 @@ def test_no_undefined_names_anywhere():
     exe = shutil.which("ruff")
     if exe is None:
         pytest.skip("ruff is not installed")
-    done = subprocess.run([exe, "check", str(SRC), "--select", "F821,F822,F823,F811,E9", "--no-cache", "--output-format", "concise"],
-                          capture_output=True, text=True)
+    done = subprocess.run(
+        [exe, "check", str(SRC), "--select", "F821,F822,F823,F811,E9", "--no-cache", "--output-format", "concise"],
+        capture_output=True,
+        text=True,
+    )
     assert done.returncode == 0, done.stdout + done.stderr

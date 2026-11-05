@@ -19,22 +19,34 @@ def _db():
 
 
 def _item(conn, i, taken, place="", exif=1):
-    conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif, place, place_text) VALUES (?,?,?,?,?,?,1,?,?,?,'')",
-                 (i, f"/p/{i}.jpg", f"{i}.jpg", "image", 0, 0, taken, exif, place))
+    conn.execute(
+        "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif, place, place_text) VALUES (?,?,?,?,?,?,1,?,?,?,'')",
+        (i, f"/p/{i}.jpg", f"{i}.jpg", "image", 0, 0, taken, exif, place),
+    )
 
 
 def test_iphone_capture_flags_are_found_in_the_stored_metadata():
-    record = {"file": {"name": "Screenshot-fake.jpg"}, "exiftool": {"MakerNotes:ContentIdentifier": "ABC", "XMP:HDRGainMapVersion": 1},
-              "pillow": {"exif": {"Exif": {"LensModel": "iPhone 12 front camera 2.7mm"}}}}
+    record = {
+        "file": {"name": "Screenshot-fake.jpg"},
+        "exiftool": {"MakerNotes:ContentIdentifier": "ABC", "XMP:HDRGainMapVersion": 1},
+        "pillow": {"exif": {"Exif": {"LensModel": "iPhone 12 front camera 2.7mm"}}},
+    }
     flags = derive.meta_flags(record)
     assert {"live photo", "hdr", "front camera"} <= set(flags) and "screenshot" not in flags  # the file NAME never decides
 
 
 def test_photos_are_grouped_into_trips_by_pauses_and_named_by_their_place():
     conn = _db()
-    for i, (taken, place) in enumerate([("2026-03-01 10:00:00", "Shinjuku, Japan"), ("2026-03-01 18:00:00", "Shinjuku, Japan"),
-                                        ("2026-03-02 09:00:00", "Chiyoda, Japan"), ("2026-06-10 12:00:00", "Eindhoven, The Netherlands"),
-                                        ("2000-01-01 00:00:00", "Nowhere, X")], 1):
+    for i, (taken, place) in enumerate(
+        [
+            ("2026-03-01 10:00:00", "Shinjuku, Japan"),
+            ("2026-03-01 18:00:00", "Shinjuku, Japan"),
+            ("2026-03-02 09:00:00", "Chiyoda, Japan"),
+            ("2026-06-10 12:00:00", "Eindhoven, The Netherlands"),
+            ("2000-01-01 00:00:00", "Nowhere, X"),
+        ],
+        1,
+    ):
         _item(conn, i, taken, place)
     assert derive.build_events(conn) == 2  # the March trip and the June day; the year-2000 default date is ignored
     first = conn.execute("SELECT start, stop, n, place, country FROM events ORDER BY start").fetchone()
@@ -50,7 +62,9 @@ def test_a_word_finds_the_whole_trip_even_photos_without_gps():
     conn.row_factory = sqlite3.Row
     for i, taken in enumerate(["2026-03-01 10:00:00", "2026-03-01 15:00:00", "2026-03-02 09:00:00", "2026-07-01 09:00:00"], 1):
         _item(conn, i, taken)
-    conn.execute("UPDATE items SET place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1")  # only photo 1 is known to be in Tokyo
+    conn.execute(
+        "UPDATE items SET place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1"
+    )  # only photo 1 is known to be in Tokyo
     derive.build_events(conn)
     ex = Executor(conn, lambda: None, lambda: None)
     plan = Plan(intent="find", clauses=(Clause(engines=("place",), query="tokyo"),))
@@ -108,8 +122,13 @@ def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_leas
     from aperture.search.geo import GeoIndex
 
     conn = _db()
-    geo = GeoIndex(["Nagoya", "Amsterdam"], ["Japan", "The Netherlands"], [" nagoya japan", " amsterdam the netherlands"],
-                   np.array([35.18, 52.37]), np.array([136.90, 4.90]))
+    geo = GeoIndex(
+        ["Nagoya", "Amsterdam"],
+        ["Japan", "The Netherlands"],
+        [" nagoya japan", " amsterdam the netherlands"],
+        np.array([35.18, 52.37]),
+        np.array([136.90, 4.90]),
+    )
     place = {0: (35.18, 136.90), 1: (52.37, 4.90)}
     n = 0
     start = datetime(2025, 1, 1, 10, 0)
@@ -118,12 +137,19 @@ def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_leas
             n += 1
             lat, lon = place[day % 2]
             when = start + timedelta(days=day, minutes=10 * k)
-            conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif, gps_lat, gps_lon) VALUES (?,?,?,?,?,?,1,?,1,?,?)",
-                         (n, f"/p/{n}", f"{n}", "image", 0, 0, when.isoformat(sep=" "), lat, lon))
-    easy, hard = 1000, 1001  # no GPS: between two photos ten minutes apart (day 5, Amsterdam), and in the dead of night between two cities
+            conn.execute(
+                "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif, gps_lat, gps_lon) VALUES (?,?,?,?,?,?,1,?,1,?,?)",
+                (n, f"/p/{n}", f"{n}", "image", 0, 0, when.isoformat(sep=" "), lat, lon),
+            )
+    easy, hard = (
+        1000,
+        1001,
+    )  # no GPS: between two photos ten minutes apart (day 5, Amsterdam), and in the dead of night between two cities
     for item_id, when in ((easy, start + timedelta(days=5, minutes=35)), (hard, start + timedelta(days=5, hours=14))):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif) VALUES (?,?,?,?,?,?,1,?,1)",
-                     (item_id, f"/p/{item_id}", f"{item_id}", "image", 0, 0, when.isoformat(sep=" ")))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done, taken_at, taken_exif) VALUES (?,?,?,?,?,?,1,?,1)",
+            (item_id, f"/p/{item_id}", f"{item_id}", "image", 0, 0, when.isoformat(sep=" ")),
+        )
     outcome = derive.infer_locations(conn, geo)
     used = {k["kind"]: k for k in outcome["kinds"]}
     assert used["neighbours agree, within 10 min"]["used"] and used["neighbours agree, within 10 min"]["accuracy"] >= 0.95
@@ -134,19 +160,27 @@ def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_leas
 
 def test_a_trip_never_reaches_another_country_even_without_a_pause_in_the_photos():
     from aperture.agent.executor import Executor
-    from aperture.agent.schema import Clause, Plan
 
     conn = _db()
     conn.row_factory = sqlite3.Row
-    legs = [(1, "2026-03-01 10:00:00", 35.68, 139.76, "Shinjuku, Japan"), (2, "2026-03-01 20:00:00", 35.68, 139.76, "Shinjuku, Japan"),
-            (3, "2026-03-02 08:00:00", 64.14, -21.90, "Reykjavik, Iceland"), (4, "2026-03-02 20:00:00", 64.14, -21.90, "Reykjavik, Iceland")]
+    legs = [
+        (1, "2026-03-01 10:00:00", 35.68, 139.76, "Shinjuku, Japan"),
+        (2, "2026-03-01 20:00:00", 35.68, 139.76, "Shinjuku, Japan"),
+        (3, "2026-03-02 08:00:00", 64.14, -21.90, "Reykjavik, Iceland"),
+        (4, "2026-03-02 20:00:00", 64.14, -21.90, "Reykjavik, Iceland"),
+    ]
     for i, taken, la, lo, place in legs:  # photos every few hours: no 36-hour pause anywhere
         _item(conn, i, taken, place)
-        conn.execute("UPDATE items SET gps_lat=?, gps_lon=?, place_text=? WHERE id=?", (la, lo, f" {place.lower().replace(',', '')}", i))
+        conn.execute(
+            "UPDATE items SET gps_lat=?, gps_lon=?, place_text=? WHERE id=?", (la, lo, f" {place.lower().replace(',', '')}", i)
+        )
     assert derive.build_events(conn) == 2  # Japan and Iceland are separate trips
     ex = Executor(conn, lambda: None, lambda: None)
     assert ex._trip_ids(np.array([1])).tolist() == [1, 2]
-    assert ex._near_the_anchors(np.array([1, 2, 3, 4]), np.array([1])).tolist() == [1, 2]  # and even a stray Iceland photo is dropped
+    assert ex._near_the_anchors(np.array([1, 2, 3, 4]), np.array([1])).tolist() == [
+        1,
+        2,
+    ]  # and even a stray Iceland photo is dropped
 
 
 def test_explain_shows_every_reading_with_the_places_its_photos_are_really_from(capsys):
@@ -163,11 +197,14 @@ def test_explain_shows_every_reading_with_the_places_its_photos_are_really_from(
     _item(conn, 2, "2026-03-01 11:00:00", "Reykjavik, Iceland")
     conn.execute("UPDATE items SET gps_lat=64.14, gps_lon=-21.90, place_text=' reykjavik iceland' WHERE id=2")
     geo = GeoIndex(["Tokyo"], ["Japan"], [" tokyo japan"], np.array([35.68]), np.array([139.76]))
+
     class Keep:  # the test connection must survive the command closing it
         def __getattr__(self, name):
             return (lambda: None) if name == "close" else getattr(conn, name)
 
-    ctx = SimpleNamespace(db=SimpleNamespace(connect=lambda: Keep()), embedding_index=lambda: None, search_embedder=lambda: None, geo=lambda: geo)
+    ctx = SimpleNamespace(
+        db=SimpleNamespace(connect=lambda: Keep()), embedding_index=lambda: None, search_embedder=lambda: None, geo=lambda: geo
+    )
     cli.cmd_explain(ctx, argparse.Namespace(words=["Tokyo"]))
     out = capsys.readouterr().out
     assert "Taken in or near Tokyo" in out and "Shinjuku, Japan" in out and "Iceland" not in out
@@ -180,7 +217,10 @@ def test_a_photo_without_a_location_joins_a_trip_only_if_its_camera_also_took_lo
     conn.row_factory = sqlite3.Row
     for i, camera, gps in ((1, "iPhone 12", (35.68, 139.76)), (2, "iPhone 12", None), (3, "Canon EOS R100", None)):
         _item(conn, i, f"2026-03-01 1{i}:00:00")
-        conn.execute("UPDATE items SET camera=?, gps_lat=?, gps_lon=? WHERE id=?", (camera, gps[0] if gps else None, gps[1] if gps else None, i))
+        conn.execute(
+            "UPDATE items SET camera=?, gps_lat=?, gps_lon=? WHERE id=?",
+            (camera, gps[0] if gps else None, gps[1] if gps else None, i),
+        )
     derive.build_events(conn)
     ex = Executor(conn, lambda: None, lambda: None)
     # the iPhone screenshot-like photo (no GPS) shares a camera with a located photo: kept. The Canon never records GPS: its clock is unproven: dropped.
@@ -192,10 +232,16 @@ def test_a_worked_out_location_does_not_prove_a_cameras_clock():
 
     conn = _db()
     conn.row_factory = sqlite3.Row
-    for i, camera, gps, est in ((1, "iPhone 12", (35.68, 139.76), None), (2, "Canon EOS R100", None, (35.68, 139.76)), (3, "Canon EOS R100", None, None)):
+    for i, camera, gps, est in (
+        (1, "iPhone 12", (35.68, 139.76), None),
+        (2, "Canon EOS R100", None, (35.68, 139.76)),
+        (3, "Canon EOS R100", None, None),
+    ):
         _item(conn, i, f"2026-03-01 1{i}:00:00")
-        conn.execute("UPDATE items SET camera=?, gps_lat=?, gps_lon=?, gps_est_lat=?, gps_est_lon=? WHERE id=?",
-                     (camera, gps[0] if gps else None, gps[1] if gps else None, est[0] if est else None, est[1] if est else None, i))
+        conn.execute(
+            "UPDATE items SET camera=?, gps_lat=?, gps_lon=?, gps_est_lat=?, gps_est_lon=? WHERE id=?",
+            (camera, gps[0] if gps else None, gps[1] if gps else None, est[0] if est else None, est[1] if est else None, i),
+        )
     derive.build_events(conn)
     ex = Executor(conn, lambda: None, lambda: None)
     # photo 2 was placed (estimated), photo 3 was not: the Canon never recorded GPS, so photo 3 stays out of the iPhone's trip

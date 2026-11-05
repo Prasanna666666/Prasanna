@@ -12,8 +12,8 @@ from ... import library as lib
 from ...agent.llm import LLMError
 from ...agent.service import AgentReply
 from ...bootstrap import AppContext
-from ...indexing.progress import ScanLock
 from ...export import create_job, read_job
+from ...indexing.progress import ScanLock
 from ...search.quick import quick_ids
 from .. import theme
 from ..components import connection, photo_grid

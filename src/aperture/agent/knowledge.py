@@ -44,8 +44,10 @@ def _library_facts(conn: sqlite3.Connection) -> list[str]:
         "SELECT COALESCE(SUM(gps_lat IS NOT NULL),0), COALESCE(SUM(place IS NOT NULL AND place<>''),0), COALESCE(SUM(taken_exif),0) "
         "FROM items WHERE missing=0 AND meta_done=1"
     ).fetchone()
-    lines.append(f"Location and dates: {gps:,} photos have GPS, {placed:,} of them have a place name; {exif:,} have a camera date, "
-                 "the others only a file date.")
+    lines.append(
+        f"Location and dates: {gps:,} photos have GPS, {placed:,} of them have a place name; {exif:,} have a camera date, "
+        "the others only a file date."
+    )
     first, last = conn.execute("SELECT MIN(taken_at), MAX(taken_at) FROM items WHERE missing=0").fetchone()
     if first and last:
         lines.append(f"Photos span {str(first)[:10]} to {str(last)[:10]}.")

@@ -33,7 +33,15 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "S", "BLE", "C4", "RUF"]
-ignore = ["S310", "SIM105", "S110", "S104", "SIM102", "S101", "S608", "S311", "BLE001", "E501", "RUF001", "RUF002", "RUF012", "UP046", "UP047"]
+ignore = [
+    "S310",    # URLs opened are the local model server's, validated by safety.py
+    "SIM105", "SIM102",
+    "S110", "S112",  # best-effort steps (a damaged photo, a missing tag) are skipped on purpose and counted elsewhere
+    "S603", "S607",  # fixed executables (git, osascript, open) with list arguments and no shell
+    "S104",    # the names "0.0.0.0" and "::" are compared, never bound
+    "S101", "S608", "S311", "BLE001",
+    "E501", "RUF001", "RUF002", "RUF012", "UP046", "UP047",
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S", "B"]

@@ -12,7 +12,9 @@ from dataclasses import dataclass, field
 @dataclass
 class Details:
     labels: list[tuple[str, float]] = field(default_factory=list)
-    objects: list[tuple[str, str, float, tuple[float, float, float, float]]] = field(default_factory=list)  # kind, label, score, box
+    objects: list[tuple[str, str, float, tuple[float, float, float, float]]] = field(
+        default_factory=list
+    )  # kind, label, score, box
     texts: list[tuple[str, float, tuple[float, float, float, float]]] = field(default_factory=list)
 
 
@@ -41,11 +43,23 @@ class VisionDetails:
         self._objc, self._vision, self._nsdata = objc, Vision, NSData
 
     # name -> Vision request class; each is optional because older macOS versions lack some of them
-    REQUESTS = ("VNClassifyImageRequest", "VNRecognizeTextRequest", "VNRecognizeAnimalsRequest", "VNDetectHumanRectanglesRequest",
-                "VNDetectBarcodesRequest", "VNGenerateAttentionBasedSaliencyImageRequest", "VNGenerateObjectnessBasedSaliencyImageRequest",
-                "VNDetectFaceCaptureQualityRequest", "VNDetectFaceLandmarksRequest", "VNDetectDocumentSegmentationRequest",
-                "VNDetectRectanglesRequest", "VNDetectHorizonRequest", "VNDetectHumanBodyPoseRequest", "VNDetectHumanHandPoseRequest",
-                "VNCalculateImageAestheticsScoresRequest")
+    REQUESTS = (
+        "VNClassifyImageRequest",
+        "VNRecognizeTextRequest",
+        "VNRecognizeAnimalsRequest",
+        "VNDetectHumanRectanglesRequest",
+        "VNDetectBarcodesRequest",
+        "VNGenerateAttentionBasedSaliencyImageRequest",
+        "VNGenerateObjectnessBasedSaliencyImageRequest",
+        "VNDetectFaceCaptureQualityRequest",
+        "VNDetectFaceLandmarksRequest",
+        "VNDetectDocumentSegmentationRequest",
+        "VNDetectRectanglesRequest",
+        "VNDetectHorizonRequest",
+        "VNDetectHumanBodyPoseRequest",
+        "VNDetectHumanHandPoseRequest",
+        "VNCalculateImageAestheticsScoresRequest",
+    )
 
     def analyse(self, image_bytes: bytes) -> Details:
         vision = self._vision
@@ -82,7 +96,11 @@ class VisionDetails:
     def _collect(self, name: str, request, out: Details) -> None:
         results = request.results() or []
         if name == "VNClassifyImageRequest":
-            out.labels += [(str(r.identifier()), round(float(r.confidence()), 4)) for r in results if float(r.confidence()) >= self.MIN_LABEL_CONFIDENCE]
+            out.labels += [
+                (str(r.identifier()), round(float(r.confidence()), 4))
+                for r in results
+                if float(r.confidence()) >= self.MIN_LABEL_CONFIDENCE
+            ]
         elif name == "VNRecognizeTextRequest":
             for r in results:
                 top = r.topCandidates_(1)
@@ -95,21 +113,37 @@ class VisionDetails:
         elif name == "VNDetectHumanRectanglesRequest":
             out.objects += [("person", "person", round(float(r.confidence()), 4), self._box(r)) for r in results]
         elif name == "VNDetectBarcodesRequest":
-            out.objects += [("barcode", str(r.payloadStringValue() or r.symbology()), round(float(r.confidence()), 4), self._box(r)) for r in results]
+            out.objects += [
+                ("barcode", str(r.payloadStringValue() or r.symbology()), round(float(r.confidence()), 4), self._box(r))
+                for r in results
+            ]
         elif name in ("VNGenerateAttentionBasedSaliencyImageRequest", "VNGenerateObjectnessBasedSaliencyImageRequest"):
             kind = "attention" if "Attention" in name else "objectness"
             for r in results:
-                for b in (r.salientObjects() or []):
+                for b in r.salientObjects() or []:
                     box = b.boundingBox()
-                    out.objects.append((kind, kind, round(float(b.confidence()), 4), to_box((box.origin.x, box.origin.y, box.size.width, box.size.height))))
+                    out.objects.append(
+                        (
+                            kind,
+                            kind,
+                            round(float(b.confidence()), 4),
+                            to_box((box.origin.x, box.origin.y, box.size.width, box.size.height)),
+                        )
+                    )
         elif name == "VNDetectFaceCaptureQualityRequest":
             for r in results:
                 quality = r.faceCaptureQuality()
                 out.objects.append(("face", "face", round(float(quality), 4) if quality is not None else 0.0, self._box(r)))
         elif name == "VNDetectFaceLandmarksRequest":
-            for r in results:  # head pose in degrees: yaw (turned left/right), roll (tilted); landmark count shows how much is visible
+            for r in (
+                results
+            ):  # head pose in degrees: yaw (turned left/right), roll (tilted); landmark count shows how much is visible
                 landmarks = r.landmarks()
-                count = len(landmarks.allPoints().normalizedPoints()) if landmarks is not None and landmarks.allPoints() is not None else 0
+                count = (
+                    len(landmarks.allPoints().normalizedPoints())
+                    if landmarks is not None and landmarks.allPoints() is not None
+                    else 0
+                )
                 yaw = float(r.yaw() or 0.0) * 57.2958 if hasattr(r, "yaw") and r.yaw() is not None else 0.0
                 out.objects.append(("face_pose", f"yaw {yaw:.0f} landmarks {count}", round(yaw, 2), self._box(r)))
         elif name == "VNDetectDocumentSegmentationRequest":

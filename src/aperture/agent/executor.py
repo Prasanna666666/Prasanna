@@ -15,9 +15,9 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable
-from typing import Any
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Any
 
 import numpy as np
 
@@ -52,10 +52,13 @@ class ExecResult:
     notes: list[str] = field(default_factory=list)
     date_range: str = ""
     universe: int = 0
-    hard: Any = None  # photos that satisfy every exact requirement (place, date, person, written text), before looks are considered
+    hard: Any = (
+        None  # photos that satisfy every exact requirement (place, date, person, written text), before looks are considered
+    )
 
 
 CLOSEST_LIMIT = 200  # how many near matches to return when nothing fits every requirement
+
 
 @dataclass
 class Exploration:
@@ -182,9 +185,7 @@ class Executor:
                 continue
             found = self._engine_ids(engine, clause.query, result)
             if len(found):
-                result.notes.append(
-                    f"'{clause.query}': found by {engine} instead."
-                )
+                result.notes.append(f"'{clause.query}': found by {engine} instead.")
                 return found
         near = self._similar_place_ids(clause.query, result)
         return near if len(near) else ids
@@ -195,7 +196,7 @@ class Executor:
         if geo is None or not query.strip():
             return np.zeros(0, np.int64)
         try:
-            ids, notes = apply_filters(self._conn, Filters(near=query), geo)
+            ids, _notes = apply_filters(self._conn, Filters(near=query), geo)
         except sqlite3.Error:
             return np.zeros(0, np.int64)
         if len(ids):
@@ -230,7 +231,13 @@ class Executor:
         score = sum(vectors @ search.query_vector(q) for q in queries)
         return ids[known][np.argsort(-score)][:keep]
 
-    HARD = ("place", "near", "estimated", "path", "person")  # facts: the photo's own GPS, place tag, folder name, or a named person
+    HARD = (
+        "place",
+        "near",
+        "estimated",
+        "path",
+        "person",
+    )  # facts: the photo's own GPS, place tag, folder name, or a named person
     SOFT = ("text", "tag", "visual")  # clues: a word that appears in the picture, or what the picture looks like
 
     def explore(self, plan: Plan) -> Exploration:
@@ -265,7 +272,9 @@ class Executor:
                     break
                 ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
                 if engine == "visual" and len(ids):
-                    ids = np.intersect1d(ids, self._vision_agrees(term))  # a guess from appearance counts only if Apple Vision agrees
+                    ids = np.intersect1d(
+                        ids, self._vision_agrees(term)
+                    )  # a guess from appearance counts only if Apple Vision agrees
                 if 0 < len(ids) <= limit:
                     readings.append((engine, label, np.sort(ids)))
                     identified = identified or engine in self.HARD
@@ -286,7 +295,9 @@ class Executor:
             if len(agreed):
                 confirmed = np.union1d(confirmed, agreed)
             for engine, _, ids in readings:
-                if engine == "tag":  # a picture label that is already strong, or backed by two sources, is evidence in its own right
+                if (
+                    engine == "tag"
+                ):  # a picture label that is already strong, or backed by two sources, is evidence in its own right
                     confirmed = np.union1d(confirmed, ids)
             term_sets[term] = confirmed
             for engine, label, ids in readings:
@@ -294,8 +305,12 @@ class Executor:
                     ids = np.intersect1d(ids, confirmed)  # a clue counts only where hard evidence or a second clue backs it
                 if len(ids):
                     found.append((label, ids))
-            placed = any(engine in ("place", "near", "estimated") for engine, _, _ in readings)  # a trip only means something for a PLACE, never for 'baby'
-            trip = self._trip_ids(confirmed) if len(confirmed) and len(terms) == 1 and placed else np.zeros(0, np.int64)  # one condition only: with several it just confuses
+            placed = any(
+                engine in ("place", "near", "estimated") for engine, _, _ in readings
+            )  # a trip only means something for a PLACE, never for 'baby'
+            trip = (
+                self._trip_ids(confirmed) if len(confirmed) and len(terms) == 1 and placed else np.zeros(0, np.int64)
+            )  # one condition only: with several it just confuses
             if 0 < len(trip) <= limit:
                 found.append((f"Same trip as your {term} photos", np.sort(trip)))
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
@@ -321,7 +336,9 @@ class Executor:
                     looks = np.unique(np.concatenate(seen)) if seen else np.zeros(0, np.int64)
                     if len(looks):
                         term_sets[subject] = np.union1d(term_sets[subject], looks)
-        banned = [self._clause_ids(c, scratch) for c in plan.clauses if c.exclude]  # what the user said they do not want stays out
+        banned = [
+            self._clause_ids(c, scratch) for c in plan.clauses if c.exclude
+        ]  # what the user said they do not want stays out
         allowed = apply_filters(self._conn, plan.filters, self._geo_provider())[0] if not plan.filters.is_empty else None
         kept: list[tuple[str, np.ndarray]] = []
         for label, ids in found:
@@ -344,9 +361,12 @@ class Executor:
 
     def _place_vocabulary(self) -> list[str]:
         if self._vocabulary is None:
+
             def build() -> list[str]:
                 words: set[str] = set()
-                for (text,) in self._conn.execute("SELECT DISTINCT place_text FROM items WHERE missing=0 AND place_text IS NOT NULL"):
+                for (text,) in self._conn.execute(
+                    "SELECT DISTINCT place_text FROM items WHERE missing=0 AND place_text IS NOT NULL"
+                ):
                     words.update(w for w in text.split() if len(w) >= 5)
                 return sorted(words)
 
@@ -399,8 +419,13 @@ class Executor:
             geo = self._geo_provider()
             found = geo.find(query) if geo is not None else None
             if found is not None:
-                rows = remembered(self._conn, "estimated_positions", lambda: self._conn.execute(
-                    "SELECT id, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND gps_est_lat IS NOT NULL").fetchall())
+                rows = remembered(
+                    self._conn,
+                    "estimated_positions",
+                    lambda: self._conn.execute(
+                        "SELECT id, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND gps_est_lat IS NOT NULL"
+                    ).fetchall(),
+                )
                 if rows:
                     from ..search.filters import haversine_km
 
@@ -420,7 +445,9 @@ class Executor:
             keep: list[int] = []
             for part in chunked(trip.tolist(), 500):
                 marks = ",".join("?" * len(part))
-                keep += [r[0] for r in self._conn.execute(f"SELECT id FROM items WHERE gps_lat IS NULL AND id IN ({marks})", part)]
+                keep += [
+                    r[0] for r in self._conn.execute(f"SELECT id FROM items WHERE gps_lat IS NULL AND id IN ({marks})", part)
+                ]
             return np.array(sorted(keep), np.int64)
         except sqlite3.Error:
             return np.zeros(0, np.int64)
@@ -445,15 +472,21 @@ class Executor:
         cameras: set[str] = set()
         for part in chunked(anchors.tolist(), 500):
             marks = ",".join("?" * len(part))
-            cameras.update(r[0] or "" for r in self._conn.execute(
-                f"SELECT DISTINCT camera FROM items WHERE id IN ({marks}) AND gps_lat IS NOT NULL", part))  # the camera's OWN GPS, never an estimate
+            cameras.update(
+                r[0] or ""
+                for r in self._conn.execute(
+                    f"SELECT DISTINCT camera FROM items WHERE id IN ({marks}) AND gps_lat IS NOT NULL", part
+                )
+            )  # the camera's OWN GPS, never an estimate
         if not cameras:
             return ids  # nothing is located, so there is no camera to compare with
         drop: list[int] = []
         for part in chunked(ids.tolist(), 500):
             marks = ",".join("?" * len(part))
             for item_id, camera in self._conn.execute(
-                    f"SELECT id, COALESCE(camera, '') FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NULL", part):
+                f"SELECT id, COALESCE(camera, '') FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NULL",
+                part,
+            ):
                 if camera not in cameras:
                     drop.append(item_id)
         return np.setdiff1d(ids, np.array(drop, np.int64))
@@ -465,8 +498,13 @@ class Executor:
             out = []
             for part in chunked(of.tolist(), 500):
                 marks = ",".join("?" * len(part))
-                out += [tuple(r) for r in self._conn.execute(
-                    f"SELECT id, COALESCE(gps_lat, gps_est_lat), COALESCE(gps_lon, gps_est_lon) FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NOT NULL", part)]
+                out += [
+                    tuple(r)
+                    for r in self._conn.execute(
+                        f"SELECT id, COALESCE(gps_lat, gps_est_lat), COALESCE(gps_lon, gps_est_lon) FROM items WHERE id IN ({marks}) AND COALESCE(gps_lat, gps_est_lat) IS NOT NULL",
+                        part,
+                    )
+                ]
             return np.array(out, float).reshape(-1, 3)
 
         known = positions(anchors)
@@ -474,7 +512,11 @@ class Executor:
             return ids
         centre = (float(np.median(known[:, 1])), float(np.median(known[:, 2])))
         there = positions(ids)
-        far = there[haversine_km(centre[0], centre[1], there[:, 1], there[:, 2]) > km][:, 0].astype(np.int64) if len(there) else np.zeros(0, np.int64)
+        far = (
+            there[haversine_km(centre[0], centre[1], there[:, 1], there[:, 2]) > km][:, 0].astype(np.int64)
+            if len(there)
+            else np.zeros(0, np.int64)
+        )
         return np.setdiff1d(ids, far)
 
     def _trip_ids_unfiltered(self, anchors: np.ndarray) -> np.ndarray:
@@ -482,7 +524,10 @@ class Executor:
             events: set[int] = set()
             for part in chunked(anchors.tolist(), 500):
                 marks = ",".join("?" * len(part))
-                events.update(r[0] for r in self._conn.execute(f"SELECT DISTINCT event_id FROM photo_events WHERE item_id IN ({marks})", part))
+                events.update(
+                    r[0]
+                    for r in self._conn.execute(f"SELECT DISTINCT event_id FROM photo_events WHERE item_id IN ({marks})", part)
+                )
             ids: list[int] = []
             for part in chunked(sorted(events), 500):
                 marks = ",".join("?" * len(part))
@@ -499,9 +544,13 @@ class Executor:
         if not words:
             return np.zeros(0, np.int64)
         try:
-            names = sorted({form for w in words for form in (w, w + "s", w.rstrip("s"))})  # exact labels, so the label index is used (a '%word%' scan read every label)
+            names = sorted(
+                {form for w in words for form in (w, w + "s", w.rstrip("s"))}
+            )  # exact labels, so the label index is used (a '%word%' scan read every label)
             marks = ",".join("?" * len(names))
-            rows = self._conn.execute(f"SELECT DISTINCT item_id FROM photo_labels WHERE label IN ({marks}) AND source='vision' AND score>=0.5", names)
+            rows = self._conn.execute(
+                f"SELECT DISTINCT item_id FROM photo_labels WHERE label IN ({marks}) AND source='vision' AND score>=0.5", names
+            )
             return np.array(sorted(r[0] for r in rows), np.int64)
         except sqlite3.Error:
             return np.zeros(0, np.int64)
@@ -516,7 +565,9 @@ class Executor:
             # for example the face reader and Apple Vision both seeing a baby.
             rows = self._conn.execute(
                 "SELECT item_id FROM photo_labels WHERE label=? AND score>=0.5 GROUP BY item_id "
-                "HAVING MAX(score) >= 0.8 OR COUNT(DISTINCT source) >= 2", (word,))
+                "HAVING MAX(score) >= 0.8 OR COUNT(DISTINCT source) >= 2",
+                (word,),
+            )
             return np.array(sorted(r[0] for r in rows), np.int64)
         except sqlite3.Error:
             return np.zeros(0, np.int64)  # the details pass has not run yet
@@ -532,7 +583,9 @@ class Executor:
         return np.array(sorted(r[0] for r in rows), np.int64)
 
     def _visual_ids(self, query: str, result: ExecResult) -> np.ndarray:
-        embedder = self._embedder_provider()  # first, and never waited for: loading the library's picture index from the drive is slow too
+        embedder = (
+            self._embedder_provider()
+        )  # first, and never waited for: loading the library's picture index from the drive is slow too
         index = self._index_provider() if embedder is not None else None
         if embedder is None or index is None or len(index) == 0:
             result.notes.append("Picture search is still starting up, so this answer does not use how the photos look yet.")
@@ -547,8 +600,13 @@ class Executor:
     def _coverage_note(self, result: ExecResult) -> None:
         """Only mention photos that are really still waiting. Files that failed to index (unreadable, unsupported) are flagged as
         errors and will never be indexed: counting them would keep this note on screen forever, even when indexing is finished."""
-        total, pending = remembered(self._conn, "coverage", lambda: tuple(self._conn.execute(
-            "SELECT COUNT(*), SUM(meta_done=0 AND error IS NULL) FROM items WHERE missing=0").fetchone()))
+        total, pending = remembered(
+            self._conn,
+            "coverage",
+            lambda: tuple(
+                self._conn.execute("SELECT COUNT(*), SUM(meta_done=0 AND error IS NULL) FROM items WHERE missing=0").fetchone()
+            ),
+        )
         if total and (pending or 0) > 0:
             result.notes.append(f"{pending:,} of {total:,} photos not indexed yet.")
 

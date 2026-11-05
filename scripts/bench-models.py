@@ -38,7 +38,7 @@ SAMPLE_REQUESTS = ["show me photos of Anna at the beach last summer", "how many 
 def post(url: str, path: str, body: dict | None = None, timeout: int = 900) -> dict:
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(url + path, data=data, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - local Ollama only
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode())
 
 
@@ -119,16 +119,32 @@ def bench(url: str, model: str, with_plan: bool) -> dict:
     load_s = time.time() - t
     running = [m for m in post(url, "/api/ps").get("models", []) if model in (m.get("name"), m.get("model"))]
     model_mb = (running[0].get("size", 0) / 1e6) if running else None
-    out = post(url, "/api/generate", {"model": model, "prompt": "Write 80 words about Paris.", "stream": False,
-                                      "options": {"temperature": 0, "num_ctx": 4096}})
+    out = post(
+        url,
+        "/api/generate",
+        {
+            "model": model,
+            "prompt": "Write 80 words about Paris.",
+            "stream": False,
+            "options": {"temperature": 0, "num_ctx": 4096},
+        },
+    )
     tok_s = out["eval_count"] / (out["eval_duration"] / 1e9) if out.get("eval_duration") else 0.0
     plan_s = plan_seconds(url, model) if with_plan else None
     poller.stop_flag.set()
     poller.join(timeout=2)
     swap1 = swap_used_mb()
     unload(url, model)  # only the model this script loaded
-    return {"model": model, "load_s": load_s, "tok_s": tok_s, "plan_s": plan_s, "model_mb": model_mb, "peak_mb": poller.peak_mb,
-            "swap_mb": (swap1 - swap0) if swap0 is not None and swap1 is not None else None, "min_free": poller.min_free}
+    return {
+        "model": model,
+        "load_s": load_s,
+        "tok_s": tok_s,
+        "plan_s": plan_s,
+        "model_mb": model_mb,
+        "peak_mb": poller.peak_mb,
+        "swap_mb": (swap1 - swap0) if swap0 is not None and swap1 is not None else None,
+        "min_free": poller.min_free,
+    }
 
 
 def fmt(v, spec: str, none: str = "n/a") -> str:
@@ -139,9 +155,11 @@ def table(rows: list[dict]) -> str:
     head = f"{'model':20} {'load s':>7} {'tok/s':>7} {'plan s':>7} {'model MB':>9} {'peak MB':>8} {'swap +MB':>9} {'min free':>9}"
     lines = [head, "-" * len(head)]
     for r in rows:
-        lines.append(f"{r['model']:20} {fmt(r['load_s'], '7.1f')} {fmt(r['tok_s'], '7.1f')} {fmt(r['plan_s'], '7.1f')} "
-                     f"{fmt(r['model_mb'], '9.0f')} {fmt(r['peak_mb'], '8.0f')} {fmt(r['swap_mb'], '9.0f')} "
-                     f"{fmt(r['min_free'], '8.0f') + ('%' if r['min_free'] is not None else '')}".rstrip())
+        lines.append(
+            f"{r['model']:20} {fmt(r['load_s'], '7.1f')} {fmt(r['tok_s'], '7.1f')} {fmt(r['plan_s'], '7.1f')} "
+            f"{fmt(r['model_mb'], '9.0f')} {fmt(r['peak_mb'], '8.0f')} {fmt(r['swap_mb'], '9.0f')} "
+            f"{fmt(r['min_free'], '8.0f') + ('%' if r['min_free'] is not None else '')}".rstrip()
+        )
     return "\n".join(lines)
 
 
@@ -150,8 +168,10 @@ def verdict(rows: list[dict]) -> str:
         return "No model could be measured."
     fastest = max(rows, key=lambda r: r["tok_s"])
     lightest = min(rows, key=lambda r: r["peak_mb"] or float("inf"))
-    notes = [f"Fastest: {fastest['model']} ({fastest['tok_s']:.1f} tok/s).",
-             f"Lightest on memory: {lightest['model']} (peak {lightest['peak_mb']:.0f} MB)."]
+    notes = [
+        f"Fastest: {fastest['model']} ({fastest['tok_s']:.1f} tok/s).",
+        f"Lightest on memory: {lightest['model']} (peak {lightest['peak_mb']:.0f} MB).",
+    ]
     for r in rows:
         bad = []
         if r["swap_mb"] is not None and r["swap_mb"] > 300:
@@ -176,8 +196,10 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     busy = running_models(a.url)
     if busy and not a.unload:
-        print("A model is already running: " + ", ".join(busy) + ".\nI will not stop it (something may be using it, and the "
-              "memory numbers would be wrong).\nStop it yourself with:  ollama stop " + busy[0] + "\n...or run again with --unload.")
+        print(
+            "A model is already running: " + ", ".join(busy) + ".\nI will not stop it (something may be using it, and the "
+            "memory numbers would be wrong).\nStop it yourself with:  ollama stop " + busy[0] + "\n...or run again with --unload."
+        )
         return 3
     for m in busy:
         unload(a.url, m)

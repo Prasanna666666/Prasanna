@@ -40,9 +40,13 @@ from .service import CHAT_MAX_TOKENS, AgentReply, AgentService, show_previous
 PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool calls typed out as text
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
 CONTEXT_LIMIT = 4.0  # seconds the facts lookup may take before the model runs without it
-SEARCH_TOOLS = ('find_photos', 'count_photos', 'copy_photos', 'show_results')
-HARD_LIMIT = 20.0  # no message may take longer than this: each model call gets only the time that is left, then the app answers by itself
-TIME_BUDGET = 12.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
+SEARCH_TOOLS = ("find_photos", "count_photos", "copy_photos", "show_results")
+HARD_LIMIT = (
+    20.0  # no message may take longer than this: each model call gets only the time that is left, then the app answers by itself
+)
+TIME_BUDGET = (
+    12.0  # seconds the agent may keep refining; after that it answers with what it has (iterating must not make it slow)
+)
 SLOW_TOOL_MIN_REMAINING = 8.0  # the vision model needs several seconds per photo: it is refused when less time than this is left
 
 
@@ -71,18 +75,25 @@ PARAMS: dict[str, dict[str, Any]] = {
     "not_what": _array("Things that must NOT be in the photos."),
     "not_people": _array("People who must NOT be in the photos."),
     "not_places": _array("Places the photos must NOT be from."),
-    **{key: {k: v for k, v in _no_none(value).items() if k != "description"} for key, value in _FILTER_PROPS.items()},  # the names say it
+    **{
+        key: {k: v for k, v in _no_none(value).items() if k != "description"} for key, value in _FILTER_PROPS.items()
+    },  # the names say it
     "date_from": {"type": "string", "description": "YYYY-MM-DD, from calc_date."},
     "date_to": {"type": "string", "description": "YYYY-MM-DD, from calc_date."},
     "narrow_previous": {"type": "boolean", "description": "True only for 'only those', 'of these'."},
 }
 
 
-LIGHT = {k: PARAMS[k] for k in ("what", "people", "places", "text_in_photo", "year", "month", "relative", "date_from", "date_to", "narrow_previous")}
+LIGHT = {
+    k: PARAMS[k]
+    for k in ("what", "people", "places", "text_in_photo", "year", "month", "relative", "date_from", "date_to", "narrow_previous")
+}
 
 
 def _tool(name: str, description: str, properties: dict[str, Any], required: list[str] | None = None) -> dict[str, Any]:
-    if len(properties) > 3:  # a small model fills in every parameter it can see unless told once, in the tool description, that they are optional
+    if (
+        len(properties) > 3
+    ):  # a small model fills in every parameter it can see unless told once, in the tool description, that they are optional
         description += " All parameters are optional: leave out whatever the user did not say."
     parameters: dict[str, Any] = {"type": "object", "properties": properties}
     if required:
@@ -91,46 +102,93 @@ def _tool(name: str, description: str, properties: dict[str, Any], required: lis
 
 
 TOOL_DEFS: dict[str, dict[str, Any]] = {
-    "find_photos": _tool("find_photos", "Show the user photos from their photo library that match what they described: what is in them, "
-                                        "who, where, when, or words written in them. Use this for any request to find, show or look for photos. "
-                                        "Fill in ONLY what the user said and leave every other parameter out.", PARAMS),
-    "count_photos": _tool("count_photos", "Count photos. Use ONLY when the user asks how many. With no parameters it counts all photos.", LIGHT),
-    "copy_photos": _tool("copy_photos", "Copy the matching photos into a new folder. Use ONLY when the user asks to copy, put, move or organise "
-                                        "photos into a folder.",
-                         {**LIGHT, "folder": {"type": "string", "description": "Name of the folder to copy the photos into."}}, ["folder"]),
-    "library_overview": _tool("library_overview", "General facts about the whole photo library: how many photos and files, the years covered, "
-                                                  "common places, people found, indexing progress. Not for finding photos.", {}),
-    "read_photo_text": _tool("read_photo_text", "Read the words found INSIDE the first few photos of the latest search (receipts, documents, screenshots, "
-                                                "signs). Use it to answer questions about what is written in photos. Search first.",
-                             {"count": {"type": "integer", "description": "How many photos to read, 1 to 5."}}),
-    "look_at_photos": _tool("look_at_photos", "Look at the first few photos of the latest search and answer a question about them, for example to "
-                                              "check that the results really show what the user asked for. Slow: use only when needed. Search first.",
-                            {"question": {"type": "string", "description": "What to check or find out."},
-                             "count": {"type": "integer", "description": "How many photos to look at, 1 to 3."}}, ["question"]),
-    "show_results": _tool("show_results", "Show the photos that are ALREADY on screen again, unchanged. Only for 'show them', 'show me these', "
-                                          "'let me see them'. Never use it for a new request.", {}),
-    "inspect_results": _tool("inspect_results", "Find out WHEN and WHERE the photos of the latest search were taken: date periods, places and folders. "
-                                                "Photos that only mention a word (a receipt, a sign) are clues to a trip or an event: inspect them, then "
-                                                "search for everything taken in those dates or places. Search first.", {}),
-    "probe": _tool("probe", "See where a word or phrase from the user's message really occurs in THEIR library: as a place, a folder or file "
-                            "name, words written in photos, a person's name. Use it when a word could mean several things (a bare word, a name, "
-                            "something you are unsure about) and decide what the user means from the counts.",
-                   {"term": {"type": "string", "description": "The word or phrase to check."}}, ["term"]),
-    "calc_date": _tool("calc_date", "Exact calendar maths. Starting from today, move back (negative) or forward by some years, months, weeks "
-                                    "or days, and get the dates of the day/week/month/year you land in, or everything from there until today. "
-                                    "For 'N months back' or 'N weeks ago' leave until_today out (that one period); for 'the last N months', 'the past N weeks' or "
-                                    "'recent' set until_today true (everything from then until today). Use the result as date_from and date_to. "
-                                    "Never work out dates yourself.",
-                       {"years": {"type": "integer", "description": "Years to move (negative = past)."},
-                        "months": {"type": "integer", "description": "Months to move (negative = past)."},
-                        "weeks": {"type": "integer", "description": "Weeks to move (negative = past)."},
-                        "days": {"type": "integer", "description": "Days to move (negative = past)."},
-                        "period": {"type": "string", "enum": ["day", "week", "month", "year"], "description": "The period you land in."},
-                        "until_today": {"type": "boolean", "description": "True for 'the last N months' style: from there until today."}}, ["period"]),
-    "look_up": _tool("look_up", "Check the exact spelling of a place, person or folder name in the user's library. Use it ONLY when the "
-                                "library facts you were given do not already show the exact name.",
-                     {"kind": {"type": "string", "enum": ["place", "person", "folder"]}, "text": {"type": "string", "description": "The word to look for."}},
-                     ["kind", "text"]),
+    "find_photos": _tool(
+        "find_photos",
+        "Show the user photos from their photo library that match what they described: what is in them, "
+        "who, where, when, or words written in them. Use this for any request to find, show or look for photos. "
+        "Fill in ONLY what the user said and leave every other parameter out.",
+        PARAMS,
+    ),
+    "count_photos": _tool(
+        "count_photos", "Count photos. Use ONLY when the user asks how many. With no parameters it counts all photos.", LIGHT
+    ),
+    "copy_photos": _tool(
+        "copy_photos",
+        "Copy the matching photos into a new folder. Use ONLY when the user asks to copy, put, move or organise "
+        "photos into a folder.",
+        {**LIGHT, "folder": {"type": "string", "description": "Name of the folder to copy the photos into."}},
+        ["folder"],
+    ),
+    "library_overview": _tool(
+        "library_overview",
+        "General facts about the whole photo library: how many photos and files, the years covered, "
+        "common places, people found, indexing progress. Not for finding photos.",
+        {},
+    ),
+    "read_photo_text": _tool(
+        "read_photo_text",
+        "Read the words found INSIDE the first few photos of the latest search (receipts, documents, screenshots, "
+        "signs). Use it to answer questions about what is written in photos. Search first.",
+        {"count": {"type": "integer", "description": "How many photos to read, 1 to 5."}},
+    ),
+    "look_at_photos": _tool(
+        "look_at_photos",
+        "Look at the first few photos of the latest search and answer a question about them, for example to "
+        "check that the results really show what the user asked for. Slow: use only when needed. Search first.",
+        {
+            "question": {"type": "string", "description": "What to check or find out."},
+            "count": {"type": "integer", "description": "How many photos to look at, 1 to 3."},
+        },
+        ["question"],
+    ),
+    "show_results": _tool(
+        "show_results",
+        "Show the photos that are ALREADY on screen again, unchanged. Only for 'show them', 'show me these', "
+        "'let me see them'. Never use it for a new request.",
+        {},
+    ),
+    "inspect_results": _tool(
+        "inspect_results",
+        "Find out WHEN and WHERE the photos of the latest search were taken: date periods, places and folders. "
+        "Photos that only mention a word (a receipt, a sign) are clues to a trip or an event: inspect them, then "
+        "search for everything taken in those dates or places. Search first.",
+        {},
+    ),
+    "probe": _tool(
+        "probe",
+        "See where a word or phrase from the user's message really occurs in THEIR library: as a place, a folder or file "
+        "name, words written in photos, a person's name. Use it when a word could mean several things (a bare word, a name, "
+        "something you are unsure about) and decide what the user means from the counts.",
+        {"term": {"type": "string", "description": "The word or phrase to check."}},
+        ["term"],
+    ),
+    "calc_date": _tool(
+        "calc_date",
+        "Exact calendar maths. Starting from today, move back (negative) or forward by some years, months, weeks "
+        "or days, and get the dates of the day/week/month/year you land in, or everything from there until today. "
+        "For 'N months back' or 'N weeks ago' leave until_today out (that one period); for 'the last N months', 'the past N weeks' or "
+        "'recent' set until_today true (everything from then until today). Use the result as date_from and date_to. "
+        "Never work out dates yourself.",
+        {
+            "years": {"type": "integer", "description": "Years to move (negative = past)."},
+            "months": {"type": "integer", "description": "Months to move (negative = past)."},
+            "weeks": {"type": "integer", "description": "Weeks to move (negative = past)."},
+            "days": {"type": "integer", "description": "Days to move (negative = past)."},
+            "period": {"type": "string", "enum": ["day", "week", "month", "year"], "description": "The period you land in."},
+            "until_today": {"type": "boolean", "description": "True for 'the last N months' style: from there until today."},
+        },
+        ["period"],
+    ),
+    "look_up": _tool(
+        "look_up",
+        "Check the exact spelling of a place, person or folder name in the user's library. Use it ONLY when the "
+        "library facts you were given do not already show the exact name.",
+        {
+            "kind": {"type": "string", "enum": ["place", "person", "folder"]},
+            "text": {"type": "string", "description": "The word to look for."},
+        },
+        ["kind", "text"],
+    ),
 }
 
 
@@ -143,26 +201,43 @@ class AgentSpec:
     goal: str = ""
 
 
-ASSISTANT = AgentSpec("assistant", ("find_photos", "count_photos", "copy_photos", "library_overview", "show_results", "probe", "inspect_results", "calc_date", "look_up", "read_photo_text", "look_at_photos"))
+ASSISTANT = AgentSpec(
+    "assistant",
+    (
+        "find_photos",
+        "count_photos",
+        "copy_photos",
+        "library_overview",
+        "show_results",
+        "probe",
+        "inspect_results",
+        "calc_date",
+        "look_up",
+        "read_photo_text",
+        "look_at_photos",
+    ),
+)
 TOOLS = [TOOL_DEFS[name] for name in ASSISTANT.tools]
 
 
 # Few-shot examples: the usual way to steer a small model's tool use. They show the pattern (a bare noun is a search, name only what was
 # said, talk when it is conversation); they are deliberately different from the phrases the evaluation sets use.
-EXAMPLES = "\n".join([
-    "'mountains' -> search for pictures showing a mountain",
-    "'pictures of Maya at the market' -> search for the person Maya and pictures showing a market",
-    "'beach photos from the summer of 2022' -> search for a beach, year 2022, season summer",
-    "'how many pictures did I take in 2018?' -> count the photos of year 2018",
-    "'find the invoice that mentions Acme' -> search for the text Acme written in a photo",
-    "'forest photos without any people' -> search for a forest with at most 0 people",
-    "'put my Rome photos into a folder called Italy' -> copy the photos from the place Rome into the folder Italy",
-    "'keep just the ones from May' (results are on screen) -> narrow the previous results to month 5",
-    "'show them' (results are on screen) -> use the show_results tool",
-    "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
-    "'pictures from the last 3 months' -> use the calc_date tool with until_today set, from 3 months ago until today, then search",
-    "'thanks, that helps' -> reply in words, no tool",
-])
+EXAMPLES = "\n".join(
+    [
+        "'mountains' -> search for pictures showing a mountain",
+        "'pictures of Maya at the market' -> search for the person Maya and pictures showing a market",
+        "'beach photos from the summer of 2022' -> search for a beach, year 2022, season summer",
+        "'how many pictures did I take in 2018?' -> count the photos of year 2018",
+        "'find the invoice that mentions Acme' -> search for the text Acme written in a photo",
+        "'forest photos without any people' -> search for a forest with at most 0 people",
+        "'put my Rome photos into a folder called Italy' -> copy the photos from the place Rome into the folder Italy",
+        "'keep just the ones from May' (results are on screen) -> narrow the previous results to month 5",
+        "'show them' (results are on screen) -> use the show_results tool",
+        "'tokyo' (a bare word) -> use the probe tool on the word, then search the way its counts show it exists",
+        "'pictures from the last 3 months' -> use the calc_date tool with until_today set, from 3 months ago until today, then search",
+        "'thanks, that helps' -> reply in words, no tool",
+    ]
+)
 
 
 def _list(value: Any) -> list[str]:
@@ -175,7 +250,12 @@ def _list(value: Any) -> list[str]:
 
 def describe_call(name: str, args: dict[str, Any]) -> str:
     """How a request was understood, in plain words: 'show photos · places Nagoya · what hockey stadium'."""
-    verbs = {"find_photos": "show photos", "count_photos": "count photos", "copy_photos": "copy photos", "show_results": "show the same photos"}
+    verbs = {
+        "find_photos": "show photos",
+        "count_photos": "count photos",
+        "copy_photos": "copy photos",
+        "show_results": "show the same photos",
+    }
     parts = [verbs.get(name, name.replace("_", " "))]
     for key, value in args.items():
         shown = ", ".join(str(v) for v in value) if isinstance(value, list) else str(value)
@@ -186,18 +266,28 @@ def describe_call(name: str, args: dict[str, Any]) -> str:
 def plan_from_tool(name: str, args: dict[str, Any]) -> Plan:
     """Turn a tool call into the search plan the engines understand. Lenient on purpose: bad values are dropped, never crash."""
     clauses: list[dict[str, Any]] = []
-    for engines, key, exclude in ((["visual"], "what", False), (["person"], "people", False), (["place", "path"], "places", False),
-                                  (["text"], "text_in_photo", False), (["visual"], "not_what", True), (["person"], "not_people", True),
-                                  (["place", "path"], "not_places", True)):
+    for engines, key, exclude in (
+        (["visual"], "what", False),
+        (["person"], "people", False),
+        (["place", "path"], "places", False),
+        (["text"], "text_in_photo", False),
+        (["visual"], "not_what", True),
+        (["person"], "not_people", True),
+        (["place", "path"], "not_places", True),
+    ):
         clauses += [{"engines": engines, "query": q, "exclude": exclude} for q in _list(args.get(key))]
     folder = str(args.get("folder") or args.get("copy_to_folder") or "").strip()
+    date_part: dict[str, Any] = {
+        **{k: args[k] for k in ("year", "month", "season", "relative") if k in args},
+        **({"start": args["date_from"]} if args.get("date_from") else {}),
+        **({"end": args["date_to"]} if args.get("date_to") else {}),
+    }
     raw = {
         "intent": "count" if name == "count_photos" else ("export" if (folder or name == "copy_photos") else "find"),
         "scope": "previous" if args.get("narrow_previous") is True else "library",
         "match": "all",
         "clauses": clauses,
-        "date": {**{k: args[k] for k in ("year", "month", "season", "relative") if k in args},
-                 **({"start": args["date_from"]} if args.get("date_from") else {}), **({"end": args["date_to"]} if args.get("date_to") else {})},
+        "date": date_part,
         "filters": {k: args[k] for k in FILTER_KEYS if k in args},
         "folder_name": folder,
     }
@@ -212,9 +302,15 @@ def plan_from_tool(name: str, args: dict[str, Any]) -> Plan:
 
 def observation_of(reply: AgentReply, note: str = "") -> str:
     """What a search returned, as data for the model to read (it writes the user-facing words, not us)."""
-    data: dict[str, Any] = {"matched": int(len(reply.ids)), "summary": reply.text.replace("**", ""), "date_range": reply.date_range or None,
-                            "conditions": [{"condition": r.label, "matched_alone": r.matched, "left_after_combining": r.remaining} for r in reply.reports],
-                            "notes": [*reply.notes, *reply.warnings]}
+    data: dict[str, Any] = {
+        "matched": len(reply.ids),
+        "summary": reply.text.replace("**", ""),
+        "date_range": reply.date_range or None,
+        "conditions": [
+            {"condition": r.label, "matched_alone": r.matched, "left_after_combining": r.remaining} for r in reply.reports
+        ],
+        "notes": [*reply.notes, *reply.warnings],
+    }
     if note:
         data["notes"].append(note)
     return json.dumps(data)
@@ -223,16 +319,24 @@ def observation_of(reply: AgentReply, note: str = "") -> str:
 class ToolAgent:
     """Same `ask` interface as AgentService; the model decides, uses tools, reads the results and answers."""
 
-    def __init__(self, llm: OllamaClient, service: AgentService, context: Callable[[str], str],
-                 overview: Callable[[Any], str] | None = None, lookup: Callable[[str, str], list[str]] | None = None,
-                 read_text: Callable[[list[int]], list[dict[str, Any]]] | None = None,
-                 look: Callable[[list[int], str], list[dict[str, Any]]] | None = None,
-                 probe: Callable[[str], dict[str, Any]] | None = None,
-                 inspect: Callable[[list[int]], dict[str, Any]] | None = None,
-                 today: Callable[[], date] = date.today, max_tokens: int = CHAT_MAX_TOKENS, spec: AgentSpec = ASSISTANT,
-                 cloud: Callable[[str, bool], dict[str, Any] | None] | None = None,
-                 cloud_chat: Callable[[str, list[tuple[str, str]] | None], str | None] | None = None,
-                 cloud_on: Callable[[], bool] = lambda: True) -> None:
+    def __init__(
+        self,
+        llm: OllamaClient,
+        service: AgentService,
+        context: Callable[[str], str],
+        overview: Callable[[Any], str] | None = None,
+        lookup: Callable[[str, str], list[str]] | None = None,
+        read_text: Callable[[list[int]], list[dict[str, Any]]] | None = None,
+        look: Callable[[list[int], str], list[dict[str, Any]]] | None = None,
+        probe: Callable[[str], dict[str, Any]] | None = None,
+        inspect: Callable[[list[int]], dict[str, Any]] | None = None,
+        today: Callable[[], date] = date.today,
+        max_tokens: int = CHAT_MAX_TOKENS,
+        spec: AgentSpec = ASSISTANT,
+        cloud: Callable[[str, bool], dict[str, Any] | None] | None = None,
+        cloud_chat: Callable[[str, list[tuple[str, str]] | None], str | None] | None = None,
+        cloud_on: Callable[[], bool] = lambda: True,
+    ) -> None:
         self._cloud, self._cloud_chat, self._cloud_on = cloud, cloud_chat, cloud_on
         self._llm, self._service, self._context, self._today = llm, service, context, today
         self._overview, self._lookup, self._max_tokens, self.spec = overview, lookup, max_tokens, spec
@@ -249,13 +353,15 @@ class ToolAgent:
         if self.spec.goal:
             lines.append(self.spec.goal)
         lines.append("EXAMPLES (what the user says -> what you do):\n" + EXAMPLES)
-        lines.append("ACT FIRST. Any message that could be about the user's photos, even a single word, gets a tool call straight away; if a word "
-                     "could mean several things, call probe, read the counts, then search the way it exists in the library. Never ask what the "
-                     "user means while a search could answer it: search, show what you found, then say in one or two sentences what it is. "
-                     "Photos that merely contain a word are clues, not the answer: use inspect_results to see when and where they were taken, then "
-                     "search for everything taken then or there. If a result is empty or looks wrong, change the conditions and try again. "
-                     "Never invent numbers. Speak like a friendly person in short, plain sentences: never mention tools, probes, labels, "
-                     "methods or counts per method, and say nothing before you search.")
+        lines.append(
+            "ACT FIRST. Any message that could be about the user's photos, even a single word, gets a tool call straight away; if a word "
+            "could mean several things, call probe, read the counts, then search the way it exists in the library. Never ask what the "
+            "user means while a search could answer it: search, show what you found, then say in one or two sentences what it is. "
+            "Photos that merely contain a word are clues, not the answer: use inspect_results to see when and where they were taken, then "
+            "search for everything taken then or there. If a result is empty or looks wrong, change the conditions and try again. "
+            "Never invent numbers. Speak like a friendly person in short, plain sentences: never mention tools, probes, labels, "
+            "methods or counts per method, and say nothing before you search."
+        )
         lines.append(f"Today is {self._today():%A %d %B %Y}.")
         if has_previous:
             lines.append("Search results from the previous message are on the user's screen.")
@@ -272,8 +378,12 @@ class ToolAgent:
         return [*turns, {"role": "user", "content": request}]
 
     # ---- 2. DECIDE -----------------------------------------------------------------------------------------------------
-    def _decide(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, timeout: float | None = None):
-        events = self._llm.chat_events(system, messages, self._tools if tools is None else tools, self._max_tokens, timeout=timeout)
+    def _decide(
+        self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, timeout: float | None = None
+    ):
+        events = self._llm.chat_events(
+            system, messages, self._tools if tools is None else tools, self._max_tokens, timeout=timeout
+        )
         return next(events, None), events
 
     def decide(self, request: str, previous: bool = False, history: list[tuple[str, str]] | None = None, facts: str = ""):
@@ -283,12 +393,14 @@ class ToolAgent:
     def ask(self, request: str, previous_ids: Any = None, history: list[tuple[str, str]] | None = None) -> AgentReply:
         if not request.strip():
             return AgentReply("clarify", "What would you like to find?")
-        timings: dict[str, float] = {}
+        timings: dict[str, Any] = {}
         started = time.perf_counter()
         began = time.monotonic()
         say("Understanding your message")
         route = self._route(request, previous_ids)
-        if route == "chat" and self._cloud_chat is not None and self._cloud_on():  # plain conversation: a stronger model replies to your words (names hidden)
+        if (
+            route == "chat" and self._cloud_chat is not None and self._cloud_on()
+        ):  # plain conversation: a stronger model replies to your words (names hidden)
             say("Asking the cloud model for a reply (only your words are sent)")
             text = self._cloud_chat(request, history)
             if text:
@@ -307,7 +419,9 @@ class ToolAgent:
         nudged = False
         acted = False  # becomes True once a tool really ran
         last_search: AgentReply | None = None  # the latest search, even an empty one
-        grounded = False  # a tool that returns facts to answer from (library overview, text in photos, looking at photos) was used
+        grounded = (
+            False  # a tool that returns facts to answer from (library overview, text in photos, looking at photos) was used
+        )
         read = False  # a reading tool was used: then the model's own words are grounded in what it read
         self._deadline = time.monotonic() + TIME_BUDGET
         for step in range(MAX_STEPS + 1):
@@ -316,18 +430,25 @@ class ToolAgent:
             say("Deciding how to search" if step == 0 else "Checking what it found")
             try:
                 decided = None
-                if self._cloud is not None and self._cloud_on() and step == 0 and not final:  # a stronger model reads the typed words (names hidden); anything wrong: local
+                if (
+                    self._cloud is not None and self._cloud_on() and step == 0 and not final
+                ):  # a stronger model reads the typed words (names hidden); anything wrong: local
                     say("Asking the cloud model to understand your request (only its words are sent)")
                     decided = self._cloud(request, previous_ids is not None)
                 if decided is not None:
                     timings["understood"] = "cloud"  # shown on the answer so you can see which model read the request
+                    events: Any
                     first, events = ("tool", decided), iter(())
                 else:
                     if step == 0:
                         timings["understood"] = "local"
-                    first, events = self._decide(system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began)))
+                    first, events = self._decide(
+                        system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began))
+                    )
             except LLMError as exc:
-                if shown is None:  # the model is too slow or failed: answer from the stored data, without the model, so the user is never left waiting
+                if (
+                    shown is None
+                ):  # the model is too slow or failed: answer from the stored data, without the model, so the user is never left waiting
                     reply = self._keyword_search(request, previous_ids, history, timings)
                     if reply is not None:
                         return reply
@@ -337,19 +458,30 @@ class ToolAgent:
                 break
             kind, value = first
             if kind != "tool":
-                head, events = self._peek(value, events)  # words arrive in pieces: look at the start of the reply before showing it
+                head, events = self._peek(
+                    value, events
+                )  # words arrive in pieces: look at the start of the reply before showing it
                 events = list(events)
                 tool_events = [v for k, v in events if k == "tool"]
                 if tool_events:  # it talked and then really called a tool: the call runs and the words before it are dropped
                     kind, value, events = "tool", tool_events[0], [("tool", v) for v in tool_events[1:]]
             if kind != "tool":
-                typed = bool(self._call_text.search("".join(head)))  # a tool call typed out as text did nothing and its "results" are invented
+                typed = bool(
+                    self._call_text.search("".join(head))
+                )  # a tool call typed out as text did nothing and its "results" are invented
                 if not acted and shown is None and (typed or self._mentions_library(facts, previous_ids)):
-                    if nudged:  # told twice and it still will not act: the planner does the search instead, so the answer is always real
+                    if (
+                        nudged
+                    ):  # told twice and it still will not act: the planner does the search instead, so the answer is always real
                         return self._service.ask(request, previous_ids, history)
                     nudged = True
                     messages.append({"role": "assistant", "content": ""})
-                    messages.append({"role": "user", "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns."})
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns.",
+                        }
+                    )
                     continue
                 if acted and shown is None and not grounded:
                     # It used tools but never showed any photos and now only talks ("let me check ..."): the app answers in its own plain words.
@@ -358,8 +490,13 @@ class ToolAgent:
                     return self._service.ask(request, previous_ids, history)
                 return self._answer("".join(head), iter(events), shown, timings, read)  # ---- 4. ANSWER: the model talks
             calls = [value] + [v for k, v in events if k == "tool"]
-            messages.append({"role": "assistant", "content": "",
-                             "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]})
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls],
+                }
+            )
             for call in calls:  # ---- 3. OBSERVE
                 read = read or call["name"] in ("read_photo_text", "look_at_photos")
                 grounded = grounded or call["name"] in ("read_photo_text", "look_at_photos", "library_overview")
@@ -374,12 +511,22 @@ class ToolAgent:
                     shown = reply
             if shown is not None and not read and any(c["name"] in SEARCH_TOOLS for c in calls):
                 # Photos were found and the words come from the data, so another model pass would only be thrown away: answer now.
-                return AgentReply(shown.kind, shown.text, ids=shown.ids, plan=shown.plan, reports=shown.reports, notes=shown.notes,
-                                  warnings=shown.warnings, folder_name=shown.folder_name, date_range=shown.date_range,
-                                  timings=timings, groups=shown.groups)
+                return AgentReply(
+                    shown.kind,
+                    shown.text,
+                    ids=shown.ids,
+                    plan=shown.plan,
+                    reports=shown.reports,
+                    notes=shown.notes,
+                    warnings=shown.warnings,
+                    folder_name=shown.folder_name,
+                    date_range=shown.date_range,
+                    timings=timings,
+                    groups=shown.groups,
+                )
         return AgentReply("chat", "I could not finish that. Could you say it another way?", timings=timings)
 
-    def _peek(self, first: str, events: Any) -> tuple[list[str], Any]:
+    def _peek(self, first: Any, events: Any) -> tuple[list[str], Any]:
         """Read the first words of a reply (up to PEEK_CHARS) without losing anything: returns those words and the rest of the stream."""
         head, size, leftover = [first], len(first), []
         for event in events:
@@ -419,7 +566,7 @@ class ToolAgent:
         worker.join(limit)
         return box[0] if box else ""
 
-    def _keyword_search(self, request: str, previous_ids: Any, history: Any, timings: dict[str, float]) -> AgentReply | None:
+    def _keyword_search(self, request: str, previous_ids: Any, history: Any, timings: dict[str, Any]) -> AgentReply | None:
         """The model could not answer in time. The content words of the message are looked up as a place, folder, person or written
         text, then validated against everything stored (no model call). None when the message has no content words."""
         from ..search.quick import FILLER
@@ -457,7 +604,9 @@ class ToolAgent:
         except LLMError:
             return False
 
-    def _answer(self, first_words: str, events: Any, shown: AgentReply | None, timings: dict[str, float], read: bool = False) -> AgentReply:
+    def _answer(
+        self, first_words: str, events: Any, shown: AgentReply | None, timings: dict[str, Any], read: bool = False
+    ) -> AgentReply:
         def words():
             yield first_words
             for kind, value in events:
@@ -467,24 +616,50 @@ class ToolAgent:
         if shown is None:
             return AgentReply("chat", "", stream=words(), timings=timings)
         if read:  # it read the photos' words / looked at them: its answer is about that content
-            return AgentReply(shown.kind, "", ids=shown.ids, plan=shown.plan, reports=shown.reports, notes=shown.notes,
-                              warnings=shown.warnings, folder_name=shown.folder_name, date_range=shown.date_range,
-                              timings=timings, stream=words(), groups=shown.groups)
+            return AgentReply(
+                shown.kind,
+                "",
+                ids=shown.ids,
+                plan=shown.plan,
+                reports=shown.reports,
+                notes=shown.notes,
+                warnings=shown.warnings,
+                folder_name=shown.folder_name,
+                date_range=shown.date_range,
+                timings=timings,
+                stream=words(),
+                groups=shown.groups,
+            )
         # Photos were found: the words come from the data (counts and conditions), never from the model, so nothing is invented.
         events.close() if hasattr(events, "close") else None
-        return AgentReply(shown.kind, shown.text, ids=shown.ids, plan=shown.plan, reports=shown.reports, notes=shown.notes,
-                          warnings=shown.warnings, folder_name=shown.folder_name, date_range=shown.date_range,
-                          timings=timings, groups=shown.groups)
+        return AgentReply(
+            shown.kind,
+            shown.text,
+            ids=shown.ids,
+            plan=shown.plan,
+            reports=shown.reports,
+            notes=shown.notes,
+            warnings=shown.warnings,
+            folder_name=shown.folder_name,
+            date_range=shown.date_range,
+            timings=timings,
+            groups=shown.groups,
+        )
 
     # ---- 3. OBSERVE ----------------------------------------------------------------------------------------------------
-    def _execute_any_place(self, name: str, args: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, float]):
+    def _execute_any_place(
+        self, name: str, args: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, Any]
+    ):
         """Several places in one request ('Tokyo and Kyoto') mean ANY of them: a photo is taken in one place at a time. Each place is searched
         with all the other conditions and the results are combined."""
         from .service import _merge_groups
 
         places = _list(args.get("places"))
         say("Searching your photos")
-        replies = [self._service.run_plan(request, plan_from_tool(name, {**args, "places": [place]}), previous_ids, history, [], timings) for place in places]
+        replies = [
+            self._service.run_plan(request, plan_from_tool(name, {**args, "places": [place]}), previous_ids, history, [], timings)
+            for place in places
+        ]
         found = [r for r in replies if len(r.ids)]
         if not found:
             return observation_of(replies[0]), replies[0]
@@ -495,8 +670,15 @@ class ToolAgent:
         reply = dataclasses.replace(found[0], ids=ids, text=text, groups=groups, notes=notes)
         return observation_of(reply), reply
 
-    def _execute(self, call: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, float],
-                 shown: AgentReply | None = None):
+    def _execute(
+        self,
+        call: dict[str, Any],
+        request: str,
+        previous_ids: Any,
+        history: Any,
+        timings: dict[str, Any],
+        shown: AgentReply | None = None,
+    ):
         """Carry out one tool call. Returns (observation text for the model, the search reply or None)."""
         name, args = call["name"], call["arguments"]
         if name not in self.spec.tools:
@@ -532,7 +714,9 @@ class ToolAgent:
             ids = [int(i) for i in shown.ids[:count]]
             if name == "read_photo_text":
                 found = self._read_text(ids) if self._read_text else []
-                return json.dumps({"photos": found} if found else {"photos": [], "note": "none of these photos has readable text"}), None
+                return json.dumps(
+                    {"photos": found} if found else {"photos": [], "note": "none of these photos has readable text"}
+                ), None
             answers = self._look(ids, str(args.get("question", ""))) if self._look else []
             return json.dumps({"photos": answers}), None
         if name == "show_results":
@@ -543,19 +727,24 @@ class ToolAgent:
         if name == "inspect_results":
             if shown is None or not len(shown.ids):
                 return json.dumps({"error": "there are no search results yet; search for photos first"}), None
-            return json.dumps(self._inspect([int(i) for i in shown.ids[:3000]]) if self._inspect else {"error": "unavailable"}), None
+            return json.dumps(
+                self._inspect([int(i) for i in shown.ids[:3000]]) if self._inspect else {"error": "unavailable"}
+            ), None
         if name == "probe":
-            return json.dumps(self._probe(str(args.get("term", "")))) if self._probe else json.dumps({"error": "unavailable"}), None
+            return json.dumps(self._probe(str(args.get("term", "")))) if self._probe else json.dumps(
+                {"error": "unavailable"}
+            ), None
         if name == "calc_date":
             return json.dumps(calc_date(self._today(), args)), None
         if name == "look_up":
-            found = self._lookup(str(args.get("kind", "")), str(args.get("text", ""))) if self._lookup else []
-            return json.dumps({"matches": found}), None
+            matches = self._lookup(str(args.get("kind", "")), str(args.get("text", ""))) if self._lookup else []
+            return json.dumps({"matches": matches}), None
         return json.dumps({"error": "unsupported"}), None
 
 
 def calc_date(today: date, args: dict[str, Any]) -> dict[str, str]:
     """Calendar arithmetic for the model: move from today, then take the period landed in (or everything until today)."""
+
     def n(key: str) -> int:
         try:
             return max(-1200, min(1200, int(args.get(key) or 0)))

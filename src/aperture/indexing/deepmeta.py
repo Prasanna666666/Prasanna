@@ -18,7 +18,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 READER_VERSION = 1
 MAX_INLINE_BYTES = 4096  # longer binary values are summarised (length + fingerprint), never silently dropped
@@ -49,8 +49,13 @@ def json_safe(value: Any, depth: int = 0) -> Any:
 
 def file_facts(path: Path) -> dict[str, Any]:
     stat = path.stat()
-    facts: dict[str, Any] = {"name": path.name, "extension": path.suffix.lower(), "bytes": stat.st_size,
-                             "modified": stat.st_mtime, "changed": stat.st_ctime}
+    facts: dict[str, Any] = {
+        "name": path.name,
+        "extension": path.suffix.lower(),
+        "bytes": stat.st_size,
+        "modified": stat.st_mtime,
+        "changed": stat.st_ctime,
+    }
     birth = getattr(stat, "st_birthtime", None)  # macOS keeps the real creation time
     if birth:
         facts["created"] = birth
@@ -77,7 +82,11 @@ def pillow_metadata(path: Path) -> dict[str, Any]:
         tags: dict[str, Any] = {}
         for tag, value in exif.items():
             tags[ExifTags.TAGS.get(tag, f"Tag{tag:#06x}")] = value
-        for name, ifd_id, names in (("Exif", 0x8769, ExifTags.TAGS), ("GPS", 0x8825, ExifTags.GPSTAGS), ("Interop", 0xA005, ExifTags.TAGS)):
+        for name, ifd_id, names in (
+            ("Exif", 0x8769, ExifTags.TAGS),
+            ("GPS", 0x8825, ExifTags.GPSTAGS),
+            ("Interop", 0xA005, ExifTags.TAGS),
+        ):
             try:
                 ifd = exif.get_ifd(ifd_id)
             except Exception:
@@ -102,7 +111,9 @@ def pillow_metadata(path: Path) -> dict[str, Any]:
             try:
                 from PIL import ImageCms
 
-                out["icc"]["description"] = ImageCms.getProfileDescription(ImageCms.ImageCmsProfile(__import__("io").BytesIO(profile))).strip()
+                out["icc"]["description"] = ImageCms.getProfileDescription(
+                    ImageCms.ImageCmsProfile(__import__("io").BytesIO(profile))
+                ).strip()
             except Exception:
                 pass
     return out
@@ -114,8 +125,13 @@ def exiftool_metadata(path: Path) -> dict[str, Any] | None:
     if exe is None:
         return None
     try:
-        done = subprocess.run([exe, "-j", "-G1", "-a", "-u", "-n", "-struct", "-api", "largefilesupport=1", str(path)],
-                              capture_output=True, text=True, timeout=60, check=False)
+        done = subprocess.run(
+            [exe, "-j", "-G1", "-a", "-u", "-n", "-struct", "-api", "largefilesupport=1", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
         data = json.loads(done.stdout or "[]")
         return json_safe(data[0]) if data else None
     except (OSError, ValueError, subprocess.SubprocessError):
@@ -137,14 +153,18 @@ def read_all(path: str | Path) -> dict[str, Any]:
 
 
 def pending(conn: sqlite3.Connection, limit: int = 0) -> list[tuple[int, str]]:
-    sql = ("SELECT i.id, i.path FROM items i LEFT JOIN file_metadata m ON m.item_id = i.id "
-           "WHERE i.missing=0 AND (m.item_id IS NULL OR m.reader_version < ?) ORDER BY i.id")
+    sql = (
+        "SELECT i.id, i.path FROM items i LEFT JOIN file_metadata m ON m.item_id = i.id "
+        "WHERE i.missing=0 AND (m.item_id IS NULL OR m.reader_version < ?) ORDER BY i.id"
+    )
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [(r[0], r[1]) for r in conn.execute(sql, (READER_VERSION,))]
 
 
-def run(conn: sqlite3.Connection, limit: int = 0, stop: Any = None, report: Callable[[int, int], None] | None = None) -> tuple[int, int]:
+def run(
+    conn: sqlite3.Connection, limit: int = 0, stop: Any = None, report: Callable[[int, int], None] | None = None
+) -> tuple[int, int]:
     """Read every photo that has no complete record yet. Resumable: commits as it goes. Returns (done, failed)."""
     todo = pending(conn, limit)
     done = failed = 0
@@ -155,7 +175,13 @@ def run(conn: sqlite3.Connection, limit: int = 0, stop: Any = None, report: Call
         failed += bool(record["errors"]) and not any(k in record for k in ("pillow", "exiftool", "file"))
         conn.execute(
             "INSERT OR REPLACE INTO file_metadata(item_id, reader_version, sha256, data, read_at) VALUES (?,?,?,?,?)",
-            (item_id, READER_VERSION, (record.get("file") or {}).get("sha256"), json.dumps(record, ensure_ascii=False), time.time()),
+            (
+                item_id,
+                READER_VERSION,
+                (cast("dict[str, Any]", record.get("file")) or {}).get("sha256"),
+                json.dumps(record, ensure_ascii=False),
+                time.time(),
+            ),
         )
         done += 1
         if n % 100 == 0:

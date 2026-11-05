@@ -26,7 +26,10 @@ def test_ages_are_estimated_from_saved_crops_and_clear_ones_become_trusted_label
         conn.executescript(s)
     (tmp_path / "faces").mkdir()
     for i, years in ((1, 1), (2, 3), (3, 30)):  # a baby, someone in between groups, a young adult
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)", (i, f"/p/{i}", f"{i}", "image", 0, 0))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)",
+            (i, f"/p/{i}", f"{i}", "image", 0, 0),
+        )
         Image.new("RGB", (years, 8), (9, 9, 9)).save(tmp_path / "faces" / f"{i}.png")
         conn.execute("INSERT INTO faces(id, item_id, emb, crop) VALUES (?,?,?,?)", (i, i, b"x", f"faces/{i}.png"))
     assert faceages.run(conn, tmp_path, Fake()) == 3 and faceages.pending(conn) == []

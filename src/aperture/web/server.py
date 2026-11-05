@@ -39,9 +39,18 @@ STATIC_FILES = {"app.css": "text/css; charset=utf-8", "app.js": "text/javascript
 MAX_BODY = 64 * 1024
 PAGE = 60
 PREVIEW = 24
-DEFAULT_IDEAS = ["Photos from last summer", "Pictures of dogs", "Night photos", "Receipts and documents", "Screenshots", "Sunsets"]
-CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
-       "base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+DEFAULT_IDEAS = [
+    "Photos from last summer",
+    "Pictures of dogs",
+    "Night photos",
+    "Receipts and documents",
+    "Screenshots",
+    "Sunsets",
+]
+CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+)
 ID_PATH = re.compile(r"^/api/photo/(\d{1,12})/(thumb|preview)$")
 ITEM_PATH = re.compile(r"^/api/item/(\d{1,12})$")
 
@@ -49,7 +58,9 @@ ITEM_PATH = re.compile(r"^/api/item/(\d{1,12})$")
 def build_id() -> str:
     """Which code is running (the git commit), so 'is it the new version?' is never a guess."""
     try:
-        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent, capture_output=True, text=True, timeout=5)
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent, capture_output=True, text=True, timeout=5
+        )
         return out.stdout.strip() or "unknown"
     except (OSError, subprocess.SubprocessError):
         return "unknown"
@@ -121,29 +132,33 @@ class Web:
             chosen = groups[group][1] if 0 <= group < len(groups) else found["ids"]
             if group >= 0 and offset == 0:
                 self._convs[conv] = chosen  # the next message refines the photos the user is looking at
-            return {"ids": [int(i) for i in chosen[offset:offset + limit]], "total": int(len(chosen))}
+            return {"ids": [int(i) for i in chosen[offset : offset + limit]], "total": len(chosen)}
         ids = self._convs.get(conv)
         if ids is None:
             return {"ids": [], "total": 0}
-        return {"ids": [int(i) for i in ids[offset:offset + limit]], "total": int(len(ids))}
+        return {"ids": [int(i) for i in ids[offset : offset + limit]], "total": len(ids)}
 
     # ---- small cache so polling the status never hits the drive or the AI server more than every few seconds
     def coverage_note(self) -> str:
         """How complete the locations are, so 'are you sure you found them all?' can be answered truthfully."""
+
         def compute() -> str:
             conn = self.ctx.db.connect()
             try:
                 total, own, worked = conn.execute(
                     "SELECT COUNT(*), COALESCE(SUM(gps_lat IS NOT NULL),0), COALESCE(SUM(gps_lat IS NULL AND gps_est_lat IS NOT NULL),0) "
-                    "FROM items WHERE missing=0 AND meta_done=1").fetchone()
+                    "FROM items WHERE missing=0 AND meta_done=1"
+                ).fetchone()
             except Exception:
                 return ""
             finally:
                 conn.close()
             none = total - own - worked
             extra = f", {worked:,} more were placed by time or appearance" if worked else ""
-            return (f"Location coverage: of {total:,} photos, {own:,} have a location in their own file{extra}; {none:,} have no location, "
-                    "so a search by place cannot find them.")
+            return (
+                f"Location coverage: of {total:,} photos, {own:,} have a location in their own file{extra}; {none:,} have no location, "
+                "so a search by place cannot find them."
+            )
 
         return self.cached("coverage_note", 300.0, compute)
 
@@ -163,7 +178,10 @@ class Web:
         if on and not self.ctx.settings.cloud_interpreter:
             return {"ok": False, "error": "The cloud is not set up. Run: .venv/bin/python -m aperture cloud enable"}
         if on and not gateway_up(self.ctx.settings.cloud_port):
-            return {"ok": False, "error": "The cloud connection is not running. Restart the app: .venv/bin/python -m aperture install-service"}
+            return {
+                "ok": False,
+                "error": "The cloud connection is not running. Restart the app: .venv/bin/python -m aperture install-service",
+            }
         if on:  # a real request first: it only turns on if the cloud really answers
             from ..cloud.client import check
 
@@ -192,10 +210,17 @@ class Web:
 
         self.refresh_counts_async()
         healthy = self.cached("ai", 10, lambda: bool(ctx.llm().health()[0]))
-        return {**self._counts, "ai": healthy, "model": ctx.settings.ollama_model, "build": self.build,
-                "search_ready": bool(ctx.search_ready()), "warm_problem": ctx.warm_problem(), "cloud": self.cloud_info(),
-                "indexing": ScanLock(ctx.paths).running(verify=True),
-                "paused_for_chat": self.paused_for_chat}
+        return {
+            **self._counts,
+            "ai": healthy,
+            "model": ctx.settings.ollama_model,
+            "build": self.build,
+            "search_ready": bool(ctx.search_ready()),
+            "warm_problem": ctx.warm_problem(),
+            "cloud": self.cloud_info(),
+            "indexing": ScanLock(ctx.paths).running(verify=True),
+            "paused_for_chat": self.paused_for_chat,
+        }
 
     def suggestions(self) -> list[str]:
         def build() -> list[str]:
@@ -225,8 +250,12 @@ class Web:
             self.ctx.llm().unload()  # free the AI model's RAM before indexing starts
         except Exception:
             pass
-        subprocess.Popen([sys.executable, "-m", "aperture", "scan"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)  # noqa: S603
+        subprocess.Popen(
+            [sys.executable, "-m", "aperture", "scan"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         self.paused_for_chat = False
         return True
 
@@ -238,8 +267,15 @@ class Web:
             conn.close()
         if found is None:
             return None
-        return {"id": item_id, "name": Path(found.rel_path or found.path).name, "taken": found.taken_at, "place": found.place,
-                "camera": found.camera, "width": found.width, "height": found.height}
+        return {
+            "id": item_id,
+            "name": Path(found.rel_path or found.path).name,
+            "taken": found.taken_at,
+            "place": found.place,
+            "camera": found.camera,
+            "width": found.width,
+            "height": found.height,
+        }
 
     def photo_file(self, item_id: int, kind: str) -> Path | None:
         data = self.ctx.paths.data.resolve()
@@ -250,7 +286,12 @@ class Web:
 def _clean_history(raw: Any) -> list[tuple[str, str]]:
     turns: list[tuple[str, str]] = []
     for entry in raw if isinstance(raw, list) else []:
-        if isinstance(entry, (list, tuple)) and len(entry) == 2 and entry[0] in ("user", "assistant") and isinstance(entry[1], str):
+        if (
+            isinstance(entry, (list, tuple))
+            and len(entry) == 2
+            and entry[0] in ("user", "assistant")
+            and isinstance(entry[1], str)
+        ):
             turns.append((entry[0], entry[1][:2000]))
     return turns[-8:]
 
@@ -281,7 +322,9 @@ def ask_within(work: Any, limit: float, on_status: Any = None) -> Any:
 
     import contextvars
 
-    context = contextvars.copy_context()  # the helper thread must see the same per-message state (such as the record of model calls)
+    context = (
+        contextvars.copy_context()
+    )  # the helper thread must see the same per-message state (such as the record of model calls)
     worker = threading.Thread(target=lambda: context.run(run), name="ask", daemon=True)
     worker.start()
     give_up = time.monotonic() + limit
@@ -303,11 +346,19 @@ def ask_within(work: Any, limit: float, on_status: Any = None) -> Any:
         import sys
         import traceback
 
-        frame = sys._current_frames().get(worker.ident)  # exactly where it is stuck, so the cause can be read from the log
+        frame = sys._current_frames().get(worker.ident or 0)  # exactly where it is stuck, so the cause can be read from the log
         where = "".join(traceback.format_stack(frame)[-8:]) if frame is not None else "unknown"
-        log.warning("a question was still running after %.0f s (last step: %s); the answer was given up. Stuck at:\n%s", limit, last or "none", where)
-        return AgentReply("error", "That is taking longer than it should. Please try again, or ask it in a simpler way."
-                                   + (f" (It was at: {last.lower()}.)" if last else ""))
+        log.warning(
+            "a question was still running after %.0f s (last step: %s); the answer was given up. Stuck at:\n%s",
+            limit,
+            last or "none",
+            where,
+        )
+        return AgentReply(
+            "error",
+            "That is taking longer than it should. Please try again, or ask it in a simpler way."
+            + (f" (It was at: {last.lower()}.)" if last else ""),
+        )
     if "error" in box:
         raise box["error"]
     return box["reply"]
@@ -380,7 +431,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
             self.wfile.flush()
 
         # ---- GET -----------------------------------------------------------------------------------------------------
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             url = urlparse(self.path)
             path = url.path
             if path == "/api/health":
@@ -395,7 +446,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     self.wfile.write(body)
                 return
             if path.startswith("/static/"):
-                name = path[len("/static/"):]
+                name = path[len("/static/") :]
                 if self._checked(False):
                     if name in STATIC_FILES:
                         body = (STATIC / name).read_bytes()
@@ -423,8 +474,10 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     group = int((query.get("group") or ["-1"])[0])
                 except ValueError:
                     group = -1
-                self._json(web.results((query.get("conv") or [""])[0][:64], offset, group=group, rid=(query.get("rid") or [""])[0][:32]))
-            elif (m := ID_PATH.match(path)):
+                self._json(
+                    web.results((query.get("conv") or [""])[0][:64], offset, group=group, rid=(query.get("rid") or [""])[0][:32])
+                )
+            elif m := ID_PATH.match(path):
                 file = web.photo_file(int(m.group(1)), m.group(2))
                 if file is None:
                     self._deny(HTTPStatus.NOT_FOUND, "no such photo")
@@ -432,7 +485,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                     body = file.read_bytes()
                     self._headers(200, "image/jpeg", len(body), cache="private, max-age=86400")
                     self.wfile.write(body)
-            elif (m := ITEM_PATH.match(path)):
+            elif m := ITEM_PATH.match(path):
                 found = web.item(int(m.group(1)))
                 self._json(found) if found else self._deny(HTTPStatus.NOT_FOUND, "no such photo")
             else:
@@ -454,7 +507,7 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                 return None
             return data if isinstance(data, dict) else None
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             path = urlparse(self.path).path
             if not self._checked(True):
                 return
@@ -491,18 +544,31 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                 if ctx.settings.quick_preview and ctx.search_ready():  # photo matches in milliseconds, before the AI has finished
                     ids = self._instant_matches(message)
                     if ids is not None and len(ids):
-                        self._sse("preview", {"ids": [int(i) for i in ids[:PREVIEW]], "total": int(len(ids))})
+                        self._sse("preview", {"ids": [int(i) for i in ids[:PREVIEW]], "total": len(ids)})
                 with web.ai_lock:
                     web.pause_indexing_for_chat()  # indexing and the AI model together would swap an 8 GB Mac
-                    reply = ask_within(lambda: ctx.agent().ask(message, web.previous(conv), history=history), ASK_LIMIT,
-                                       lambda text: self._sse("status", {"text": text}))
+                    reply = ask_within(
+                        lambda: ctx.agent().ask(message, web.previous(conv), history=history),
+                        ASK_LIMIT,
+                        lambda text: self._sse("status", {"text": text}),
+                    )
                     stream = reply.stream
                     text = reply.text
                     if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words
                         web.remember(conv, reply.ids)
                         rid = web.remember_set(reply.ids, reply.groups)
-                        self._sse("results", {"rid": rid, "groups": [{"label": g[0], "count": int(len(g[1]))} for g in reply.groups], "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]], "total": int(len(reply.ids)), "kind": reply.kind,
-                                              "notes": list(reply.notes), "warnings": list(reply.warnings)})
+                        self._sse(
+                            "results",
+                            {
+                                "rid": rid,
+                                "groups": [{"label": g[0], "count": len(g[1])} for g in reply.groups],
+                                "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]],
+                                "total": len(reply.ids),
+                                "kind": reply.kind,
+                                "notes": list(reply.notes),
+                                "warnings": list(reply.warnings),
+                            },
+                        )
                     elif reply.notes or reply.warnings:
                         self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
                     if stream is not None:
@@ -517,7 +583,17 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                         self._sse("reply", {"text": text})
                 took = round(time.perf_counter() - started, 2)
                 timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
-                self._sse("done", {"took": took, "kind": reply.kind, "text": text, "record": memory_of(reply, text, web.coverage_note()), "timings": timings, "trace": calls})
+                self._sse(
+                    "done",
+                    {
+                        "took": took,
+                        "kind": reply.kind,
+                        "text": text,
+                        "record": memory_of(reply, text, web.coverage_note()),
+                        "timings": timings,
+                        "trace": calls,
+                    },
+                )
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the browser left (for example a new chat was started): stop quietly
             except Exception as exc:

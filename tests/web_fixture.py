@@ -30,12 +30,26 @@ def make_photos(ctx: AppContext, n: int = 70) -> list[int]:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 img = Image.new("RGB", size, (r, g, b))
                 d = ImageDraw.Draw(img)
-                d.ellipse([size[0] * .15, size[1] * .15, size[0] * .85, size[1] * .85], outline=(255, 255, 255), width=max(4, size[0] // 40))
+                d.ellipse(
+                    [size[0] * 0.15, size[1] * 0.15, size[0] * 0.85, size[1] * 0.85],
+                    outline=(255, 255, 255),
+                    width=max(4, size[0] // 40),
+                )
                 img.save(path, "JPEG", quality=82)
             conn.execute(
                 "INSERT INTO items(id, path, rel_path, kind, taken_at, place, camera, thumb, preview, meta_done, clip_done) VALUES (?,?,?,?,?,?,?,?,?,1,1)",
-                (i, f"/photos/IMG_{i:04d}.jpg", f"Trips/IMG_{i:04d}.jpg", "image", f"2025-0{1 + i % 9}-1{i % 9} 1{i % 10}:20:00",
-                 PLACES[i % len(PLACES)], "iPhone 15 Pro", thumb_rel(i), preview_rel(i)))
+                (
+                    i,
+                    f"/photos/IMG_{i:04d}.jpg",
+                    f"Trips/IMG_{i:04d}.jpg",
+                    "image",
+                    f"2025-0{1 + i % 9}-1{i % 9} 1{i % 10}:20:00",
+                    PLACES[i % len(PLACES)],
+                    "iPhone 15 Pro",
+                    thumb_rel(i),
+                    preview_rel(i),
+                ),
+            )
             ids.append(i)
         conn.commit()
     finally:
@@ -56,7 +70,12 @@ class ScriptedAgent:
             raise RuntimeError("Ollama is not reachable")
         if any(w in low for w in ("photo", "beach", "dog", "pics", "sunset")):
             ids = np.array(self.ids if "all" in low else self.ids[:41])
-            return AgentReply("results", f"I found **{len(ids)} photos** matching your request.", ids=ids, notes=["3 photos have no GPS, so the place could not be checked."])
+            return AgentReply(
+                "results",
+                f"I found **{len(ids)} photos** matching your request.",
+                ids=ids,
+                notes=["3 photos have no GPS, so the place could not be checked."],
+            )
 
         def words():
             for w in ("Sure, ", "happy ", "to ", "help. ", "RAW keeps ", "all the sensor data."):

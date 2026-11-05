@@ -59,6 +59,7 @@ def test_secure_ui_builds_the_sandbox_command(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.Settings, "load", classmethod(lambda cls, p: cls(photo_dir=str(photos), export_dir=str(exports))))
     calls = []
     import subprocess
+
     monkeypatch.setattr(subprocess, "Popen", lambda cmd, env=None: FakePopen(lambda: calls.append((cmd, env))))
     assert cli.main(["secure-ui", "--port", "9100", "--no-browser"]) == 0
     cmd, env = calls[0]
@@ -102,6 +103,7 @@ def test_secure_ui_passes_the_aperture_folder(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.Settings, "load", classmethod(lambda cls, p: cls(photo_dir=str(photos))))
     seen = []
     import subprocess
+
     monkeypatch.setattr(subprocess, "Popen", lambda cmd, env=None: FakePopen(lambda: seen.append(env)))
     cli.main(["secure-ui", "--no-browser"])
     assert seen[0]["AP_ROOT"].endswith("Aperture")
@@ -131,22 +133,26 @@ def _secure_setup(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.Settings, "load", classmethod(lambda cls, p: cls(photo_dir=str(photos))))
     calls = []
     import subprocess
+
     monkeypatch.setattr(subprocess, "Popen", lambda cmd, env=None: FakePopen(lambda: calls.append(cmd)))
     return calls
 
 
-@pytest.mark.parametrize("command,expected", [
-    ("/x/.venv/bin/python -m aperture ui --port 8765", True),
-    ("/x/.venv/bin/python -m aperture web --port 8765", True),
-    ("/x/.venv/bin/python /x/.venv/bin/aperture ui", True),
-    ("python /x/src/aperture/ui/app.py", True),
-    ("/bin/bash /x/scripts/aperture-sandboxed.sh /p -- python -m aperture ui", True),
-    ("python -m http.server 8765", False),
-    ("/x/.venv/bin/python -m aperture scan", False),
-    ("/x/.venv/bin/aperture caption", False),
-    ("/usr/bin/ssh -L 8765:localhost:8765 host", False),
-    ("", False),
-])
+@pytest.mark.parametrize(
+    "command,expected",
+    [
+        ("/x/.venv/bin/python -m aperture ui --port 8765", True),
+        ("/x/.venv/bin/python -m aperture web --port 8765", True),
+        ("/x/.venv/bin/python /x/.venv/bin/aperture ui", True),
+        ("python /x/src/aperture/ui/app.py", True),
+        ("/bin/bash /x/scripts/aperture-sandboxed.sh /p -- python -m aperture ui", True),
+        ("python -m http.server 8765", False),
+        ("/x/.venv/bin/python -m aperture scan", False),
+        ("/x/.venv/bin/aperture caption", False),
+        ("/usr/bin/ssh -L 8765:localhost:8765 host", False),
+        ("", False),
+    ],
+)
 def test_only_aperture_web_servers_are_recognised(command, expected):
     assert cli.is_aperture_ui(command) is expected
 
@@ -180,10 +186,14 @@ def test_stop_old_ui_only_stops_aperture_and_forgets_the_pid_file(monkeypatch, t
     monkeypatch.setattr(cli, "stop_process", lambda pid, wait=8.0: stopped.append(pid) or True)
     pid_file = tmp_path / "ui.pid"
     pid_file.write_text("4242")
-    monkeypatch.setattr(cli, "command_of", lambda pid: "python -m aperture ui --port 8765" if pid == 4242 else "python -m http.server")
+    monkeypatch.setattr(
+        cli, "command_of", lambda pid: "python -m aperture ui --port 8765" if pid == 4242 else "python -m http.server"
+    )
     monkeypatch.setattr(cli, "listener_pid", lambda port: 9999)
     said = cli.stop_old_ui(pid_file, 8765)
-    assert stopped == [4242] and "Stopped the older Aperture" in said[0] and not pid_file.exists()  # 9999 is not Aperture: left alone
+    assert (
+        stopped == [4242] and "Stopped the older Aperture" in said[0] and not pid_file.exists()
+    )  # 9999 is not Aperture: left alone
 
 
 def test_secure_ui_reuses_8765_by_stopping_the_old_aperture(monkeypatch, tmp_path, capsys):
@@ -229,6 +239,7 @@ def test_the_running_copy_is_remembered_and_forgotten(monkeypatch, tmp_path):
             return 0
 
     import subprocess
+
     monkeypatch.setattr(subprocess, "Popen", lambda cmd, env=None: Watching(lambda: None))
     monkeypatch.setattr(cli, "port_is_free", lambda port: True)
     assert cli.main(["secure-ui", "--no-browser"]) == 0

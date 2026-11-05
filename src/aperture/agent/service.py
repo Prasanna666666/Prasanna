@@ -19,8 +19,8 @@ import numpy as np
 
 from .executor import ClauseReport, Executor
 from .llm import LLMError
+from .planner import Planner, PlannerContext, PlanningError, PlanResult
 from .progress import say
-from .planner import PlannerContext, Planner, PlanResult, PlanningError
 from .schema import Clause, Plan
 
 log = logging.getLogger(__name__)
@@ -40,8 +40,10 @@ class AgentReply:
     folder_name: str = ""  # for kind == "export"
     date_range: str = ""
     trace: list[dict[str, str]] = field(default_factory=list)  # what the agent did, step by step
-    timings: dict[str, float] = field(default_factory=dict, repr=False, compare=False)  # seconds spent in each step
-    groups: list[tuple[str, np.ndarray]] = field(default_factory=list, repr=False, compare=False)  # every reading of the query, best first
+    timings: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)  # seconds spent in each step
+    groups: list[tuple[str, np.ndarray]] = field(
+        default_factory=list, repr=False, compare=False
+    )  # every reading of the query, best first
     stream: Any = field(default=None, repr=False, compare=False)  # chat replies: text arrives piece by piece (consumed by the UI)
 
 
@@ -94,7 +96,7 @@ CHAT_SYSTEM = (
 CHAT_MAX_TOKENS = 160  # short answers: it is a photo app, and short answers are also fast
 
 ROUTER_SYSTEM = (
-    "You route messages in a private photo app. Reply with JSON: {\"route\": \"simple\"}, {\"route\": \"photos\"}, {\"route\": \"about\"} or {\"route\": \"chat\"}.\n"
+    'You route messages in a private photo app. Reply with JSON: {"route": "simple"}, {"route": "photos"}, {"route": "about"} or {"route": "chat"}.\n'
     "simple = ONE subject to look for in the pictures themselves (an object, animal, food, scene or activity) and nothing else: no "
     "person's name, place, date or year, count, filter, 'not' or 'without', text written in a picture, and no earlier results. "
     "At most 4 words.\n"
@@ -111,7 +113,11 @@ ROUTER_SYSTEM = (
     "'who is in my photos most' -> photos; 'why are these Iceland photos?' -> about; 'that is wrong' -> about; 'what did you search for?' -> about; "
     "'no, I meant the ones from Japan' -> photos; 'what is RAW?' -> chat; 'thanks!' -> chat; 'tell me a joke' -> chat; 'what is 12 times 12' -> chat."
 )
-ROUTER_SCHEMA = {"type": "object", "properties": {"route": {"type": "string", "enum": ["simple", "photos", "about", "chat"]}}, "required": ["route"]}
+ROUTER_SCHEMA = {
+    "type": "object",
+    "properties": {"route": {"type": "string", "enum": ["simple", "photos", "about", "chat"]}},
+    "required": ["route"],
+}
 MAX_SIMPLE_WORDS = 4
 
 DATE_SYSTEM = (
@@ -122,31 +128,118 @@ DATE_SYSTEM = (
     "'3 weeks ago'), or 'until_now' when the user means the whole stretch from then until today ('the last 3 months', 'the past 2 weeks', "
     "'in the last 10 days', 'recent months').\n"
     "Examples:\n"
-    "'pics from last month' -> {\"phrase\": \"last month\", \"relative\": \"last_month\"}\n"
-    "'what I shot in August 2019' -> {\"phrase\": \"August 2019\", \"year\": 2019, \"month\": 8}\n"
-    "'skiing trip winter 2023' -> {\"phrase\": \"winter 2023\", \"year\": 2023, \"season\": \"winter\"}\n"
-    "'pics from 2 months back' -> {\"phrase\": \"2 months back\", \"ago\": 2, \"unit\": \"month\", \"span\": \"period\"}\n"
-    "'photos from the last 3 weeks' -> {\"phrase\": \"the last 3 weeks\", \"ago\": 3, \"unit\": \"week\", \"span\": \"until_now\"}\n"
-    "'pictures from the last 3 months' -> {\"phrase\": \"the last 3 months\", \"ago\": 3, \"unit\": \"month\", \"span\": \"until_now\"}\n"
-    "'what did I shoot in the past 10 days' -> {\"phrase\": \"the past 10 days\", \"ago\": 10, \"unit\": \"day\", \"span\": \"until_now\"}\n"
-    "'cats on the sofa' -> {\"phrase\": \"\"}"
+    '\'pics from last month\' -> {"phrase": "last month", "relative": "last_month"}\n'
+    '\'what I shot in August 2019\' -> {"phrase": "August 2019", "year": 2019, "month": 8}\n'
+    '\'skiing trip winter 2023\' -> {"phrase": "winter 2023", "year": 2023, "season": "winter"}\n'
+    '\'pics from 2 months back\' -> {"phrase": "2 months back", "ago": 2, "unit": "month", "span": "period"}\n'
+    '\'photos from the last 3 weeks\' -> {"phrase": "the last 3 weeks", "ago": 3, "unit": "week", "span": "until_now"}\n'
+    '\'pictures from the last 3 months\' -> {"phrase": "the last 3 months", "ago": 3, "unit": "month", "span": "until_now"}\n'
+    '\'what did I shoot in the past 10 days\' -> {"phrase": "the past 10 days", "ago": 10, "unit": "day", "span": "until_now"}\n'
+    '\'cats on the sofa\' -> {"phrase": ""}'
 )
 DATE_SCHEMA = {
     "type": "object",
-    "properties": {"phrase": {"type": "string"}, "year": {"type": "integer"}, "month": {"type": "integer"},
-                   "season": {"type": "string", "enum": ["spring", "summer", "autumn", "winter"]},
-                   "relative": {"type": "string", "enum": ["today", "yesterday", "this_week", "last_week", "this_month", "last_month",
-                                                             "this_year", "last_year"]},
-                   "ago": {"type": "integer"}, "unit": {"type": "string", "enum": ["day", "week", "month", "year"]},
-                   "through": {"type": "boolean"}, "span": {"type": "string", "enum": ["period", "until_now"]}},
+    "properties": {
+        "phrase": {"type": "string"},
+        "year": {"type": "integer"},
+        "month": {"type": "integer"},
+        "season": {"type": "string", "enum": ["spring", "summer", "autumn", "winter"]},
+        "relative": {
+            "type": "string",
+            "enum": ["today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "last_year"],
+        },
+        "ago": {"type": "integer"},
+        "unit": {"type": "string", "enum": ["day", "week", "month", "year"]},
+        "through": {"type": "boolean"},
+        "span": {"type": "string", "enum": ["period", "until_now"]},
+    },
     "required": ["phrase"],
 }
 
 
-TIME_WORDS = frozenset("""ago back last past previous this next since before after during until between earlier later recent recently lately today
-yesterday tonight morning afternoon evening night week weeks month months year years day days weekend weekday weekdays season spring summer autumn
-fall winter monday tuesday wednesday thursday friday saturday sunday january february march april may june july august september october november
-december jan feb mar apr jun jul aug sep sept oct nov dec christmas easter diwali holiday holidays birthday""".split())
+TIME_WORDS = frozenset(
+    [
+        "ago",
+        "back",
+        "last",
+        "past",
+        "previous",
+        "this",
+        "next",
+        "since",
+        "before",
+        "after",
+        "during",
+        "until",
+        "between",
+        "earlier",
+        "later",
+        "recent",
+        "recently",
+        "lately",
+        "today",
+        "yesterday",
+        "tonight",
+        "morning",
+        "afternoon",
+        "evening",
+        "night",
+        "week",
+        "weeks",
+        "month",
+        "months",
+        "year",
+        "years",
+        "day",
+        "days",
+        "weekend",
+        "weekday",
+        "weekdays",
+        "season",
+        "spring",
+        "summer",
+        "autumn",
+        "fall",
+        "winter",
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+        "jan",
+        "feb",
+        "mar",
+        "apr",
+        "jun",
+        "jul",
+        "aug",
+        "sep",
+        "sept",
+        "oct",
+        "nov",
+        "dec",
+        "christmas",
+        "easter",
+        "diwali",
+        "holiday",
+        "holidays",
+        "birthday",
+    ]
+)
 
 
 def mentions_time(request: str) -> bool:
@@ -168,10 +261,13 @@ def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))
     return dataclasses.replace(plan, date=spec, clauses=kept)
 
-def show_previous(previous_ids: np.ndarray, timings: dict[str, float] | None = None) -> AgentReply:
+
+def show_previous(previous_ids: np.ndarray, timings: dict[str, Any] | None = None) -> AgentReply:
     """'Show them': put the photos that are already on screen back, unchanged."""
     n = len(previous_ids)
-    return AgentReply("results", f"**{n:,}** photo{'s' if n != 1 else ''} · the same photos", ids=previous_ids, timings=timings or {})
+    return AgentReply(
+        "results", f"**{n:,}** photo{'s' if n != 1 else ''} · the same photos", ids=previous_ids, timings=timings or {}
+    )
 
 
 def _asks_for_one_thing(plan: Plan) -> bool:
@@ -240,7 +336,7 @@ class AgentService:
     ) -> AgentReply:
         if not request.strip():
             return AgentReply("clarify", "What would you like to find?")
-        timings: dict[str, float] = {}
+        timings: dict[str, Any] = {}
         route = "photos"
         if self._router is not None:  # a tiny, fast question first: simple search, photo question, or just conversation?
             started = time.perf_counter()
@@ -251,8 +347,7 @@ class AgentService:
             timings["route"] = round(time.perf_counter() - started, 2)
             if route in ("chat", "about"):
                 return self._chat_reply(request, history, {"timings": timings}, "")
-        simple = (route == "simple" and self._fast_search and previous_ids is None
-                  and 0 < len(request.split()) <= MAX_SIMPLE_WORDS)
+        simple = route == "simple" and self._fast_search and previous_ids is None and 0 < len(request.split()) <= MAX_SIMPLE_WORDS
         if simple:  # one visual subject: skip the AI plan (about 6 s) and search directly
             subject = request.strip().strip(".!?,;:").lower()
             planned = PlanResult(plan=Plan(intent="find", clauses=(Clause(engines=("visual",), query=subject, exclude=False),)))
@@ -280,12 +375,14 @@ class AgentService:
         previous_ids: np.ndarray | None = None,
         history: list[tuple[str, str]] | None = None,
         warnings: list[str] | None = None,
-        timings: dict[str, float] | None = None,
+        timings: dict[str, Any] | None = None,
     ) -> AgentReply:
         """Carry out a plan (from the planner or from a tool call) and write the reply. Shared by every kind of agent."""
         timings = {} if timings is None else timings
         warnings = [] if warnings is None else warnings
-        if self._date_step is not None and plan.intent in ("find", "count", "export") and mentions_time(request):  # authoritative: the planner invents dates
+        if (
+            self._date_step is not None and plan.intent in ("find", "count", "export") and mentions_time(request)
+        ):  # authoritative: the planner invents dates
             started = time.perf_counter()
             try:  # a small, focused step: is there a time expression the plan missed (or turned into words)?
                 phrase, spec = self._date_step(request)
@@ -355,7 +452,9 @@ class AgentService:
                 outcome = executor.run(plan, previous_ids if plan.scope == "previous" else None)
                 base["plan"] = plan
             if tried and len(outcome.ids):
-                outcome.notes.append("My first search found nothing (" + "; ".join(tried) + "), so I tried again with a different approach.")
+                outcome.notes.append(
+                    "My first search found nothing (" + "; ".join(tried) + "), so I tried again with a different approach."
+                )
         except Exception as exc:
             log.exception("plan execution failed")
             return AgentReply("error", f"Something went wrong while searching: {exc}", **base)
@@ -369,7 +468,13 @@ class AgentService:
             relaxed = executor.run_relaxed(plan, previous_ids)  # keep the place, date or person; only the look is relaxed
             if len(relaxed.ids):
                 what = " and ".join(c.query for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",))
-                outcome.ids, outcome.notes = relaxed.ids, [*outcome.notes, f"No photo clearly shows {what}. These are the closest of the {len(relaxed.hard):,} photos that match the rest."]
+                outcome.ids, outcome.notes = (
+                    relaxed.ids,
+                    [
+                        *outcome.notes,
+                        f"No photo clearly shows {what}. These are the closest of the {len(relaxed.hard):,} photos that match the rest.",
+                    ],
+                )
                 hard_ids = relaxed.hard
         if plan.intent in ("find", "count") and hasattr(executor, "readings"):
             try:
@@ -379,7 +484,8 @@ class AgentService:
                 if together is not None and len(together):
                     # Several conditions: each is judged by its OWN best evidence (a folder, a place, GPS, a trusted label ...) and the answer is
                     # where all of them hold, not whatever the model's guessed search method happened to give.
-                    lead, outcome.ids = " and ".join(exploration.terms) if exploration.terms else "all of it", together
+                    terms = exploration.terms if exploration is not None else []
+                    lead, outcome.ids = " and ".join(terms) if terms else "all of it", together
                     groups = [(lead, together)]  # one clear answer, no pile of other categories
                 elif readings and _asks_for_one_thing(plan):
                     # One thing was asked for: the most reliable way it can be found leads (place and GPS before folders, people, written
@@ -405,7 +511,9 @@ class AgentService:
         if hard_ids is not None:  # a compound request: every tab must still respect its exact requirements
             groups = [(label, np.intersect1d(ids, hard_ids)) for label, ids in groups]
             groups = [(label, ids) for label, ids in groups if len(ids)]
-        if len(outcome.ids) == 0 and groups and _asks_for_one_thing(plan):  # never for a compound request: that would drop a place or a date
+        if (
+            len(outcome.ids) == 0 and groups and _asks_for_one_thing(plan)
+        ):  # never for a compound request: that would drop a place or a date
             label, ids = groups[0]
             outcome.ids = ids
             outcome.notes.append(f"No exact match. Showing: {label}.")

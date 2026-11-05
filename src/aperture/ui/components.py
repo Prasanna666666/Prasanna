@@ -157,7 +157,7 @@ def item_dialog(ctx: AppContext, item_id: int) -> None:
             st.caption(f"`{item.path}`")
             st.caption("The original is read-only: Lumo never modifies, moves or deletes it.")
             if st.button("Show in Finder", key=f"reveal:{item.id}", icon=":material/folder_open:"):
-                subprocess.run(["open", "-R", item.path], check=False)  # noqa: S603, S607
+                subprocess.run(["open", "-R", item.path], check=False)
             if item.notes:
                 st.caption(f"Note: {item.notes}")
             _describe_block(ctx, conn, item.id)

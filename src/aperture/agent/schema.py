@@ -44,7 +44,9 @@ class Plan:
     scope: str = "library"  # "previous" = refine the last result set
     all_photos: bool = False  # only when the user explicitly asks for everything
     folder_name: str = ""
-    meanings: tuple[str, ...] = ()  # how the main subject would look in a photo (written by the cloud model from the typed words only)
+    meanings: tuple[
+        str, ...
+    ] = ()  # how the main subject would look in a photo (written by the cloud model from the typed words only)
     message: str = ""
 
     @property

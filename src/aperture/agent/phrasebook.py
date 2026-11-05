@@ -13,26 +13,71 @@ from __future__ import annotations
 import re
 from typing import Any
 
-NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
-                "twelve": 12, "couple": 2, "fifteen": 15, "twenty": 20, "thirty": 30}
-UNITS = {"day": "day", "days": "day", "week": "week", "weeks": "week", "month": "month", "months": "month", "year": "year", "years": "year"}
-MONTHS = {m: i + 1 for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
-                                          "november", "december"])}
-MONTHS.update({"jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12})
+NUMBER_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "couple": 2,
+    "fifteen": 15,
+    "twenty": 20,
+    "thirty": 30,
+}
+UNITS = {
+    "day": "day",
+    "days": "day",
+    "week": "week",
+    "weeks": "week",
+    "month": "month",
+    "months": "month",
+    "year": "year",
+    "years": "year",
+}
+MONTHS = {
+    m: i + 1
+    for i, m in enumerate(
+        ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+    )
+}
+MONTHS.update(
+    {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "sept": 9, "oct": 10, "nov": 11, "dec": 12}
+)
 SEASONS = {"spring", "summer", "autumn", "fall", "winter"}
 
 # pattern -> meaning. <N> is a number, <U> a unit (day/week/month/year). "period" = that one period, "until_now" = from then until today.
 PATTERNS: dict[str, dict[str, Any]] = {
-    "<N> <U> ago": {"span": "period"}, "<N> <U> back": {"span": "period"}, "<N> <U> earlier": {"span": "period"},
-    "the last <N> <U>": {"span": "until_now"}, "last <N> <U>": {"span": "until_now"}, "the past <N> <U>": {"span": "until_now"},
-    "past <N> <U>": {"span": "until_now"}, "the previous <N> <U>": {"span": "until_now"}, "previous <N> <U>": {"span": "until_now"},
-    "in the last <N> <U>": {"span": "until_now"}, "in the past <N> <U>": {"span": "until_now"}, "over the last <N> <U>": {"span": "until_now"},
-    "within the last <N> <U>": {"span": "until_now"}, "during the last <N> <U>": {"span": "until_now"},
+    "<N> <U> ago": {"span": "period"},
+    "<N> <U> back": {"span": "period"},
+    "<N> <U> earlier": {"span": "period"},
+    "the last <N> <U>": {"span": "until_now"},
+    "last <N> <U>": {"span": "until_now"},
+    "the past <N> <U>": {"span": "until_now"},
+    "past <N> <U>": {"span": "until_now"},
+    "the previous <N> <U>": {"span": "until_now"},
+    "previous <N> <U>": {"span": "until_now"},
+    "in the last <N> <U>": {"span": "until_now"},
+    "in the past <N> <U>": {"span": "until_now"},
+    "over the last <N> <U>": {"span": "until_now"},
+    "within the last <N> <U>": {"span": "until_now"},
+    "during the last <N> <U>": {"span": "until_now"},
 }
 FIXED: dict[str, dict[str, Any]] = {
-    "today": {"relative": "today"}, "yesterday": {"relative": "yesterday"}, "this week": {"relative": "this_week"},
-    "last week": {"relative": "last_week"}, "this month": {"relative": "this_month"}, "last month": {"relative": "last_month"},
-    "this year": {"relative": "this_year"}, "last year": {"relative": "last_year"},
+    "today": {"relative": "today"},
+    "yesterday": {"relative": "yesterday"},
+    "this week": {"relative": "this_week"},
+    "last week": {"relative": "last_week"},
+    "this month": {"relative": "this_month"},
+    "last month": {"relative": "last_month"},
+    "this year": {"relative": "this_year"},
+    "last year": {"relative": "last_year"},
 }
 # concrete examples shown to the model when no pattern fits (phrase -> meaning)
 SEED: list[tuple[str, dict[str, Any]]] = [
@@ -112,7 +157,21 @@ def match(text: str) -> tuple[str, dict[str, Any]] | None:
 
 def similar(text: str, k: int = 3) -> list[tuple[str, dict[str, Any]]]:
     """The k known phrases most like the message (word overlap after numbers and units are abstracted), for the model to reason from."""
-    mine = set(_abstract(_words(text))[0].split()) - {"the", "a", "an", "of", "in", "me", "my", "show", "pics", "photos", "pictures", "from", "i"}
+    mine = set(_abstract(_words(text))[0].split()) - {
+        "the",
+        "a",
+        "an",
+        "of",
+        "in",
+        "me",
+        "my",
+        "show",
+        "pics",
+        "photos",
+        "pictures",
+        "from",
+        "i",
+    }
     scored = []
     for phrase, meaning in SEED:
         theirs = set(_abstract(_words(phrase))[0].split())

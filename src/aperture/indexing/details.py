@@ -30,8 +30,10 @@ def vocabulary() -> list[str]:
 
 
 def pending(conn: sqlite3.Connection, limit: int = 0) -> list[int]:
-    sql = ("SELECT i.id FROM items i LEFT JOIN photo_details d ON d.item_id=i.id "
-           "WHERE i.missing=0 AND i.meta_done=1 AND i.kind='image' AND (d.item_id IS NULL OR d.version < ?) ORDER BY i.id")
+    sql = (
+        "SELECT i.id FROM items i LEFT JOIN photo_details d ON d.item_id=i.id "
+        "WHERE i.missing=0 AND i.meta_done=1 AND i.kind='image' AND (d.item_id IS NULL OR d.version < ?) ORDER BY i.id"
+    )
     if limit:
         sql += f" LIMIT {int(limit)}"
     return [r[0] for r in conn.execute(sql, (VERSION,))]
@@ -58,18 +60,35 @@ def dhash(data: bytes) -> int | None:
 
 def store(conn: sqlite3.Connection, item_id: int, details: Details, phash: int | None = None) -> None:
     for table in ("photo_labels", "photo_objects", "photo_text"):
-        conn.execute(f"DELETE FROM {table} WHERE item_id=? " + ("AND source='vision'" if table == "photo_labels" else ""), (item_id,))
-    conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'vision')",
-                     [(item_id, label.lower(), score) for label, score in details.labels])
-    conn.executemany("INSERT INTO photo_objects(item_id, kind, label, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?,?)",
-                     [(item_id, kind, label, score, *box) for kind, label, score, box in details.objects])
-    conn.executemany("INSERT INTO photo_text(item_id, text, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?)",
-                     [(item_id, text, score, *box) for text, score, box in details.texts])
-    conn.execute("INSERT OR REPLACE INTO photo_details(item_id, version, read_at, phash) VALUES (?,?,?,?)", (item_id, VERSION, time.time(), phash))
+        conn.execute(
+            f"DELETE FROM {table} WHERE item_id=? " + ("AND source='vision'" if table == "photo_labels" else ""), (item_id,)
+        )
+    conn.executemany(
+        "INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'vision')",
+        [(item_id, label.lower(), score) for label, score in details.labels],
+    )
+    conn.executemany(
+        "INSERT INTO photo_objects(item_id, kind, label, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?,?)",
+        [(item_id, kind, label, score, *box) for kind, label, score, box in details.objects],
+    )
+    conn.executemany(
+        "INSERT INTO photo_text(item_id, text, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?)",
+        [(item_id, text, score, *box) for text, score, box in details.texts],
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO photo_details(item_id, version, read_at, phash) VALUES (?,?,?,?)",
+        (item_id, VERSION, time.time(), phash),
+    )
 
 
-def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0, stop: Any = None,
-        report: Callable[[int, int], None] | None = None) -> tuple[int, int]:
+def run(
+    conn: sqlite3.Connection,
+    data_dir: Path,
+    analyser: Any,
+    limit: int = 0,
+    stop: Any = None,
+    report: Callable[[int, int], None] | None = None,
+) -> tuple[int, int]:
     """Analyse every picture that has no record yet. Returns (done, unreadable)."""
     todo = pending(conn, limit)
     done = bad = 0
@@ -82,8 +101,10 @@ def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0,
             store(conn, item_id, analyser.analyse(data), dhash(data))
             done += 1
         except Exception as exc:  # one unreadable preview must not stop the pass; it is recorded and skipped
-            conn.execute("INSERT OR REPLACE INTO photo_details(item_id, version, read_at, notes) VALUES (?,?,?,?)",
-                         (item_id, VERSION, time.time(), f"{type(exc).__name__}: {exc}"[:300]))
+            conn.execute(
+                "INSERT OR REPLACE INTO photo_details(item_id, version, read_at, notes) VALUES (?,?,?,?)",
+                (item_id, VERSION, time.time(), f"{type(exc).__name__}: {exc}"[:300]),
+            )
             bad += 1
         if n % 100 == 0:
             conn.commit()
@@ -93,8 +114,17 @@ def run(conn: sqlite3.Connection, data_dir: Path, analyser: Any, limit: int = 0,
     return done, bad
 
 
-def clip_tags(conn: sqlite3.Connection, index: Any, embedder: Any, labels: list[str] | None = None, top: int = CLIP_TOP,
-              min_score: float = CLIP_MIN_SCORE, min_p: float = CLIP_MIN_P, geo: Any = None, verify: bool = True) -> int:
+def clip_tags(
+    conn: sqlite3.Connection,
+    index: Any,
+    embedder: Any,
+    labels: list[str] | None = None,
+    top: int = CLIP_TOP,
+    min_score: float = CLIP_MIN_SCORE,
+    min_p: float = CLIP_MIN_P,
+    geo: Any = None,
+    verify: bool = True,
+) -> int:
     """Tag every photo with the vocabulary labels its stored embedding is closest to (no image is decoded: seconds, not hours)."""
     labels = labels or vocabulary()
     if len(index) == 0 or not labels:
@@ -111,7 +141,11 @@ def clip_tags(conn: sqlite3.Connection, index: Any, embedder: Any, labels: list[
         batch = []
         for r in range(len(block)):
             item = int(index.ids[start + r])
-            batch += [(item, labels[j].lower(), float(scores[r, j])) for j in best[r] if scores[r, j] >= min_score and probs[r, j] >= min_p]
+            batch += [
+                (item, labels[j].lower(), float(scores[r, j]))
+                for j in best[r]
+                if scores[r, j] >= min_score and probs[r, j] >= min_p
+            ]
         conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'clip')", batch)
         rows += len(batch)
     conn.commit()
@@ -146,8 +180,11 @@ def verify_clip_tags(conn: sqlite3.Connection, geo: Any) -> int:
         vision.setdefault(item_id, set()).update(_words(label))
     for label in labels:
         landmark = vocab.get(label, label)[:1].isupper()
-        rows = conn.execute("SELECT l.rowid, l.item_id, i.gps_lat, i.gps_lon FROM photo_labels l JOIN items i ON i.id=l.item_id "
-                            "WHERE l.source='clip' AND l.label=?", (label,)).fetchall()
+        rows = conn.execute(
+            "SELECT l.rowid, l.item_id, i.gps_lat, i.gps_lon FROM photo_labels l JOIN items i ON i.id=l.item_id "
+            "WHERE l.source='clip' AND l.label=?",
+            (label,),
+        ).fetchall()
         if landmark:
             city = None
             words = label.split()
@@ -159,7 +196,11 @@ def verify_clip_tags(conn: sqlite3.Connection, geo: Any) -> int:
             keep = set()
             if city is not None:
                 for rowid, _item, lat, lon in rows:
-                    if lat is not None and lon is not None and haversine_km(city[0], city[1], np.array([lat]), np.array([lon]))[0] <= LANDMARK_RADIUS_KM:
+                    if (
+                        lat is not None
+                        and lon is not None
+                        and haversine_km(city[0], city[1], np.array([lat]), np.array([lon]))[0] <= LANDMARK_RADIUS_KM
+                    ):
                         keep.add(rowid)
         else:
             wanted = _words(label)

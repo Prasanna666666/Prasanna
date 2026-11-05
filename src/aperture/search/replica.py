@@ -58,7 +58,9 @@ class Replica:
                     rows += holder.execute(f"SELECT COUNT(*) FROM main.{table}").fetchone()[0]
                     for column in (r[1] for r in info if r[5] == 1 and str(r[2]).upper() == "INTEGER" and r[1] in columns):
                         holder.execute(f"CREATE UNIQUE INDEX {table}__pk ON {table}({column})")  # an id lookup must not scan
-                    for (sql,) in holder.execute("SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL", (table,)).fetchall():
+                    for (sql,) in holder.execute(
+                        "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL", (table,)
+                    ).fetchall():
                         try:
                             holder.execute(sql)
                         except sqlite3.Error:

@@ -34,7 +34,14 @@ class OnnxAgeEstimator:
 
 
 # Groups, and the part of each that counts as clearly inside it: an estimate near a boundary gets no label (wrong answers are worse than none).
-GROUPS = (("baby", 0, 2), ("child", 4, 11), ("teenager", 14, 18), ("young adult", 22, 32), ("adult", 38, 55), ("elderly", 65, 120))
+GROUPS = (
+    ("baby", 0, 2),
+    ("child", 4, 11),
+    ("teenager", 14, 18),
+    ("young adult", 22, 32),
+    ("adult", 38, 55),
+    ("elderly", 65, 120),
+)
 
 
 def age_group(years: float) -> str | None:

@@ -65,7 +65,7 @@ def write_icns(destination: Path) -> bool:
             art.resize((base, base), Image.LANCZOS).save(iconset / f"icon_{base}x{base}.png")
             art.resize((base * 2, base * 2), Image.LANCZOS).save(iconset / f"icon_{base}x{base}@2x.png")
         destination.parent.mkdir(parents=True, exist_ok=True)
-        result = subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(destination)], check=False)  # noqa: S603, S607
+        result = subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(destination)], check=False)
     return result.returncode == 0 and destination.is_file()
 
 

@@ -35,7 +35,15 @@ class DateSpec:
 
     @property
     def is_empty(self) -> bool:
-        return not (self.year or self.month or self.season != "none" or self.relative != "none" or self.start or self.end or (self.ago and self.unit in UNITS))
+        return not (
+            self.year
+            or self.month
+            or self.season != "none"
+            or self.relative != "none"
+            or self.start
+            or self.end
+            or (self.ago and self.unit in UNITS)
+        )
 
 
 def _month_start(year: int, month: int) -> date:

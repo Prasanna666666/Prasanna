@@ -36,7 +36,7 @@ def start_scan(ctx: AppContext, *extra: str) -> bool:
         ctx.llm().unload()  # free the AI model's RAM before indexing starts
     except Exception:
         pass
-    subprocess.Popen(  # noqa: S603
+    subprocess.Popen(
         [sys.executable, "-m", "aperture", "scan", *extra],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
     )  # fmt: skip
@@ -60,7 +60,7 @@ def start_captions(ctx: AppContext) -> bool:
 
 
 def start_export_job(ctx: AppContext, job_id: str) -> None:
-    subprocess.Popen(  # noqa: S603
+    subprocess.Popen(
         [sys.executable, "-m", "aperture", "export-job", job_id],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
     )  # fmt: skip

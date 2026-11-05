@@ -8,8 +8,8 @@ photos are already on screen, and today's date.
 from __future__ import annotations
 
 import json
-import time
 import re
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -39,7 +39,9 @@ MAX_EARLIER = 3
 
 def check(port: int, opener: Any = urllib.request.urlopen) -> str:
     """One small real request through the gateway. Returns "" when the cloud answered, otherwise why not, in the provider's own words."""
-    body = json.dumps({"question": "photos of dogs from last year", "has_previous": False, "today": date.today().isoformat()}).encode()
+    body = json.dumps(
+        {"question": "photos of dogs from last year", "has_previous": False, "today": date.today().isoformat()}
+    ).encode()
     http = urllib.request.Request(f"http://127.0.0.1:{port}/interpret", data=body, headers={"Content-Type": "application/json"})
     try:
         with opener(http, timeout=15) as response:
@@ -52,13 +54,19 @@ def check(port: int, opener: Any = urllib.request.urlopen) -> str:
             return f"HTTP {exc.code}"
     except OSError:
         return "the cloud connection is not running"
+
+
 REST_SECONDS = 120.0
 
 
 class CloudInterpreter:
-    def __init__(self, port: int, people: Callable[[], list[str]], places: Callable[[], list[str]], opener: Any = urllib.request.urlopen) -> None:
+    def __init__(
+        self, port: int, people: Callable[[], list[str]], places: Callable[[], list[str]], opener: Any = urllib.request.urlopen
+    ) -> None:
         self._port, self._people, self._places, self._open = port, people, places, opener
-        self._resting_until = 0.0  # after a failure the cloud is skipped for a while, so a slow connection never delays an answer twice
+        self._resting_until = (
+            0.0  # after a failure the cloud is skipped for a while, so a slow connection never delays an answer twice
+        )
 
     def _resting(self) -> bool:
         return time.monotonic() < self._resting_until
@@ -72,8 +80,12 @@ class CloudInterpreter:
         try:
             redactor = Redactor(self._people(), self._places())
             question = redactor.redact(request)
-            body = json.dumps({"question": question, "has_previous": bool(has_previous), "today": date.today().isoformat()}).encode()
-            http = urllib.request.Request(f"http://127.0.0.1:{self._port}/interpret", data=body, headers={"Content-Type": "application/json"})
+            body = json.dumps(
+                {"question": question, "has_previous": bool(has_previous), "today": date.today().isoformat()}
+            ).encode()
+            http = urllib.request.Request(
+                f"http://127.0.0.1:{self._port}/interpret", data=body, headers={"Content-Type": "application/json"}
+            )
             with self._open(http, timeout=_time_left(6.0)) as response:
                 plan = json.loads(response.read().decode("utf-8", "replace")).get("plan")
             if not isinstance(plan, dict) or not plan.get("tool"):
@@ -92,8 +104,12 @@ class CloudInterpreter:
         try:
             redactor = Redactor(self._people(), self._places())
             earlier = [redactor.redact(text) for role, text in (history or []) if role == "user" and text][-MAX_EARLIER:]
-            body = json.dumps({"question": redactor.redact(request), "earlier": earlier, "today": date.today().isoformat()}).encode()
-            http = urllib.request.Request(f"http://127.0.0.1:{self._port}/chat", data=body, headers={"Content-Type": "application/json"})
+            body = json.dumps(
+                {"question": redactor.redact(request), "earlier": earlier, "today": date.today().isoformat()}
+            ).encode()
+            http = urllib.request.Request(
+                f"http://127.0.0.1:{self._port}/chat", data=body, headers={"Content-Type": "application/json"}
+            )
             with self._open(http, timeout=_time_left(8.0)) as response:
                 reply = json.loads(response.read().decode("utf-8", "replace")).get("reply")
             return redactor.restore(str(reply)).strip() or None if isinstance(reply, str) else None

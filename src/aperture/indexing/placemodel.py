@@ -20,7 +20,9 @@ from .derive import MIN_PRECISION
 
 CELL_DEG = 0.25  # about 25 km: a "place" for this model is a 0.25 x 0.25 degree cell
 K_NEIGHBOURS = 20
-EXCLUDE_MIN = 24 * 60.0  # visual neighbours taken within a day of the photo are ignored: the picture must be recognised from OTHER occasions
+EXCLUDE_MIN = (
+    24 * 60.0
+)  # visual neighbours taken within a day of the photo are ignored: the picture must be recognised from OTHER occasions
 TIME_WINDOW_MIN = 12 * 60.0
 TIME_SCALE_MIN = 60.0
 MAX_TEST = 20000
@@ -32,7 +34,14 @@ def _cell(lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
     return (np.floor(lat / CELL_DEG).astype(np.int64) + 1000) * 100000 + (np.floor(lon / CELL_DEG).astype(np.int64) + 1000)
 
 
-def _features(sims: np.ndarray, nb_cells: np.ndarray, q_times: np.ndarray, t_gps: np.ndarray, cell_gps: np.ndarray, self_pos: np.ndarray | None):
+def _features(
+    sims: np.ndarray,
+    nb_cells: np.ndarray,
+    q_times: np.ndarray,
+    t_gps: np.ndarray,
+    cell_gps: np.ndarray,
+    self_pos: np.ndarray | None,
+):
     """Per query: candidate cells and their feature rows [visual vote, best similarity, time vote]."""
     out = []
     for r in range(len(sims)):
@@ -42,7 +51,7 @@ def _features(sims: np.ndarray, nb_cells: np.ndarray, q_times: np.ndarray, t_gps
         top = s.max()
         weights = np.exp(15.0 * (s - top))
         total = weights.sum() or 1.0
-        for w, sim, c in zip(weights, s, nb_cells[r]):
+        for w, sim, c in zip(weights, s, nb_cells[r], strict=False):
             vote[int(c)] = vote.get(int(c), 0.0) + float(w) / total
             best[int(c)] = max(best.get(int(c), -1.0), float(sim))
         time_vote: dict[int, float] = {}
@@ -57,7 +66,7 @@ def _features(sims: np.ndarray, nb_cells: np.ndarray, q_times: np.ndarray, t_gps
             wt = np.exp(-np.abs(t_gps[idx] - t) / TIME_SCALE_MIN)
             tot = wt.sum()
             if tot > 0:
-                for w, c in zip(wt, cell_gps[idx]):
+                for w, c in zip(wt, cell_gps[idx], strict=False):
                     time_vote[int(c)] = time_vote.get(int(c), 0.0) + float(w) / tot
         cells = sorted(set(vote) | set(time_vote))
         out.append((cells, np.array([[vote.get(c, 0.0), best.get(c, 0.0), time_vote.get(c, 0.0)] for c in cells], np.float64)))
@@ -91,8 +100,12 @@ def _top(candidates, w):
     return result
 
 
-def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = MIN_PRECISION, min_accepted: int = 30, seed: int = 7) -> dict:
-    rows = conn.execute("SELECT id, taken_at, gps_lat, gps_lon, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND meta_done=1").fetchall()
+def locate_by_picture(
+    conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = MIN_PRECISION, min_accepted: int = 30, seed: int = 7
+) -> dict:
+    rows = conn.execute(
+        "SELECT id, taken_at, gps_lat, gps_lon, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND meta_done=1"
+    ).fetchall()
     row_of = {int(i): r for r, i in enumerate(index.ids.tolist())}
     ids, times, lat, lon, est, elat, elon = [], [], [], [], [], [], []
     for item_id, taken, la, lo, e, eo in rows:
@@ -109,10 +122,22 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
         est.append(e is not None)
         elat.append(np.nan if e is None else e)
         elon.append(np.nan if eo is None else eo)
-    ids, times, lat, lon, est = np.array(ids, np.int64), np.array(times, float), np.array(lat, float), np.array(lon, float), np.array(est, bool)
+    ids, times, lat, lon, est = (
+        np.array(ids, np.int64),
+        np.array(times, float),
+        np.array(lat, float),
+        np.array(lon, float),
+        np.array(est, bool),
+    )
     elat, elon = np.array(elat, float), np.array(elon, float)
     has = ~np.isnan(lat)
-    report: dict[str, Any] = {"tested": 0, "accuracy_at_threshold": 0.0, "threshold": None, "located": 0, "without_gps": int((~has & ~est).sum())}
+    report: dict[str, Any] = {
+        "tested": 0,
+        "accuracy_at_threshold": 0.0,
+        "threshold": None,
+        "located": 0,
+        "without_gps": int((~has & ~est).sum()),
+    }
     if has.sum() < 200:
         return report
     vec = index.vectors[[row_of[int(i)] for i in ids]].astype(np.float32)
@@ -143,21 +168,21 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
     truth = cells[test_pos]
     half = len(test_pos) // 2
     xs, ys = [], []
-    for (cs, f), t in zip(cand[:half], truth[:half]):  # first half trains the model
-        for ci, fi in zip(cs, f):
+    for (cs, f), t in zip(cand[:half], truth[:half], strict=False):  # first half trains the model
+        for ci, fi in zip(cs, f, strict=False):
             xs.append(fi)
             ys.append(1.0 if ci == t else 0.0)
     if not xs:
         return report
     w = _fit(np.array(xs), np.array(ys))
     scored = _top(cand[half:], w)  # the other half measures how good the probabilities really are
-    ok = np.array([cell == t for (cell, _, _), t in zip(scored, truth[half:])])
+    ok = np.array([cell == t for (cell, _, _), t in zip(scored, truth[half:], strict=False)])
     prob = np.array([p for _, p, _ in scored])
     looks = np.array([s for _, _, s in scored])
     order = np.argsort(-prob)
     cum_precision = np.cumsum(ok[order]) / (np.arange(len(order)) + 1)
     good = np.flatnonzero((cum_precision >= min_precision) & (np.arange(len(order)) + 1 >= min_accepted))
-    report["tested"] = int(len(scored))
+    report["tested"] = len(scored)
     if len(good) == 0:
         return report
     cut = int(good[-1])  # the most photos that still keep the measured precision
@@ -174,14 +199,24 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
     report["trusted_places"] = len(trusted)
     # a picture that matches known photos of its place much less closely than the correctly placed test photos did is out of its depth
     floor = float(np.percentile(looks[ok], 10)) if ok.any() else 1.0
-    report.update(threshold=round(threshold, 3), accuracy_at_threshold=round(precision, 3), accepted_in_test=int(cut + 1), similarity_floor=round(floor, 3))
+    report.update(
+        threshold=round(threshold, 3),
+        accuracy_at_threshold=round(precision, 3),
+        accepted_in_test=int(cut + 1),
+        similarity_floor=round(floor, 3),
+    )
     # 1b. The test photos have GPS, the photos to place do not, and they may look different (screenshots, forwarded pictures, other cameras).
     # So also check the model on photos that have NO GPS but were located by time at >= 95%: if it disagrees with them, it places nothing.
     checked = np.flatnonzero(~has & est & ~np.isnan(elat))
     if len(checked) >= 100:
         s, c = neighbours(vec[checked], times[checked], None)
-        verdicts = [cell == t for (cell, p, look), t in zip(_top(_features(s, c, times[checked], tg, cells, None), w), _cell(elat[checked], elon[checked]))
-                    if cell is not None and p >= threshold and look >= floor and int(cell) in trusted]
+        verdicts = [
+            cell == t
+            for (cell, p, look), t in zip(
+                _top(_features(s, c, times[checked], tg, cells, None), w), _cell(elat[checked], elon[checked]), strict=False
+            )
+            if cell is not None and p >= threshold and look >= floor and int(cell) in trusted
+        ]
         if len(verdicts) >= 100:
             agreement = float(np.mean(verdicts))
             report.update(checked_on_no_gps=len(verdicts), agreement_on_no_gps=round(agreement, 3))
@@ -201,12 +236,14 @@ def locate_by_picture(conn: sqlite3.Connection, index: Any, geo: Any, min_precis
         part = q[start : start + 4096]
         s, c = neighbours(vec[part], times[part], None)
         picks = _top(_features(s, c, times[part], tg, cells, None), w)
-        for item, (cell, p, look) in zip(ids[part], picks):
+        for item, (cell, p, look) in zip(ids[part], picks, strict=False):
             if cell is not None and p >= threshold and look >= floor and int(cell) in trusted:
                 la, lo = centroid[cell]
                 place = geo.lookup(la, lo) if geo is not None else None
                 updates.append((la, lo, precision, place.label if place else None, place.search_text if place else "", int(item)))
-    conn.executemany("UPDATE items SET gps_est_lat=?, gps_est_lon=?, gps_est_conf=?, gps_est_place=?, gps_est_place_text=? WHERE id=?", updates)
+    conn.executemany(
+        "UPDATE items SET gps_est_lat=?, gps_est_lon=?, gps_est_conf=?, gps_est_place=?, gps_est_place_text=? WHERE id=?", updates
+    )
     conn.commit()
     report["located"] = len(updates)
     return report

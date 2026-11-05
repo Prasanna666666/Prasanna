@@ -5,6 +5,7 @@ import urllib.error
 import urllib.request
 
 import pytest
+
 from web_fixture import make_ctx, start_server
 
 
@@ -35,7 +36,11 @@ class SimpleApp:
 
     def chat(self, message, conv="c1", history=None, token=True):
         body = json.dumps({"message": message, "conv": conv, "history": history or []}).encode()
-        req = urllib.request.Request(self.base + "/api/chat", body, {"Content-Type": "application/json", **({"X-Lumo-Token": self.web.token} if token else {})})
+        req = urllib.request.Request(
+            self.base + "/api/chat",
+            body,
+            {"Content-Type": "application/json", **({"X-Lumo-Token": self.web.token} if token else {})},
+        )
         try:
             with urllib.request.urlopen(req) as r:
                 return r.status, parse_sse(r.read().decode())
@@ -60,7 +65,9 @@ def test_page_loads_with_the_token_and_strict_security_headers(app):
     status, body, headers = app.get("/", token=False)
     html = body.decode()
     assert status == 200 and app.web.token in html and "__TOKEN__" not in html
-    assert "default-src 'none'" in headers["Content-Security-Policy"] and "script-src 'self'" in headers["Content-Security-Policy"]
+    assert (
+        "default-src 'none'" in headers["Content-Security-Policy"] and "script-src 'self'" in headers["Content-Security-Policy"]
+    )
     assert headers["X-Content-Type-Options"] == "nosniff" and headers["Cache-Control"] == "no-store"
     assert "onclick" not in html and "<style" not in html and "https://" not in html  # nothing inline, nothing external
     assert app.get("/static/app.js", token=False)[0] == 200 and app.get("/static/app.css", token=False)[0] == 200
@@ -94,16 +101,31 @@ def test_status_reports_the_state_and_counts(app):
 
 def test_photos_are_served_by_number_only(app):
     status, body, headers = app.get("/api/photo/5/thumb")
-    assert status == 200 and headers["Content-Type"] == "image/jpeg" and body[:2] == b"\xff\xd8" and "max-age" in headers["Cache-Control"]
+    assert (
+        status == 200
+        and headers["Content-Type"] == "image/jpeg"
+        and body[:2] == b"\xff\xd8"
+        and "max-age" in headers["Cache-Control"]
+    )
     assert app.get("/api/photo/5/preview")[0] == 200
     assert app.get("/api/photo/999/thumb")[0] == 404
-    for bad in ("/api/photo/../../etc/passwd/thumb", "/api/photo/5/original", "/api/photo/abc/thumb", "/api/photo/5/thumb/../../x"):
+    for bad in (
+        "/api/photo/../../etc/passwd/thumb",
+        "/api/photo/5/original",
+        "/api/photo/abc/thumb",
+        "/api/photo/5/thumb/../../x",
+    ):
         assert app.get(bad)[0] == 404
 
 
 def test_item_details_hide_the_folder_path(app):
     d = json.loads(app.get("/api/item/3")[1])
-    assert d["name"] == "IMG_0003.jpg" and d["camera"] == "iPhone 15 Pro" and "/photos" not in json.dumps(d) and "Trips" not in json.dumps(d)
+    assert (
+        d["name"] == "IMG_0003.jpg"
+        and d["camera"] == "iPhone 15 Pro"
+        and "/photos" not in json.dumps(d)
+        and "Trips" not in json.dumps(d)
+    )
     assert app.get("/api/item/9999")[0] == 404
 
 
@@ -112,7 +134,11 @@ def test_photo_question_streams_ack_reply_results_done_and_remembers_the_set(app
     names = [n for n, _ in events]
     assert status == 200 and names[0] == "ack" and names[-1] == "done" and "reply" in names and "results" in names
     results = dict(events)["results"]
-    assert results["total"] == 41 and len(results["ids"]) == 41 and results["notes"] == ["3 photos have no GPS, so the place could not be checked."]
+    assert (
+        results["total"] == 41
+        and len(results["ids"]) == 41
+        and results["notes"] == ["3 photos have no GPS, so the place could not be checked."]
+    )
     assert dict(events)["done"]["kind"] == "results"
     # the next message in the same conversation gets the earlier result set; another conversation does not
     app.chat("only the ones from March", conv="a")
@@ -130,7 +156,7 @@ def test_results_are_paged(app):
 
 
 def test_conversation_streams_word_by_word_without_photos(app):
-    status, events = app.chat("tell me about RAW", history=[["user", "hi"], ["assistant", "Hello!"]])
+    _status, events = app.chat("tell me about RAW", history=[["user", "hi"], ["assistant", "Hello!"]])
     deltas = [d["text"] for n, d in events if n == "delta"]
     assert len(deltas) >= 5 and "".join(deltas).startswith("Sure, happy to help.")
     assert not any(n in ("results", "preview") for n, _ in events) and events[-1][1]["text"].endswith("sensor data.")
@@ -145,8 +171,15 @@ def test_errors_reach_the_page_as_a_message_not_a_crash(app):
 
 def test_bad_requests_are_rejected(app):
     base = app.base
-    for body, expected in ((b"not json", 400), (b"{}", 400), (json.dumps({"message": "   "}).encode(), 400), (b"x" * 70_000, 413)):
-        req = urllib.request.Request(base + "/api/chat", body, {"Content-Type": "application/json", "X-Lumo-Token": app.web.token})
+    for body, expected in (
+        (b"not json", 400),
+        (b"{}", 400),
+        (json.dumps({"message": "   "}).encode(), 400),
+        (b"x" * 70_000, 413),
+    ):
+        req = urllib.request.Request(
+            base + "/api/chat", body, {"Content-Type": "application/json", "X-Lumo-Token": app.web.token}
+        )
         with pytest.raises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(req)
         assert err.value.code == expected
@@ -158,13 +191,33 @@ def test_every_answer_carries_how_it_was_answered_and_the_status_says_which_buil
     original = app.agent.ask
 
     def asking_the_model(request, previous_ids=None, history=None):
-        CALL_LOG.get().append({"model": "m", "system": "THE INSTRUCTIONS", "messages": [{"role": "user", "text": request}], "tools": [], "output": "THE ANSWER", "tool_calls": []})
+        CALL_LOG.get().append(
+            {
+                "model": "m",
+                "system": "THE INSTRUCTIONS",
+                "messages": [{"role": "user", "text": request}],
+                "tools": [],
+                "output": "THE ANSWER",
+                "tool_calls": [],
+            }
+        )
         return original(request, previous_ids, history)
 
     app.agent.ask = asking_the_model
     done = dict(app.chat("tell me about RAW")[1])["done"]
-    assert done["trace"] == [{"model": "m", "system": "THE INSTRUCTIONS", "messages": [{"role": "user", "text": "tell me about RAW"}], "tools": [], "output": "THE ANSWER", "tool_calls": []}]
-    assert dict(app.chat("tell me about RAW again")[1])["done"]["trace"][0]["system"] == "THE INSTRUCTIONS"  # a fresh log per message
+    assert done["trace"] == [
+        {
+            "model": "m",
+            "system": "THE INSTRUCTIONS",
+            "messages": [{"role": "user", "text": "tell me about RAW"}],
+            "tools": [],
+            "output": "THE ANSWER",
+            "tool_calls": [],
+        }
+    ]
+    assert (
+        dict(app.chat("tell me about RAW again")[1])["done"]["trace"][0]["system"] == "THE INSTRUCTIONS"
+    )  # a fresh log per message
     status = json.loads(app.get("/api/status")[1])
     assert isinstance(status["build"], str) and status["build"]
 
@@ -175,8 +228,9 @@ def test_the_page_keeps_internals_out_of_sight():
     static = Path(__file__).parent.parent / "src" / "aperture" / "web" / "static"
     js, html = (static / "app.js").read_text(), (static / "index.html").read_text()
     assert "Brain:" not in js and "classic" not in js and 'id="build"' in html and "model call" not in js.lower()
-    from aperture.ui.views import settings
     import inspect
+
+    from aperture.ui.views import settings
 
     assert "tool-using agent" not in inspect.getsource(settings)
 
@@ -197,8 +251,13 @@ def test_each_answer_keeps_its_own_photos_so_scrolling_back_never_shows_newer_re
 
     web = Web.__new__(Web)  # only the result bookkeeping is under test
     web._sets, web._convs = OrderedDict(), OrderedDict()
-    tokyo = web.remember_set(np.array([1, 2, 3]), [("Taken near Tokyo", np.array([1, 2, 3])), ("Same trip as your Tokyo photos", np.array([1, 2, 3, 4]))])
-    nagoya = web.remember_set(np.array([7, 8]), [("Taken in Nagoya", np.array([7, 8])), ("Same trip as your Nagoya photos", np.array([7, 8, 9]))])
+    tokyo = web.remember_set(
+        np.array([1, 2, 3]),
+        [("Taken near Tokyo", np.array([1, 2, 3])), ("Same trip as your Tokyo photos", np.array([1, 2, 3, 4]))],
+    )
+    nagoya = web.remember_set(
+        np.array([7, 8]), [("Taken in Nagoya", np.array([7, 8])), ("Same trip as your Nagoya photos", np.array([7, 8, 9]))]
+    )
     # the newest answer is Nagoya, yet the Tokyo answer's tab and its "Show more" still give Tokyo's photos
     assert web.results("c", 0, group=1, rid=tokyo)["ids"] == [1, 2, 3, 4]
     assert web.results("c", 0, rid=tokyo)["total"] == 3
@@ -232,8 +291,6 @@ def test_a_question_that_never_finishes_ends_with_an_apology_not_a_spinner():
 
 
 def test_an_abandoned_question_cannot_keep_the_model_busy():
-    import threading
-    import time
 
     from aperture.agent import llm as llm_mod
     from aperture.web.server import ask_within
@@ -265,7 +322,9 @@ def test_the_page_is_told_what_the_app_is_doing_while_a_question_runs(caplog):
     with caplog.at_level(logging.INFO, logger="aperture.progress"):
         assert ask_within(work, 5, seen.append) == "answer"
     assert seen == ["Understanding your message", "Searching your photos"]
-    assert any("stage: Searching your photos (+" in r.getMessage() for r in caplog.records)  # and every stage is logged with its time
+    assert any(
+        "stage: Searching your photos (+" in r.getMessage() for r in caplog.records
+    )  # and every stage is logged with its time
 
 
 def test_the_header_says_whether_the_cloud_is_reading_the_questions_and_what_it_cost(app, monkeypatch):
@@ -273,14 +332,18 @@ def test_the_header_says_whether_the_cloud_is_reading_the_questions_and_what_it_
 
     assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "off"}  # the default: fully local
     app.web.ctx.settings.cloud_interpreter = True
-    assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "local"}  # set up but switched off: still nothing leaves the Mac
+    assert json.loads(app.get("/api/status")[1])["cloud"] == {
+        "state": "local"
+    }  # set up but switched off: still nothing leaves the Mac
     app.web.ctx.cloud_on = True
     app.web._cache.pop("cloud_up", None)
     monkeypatch.setattr(launcher, "gateway_status", lambda port: {"spent_usd": 0.0123, "cap_usd": 5.0})
     assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "connected", "spent": 0.0123, "cap": 5.0}
     app.web._cache.pop("cloud_up", None)
     monkeypatch.setattr(launcher, "gateway_status", lambda port: None)
-    assert json.loads(app.get("/api/status")[1])["cloud"] == {"state": "down"}  # on, but not reachable: the local model is doing the work
+    assert json.loads(app.get("/api/status")[1])["cloud"] == {
+        "state": "down"
+    }  # on, but not reachable: the local model is doing the work
 
 
 def test_the_cloud_switch_starts_off_and_only_turns_on_when_the_cloud_is_set_up_and_running(app, monkeypatch):
@@ -296,7 +359,9 @@ def test_the_cloud_switch_starts_off_and_only_turns_on_when_the_cloud_is_set_up_
 
     monkeypatch.setattr(client, "check", lambda port: "Your credit balance is too low")
     refused = app.web.set_cloud(True)
-    assert refused["ok"] is False and "credit balance" in refused["error"] and not getattr(app.web.ctx, "cloud_on", False)  # it never claims to be on
+    assert (
+        refused["ok"] is False and "credit balance" in refused["error"] and not getattr(app.web.ctx, "cloud_on", False)
+    )  # it never claims to be on
     monkeypatch.setattr(client, "check", lambda port: "")
     assert app.web.set_cloud(True)["cloud"]["state"] == "connected"
     assert app.web.set_cloud(False)["cloud"] == {"state": "local"}

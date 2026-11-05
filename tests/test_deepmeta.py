@@ -52,7 +52,9 @@ def test_the_pass_is_resumable_and_stores_one_record_per_photo(tmp_path):
         conn.executescript(script)
     photo = _photo_with_exif(tmp_path / "a.jpg")
     for i, p in enumerate([photo, tmp_path / "gone.jpg"], 1):
-        conn.execute("INSERT INTO items(id, path, rel_path, kind, mtime, size) VALUES (?,?,?,?,?,?)", (i, str(p), p.name, "image", 0, 0))
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size) VALUES (?,?,?,?,?,?)", (i, str(p), p.name, "image", 0, 0)
+        )
     assert [i for i, _ in deepmeta.pending(conn)] == [1, 2]
     assert deepmeta.run(conn)[0] == 2
     assert deepmeta.pending(conn) == []  # nothing left: a second run reads nothing

@@ -18,7 +18,9 @@ def test_every_request_uses_the_same_context_size():
 
 def test_text_and_vision_requests_send_identical_num_ctx(monkeypatch):
     sent = []
-    monkeypatch.setattr(llm.OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "{}"}})
+    monkeypatch.setattr(
+        llm.OllamaClient, "_request", lambda self, path, payload=None: sent.append(payload) or {"message": {"content": "{}"}}
+    )
     c = llm.OllamaVision("http://127.0.0.1:11434", "ministral-3:3b")
     c.complete_json("s", "u", {"type": "object"})
     c.complete_text("s", "u")
