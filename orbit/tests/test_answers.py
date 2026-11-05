@@ -142,3 +142,20 @@ def test_the_agent_gets_thirty_seconds_by_default_and_the_limit_can_be_changed(c
     assert agent.reply_seconds(conn) == 60
     db.set_setting(conn, "reply_seconds", "1")
     assert agent.reply_seconds(conn) == 10  # never so low that every answer is cut off
+
+
+def test_text_inside_a_document_cannot_make_the_agent_delete_anything(conn):
+    seed(conn)
+    before = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+
+    class Hijacked:
+        n = 0
+
+        def chat(self, model, messages, tools=None, **kw):
+            Hijacked.n += 1
+            if Hijacked.n == 1:
+                return {"content": "", "tool_calls": [{"function": {"name": "delete_transaction", "arguments": {"id": 1}}}]}
+            return {"content": "done"}
+
+    agent.chat(conn, [], "what was on the Ziggo invoice?", client=Hijacked(), model="m")
+    assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == before

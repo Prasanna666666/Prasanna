@@ -7,6 +7,7 @@ every result is returned to it as data. `client` is injectable so everything is 
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import time
 from datetime import date
@@ -14,7 +15,8 @@ from typing import Any
 
 from . import agents, answers, llm
 from .db import get_setting
-from .modules import ALL, tools as registry
+from .modules import ALL
+from .modules import tools as registry
 
 MAX_STEPS = 8
 REPLY_SECONDS = 30  # how long the agent may work on one answer; change it in Settings (reply_seconds)
@@ -155,6 +157,10 @@ def _chat(conn, history, user_text, client, model, today, trace):
         for c in calls:
             fn = c["function"]
             used.append(fn["name"])
-            out, _err = run_tool(conn, fn["name"], fn.get("arguments") or {}, allowed)
+            if fn["name"].startswith("delete_") and (allowed is None or fn["name"] in allowed) and not re.search(r"\b(delete|remove|erase|clear|get rid)\b", user_text.lower()):
+                # text inside a document must never be able to make the agent delete your data: only your own words can
+                out, _err = json.dumps({"error": "refused: deleting needs you to ask for it in your own words"}), True
+            else:
+                out, _err = run_tool(conn, fn["name"], fn.get("arguments") or {}, allowed)
             history.append({"role": "tool", "tool_name": fn["name"], "content": out})
     return "I got stuck partway - please try rephrasing or doing it in smaller steps."

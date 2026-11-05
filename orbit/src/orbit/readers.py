@@ -24,7 +24,7 @@ from functools import lru_cache
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
-from xml.etree import ElementTree as ET  # noqa: S405 - DOCTYPE/entities are rejected before parsing
+from xml.etree import ElementTree as ET
 
 MAX_ROWS = 50_000
 MAX_CELL = 300
@@ -75,7 +75,7 @@ def ocr_languages() -> str:
     if not exe:
         return ""
     try:
-        listed = subprocess.run([exe, "--list-langs"], capture_output=True, text=True, timeout=20, check=False).stdout.split()  # noqa: S603
+        listed = subprocess.run([exe, "--list-langs"], capture_output=True, text=True, timeout=20, check=False).stdout.split()
     except (OSError, subprocess.TimeoutExpired):
         return ""
     wanted = [lang for lang in ("nld", "eng") if lang in listed]
@@ -87,7 +87,7 @@ def run_tesseract(png: bytes) -> str:
     langs = ocr_languages()
     if not langs:
         raise RuntimeError("Tesseract is not installed in the parser image")
-    done = subprocess.run(["tesseract", "stdin", "stdout", "-l", langs, "--psm", "6", "tsv"], input=png, capture_output=True, timeout=180, check=False)  # noqa: S603, S607
+    done = subprocess.run(["tesseract", "stdin", "stdout", "-l", langs, "--psm", "6", "tsv"], input=png, capture_output=True, timeout=180, check=False)
     if done.returncode != 0:
         raise RuntimeError("Tesseract failed on a page")
     return done.stdout.decode("utf-8", "replace")
@@ -157,13 +157,13 @@ def _pdfplumber_pages(path: Path, passwords: list[str], pages: int) -> list[list
         try:
             with pdfplumber.open(path, password=pw or None) as pdf:
                 return [[(w["x0"], w["top"], w["x1"], w["bottom"], w["text"]) for w in page.extract_words()] for page in pdf.pages[:pages]]
-        except Exception as exc:  # noqa: BLE001 - wrong password or damaged: try the next one
+        except Exception as exc:
             last = exc
     raise last
 
 
-_BBOX_PAGE = re.compile(r"<page\b.*?</page>", re.S)
-_BBOX_WORD = re.compile(r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">(.*?)</word>', re.S)
+_BBOX_PAGE = re.compile(r"<page\b.*?</page>", re.DOTALL)
+_BBOX_WORD = re.compile(r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="([\d.]+)">(.*?)</word>', re.DOTALL)
 
 
 def _poppler_pages(path: Path, passwords: list[str], pages: int) -> list[list[tuple]]:
@@ -172,7 +172,7 @@ def _poppler_pages(path: Path, passwords: list[str], pages: int) -> list[list[tu
         raise RuntimeError("poppler is not installed")
     for pw in [*passwords, ""]:
         cmd = [exe, "-bbox", "-l", str(pages), *(["-upw", pw] if pw else []), str(path), "-"]
-        done = subprocess.run(cmd, capture_output=True, timeout=120, check=False)  # noqa: S603
+        done = subprocess.run(cmd, capture_output=True, timeout=120, check=False)
         if done.returncode == 0:
             html = done.stdout.decode("utf-8", "replace")
             return [[(float(a), float(b), float(c), float(d), unescape(t)) for a, b, c, d, t in _BBOX_WORD.findall(page)] for page in _BBOX_PAGE.findall(html)]
@@ -188,7 +188,7 @@ def other_engines(path: Path, passwords: list[str] | None, pages: int) -> dict[s
             for words in read(path, list(passwords or []), pages):
                 table += table_lines(words)
             out[name] = table
-        except Exception:  # noqa: BLE001 - never lose the file because a second opinion is unavailable
+        except Exception:
             continue
     return out
 
@@ -242,7 +242,7 @@ def read_sheet(path: Path) -> dict:
 def _safe_xml(raw: bytes):
     if re.search(rb"<!DOCTYPE|<!ENTITY", raw[:4096], re.IGNORECASE) or len(raw) > 20_000_000:
         raise ValueError("unsafe XML refused")
-    return ET.fromstring(raw)  # noqa: S314
+    return ET.fromstring(raw)
 
 
 def read_docx(path: Path) -> dict:

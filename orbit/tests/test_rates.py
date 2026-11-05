@@ -1,6 +1,5 @@
 """Everything in euros at the rate of its own day. The rates here are INVENTED, in the layout of the ECB's eurofxref CSV."""
 
-import json
 from decimal import Decimal
 
 from orbit import db, parser, rates, verify
@@ -34,7 +33,7 @@ def test_a_weekend_uses_the_last_published_rate_and_a_stale_one_is_refused(conn)
 
 def test_conversion_is_exact_decimal_arithmetic_rounded_half_even():
     assert rates.to_eur(900000, Decimal("90.5")) == 9945   # 9000.00 / 90.5 = 99.4475...
-    assert rates.to_eur(100, Decimal("2")) == 50 and rates.to_eur(1, Decimal("2")) == 0 and rates.to_eur(3, Decimal("2")) == 2  # half-even on .5
+    assert rates.to_eur(100, Decimal(2)) == 50 and rates.to_eur(1, Decimal(2)) == 0 and rates.to_eur(3, Decimal(2)) == 2  # half-even on .5
 
 
 def test_every_payment_is_converted_at_its_own_days_rate_and_a_missing_rate_is_left_out_and_reported(conn):

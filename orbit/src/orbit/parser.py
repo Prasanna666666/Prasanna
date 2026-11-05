@@ -35,7 +35,8 @@ KINDS = {".txt": "text", ".md": "text", ".csv": "csv", ".tsv": "csv", ".pdf": "p
          ".png": "image", ".jpg": "image", ".jpeg": "image", ".tif": "image", ".tiff": "image", ".bmp": "image", ".webp": "image",
          ".xlsx": "sheet", ".xlsm": "sheet", ".docx": "doc", ".html": "html", ".htm": "html", ".eml": "email", ".json": "json", ".zip": "zip"}
 SKIP_NAMES = {"passwords.txt", ".passwords"}  # the passwords for protected PDFs live here: never read as a document
-from . import readers  # noqa: E402
+from . import readers
+
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -127,7 +128,7 @@ def _limits() -> None:  # runs in the child before exec (Linux/macOS)
 
 def extract_isolated(path: Path, timeout: int = TIMEOUT_S) -> dict:
     r = subprocess.run([sys.executable, "-I", "-m", "orbit.parser", "--extract-one", str(path)],
-                       capture_output=True, timeout=timeout, preexec_fn=_limits, check=False)  # noqa: PLW1509
+                       capture_output=True, timeout=timeout, preexec_fn=_limits, check=False)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-300:] or f"parser exited {r.returncode}")
     return json.loads(r.stdout)

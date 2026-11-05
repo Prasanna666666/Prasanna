@@ -120,7 +120,7 @@ def infer_layout(client, model: str, table: list[list[Cell]]) -> Layout | None:
         return None
     if not (("debit" in roles or "credit" in roles) or "amount" in roles):
         return None
-    words = lambda k: [str(w).strip().lower() for w in d.get(k, []) if str(w).strip()]  # noqa: E731
+    words = lambda k: [str(w).strip().lower() for w in d.get(k, []) if str(w).strip()]
     return Layout(header, roles, str(d["date_format"]), str(d.get("decimal") or ".")[:1] or ".", str(d.get("thousands") or "")[:1],
                   [str(m).strip().lower() for m in d.get("month_names", [])][:12], words("debit_words"), words("credit_words"), bool(d.get("date_on_every_row", True)),
                   str(d.get("opening_balance") or ""), str(d.get("closing_balance") or ""), bool(d.get("balance_is_amount_owed", False)), str(d.get("account") or "")[:40])

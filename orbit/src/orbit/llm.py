@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
+import os
 import socket
 import time
-import os
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -15,6 +16,17 @@ from . import netguard
 # The ONLY model Orbit uses (disk space is limited: one model, no fallbacks). The exact tag could not be verified from
 # the build sandbox; resolve() also accepts a single installed model whose name starts with "ministral".
 DEFAULT_MODEL = "ministral-3:3b"
+
+
+def is_local_host(name: str) -> bool:
+    """True only for this computer or its private network: loopback, a private IP, localhost, or a docker-style `.internal` / `ollama` name.
+    The model server is never allowed to be anywhere else, so what you type can never be sent over the internet."""
+    name = (name or "").strip().lower().strip("[]")
+    try:
+        ip = ipaddress.ip_address(name)
+        return ip.is_loopback or ip.is_private
+    except ValueError:
+        return name in {"localhost", "ollama", "host.docker.internal"} or name.endswith(".internal")
 
 
 def host() -> str:
@@ -33,6 +45,9 @@ class OllamaClient:
 
     def __init__(self, base: str | None = None):
         self.base = base or host()
+        name = urllib.parse.urlparse(self.base).hostname or ""
+        if urllib.parse.urlparse(self.base).scheme not in ("http", "https") or not is_local_host(name):
+            raise ValueError(f"The model server must be on this computer or its private network, not {name or self.base!r}")
         netguard.allow_local(urllib.parse.urlparse(self.base).hostname or "localhost")
 
     def _call(self, path: str, body: dict | None = None, timeout: int = 300) -> dict:
@@ -44,7 +59,7 @@ class OllamaClient:
                 raise Slow("out of time")
             timeout = min(timeout, left)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - local host only (netguard)
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return json.load(r)
         except OSError as e:
             if self.deadline is not None and isinstance(e, TimeoutError | socket.timeout) or "timed out" in str(e):

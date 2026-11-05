@@ -45,7 +45,7 @@ def model_tags(client, model: str, text: str) -> list[str]:
         {"role": "system", "content": "Pick up to 3 tags for the note from this list only: " + ", ".join(VOCAB) +
          '. Reply with a JSON array of strings, e.g. ["health","family"]. No other text.'},
         {"role": "user", "content": text[:1500]}])
-    m = re.search(r"\[.*?\]", msg.get("content") or "", re.S)
+    m = re.search(r"\[.*?\]", msg.get("content") or "", re.DOTALL)
     try:
         found = json.loads(m.group(0)) if m else []
     except ValueError:

@@ -7,7 +7,7 @@ so the proof is exact: opening + the transactions = closing, to the cent. Files 
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET  # noqa: S405 - input is checked for DTDs/entities first (see read_camt)
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -35,7 +35,7 @@ class Statement:
 
 def sniff(text: str) -> str | None:
     head = text[:4000]
-    if re.search(r"^:20:", head, re.M) and (":60F:" in text or ":60M:" in text or ":61:" in text):
+    if re.search(r"^:20:", head, re.MULTILINE) and (":60F:" in text or ":60M:" in text or ":61:" in text):
         return "mt940"
     if "<BkToCstmrStmt" in text[:20000] or "<Stmt>" in text[:20000]:
         return "camt053"
@@ -136,10 +136,10 @@ def _prove(s: Statement) -> None:
 
 def read_camt(text: str) -> list[Statement]:
     """camt.053 XML. Files with a DTD or entities are refused outright (they are how XML files attack readers)."""
-    if re.search(r"<!DOCTYPE|<!ENTITY", text, re.I):
+    if re.search(r"<!DOCTYPE|<!ENTITY", text, re.IGNORECASE):
         return [Statement(issues=["the file contains XML entity definitions, which are refused for safety"])]
     try:
-        root = ET.fromstring(text)  # noqa: S314 - DTD/entities were rejected above
+        root = ET.fromstring(text)
     except ET.ParseError:
         return [Statement(issues=["the XML could not be read"])]
 

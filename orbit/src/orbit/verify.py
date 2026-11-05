@@ -264,7 +264,7 @@ def link_transfers(conn) -> list[Finding]:
     groups: dict[tuple, tuple[list, list]] = {}
     for r in rows:
         groups.setdefault((r["cur"], r["amount_minor"]), ([], []))[0 if r["kind"] == "expense" else 1].append(r)
-    gap = lambda a, b: abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)  # noqa: E731
+    gap = lambda a, b: abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)
     paired = ambiguous = 0
     for outs, ins in groups.values():
         near_out = {o["id"]: [i for i in ins if i["account"] != o["account"] and gap(o, i) <= 3] for o in outs}
@@ -301,8 +301,8 @@ def _link_across_currencies(conn, main: str, tolerance: float = 0.06) -> tuple[i
         "WHERE account<>'' AND transfer_id IS NULL AND event_id IS NULL AND eur_minor IS NOT NULL AND source<>'derived'", (main,)))
     outs = [r for r in rows if r["kind"] == "expense"]
     ins = [r for r in rows if r["kind"] == "income"]
-    gap = lambda a, b: abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)  # noqa: E731
-    near = lambda o, i: (o["cur"] != i["cur"] and o["account"] != i["account"] and gap(o, i) <= 3 and abs(o["eur_minor"] - i["eur_minor"]) <= tolerance * max(o["eur_minor"], i["eur_minor"]))  # noqa: E731
+    gap = lambda a, b: abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)
+    near = lambda o, i: (o["cur"] != i["cur"] and o["account"] != i["account"] and gap(o, i) <= 3 and abs(o["eur_minor"] - i["eur_minor"]) <= tolerance * max(o["eur_minor"], i["eur_minor"]))
     total_cost, pairs = 0, 0
     for o in outs:
         c = [i for i in ins if near(o, i)]

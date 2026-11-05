@@ -13,7 +13,7 @@ from .verify import Finding
 def integrity(conn) -> str:
     try:
         return str(conn.execute("PRAGMA integrity_check").fetchone()[0])
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return f"{type(e).__name__}: {e}"
 
 
@@ -46,7 +46,7 @@ def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None
         newest = sorted(directory.glob("orbit-*.db"))[-1].stem.removeprefix("orbit-")
         age = (today - date.fromisoformat(newest)).days
         found.append(Finding("backup", "ok" if age <= 1 else "warn", "backup", f"last backup: {newest}" + ("" if age <= 1 else f" ({age} days ago)")))
-    except Exception as e:  # noqa: BLE001 - a missing backup is reported, never a crash
+    except Exception as e:
         found.append(Finding("backup", "warn", "backup", f"no backup could be made ({type(e).__name__})"))
     return found
 

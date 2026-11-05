@@ -4,6 +4,7 @@ figure that no tool returned. Code runs the same tools and writes the sentence, 
 from __future__ import annotations
 
 import re
+
 from .modules import ALL, tools
 
 MONTHS = {m: i for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"], 1)}
@@ -44,10 +45,10 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
     if not t or not asking or ADVICE.search(t) or len(t) > 160:
         return None  # not a question (for example "I spent 100 on food" is a note to record), or one that needs thinking
     T = tools(ALL)
-    run = lambda name, a=None: T[name].fn(conn, a or {})  # noqa: E731
+    run = lambda name, a=None: T[name].fn(conn, a or {})
     trend = run("monthly_trend", {"months": 120})
     months = [r["month"] for r in trend]
-    has = lambda *words: any(re.search(rf"\b{w}", t) for w in words)  # noqa: E731
+    has = lambda *words: any(re.search(rf"\b{w}", t) for w in words)
 
     if has("coming up", "upcoming", "next bill", "due soon", "bills due", "what.?s due", "payments due"):
         rows = run("upcoming_payments", {"days": 45})

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import difflib
 import json
-import re
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta

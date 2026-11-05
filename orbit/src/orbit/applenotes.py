@@ -122,7 +122,7 @@ def fetch_notes() -> list[dict]:
 
 def parse_note_file(path: Path) -> dict | None:
     text = path.read_text(encoding="utf-8", errors="replace")
-    m = re.match(r"---\n(.*?)\n---\n(.*)\Z", text, re.S)
+    m = re.match(r"---\n(.*?)\n---\n(.*)\Z", text, re.DOTALL)
     if not m:
         return None
     meta = {}

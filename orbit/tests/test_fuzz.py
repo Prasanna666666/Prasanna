@@ -24,7 +24,7 @@ def build(rng):
     n = rng.randint(3, 25)
     opening = rng.randint(0, 2_000_000)
     bal, truth, rows = opening, [], []
-    f = lambda v: fmt(v, decimal, thousands)  # noqa: E731
+    f = lambda v: fmt(v, decimal, thousands)
     head = ["Datum", "Omschrijving", "Bedrag", "Saldo"] if signed else ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
     rows.append(["01-10-2026", "Beginsaldo", *([""] * (len(head) - 3)), f(opening)])
     for i in range(n):

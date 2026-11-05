@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 from datetime import date
 from pathlib import Path
 
 from . import agent, agents, applenotes, db, netguard, tagging
-from .modules import documents
-from .modules import ALL, tools
+from .modules import ALL, documents, tools
 from .modules.today import briefing_for
 
 

@@ -8,7 +8,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import audit, categorize, insight, dates, extract, payslips, rates, standards, statements, verify
+from .. import audit, categorize, dates, extract, insight, payslips, rates, standards, statements, verify
 from ..db import get_setting, rows
 from ..module import Module, N, S, Tool
 

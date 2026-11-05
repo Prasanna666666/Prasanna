@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from . import agent, applenotes, db, insight, llm, netguard, tagging
-from .modules import ALL, documents, events, money
+from .modules import ALL, documents, money
 from .modules import tools as registry
 from .modules.today import briefing_for
 
@@ -82,7 +82,7 @@ def start_import(state: State) -> bool:
                 return
             state.importing["result"] = money.import_statements(
                 conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
-        except Exception as exc:  # noqa: BLE001 - shown on the page, never lost
+        except Exception as exc:
             state.importing["error"] = f"{type(exc).__name__}: {exc}"
         finally:
             state.importing["running"] = False
@@ -142,7 +142,7 @@ def make_handler(state: State):
                 return {}
 
         # ---- GET --------------------------------------------------------------------------------------------------
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if not self._guard(False):
                 return
             path = self.path.split("?", 1)[0]
@@ -153,7 +153,7 @@ def make_handler(state: State):
             if path.startswith("/api/"):
                 try:
                     return self._api_get(path)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     return self._fail(500, f"{type(exc).__name__}: {exc}")
             self._fail(HTTPStatus.NOT_FOUND, "not found")
 
@@ -191,14 +191,14 @@ def make_handler(state: State):
             self._fail(HTTPStatus.NOT_FOUND, "not found")
 
         # ---- POST -------------------------------------------------------------------------------------------------
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             if not self._guard(True):
                 return
             body = self._body()
             conn = state.connect()
             try:
                 self._api_post(self.path.split("?", 1)[0], body, conn)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._fail(500, f"{type(exc).__name__}: {exc}")
             finally:
                 conn.close()
@@ -223,7 +223,7 @@ def make_handler(state: State):
                     del state.history[:-HISTORY_LIMIT]
                     return self._json({"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general",
                                        "tools": trace[0]["tools"] if trace else []})
-                except Exception as exc:  # noqa: BLE001 - e.g. the model is not running: say so plainly
+                except Exception as exc:
                     return self._fail(502, str(exc))
                 finally:
                     state.chat_lock.release()
@@ -233,6 +233,11 @@ def make_handler(state: State):
             if path == "/api/import":
                 return self._json({"ok": True, "started": start_import(state)})
             if path == "/api/settings":
+                if isinstance(body.get("ollama_host"), str) and body["ollama_host"].strip():
+                    try:
+                        llm.OllamaClient(body["ollama_host"].strip())  # refuses anything that is not this computer or its private network
+                    except ValueError as exc:
+                        return self._fail(400, str(exc))
                 for key in ("currency", "view_currency", "model", "ollama_host", "reply_seconds"):
                     if isinstance(body.get(key), str):
                         db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
@@ -279,7 +284,7 @@ def _warm() -> None:
         finally:
             conn.close()
         client.warm(model)
-    except Exception:  # noqa: BLE001 - only a head start
+    except Exception:
         pass
 
 
@@ -293,5 +298,5 @@ def _self_check() -> None:
                     print(f"Orbit: {f.agent}: {f.message}", flush=True)
         finally:
             conn.close()
-    except Exception as exc:  # noqa: BLE001 - never stop the app for a check
+    except Exception as exc:
         print(f"Orbit: start-up check could not run: {exc}", flush=True)

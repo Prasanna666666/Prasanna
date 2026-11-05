@@ -20,7 +20,7 @@ def record(conn, action: str, detail: str = "") -> None:
         detail = detail[:300]
         conn.execute("INSERT INTO audit_log (at, action, detail, prev, hash) VALUES (?,?,?,?,?)", (at, action, detail, prev, _seal(prev, at, action, detail)))
         conn.commit()
-    except Exception:  # noqa: BLE001 - the log must never break the thing it is logging
+    except Exception:
         pass
 
 

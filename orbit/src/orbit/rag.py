@@ -21,7 +21,7 @@ def _fts(conn) -> bool:
         conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(source UNINDEXED, ref UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2')")
         conn.execute("CREATE TABLE IF NOT EXISTS search_seen (ref TEXT PRIMARY KEY, digest TEXT NOT NULL)")
         return True
-    except Exception:  # noqa: BLE001 - FTS5 not compiled in
+    except Exception:
         return False
 
 
@@ -89,7 +89,7 @@ def retrieve(conn, question: str, k: int = 6) -> list[dict]:
             rows = conn.execute("SELECT source, ref, title, snippet(search_index, 3, '[', ']', '…', 40) AS text, bm25(search_index, 0.0, 0.0, 3.0, 1.0) AS score "
                                 "FROM search_index WHERE search_index MATCH ? ORDER BY score LIMIT ?", (query, k)).fetchall()
             return [{"source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
     out = []  # no full-text search: count the words each item contains
     for ref, source, title, body in _sources(conn):
