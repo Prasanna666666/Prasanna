@@ -8,10 +8,11 @@ Everything that understands a picture lives here, once: reading a file (EXIF, da
 - Heavy extras: `pip install "images[ml]"` (torch, CLIP, onnxruntime, OpenCV) and, on a Mac, `images[mac]` (Apple Vision).
 
 ## Who uses it
-- **Photos** (`../photos`) still runs the engine in its own process and shows the results and the chat. It imports this package; it no longer contains the engine.
-- **Documents** (`../library`) will run the same engine for every picture it receives, so a picture is read the same way wherever it arrives. **Not done yet**; see below.
+- **Documents** (`../library`) runs the engine: a sealed indexer container (no network, photos read-only) reads the photo folder and writes the index; the service answers pictures questions (`/api/pictures`, thumbnails, the text found in pictures joins the documents in one search) and relays Update.
+- **Photos** (`../photos`) imports this package to show and search the index (it opens the same volume, `library-pictures`) and, with `APERTURE_LIBRARY_URL` set (the Docker setup), passes Update on to Documents instead of indexing itself. A native install without that setting still indexes by itself as before.
 
-## What is left to do (in this order, together, so nothing is indexed twice)
-1. Documents runs `Engine` over the photo folder and the pictures it receives, and serves the pictures API (search, thumbnails, people).
-2. Photos stops opening the index file itself (about 50 places pass a database connection straight into the search and screens) and asks Documents instead.
-3. Switch over: only one program indexes.
+## Still open
+- Photos still opens the index file directly to read and to write its own things (people's names, moves, captions). Moving every one of those reads and writes behind Documents' API (about 50 places) would make Documents the only program that touches the file; it is not done.
+- Pictures that arrive inside mail or the inbox (not in the photo folder) are read by Documents' own reader (text only); they are not yet fed through this engine.
+- Not run on a real Mac: the Docker images (the indexer carries PyTorch and the models come from the drive) have not been built.
+- Move the existing index once: `photos/scripts/adopt-index.sh` copies the old `aperture-data` volume into `library-pictures`.

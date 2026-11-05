@@ -18,7 +18,7 @@ from typing import Any, ClassVar
 
 from kit import db, llm, log, netguard
 
-from . import ask, store
+from . import ask, pictures, store
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -49,6 +49,17 @@ class State:
     def __init__(self) -> None:
         self.scan: dict[str, Any] = {"running": False, "progress": "", "summary": "", "problems": []}
         self.lock = threading.Lock()
+        self._engine: Any = None
+
+    def engine(self):
+        """The picture engine over the drive, or None when pictures are not set up."""
+        if self._engine is None and pictures.configured():
+            self._engine = pictures.build_engine()
+        return self._engine
+
+    def picture_text(self):
+        engine = self.engine()
+        return pictures.text_sources(engine) if engine is not None else None
 
     def connect(self):
         return db.connect(Path(os.environ.get("ORBIT_HOME", Path.home() / ".orbit")) / "library.db")
@@ -87,6 +98,11 @@ def _read_all(state: State) -> None:
                 time.sleep(SETTLE_SECONDS)
         counts = store.counts(conn)
         state.scan["summary"] = f"{totals['new']} new file{'s' if totals['new'] != 1 else ''}, {counts['documents']} in all"
+        engine = state.engine()
+        if engine is not None:
+            state.scan["progress"] = "Reading pictures…"
+            done = pictures.wait_for_scan(engine, lambda m: state.scan.update(progress=m))
+            state.scan["summary"] += f"; {done}" if done else ""
         state.scan["problems"] = [problem] if problem else []
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)
@@ -130,8 +146,26 @@ def _get_document(state: State, conn, query: dict[str, str]) -> dict:
 
 
 def _get_search(state: State, conn, query: dict[str, str]) -> dict:
-    hits = ask.find_items(conn, [query.get("q", "")[:200]], None, 8)
+    hits = ask.find_items(conn, [query.get("q", "")[:200]], None, 8, state.picture_text())
     return {"results": [{"title": h["title"], "subtitle": h["text"][:120], "kind": "file", "link": h["link"]} for h in hits]}
+
+
+def _engine_or_fail(state: State):
+    engine = state.engine()
+    if engine is None:
+        raise _Fail(404, "pictures are not set up")
+    return engine
+
+
+def _get_pictures(state: State, conn, query: dict[str, str]) -> dict:
+    """Pictures that fit the words: /api/pictures?q=red car in Utrecht&limit=24. The same search every app uses."""
+    limit = int(query["limit"]) if query.get("limit", "").isdigit() else 24
+    return {"pictures": pictures.search(_engine_or_fail(state), query.get("q", "")[:300], limit)}
+
+
+def _get_pictures_status(state: State, conn, query: dict[str, str]) -> dict:
+    engine = _engine_or_fail(state)
+    return {**pictures.counts(engine), **pictures.scan_state(engine)}
 
 
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
@@ -143,6 +177,24 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     return {"running": s["running"], "progress": s["progress"], "summary": s["summary"], "problems": s["problems"], "needs_check": []}
 
 
+def _picture_items(state: State, text: str, search: list[str]) -> list[dict]:
+    """Pictures for the chat, when the person asked to see pictures."""
+    engine = state.engine()
+    if engine is None:
+        return []
+    found = pictures.search(engine, " ".join([text, *search])[:300], 8)
+    return [
+        {
+            "kind": "photo",
+            "title": p["name"],
+            "subtitle": " · ".join(x for x in (p["place"], (p["taken"] or "")[:10]) if x),
+            "thumb": p["thumb"],
+            "link": "#/home",
+        }
+        for p in found
+    ]
+
+
 def _post_ask(state: State, conn, body: dict) -> dict:
     """The one chat's question: files about it when the user asked to see them, otherwise an answer in words from what the files say."""
     if body.get("fast"):  # nothing here is answered by code alone
@@ -151,16 +203,19 @@ def _post_ask(state: State, conn, body: dict) -> dict:
     search = [str(x) for x in (body.get("search") or []) if isinstance(x, str)][:4]
     raw_show = body.get("show")
     show: dict = raw_show if isinstance(raw_show, dict) else {}
-    if show.get("documents"):
+    if show.get("documents") or show.get("photos"):  # what was asked to be seen; nothing else is shown
         history = [h for h in (body.get("history") or []) if isinstance(h, list) and len(h) == 2]
         questions = [text, *[t for role, t in reversed(history) if role == "user" and isinstance(t, str)][:2]]
-        items = ask.find_items(conn, questions, search)
+        items = _picture_items(state, text, search) if show.get("photos") else []
+        if show.get("documents"):
+            items += ask.find_items(conn, questions, search, 8, state.picture_text())
+        items = items[:8]
         if items:
             n = len(items)
             return {"ok": True, "text": f"I found {n} file{'s' if n != 1 else ''} about that.", "items": items, "agent": "files"}
     try:
         client, model = model_client()
-        reply = ask.answer(conn, client, model, text, search)
+        reply = ask.answer(conn, client, model, text, search, state.picture_text())
     except RuntimeError:
         reply = "The local model is not running, so I cannot answer from your files yet."
     return {"ok": True, "text": reply, "items": [], "agent": "files"}
@@ -179,6 +234,8 @@ GET_ROUTES = {
     "/api/documents": _get_documents,
     "/api/document": _get_document,
     "/api/status": _get_status,
+    "/api/pictures": _get_pictures,
+    "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,
 }
 POST_ROUTES = {
@@ -255,6 +312,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._file("index.html")
         if path.startswith("/static/"):
             return self._file(path.removeprefix("/static/"))
+        if path.startswith("/api/pictures/thumb/"):
+            return self._thumb(path.removeprefix("/api/pictures/thumb/"))
         if path.startswith("/api/"):
             return self._run(GET_ROUTES, path, {k: v[0] for k, v in urllib.parse.parse_qs(query).items() if v})
         self._fail(HTTPStatus.NOT_FOUND, "not found")
@@ -262,6 +321,13 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self._guard(True):
             self._run(POST_ROUTES, self.path.partition("?")[0], self._body())
+
+    def _thumb(self, raw_id: str) -> None:
+        engine = self.state.engine()
+        found = pictures.thumb_file(engine, int(raw_id)) if engine is not None and raw_id.isdigit() else None
+        if found is None:
+            return self._fail(HTTPStatus.NOT_FOUND, "not found")
+        self._send(200, found.read_bytes(), "image/jpeg")
 
     def _file(self, name: str) -> None:
         target = (STATIC / name).resolve()

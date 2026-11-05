@@ -19,5 +19,6 @@ mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
 FILES=(-f docker-compose.yml)
 [ -d "${ORBIT_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ORBIT_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ORBIT_NO_MAIL=1 to turn off)
+[ -d "${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos" ] && FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected
 docker compose "${FILES[@]}" up -d --build
 echo "Documents: http://documents.localhost:8502   (drop files into ~/OrbitInbox; finance files go in $ORBIT_FINANCE_DIR; mail is read from Apple Mail, read-only)"

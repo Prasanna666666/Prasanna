@@ -16,8 +16,8 @@ x-drive: &drive
   # The container sees the drive at the same path Aperture expects. A tmpfs is the "drive" root; the real folders
   # are mounted into it, so nothing else on your drive is visible to the container.
   # EVERYTHING Aperture learns about your photos (index, GPS, faces, text, labels, thumbnails, previews) lives in the named volume
-  # `aperture-data`: inside Docker's own disk image, not a folder on your Mac, so no program on the Mac (and no assistant) can browse it.
-  - aperture-data:/Volumes/Expansion/Aperture/data
+  # `library-pictures` (the Documents service's indexer fills it; Photos opens the same one): inside Docker's own disk image, not a folder on your Mac, so no program on the Mac (and no assistant) can browse it.
+  - library-pictures:/Volumes/Expansion/Aperture/data
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture_Exports:/Volumes/Expansion/Aperture_Exports
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos:ro
@@ -29,8 +29,11 @@ services:
     image: aperture:local
     tmpfs: ["/tmp", "/Volumes/Expansion"]
     volumes: *drive
+    environment:
+      APERTURE_LIBRARY_URL: http://library.internal:8502   # Update is passed on to Documents, whose sealed indexer reads the pictures
+      APERTURE_TRUSTED_HOSTS: ollama,library.internal
     networks: [private]
-    depends_on: [ollama]
+    depends_on: [ollama, library]
     mem_limit: 5g   # leave room for macOS and Ollama on an 8 GB Mac
 
   gateway:   # shows the UI on this computer only (127.0.0.1:8765); forwards bytes, runs no app code
@@ -41,6 +44,14 @@ services:
     networks: [private, default]
     depends_on: [aperture]
 
+  library:   # forwards ONLY to the Documents service on this Mac (port 8502)
+    <<: *hardened
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:8502,fork,reuseaddr TCP:host.docker.internal:8502
+    networks:
+      private: {aliases: [library.internal]}
+      default: {}
+
   ollama:    # named `ollama` so Aperture finds it; forwards ONLY to Ollama running on the Mac
     <<: *hardened
     image: alpine/socat:1.8.0.0
@@ -48,7 +59,9 @@ services:
     networks: [private, default]
 
 volumes:
-  aperture-data: {}
+  library-pictures:
+    external: true   # created by the Documents service (library/scripts/up.sh); start that first
+    name: library-pictures
 
 networks:
   private: {internal: true}

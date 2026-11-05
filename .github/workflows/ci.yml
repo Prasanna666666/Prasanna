@@ -78,7 +78,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: sudo apt-get update && sudo apt-get install -y poppler-utils
-      - run: pip install -e "../kit[secure]" -e "../orbit" -e ".[parse,dev]" pyyaml
+      - run: pip install -e "../kit[secure]" -e "../images" -e "../orbit" -e ".[parse,dev]" pyyaml
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src

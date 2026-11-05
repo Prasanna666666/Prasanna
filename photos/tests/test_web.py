@@ -325,3 +325,26 @@ def test_the_page_is_told_what_the_app_is_doing_while_a_question_runs(caplog):
     assert any(
         "stage: Searching your photos (+" in r.getMessage() for r in caplog.records
     )  # and every stage is logged with its time
+
+
+def test_with_the_documents_service_configured_photos_does_not_index_itself(tmp_path, monkeypatch):
+    """Update is passed on to Documents, whose sealed indexer reads the pictures; Photos only reports what Documents says."""
+    from aperture import library_link
+
+    calls = []
+
+    def fake(method, path):
+        calls.append((method, path))
+        return {"started": True, "running": True, "progress": "Reading 3 of 9", "summary": "", "problems": []}
+
+    monkeypatch.setenv("APERTURE_LIBRARY_URL", "http://library.internal:8502")
+    monkeypatch.setattr(library_link, "_call", fake)
+    ctx, _agent, _ids = make_ctx(tmp_path)
+    web, server = start_server(ctx)
+    try:
+        status = web.scan_status()
+        assert status["running"] is True and status["progress"] == "Reading 3 of 9"
+        assert web.resume_indexing() is True and ("POST", "/api/scan") in calls
+        web.pause_indexing_for_chat()  # nothing to pause here: the indexer is another container
+    finally:
+        server.shutdown()

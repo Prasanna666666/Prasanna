@@ -228,9 +228,15 @@ def _sources(conn) -> Iterator[tuple[str, str, str, str]]:
         yield f"d{r['id']}", "document", r["name"], (summary + " " + r["text"]).strip()
 
 
-def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None = None) -> list[dict]:
-    """The best passages for a question across every document, each with where it came from."""
-    return rag.retrieve(conn, question, limit, alternatives, sources=_sources)
+def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None = None, extra=None) -> list[dict]:
+    """The best passages for a question across every document, each with where it came from. `extra` adds more sources (the text found in pictures)."""
+
+    def sources(c):
+        yield from _sources(c)
+        if extra is not None:
+            yield from extra(c)
+
+    return rag.retrieve(conn, question, limit, alternatives, sources=sources)
 
 
 def counts(conn) -> dict[str, Any]:

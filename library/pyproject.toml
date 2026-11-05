@@ -17,6 +17,7 @@ dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
 [project.scripts]
 library = "library.cli:main"
 library-parser = "library.parser:main"
+library-indexer = "library.indexer:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

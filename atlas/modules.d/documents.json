@@ -2,7 +2,7 @@
   "id": "documents",
   "name": "Documents",
   "app": "Documents",
-  "tagline": "Everything in your files and mail: tickets, letters, reports, invoices",
+  "tagline": "Everything in your files, mail and pictures: tickets, letters, reports, invoices, photos",
   "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5",
   "accent": [
     "#f59e0b",
@@ -24,6 +24,7 @@
     "X-Library": "1"
   },
   "ask": "/api/ask",
+  "media": "/api/pictures/thumb/",
   "keywords": [
     "document",
     "documents",

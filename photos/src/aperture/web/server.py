@@ -33,6 +33,7 @@ from images import library as lib
 from images.config import preview_rel, thumb_rel
 from images.indexing.progress import ScanLock
 
+from .. import library_link
 from ..agent.llm import CALL_LOG
 from . import browse
 
@@ -206,12 +207,19 @@ class Web:
             return DEFAULT_IDEAS
 
     def pause_indexing_for_chat(self) -> None:
+        if library_link.delegated():
+            return  # the indexer is Documents' own sealed container; it does not compete with the chat for this app's memory
         lock = ScanLock(self.ctx.paths)
         if lock.running(verify=True):
             lock.stop()
             self.paused_for_chat = True
 
     def resume_indexing(self) -> bool:
+        if library_link.delegated():
+            try:
+                return library_link.request_scan()
+            except RuntimeError:
+                return False
         if ScanLock(self.ctx.paths).running(verify=True):
             return False
         try:
@@ -291,6 +299,11 @@ class Web:
 
     def scan_status(self) -> dict[str, Any]:
         """Where indexing stands, in the shape every module reports it (the contract's scan status), for Atlas's one Update button."""
+        if library_link.delegated():
+            try:
+                return library_link.scan_status()
+            except RuntimeError as exc:
+                return {"running": False, "progress": "", "summary": "", "problems": [str(exc)], "needs_check": 0}
         self.refresh_counts_async()
         running = bool(ScanLock(self.ctx.paths).running(verify=True))
         photos, indexed = self._counts["photos"], self._counts["indexed"]

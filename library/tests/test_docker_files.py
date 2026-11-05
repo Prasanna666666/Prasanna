@@ -30,6 +30,15 @@ def test_the_service_has_no_internet_and_its_key_comes_from_the_environment():
 def test_the_app_image_has_no_parsing_libraries_and_the_parser_image_has_no_shared_code():
     d = (ROOT / "Dockerfile").read_text()
     app = d.split("AS app")[1].split("AS parser")[0]
-    parser = d.split("AS parser")[1]
+    parser = d.split("AS parser")[1].split("AS indexer")[0]
     assert "parse]" not in app and "USER 10001" in app and "USER 10001" in parser and "ORBIT_REQUIRE_ENCRYPTION=1" in app
     assert "[parse]" in parser and "orbit" not in parser.replace("ORBIT", "")  # the sealed reader carries only its own code
+
+
+def test_the_picture_indexer_has_no_network_and_reads_the_photos_read_only():
+    pictures = yaml.safe_load((ROOT / "docker-compose.pictures.yml").read_text())
+    i = pictures["services"]["indexer"]
+    assert i["network_mode"] == "none" and i["read_only"] is True and i["cap_drop"] == ["ALL"]
+    assert any(v.endswith("/Photos:/Volumes/Expansion/Photos:ro") for v in i["volumes"]) and any(v.endswith("/models:ro") for v in i["volumes"])
+    assert pictures["volumes"]["library-pictures"]["name"] == "library-pictures"  # a fixed name, so Photos can open the same index
+    assert "ORBIT_DB_KEY" in pictures["services"]["app"]["environment"]

@@ -1,0 +1,46 @@
+# Adds pictures: the sealed indexer reads your photo folder (read-only) with the shared picture engine, and the service answers from the index.
+# scripts/up.sh includes this file when the photo drive is connected. The index lives in the Docker volume `library-pictures`, which Photos opens too.
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+
+x-drive: &drive
+  # The container sees the drive at the path the engine expects. A tmpfs is the "drive" root; only these folders are mounted into it.
+  - library-pictures:/Volumes/Expansion/Aperture/data
+  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
+  - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos:ro
+
+services:
+  indexer:   # reads the photos: no network at all, photos read-only, writes only the index
+    <<: *hardened
+    build: {context: .., dockerfile: library/Dockerfile, target: indexer}
+    image: library-indexer:local
+    network_mode: none
+    tmpfs: ["/tmp", "/Volumes/Expansion"]
+    volumes: *drive
+    environment: &pictures
+      LIBRARY_PICTURES_DRIVE: /Volumes/Expansion
+      LIBRARY_PHOTOS: /Volumes/Expansion/Photos
+      APERTURE_NEVER_ONLINE: "1"
+      APERTURE_SANDBOXED: "1"
+    mem_limit: 5g   # leave room for macOS and Ollama on an 8 GB Mac
+    pids_limit: 256
+
+  app:
+    tmpfs: ["/tmp", "/Volumes/Expansion"]
+    volumes:
+      - library-data:/data
+      - library-parsed:/parsed
+      - library-pictures:/Volumes/Expansion/Aperture/data
+      - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
+    environment:
+      <<: *pictures
+      OLLAMA_HOST: http://ollama.internal:11434
+      ORBIT_PARSED: /parsed
+      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
+
+volumes:
+  library-pictures:
+    name: library-pictures   # a fixed name: Photos opens the same volume

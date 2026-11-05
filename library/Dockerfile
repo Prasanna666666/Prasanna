@@ -1,6 +1,7 @@
-# Documents: one source, two images with different contents (build from the repository root: the app image carries the shared kit in ../kit, and nothing of Finance).
-#   app    - the service, its encrypted database and the model calls. Has the encryption library, but NO document-parsing libraries.
-#   parser - opens untrusted files (PDF, images, spreadsheets, mail). Runs with no network and sees the files read-only; the app never contains this code.
+# Documents: one source, three images with different contents (build from the repository root: the images carry the shared kit in ../kit and the picture engine in ../images, and nothing of Finance).
+#   app     - the service, its encrypted database and the model calls. Has the encryption library and the picture engine (to search), but NO document readers.
+#   parser  - opens untrusted files (PDF, images, spreadsheets, mail). Runs with no network and sees the files read-only; the app never contains this code.
+#   indexer - reads the photo folder with the picture engine and its models. Runs with no network and sees the photos read-only.
 FROM python:3.12-slim AS base
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin library \
  && mkdir /data /parsed && chown 10001 /data /parsed
@@ -12,8 +13,10 @@ FROM base AS app
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libsqlcipher-dev
 RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
 COPY kit /app/kit
+COPY images /app/images
 COPY library /app/library
-RUN pip install --no-cache-dir ./kit ./library
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir ./kit "./images[ml]" ./library
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
 ENV ORBIT_REQUIRE_ENCRYPTION=1
@@ -28,3 +31,14 @@ RUN pip install --no-cache-dir "./library[parse]"
 USER 10001
 ENTRYPOINT ["library-parser"]
 CMD ["--watch"]
+
+FROM base AS indexer
+# The picture indexer: the shared engine with its models (CPU PyTorch works on arm64 and x86), and Tesseract for the text in pictures. No network at runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld && rm -rf /var/lib/apt/lists/*
+COPY images /app/images
+COPY library /app/library
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir "./images[ml]" ./library
+USER 10001
+ENV APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1
+ENTRYPOINT ["library-indexer"]

@@ -35,7 +35,7 @@ def test_the_photo_index_lives_in_a_private_docker_volume_not_a_mac_folder():
     from pathlib import Path
 
     compose = (Path(__file__).parent.parent / "docker-compose.aperture.yml").read_text()
-    assert "aperture-data:/Volumes/Expansion/Aperture/data" in compose and "\nvolumes:\n  aperture-data" in compose
+    assert "library-pictures:/Volumes/Expansion/Aperture/data" in compose and "library-pictures:\n    external: true" in compose
     assert "/Aperture:/Volumes/Expansion/Aperture\n" not in compose  # the whole Aperture folder is no longer a bind mount
     assert (
         "Photos:/Volumes/Expansion/Photos:ro" in compose and "/Aperture/models:/Volumes/Expansion/Aperture/models:ro" in compose
