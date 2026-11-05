@@ -124,6 +124,7 @@ class Plan:
     chat: bool
     show: dict[str, bool]
     how: str
+    search: tuple[str, ...] = ()  # how the model would look for it in files and emails: the user's words, synonyms, and the Dutch or English equivalents
 
 
 class Assistant:
@@ -162,7 +163,8 @@ class Assistant:
             f"Parts of the app: {parts}. "
             'Reply with JSON only, in this shape: {"apps": [names of the parts the message is about, or an empty list], '
             '"chat": true if it is a greeting or general conversation about none of the parts, '
-            '"show": {"photos": true only if the user asks to SEE pictures, "documents": true only if the user asks to SEE files or documents}}. '
+            '"show": {"photos": true only if the user asks to SEE pictures, "documents": true only if the user asks to SEE files, documents or emails}, '
+            '"search": up to 4 short phrases to look for in files and emails about this request: the user\'s own words, synonyms, and the same words in Dutch or English}. '
             "Questions, counts and summaries are not requests to see anything, so show stays false for them. "
             'A follow-up such as "show me those" refers to the conversation so far.'
         )
@@ -188,7 +190,9 @@ class Assistant:
         shown: dict[str, Any] = raw_show if isinstance(raw_show, dict) else {}
         chosen = [m for m in apps if m.id in named]
         show = {"photos": shown.get("photos") is True, "documents": shown.get("documents") is True}
-        return Plan(chosen, data.get("chat") is True or not chosen, show, "model")
+        raw_search = data.get("search")
+        search = tuple(x.strip()[:80] for x in raw_search if isinstance(x, str) and x.strip())[:4] if isinstance(raw_search, list) else ()
+        return Plan(chosen, data.get("chat") is True or not chosen, show, "model", search)
 
     # ---- 2. the answer -----------------------------------------------------------------------------------------------
     def _chat_only(self, text: str, history: list[list[str]]) -> dict[str, Any]:
@@ -231,6 +235,6 @@ class Assistant:
         if not plan.apps:
             return {"how": plan.how, "routed": [], "show": plan.show, "parts": [self._chat_only(text, history)]}
         with ThreadPoolExecutor(max_workers=len(plan.apps)) as pool:
-            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, plan.show), plan.apps))
+            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, show=plan.show, search=list(plan.search)), plan.apps))
         parts = [{"module": m.id, "name": m.name, "show": plan.show, **r} for m, r in zip(plan.apps, results, strict=True)]
         return {"how": plan.how, "routed": [m.id for m in plan.apps], "show": plan.show, "parts": parts}

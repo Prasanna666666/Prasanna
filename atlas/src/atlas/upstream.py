@@ -174,9 +174,11 @@ class Upstreams:
         return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}
 
     # ---- the single chat: one question to one app, and a picture from an app ------------------------------------------
-    def ask(self, module: Module, text: str, conv: str, history: list[list[str]], show: dict[str, bool] | None = None) -> dict[str, Any]:
+    def ask(
+        self, module: Module, text: str, conv: str, history: list[list[str]], *, show: dict[str, bool] | None = None, search: list[str] | None = None
+    ) -> dict[str, Any]:
         """One app's answer to one question, in the contract's shape. Never raises: a failure comes back as an error to show."""
-        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history, "show": show or {}}).encode()
+        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history, "show": show or {}, "search": search or []}).encode()
         try:
             status, body, _ = self._authed_full(module, "POST", module.ask, ASK_SECONDS, payload)
             raw = json.loads(body)

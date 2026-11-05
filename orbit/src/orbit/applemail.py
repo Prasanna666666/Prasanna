@@ -1,11 +1,12 @@
 """Apple Mail -> the inbox folder, as plain .eml files, so nothing sensitive is ever sent anywhere.
 
 Apple Mail already keeps your mail on this Mac (it does the talking to Gmail, Outlook or iCloud, as it always has). This step only asks the Mail app
-for the messages you choose, through the built-in `osascript`, and writes each one as a .eml file into ~/OrbitInbox/mail/. The isolated reader (no
-network, inbox read-only) then reads the messages and their attachments like any other document. Nothing here connects to a mail server.
+for the messages, through the built-in `osascript`, and writes each one as a .eml file into ~/OrbitInbox/mail/. The isolated reader (no network,
+inbox read-only) then reads the messages, their text and their attachments, like any other document. Nothing here connects to a mail server.
 
-Choose what to export: the last N days (default 365), and by default only messages that have an attachment (invoices, tickets, payslips, reports), so
-the rest of your mailbox is never copied. Junk, Trash and Drafts are always skipped. Re-running adds only what is new.
+All mail of the last N days (default 365) is copied, one mailbox at a time, because the text of an email is often the crucial information (a booking
+time, a payment confirmation, an appointment). Junk, Trash and Drafts are always skipped. `only_attachments` narrows it to messages with an attachment.
+Re-running adds only what is new.
 """
 
 from __future__ import annotations
@@ -17,47 +18,56 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-SKIP_MAILBOXES = ["Junk", "Junk E-mail", "Spam", "Trash", "Deleted Messages", "Deleted Items", "Drafts"]
+SKIP_MAILBOXES = frozenset(["Junk", "Junk E-mail", "Spam", "Trash", "Deleted Messages", "Deleted Items", "Drafts"])
 MAX_MESSAGE_CHARS = 30_000_000
+Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
-JXA = """
+LIST_JXA = """
+const Mail = Application('Mail');
+const out = [];
+for (const acct of Mail.accounts()) {
+  for (const mb of acct.mailboxes()) { out.push({account: acct.name(), mailbox: mb.name()}); }
+}
+JSON.stringify(out);
+"""
+
+MAILBOX_JXA = """
 const Mail = Application('Mail');
 const P = __PARAMS__;
 const cutoff = new Date(Date.now() - P.days * 86400000);
 const out = [];
-for (const acct of Mail.accounts()) {
-  for (const mb of acct.mailboxes()) {
-    const name = mb.name();
-    if (P.skip.includes(name)) continue;
-    let msgs;
-    try { msgs = mb.messages.whose({dateReceived: {'>': cutoff}})(); } catch (e) { continue; }
-    for (const m of msgs) {
-      let attachments = 0;
-      try { attachments = m.mailAttachments().length; } catch (e) {}
-      if (P.only_attachments && attachments === 0) continue;
-      let source = '';
-      try { source = m.source(); } catch (e) { continue; }
-      out.push({account: acct.name(), mailbox: name, id: String(m.id()), source: source});
-    }
+let msgs = [];
+try {
+  const mb = Mail.accounts.byName(P.account).mailboxes.byName(P.mailbox);
+  msgs = mb.messages.whose({dateReceived: {'>': cutoff}})();
+} catch (e) {}
+for (const m of msgs) {
+  if (P.only_attachments) {
+    let attachments = 0;
+    try { attachments = m.mailAttachments().length; } catch (e) {}
+    if (attachments === 0) continue;
   }
+  let source = '';
+  try { source = m.source(); } catch (e) { continue; }
+  out.push({account: P.account, mailbox: P.mailbox, id: String(m.id()), source: source});
 }
 JSON.stringify(out);
 """
 
 
-def build_script(days: int, only_attachments: bool) -> str:
-    """The Mail script with its few settings written in (numbers, a flag and a fixed list: nothing the user typed goes into the code)."""
-    params = {"days": max(1, min(int(days), 3650)), "only_attachments": bool(only_attachments), "skip": SKIP_MAILBOXES}
-    return JXA.replace("__PARAMS__", json.dumps(params))
+def build_script(account: str, mailbox: str, days: int, only_attachments: bool) -> str:
+    """The Mail script for one mailbox. Its settings are written in as a JSON literal (names are data there, never code)."""
+    params = {"account": account, "mailbox": mailbox, "days": max(1, min(int(days), 3650)), "only_attachments": bool(only_attachments)}
+    return MAILBOX_JXA.replace("__PARAMS__", json.dumps(params))
 
 
-def fetch_messages(days: int = 365, only_attachments: bool = True, run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run) -> list[dict]:
+def _run(script: str, run: Runner, timeout: int) -> list:
     if sys.platform != "darwin" and run is subprocess.run:
         raise RuntimeError("Exporting needs the macOS Mail app: run `orbit export-mail` on your Mac.")
     try:
-        r = run(["osascript", "-l", "JavaScript", "-e", build_script(days, only_attachments)], capture_output=True, text=True, timeout=1800)
+        r = run(["osascript", "-l", "JavaScript", "-e", script], capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError("Mail took too long to answer (30 minutes). Try fewer days, or open Mail first.") from e
+        raise RuntimeError(f"Mail took too long to answer ({timeout // 60} minutes). Try fewer days, or open Mail first.") from e
     if r.returncode != 0:
         raise RuntimeError(
             "Could not read Mail. If macOS asked, allow your terminal to control Mail "
@@ -67,6 +77,16 @@ def fetch_messages(days: int = 365, only_attachments: bool = True, run: Callable
     if not isinstance(records, list):
         raise RuntimeError("Mail answered in a form I do not understand.")
     return records
+
+
+def list_mailboxes(run: Runner = subprocess.run) -> list[tuple[str, str]]:
+    """Every (account, mailbox) except Junk, Trash and Drafts."""
+    found = _run(LIST_JXA, run, 300)
+    return [(str(m["account"]), str(m["mailbox"])) for m in found if isinstance(m, dict) and m.get("mailbox") not in SKIP_MAILBOXES]
+
+
+def fetch_mailbox(account: str, mailbox: str, days: int = 365, only_attachments: bool = False, run: Runner = subprocess.run) -> list[dict]:
+    return _run(build_script(account, mailbox, days, only_attachments), run, 1800)
 
 
 def write_messages(records: list[dict], outdir: Path) -> dict[str, int]:
@@ -86,3 +106,17 @@ def write_messages(records: list[dict], outdir: Path) -> dict[str, int]:
         target.write_bytes(source.encode("utf-8", errors="replace"))
         new += 1
     return {"new": new, "already_had": known, "skipped": skipped}
+
+
+def export(
+    outdir: Path, days: int = 365, only_attachments: bool = False, run: Runner = subprocess.run, progress: Callable[[str], None] = print
+) -> dict[str, int]:
+    """Copy the mail, mailbox by mailbox (each written before the next is asked for), and say where it is."""
+    total = {"new": 0, "already_had": 0, "skipped": 0, "mailboxes": 0}
+    for account, mailbox in list_mailboxes(run):
+        got = write_messages(fetch_mailbox(account, mailbox, days, only_attachments, run), outdir)
+        total["mailboxes"] += 1
+        for key in ("new", "already_had", "skipped"):
+            total[key] += got[key]
+        progress(f"  {account} / {mailbox}: {got['new']} new, {got['already_had']} already had")
+    return total

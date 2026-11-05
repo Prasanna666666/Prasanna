@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | export-mail [dir] [--days N] [--all] | import-notes [dir] | ingest [dir] | import-statements | categorise"""
+"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | export-mail [dir] [--days N] [--attachments-only] | import-notes [dir] | ingest [dir] | import-statements | categorise"""
 
 from __future__ import annotations
 
@@ -59,12 +59,12 @@ def _export_notes(rest: list[str]) -> int:  # a native Mac step
     return 0
 
 
-def _export_mail(rest: list[str]) -> int:  # a native Mac step: copies the mail you choose into the inbox as .eml files; connects to no mail server
+def _export_mail(rest: list[str]) -> int:  # a native Mac step: copies your mail into the inbox as .eml files; connects to no mail server
     days = int(rest[rest.index("--days") + 1]) if "--days" in rest else 365
-    only_attachments = "--all" not in rest  # by default only messages with an attachment: the rest of your mailbox is never copied
+    only_attachments = "--attachments-only" in rest  # by default ALL mail: the text of an email is often the crucial information
     folders = [a for i, a in enumerate(rest) if not a.startswith("--") and (i == 0 or rest[i - 1] != "--days")]
     out = Path(folders[0]) if folders else _mail_inbox()
-    print(applemail.write_messages(applemail.fetch_messages(days, only_attachments), out), "->", out)
+    print(applemail.export(out, days, only_attachments), "->", out)
     return 0
 
 

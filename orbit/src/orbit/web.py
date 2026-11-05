@@ -231,7 +231,7 @@ def _post_chat(state: State, conn, body: dict) -> dict:
         state.chat_lock.release()
 
 
-def _document_items(conn, text: str, history: list) -> list[dict]:
+def _document_items(conn, text: str, history: list, search: list[str] | None = None) -> list[dict]:
     """The documents behind a question, only when the user asked to see them: the best matching files with a line of what they say.
     "Show me those documents" has no topic of its own, so the question before it is used."""
     from . import rag
@@ -239,7 +239,7 @@ def _document_items(conn, text: str, history: list) -> list[dict]:
     questions = [text, *[t for role, t in reversed(history) if role == "user" and isinstance(t, str)][:2]]
     hits: list[dict] = []
     for question in questions:
-        hits = [h for h in rag.retrieve(conn, question, 12) if h["source"] in ("document", "file")]
+        hits = [h for h in rag.retrieve(conn, question, 12, search) if h["source"] in ("document", "file")]
         if hits:
             break
     seen: set[str] = set()
@@ -270,7 +270,8 @@ def _post_ask(state: State, conn, body: dict) -> dict:
     show: dict = raw_show if isinstance(raw_show, dict) else {}
     if show.get("documents"):
         history = [h for h in (body.get("history") or []) if isinstance(h, list) and len(h) == 2]
-        items = _document_items(conn, str(body.get("text", "")), history)
+        search = [str(x) for x in (body.get("search") or []) if isinstance(x, str)][:4]
+        items = _document_items(conn, str(body.get("text", "")), history, search)
         if items:
             n = len(items)
             return {"ok": True, "text": f"I found {n} file{'s' if n != 1 else ''} about that.", "items": items, "agent": "files"}

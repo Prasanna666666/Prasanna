@@ -148,3 +148,18 @@ def test_every_app_is_asked_whether_it_recognises_the_question_before_the_model_
     _, reply = chat(running, "anything from last summer?")
     assert running.apps["money"].fast_calls == ["anything from last summer?"] and running.apps["photos"].fast_calls == ["anything from last summer?"]
     assert reply["how"] == "model" and reply["routed"] == ["money"] and running.apps["money"].asked  # nobody recognised it, so the model planned
+
+
+def test_the_model_supplies_search_phrasings_in_both_languages_and_they_reach_the_app(running):
+    running.apps["photos"].plan_reply = json.dumps(
+        {"apps": ["money"], "chat": False, "show": {"documents": True}, "search": ["flight", " vlucht ", "reservering", "ticket", "a fifth is dropped", 7, ""]}
+    )
+    _, reply = chat(running, "show me the email about my flight")
+    assert running.apps["money"].asked[-1]["search"] == ["flight", "vlucht", "reservering", "ticket"]  # strings only, trimmed, at most four
+    assert reply["parts"][0]["show"]["documents"] is True
+
+
+def test_without_a_model_there_are_no_extra_phrasings_and_the_literal_words_are_used(running):
+    running.atlas.assistant.model.url = "http://127.0.0.1:1"
+    chat(running, "show me the money invoices")
+    assert running.apps["money"].asked[-1]["search"] == []

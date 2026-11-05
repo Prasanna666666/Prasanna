@@ -127,3 +127,23 @@ def test_a_ticket_that_arrived_by_email_can_be_found_and_shown_when_asked_for(tm
     titles = [i["title"] for i in items]
     assert any(t.endswith("ticket.txt") for t in titles) and not any("Nieuwsbrief" in t for t in titles)  # the ticket is found, the newsletter is not
     assert all(i["kind"] == "document" and i["link"] == "#/documents" for i in items)
+
+
+def test_information_that_is_only_in_the_text_of_an_email_is_found_too(tmp_path, conn):
+    from orbit import web
+    from orbit.modules import documents
+
+    (tmp_path / "in").mkdir()
+    write_mbox(
+        tmp_path / "in" / "all.mbox",
+        [
+            message("Uw reservering", "Uw vlucht KL879 vertrekt op 12 januari om 10:45 vanaf Schiphol, gate D7."),
+            message("Betaling", "Wij hebben uw betaling van 62,50 ontvangen."),
+        ],
+    )
+    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    documents.ingest_dir(conn, tmp_path / "out")
+    assert web._document_items(conn, "show me the email about my flight", []) == []  # an English question, a Dutch email: the words alone do not meet
+    flight = web._document_items(conn, "show me the email about my flight", [], ["vlucht", "reservering"])  # the model supplies the Dutch phrasings
+    assert [i["title"] for i in flight] == ["all.mbox/00001 Uw reservering.eml"]
+    assert "gate D7" in flight[0]["text"]  # no attachment at all: the text itself is the document
