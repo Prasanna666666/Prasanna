@@ -14,8 +14,9 @@
             else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
             else el.setAttribute(k, v === true ? '' : v);
         }
-        for (const kid of kids.flat(9))
+        for (const kid of kids.flat(9)) {
             if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(kid));
+        }
         return el;
     }
     const ICONS = {
@@ -2391,12 +2392,13 @@
                                   )
                               )
                       );
-            if (tab === 'payments' && !explorer)
+            if (tab === 'payments' && !explorer) {
                 explorer = paymentsExplorer(
                     trend.map((t) => t.month),
                     [...new Set([...daily.map((d) => d.category), ...txs.map((t) => t.category)])].sort(),
                     jump || {}
                 );
+            }
             const content = {
                 daily: dailyPane,
                 payments: [explorer],
@@ -2739,18 +2741,20 @@
             cur = t.currency || cur;
             const rows = [],
                 a = t.annual_statement;
-            if (a)
+            if (a) {
                 rows.push(
                     ['Annual statement · gross', money(a.gross)],
                     ['Annual statement · tax withheld', money(a.tax_withheld)],
                     ['Annual statement · net', money(a.net)]
                 );
-            if (t.payslips.count)
+            }
+            if (t.payslips.count) {
                 rows.push(
                     [`Payslips (${t.payslips.count}) · gross`, money(t.payslips.gross)],
                     ['Payslips · tax withheld', money(t.payslips.tax_withheld)],
                     ['Payslips · pension', money(t.payslips.pension)]
                 );
+            }
             rows.push(
                 ['Interest received', money(t.interest_received, 2)],
                 ['Paid into investments', money(t.paid_into_investments)],
@@ -2851,13 +2855,14 @@
     pages.income = async () => {
         const [ib, slips] = await Promise.all([tool('income_breakdown'), tool('list_payslips', { limit: 6 })]);
         cur = ib.currency || cur;
-        if (!ib.months.length)
+        if (!ib.months.length) {
             return h(
                 'div',
                 { class: 'stack' },
                 head('Income', 'Salary, bonus and other'),
                 emptyCard('Money in appears here once your statements are read.')
             );
+        }
         const y = ib.latest_year,
             recent = ib.months.slice(-12);
         const num = (n, cls = '') =>
@@ -2949,13 +2954,14 @@
     pages.savings = async () => {
         const sv = await tool('savings_overview');
         cur = sv.currency || cur;
-        if (!sv.months.length)
+        if (!sv.months.length) {
             return h(
                 'div',
                 { class: 'stack' },
                 head('Savings', 'Amount saved and savings rate'),
                 emptyCard('Savings are worked out from your money in and spending.')
             );
+        }
         const l = sv.last12,
             recent = sv.months.slice(-12);
         return h(
@@ -3645,12 +3651,13 @@
                                 relation: rel.value,
                                 about: about.value,
                             });
-                            if (bday.value)
+                            if (bday.value) {
                                 await tool('add_important_date', {
                                     person_id: p.id,
                                     label: 'Birthday',
                                     date: bday.value,
                                 });
+                            }
                             render();
                         }),
                     },
