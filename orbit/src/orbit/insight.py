@@ -9,6 +9,7 @@ from __future__ import annotations
 import difflib
 import itertools
 import json
+import re
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta
@@ -430,6 +431,75 @@ def self_test(conn) -> list[Finding]:
 
 def backup_status(conn) -> list[Finding]:
     return backup.daily(conn)
+
+
+# ---- why is a month so high? ---------------------------------------------------------------------------------------------------
+OWN_MONEY = re.compile(
+    r"credit ?card|creditcard|card payment|spaar|saving|beleg|invest|broker|aflos|hypotheek|mortgage|lening|loan|overboeking|eigen rekening|own account|wise|revolut|degiro",
+    re.I,
+)
+
+
+def _files(by_file: dict[str, list[int]]) -> list[dict]:
+    """The statement files a month's spending came from, largest first."""
+    ordered = sorted(by_file.items(), key=lambda item: item[1][1], reverse=True)[:12]
+    return [{"file": f, "payments": n, "total": t / 100} for f, (n, t) in ordered]
+
+
+def month_breakdown(conn, a=None):
+    """Where a month's spending comes from: by statement file, by category, trips and events apart, the biggest payments, and the ones that look like
+    something other than spending (a card bill, a savings or investment transfer, a figure that is really a balance, the same payment twice)."""
+    a = a or {}
+    from . import dates
+
+    month = a.get("month") or (conn.execute("SELECT MAX(substr(day,1,7)) FROM ledger").fetchone()[0] or clock.today().strftime("%Y-%m"))
+    start, end = dates.month_bounds(month)
+    rows = conn.execute(
+        "SELECT id, day, amount_minor, category, note, source, event_id, balance_minor FROM ledger WHERE kind='expense' AND category<>'transfers' AND day>=? AND day<? ORDER BY amount_minor DESC",
+        (start, end),
+    ).fetchall()
+    total = sum(r["amount_minor"] for r in rows)
+    in_events = sum(r["amount_minor"] for r in rows if r["event_id"] is not None)
+    by_file: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for r in rows:
+        by_file[r["source"] or "(no file)"][0] += 1
+        by_file[r["source"] or "(no file)"][1] += r["amount_minor"]
+    seen: dict[tuple, int] = defaultdict(int)
+    suspects = []
+    for r in rows:
+        seen[(r["day"], r["amount_minor"])] += 1
+    for r in rows[:40]:
+        why = []
+        if OWN_MONEY.search(r["note"] or ""):
+            why.append("looks like a card bill, savings, investment or loan payment: is the other account's statement loaded?")
+        if r["balance_minor"] is not None and r["balance_minor"] == r["amount_minor"]:
+            why.append("the amount equals the balance printed on that line: possibly a balance read as a payment")
+        if seen[(r["day"], r["amount_minor"])] > 1:
+            why.append("another payment of exactly this amount on the same day")
+        if r["amount_minor"] >= 0.1 * max(total, 1) and not why and r["event_id"] is None:
+            why.append("on its own more than a tenth of the month")
+        if why:
+            suspects.append({"day": r["day"], "amount": r["amount_minor"] / 100, "note": (r["note"] or "")[:50], "file": r["source"], "why": why})
+    return {
+        "month": month,
+        "total": total / 100,
+        "payments": len(rows),
+        "trips_and_events": in_events / 100,
+        "everyday": (total - in_events) / 100,
+        "by_file": _files(by_file),
+        "biggest": [
+            {
+                "day": r["day"],
+                "amount": r["amount_minor"] / 100,
+                "category": r["category"],
+                "note": (r["note"] or "")[:50],
+                "file": r["source"],
+                "in_event": r["event_id"] is not None,
+            }
+            for r in rows[:10]
+        ],
+        "look_at": suspects[:10],
+    }
 
 
 EXTRA_AGENTS = (

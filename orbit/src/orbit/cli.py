@@ -20,7 +20,7 @@ def open_db():
 
 # Commands that touch your database. They need the encryption key (set by the Docker deployment / scripts/up.sh),
 # or an explicit ORBIT_ALLOW_PLAIN=1 for throwaway test data.
-NEEDS_SECURE = {"ui", "chat", "brief", "tag", "import-notes", "ingest", "import-statements", "categorise", "statement-report"}
+NEEDS_SECURE = {"explain-month", "ui", "chat", "brief", "tag", "import-notes", "ingest", "import-statements", "categorise", "statement-report"}
 REFUSAL = (
     "Refusing to open the database without encryption.\n"
     "  Normal way:   ./scripts/up.sh          (Docker: encrypted, offline, isolated)\n"
@@ -139,6 +139,24 @@ def _chat(conn, rest: list[str]) -> int:
             print(f"        [{trace[0]['agent']} agent]")
 
 
+def _explain_month(conn, rest: list[str]) -> int:  # shows amounts on YOUR screen only; nothing is sent anywhere
+    from . import insight
+
+    r = insight.month_breakdown(conn, {"month": rest[0]} if rest else {})
+    print(f"{r['month']}: spent {r['total']:,.2f} in {r['payments']} payments (everyday {r['everyday']:,.2f}, trips and events {r['trips_and_events']:,.2f})")
+    print("\nBy file:")
+    for f in r["by_file"]:
+        print(f"  {f['total']:>12,.2f}  {f['payments']:>4} payments  {f['file']}")
+    print("\nBiggest payments:")
+    for p in r["biggest"]:
+        print(f"  {p['amount']:>12,.2f}  {p['day']}  {p['category']:<12} {p['note']}" + ("  [trip/event]" if p["in_event"] else ""))
+    if r["look_at"]:
+        print("\nWorth a look:")
+        for p in r["look_at"]:
+            print(f"  {p['amount']:,.2f} on {p['day']} {p['note']}: " + "; ".join(p["why"]))
+    return 0
+
+
 NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "tools": _list_tools, "agents": _list_agents}
 WITH_DATABASE = {
     "brief": _brief,
@@ -149,6 +167,7 @@ WITH_DATABASE = {
     "import-notes": _import_notes,
     "tag": _tag,
     "chat": _chat,
+    "explain-month": _explain_month,
 }
 
 

@@ -101,3 +101,25 @@ def test_every_extra_agent_runs_on_an_empty_database(conn):
     for agent in insight.EXTRA_AGENTS:
         if agent is not insight.backup_status:
             agent(conn)
+
+
+def test_a_month_is_broken_down_so_a_surprising_total_can_be_explained(conn):
+    tx(conn, "2026-09-03", 5000, note="Albert Heijn", cat="groceries")
+    tx(conn, "2026-09-10", 2000000, note="ABN AMRO Creditcard 1234", cat="other")  # a card bill: the card's own statement is not loaded
+    tx(conn, "2026-09-12", 80000, note="Rent", cat="rent")
+    tx(conn, "2026-09-20", 7777, note="Mystery", cat="other")
+    tx(conn, "2026-09-20", 7777, note="Mystery", cat="other")
+    r = insight.month_breakdown(conn, {"month": "2026-09"})
+    assert r["total"] == 20000.0 + 800.0 + 50.0 + 155.54 and r["payments"] == 5 and r["everyday"] == r["total"]
+    assert r["biggest"][0]["amount"] == 20000.0
+    flagged = {p["note"]: p["why"] for p in r["look_at"]}
+    assert any("card bill" in w for w in flagged["ABN AMRO Creditcard 1234"])
+    assert any("same day" in w for w in flagged["Mystery"])
+
+
+def test_a_balance_read_as_a_payment_is_flagged(conn):
+    conn.execute(
+        "INSERT INTO transactions (day, amount_minor, kind, category, note, source, balance_minor) VALUES ('2026-09-05', 123456, 'expense', 'other', 'x', 's.pdf', 123456)"
+    )
+    conn.commit()
+    assert any("balance" in w for p in insight.month_breakdown(conn, {"month": "2026-09"})["look_at"] for w in p["why"])

@@ -683,6 +683,12 @@ MODULE = Module(
             {"days": N("How many days ahead, default 35")},
             insight.upcoming_payments,
         ),
+        Tool(
+            "month_breakdown",
+            "Where a month's spending comes from: by file, trips and events apart, the biggest payments, and anything that looks like it is not really spending.",
+            {"month": S("YYYY-MM, default the newest month")},
+            insight.month_breakdown,
+        ),
         Tool("net_worth", "The balance of every account in euros, month by month, from your proven statements.", {}, insight.net_worth),
         Tool("agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, agent_list),
         Tool(
