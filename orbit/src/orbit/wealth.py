@@ -29,12 +29,15 @@ def add_holding(conn, a):
         raise ValueError("give a value, or units and a price")
     if value < 0:
         raise ValueError("a value cannot be negative: debts are entered as a positive amount owed")
+    cost = None if a.get("cost") is None else round(float(a["cost"]) * 100)
+    if cost is not None and cost < 0:
+        raise ValueError("the amount paid in cannot be negative")
     as_of = str(a.get("as_of") or clock.today().isoformat())
     date.fromisoformat(as_of)
     currency = str(a.get("currency") or _main(conn)).upper()[:5]
     cur = conn.execute(
-        "INSERT INTO holdings (name, kind, value_minor, units, price_minor, currency, as_of) VALUES (?,?,?,?,?,?,?)",
-        (name[:80], kind, value, a.get("units"), round(float(a["price"]) * 100) if a.get("price") is not None else None, currency, as_of),
+        "INSERT INTO holdings (name, kind, value_minor, units, price_minor, currency, as_of, cost_minor) VALUES (?,?,?,?,?,?,?,?)",
+        (name[:80], kind, value, a.get("units"), round(float(a["price"]) * 100) if a.get("price") is not None else None, currency, as_of, cost),
     )
     conn.commit()
     return {"id": cur.lastrowid, "name": name, "kind": kind, "value": value / 100, "currency": currency, "as_of": as_of}
@@ -52,11 +55,14 @@ def update_holding(conn, a):
         value = round(units * price)
     elif a.get("value") is not None:
         value, units, price = round(float(a["value"]) * 100), row["units"], row["price_minor"]
+    elif a.get("cost") is not None:  # only what was paid in changes
+        value, units, price = row["value_minor"], row["units"], row["price_minor"]
     else:
-        raise ValueError("give a new value or price")
+        raise ValueError("give a new value, price or amount paid in")
+    cost = row["cost_minor"] if a.get("cost") is None else round(float(a["cost"]) * 100)
     conn.execute(
-        "UPDATE holdings SET value_minor=?, units=?, price_minor=?, as_of=? WHERE id=?",
-        (value, units, price, a.get("as_of") or clock.today().isoformat(), a["id"]),
+        "UPDATE holdings SET value_minor=?, units=?, price_minor=?, cost_minor=?, as_of=? WHERE id=?",
+        (value, units, price, cost, a.get("as_of") or clock.today().isoformat(), a["id"]),
     )
     conn.commit()
     return {"id": a["id"], "value": value / 100}
@@ -78,9 +84,11 @@ def _eur_or_same(conn, minor: int, currency: str, day: str):
 
 def list_holdings(conn, a=None):
     out = []
-    for r in conn.execute("SELECT id, name, kind, value_minor, units, price_minor, currency, as_of FROM holdings ORDER BY kind, name"):
+    for r in conn.execute("SELECT id, name, kind, value_minor, units, price_minor, currency, as_of, cost_minor FROM holdings ORDER BY kind, name"):
         out.append(
             {
+                "cost": None if r["cost_minor"] is None else r["cost_minor"] / 100,
+                "gain": None if r["cost_minor"] is None else (r["value_minor"] - r["cost_minor"]) / 100,
                 "id": r["id"],
                 "name": r["name"],
                 "kind": r["kind"],
@@ -130,4 +138,29 @@ def wealth_summary(conn, a=None):
         "series": nw["series"],
         "not_converted": unconverted,
         "note": "Accounts come from proven statements. Investments, assets and debts are the values you typed in, as of the date shown with each.",
+    }
+
+
+def investments_overview(conn, a=None):
+    """What went into investments, what it is worth now, and the gain or loss. Contributions are counted from your payments; the value is what you typed in
+    (Orbit cannot read a broker's statement), and a gain or loss is shown only for holdings where you also typed what you paid in."""
+    from . import planning
+
+    held = [h for h in list_holdings(conn) if h["kind"] == "investment"]
+    value = sum(h["value"] for h in held)
+    with_cost = [h for h in held if h["cost"] is not None]
+    cost = sum(h["cost"] for h in with_cost)
+    gain = sum(h["gain"] for h in with_cost)
+    paid = planning.investments(conn)
+    return {
+        "currency": _main(conn),
+        "contributed_total": round(sum(y["contributed"] for y in paid["contributed_by_year"]), 2),
+        "contributed_by_year": paid["contributed_by_year"],
+        "value": round(value, 2),
+        "holdings": held,
+        "cost": round(cost, 2) if with_cost else None,
+        "gain": round(gain, 2) if with_cost else None,
+        "gain_percent": round(gain / cost * 100, 1) if with_cost and cost else None,
+        "complete": len(with_cost) == len(held),
+        "note": "Contributions come from your payments. Values and costs are what you typed in. A gain or loss needs the amount paid in for the holding.",
     }

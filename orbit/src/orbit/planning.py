@@ -11,6 +11,7 @@ import re
 import statistics
 from collections import defaultdict
 from datetime import date
+from typing import Any
 
 from . import clock, insight, proof
 from .db import get_setting
@@ -503,3 +504,60 @@ def family_money(conn, a=None):
             }
         )
     return {"currency": _currency(conn), "people": out, "note": "Counted only where the person's name is printed on the payment."}
+
+
+# ---- the five sections: income, savings ----------------------------------------------------------------------------------------------
+def income_breakdown(conn, a=None):
+    """Money in, split into salary, bonus and everything else (interest, refunds, other), by month and by year. Money that belongs to a trip or event is not income."""
+    kinds = {"salary": "salary", "bonus": "bonus"}
+    months: dict[str, dict[str, float]] = {}
+    for r in conn.execute(
+        "SELECT substr(day,1,7) AS m, category, SUM(amount_minor) AS t FROM ledger WHERE kind='income' AND category<>'transfers' AND event_id IS NULL GROUP BY m, category"
+    ):
+        slot = months.setdefault(r["m"], {"salary": 0.0, "bonus": 0.0, "other": 0.0})
+        slot[kinds.get(r["category"], "other")] += r["t"] / 100
+    rows: list[dict[str, Any]] = [
+        {"month": m, **{k: round(v, 2) for k, v in vals.items()}, "total": round(sum(vals.values()), 2)} for m, vals in sorted(months.items())
+    ]
+    years: dict[str, dict[str, float]] = {}
+    for r in rows:
+        y = years.setdefault(r["month"][:4], {"salary": 0.0, "bonus": 0.0, "other": 0.0, "total": 0.0})
+        for k in ("salary", "bonus", "other", "total"):
+            y[k] += r[k]
+    year_rows = [{"year": y, **{k: round(v, 2) for k, v in vals.items()}} for y, vals in sorted(years.items())]
+    return {"currency": _currency(conn), "months": rows[-24:], "years": year_rows, "latest_year": year_rows[-1] if year_rows else None}
+
+
+def savings_overview(conn, a=None):
+    """What was saved (money in minus spent) and the savings rate (saved / money in), by month and by year. A negative number means more went out than came in."""
+    months: list[dict[str, Any]] = []
+    for m in _months(conn):
+        saved = m["income"] - m["spent"]
+        months.append(
+            {
+                "month": m["month"],
+                "income": round(m["income"], 2),
+                "spent": round(m["spent"], 2),
+                "saved": round(saved, 2),
+                "rate": round(saved / m["income"] * 100, 1) if m["income"] > 0 else None,
+            }
+        )
+    years = [{k: y[k] for k in ("year", "income", "spent", "saved", "savings_rate", "months")} for y in yearly_overview(conn)["years"]]
+    last12 = months[-12:]
+    income, spent = sum(m["income"] for m in last12), sum(m["spent"] for m in last12)
+    rated = [m for m in last12 if m["rate"] is not None]
+    return {
+        "currency": _currency(conn),
+        "months": months[-24:],
+        "years": years,
+        "latest_year": years[-1] if years else None,
+        "last12": {
+            "months": len(last12),
+            "income": round(income, 2),
+            "spent": round(spent, 2),
+            "saved": round(income - spent, 2),
+            "rate": round((income - spent) / income * 100, 1) if income > 0 else None,
+        },
+        "best": max(rated, key=lambda m: m["rate"], default=None),
+        "worst": min(rated, key=lambda m: m["rate"], default=None),
+    }

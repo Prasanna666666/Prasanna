@@ -110,6 +110,9 @@ MIGRATIONS = (
         value_minor INTEGER NOT NULL, units REAL, price_minor INTEGER, currency TEXT NOT NULL DEFAULT 'EUR', as_of TEXT NOT NULL
     );
     """,
+    """
+    ALTER TABLE holdings ADD COLUMN cost_minor INTEGER;                          -- what you paid in for it in total, so a gain or loss can be shown
+    """,
 )
 
 
@@ -794,6 +797,9 @@ MODULE = Module(
             ("query",),
         ),
         Tool("family_money", "Money between you and each person on your People list, where their name is printed on the payment.", {}, planning.family_money),
+        Tool("income_breakdown", "Money in by month and year: salary, bonus and other.", {}, planning.income_breakdown),
+        Tool("savings_overview", "What was saved (money in minus spent) and the savings rate, by month and year.", {}, planning.savings_overview),
+        Tool("investments_overview", "Investments: what was paid in, the current value you entered, and the gain or loss.", {}, wealth.investments_overview),
         Tool("yearly_overview", "Per year: salary, money in, spent, saved, savings rate, interest, invested, insurance paid.", {}, planning.yearly_overview),
         Tool("interest_earned", "Interest received per year and the estimated yearly rate for each account that earns it.", {}, planning.interest),
         Tool("investments", "What was paid into investments each year. The portfolio value needs broker statements.", {}, planning.investments),

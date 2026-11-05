@@ -21,6 +21,10 @@ const ICONS = {
   home: 'M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9',
   chat: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z',
   plan: 'M3 17l5-6 4 3 6-8M14 6h4v4',
+  expenses: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 3h18M7 15h3',
+  savings: 'M12 5c4.4 0 8 1.1 8 2.5S16.4 10 12 10 4 8.9 4 7.5 7.6 5 12 5Zm8 2.5v4c0 1.4-3.6 2.5-8 2.5s-8-1.1-8-2.5v-4m16 4v4c0 1.4-3.6 2.5-8 2.5s-8-1.1-8-2.5v-4',
+  investments: 'M3 17l5-6 4 3 6-8M14 6h4v4M3 21h18',
+  networth: 'M4 20V10m6 10V4m6 16v-7m4 7H2',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3',
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
@@ -68,9 +72,9 @@ function toast(text, bad) {
 const guard = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message, true); } };
 
 // ------------------------------------------------------------------ shell
-const PAGES = [['home', 'Home'], ['money', 'Money'], ['wealth', 'Wealth'], ['plan', 'Plan'], ['documents', 'Documents'], ['chat', 'Ask'], ['tasks', 'Tasks'], ['notes', 'Notes'], ['people', 'People'], ['files', 'Files'], ['settings', 'Settings']];
-const MENU = [['home', 'money', 'wealth', 'plan', 'documents', 'chat'], ['tasks', 'notes', 'people'], ['settings']];  // 'files' is reached from Documents
-const ALIAS = { spending: 'money', income: 'money', tax: 'plan' };  // old addresses still work
+const PAGES = [['home', 'Home'], ['income', 'Income'], ['expenses', 'Expenses'], ['savings', 'Savings'], ['investments', 'Investments'], ['networth', 'Net worth'], ['plan', 'Plan'], ['documents', 'Documents'], ['chat', 'Ask'], ['tasks', 'Tasks'], ['notes', 'Notes'], ['people', 'People'], ['files', 'Files'], ['settings', 'Settings']];
+const MENU = [['home', 'income', 'expenses', 'savings', 'investments', 'networth', 'plan', 'documents'], ['chat', 'tasks', 'notes', 'people'], ['settings']];  // 'files' is reached from Documents
+const ALIAS = { money: 'expenses', spending: 'expenses', wealth: 'networth', tax: 'plan' };  // old addresses still work
 function buildNav() {
   const label = Object.fromEntries(PAGES);
   $('#nav').replaceChildren(...MENU.flatMap((group, i) => [i ? h('div', { class: 'nav-gap' }) : null, ...group.map((id) => h('a', { class: 'nav-item' + (i ? ' minor' : ''), href: '#/' + id, 'data-id': id, title: label[id] }, icon(id), h('span', {}, label[id])))]).filter(Boolean));
@@ -184,6 +188,30 @@ function spendDonut(rows) {
   return h('div', { class: 'donut-wrap' }, donut(data), h('div', { class: 'legend' }, data.slice(0, 7).map((d) => h('div', { class: 'legend-row' }, h('span', { class: 'sw', style: { background: d.colour } }), h('span', { class: 'nm' }, d.label), h('span', { class: 'amt num' }, money(d.value)), h('span', { class: 'faint small', style: { width: '40px', textAlign: 'right' } }, Math.round((d.value / total) * 100) + '%')))));
 }
 
+/** Columns made of coloured parts (salary, bonus, other), tallest = the biggest month. */
+function stackedBars(rows, parts) {
+  const max = Math.max(...rows.map((r) => r.total), 1);
+  return h('div', {}, h('div', { class: 'bars' }, rows.map((r) => h('div', { class: 'bar-col', title: `${monthName(r.month)} · ${money(r.total)}` },
+    h('div', { class: 'bar-val' }, r.total ? money(r.total) : ''),
+    h('div', { class: 'stackbar', style: { height: (r.total / max) * 100 + '%' } }, parts.map(([k, , c]) => (r[k] ? h('i', { style: { flexGrow: String(r[k]), background: c } }) : null))),
+    h('div', { class: 'bar-label' }, new Date(r.month + '-15').toLocaleDateString(undefined, { month: 'short' }))))),
+    h('div', { class: 'chart-legend' }, parts.map(([, label, c]) => h('span', {}, h('i', { style: { background: c } }), label))));
+}
+/** Bars that can go below zero: green when money was kept, red when more went out than came in. */
+function signedBars(rows) {
+  const top = Math.max(...rows.map((r) => r.value), 0), bottom = Math.min(...rows.map((r) => r.value), 0), span = top - bottom || 1, zero = (top / span) * 100;
+  return h('div', { class: 'sbars' }, h('div', { class: 'szero', style: { top: zero + '%' } }), rows.map((r) => {
+    const height = (Math.abs(r.value) / span) * 100;
+    return h('div', { class: 'scol', title: `${monthName(r.month)} · ${signed(r.value, 0)}${r.rate == null ? '' : ' · ' + r.rate + '%'}` },
+      h('i', { class: r.value >= 0 ? 'pos' : 'neg', style: { height: height + '%', top: r.value >= 0 ? zero - height + '%' : zero + '%' } }),
+      h('span', { class: 'slabel' }, new Date(r.month + '-15').toLocaleDateString(undefined, { month: 'short' })));
+  }));
+}
+const rate = (n) => (n == null ? '–' : n + '%');
+const emptyCard = (text) => h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Nothing here yet'), h('p', { class: 'muted' }, text), h('a', { class: 'btn primary', href: '#/documents' }, 'Add my files'));
+const heroOf = (eyebrow, bigText, meta) => h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, eyebrow), h('div', { class: 'big num' }, bigText),
+  h('div', { class: 'meta' }, meta.map(([k, v]) => h('div', {}, h('div', { class: 'k' }, k), h('div', { class: 'v num' }, v)))));
+
 // ------------------------------------------------------------------ charts
 function donut(data) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1, R = 70, C = 2 * Math.PI * R;
@@ -248,11 +276,12 @@ function startMonth(trend) {
 /** Go to the Payments list with some filters already chosen (a shop, a category, a month). */
 function goExplore(filters) {
   try { sessionStorage.setItem('orbit.explore', JSON.stringify(filters || {})); } catch (_) { /* private window */ }
-  if (route() === 'money' || ALIAS[route()] === 'money') render(); else location.hash = '#/money';
+  if (ALIAS[route()] === 'expenses' || route() === 'expenses') render(); else location.hash = '#/expenses';
 }
-const PAGE_LINKS = [['Home', 'home', () => { location.hash = '#/home'; }], ['Payments', 'money', () => goExplore({})], ['Spending', 'money', () => { location.hash = '#/money'; }], ['Income', 'income', () => { location.hash = '#/income'; }],
-  ['Wealth', 'wealth', () => { location.hash = '#/wealth'; }], ['Plan', 'plan', () => { location.hash = '#/plan'; }], ['Tax', 'documents', () => { location.hash = '#/tax'; }], ['Documents', 'documents', () => { location.hash = '#/documents'; }],
-  ['Ask Orbit', 'chat', () => setCorner(true)], ['Tasks', 'tasks', () => { location.hash = '#/tasks'; }], ['Notes', 'notes', () => { location.hash = '#/notes'; }], ['People', 'people', () => { location.hash = '#/people'; }], ['Settings', 'settings', () => { location.hash = '#/settings'; }]];
+const PAGE_LINKS = [['Home', 'home', () => { location.hash = '#/home'; }], ['Income', 'income', () => { location.hash = '#/income'; }], ['Expenses', 'expenses', () => { location.hash = '#/expenses'; }], ['Payments', 'search', () => goExplore({})],
+  ['Savings', 'savings', () => { location.hash = '#/savings'; }], ['Investments', 'investments', () => { location.hash = '#/investments'; }], ['Net worth', 'networth', () => { location.hash = '#/networth'; }], ['Plan', 'plan', () => { location.hash = '#/plan'; }],
+  ['Tax', 'documents', () => { location.hash = '#/tax'; }], ['Documents', 'documents', () => { location.hash = '#/documents'; }], ['Ask Orbit', 'chat', () => setCorner(true)], ['Tasks', 'tasks', () => { location.hash = '#/tasks'; }],
+  ['Notes', 'notes', () => { location.hash = '#/notes'; }], ['People', 'people', () => { location.hash = '#/people'; }], ['Settings', 'settings', () => { location.hash = '#/settings'; }]];
 
 /** A side panel with everything known about one payment. */
 async function openPayment(id) {
@@ -362,7 +391,7 @@ pages.home = async () => {
   const d = await api('/api/home'); cur = d.currency;
   const b = d.briefing, hour = new Date().getHours(), month = startMonth(d.trend), has = d.trend.length > 0;
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const [dueSoon, det, checks, nw, yo] = await Promise.all([tool('bills_due', { days: 21 }), tool('money_detective'), tool('files_to_check'), tool('wealth_summary'), tool('yearly_overview')]);
+  const [dueSoon, det, checks, nw, yo, inv] = await Promise.all([tool('bills_due', { days: 21 }), tool('money_detective'), tool('files_to_check'), tool('wealth_summary'), tool('yearly_overview'), tool('investments_overview')]);
   const [daily, byMain, sum] = has ? await Promise.all([tool('daily_spending', { month }), tool('spending_by_main', { month }), tool('spending_summary', { month })]) : [[], [], { income: 0 }];
   const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net, oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0), spent = monthly + oneTime;
   const before = daily.reduce((x, r) => x + r.before, 0), delta = before > 0 ? ((monthly - before) / before) * 100 : null;
@@ -375,9 +404,10 @@ pages.home = async () => {
       h('div', { class: 'hero-spark' }, sparkline(d.trend.slice(-8).map((t) => t.spent)))),
     h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(monthly))), h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(oneTime, 0))), h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
   const year = yo.years[yo.years.length - 1];
-  const stats = h('div', { class: 'grid g3' },
-    stat('Net worth', nw.net_worth == null ? '–' : money(nw.net_worth), nw.net_worth == null ? 'Comes from your statements' : `Accounts ${money(nw.accounts || 0)}`, '#/wealth'),
-    stat(year ? `Kept in ${year.year}` : 'Kept', year && year.savings_rate != null ? year.savings_rate + '%' : '–', year ? `${signed(year.saved, 0)} saved` : '', '#/plan', year && year.saved < 0 ? 'bad' : 'good'),
+  const stats = h('div', { class: 'grid g4' },
+    stat('Net worth', nw.net_worth == null ? '–' : money(nw.net_worth), nw.net_worth == null ? 'Comes from your statements' : `Cash ${money(nw.accounts || 0)}`, '#/networth'),
+    stat(year ? `Kept in ${year.year}` : 'Kept', year && year.savings_rate != null ? year.savings_rate + '%' : '–', year ? `${signed(year.saved, 0)} saved` : '', '#/savings', year && year.saved < 0 ? 'bad' : 'good'),
+    stat('Investments', money(inv.value), inv.gain == null ? `${money(inv.contributed_total)} paid in` : `${signed(inv.gain, 0)} gain / loss`, '#/investments', inv.gain == null ? '' : inv.gain >= 0 ? 'good' : 'bad'),
     stat('Due in 3 weeks', money(dueSoon.total), `${dueSoon.items.length} payment${dueSoon.items.length === 1 ? '' : 's'}`, '#/plan'));
   const attention = [
     ...dueSoon.items.filter((x) => x.kind === 'invoice').slice(0, 2).map((x) => ({ k: 'bill', t: `${x.what} · ${money(x.amount, 2)} · ${x.in_days <= 0 ? 'now' : `in ${x.in_days} days`}` })),
@@ -393,22 +423,25 @@ pages.home = async () => {
       ...dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.n) } }, initials(u.n)), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, u.n), h('div', { class: 'faint small' }, u.s)), h('span', { class: 'num' }, u.a)))) : h('div', { class: 'empty' }, 'Nothing today.'));
   const go = (label, sub, ic, color, act) => h('button', { class: 'short', onclick: act }, h('span', { class: 'cat-badge', style: `--c:${color};width:44px;height:44px`, html: `<svg viewBox="0 0 24 24"><path d="${ICONS[ic] || CATS[ic][1]}"/></svg>` }), h('span', { class: 'short-t' }, label), h('span', { class: 'faint small' }, sub));
   const shortcuts = h('div', { class: 'shorts' },
-    go('Payments', 'Browse and filter every one', 'search', '#8b5cf6', () => goExplore({})), go('Income', 'Salary and money in', 'income', '#10b981', () => { location.hash = '#/income'; }),
-    go('Wealth', 'Accounts and net worth', 'wealth', '#0ea5e9', () => { location.hash = '#/wealth'; }), go('Goals', 'Save for something', 'plan', '#f59e0b', () => { location.hash = '#/plan'; }),
-    go('Tax', 'Facts for your return', 'tax', '#ec4899', () => { location.hash = '#/tax'; }), go('Files', 'Invoices, letters, contracts', 'documents', '#14b8a6', () => { location.hash = '#/documents'; }));
-  const welcome = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, private on this Mac. Add your statements to begin.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my files'));
+    go('Income', 'Salary, bonus, other', 'income', '#10b981', () => { location.hash = '#/income'; }), go('Expenses', 'Monthly, recurring, one-offs', 'expenses', '#f43f5e', () => { location.hash = '#/expenses'; }),
+    go('Savings', 'Saved and savings rate', 'savings', '#14b8a6', () => { location.hash = '#/savings'; }), go('Investments', 'Paid in, value, gain', 'investments', '#8b5cf6', () => { location.hash = '#/investments'; }),
+    go('Net worth', 'Cash, investments, debts', 'networth', '#0ea5e9', () => { location.hash = '#/networth'; }), go('Plan', 'Goals, budgets, tax', 'plan', '#f59e0b', () => { location.hash = '#/plan'; }));
+  const welcome = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, private on this Mac. Add your statements to begin.'), h('a', { class: 'btn primary', href: '#/expenses' }, 'Add my files'));
   return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask,
     ...(has ? [hero, stats, shortcuts,
-      h('div', { class: 'grid g2' }, section('Money in and out', areaChart(d.trend)), daily.length ? section('Where it went', spendDonut(daily), h('a', { class: 'more', href: '#/money' }, 'All spending →')) : null)] : [welcome]),
+      h('div', { class: 'grid g2' }, section('Money in and out', areaChart(d.trend)), daily.length ? section('Where it went', spendDonut(daily), h('a', { class: 'more', href: '#/expenses' }, 'All spending →')) : null)] : [welcome]),
     h('div', { class: 'grid g2' }, ...[attentionCard, today].filter(Boolean)));
 };
 
 // ------------------------------------------------------------------ the chat: one conversation, in a corner panel and on its own page
 const IDEAS = {
-  home: ['How much did I spend last month?', 'What are my regular payments?', "What's on today?"],
-  money: ['How much did I spend last month?', 'What was my biggest payment this year?', 'Why was my last month so high?'],
-  wealth: ["What's my net worth?", 'How much did I invest this year?', 'What interest did I earn?'],
-  plan: ['Am I on track for my goals?', 'What bills are coming up?', "What's my savings rate this year?"],
+  home: ['How much did I spend last month?', 'What is my savings rate this year?', "What's my net worth?"],
+  income: ['How much did I earn this year?', 'Did I get a bonus this year?', 'What was my salary last month?'],
+  expenses: ['How much did I spend last month?', 'What are my regular payments?', 'What was my biggest payment this year?'],
+  savings: ["What's my savings rate this year?", 'Which month did I save the most?', 'Am I saving more than last year?'],
+  investments: ['How much did I invest this year?', 'What is my investment gain or loss?', 'What interest did I earn?'],
+  networth: ["What's my net worth?", 'How much cash do I have?', 'What do I owe?'],
+  plan: ['Am I on track for my goals?', 'What bills are coming up?', 'Show my budgets'],
   documents: ['Which invoices are still unpaid?', 'What does my insurance cost per year?', 'Find my latest tax letter'],
   tasks: ["What's on today?", 'What is overdue?'], notes: ['What did I write about my trip?'], people: ['Whose birthday is next?'], settings: ['What can you do?'],
 };
@@ -520,10 +553,10 @@ async function moneyPage(title, allowed, startTab) {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc, pf] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, checks, ver, cc, pf] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies'), tool('month_proof', { month })]);
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies'), tool('month_proof', { month })]);
     const curChips = cc.currencies.length > 1 || cc.currencies.some((c) => c.currency !== cc.main) ? h('div', { class: 'seg' }, [...cc.currencies, { currency: 'ALL', payments: 0, label: 'In euros' }].map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: c.currency === 'ALL' ? 'Show everything in euros' : `${c.payments} payments`,
       onclick: guard(async () => { await api('/api/settings', { view_currency: c.currency }); location.reload(); }) }, c.label || c.currency))) : null;
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
@@ -558,6 +591,7 @@ async function moneyPage(title, allowed, startTab) {
     const opened = daily.filter((d) => openCats.has(d.category)).map((d) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', { style: { textTransform: 'capitalize' } }, d.category), h('span', { class: 'chip' }, money(d.amount))),
       h('div', { class: 'list' }, txs.filter((t) => !t.event && t.kind === 'expense' && (t.category === 'other' ? 'unsorted' : t.category) === d.category).map(payRow))));
     const dailyPane = [daily.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Where it went')), spendDonut(daily)) : null, daily.length ? tiles : h('div', { class: 'card empty' }, 'Nothing spent this month.'), ...opened, trendCard,
+      recCard,
       h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn', onclick: () => { tab = 'payments'; draw(false); } }, 'Browse every payment →'))];
 
     // ---- trips & events: found by the model from your statements; tap a card for its lines
@@ -574,18 +608,6 @@ async function moneyPage(title, allowed, startTab) {
       : [h('div', { class: 'card welcome-card' }, h('h2', {}, 'No trips or events yet'), h('p', { class: 'muted' }, 'Tickets, flights and hotels are grouped here for you.'))];
 
     // ---- income: how much came in, from where, and the payslip
-    const incChange = inc.before > 0 ? ((inc.total - inc.before) / inc.before) * 100 : null;
-    const sl = inc.payslip;
-    const incomePane = [
-      h('div', { class: 'card summary' }, h('div', {}, h('div', { class: 'eyebrow' }, 'Money in · ' + monthName(month)), h('div', { class: 'num good', style: { fontSize: '46px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(inc.total)),
-        h('div', { class: 'muted' }, incChange == null ? 'salary, interest and other income' : Math.abs(incChange) < 5 ? 'about the same as last month' : `${incChange >= 0 ? '↑' : '↓'} ${Math.abs(incChange).toFixed(0)}% compared with last month`))),
-      inc.sources.length ? dailyTiles(inc.sources.map((x) => ({ category: x.source, amount: x.amount, before: x.before, payments: x.payments })), null, null) : h('div', { class: 'card empty' }, 'No money in this month.'),
-      sl ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Payslip · ' + monthName(sl.period))),
-        h('div', { class: 'lines' }, [['Gross', sl.gross], ['Tax', sl.tax], ['Pension', sl.pension], ['Holiday pay', sl.holiday]].filter(([, v]) => v != null).map(([k, v]) => h('div', { class: 'line' }, h('span', {}, k), h('span', { class: 'num' }, money(v, 2)))),
-          h('div', { class: 'line total' }, h('span', {}, 'Paid out (net)'), h('span', { class: 'num good' }, money(sl.net, 2))))) : null,
-      trend.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Money in, month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),
-        barChart(trend.slice(-8), month, (m) => { month = m; openCats.clear(); draw(false); }, 'income')) : null,
-      slips.length > 1 ? h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payslips'), h('span', { class: 'faint' }, ` · ${slips.length}`)), h('div', { style: { height: '12px' } }), slipCard) : null];
     // ---- every verifier agent, in words
     const LEVEL = { ok: ['✓', 'good'], warn: ['!', ''], fail: ['✗', 'bad'] };
     const statusCard = ver.problems.length ? h('div', { class: 'card' }, h('h2', { style: { marginBottom: '8px' } }, `${ver.problems.length} thing${ver.problems.length === 1 ? '' : 's'} to look at`),
@@ -602,10 +624,10 @@ async function moneyPage(title, allowed, startTab) {
         ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${plain(c.issues) || 'could not be read'}`))) :
       unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} not double-checked`))) : null;
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['daily', 'Overview'], ['payments', 'Payments'], ['income', 'Income'], ['events', 'One-time'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
+    const tabs = [['daily', 'Monthly & recurring'], ['events', 'One-offs'], ['payments', 'All payments'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
     const tabBar = allowed.length < 2 ? null : h('div', { class: 'seg' }, tabs.filter(([id]) => allowed.includes(id)).map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
     if (tab === 'payments' && !explorer) explorer = paymentsExplorer(trend.map((t) => t.month), [...new Set([...daily.map((d) => d.category), ...txs.map((t) => t.category)])].sort(), jump || {});
-    const content = { daily: dailyPane, payments: [explorer], income: incomePane, events: eventsPane, regular: [recCard],
+    const content = { daily: dailyPane, payments: [explorer], events: eventsPane,
       documents: [statusCard, docCard, detailsFold, h('div', { class: 'muted', style: { textAlign: 'center' } }, h('a', { href: '#/files' }, 'Search all files'))] }[tab];
     const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Add your money'),
       h('p', { class: 'muted' }, 'Put your PDFs in your finance folder, then press the button.'),
@@ -615,7 +637,7 @@ async function moneyPage(title, allowed, startTab) {
   await draw(false); poll();
   return wrap;
 }
-pages.money = () => moneyPage('Money', ['daily', 'payments', 'income', 'events', 'regular'], ({ income: 'income' })[route()]);
+pages.expenses = () => moneyPage('Expenses', ['daily', 'events', 'payments']);
 pages.documents = () => moneyPage('Documents', ['documents']);
 
 pages.plan = async () => {
@@ -626,13 +648,9 @@ pages.plan = async () => {
   const wrap = h('div', { class: 'stack' }), body = h('div', { class: 'stack' });
   const row = (...cells) => h('div', { class: 'item' }, ...cells);
   const col = (w, t, cls = '') => h('div', { class: 'num ' + cls, style: { width: w + 'px', textAlign: 'right' } }, t);
-  const yearTable = yo.years.length ? h('div', { class: 'list' },
-    row(h('div', { class: 'grow faint' }, 'Year'), ...['Salary', 'Spent', 'Saved', 'Kept'].map((t) => h('div', { class: 'faint', style: { width: '88px', textAlign: 'right' } }, t))),
-    ...yo.years.slice().reverse().map((y) => row(h('div', { class: 'grow', style: { fontWeight: 650 } }, y.year + (y.months < 12 ? ` · ${y.months} mo` : '')), col(88, money(y.salary)), col(88, money(y.spent)), col(88, signed(y.saved, 0), y.saved >= 0 ? 'good' : 'bad'), col(88, y.savings_rate == null ? '–' : y.savings_rate + '%')))) : h('div', { class: 'empty' }, 'No data yet.');
   const lookItems = [...look.items.map((x) => ({ k: x.topic, t: x.text })), ...det.items.map((x) => ({ k: x.kind, t: x.text }))];
   const overview = () => [
     bills.items.length ? section('Coming up', h('div', { class: 'list' }, bills.items.slice(0, 5).map((x) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.what), h('div', { class: 'faint small' }, x.in_days <= 0 ? 'now' : `in ${x.in_days} days · ${x.due}`)), h('div', { class: 'num' }, money(x.amount, 2)))))) : null,
-    section('Years', yearTable),
     ins.paid.length ? section('Insurance', h('div', { class: 'list' }, ins.paid.slice().reverse().map((x) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.insurer.charAt(0).toUpperCase() + x.insurer.slice(1)), h('div', { class: 'faint small' }, x.year)), h('div', { class: 'num strong' }, money(x.paid)))),
       ins.total_per_year.length ? row(h('div', { class: 'grow faint' }, 'Total per year'), h('div', { class: 'num faint' }, ins.total_per_year.slice().reverse().map((t) => `${t.year}: ${money(t.paid)}`).join('  ·  '))) : null)) : null,
     lookItems.length ? section('Worth a look', h('div', { class: 'list' }, lookItems.slice(0, 12).map((x) => row(h('span', { class: 'chip' }, x.k), h('div', { class: 'grow' }, x.t))))) : null];
@@ -681,37 +699,90 @@ pages.plan = async () => {
   return wrap;
 };
 
-pages.wealth = async () => {
-  const [w, accounts, holdings, inv, intr] = await Promise.all([tool('wealth_summary'), tool('accounts_overview'), tool('list_holdings'), tool('investments'), tool('interest_earned')]);
-  const row = (...cells) => h('div', { class: 'item' }, ...cells);
-  const card = (title, ...body) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, title)), ...body);
-  const kind = h('select', { class: 'field', style: { width: '140px' } }, [['investment', 'Investment'], ['asset', 'Asset'], ['debt', 'Debt']].map(([v, t]) => h('option', { value: v }, t)));
-  const name = h('input', { class: 'field', placeholder: 'Name (ETF, house, loan…)', style: { flex: 1 } });
-  const value = h('input', { class: 'field', type: 'number', placeholder: 'Value', style: { width: '120px' } });
-  const units = h('input', { class: 'field', type: 'number', placeholder: 'or Units', style: { width: '100px' } }), price = h('input', { class: 'field', type: 'number', placeholder: 'Price', style: { width: '100px' } });
+// ------------------------------------------------------------------ the five sections: income, expenses, savings, investments, net worth
+const PARTS = [['salary', 'Salary', '#10b981'], ['bonus', 'Bonus', '#f59e0b'], ['other', 'Other', '#8b5cf6']];
+pages.income = async () => {
+  const [ib, slips] = await Promise.all([tool('income_breakdown'), tool('list_payslips', { limit: 6 })]);
+  cur = ib.currency || cur;
+  if (!ib.months.length) return h('div', { class: 'stack' }, head('Income', 'Salary, bonus and other'), emptyCard('Money in appears here once your statements are read.'));
+  const y = ib.latest_year, recent = ib.months.slice(-12);
+  const num = (n, cls = '') => h('div', { class: 'num ' + cls, style: { width: '96px', textAlign: 'right' } }, n ? money(n) : '–');
+  return h('div', { class: 'stack' }, head('Income', 'Salary, bonus and other'),
+    heroOf(`Money in · ${y.year}`, money(y.total), [['Salary', money(y.salary)], ['Bonus', money(y.bonus)], ['Other', money(y.other)]]),
+    section('Month by month', stackedBars(recent, PARTS)),
+    section('Table', h('div', { class: 'list' }, h('div', { class: 'item' }, h('div', { class: 'grow faint' }, 'Month'), ...['Salary', 'Bonus', 'Other', 'Total'].map((t) => h('div', { class: 'faint', style: { width: '96px', textAlign: 'right' } }, t))),
+      ...recent.slice().reverse().map((m) => h('div', { class: 'item' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, monthName(m.month)), num(m.salary), num(m.bonus), num(m.other), num(m.total, 'strong')))),
+      ib.years.length > 1 ? h('div', { class: 'faint small', style: { marginTop: '12px' } }, ib.years.slice().reverse().map((r) => `${r.year}: ${money(r.total)}`).join('  ·  ')) : null),
+    slips.length ? section('Payslips', h('div', { class: 'list' }, h('div', { class: 'item' }, h('div', { class: 'grow faint' }, 'Month'), ...['Gross', 'Tax', 'Net'].map((t) => h('div', { class: 'faint', style: { width: '96px', textAlign: 'right' } }, t))),
+      ...slips.map((p) => h('div', { class: 'item' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, p.period ? monthName(p.period) : p.name), num(p.gross), num(p.tax), num(p.net, 'strong good'))))) : null);
+};
+
+pages.savings = async () => {
+  const sv = await tool('savings_overview'); cur = sv.currency || cur;
+  if (!sv.months.length) return h('div', { class: 'stack' }, head('Savings', 'Amount saved and savings rate'), emptyCard('Savings are worked out from your money in and spending.'));
+  const l = sv.last12, recent = sv.months.slice(-12);
+  return h('div', { class: 'stack' }, head('Savings', 'Amount saved and savings rate'),
+    heroOf(`Kept · last ${l.months} month${l.months === 1 ? '' : 's'}`, rate(l.rate), [['Saved', signed(l.saved, 0)], ['Money in', money(l.income)], ['Spent', money(l.spent)]]),
+    section('Saved each month', signedBars(recent.map((m) => ({ month: m.month, value: m.saved, rate: m.rate }))), h('div', { class: 'faint small', style: { marginTop: '12px' } }, 'Green: money kept. Red: more went out than came in.')),
+    h('div', { class: 'grid g3' }, stat('Best month', sv.best ? monthName(sv.best.month) : '–', sv.best ? `${sv.best.rate}% kept` : '', null, 'good'), stat('Hardest month', sv.worst ? monthName(sv.worst.month) : '–', sv.worst ? `${sv.worst.rate}% kept` : '', null, sv.worst && sv.worst.rate < 0 ? 'bad' : ''),
+      stat('Per year', sv.latest_year ? rate(sv.latest_year.savings_rate) : '–', sv.latest_year ? `${signed(sv.latest_year.saved, 0)} saved in ${sv.latest_year.year}` : '', '#/plan')),
+    section('Year by year', h('div', { class: 'list' }, h('div', { class: 'item' }, h('div', { class: 'grow faint' }, 'Year'), ...['Money in', 'Spent', 'Saved', 'Rate'].map((t) => h('div', { class: 'faint', style: { width: '96px', textAlign: 'right' } }, t))),
+      ...sv.years.slice().reverse().map((y) => h('div', { class: 'item' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, y.year + (y.months < 12 ? ` · ${y.months} mo` : '')),
+        h('div', { class: 'num', style: { width: '96px', textAlign: 'right' } }, money(y.income)), h('div', { class: 'num', style: { width: '96px', textAlign: 'right' } }, money(y.spent)),
+        h('div', { class: 'num ' + (y.saved >= 0 ? 'good' : 'bad'), style: { width: '96px', textAlign: 'right' } }, signed(y.saved, 0)), h('div', { class: 'num strong', style: { width: '96px', textAlign: 'right' } }, rate(y.savings_rate)))))));
+};
+
+/** The form for something you type in (an investment, an asset or a debt). `kinds` limits what can be added on this page. */
+function holdingForm(kinds, withCost) {
+  const kind = h('select', { class: 'field slim' }, kinds.map(([v, t]) => h('option', { value: v }, t)));
+  const name = h('input', { class: 'field slim grow', placeholder: 'Name (ETF, house, loan…)' }), value = h('input', { class: 'field slim', type: 'number', placeholder: 'Value now', style: { minWidth: '110px' } });
+  const units = h('input', { class: 'field slim', type: 'number', placeholder: 'or Units', style: { minWidth: '90px' } }), price = h('input', { class: 'field slim', type: 'number', placeholder: 'Price', style: { minWidth: '90px' } });
+  const cost = withCost ? h('input', { class: 'field slim', type: 'number', placeholder: 'Paid in (total)', style: { minWidth: '130px' } }) : null;
   const add = guard(async () => {
-    if (!name.value.trim() || !(+value.value > 0 || (+units.value > 0 && +price.value > 0))) return;
-    await tool('add_holding', { name: name.value.trim(), kind: kind.value, ...(+units.value > 0 && +price.value > 0 ? { units: +units.value, price: +price.value } : { value: +value.value }) });
+    const byUnits = +units.value > 0 && +price.value > 0;
+    if (!name.value.trim() || !(+value.value > 0 || byUnits)) return;
+    await tool('add_holding', { name: name.value.trim(), kind: kind.value, ...(byUnits ? { units: +units.value, price: +price.value } : { value: +value.value }), ...(cost && +cost.value > 0 ? { cost: +cost.value } : {}) });
     render();
   });
-  const parts = [['Accounts', w.accounts], ['Investments', w.investments], ['Assets', w.assets], ['Debts', w.debts ? -w.debts : 0]].filter(([, v]) => v);
-  return h('div', { class: 'stack' }, head('Wealth', null),
-    h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Net worth'), h('div', { class: 'big num' }, w.net_worth == null ? '–' : money(w.net_worth)),
-      h('div', { class: 'meta' }, parts.map(([k, v]) => h('div', {}, h('div', { class: 'k' }, k), h('div', { class: 'v num' }, signed(v, 0)))))),
-    w.series.length > 1 ? card('Accounts over time', barChart(w.series.slice(-12).map((x) => ({ month: x.month, nw: x.eur })), w.series[w.series.length - 1].month, () => {}, 'nw')) : null,
-    card('Accounts', accounts.length ? h('div', { class: 'list' }, accounts.map((a) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, a.label + ' · ' + a.currency), h('div', { class: 'faint', style: { fontSize: '13px' } }, 'as of ' + a.as_of)),
-      a.proven ? null : h('span', { class: 'chip' }, 'check'), h('div', { class: 'num', style: { fontWeight: 650 } }, a.eur == null ? a.balance.toLocaleString() : money(a.eur))))) : h('div', { class: 'empty' }, 'No account balances yet. They come from your statements.')),
-    inv.contributed_by_year.length ? card('Invested', h('div', { class: 'list' }, inv.contributed_by_year.slice().reverse().map((y) => row(h('div', { class: 'grow' }, y.year, h('span', { class: 'faint small' }, `  ${y.payments} payments`)), h('div', { class: 'num strong' }, money(y.contributed))))),
-      inv.paid_out_to_you ? h('div', { class: 'faint small', style: { marginTop: '10px' } }, `Paid back to you: ${money(inv.paid_out_to_you)}`) : null, inv.note ? h('div', { class: 'faint small', style: { marginTop: '10px' } }, inv.note) : null) : null,
-    intr.by_year.length ? card('Interest', h('div', { class: 'list' }, intr.by_year.slice().reverse().map((y) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, `${y.year} · …${y.account}`), h('div', { class: 'faint small' }, y.rate_percent == null ? y.note : `about ${y.rate_percent}% a year on an average ${money(y.average_balance)}`)), h('div', { class: 'num strong good' }, money(y.interest, 2))))),
-      h('div', { class: 'faint small', style: { marginTop: '10px' } }, 'An estimate: interest earned in the statement periods loaded, scaled to a year.')) : null,
-    card('You added', h('div', { class: 'faint', style: { fontSize: '13px', marginBottom: '10px' } }, 'Values you typed in. Update them when they change.'),
-      h('div', { class: 'row', style: { marginBottom: '12px', flexWrap: 'wrap' } }, kind, name, value, units, price, h('button', { class: 'btn primary', onclick: add }, 'Add')),
-      holdings.length ? h('div', { class: 'list' }, holdings.map((x) => row(h('span', { class: 'chip' }, x.kind), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.name), h('div', { class: 'faint', style: { fontSize: '13px' } }, (x.units ? `${x.units} × ${x.price} · ` : '') + 'as of ' + x.as_of)),
-        h('div', { class: 'num' }, (x.kind === 'debt' ? '−' : '') + money(x.value)),
-        h('button', { class: 'btn ghost small', onclick: guard(async () => { const v = prompt('New ' + (x.units ? 'price per unit' : 'value') + ' for ' + x.name, x.units ? x.price : x.value); if (v == null || isNaN(+v)) return; await tool('update_holding', { id: x.id, ...(x.units ? { price: +v } : { value: +v }) }); render(); }) }, 'Update'),
-        h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_holding', { id: x.id }); render(); }) }, 'Remove')))) : h('div', { class: 'empty' }, 'Nothing added yet.')),
-    h('div', { class: 'muted', style: { fontSize: '13px', textAlign: 'center' } }, w.note));
+  return h('div', { class: 'row form' }, kinds.length > 1 ? kind : null, name, value, units, price, cost, h('button', { class: 'btn primary', onclick: add }, 'Add'));
+}
+const holdingActions = (x) => [
+  h('button', { class: 'btn ghost small', onclick: guard(async () => { const v = prompt('New ' + (x.units ? 'price per unit' : 'value') + ' for ' + x.name, x.units ? x.price : x.value); if (v == null || v === '' || isNaN(+v)) return; await tool('update_holding', { id: x.id, ...(x.units ? { price: +v } : { value: +v }) }); render(); }) }, 'Update'),
+  h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_holding', { id: x.id }); render(); }) }, 'Remove')];
+
+pages.investments = async () => {
+  const inv = await tool('investments_overview'); cur = inv.currency || cur;
+  const gainTone = inv.gain == null ? '' : inv.gain >= 0 ? 'good' : 'bad';
+  const nothing = !inv.holdings.length && !inv.contributed_by_year.length;
+  return h('div', { class: 'stack' }, head('Investments', 'Paid in, current value, gain or loss'),
+    heroOf('Current value', money(inv.value), [['Paid in (payments)', money(inv.contributed_total)], ['Gain / loss', inv.gain == null ? '–' : `${signed(inv.gain, 0)}${inv.gain_percent == null ? '' : ' · ' + (inv.gain_percent > 0 ? '+' : '') + inv.gain_percent + '%'}`]]),
+    h('div', { class: 'grid g3' }, stat('Contributions', money(inv.contributed_total), inv.contributed_by_year.length ? `${inv.contributed_by_year.length} year${inv.contributed_by_year.length === 1 ? '' : 's'} of payments` : 'None found in your payments'),
+      stat('Current value', money(inv.value), inv.holdings.length ? `${inv.holdings.length} holding${inv.holdings.length === 1 ? '' : 's'} you added` : 'Add your holdings below'),
+      stat('Gain / loss', inv.gain == null ? '–' : signed(inv.gain, 0), inv.gain == null ? 'Add what you paid in for a holding' : inv.complete ? 'on all holdings' : 'only on holdings with an amount paid in', null, gainTone)),
+    section('Your holdings', h('div', { class: 'faint small', style: { marginBottom: '10px' } }, 'Type in what you hold and what you paid in. Update the price when it moves.'), holdingForm([['investment', 'Investment']], true),
+      inv.holdings.length ? h('div', { class: 'list' }, inv.holdings.map((x) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.name), h('div', { class: 'faint small' }, (x.units ? `${x.units} × ${money(x.price, 2)} · ` : '') + 'as of ' + x.as_of + (x.cost == null ? ' · amount paid in not entered' : ` · paid in ${money(x.cost)}`))),
+        h('div', { class: 'num strong' }, money(x.value)), h('div', { class: 'num ' + (x.gain == null ? 'faint' : x.gain >= 0 ? 'good' : 'bad'), style: { width: '92px', textAlign: 'right' } }, x.gain == null ? '–' : signed(x.gain, 0)),
+        h('button', { class: 'btn ghost small', onclick: guard(async () => { const v = prompt('Total paid in for ' + x.name, x.cost == null ? '' : x.cost); if (v == null || v === '' || isNaN(+v)) return; await tool('update_holding', { id: x.id, cost: +v }); render(); }) }, 'Paid in'), ...holdingActions(x)))) : h('div', { class: 'empty' }, 'No holdings yet.')),
+    inv.contributed_by_year.length ? section('Paid in, by year', h('div', { class: 'list' }, inv.contributed_by_year.slice().reverse().map((y) => h('div', { class: 'item' }, h('div', { class: 'grow' }, y.year, h('span', { class: 'faint small' }, `  ${y.payments} payments`)), h('div', { class: 'num strong' }, money(y.contributed)))))) : null,
+    nothing ? null : h('div', { class: 'muted small center' }, inv.note));
+};
+
+pages.networth = async () => {
+  const [w, accounts, holdings, intr] = await Promise.all([tool('wealth_summary'), tool('accounts_overview'), tool('list_holdings'), tool('interest_earned')]);
+  const row = (...cells) => h('div', { class: 'item' }, ...cells);
+  const other = holdings.filter((x) => x.kind !== 'investment');
+  const parts = [['Cash', money(w.accounts || 0)], ['Investments', money(w.investments)], ['Other assets', money(w.assets)], ['Debts', signed(-w.debts, 0)]];
+  return h('div', { class: 'stack' }, head('Net worth', 'Cash, investments and debts'),
+    heroOf('Net worth', w.net_worth == null ? '–' : money(w.net_worth), parts),
+    w.series.length > 1 ? section('Cash over time', barChart(w.series.slice(-12).map((x) => ({ month: x.month, nw: x.eur })), w.series[w.series.length - 1].month, () => {}, 'nw')) : null,
+    section('Cash', accounts.length ? h('div', { class: 'list' }, accounts.map((a) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, a.label + ' · ' + a.currency), h('div', { class: 'faint small' }, 'as of ' + a.as_of)),
+      a.proven ? null : h('span', { class: 'chip' }, 'check'), h('div', { class: 'num strong' }, a.eur == null ? a.balance.toLocaleString() : money(a.eur))))) : h('div', { class: 'empty' }, 'No account balances yet. They come from your statements.'),
+      intr.by_year.length ? h('div', { class: 'faint small', style: { marginTop: '12px' } }, intr.by_year.slice().reverse().map((y) => `${y.year} interest ${money(y.interest, 2)}${y.rate_percent == null ? '' : ` (about ${y.rate_percent}% a year)`}`).join('  ·  ')) : null),
+    section('Investments', h('div', { class: 'row between' }, h('div', { class: 'num strong' }, money(w.investments)), h('a', { class: 'btn small', href: '#/investments' }, 'Open Investments →'))),
+    section('Assets and debts you added', h('div', { class: 'faint small', style: { marginBottom: '10px' } }, 'A house, a car, a loan, a mortgage: values you type in. Update them when they change.'), holdingForm([['asset', 'Asset'], ['debt', 'Debt']], false),
+      other.length ? h('div', { class: 'list' }, other.map((x) => row(h('span', { class: 'chip' }, x.kind), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.name), h('div', { class: 'faint small' }, 'as of ' + x.as_of)),
+        h('div', { class: 'num strong' }, (x.kind === 'debt' ? '−' : '') + money(x.value)), ...holdingActions(x)))) : h('div', { class: 'empty' }, 'Nothing added yet.')),
+    h('div', { class: 'muted small center' }, w.note));
 };
 
 pages.tasks = async () => {

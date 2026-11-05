@@ -29,6 +29,7 @@ CATEGORIES = (
     "transfers",
     "fees",
     "salary",
+    "bonus",
     "interest",
     "refund",
     "income",
@@ -38,6 +39,7 @@ CATEGORIES = (
 # (category, words). A word matches whole-word, case-insensitive. Order matters: the first matching rule wins.
 RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("salary", ("salary", "payroll", "sal credit")),
+    ("bonus", ("bonus", "gratificatie", "13e maand", "dertiende maand", "eindejaarsuitkering", "winstdeling", "tantieme")),
     ("interest", ("interest", "int.pd", "int pd", "int cr")),
     ("refund", ("refund", "reversal", "cashback", "chargeback")),
     ("emi", ("emi", "loan", "nach", "ecs", "installment", "instalment")),
