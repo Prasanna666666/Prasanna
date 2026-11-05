@@ -93,26 +93,34 @@ def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=N
     finally:
         if client is not None:
             client.deadline = None
-    unproven = answers.unproven_figures(reply, [m["content"] for m in history[start:] if m.get("role") == "tool"])
-    if unproven:  # the agent wrote a figure that no tool returned: never show it as fact
-        return _fallback(conn, history, start, user_text, trace, None, unproven)
-    return reply
+    problems, notes = answers.audit(conn, reply, history[start:])  # every answer is checked against your data before you see it
+    if problems:
+        return _fallback(conn, history, start, user_text, trace, None, problems)
+    if trace is not None and trace:
+        trace[0]["tools"].append("checked")
+    return reply + ("\n\n" + " ".join(notes) if notes else "")
 
 
-def _fallback(conn, history, start, user_text, trace, exc, unproven=()):
-    """The agent could not finish (or got a figure wrong). Code gives the exact answer if it is a common question; else what the tools had found."""
+def _fallback(conn, history, start, user_text, trace, exc, problems=()):
+    """The agent could not finish, or its answer failed a check. Code gives the exact answer for a common question - itself checked - else says plainly why not."""
     del history[start:]
-    quick = answers.answer(conn, user_text)
+    used: list[str] = []
+    quick = answers.answer(conn, user_text, used)
     if quick:
-        history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": quick}])
-        if trace is not None:
-            trace.append({"agent": "instant", "tools": []})
-        return quick
+        bad, notes = answers.audit(conn, quick, [], used)  # the code answer is held to the ledger tie-out and the data-health note as well
+        if not bad:
+            reply = quick + ("\n\n" + " ".join(notes) if notes else "")
+            history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": reply}])
+            if trace is not None:
+                trace.append({"agent": "instant", "tools": ["checked"]})
+            return reply
+        problems = [*problems, *bad]
     if isinstance(exc, RuntimeError) and not isinstance(exc, llm.Slow):
         raise exc  # the model is not running and this is not a question code can answer: say so plainly
-    note = ("I could not confirm some figures in my answer against your data, so I am not showing it. " if unproven else
-            f"This needs more thinking than I can do in {REPLY_SECONDS} seconds. ")
-    reply = note + "Try a shorter question, such as \"How much did I spend last month?\"."
+    if problems:
+        reply = "I can't give you that figure with confidence: " + problems[0] + ". Open Money > Files to see what needs a check."
+    else:
+        reply = f"This needs more thinking than I can do in {REPLY_SECONDS} seconds. Try a shorter question, such as \"How much did I spend last month?\"."
     history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": reply}])
     return reply
 

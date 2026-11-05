@@ -36,8 +36,9 @@ def _label(month: str) -> str:
     return f"{list(MONTHS)[int(m) - 1].title()} {y}"
 
 
-def answer(conn, text: str) -> str | None:
-    """A complete answer, or None if this question needs the assistant."""
+def answer(conn, text: str, used: list | None = None) -> str | None:
+    """A complete answer, or None if this question needs the assistant. The months it is about are appended to `used` so they can be checked."""
+    used = used if used is not None else []
     t = " ".join(text.lower().split())
     asking = "?" in t or re.match(r"(how|what|which|where|when|who|show|list|tell|give|any|is|are|do|did|can)\b", t)
     if not t or not asking or ADVICE.search(t) or len(t) > 160:
@@ -46,7 +47,6 @@ def answer(conn, text: str) -> str | None:
     run = lambda name, a=None: T[name].fn(conn, a or {})  # noqa: E731
     trend = run("monthly_trend", {"months": 120})
     months = [r["month"] for r in trend]
-    cur = run("currencies") if False else None  # noqa: F841
     has = lambda *words: any(re.search(rf"\b{w}", t) for w in words)  # noqa: E731
 
     if has("coming up", "upcoming", "next bill", "due soon", "bills due", "what.?s due", "payments due"):
@@ -80,6 +80,7 @@ def answer(conn, text: str) -> str | None:
         month = _month(t, months)
         if month is None or month.startswith("none:"):
             return "I don't have that month yet."
+        used.append(month)
         r = run("income_summary", {"month": month})
         if not r["sources"] and not r["payslip"]:
             return f"No money in for {_label(month)}."
@@ -97,6 +98,7 @@ def answer(conn, text: str) -> str | None:
             return "No payments yet. Add your statements and tap Read my files."
         if month.startswith("none:"):
             return f"I don't have {month[5:].title()} yet."
+        used.append(month)
         s = run("spending_summary", {"month": month})
         cats = {c["category"]: c["spent"] for c in s["by_category"]}
         asked = [c for c in cats if re.search(rf"\b{re.escape(c)}", t)]
@@ -136,3 +138,53 @@ def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:
             seen |= {x, round(x), round(x, 1), round(x, 2)}
     text = re.sub(r"\b(?:19|20)\d{2}(?:-\d{2}){0,2}\b", " ", reply)
     return sorted(n for n in _numbers(text) if n not in seen and round(n) not in seen)
+
+
+# ---- the answer checker: runs on every answer, whoever wrote it ----------------------------------------------------------------
+REPORTS = frozenset({"spending_summary", "income_summary", "daily_spending", "spending_by_main", "monthly_trend", "top_merchants", "recurring_payments",
+                     "upcoming_payments", "net_worth", "list_transactions", "list_events", "list_payslips", "uncategorised_spending"})
+
+
+def _calls(turns: list[dict]) -> list[tuple[str, dict, str]]:
+    """(tool, arguments, what it returned) for every tool the agent used in this answer."""
+    out, pending = [], []
+    for m in turns:
+        for c in m.get("tool_calls") or []:
+            pending.append((c["function"]["name"], c["function"].get("arguments") or {}))
+        if m.get("role") == "tool" and pending:
+            name, args = pending.pop(0)
+            out.append((name, args if isinstance(args, dict) else {}, m.get("content") or ""))
+    return out
+
+
+def audit(conn, reply: str, turns: list[dict], months: list[str] | None = None) -> tuple[list[str], list[str]]:
+    """Check an answer against your data at this moment. Returns (problems, notes).
+    A problem means the answer must not be shown. A note is something you must be told alongside it.
+      1. every figure in the reply was returned by a tool;
+      2. each report the agent used still gives the same result when run again now;
+      3. every month the answer is about still ties, to the cent, to the raw ledger;
+      4. no file is waiting for a check and no cross-check has failed (else you are told the figures may be incomplete)."""
+    from . import agent, verify
+
+    problems, notes, calls = [], [], _calls(turns)
+    bad = unproven_figures(reply, [c[2] for c in calls])
+    if bad:
+        problems.append("figures not returned by any tool: " + ", ".join(f"{n:,.2f}" for n in bad[:4]))
+    for name, args, seen in calls:
+        if name in REPORTS:
+            again, error = agent.run_tool(conn, name, args)
+            if error or again != seen:
+                problems.append(f"{name} gives a different result now than when it was read")
+    months = sorted({str(a["month"])[:7] for _, a, _ in calls if a.get("month")} | set(months or []))
+    if not months and calls:  # a report with no month named: its default month is the newest with data
+        latest = [r["month"] for r in tools(ALL)["monthly_trend"].fn(conn, {"months": 1})]
+        months = latest if any(n in REPORTS and n in ("spending_summary", "income_summary", "daily_spending", "spending_by_main") for n, _, _ in calls) else []
+    for m in months:
+        why = verify.tally_month(conn, m)
+        if why:
+            problems.append(f"{m}: {why}")
+    waiting = conn.execute("SELECT COUNT(*) FROM statement_files WHERE status IN ('needs_check','unverified')").fetchone()[0]
+    failed = conn.execute("SELECT COUNT(*) FROM findings WHERE level='fail'").fetchone()[0]
+    if waiting or failed:
+        notes.append(f"{waiting} file(s) are waiting for a check and {failed} check(s) have failed, so these figures may be incomplete (see Money > Files).")
+    return problems, notes

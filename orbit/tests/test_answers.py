@@ -92,3 +92,43 @@ def test_unproven_figures_ignore_dates_and_small_counts():
     assert answers.unproven_figures("You spent 850.00 on 2026-10-05, 3 payments, rent 800", tool) == []
     assert answers.unproven_figures("You spent 851.00", tool) == [851.0]
     assert answers.unproven_figures("No tool was used and 9,999 appears", []) == []
+
+
+def test_a_month_that_does_not_tie_to_the_ledger_is_never_answered(conn, monkeypatch):
+    from orbit import verify
+
+    seed(conn)
+    monkeypatch.setattr(verify, "tally_month", lambda c, m: "the ledger's net change is 1.00 but the reports plus transfers give 2.00")
+    out = agent.chat(conn, [], "how much did I spend in October", client=Scripted("In October you spent 850.00 in total."), model="m")
+    assert "can't give you that figure" in out and "850.00" not in out
+    out = ask(conn, "how much did I spend in October?")  # the code answer is held to the same check
+    assert "can't give you that figure" in out
+
+
+def test_data_that_changes_while_the_agent_answers_is_caught(conn):
+    seed(conn)
+
+    class Racing(Scripted):
+        def chat(self, model, messages, tools=None, **kw):
+            r = super().chat(model, messages, tools, **kw)
+            if r.get("content"):
+                tx(conn, "2026-10-12", 7700, note="late payment")  # a new payment lands before the answer is checked
+            return r
+
+    out = agent.chat(conn, [], "how much did I spend in October", client=Racing("In October you spent 850.00 in total."), model="m")
+    assert "850.00 in total" not in out or "927.00" in out  # either refused, or replaced by the fresh exact answer
+    assert "927.00" in out
+
+
+def test_files_waiting_for_a_check_are_always_mentioned(conn):
+    seed(conn)
+    conn.execute("INSERT INTO statement_files (sha256,name,found,added,status) VALUES ('x','a.pdf',3,3,'needs_check')")
+    out = agent.chat(conn, [], "how much did I spend in October", client=Scripted("In October you spent 850.00 in total."), model="m")
+    assert "850.00" in out and "1 file(s) are waiting for a check" in out
+
+
+def test_a_clean_answer_is_marked_checked(conn):
+    seed(conn)
+    trace = []
+    agent.chat(conn, [], "how much did I spend in October", client=Scripted("In October you spent 850.00 in total."), model="m", trace=trace)
+    assert "checked" in trace[0]["tools"]

@@ -321,11 +321,31 @@ def label_of(cur: str) -> str:
     return "all in EUR" if cur == "ALL" else cur
 
 
+def _shown(conn, m: str) -> int:
+    """What the reports show for a month, in minor units: money in minus everything spent."""
+    from .modules import events, money
+
+    return round(money.income_summary(conn, {"month": m})["total"] * 100) - sum(round(x["net"] * 100) for x in events.spending_by_main(conn, {"month": m}))
+
+
+def tally_month(conn, m: str) -> str | None:
+    """Right now, in the view in use: do the reports for month `m` equal the raw ledger (plus transfers between your own accounts)? None if yes, else why not."""
+    net = "COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor ELSE -amount_minor END),0)"
+    raw = conn.execute(f"SELECT {net} FROM ledger WHERE day>=? AND day<?", (m + "-01", _next_month(m))).fetchone()[0]
+    tr = conn.execute(f"SELECT {net} FROM ledger WHERE day>=? AND day<? AND category='transfers' AND event_id IS NULL", (m + "-01", _next_month(m))).fetchone()[0]
+    shown = _shown(conn, m)
+    return None if raw == shown + tr else f"the ledger's net change is {raw / 100:.2f} but the reports plus transfers give {(shown + tr) / 100:.2f}"
+
+
+def _next_month(m: str) -> str:
+    y, mo = int(m[:4]), int(m[5:7])
+    return f"{y + (mo == 12)}-{mo % 12 + 1:02d}-01"
+
+
 def tally(conn) -> list[Finding]:
     """Every month, in every currency: the net cash change in the raw ledger must equal what the reports show (money in - day to day - trips and events)
     plus the transfers between your own accounts. If any report drops or double-counts a payment, this fails."""
     from . import db
-    from .modules import events, money
 
     original = db.get_setting(conn, "view_currency", "")
     main = _main_currency(conn)
@@ -341,7 +361,7 @@ def tally(conn) -> list[Finding]:
             bad = 0
             for m in months:
                 raw, tr = raws[m], trs.get(m, 0)
-                shown = round(money.income_summary(conn, {"month": m})["total"] * 100) - sum(round(x["net"] * 100) for x in events.spending_by_main(conn, {"month": m}))
+                shown = _shown(conn, m)
                 if raw != shown + tr:
                     bad += 1
                     out.append(Finding("tally", "fail", f"{label_of(cur)} {m}", f"the ledger's net change is {raw / 100:.2f} but the reports plus transfers give {(shown + tr) / 100:.2f}"))
