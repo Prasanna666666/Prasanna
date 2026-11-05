@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | export-mail [dir] [--days N] [--attachments-only] | import-notes [dir] | ingest [dir] | import-statements | categorise"""
+"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir] | import-statements | categorise"""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import os
 import sys
 from pathlib import Path
 
-from . import agent, agents, applemail, applenotes, clock, db, netguard, tagging
-from .modules import ALL, documents, tools
+from . import agent, agents, applenotes, clock, db, netguard, tagging
+from .modules import ALL, tools
 from .modules.today import briefing_for
 
 
@@ -20,7 +20,7 @@ def open_db():
 
 # Commands that touch your database. They need the encryption key (set by the Docker deployment / scripts/up.sh),
 # or an explicit ORBIT_ALLOW_PLAIN=1 for throwaway test data.
-NEEDS_SECURE = {"explain-month", "ui", "chat", "brief", "tag", "import-notes", "ingest", "import-statements", "categorise", "statement-report"}
+NEEDS_SECURE = {"explain-month", "ui", "chat", "brief", "tag", "import-notes", "import-statements", "categorise", "statement-report"}
 REFUSAL = (
     "Refusing to open the database without encryption.\n"
     "  Normal way:   ./scripts/up.sh          (Docker: encrypted, offline, isolated)\n"
@@ -34,10 +34,6 @@ def secure_ok() -> bool:
 
 def _inbox() -> Path:
     return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
-
-
-def _mail_inbox() -> Path:
-    return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "mail"
 
 
 def _model(conn, client) -> str:
@@ -59,15 +55,6 @@ def _export_notes(rest: list[str]) -> int:  # a native Mac step
     return 0
 
 
-def _export_mail(rest: list[str]) -> int:  # a native Mac step: copies your mail into the inbox as .eml files; connects to no mail server
-    days = int(rest[rest.index("--days") + 1]) if "--days" in rest else None
-    only_attachments = "--attachments-only" in rest  # by default ALL mail: the text of an email is often the crucial information
-    folders = [a for i, a in enumerate(rest) if not a.startswith("--") and (i == 0 or rest[i - 1] != "--days")]
-    out = Path(folders[0]) if folders else _mail_inbox()
-    print(applemail.export(out, days, only_attachments), "->", out)
-    return 0
-
-
 def _list_tools(rest: list[str]) -> int:
     for name, t in tools(ALL).items():
         print(f"{name:20} {t.description}")
@@ -86,13 +73,13 @@ def _brief(conn, rest: list[str]) -> int:
     return 0
 
 
-def _ingest(conn, rest: list[str]) -> int:
-    print(documents.ingest_dir(conn, Path(rest[0]) if rest else Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))))
-    return 0
-
-
-def _import_statements(conn, rest: list[str]) -> int:  # after `ingest`: turns the parsed finance files into transactions
+def _import_statements(conn, rest: list[str]) -> int:  # takes what the Documents service read and turns the finance files into transactions
+    from . import library_client
     from .modules import money
+
+    if library_client.base_url():
+        print("Documents:", library_client.update(lambda m: print(" ", m, flush=True)) or "read")
+        print(library_client.pull(conn))
 
     client: agent.llm.OllamaClient | None = None
     model: str | None = None
@@ -170,10 +157,9 @@ def _explain_month(conn, rest: list[str]) -> int:  # shows amounts on YOUR scree
     return 0
 
 
-NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "export-mail": _export_mail, "tools": _list_tools, "agents": _list_agents}
+NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "tools": _list_tools, "agents": _list_agents}
 WITH_DATABASE = {
     "brief": _brief,
-    "ingest": _ingest,
     "import-statements": _import_statements,
     "statement-report": _statement_report,
     "categorise": _categorise,

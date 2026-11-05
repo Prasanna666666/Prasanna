@@ -106,13 +106,13 @@ def _sources(conn):
         yield f"f{r['sha256'][:12]}", "file", r["name"], " ".join(x for x in (r["title"], r["summary"], r["party"], r["reference"]) if x)
 
 
-def reindex(conn) -> int:
+def reindex(conn, sources=None) -> int:
     """Bring the index up to date. Returns how many items were (re)indexed."""
     if not _fts(conn):
         return 0
     seen = {r["ref"]: r["digest"] for r in conn.execute("SELECT ref, digest FROM search_seen")}
     done, live = 0, set()
-    for ref, source, title, body in _sources(conn):
+    for ref, source, title, body in (sources or _sources)(conn):
         live.add(ref)
         digest = hashlib.sha256((title + "\0" + body).encode()).hexdigest()[:16]
         if seen.get(ref) == digest:
@@ -176,7 +176,7 @@ def _ranked(conn, words: list[str], k: int) -> list[dict] | None:
     return [{"rid": r["rid"], "source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
 
 
-def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None) -> list[dict]:
+def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None, sources=None) -> list[dict]:
     """The best passages for a question, each with where it came from: [{source, title, text, score}].
 
     The assistant may pass other ways of asking the same thing (synonyms, the other language: "dekking" for "cover"). Each phrasing is searched and the
@@ -186,7 +186,7 @@ def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = N
     if not searches:
         return []
     if _fts(conn):
-        reindex(conn)
+        reindex(conn, sources)
         fused: dict[int, dict] = {}
         for words in searches:
             ranked = _ranked(conn, words, k)
@@ -200,7 +200,7 @@ def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = N
             return [{"source": h["source"], "title": h["title"], "text": h["text"], "score": round(h["score"] * RRF_K, 3)} for h in best]
     words = [w for group in searches for w in group]
     out = []  # no full-text search: count the words each item contains
-    for _ref, source, title, body in _sources(conn):
+    for _ref, source, title, body in (sources or _sources)(conn):
         hay = (title + " " + body).lower()
         score = sum(hay.count(w) for w in words)
         if score:

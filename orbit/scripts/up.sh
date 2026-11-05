@@ -26,10 +26,6 @@ fi
 security delete-generic-password -a "$USER" -s orbit-web-token >/dev/null 2>&1 || true
 export ORBIT_TOKEN=""
 mkdir -p "$HOME/OrbitInbox/notes"
-export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep your finance folder where it is: ORBIT_FINANCE_DIR=/path ./scripts/up.sh
-mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
-FILES=(-f docker-compose.yml)
-[ -d "${ORBIT_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ORBIT_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ORBIT_NO_MAIL=1 to turn off)
-docker compose "${FILES[@]}" up -d --build
-echo "Finance: http://finance.localhost:8501   (no password; drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"
+docker compose up -d --build
+echo "Finance: http://finance.localhost:8501   (no password; files and mail are read by Documents: ../library/scripts/up.sh)"

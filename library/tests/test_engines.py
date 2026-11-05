@@ -1,8 +1,9 @@
 import copy
 
 import pytest
+from orbit import tables, verify
 
-from orbit import readers, tables, verify
+from library import readers
 
 pymupdf = pytest.importorskip("pymupdf")
 pytest.importorskip("pdfplumber")

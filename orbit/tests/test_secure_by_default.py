@@ -11,7 +11,7 @@ def clean_env(monkeypatch):
         monkeypatch.delenv(v, raising=False)
 
 
-@pytest.mark.parametrize("cmd", ["ui", "chat", "brief", "tag", "import-notes", "ingest"])
+@pytest.mark.parametrize("cmd", ["ui", "chat", "brief", "tag", "import-notes"])
 def test_refuses_without_the_key(cmd, capsys, tmp_path, monkeypatch):
     monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
     assert cli.main([cmd]) == 2

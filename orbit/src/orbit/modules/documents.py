@@ -4,9 +4,7 @@ never create, change or delete. Text inside documents is untrusted data and is n
 from __future__ import annotations
 
 import json
-import os
 import re
-from pathlib import Path
 
 from .. import rag
 from ..db import rows
@@ -30,61 +28,36 @@ MIGRATIONS = (
     ALTER TABLE documents ADD COLUMN area TEXT NOT NULL DEFAULT '';   -- 'finance' for files from the finance folder
     ALTER TABLE documents ADD COLUMN data TEXT NOT NULL DEFAULT '';   -- structured rows (CSV) or reconstructed lines (PDF), as JSON
     """,
+    """
+    ALTER TABLE documents ADD COLUMN facts TEXT NOT NULL DEFAULT '';  -- what the Documents service said this is (kind, who, when, how much), already verified, as JSON
+    """,
 )
 KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}
 MAX_JSON = 30_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 
 
-def ingest_dir(conn, directory: Path) -> dict[str, int]:
-    """Load parser output. Strict validation: anything unexpected is skipped, never partially trusted."""
+def store_from_library(conn, doc: dict) -> int:
+    """Keep one document the Documents service handed over (1 if it is new). The service has already read and checked it; here it is only validated and stored."""
+    if not (
+        isinstance(doc.get("sha256"), str)
+        and _SHA.match(doc["sha256"])
+        and isinstance(doc.get("name"), str)
+        and 0 < len(doc["name"]) <= 255
+        and doc.get("file_kind") in KINDS
+        and isinstance(doc.get("text"), str)
+        and isinstance(doc.get("facts"), dict)
+    ):
+        return 0
     people = [dict(r) for r in conn.execute("SELECT name FROM people")]
-    new = known = rejected = 0
-    stored: list[Path] = []
-    root = directory.resolve()
-    for f in sorted(root.glob("*.json")):
-        try:
-            if f.is_symlink() or f.stat().st_size > MAX_JSON:
-                raise ValueError("symlink or too large")
-            d = json.loads(f.read_text(encoding="utf-8"))
-            ok = (
-                isinstance(d, dict)
-                and d.get("schema") == 1
-                and isinstance(d.get("sha256"), str)
-                and _SHA.match(d["sha256"])
-                and f.stem == d["sha256"]
-                and d.get("kind") in KINDS
-                and isinstance(d.get("name"), str)
-                and 0 < len(d["name"]) <= 255
-                and isinstance(d.get("text"), str)
-                and len(d["text"]) <= 2_000_000
-            )
-            if not ok:
-                raise ValueError("schema")
-        except (ValueError, OSError):
-            rejected += 1
-            continue
-        tags = ",".join(rule_tags(f"{d['name']} {d['text'][:5000]}", people))
-        area = d["area"] if d.get("area") in ("finance", "mail") else ""
-        structured = {
-            k: d["data"][k]
-            for k in ("rows", "lines", "table", "table_pdfplumber", "table_poppler")
-            if isinstance(d.get("data"), dict) and isinstance(d["data"].get(k), list)
-        }
-        if isinstance(d.get("meta"), dict) and d["meta"]:
-            structured["meta"] = d["meta"]  # how it was read: scanned, how confident, how many pages
-        cur = conn.execute(
-            "INSERT OR IGNORE INTO documents (sha256, name, kind, text, tags, parsed_at, area, data) VALUES (?,?,?,?,?,?,?,?)",
-            (d["sha256"], d["name"], d["kind"], d["text"], tags, str(d.get("parsed_at", ""))[:25], area, json.dumps(structured) if structured else ""),
-        )
-        new += cur.rowcount
-        known += 1 - cur.rowcount
-        stored.append(f)
+    tags = ",".join(rule_tags(f"{doc['name']} {doc['text'][:5000]}", people))
+    area = doc["area"] if doc.get("area") in ("finance", "mail") else ""
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO documents (sha256, name, kind, text, tags, area, data, facts) VALUES (?,?,?,?,?,?,?,?)",
+        (doc["sha256"], doc["name"], doc["file_kind"], doc["text"], tags, area, str(doc.get("data") or ""), json.dumps(doc["facts"]) if doc["facts"] else ""),
+    )
     conn.commit()
-    if os.access(directory, os.W_OK):
-        for f in stored:  # the text now lives only in the encrypted database: the readable copy is removed as soon as it is safely stored
-            f.unlink(missing_ok=True)
-    return {"new": new, "known": known, "rejected": rejected}
+    return cur.rowcount
 
 
 def _snippet(text: str, words: list[str], width: int = 300) -> str:

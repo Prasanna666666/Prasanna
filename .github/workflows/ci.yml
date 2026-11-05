@@ -16,12 +16,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
-      - run: pip install -e ".[secure,parse,dev]"
+      - run: pip install -e ".[secure,dev]"
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
       - run: pytest -q --cov=orbit --cov-fail-under=85
+  library:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: library
+    strategy:
+      matrix:
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: pip install -e "../orbit[secure]" -e ".[parse,dev]" pyyaml
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy src
+      - run: pytest -q
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -66,8 +84,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -e ".[secure,parse]" bandit pip-audit cyclonedx-bom
-      - run: bandit -q -r src -c pyproject.toml
+      - run: pip install -e ".[secure]" -e "../library[parse]" bandit pip-audit cyclonedx-bom
+      - run: bandit -q -r src ../library/src -c pyproject.toml
       - run: pip-audit
       - run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4

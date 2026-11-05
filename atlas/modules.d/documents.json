@@ -1,0 +1,51 @@
+{
+  "id": "documents",
+  "name": "Documents",
+  "app": "Documents",
+  "tagline": "Everything in your files and mail: tickets, letters, reports, invoices",
+  "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5",
+  "accent": [
+    "#f59e0b",
+    "#ef4444"
+  ],
+  "upstream": "http://host.docker.internal:8502",
+  "health": "/api/health",
+  "search": "/api/search",
+  "home": "#/home",
+  "pages": [
+    {
+      "id": "home",
+      "label": "All documents",
+      "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5"
+    }
+  ],
+  "scan": "/api/scan",
+  "headers": {
+    "X-Library": "1"
+  },
+  "ask": "/api/ask",
+  "keywords": [
+    "document",
+    "documents",
+    "file",
+    "files",
+    "pdf",
+    "email",
+    "emails",
+    "mail",
+    "letter",
+    "letters",
+    "ticket",
+    "tickets",
+    "booking",
+    "bookings",
+    "reservation",
+    "report",
+    "reports",
+    "prescription",
+    "contract",
+    "contracts",
+    "attachment",
+    "attachments"
+  ]
+}

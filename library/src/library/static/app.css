@@ -1,0 +1,17 @@
+:root { --bg: #f6f6fb; --card: #fff; --ink: #14141f; --muted: #6b6b80; --line: #e2e2ee; --accent: #6366f1; color-scheme: light; }
+:root[data-theme='dark'] { --bg: #0f1020; --card: #181a2e; --ink: #ececf6; --muted: #9a9ab5; --line: #2a2d4a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { margin: 0; font-size: 1.5rem; }
+.muted { color: var(--muted); margin: 0.2rem 0 0; }
+#q { width: 100%; margin: 16px 0 8px; padding: 12px 16px; font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+#kinds { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 16px; }
+#kinds button { font: inherit; padding: 6px 14px; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+#kinds button[aria-pressed='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.card { display: block; width: 100%; text-align: left; font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; margin: 0 0 10px; cursor: pointer; }
+.card b { display: block; }
+.card span { color: var(--muted); font-size: 0.9rem; }
+#doc { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+#doc pre { white-space: pre-wrap; word-break: break-word; font: 0.9rem/1.5 ui-monospace, monospace; max-height: 60vh; overflow: auto; }
+.embedded header { display: none; }

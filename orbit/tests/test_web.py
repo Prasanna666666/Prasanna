@@ -180,7 +180,6 @@ def test_an_empty_chat_message_is_refused_and_reset_clears_history(server):
 
 
 def test_import_runs_in_the_background_and_reports_its_state(server, monkeypatch):
-    from orbit import web as w
 
     monkeypatch.setenv("ORBIT_PARSED", "/nonexistent")
     started = json.loads(post(server, "/api/import", {})[1])
@@ -193,7 +192,6 @@ def test_import_runs_in_the_background_and_reports_its_state(server, monkeypatch
 
         time.sleep(0.1)
     assert not state["running"] and (state["error"] or state["result"] is not None)
-    assert w.parsed_dir().name == "nonexistent"
 
 
 def test_notes_import_says_plainly_when_the_folder_is_missing(server, monkeypatch, tmp_path):

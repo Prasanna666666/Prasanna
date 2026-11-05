@@ -63,7 +63,7 @@ def build_script(account: str, mailbox: str, days: int | None, only_attachments:
 
 def _run(script: str, run: Runner, timeout: int) -> list:
     if sys.platform != "darwin" and run is subprocess.run:
-        raise RuntimeError("Exporting needs the macOS Mail app: run `orbit export-mail` on your Mac.")
+        raise RuntimeError("Exporting needs the macOS Mail app: run `library export-mail` on your Mac.")
     try:
         r = run(["osascript", "-l", "JavaScript", "-e", script], capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:

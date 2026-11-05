@@ -2,8 +2,8 @@
 
 from decimal import Decimal
 
-from orbit import db, parser, rates, verify
-from orbit.modules import documents, money
+from orbit import db, rates, verify
+from orbit.modules import money
 
 ECB = [
     ["Date", "USD", "JPY", "INR", ""],
@@ -60,19 +60,6 @@ def test_every_payment_is_converted_at_its_own_days_rate_and_a_missing_rate_is_l
     assert money.summary(conn, {"month": "2026-10"})["spent"] == 45 + 100 + 100
     msgs = {f.level: f.message for f in verify.conversion(conn)}
     assert "2 payment(s) in INR converted" in msgs["ok"] and "1 payment(s) in INR have no exchange rate" in msgs["warn"]
-
-
-def test_an_ecb_file_in_the_finance_folder_is_loaded_through_the_parser_and_the_import(conn, tmp_path):
-    fin, out = tmp_path / "fin", tmp_path / "out"
-    fin.mkdir()
-    (fin / "ecb-eurofxref-hist.csv").write_text("\n".join(",".join(r) for r in ECB) + "\n")
-    tx(conn, "2026-10-09", 900000, cur="INR")
-    parser.process_inbox(fin, out, isolated=False, area="finance")
-    documents.ingest_dir(conn, out)
-    r = money.import_statements(conn)
-    assert r["problems"] == [] and r["needs_check"] == [] and r["new_transactions"] == 0
-    assert conn.execute("SELECT eur_minor FROM transactions WHERE currency='INR'").fetchone()[0] == 10000  # converted by the import itself
-    assert any(f["message"].endswith("exchange rates loaded") for f in conn.execute("SELECT message FROM findings"))
 
 
 def test_a_transfer_from_a_rupee_account_to_a_euro_account_is_matched_and_its_cost_becomes_an_expense(conn):

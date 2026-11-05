@@ -2,8 +2,7 @@ import json
 
 import pytest
 
-from orbit import agents, parser
-from orbit.modules import ALL, documents, tools
+from library import parser, store
 
 
 def test_extract_text_csv_and_control_chars(tmp_path):
@@ -57,22 +56,39 @@ def test_ingest_validates_strictly(conn, tmp_path):
     _put(tmp_path, _doc(sha256="d" * 64, text=["not", "a", "string"]))  # wrong type
     _put(tmp_path, _doc(sha256="e" * 64), stem="f" * 64)  # name/hash mismatch
     (tmp_path / "junk.json").write_text("{not json")
-    assert documents.ingest_dir(conn, tmp_path) == {"new": 1, "known": 0, "rejected": 5}
-    assert documents.ingest_dir(conn, tmp_path) == {"new": 0, "known": 0, "rejected": 5}  # the stored one was deleted; nothing is stored twice
+    assert store.ingest_dir(conn, tmp_path) == {"new": 1, "known": 0, "rejected": 5}
+    assert store.ingest_dir(conn, tmp_path) == {"new": 0, "known": 0, "rejected": 5}  # the stored one was deleted; nothing is stored twice
 
 
 def test_search_and_read_documents(conn, tmp_path):
     _put(tmp_path, _doc())
-    documents.ingest_dir(conn, tmp_path)
-    hit = documents.search_documents(conn, {"query": "salt doctor"})[0]
-    assert hit["name"] == "bp.txt" and "salt" in hit["snippet"]
-    got = documents.get_document(conn, {"id": hit["id"], "max_chars": 10})
-    assert got["truncated"] and "untrusted" in got["note"]
+    store.ingest_dir(conn, tmp_path)
+    hit = store.passages(conn, "salt doctor")[0]
+    assert hit["title"] == "bp.txt" and "salt" in hit["text"]
+    got = store.get_document(conn, "a" * 64)
+    assert got is not None and got["name"] == "bp.txt" and "salt" in got["text"]
 
 
-def test_documents_agent_is_read_only_and_routed():
-    spec = agents.BY_NAME["documents"]
-    assert spec.tools == {"get_document", "search_files"}  # every one of them only reads
-    assert agents.route("find the pdf statement from the hospital") == "documents"
-    # no tool anywhere can create/modify/delete documents
-    assert not [t for t in tools(ALL) if "document" in t and t.split("_")[0] in ("add", "delete", "update", "edit")]
+def test_a_document_becomes_ready_once_judged_and_an_app_asks_by_kind(conn, tmp_path):
+    _put(tmp_path, _doc(name="invoice.txt", text="FACTUUR Ziggo totaal 60,50 EUR betaling", sha256="b" * 64))
+    store.ingest_dir(conn, tmp_path)
+    assert store.list_documents(conn, ["invoice"]) == []  # not judged yet: not ready
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": json.dumps({"kind": "invoice", "title": "Internet", "party": "Ziggo", "total": "60,50", "currency": "EUR"})}
+
+    done = store.judge_pending(conn, Model(), "fake")
+    assert done["read"] == 1
+    [doc] = store.list_documents(conn, ["invoice"], full=True)
+    assert doc["facts"]["party"] == "Ziggo" and float(doc["facts"]["total"]) == 60.5 and "FACTUUR" in doc["text"] and doc["ready"] == 1
+    assert store.list_documents(conn, ["ticket"]) == [] and store.list_documents(conn, ["invoice"], since=1) == []  # nothing new since number 1
+
+
+def test_a_newsletter_is_judged_once_without_the_model_and_a_waiting_document_stays_pending(conn, tmp_path):
+    _put(tmp_path, _doc(name="promo.eml", kind="email", text="Big sale this week only, enjoy our newsletter with many friendly words.", sha256="c" * 64))
+    _put(tmp_path, _doc(name="hotel.eml", kind="email", text="Booking confirmed. Total paid EUR 480,00 for the hotel.", sha256="d" * 64))
+    store.ingest_dir(conn, tmp_path)
+    done = store.judge_pending(conn, None, None)  # the model is not running
+    assert done["skipped"] == 1 and done["waiting"] == 1 and "Ollama" in done["problem"]
+    assert store.counts(conn)["waiting"] == 1

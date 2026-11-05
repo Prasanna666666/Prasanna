@@ -3,7 +3,7 @@ import subprocess
 
 import pytest
 
-from orbit import applemail, cli
+from library import applemail, cli
 
 MSG = {"account": "Gmail", "mailbox": "INBOX", "id": "7", "source": "From: a@b.c\r\nSubject: Boeking\r\n\r\nUw vlucht vertrekt om 10:45"}
 

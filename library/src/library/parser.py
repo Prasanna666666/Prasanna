@@ -5,8 +5,8 @@ app mounts read-only. Each file is parsed in a throw-away subprocess with CPU, m
 broken file can at worst fail that one file. Output is JSON only (never pickle), text capped and stripped of control
 characters; the app still treats it as untrusted data.
 
-    orbit-parser --once  [--inbox /inbox --out /parsed]
-    orbit-parser --watch
+    library-parser --once  [--inbox /inbox --out /parsed]
+    library-parser --watch
 """
 
 from __future__ import annotations
@@ -119,9 +119,9 @@ _visual_lines = readers.visual_lines
 
 
 def load_passwords() -> list[str]:
-    """Passwords for protected PDFs: one per line in passwords.txt (in your finance folder, or the file named by ORBIT_PASSWORDS_FILE). Never stored."""
+    """Passwords for protected PDFs: one per line in passwords.txt (in your inbox, or the file named by ORBIT_PASSWORDS_FILE). Never stored."""
     candidates = [os.environ.get("ORBIT_PASSWORDS_FILE", "")] + [
-        str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ORBIT_FINANCE", "ORBIT_INBOX") if os.environ.get(k)
+        str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ORBIT_INBOX",) if os.environ.get(k)
     ]
     for c in candidates:
         if c and Path(c).is_file():
@@ -155,7 +155,7 @@ def _limits() -> None:  # runs in the child before exec (Linux/macOS)
 
 def extract_isolated(path: Path, timeout: int = TIMEOUT_S) -> dict:
     r = subprocess.run(
-        [sys.executable, "-I", "-m", "orbit.parser", "--extract-one", str(path)], capture_output=True, timeout=timeout, preexec_fn=_limits, check=False
+        [sys.executable, "-I", "-m", "library.parser", "--extract-one", str(path)], capture_output=True, timeout=timeout, preexec_fn=_limits, check=False
     )
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-300:] or f"parser exited {r.returncode}")
@@ -305,10 +305,15 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="orbit-parser")
+    ap = argparse.ArgumentParser(prog="library-parser")
     ap.add_argument("--inbox", default=os.environ.get("ORBIT_INBOX", str(Path.home() / "OrbitInbox")))
     ap.add_argument("--out", default=os.environ.get("ORBIT_PARSED", str(Path.home() / "OrbitParsed")))
-    ap.add_argument("--finance", default=os.environ.get("ORBIT_FINANCE", ""), help="folder of bank statements and finance files (read-only)")
+    ap.add_argument(
+        "--collection",
+        action="append",
+        default=[c for c in os.environ.get("LIBRARY_COLLECTIONS", "").split(",") if c],
+        help="NAME=PATH: a folder you keep for one purpose (finance=/finance, health=/health), read-only; its files are always read and carry that name",
+    )
     ap.add_argument("--mail", default=os.environ.get("ORBIT_MAIL", ""), help="Apple Mail's own folder (read-only): all mail except Junk, Trash and Drafts")
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--once", action="store_true")
@@ -317,22 +322,61 @@ def main(argv: list[str] | None = None) -> int:
     if a.extract_one:
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
         return 0
+    out = Path(a.out)
     while True:
-        res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))
-        extra = []
-        if a.finance and Path(a.finance).is_dir():
-            extra.append(process_inbox(Path(a.finance), Path(a.out), area="finance"))
-        if (Path(a.inbox) / "mail").is_dir():  # mail exports dropped into the inbox (.mbox, .eml, .emlx)
-            extra.append(process_inbox(Path(a.inbox) / "mail", Path(a.out), area="mail"))
-        if a.mail and Path(a.mail).is_dir():
-            extra.append(process_mail_store(Path(a.mail), Path(a.out)))
-        for more in extra:
-            res = {k: res[k] + more[k] for k in res}
+        out.mkdir(parents=True, exist_ok=True)
+        (out / BUSY).touch()  # tells the Documents service that more may still be coming
+        try:
+            res = read_everything(a)
+        finally:
+            (out / BUSY).unlink(missing_ok=True)
         if res["parsed"] or res["failed"]:
             print(res, flush=True)
         if not a.watch:
             return 0
-        time.sleep(30)
+        _wait_for_next_round(out)
+
+
+BUSY = ".busy"  # exists while a round is running
+WAKE = ".wake"  # the Documents service touches it when you press Update: start a round now
+ROUND_SECONDS = 30
+
+
+COLLECTION_NAME = re.compile(r"^[a-z]{2,20}$")
+
+
+def collections(specs: list[str]) -> list[tuple[str, Path]]:
+    """`name=path` pairs. A name is lower-case letters only and cannot be `mail` (that one is for mail); anything else is ignored."""
+    found = []
+    for spec in specs:
+        name, _, folder = spec.partition("=")
+        if COLLECTION_NAME.match(name) and name != "mail" and folder:
+            found.append((name, Path(folder)))
+    return found
+
+
+def read_everything(a: argparse.Namespace) -> dict[str, int]:
+    """One round: the inbox, every collection folder, mail exports in the inbox, and Apple Mail's own folder."""
+    res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))
+    extra = []
+    for name, folder in collections(a.collection):
+        if folder.is_dir():
+            extra.append(process_inbox(folder, Path(a.out), area=name))
+    if (Path(a.inbox) / "mail").is_dir():  # mail exports dropped into the inbox (.mbox, .eml, .emlx)
+        extra.append(process_inbox(Path(a.inbox) / "mail", Path(a.out), area="mail"))
+    if a.mail and Path(a.mail).is_dir():
+        extra.append(process_mail_store(Path(a.mail), Path(a.out)))
+    for more in extra:
+        res = {k: res[k] + more[k] for k in res}
+    return res
+
+
+def _wait_for_next_round(out: Path) -> None:
+    for _ in range(ROUND_SECONDS):
+        if (out / WAKE).exists():
+            (out / WAKE).unlink(missing_ok=True)
+            return
+        time.sleep(1)
 
 
 if __name__ == "__main__":

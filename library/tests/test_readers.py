@@ -8,8 +8,7 @@ import pymupdf
 import pytest
 from PIL import Image
 
-from orbit import parser, readers
-from orbit.modules import documents, money
+from library import parser, readers
 
 HEAD = ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
 ROWS = [
@@ -176,33 +175,3 @@ def test_zip_archives_are_opened_file_by_file_and_stay_bounded(tmp_path):
     parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     names = sorted(json.loads(p.read_text())["name"] for p in (tmp_path / "out").glob("*.json"))
     assert names == ["statements.zip/escape.txt", "statements.zip/oct.txt"] and not (tmp_path / "escape.txt").exists()
-
-
-def test_a_scanned_statement_goes_all_the_way_to_a_verified_import(tmp_path, fake_ocr, conn):
-    fin = tmp_path / "fin"
-    fin.mkdir()
-    scanned_pdf(fin / "ing-scan.pdf")
-    parser.process_inbox(fin, tmp_path / "parsed", isolated=False, area="finance")
-    documents.ingest_dir(conn, tmp_path / "parsed")
-
-    layout = {
-        "header_line": 0,
-        "roles": ["date", "description", "debit", "credit", "balance"],
-        "date_format": "%d-%m-%Y",
-        "month_names": [],
-        "decimal": ",",
-        "thousands": ".",
-        "debit_words": [],
-        "credit_words": [],
-        "date_on_every_row": True,
-    }
-
-    class Model:
-        def chat(self, model, messages, schema=None, **kw):
-            from orbit import extract
-
-            return {"content": json.dumps({"kind": "bank_statement"} if messages[0]["content"] == extract.KIND_PROMPT else layout)}
-
-    r = money.import_statements(conn, client=Model(), model="fake")
-    assert r["new_transactions"] == 2 and r["needs_check"] == []
-    assert conn.execute("SELECT status FROM statement_files").fetchone()["status"] in ("verified", "unverified")

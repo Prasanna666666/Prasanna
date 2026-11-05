@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
-from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, relevance, standards, statements, verify, wealth
+from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 from ..module import INT, Module, N, S, Tool
@@ -326,13 +326,7 @@ def _remember_doc(conn, d, info) -> None:
 
 def travel_documents(conn, a=None):
     """Tickets and bookings found in your files and mail: where to, from when to when (as the document itself writes them), and what they cost."""
-    return documents_of_kind(conn, {**(a or {}), "kind": "ticket,booking"})
-
-
-def documents_of_kind(conn, a=None):
-    """Documents of the given kinds (any of ticket, booking, medical, insurance, contract, tax, invoice ...) from every file and mail, whichever app asks: what they are, who from, when, where, and what they cost."""
-    kinds = [k for k in str((a or {}).get("kind", "")).replace(" ", "").split(",") if k in extract.KINDS]
-    where, args = [f"kind IN ({','.join('?' * len(kinds))})" if kinds else "kind<>'other'"], list(kinds)
+    where, args = ["kind IN ('ticket','booking')"], []
     if (a or {}).get("place"):
         where.append("place LIKE ?")
         args.append(f"%{str(a['place'])[:60]}%")
@@ -443,24 +437,10 @@ class _Outcome:
 
 
 def _pending_documents(conn) -> list:
-    """The finance files not yet read, and all mail documents worth reading (a cheap check, no model). One press reads everything."""
+    """The documents the Documents service handed over that are not yet processed: everything from the finance folder, and the others it recognised."""
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
-    skipped = {r[0] for r in conn.execute("SELECT sha256 FROM mail_skipped")}
-    rows = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents ORDER BY id").fetchall()
-    docs: list = []
-    for d in rows:
-        if d["sha256"] in done:
-            continue
-        if d["area"] == "finance":
-            docs.append(d)
-        elif d["sha256"] in skipped:
-            continue
-        elif not relevance.worth_reading(d["name"], d["kind"], d["text"]):
-            conn.execute("INSERT OR IGNORE INTO mail_skipped (sha256) VALUES (?)", (d["sha256"],))
-        else:
-            docs.append(d)
-    conn.commit()
-    return docs
+    found = conn.execute("SELECT sha256, name, kind, text, data, area, facts FROM documents WHERE area='finance' OR facts<>'' ORDER BY id").fetchall()
+    return [d for d in found if d["sha256"] not in done]
 
 
 def _document_data(d) -> dict:
@@ -482,14 +462,16 @@ def _import_rates_file(conn, d, data: dict, run: _Run) -> None:
 
 def _read_document(conn, d, data: dict, client, model, progress, position: tuple[int, int]) -> _Outcome:
     """Read one document: an exact standard needs no model; otherwise the model describes the layout and code reads every figure."""
-    own = d["area"] == "finance"  # bank statements are read only from the finance folder; anything else is read for its facts only
+    own = d["area"] == "finance"  # bank statements are read only from the finance folder; anything else is kept for its facts only
     standard = standards.sniff(d["text"]) if own else None
     if standard:
         info = {"kind": "bank_statement", "title": "Bank statement"}
         _remember_doc(conn, d, info)
         return _Outcome(read=_read_standard(standard, d["text"], d["name"]), info=info)
     out = _Outcome()
-    out.info = extract.classify(client, model, d["name"], d["text"])
+    out.info = (
+        json.loads(d["facts"]) if d["facts"] else extract.classify(client, model, d["name"], d["text"])
+    )  # the Documents service has usually said it already
     _remember_doc(conn, d, out.info)
     if out.info["kind"] == "payslip":
         out.slip = payslips.from_model(out.info)
@@ -554,6 +536,15 @@ def _after_import(conn, client, model, progress, run: _Run) -> None:
         run.problems.append(f"Imported, but the payments could not be grouped into trips and events: {exc}")
 
 
+def _needs_model(d) -> bool:
+    """Only a statement's layout (or a document nobody has described yet) needs the model here; the exact bank standards and described documents do not."""
+    if d["area"] == "finance" and standards.sniff(d["text"]):
+        return False
+    if d["facts"]:
+        return json.loads(d["facts"]).get("kind") == "bank_statement"
+    return True
+
+
 def import_statements(conn, a=None, client=None, model=None, progress=None):
     """Read every finance document the parser has produced and not yet imported. Safe to repeat: a line is never added twice.
 
@@ -569,7 +560,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         if rates.looks_like_ecb(data.get("rows")):
             _import_rates_file(conn, d, data, run)
             continue
-        if not (d["area"] == "finance" and standards.sniff(d["text"])) and (client is None or not model):
+        if _needs_model(d) and (client is None or not model):
             if no_model not in run.problems:
                 run.problems.append(no_model)
             continue
@@ -927,12 +918,6 @@ MODULE = Module(
             "Tickets and bookings found in the user's files and mail: destination, start and end dates as written in the document, and the cost. Use it for trips and travel.",
             {"place": S("Part of a destination, for example India"), "year": S("Year, for example 2026")},
             travel_documents,
-        ),
-        Tool(
-            "documents_of_kind",
-            "Documents of given kinds found in the user's files and mail (comma separated: ticket, booking, medical, insurance, contract, tax, invoice, receipt, payslip): who from, when, where, cost.",
-            {"kind": S("Kinds, for example medical or ticket,booking"), "place": S("Part of a place"), "year": S("Year, for example 2026")},
-            documents_of_kind,
         ),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool(

@@ -3,7 +3,7 @@
 import json
 from datetime import date, timedelta
 
-from orbit import parser, tables, verify
+from orbit import tables, verify
 from orbit.modules import documents, money
 from tests.test_standards import CAMT, MT940
 
@@ -142,11 +142,9 @@ def test_a_balance_line_with_no_date_is_used_as_a_proof_point_not_dropped():
 # ---- the bank standards, end to end -----------------------------------------------------------------------------------------
 def _ingest(conn, tmp_path, name, text, data=None):
     sha = (name.encode().hex() * 8)[:64]
-    (tmp_path / "p").mkdir(exist_ok=True)
-    (tmp_path / "p" / f"{sha}.json").write_text(
-        json.dumps({"schema": 1, "sha256": sha, "name": name, "kind": "text", "text": text, "meta": {}, "area": "finance", "data": data or {}})
+    documents.store_from_library(
+        conn, {"sha256": sha, "name": name, "file_kind": "text", "text": text, "area": "finance", "data": json.dumps(data or {}), "facts": {}}
     )
-    documents.ingest_dir(conn, tmp_path / "p")
 
 
 def test_mt940_and_camt053_are_imported_exactly_without_any_model(conn, tmp_path):
@@ -227,8 +225,3 @@ def test_the_report_counts_what_every_agent_concluded(conn):
     verify.run_cross_checks(conn)
     report = money.verification_report(conn)
     assert report["summary"]["payslip ↔ bank"]["warn"] == 1 and any(p["level"] == "warn" for p in report["problems"]) and report["passed"] >= 1
-
-
-def test_the_parser_splits_plain_tab_exports_and_leaves_bank_standards_alone():
-    assert parser._delimited_rows("20261001\tNL1\t2000,00\n20261002\tNL1\t-23,45\n")[1] == ["20261002", "NL1", "-23,45"]
-    assert parser._delimited_rows(MT940) == [] and parser._delimited_rows("just one line") == []

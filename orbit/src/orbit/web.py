@@ -21,8 +21,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from . import agent, applenotes, browse, clock, db, insight, llm, log, netguard, report, tagging
-from .modules import ALL, documents, money
+from . import agent, applenotes, browse, clock, db, insight, library_client, llm, log, netguard, report, tagging
+from .modules import ALL, money
 from .modules import tools as registry
 from .modules.today import briefing_for
 
@@ -83,10 +83,6 @@ def _login_page(message: str = "") -> bytes:
     ).encode()
 
 
-def parsed_dir() -> Path:
-    return Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))
-
-
 def inbox_dir() -> Path:
     return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
 
@@ -94,6 +90,18 @@ def inbox_dir() -> Path:
 def client_and_model(conn):
     client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
     return client, client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))
+
+
+def _take_documents(state: State, conn) -> list[str]:
+    """Ask the Documents service to read everything new (files and mail), then take the documents that matter to Finance. Without the service address, nothing is taken."""
+    if not library_client.base_url():
+        return []
+    try:
+        problems = library_client.update(lambda m: state.importing.update(progress=m))
+        library_client.pull(conn)
+    except RuntimeError as exc:
+        return [str(exc)]
+    return problems
 
 
 def start_import(state: State) -> bool:
@@ -106,15 +114,16 @@ def start_import(state: State) -> bool:
     def work() -> None:
         conn = state.connect()
         try:
-            if parsed_dir().is_dir():
-                documents.ingest_dir(conn, parsed_dir())
+            problems = _take_documents(state, conn)
             try:
                 client, model = client_and_model(conn)
             except RuntimeError as exc:
                 log.failed("model unavailable for the import", exc)
                 state.importing["error"] = "The local model is not running. Start Ollama and try again."
                 return
-            state.importing["result"] = money.import_statements(conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
+            result = money.import_statements(conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
+            result["problems"] = [*problems, *result.get("problems", [])]
+            state.importing["result"] = result
         except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
             log.failed("import failed", exc)
             state.importing["error"] = f"{type(exc).__name__}: {exc}"
@@ -176,11 +185,6 @@ def _get_search(state: State, conn, query: dict[str, str]) -> dict:
     return {"results": browse.search_links(browse.search_all(conn, {"query": query.get("q", "")[:200]}))}
 
 
-def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
-    """What the one document reader found, for any app: /api/documents?kind=medical,ticket&place=&year=. Each module takes what is relevant to it."""
-    return {"documents": money.documents_of_kind(conn, {k: query.get(k, "")[:80] for k in ("kind", "place", "year")})}
-
-
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     """Where "read my new files" stands, in the shape every module reports it (the contract's scan status), for Atlas's one Update button."""
     job = state.importing
@@ -201,7 +205,6 @@ GET_ROUTES = {
     "/api/scan": _scan_status,
     "/api/health": lambda state, conn, query: {"ok": True},
     "/api/search": _get_search,
-    "/api/documents": _get_documents,
     "/api/home": _get_home,
     "/api/status": _get_status,
     "/api/settings": _get_settings,

@@ -7,7 +7,7 @@ def test_the_shipped_cases_are_well_formed_and_cover_every_level():
     cases = load_cases(DEFAULT_CASES)
     assert {c["level"] for c in cases} == {1, 2, 3, 4, 5} and len(cases) >= 25
     for c in cases:
-        assert set(c["expect"]) == {"apps", "chat", "photos", "documents"} and set(c["expect"]["apps"]) <= {"finance", "photos"}
+        assert set(c["expect"]) == {"apps", "chat", "photos", "documents"} and set(c["expect"]["apps"]) <= {"finance", "photos", "documents"}
         assert c["expect"]["chat"] == (not c["expect"]["apps"])  # plain conversation means no app
         assert all(r in ("user", "assistant") for r, _ in c.get("history", []))
 

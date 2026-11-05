@@ -48,14 +48,16 @@ def test_no_internet_capable_tools():
 
 
 def test_no_network_libraries_imported_anywhere():
-    """Build-time check: only llm.py (local Ollama over urllib) may touch the network, and egress is guarded."""
+    """Build-time check: only llm.py (local Ollama over urllib) and library_client.py (the Documents service on this computer) may touch the network, and egress is guarded."""
     for f in SRC.rglob("*.py"):
         for node in ast.walk(ast.parse(f.read_text())):
             names = [a.name for a in node.names] if isinstance(node, ast.Import) else [node.module or ""] if isinstance(node, ast.ImportFrom) else []
             for n in names:
                 assert n not in NETWORK_MODULES, f"{f.name} imports {n}"
                 if n.startswith("urllib") and "request" in n:
-                    assert f.name == "llm.py", f"{f.name} uses urllib.request"
+                    assert f.name in ("llm.py", "library_client.py"), (
+                        f"{f.name} uses urllib.request"
+                    )  # the model, and the Documents service (both on this computer)
 
 
 def test_the_model_server_can_only_be_on_this_computer_or_its_private_network():

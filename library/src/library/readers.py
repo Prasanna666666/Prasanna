@@ -21,6 +21,7 @@ import math
 import re
 import shutil
 import subprocess
+import sys
 import zipfile
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -29,8 +30,6 @@ from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree as ET
-
-from . import log
 
 MAX_ROWS = 50_000
 MAX_CELL = 300
@@ -195,7 +194,7 @@ def other_engines(path: Path, passwords: list[str] | None, pages: int) -> dict[s
                 table += table_lines(words)
             out[name] = table
         except Exception as exc:  # noqa: BLE001 - a second engine failing must never lose the file: it is only a second opinion
-            log.failed("extra pdf engine failed", exc, engine=name)
+            print(f"extra pdf engine failed: {name} {type(exc).__name__}", file=sys.stderr)  # the error type only: its message may quote private text
     return out
 
 

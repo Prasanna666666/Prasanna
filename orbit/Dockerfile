@@ -1,6 +1,4 @@
-# One source, two images with different contents:
-#   app    - UI/assistant/database. Has the encryption library, but NO document-parsing libraries.
-#   parser - opens untrusted files (PyMuPDF). Runs with no network; the app never contains this code.
+# The Finance app image. It opens no files and has NO document-parsing libraries: the Documents service (../library) reads every file and mail.
 FROM python:3.12-slim AS base
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin orbit \
  && mkdir /data /parsed && chown 10001 /data /parsed
@@ -20,11 +18,3 @@ USER 10001
 ENV ORBIT_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["orbit"]
 CMD ["ui", "--host", "0.0.0.0", "--port", "8501"]
-
-FROM base AS parser
-# Tesseract (offline OCR, Dutch + English) reads scanned PDFs and photos of statements; everything else is read with Python libraries.
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld poppler-utils && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir ".[parse]"
-USER 10001
-ENTRYPOINT ["orbit-parser"]
-CMD ["--watch"]

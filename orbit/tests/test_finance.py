@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from orbit import categorize, extract, parser, tables
+from orbit import categorize, extract, tables
 from orbit.modules import documents, money
 
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
@@ -83,23 +83,13 @@ class FakeModel:
         return {"content": "{}"}
 
 
-def _load(conn, tmp_path, name, rows=None, text=None, area="finance", cols=COLS, kind="pdf"):
+def _load(conn, tmp_path, name, rows=None, text=None, area="finance", cols=COLS, kind="pdf", facts=None):
+    """Hand a document over the way the Documents service does: its text, its structured data and (when it has judged it) what it is."""
     sha = (name.encode().hex() * 8)[:64]
     shown = text if text is not None else "\n".join(" ".join(r) for r in (rows or []))
-    d = {
-        "schema": 1,
-        "sha256": sha,
-        "name": name,
-        "kind": kind,
-        "text": shown,
-        "meta": {},
-        "area": area,
-        "data": {"table": table_of(rows, cols)} if rows else {"lines": [shown]},
-    }
-    out = tmp_path / "parsed"
-    out.mkdir(exist_ok=True)
-    (out / f"{sha}.json").write_text(json.dumps(d))
-    return documents.ingest_dir(conn, out)
+    data = {"table": table_of(rows, cols)} if rows else {"lines": [shown]}
+    doc = {"sha256": sha, "name": name, "file_kind": kind, "text": shown, "area": area, "data": json.dumps(data), "facts": facts or {}}
+    return documents.store_from_library(conn, doc)
 
 
 def run(conn, model=None, **kw):
@@ -313,33 +303,6 @@ def test_views_top_merchants_trend_and_recurring(conn, tmp_path):
     names = [r["merchant"] for r in money.recurring_payments(conn)]
     assert any("netflix" in n for n in names) and any("swiggy" in n for n in names)
     assert money.summary(conn, {"month": "2026-10"})["spent"] == 1049.0
-
-
-# ---- the parser keeps positions so columns can be recovered ---------------------------------------------------------------
-def test_the_parser_keeps_exact_csv_rows_with_any_delimiter_and_marks_the_finance_area(tmp_path):
-    fin, out = tmp_path / "fin", tmp_path / "out"
-    fin.mkdir()
-    (fin / "ing.csv").write_text('"Datum";"Naam / Omschrijving";"Af Bij";"Bedrag (EUR)"\n"01-10-2026";"Jumbo; Utrecht";"Af";"12,34"\n', encoding="utf-8-sig")
-    parser.process_inbox(fin, out, area="finance")
-    doc = json.loads(next(out.glob("*.json")).read_text())
-    assert doc["area"] == "finance" and doc["data"]["rows"][1] == ["01-10-2026", "Jumbo; Utrecht", "Af", "12,34"]
-    assert [[c.text for c in line] for line in tables.table_from_data(doc["data"])][1] == ["01-10-2026", "Jumbo; Utrecht", "Af", "12,34"]
-
-
-def test_pdf_words_become_cells_with_positions():
-    words = [
-        (50, 100, 80, 110, "01/10/2026"),
-        (120, 101, 160, 111, "SWIGGY"),
-        (164, 101, 190, 111, "Utrecht"),
-        (300, 99, 340, 109, "450.00"),
-        (50, 130, 80, 140, "Page"),
-    ]
-    cells = parser._table_lines(words)
-    assert [[c[2] for c in line] for line in cells] == [
-        ["01/10/2026", "SWIGGY Utrecht", "450.00"],
-        ["Page"],
-    ]  # close words share a cell, a wide gap starts another
-    assert cells[0][2][0] == 300
 
 
 @pytest.mark.parametrize("bad", ["", "not json", "[1,2]"])

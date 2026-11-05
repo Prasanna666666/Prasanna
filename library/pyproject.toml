@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "library"
+version = "0.1.0"
+description = "Documents: the one reader and store for every file and mail; other apps ask it for what is relevant to them"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+secure = ["sqlcipher3-binary>=0.5"]
+parse = ["pymupdf>=1.24", "pdfplumber>=0.11", "openpyxl>=3.1", "pillow>=10"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+library = "library.cli:main"
+library-parser = "library.parser:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+library = ["static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "../orbit/src"]   # the shared code (database, model client, rules) is still in Finance's package
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
+ignore = ["S101", "S608", "PLR0913", "PLR2004", "PLC0415", "PLR0917", "E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-branches = 15
+max-returns = 8
+max-statements = 50
+
+[tool.ruff.lint.per-file-ignores]
+"src/library/readers.py" = ["S603", "S607", "S314", "PLW2901"]  # fixed executables (tesseract, pdftotext) with list arguments and no shell; XML with a DOCTYPE or entities is refused before parsing
+"src/library/parser.py" = ["S603"]  # re-runs this program in a subprocess to isolate each file
+"src/library/applemail.py" = ["S603", "S607", "PLW1510", "S324"]  # osascript with a fixed script; the hash is only an identifier
+"tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+mypy_path = "src:../orbit/src"
+
+[tool.bandit]
+skips = ["B404", "B603", "B607", "B310", "B314", "B405", "B608"]

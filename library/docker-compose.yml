@@ -1,0 +1,71 @@
+# Documents: the one reader and store for every file and mail. Offline, encrypted, split by trust level.
+#
+#   parser  - opens untrusted files. network_mode: none (no network at all), everything it reads is read-only, it writes ONLY to `parsed`.
+#   app     - the service + encrypted database. Internal network (no internet). Takes the parser's output, stores it, deletes the readable copy.
+#   gateway / ollama bridge - dumb byte forwarders (the service on 127.0.0.1 only; Ollama on your Mac).
+#
+# Start with ./scripts/up.sh (it keeps the database key in the macOS Keychain). Other apps (Finance today, Health and Travel later) ask this service for documents.
+name: library
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp"]
+  restart: unless-stopped
+
+services:
+  parser:
+    <<: *hardened
+    build: {context: .., dockerfile: library/Dockerfile, target: parser}
+    image: library-parser:local
+    network_mode: none          # cannot talk to anything, not even the app: the only exchange is files
+    environment:
+      ORBIT_INBOX: /inbox
+      ORBIT_PARSED: /parsed
+      LIBRARY_COLLECTIONS: finance=/collections/finance   # a folder you keep for one purpose; add more as apps arrive (health=/collections/health)
+    volumes:
+      - ${HOME}/OrbitInbox:/inbox:ro
+      - ${ORBIT_FINANCE_DIR:-${HOME}/OrbitFinance}:/collections/finance:ro   # your bank statements and finance files
+      - library-parsed:/parsed
+    mem_limit: 1g
+    pids_limit: 128
+    cpus: 1.0
+
+  app:
+    <<: *hardened
+    build: {context: .., dockerfile: library/Dockerfile, target: app}
+    image: library:local
+    environment:
+      OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
+      ORBIT_PARSED: /parsed
+      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
+    volumes:
+      - library-data:/data
+      - library-parsed:/parsed    # writable only so the readable copy can be deleted once it is in the encrypted database
+    networks: [private]
+    depends_on: [ollama]
+    mem_limit: 1g
+
+  gateway:
+    <<: *hardened
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:8502,fork,reuseaddr TCP:app:8502
+    ports: ["127.0.0.1:8502:8502"]
+    networks: [private, default]
+    depends_on: [app]
+
+  ollama:   # forwards ONLY to Ollama on the Mac
+    <<: *hardened
+    image: alpine/socat:1.8.0.0
+    command: TCP-LISTEN:11434,fork,reuseaddr TCP:host.docker.internal:11434
+    networks:
+      private: {aliases: [ollama.internal]}
+      default: {}
+
+networks:
+  private: {internal: true}
+
+volumes:
+  library-data:
+  library-parsed:
