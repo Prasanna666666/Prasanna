@@ -18,6 +18,7 @@ If something here is wrong, the owner says so once and it is changed here.
 - **Simple, recognised requests bypass the AI for speed**, and still pass the same answer check. Recognition must be strict: code answers only when every word of the question is accounted for; anything with a condition it does not apply goes to the model, never to a wrong answer.
 - Understanding runs on measured evidence: `python -m atlas.evaluate` scores the model by difficulty level and times each path; run it on the owner's Mac after any change to prompts or models.
 - The AI never modifies or deletes source data. Deletes need the owner's own words. Original files stay read-only.
+- **Everything offline.** The apps never connect to the internet or a mail server. The only online steps are ones the owner runs outside the apps (downloading the model once, the exchange-rate file, building the Docker images, and Apple Mail's own syncing). Email is read from local files: Apple Mail export, `.mbox` or `.emlx`; there is no live mail fetch unless the owner decides otherwise.
 - Never connect to the cloud. Everything runs on the owner's machine. (The old optional cloud reader in Photos has been removed entirely.)
 
 ## Numbers and honesty

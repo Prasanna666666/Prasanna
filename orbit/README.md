@@ -214,3 +214,11 @@ Rules:
 
 ## One address for everything (Atlas)
 Finance can run on its own at `http://finance.localhost:8501`, or as one part of **Atlas** (`atlas/`, `http://atlas.localhost:8000`) together with Lumo (photos) and any future app, with one menu, one search and one chat button. Finance stays its own sub-system: its own database, container, key and rules. When shown inside Atlas it hides its own menu and top bar and answers Atlas's `GET /api/health` and `GET /api/search?q=`. See `atlas/README.md` for the contract and how to add an app.
+
+## Mail, read offline
+Finance can read your email without ever connecting to a mail server. Apple Mail already keeps your mail on this Mac; you choose what to copy into the inbox:
+- **From Apple Mail:** `orbit export-mail` (on the Mac, once or whenever) copies messages that have an attachment from the last 365 days into `~/OrbitInbox/mail/` as `.eml` files (`--days 90` for fewer days, `--all` to include messages without attachments). Junk, Trash and Drafts are always skipped, and re-running adds only what is new. The first time, macOS asks whether your terminal may control Mail: say yes.
+- **From a mailbox export:** drop a `.mbox` file (Gmail Takeout, Thunderbird, Apple Mail's Export Mailbox) or Apple Mail's own `.emlx` files into `~/OrbitInbox/mail/`.
+- **Then** press Update. The sealed reader (no network, inbox read-only) reads each message and each attachment (PDF, scan, spreadsheet) as a document of its own, without opening links or running anything. Mail text is searchable, and the files appear only when you ask ("show me the flight tickets").
+- Logos and tracking pixels are skipped; a message is never read twice; a broken message fails only itself.
+- Email is the classic way to attack an assistant, so mail text is treated as data, never as instructions, exactly like any other document. *Not tested on a real Mac yet:* the Apple Mail export step (written without macOS to try it on); the reading of `.mbox`, `.emlx` and `.eml` is tested.

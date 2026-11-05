@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir] | ingest [dir] | import-statements | categorise"""
+"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | export-mail [dir] [--days N] [--all] | import-notes [dir] | ingest [dir] | import-statements | categorise"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import agent, agents, applenotes, clock, db, netguard, tagging
+from . import agent, agents, applemail, applenotes, clock, db, netguard, tagging
 from .modules import ALL, documents, tools
 from .modules.today import briefing_for
 
@@ -36,6 +36,10 @@ def _inbox() -> Path:
     return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
 
 
+def _mail_inbox() -> Path:
+    return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "mail"
+
+
 def _model(conn, client) -> str:
     return client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))
 
@@ -52,6 +56,15 @@ def _ui(rest: list[str]) -> int:
 def _export_notes(rest: list[str]) -> int:  # a native Mac step
     out = Path(rest[0]) if rest else _inbox()
     print(applenotes.write_notes(applenotes.fetch_notes(), out), "->", out)
+    return 0
+
+
+def _export_mail(rest: list[str]) -> int:  # a native Mac step: copies the mail you choose into the inbox as .eml files; connects to no mail server
+    days = int(rest[rest.index("--days") + 1]) if "--days" in rest else 365
+    only_attachments = "--all" not in rest  # by default only messages with an attachment: the rest of your mailbox is never copied
+    folders = [a for i, a in enumerate(rest) if not a.startswith("--") and (i == 0 or rest[i - 1] != "--days")]
+    out = Path(folders[0]) if folders else _mail_inbox()
+    print(applemail.write_messages(applemail.fetch_messages(days, only_attachments), out), "->", out)
     return 0
 
 
@@ -157,7 +170,7 @@ def _explain_month(conn, rest: list[str]) -> int:  # shows amounts on YOUR scree
     return 0
 
 
-NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "tools": _list_tools, "agents": _list_agents}
+NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "export-mail": _export_mail, "tools": _list_tools, "agents": _list_agents}
 WITH_DATABASE = {
     "brief": _brief,
     "ingest": _ingest,

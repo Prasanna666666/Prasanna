@@ -12,14 +12,17 @@ This runs only inside the parser container (no network); everything here is boun
 from __future__ import annotations
 
 import email
+import email.parser
 import email.policy
 import io
 import json
+import mailbox
 import math
 import re
 import shutil
 import subprocess
 import zipfile
+from collections.abc import Iterator
 from datetime import date, datetime
 from functools import lru_cache
 from html import unescape
@@ -329,25 +332,73 @@ def read_html(path: Path) -> dict:
     return read_html_text(path.read_text(encoding="utf-8", errors="replace"))
 
 
-def read_eml(path: Path) -> tuple[dict, list[tuple[str, bytes]]]:
-    msg = email.message_from_binary_file(path.open("rb"), policy=email.policy.default)
+MAIL_MAX_MESSAGES = 20_000  # per mailbox file
+MESSAGE_MAX_BYTES = 25 * 1024 * 1024
+TINY_IMAGE = 10 * 1024  # logos and tracking pixels in signatures are not documents
+
+
+def read_message(msg: email.message.EmailMessage) -> tuple[dict, list[tuple[str, bytes]]]:
+    """One email: its text as a document, and its attachments (name, bytes) to be read as documents of their own. Nothing in it is executed or opened."""
     body = msg.get_body(preferencelist=("plain", "html"))
     content = body.get_content() if body is not None else ""
     parsed = read_html_text(content) if body is not None and body.get_content_type() == "text/html" else None
     text = parsed["text"] if parsed else clean(content)
     head = f"From: {msg.get('From', '')}\nTo: {msg.get('To', '')}\nDate: {msg.get('Date', '')}\nSubject: {msg.get('Subject', '')}\n"
-    attachments = [
-        (a.get_filename() or "attachment", a.get_content() if isinstance(a.get_content(), bytes) else str(a.get_content()).encode())
-        for a in msg.iter_attachments()
-        if a.get_filename()
-    ]
+    attachments = []
+    for a in msg.iter_attachments():
+        name = a.get_filename()
+        if not name:
+            continue
+        payload = a.get_content()
+        data = payload if isinstance(payload, bytes) else str(payload).encode()
+        if a.get_content_maintype() == "image" and len(data) < TINY_IMAGE:
+            continue
+        attachments.append((name, data))
     full = clean(head + "\n" + text)
     return {
         "kind": "email",
         "text": full,
-        "meta": {"subject": clean(str(msg.get("Subject", "")), 200), "attachments": len(attachments)},
+        "meta": {"subject": clean(str(msg.get("Subject", "")), 200), "message_id": clean(str(msg.get("Message-ID", "")), 200), "attachments": len(attachments)},
         "data": {"lines": [clean(x, 600) for x in full.splitlines()[:MAX_ROWS]]},
     }, attachments
+
+
+def read_eml(path: Path) -> tuple[dict, list[tuple[str, bytes]]]:
+    with path.open("rb") as f:
+        return read_message(email.message_from_binary_file(f, policy=email.policy.default))
+
+
+def read_emlx(path: Path) -> tuple[dict, list[tuple[str, bytes]]]:
+    """Apple Mail's own file: a first line with the message length, the message itself, then a property list (ignored)."""
+    raw = path.read_bytes()
+    first, _, rest = raw.partition(b"\n")
+    try:
+        size = int(first.strip())
+    except ValueError as exc:
+        raise ValueError("not an Apple Mail message file") from exc
+    if not 0 < size <= MESSAGE_MAX_BYTES:
+        raise ValueError("message size out of range")
+    return read_message(email.message_from_bytes(rest[:size], policy=email.policy.default))
+
+
+def mbox_messages(path: Path, limit: int = MAIL_MAX_MESSAGES) -> Iterator[bytes]:
+    """The raw messages of a mailbox export (Gmail Takeout, Apple Mail, Thunderbird), one at a time and bounded."""
+    box = mailbox.mbox(str(path), create=False)
+    try:
+        for n, key in enumerate(box.iterkeys()):
+            if n >= limit:
+                break
+            raw = box.get_bytes(key)
+            if len(raw) <= MESSAGE_MAX_BYTES:
+                yield raw
+    finally:
+        box.close()
+
+
+def mail_subject(raw: bytes) -> str:
+    """A safe one-line label for a message (headers only)."""
+    msg = email.parser.BytesHeaderParser(policy=email.policy.default).parsebytes(raw)
+    return re.sub(r"[^\w .,-]+", " ", str(msg.get("Subject", "") or "no subject"))[:50].strip() or "no subject"
 
 
 def read_json(path: Path) -> dict:

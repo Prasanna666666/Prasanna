@@ -27,6 +27,7 @@ from . import readers
 
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
+MBOX_MAX_BYTES = 4 * 1024 * 1024 * 1024  # a whole mailbox export can be large; each message inside is still capped
 MAX_TEXT = 2_000_000
 MAX_PAGES = 500
 MAX_CSV_ROWS = 200_000
@@ -55,6 +56,8 @@ KINDS = {
     ".html": "html",
     ".htm": "html",
     ".eml": "email",
+    ".emlx": "email",
+    ".mbox": "mbox",
     ".json": "json",
     ".zip": "zip",
 }
@@ -98,7 +101,7 @@ def extract(path: Path) -> dict:
     elif kind == "html":
         return readers.read_html(path)
     elif kind == "email":
-        return readers.read_eml(path)[0]
+        return (readers.read_emlx(path) if path.suffix.lower() == ".emlx" else readers.read_eml(path))[0]
     elif kind == "json":
         return readers.read_json(path)
     else:
@@ -187,7 +190,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     import tempfile
 
     suffix = f.suffix.lower()
-    if f.name.lower() in SKIP_NAMES or suffix not in KINDS or f.stat().st_size > MAX_BYTES:
+    if f.name.lower() in SKIP_NAMES or suffix not in KINDS or f.stat().st_size > (MBOX_MAX_BYTES if suffix == ".mbox" else MAX_BYTES):
         counts["skipped"] += 1
         return
     digest = sha256(f)
@@ -196,6 +199,9 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     if (out / f"{digest}.json").exists():
         return
     try:
+        if suffix == ".mbox" and depth == 0:
+            _process_mailbox(f, label, out, area, isolated, counts, digest)
+            return
         if suffix == ".zip" and depth == 0:
             members = readers.zip_members(f)
             with tempfile.TemporaryDirectory() as tmp:
@@ -207,15 +213,31 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         res = extract_isolated(f) if isolated else extract(f)
         _write(out, digest, label, f.stat().st_size, res, area)
         counts["parsed"] += 1
-        if suffix == ".eml" and depth < 2:
+        if suffix in (".eml", ".emlx") and depth < 2:
             with tempfile.TemporaryDirectory() as tmp:
-                for name, content in readers.read_eml(f)[1][:20]:
+                for name, content in (readers.read_emlx(f) if suffix == ".emlx" else readers.read_eml(f))[1][:20]:
                     inner = Path(tmp) / Path(name).name
                     inner.write_bytes(content)
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
     except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
+
+
+def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], digest: str) -> None:
+    """A mailbox export: every message is parsed as an email (and its attachments as documents). A mailbox already read is not read again."""
+    import tempfile
+
+    seen = out / ".seen" / digest
+    if seen.exists():
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        for n, raw in enumerate(readers.mbox_messages(f), 1):
+            inner = Path(tmp) / f"{n:05d}.eml"
+            inner.write_bytes(raw)
+            _process(inner, f"{label}/{n:05d} {readers.mail_subject(raw)}.eml", out, area, isolated, counts, 1)
+    seen.parent.mkdir(parents=True, exist_ok=True)
+    seen.write_text(label)
 
 
 def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "") -> dict[str, int]:
