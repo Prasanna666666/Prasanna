@@ -7,6 +7,7 @@ stops DNS-rebinding), and anything that changes data must carry a custom header 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import hmac
 import json
 import logging
@@ -26,7 +27,7 @@ from .modules import tools as registry
 from .modules.today import briefing_for
 
 STATIC = Path(__file__).with_name("static")
-ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "orbit.localhost"}  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
 MAX_BODY = 1_000_000
 HISTORY_LIMIT = 24
 
@@ -45,6 +46,9 @@ class State:
 
     def __init__(self, token: str | None = None) -> None:
         self.token = os.environ.get("ORBIT_TOKEN", "") if token is None else token  # when set, every request must carry it (see _authorised)
+        self.session = (
+            hashlib.sha256(b"orbit-session|" + self.token.encode()).hexdigest() if self.token else ""
+        )  # what the cookie holds, so the password itself is never stored in the browser
         self.refused: list[float] = []  # when recent requests were refused, to slow down guessing
         self.history: list[dict] = []
         self.chat_lock = threading.Lock()
@@ -54,6 +58,23 @@ class State:
     def connect(self):
         conn = db.connect()
         return conn
+
+
+def _cookie(value: str) -> str:
+    return f"orbit_k={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000"
+
+
+def _login_page(message: str = "") -> bytes:
+    note = f"<p class=bad>{message}</p>" if message else ""
+    return (
+        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Orbit</title>"
+        "<style>body{font:17px system-ui;display:grid;place-items:center;min-height:90vh;margin:0;background:#f6f6fb;color:#111}"
+        "form{background:#fff;padding:2rem 2.2rem;border-radius:18px;box-shadow:0 6px 30px #0001;display:grid;gap:1rem;min-width:260px}"
+        "input,button{font:inherit;padding:.8rem 1rem;border-radius:12px;border:1px solid #ccd}button{background:#6d5cff;color:#fff;border:0;cursor:pointer}"
+        ".bad{color:#c0392b;margin:0}h1{margin:0;font-size:1.4rem}</style>"
+        f"<form method=post action=/login><h1>Orbit</h1>{note}<input type=password name=password placeholder=Password autofocus autocomplete=current-password>"
+        "<button>Open</button></form>"
+    ).encode()
 
 
 def parsed_dir() -> Path:
@@ -135,18 +156,14 @@ def make_handler(state: State):
             now = time.monotonic()
             state.refused[:] = [t for t in state.refused if now - t < 60]
             cookie = next((c.split("=", 1)[1] for c in self.headers.get("Cookie", "").split("; ") if c.startswith("orbit_k=")), "")
-            if hmac.compare_digest(cookie.encode(), state.token.encode()):
+            if hmac.compare_digest(cookie.encode(), state.session.encode()):
                 return True
             log.event("request refused: no valid token", level=logging.WARNING)
             state.refused.append(now)
             if len(state.refused) > 10:
                 self._send(429, b'{"ok": false, "error": "Too many attempts. Wait a minute."}')
             else:
-                self._send(
-                    401,
-                    b"<!doctype html><meta charset=utf-8><title>Orbit</title><body style='font:16px system-ui;margin:3rem'>Open Orbit with the link that <code>./scripts/up.sh</code> printed.",
-                    "text/html; charset=utf-8",
-                )
+                self._send(401, _login_page(), "text/html; charset=utf-8")
             return False
 
         def _guard(self, writing: bool) -> bool:
@@ -180,7 +197,7 @@ def make_handler(state: State):
             if state.token and offered and path == "/" and hmac.compare_digest(offered.encode(), state.token.encode()) and _host_ok(self.headers.get("Host")):
                 # the link from up.sh: remember it in a cookie that scripts on other sites cannot read or send, then drop the token from the address bar
                 self.send_response(303)
-                self.send_header("Set-Cookie", f"orbit_k={state.token}; HttpOnly; SameSite=Strict; Path=/")
+                self.send_header("Set-Cookie", _cookie(state.session))
                 self.send_header("Location", "/")
                 self.send_header("Content-Length", "0")
                 self.end_headers()
@@ -249,7 +266,33 @@ def make_handler(state: State):
             self._fail(HTTPStatus.NOT_FOUND, "not found")
 
         # ---- POST -------------------------------------------------------------------------------------------------
+        def _login(self) -> None:
+            """The password form: the right password sets the cookie (once per browser); a wrong one is counted, and too many are refused for a minute."""
+            if not _host_ok(self.headers.get("Host")):
+                return self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed.")
+            now = time.monotonic()
+            state.refused[:] = [t for t in state.refused if now - t < 60]
+            if len(state.refused) > 10:
+                return self._send(429, b"Too many attempts. Wait a minute.", "text/plain; charset=utf-8")
+            try:
+                size = min(int(self.headers.get("Content-Length", "0")), 2000)
+            except ValueError:
+                size = 0
+            given = urllib.parse.parse_qs(self.rfile.read(size).decode("utf-8", "replace")).get("password", [""])[0]
+            if state.token and hmac.compare_digest(given.encode(), state.token.encode()):
+                self.send_response(303)
+                self.send_header("Set-Cookie", _cookie(state.session))
+                self.send_header("Location", "/")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            log.event("login refused: wrong password", level=logging.WARNING)
+            state.refused.append(now)
+            self._send(401, _login_page("That is not the password."), "text/html; charset=utf-8")
+
         def do_POST(self) -> None:
+            if self.path.split("?", 1)[0] == "/login":
+                return self._login()
             if not self._guard(True):
                 return
             body = self._body()

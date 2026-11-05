@@ -121,8 +121,11 @@ def test_with_a_token_nothing_is_served_without_the_cookie(tmp_path, monkeypatch
         assert get("/")[0] == 401 and get("/api/home")[0] == 401 and get("/static/app.js")[0] == 401
         assert get("/?k=wrong")[0] == 401
         status, cookie, _ = get("/?k=s3cret-token")
-        assert status == 303 and "orbit_k=s3cret-token" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
-        assert get("/api/home", "orbit_k=s3cret-token")[0] == 200
+        assert (
+            status == 303 and "HttpOnly" in cookie and "SameSite=Strict" in cookie and "s3cret-token" not in cookie
+        )  # the password itself is never stored in the browser
+        session = cookie.split(";")[0]
+        assert get("/api/home", session)[0] == 200
         assert get("/", "orbit_k=nope")[0] == 401
     finally:
         srv.shutdown()
@@ -197,3 +200,68 @@ def test_notes_import_says_plainly_when_the_folder_is_missing(server, monkeypatc
     status, body, _ = post(server, "/api/notes/import", {})
     assert status == 404 and "export-notes" in json.loads(body)["error"]
     assert json.loads(post(server, "/api/notes/tag", {})[1])["ok"]
+
+
+def _token_server(token="correct horse"):
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    from orbit import web
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(web.State(token=token)))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def test_the_login_form_takes_the_password_once_and_sets_the_cookie():
+    import http.client
+    import urllib.parse
+
+    srv = _token_server()
+    port = srv.server_address[1]
+
+    def request(method, path, body=None, host=None, cookie=None):
+        conn = http.client.HTTPConnection("127.0.0.1", port)
+        headers = {"Host": host or f"127.0.0.1:{port}"}
+        if cookie:
+            headers["Cookie"] = cookie
+        if body is not None:
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        conn.request(method, path, body, headers)
+        r = conn.getresponse()
+        return r.status, r.getheader("Set-Cookie"), r.read()
+
+    try:
+        status, _, page = request("GET", "/")
+        assert status == 401 and b"<form" in page and b"password" in page  # the visitor sees a password box, not an error
+        status, cookie, page = request("POST", "/login", urllib.parse.urlencode({"password": "wrong"}))
+        assert status == 401 and cookie is None and b"not the password" in page
+        status, cookie, _ = request("POST", "/login", urllib.parse.urlencode({"password": "correct horse"}))
+        assert status == 303 and "Max-Age=31536000" in cookie and "correct" not in cookie
+        assert request("GET", "/", cookie=cookie.split(";")[0])[0] == 200
+        assert request("GET", "/", host=f"orbit.localhost:{port}", cookie=cookie.split(";")[0])[0] == 200  # the easy-to-remember name works
+        assert request("GET", "/", host=f"evil.example:{port}")[0] == 403  # any other name is still refused
+    finally:
+        srv.shutdown()
+
+
+def test_guessing_the_password_on_the_form_is_slowed_down():
+    import http.client
+    import urllib.parse
+
+    srv = _token_server()
+    port = srv.server_address[1]
+    try:
+        codes = []
+        for i in range(14):
+            conn = http.client.HTTPConnection("127.0.0.1", port)
+            conn.request(
+                "POST",
+                "/login",
+                urllib.parse.urlencode({"password": f"guess{i}"}),
+                {"Host": f"127.0.0.1:{port}", "Content-Type": "application/x-www-form-urlencoded"},
+            )
+            codes.append(conn.getresponse().status)
+        assert codes[0] == 401 and codes[-1] == 429
+    finally:
+        srv.shutdown()
