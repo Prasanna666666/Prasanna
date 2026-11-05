@@ -174,3 +174,16 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
 7. **Proactive agent** - morning briefing, nudges ("rent due in 3 days, balance low").
 
 Dev: `pip install -e ".[dev]" && pytest`.
+
+## At a glance (same in Orbit and Lumo)
+
+| | |
+|---|---|
+| Start | `./scripts/up.sh` (Docker) |
+| Stop | `./scripts/down.sh` |
+| Address | `http://orbit.localhost:8501` |
+| Internet | none: internal Docker network, in-code network lock |
+| Your files | read-only (`~/OrbitFinance`, `~/OrbitInbox`) |
+| What it learns | a Docker volume, not a folder on your Mac |
+| The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
+| Chat | the round button in the corner, or `Ctrl/⌘ J`; `/` jumps to search |
