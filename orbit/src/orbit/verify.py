@@ -120,9 +120,9 @@ def read_table_statement(client, model: str, name: str, data: dict, text: str) -
     """A PDF or CSV statement: layout by the model, figures by code, then every agent has its say."""
     r = Read()
     table = tables.table_from_data(data)
-    layout = tables.infer_layout(client, model, table)
+    layout, why = tables.infer_layout_why(client, model, table)
     if layout is None:
-        r.issues = ["the layout of this file could not be understood"]
+        r.issues = [f"the layout of this file could not be understood: {why}"]
         r.findings.append(Finding("layout reader", "fail", name, r.issues[0]))
         return r
     parsed = tables.parse_table(table, layout)

@@ -108,23 +108,57 @@ def table_from_data(data: dict) -> list[list[Cell]]:
 
 def infer_layout(client, model: str, table: list[list[Cell]]) -> Layout | None:
     """Ask the local model what the columns are. Only a layout comes back; it is checked before use."""
-    if not table:
-        return None
-    shown = "\n".join(f"{i}: " + " ⟂ ".join(c.text for c in line) for i, line in enumerate(table[:45]))
-    msg = client.chat(model, [{"role": "system", "content": LAYOUT_PROMPT}, {"role": "user", "content": shown}], schema=LAYOUT_SCHEMA)
+    return infer_layout_why(client, model, table)[0]
+
+
+def _checked_roles(d: dict, table: list[list[Cell]]) -> tuple[list[str] | None, str]:
+    """The roles of the model's layout, or why they cannot be used."""
     try:
-        d = json.loads(msg.get("content") or "{}")
         header = int(d["header_line"])
         roles = [r if r in ROLES else "ignore" for r in d["roles"]]
     except (ValueError, KeyError, TypeError):
-        return None
+        return None, "the model's answer was not a layout"
     if not -1 <= header < len(table):
-        return None
-    reference = table[header] if header >= 0 else table[0]
-    if len(roles) != len(reference) or "date" not in roles:
-        return None
+        return None, f"the model named line {header}, which is not in the file"
+    cells = len(table[header] if header >= 0 else table[0])
+    if len(roles) != cells:
+        return None, f"you gave {len(roles)} roles but line {header} has {cells} cells: give exactly {cells}, one per cell"
+    if "date" not in roles:
+        return None, "there must be a date column"
+    if not isinstance(d.get("date_format"), str) or not d["date_format"]:
+        return None, "date_format is missing"
     if not (("debit" in roles or "credit" in roles) or "amount" in roles):
-        return None
+        return None, "there must be a debit, credit or amount column"
+    return roles, ""
+
+
+def infer_layout_why(client, model: str, table: list[list[Cell]]) -> tuple[Layout | None, str]:
+    """The layout and, when there is none, the plain reason. A model that miscounts the columns is told so and asked once more."""
+    if not table:
+        return None, "no table was found in this file"
+    shown = "\n".join(f"{i} ({len(line)} cells): " + " ⟂ ".join(c.text for c in line) for i, line in enumerate(table[:45]))
+    messages = [{"role": "system", "content": LAYOUT_PROMPT}, {"role": "user", "content": shown}]
+    why = ""
+    for _ in range(2):
+        msg = client.chat(model, messages, schema=LAYOUT_SCHEMA)
+        text = msg.get("content") or "{}"
+        try:
+            d = json.loads(text)
+        except ValueError:
+            d = {}
+        roles, why = _checked_roles(d if isinstance(d, dict) else {}, table)
+        if roles is not None:
+            return _build_layout(d, roles), ""
+        messages = [
+            *messages,
+            {"role": "assistant", "content": text},
+            {"role": "user", "content": f"That cannot be used: {why}. Answer again with the corrected layout."},
+        ]
+    return None, why
+
+
+def _build_layout(d: dict, roles: list[str]) -> Layout:
+    header = int(d["header_line"])
 
     def words(k):
         return [str(w).strip().lower() for w in d.get(k, []) if str(w).strip()]

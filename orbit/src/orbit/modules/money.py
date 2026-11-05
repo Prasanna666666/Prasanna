@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
-from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
+from .. import audit, browse, categorize, clock, dates, db, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 from ..module import INT, Module, N, S, Tool
@@ -436,6 +436,16 @@ class _Outcome:
     info: dict = field(default_factory=dict)
 
 
+READER_VERSION = "2"  # raise it whenever reading statements gets better: files that were left out are then tried again, once
+
+
+def _retry_left_out_files(conn) -> None:
+    """A file that failed its proof was remembered and never read again. After the reading has improved, give those files one more try."""
+    if db.get_setting(conn, "reader_version", "") != READER_VERSION:
+        conn.execute("DELETE FROM statement_files WHERE status='needs_check'")
+        db.set_setting(conn, "reader_version", READER_VERSION)
+
+
 def _pending_documents(conn) -> list:
     """The documents the Documents service handed over that are not yet processed: everything from the finance folder, and the others it recognised."""
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
@@ -551,6 +561,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     Bank standards (MT940, camt.053) are read exactly, without a model. Other statements: the local model only describes the layout, code reads every
     figure, and verifier agents (balances, totals, a second independent reading) must all agree. A file that fails is not counted. Without the model,
     only the exact standards can be imported (a guess at a layout could silently give wrong numbers)."""
+    _retry_left_out_files(conn)
     learned = categorize.learned_rules(conn)
     run = _Run()
     docs = _pending_documents(conn)
@@ -584,7 +595,6 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
 
 def currencies(conn, a=None):
     """The currencies in your ledger with how many payments each has, and which one is being viewed. Totals never mix them."""
-    from .. import db
 
     main = db.get_setting(conn, "currency", "EUR")
     out = rows(

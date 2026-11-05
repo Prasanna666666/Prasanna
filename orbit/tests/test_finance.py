@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from orbit import categorize, extract, tables
+from orbit import categorize, db, extract, tables
 from orbit.modules import documents, money
 
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
@@ -313,3 +313,33 @@ def test_nonsense_from_the_model_never_crashes_the_import(bad):
 
     assert extract.classify(Odd(), "m", "x.pdf", "text")["kind"] == "other"
     assert tables.infer_layout(Odd(), "m", [[tables.Cell(0, 1, "a")]]) is None
+
+
+def test_a_model_that_miscounts_the_columns_is_told_and_asked_once_more_and_a_failure_says_why():
+    cells = [[tables.Cell(0, 1, c) for c in ("Datum", "Omschrijving", "Bedrag")], [tables.Cell(0, 1, c) for c in ("01-10-2026", "Jumbo", "-12,34")]]
+    good = {"header_line": 0, "roles": ["date", "description", "amount"], "date_format": "%d-%m-%Y"}
+
+    class Miscounts:
+        def __init__(self, answers):
+            self.answers, self.seen = list(answers), []
+
+        def chat(self, model, messages, schema=None, **kw):
+            self.seen.append(messages[-1]["content"])
+            return {"content": json.dumps(self.answers.pop(0))}
+
+    model = Miscounts([{**good, "roles": ["date", "description"]}, good])
+    layout, why = tables.infer_layout_why(model, "m", cells)
+    assert layout is not None and why == "" and "you gave 2 roles but line 0 has 3 cells" in model.seen[1]  # told exactly what was wrong
+    layout, why = tables.infer_layout_why(Miscounts([{**good, "roles": ["description", "description", "amount"]}] * 2), "m", cells)
+    assert layout is None and why == "there must be a date column"
+    assert tables.infer_layout_why(Miscounts([]), "m", [])[1] == "no table was found in this file"
+
+
+def test_files_left_out_are_tried_again_once_after_the_reading_improves(conn, tmp_path):
+    _load(conn, tmp_path, "left-out-statement-2025-02.pdf", GOOD)
+    run(conn, FakeModel(layout={**LAYOUT, "roles": ["date"]}))  # a model that misreads the columns: the file is left out
+    assert conn.execute("SELECT status FROM statement_files").fetchone()["status"] == "needs_check"
+    db.set_setting(conn, "reader_version", money.READER_VERSION)
+    assert run(conn)["files"] == 0  # same version: not read again on every press
+    db.set_setting(conn, "reader_version", "older")
+    assert run(conn)["files"] == 1 and conn.execute("SELECT status FROM statement_files").fetchone()["status"] != "needs_check"
