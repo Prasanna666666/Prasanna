@@ -33,6 +33,27 @@ def clean_history(raw: Any) -> list[list[str]]:
     return turns[-MAX_TURNS:]
 
 
+SHOW_VERBS = re.compile(
+    r"\b(show|display|give|send|bring|pull up|let me see|can i see|could i see|open|list|get me|fetch|browse|find me|find all|find the|find some)\b"
+)
+PHOTO_WORDS = r"photos?|pictures?|pics?|images?|selfies|selfie|albums?|screenshots?"
+DOCUMENT_WORDS = r"documents?|docs?|files?|invoices?|payslips?|receipts?|statements?|pdfs?|tickets?|reports?|contracts?|letters?"
+QUESTION_START = re.compile(r"^\s*(how many|how much|how often|how long|when|what|which|who|where|why|do i|did i|have i|am i|is there|are there|count)\b")
+
+
+def wants_to_see(text: str) -> dict[str, bool]:
+    """Did the user ask to SEE pictures or documents? Only then are they shown; otherwise the answer is words (with the pictures one tap away).
+    "How many photos of Amma do I have?" is a question; "show me photos of Amma" or "pictures from Goa" is a request."""
+    low = text.lower()
+    asked = bool(SHOW_VERBS.search(low))
+    if QUESTION_START.match(low) and not asked:
+        return {"photos": False, "documents": False}
+    return {
+        "photos": bool(re.search(rf"\b({PHOTO_WORDS})\b", low)) and (asked or bool(re.search(rf"\b({PHOTO_WORDS}) (of|from|with|at|in|taken)\b", low))),
+        "documents": bool(re.search(rf"\b({DOCUMENT_WORDS})\b", low)) and (asked or bool(re.search(rf"\b({DOCUMENT_WORDS}) (of|from|about|for)\b", low))),
+    }
+
+
 def _words(text: str) -> str:
     return " " + re.sub(r"[^\w€₹£]+", " ", text.lower()) + " "
 
@@ -146,13 +167,14 @@ class Assistant:
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """Route the question, ask each chosen app (side by side), and return their answers as labelled parts."""
         text = text.strip()[:MAX_TEXT]
+        show = wants_to_see(text)
         targets, how = self.route(text)
         if how == "unsure":
             msg = "I could not tell whether that is about " + " or ".join(m.name.lower() for m in self._askable()) + ". Try saying which."
-            return {"how": how, "routed": [], "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
+            return {"how": how, "routed": [], "show": show, "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
         if not targets:
-            return {"how": how, "routed": [], "parts": [self._chat_only(text, history)]}
+            return {"how": how, "routed": [], "show": show, "parts": [self._chat_only(text, history)]}
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
-            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history), targets))
-        parts = [{"module": m.id, "name": m.name, **r} for m, r in zip(targets, results, strict=True)]
-        return {"how": how, "routed": [m.id for m in targets], "parts": parts}
+            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, show), targets))
+        parts = [{"module": m.id, "name": m.name, "show": show, **r} for m, r in zip(targets, results, strict=True)]
+        return {"how": how, "routed": [m.id for m in targets], "show": show, "parts": parts}

@@ -302,3 +302,41 @@ def test_the_one_chat_can_ask_finance_a_question_and_gets_text_back(server, monk
     assert status == 200 and json.loads(body) == {"ok": True, "text": "You asked: how much did I spend?", "items": [], "agent": "money"}
     assert post(server, "/api/ask", {"text": "  "})[0] == 400
     assert call(server, "POST", "/api/ask", {"text": "x"})[0] == 403  # a change needs the app's own header
+
+
+def test_documents_come_back_only_when_the_user_asked_to_see_them(server, monkeypatch):
+    from orbit import agent
+
+    monkeypatch.setattr(agent, "chat", lambda conn, history, text, trace=None, **kw: "Ziggo charged you 62.50 in March.")
+    post(server, "/api/tool", {"name": "add_note", "args": {"title": "Trip", "body": "Ziggo mention in a note, not a file"}})
+    c = db.connect()
+    c.execute(
+        "INSERT INTO documents (sha256, name, kind, text) VALUES ('s1','ziggo-march.pdf','pdf','Ziggo internet and television invoice for March, total 62.50 euro')"
+    )
+    c.execute("INSERT INTO documents (sha256, name, kind, text) VALUES ('s2','rent.pdf','pdf','Rental agreement, monthly rent 1150 euro')")
+    c.commit()
+    c.close()
+    plain = json.loads(post(server, "/api/ask", {"text": "how much did Ziggo charge me?"})[1])
+    assert plain["items"] == []  # an answer is text unless documents were asked for
+    shown = json.loads(post(server, "/api/ask", {"text": "show me the Ziggo invoices", "show": {"documents": True}})[1])
+    assert [i["title"] for i in shown["items"]] == ["ziggo-march.pdf"] and shown["items"][0]["kind"] == "document" and "62.50" in shown["items"][0]["text"]
+    assert shown["text"] == "I found 1 file about that."  # a lookup: no model was needed
+    follow = json.loads(
+        post(
+            server,
+            "/api/ask",
+            {"text": "show me those documents", "show": {"documents": True}, "history": [["user", "how much did Ziggo charge me?"], ["assistant", "62.50"]]},
+        )[1]
+    )
+    assert [i["title"] for i in follow["items"]] == ["ziggo-march.pdf"]  # "those" has no topic, so the question before it is used
+
+
+def test_asking_for_documents_works_even_when_the_model_is_not_running(server):
+    c = db.connect()
+    c.execute("INSERT INTO documents (sha256, name, kind, text) VALUES ('s1','ziggo-march.pdf','pdf','Ziggo invoice for March, total 62.50 euro')")
+    c.commit()
+    c.close()  # no model in this test: the chat itself would fail
+    out = json.loads(post(server, "/api/ask", {"text": "show me the Ziggo invoices", "show": {"documents": True}})[1])
+    assert out["ok"] and [i["title"] for i in out["items"]] == ["ziggo-march.pdf"]
+    nothing = post(server, "/api/ask", {"text": "show me the Albert Heijn invoices", "show": {"documents": True}})
+    assert nothing[0] in (200, 502)  # nothing matched, so it falls back to the assistant, which needs the model

@@ -459,6 +459,67 @@
             else if (piece) parent.append(piece);
         });
     };
+    // pictures and documents are shown when the user asked to see them; otherwise they stay folded behind one button
+    const photoGrid = (module, items) => {
+        const grid = el('div', 'part-grid');
+        items.forEach((item) => {
+            const link = el('a', 'part-tile');
+            link.href = address(module, item.link.replace(/^#\/?/, ''));
+            const img = new Image();
+            img.alt = '';
+            img.loading = 'lazy';
+            img.src = item.thumb;
+            link.append(img);
+            grid.append(link);
+        });
+        return grid;
+    };
+    const documentList = (module, items) => {
+        const list = el('div', 'part-docs');
+        items.forEach((item) => {
+            const row = el('a', 'part-doc');
+            row.href = address(module, item.link.replace(/^#\/?/, ''));
+            row.append(el('b', '', item.title), el('span', '', item.subtitle));
+            if (item.text) row.append(el('em', '', item.text));
+            list.append(row);
+        });
+        return list;
+    };
+    const foldable = (label, open, build) => {
+        const wrap = el('div', 'part-fold');
+        const show = () => wrap.replaceChildren(build());
+        if (open) {
+            show();
+        } else {
+            const button = el('button', 'part-show', label);
+            button.type = 'button';
+            button.addEventListener('click', show);
+            wrap.append(button);
+        }
+        return wrap;
+    };
+    const appendItems = (box, part, module) => {
+        const items = part.items || [];
+        const photos = items.filter((i) => i.kind === 'photo');
+        const documents = items.filter((i) => i.kind === 'document');
+        const wanted = part.show || {};
+        if (photos.length) {
+            const of = part.total > photos.length ? ` of ${part.total.toLocaleString()}` : '';
+            box.append(foldable(`Show ${photos.length}${of} photos`, wanted.photos, () => photoGrid(module, photos)));
+            if (wanted.photos && part.total > photos.length)
+                box.append(
+                    el('div', 'part-note', `${part.total.toLocaleString()} in all: open ${module.name} to see them all`)
+                );
+        }
+        if (documents.length)
+            box.append(
+                foldable(
+                    `Show ${documents.length} document${documents.length === 1 ? '' : 's'}`,
+                    wanted.documents,
+                    () => documentList(module, documents)
+                )
+            );
+    };
     const partNode = (part) => {
         const module = byId(part.module);
         const box = el('div', 'part');
@@ -477,24 +538,7 @@
             body.append(p);
         });
         box.append(body);
-        if (part.items && part.items.length && module) {
-            const grid = el('div', 'part-grid');
-            part.items.forEach((item) => {
-                const link = el('a', 'part-tile');
-                link.href = address(module, item.link.replace(/^#\/?/, ''));
-                const img = new Image();
-                img.alt = '';
-                img.loading = 'lazy';
-                img.src = item.thumb;
-                link.append(img);
-                grid.append(link);
-            });
-            box.append(grid);
-            if (part.total > part.items.length)
-                box.append(
-                    el('div', 'part-note', `${part.total.toLocaleString()} in all: open ${module.name} to see them`)
-                );
-        }
+        if (module) appendItems(box, part, module);
         (part.notes || []).forEach((note) => box.append(el('div', 'part-note', note)));
         return box;
     };

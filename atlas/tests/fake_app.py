@@ -93,6 +93,11 @@ class _Handler(BaseHTTPRequestHandler):
             if self.app.token
             else []
         )
+        if (body.get("show") or {}).get("documents") and not self.app.token:
+            items = [
+                {"kind": "document", "title": "ziggo.pdf", "subtitle": "from your files", "text": "Ziggo invoice", "link": "#/documents"},
+                {"kind": "document"},
+            ]
         self._reply(200, json.dumps({"text": f"answer to: {body['text']}", "items": items, "total": 41, "notes": ["one note"]}).encode())
 
     def _post_model_chat(self) -> None:

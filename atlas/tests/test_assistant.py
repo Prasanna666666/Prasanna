@@ -1,6 +1,6 @@
 import json
 
-from atlas.assistant import clean_history, match_by_words
+from atlas.assistant import clean_history, match_by_words, wants_to_see
 
 
 def chat(running, text, history=None, origin=True, header=True):
@@ -103,3 +103,29 @@ def test_the_model_may_name_several_apps_or_both(running):
     assert chat(running, "anything from last summer?")[1]["routed"] == ["money", "photos"]
     running.apps["photos"].model_reply = "both"
     assert chat(running, "anything from last summer?")[1]["routed"] == ["money", "photos"]
+
+
+def test_pictures_and_documents_are_only_wanted_when_the_user_asks_to_see_them():
+    see = wants_to_see
+    assert see("show me photos from the beach") == {"photos": True, "documents": False}
+    assert see("pictures of Amma") == {"photos": True, "documents": False}
+    assert see("give me the Ziggo invoices") == {"photos": False, "documents": True}
+    assert see("show me my payslips and photos from Goa") == {"photos": True, "documents": True}
+    assert see("how many photos of Amma do I have?") == {"photos": False, "documents": False}
+    assert see("what documents mention insurance?") == {"photos": False, "documents": False}
+    assert see("how much did I spend last month?") == {"photos": False, "documents": False}
+    assert see("show me my spending") == {"photos": False, "documents": False}  # showing is not asking for a file
+    assert see("what is a RAW file?") == {"photos": False, "documents": False}
+
+
+def test_the_answer_says_whether_to_show_and_documents_are_only_fetched_when_asked(running):
+    _, plain = chat(running, "how much money did I spend?")
+    assert plain["show"] == {"photos": False, "documents": False} and plain["parts"][0]["items"] == []
+    _, shown = chat(running, "show me the money invoices")
+    part = shown["parts"][0]
+    assert shown["show"]["documents"] is True and part["show"]["documents"] is True
+    assert part["items"] == [
+        {"kind": "document", "title": "ziggo.pdf", "subtitle": "from your files", "text": "Ziggo invoice", "link": "#/documents"}
+    ]  # the title-less one was dropped
+    _, photos = chat(running, "how many photo files do I have?")
+    assert photos["show"]["photos"] is False and len(photos["parts"][0]["items"]) == 1  # offered, not shown: the page keeps them folded

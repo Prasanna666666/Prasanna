@@ -173,9 +173,9 @@ class Upstreams:
         return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}
 
     # ---- the single chat: one question to one app, and a picture from an app ------------------------------------------
-    def ask(self, module: Module, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
+    def ask(self, module: Module, text: str, conv: str, history: list[list[str]], show: dict[str, bool] | None = None) -> dict[str, Any]:
         """One app's answer to one question, in the contract's shape. Never raises: a failure comes back as an error to show."""
-        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history}).encode()
+        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history, "show": show or {}}).encode()
         try:
             status, body, _ = self._authed_full(module, "POST", module.ask, ASK_SECONDS, payload)
             raw = json.loads(body)
@@ -186,13 +186,7 @@ class Upstreams:
                 "ok": False,
                 "error": str(raw.get("error", f"{module.name} could not answer"))[:300] if isinstance(raw, dict) else f"{module.name} could not answer",
             }
-        items = []
-        for item in (raw.get("items") or [])[:24]:
-            thumb = str(item.get("thumb", "")) if isinstance(item, dict) else ""
-            if thumb.startswith(module.media) and module.media and ".." not in thumb:
-                items.append(
-                    {"kind": str(item.get("kind", ""))[:20], "thumb": f"/_atlas/api/media/{module.id}{thumb}", "link": str(item.get("link", ""))[:300]}
-                )
+        items = [i for i in (self._item(module, x) for x in (raw.get("items") or [])[:24]) if i]
         return {
             "ok": True,
             "text": str(raw.get("text", ""))[:6000],
@@ -200,6 +194,26 @@ class Upstreams:
             "total": int(raw.get("total") or 0),
             "notes": [str(n)[:300] for n in (raw.get("notes") or [])][:3],
         }
+
+    @staticmethod
+    def _item(module: Module, item: Any) -> dict[str, str] | None:
+        """One picture or document an app offers, checked: a picture must sit under the app's declared media path, a document needs a title."""
+        if not isinstance(item, dict):
+            return None
+        kind = str(item.get("kind", ""))[:20]
+        link = str(item.get("link", ""))[:300]
+        if kind == "document" and item.get("title"):
+            return {
+                "kind": kind,
+                "title": str(item["title"])[:200],
+                "subtitle": str(item.get("subtitle", ""))[:200],
+                "text": str(item.get("text", ""))[:400],
+                "link": link,
+            }
+        thumb = str(item.get("thumb", ""))
+        if kind == "photo" and module.media and thumb.startswith(module.media) and ".." not in thumb:
+            return {"kind": kind, "thumb": f"/_atlas/api/media/{module.id}{thumb}", "link": link}
+        return None
 
     def media(self, module: Module, path: str) -> tuple[int, bytes, str]:
         """A picture from an app, fetched on the page's behalf (the app's token never reaches the page). Only the app's declared media path is allowed."""

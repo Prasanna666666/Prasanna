@@ -82,7 +82,7 @@ Conventions: ULID ids; money as integer minor units plus ISO currency (original 
 A module never trusts the router: finance still proves balances. A misrouted file lands in the review queue, not in your numbers.
 
 ## 6. Module contract (v1 today, v2 target)
-- v1 (implemented in Finance and Photos): `GET /api/health`; `GET /api/search?q=`; `POST /api/ask` (the one chat: a question, an answer with text, pictures and notes); `GET`/`POST /api/scan` (the one Update button: start reading everything new, report progress, summary, problems, items needing a check); routes as `#/<page>`; embed messages; one manifest file in `atlas/modules.d/`.
+- v1 (implemented in Finance and Photos): `GET /api/health`; `GET /api/search?q=`; `POST /api/ask` (the one chat: a question and what the user asked to see; an answer in words, with pictures or documents only when asked for); `GET`/`POST /api/scan` (the one Update button: start reading everything new, report progress, summary, problems, items needing a check); routes as `#/<page>`; embed messages; one manifest file in `atlas/modules.d/`.
 - v2 (target): `GET /api/manifest` (pages, icon, accent, contract version); `GET /api/tools` (name, JSON schema, **read or write**, **sensitivity tier**); the standard `items_in_window(start, end, place?)` returning `{module, kind, title, when, where, amount?, ref, artifact_id?}`; `GET /api/entities` (people, places, trips this module knows); `GET /api/feed` (what needs a look); `accepts` (which artifact kinds the module can ingest); all calls signed by the platform (section 7).
 - Any module that implements `items_in_window` appears in every lens (trip, month, person) with no change to Atlas.
 
