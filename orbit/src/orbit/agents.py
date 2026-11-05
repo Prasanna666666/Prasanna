@@ -46,6 +46,7 @@ AGENTS: tuple[AgentSpec, ...] = (
                 "upcoming_payments",
                 "net_worth",
                 "month_breakdown",
+                "month_proof",
                 "list_payslips",
                 "finance_documents",
                 "finance_document_totals",

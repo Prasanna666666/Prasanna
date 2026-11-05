@@ -78,7 +78,7 @@ def test_the_agent_answers_when_its_figures_match_the_tools(conn):
     seed(conn)
     reply = "In October you spent 850.00 in total."  # 500 groceries... see seed: 50.00 + 800.00
     out = agent.chat(conn, [], "how much did I spend in October", client=Scripted(reply), model="m")
-    assert out == reply
+    assert out.startswith(reply) and "NOT PROVEN" in out  # no statement backs this invented data, and the answer says so
 
 
 def test_an_agent_answer_with_a_figure_no_tool_returned_is_never_shown(conn):

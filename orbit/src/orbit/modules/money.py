@@ -9,7 +9,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import audit, categorize, clock, dates, extract, insight, payslips, rates, standards, statements, verify
+from .. import audit, categorize, clock, dates, extract, insight, payslips, proof, rates, standards, statements, verify
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 from ..module import Module, N, S, Tool
@@ -688,6 +688,12 @@ MODULE = Module(
             "Where a month's spending comes from: by file, trips and events apart, the biggest payments, and anything that looks like it is not really spending.",
             {"month": S("YYYY-MM, default the newest month")},
             insight.month_breakdown,
+        ),
+        Tool(
+            "month_proof",
+            "Whether a month is PROVEN (every statement checked, balances join up, reports equal the ledger) or not, with each reason.",
+            {"month": S("YYYY-MM, default the newest month")},
+            proof.month_proof,
         ),
         Tool("net_worth", "The balance of every account in euros, month by month, from your proven statements.", {}, insight.net_worth),
         Tool("agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, agent_list),

@@ -270,6 +270,19 @@ def _health_note(conn) -> list[str]:
     return []
 
 
+def _proof_notes(conn, calls, months: list[str] | None) -> list[str]:
+    """A month that is not proven is said to be so, with the first reason, next to any figure from it."""
+    from . import proof
+
+    named = sorted({str(a["month"])[:7] for _, a, _ in calls if a.get("month")} | set(months or []))
+    notes = []
+    for m in named:
+        p = proof.month_proof(conn, {"month": m})
+        if not p["proven"]:
+            notes.append(f"{_label(m)} is NOT PROVEN: {p['reasons'][0]}.")
+    return notes
+
+
 def audit(conn, reply: str, turns: list[dict], months: list[str] | None = None) -> tuple[list[str], list[str]]:
     """Check an answer against your data at this moment. Returns (problems, notes).
     A problem means the answer must not be shown. A note is something you must be told alongside it.
@@ -283,4 +296,4 @@ def audit(conn, reply: str, turns: list[dict], months: list[str] | None = None) 
     if bad:
         problems.append("figures not returned by any tool: " + ", ".join(f"{n:,.2f}" for n in bad[:4]))
     problems += _stale(conn, calls) + _untied(conn, calls, months)
-    return problems, _health_note(conn)
+    return problems, [*_proof_notes(conn, calls, months), *_health_note(conn)]

@@ -242,17 +242,19 @@ pages.money = async () => {
   }
   async function draw(refreshTrend) {
     const trend = refreshTrend ? await tool('monthly_trend', { months: 12 }) : trend0;
-    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc] = await Promise.all([
+    const [sum, merchants, recurring, todo, slips, docs, docTotals, txs, evs, byMain, daily, inc, checks, ver, cc, pf] = await Promise.all([
       tool('spending_summary', { month }), tool('top_merchants', { month, limit: 8 }), tool('recurring_payments'), tool('uncategorised_spending'),
       tool('list_payslips', { limit: 12 }), tool('finance_documents', { limit: 200 }), tool('finance_document_totals', { by: 'kind' }),
-      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies')]);
+      tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }), tool('list_events'), tool('spending_by_main', { month }), tool('daily_spending', { month }), tool('income_summary', { month }), tool('files_to_check'), tool('verification_report'), tool('currencies'), tool('month_proof', { month })]);
     const curChips = cc.currencies.length > 1 || cc.currencies.some((c) => c.currency !== cc.main) ? h('div', { class: 'seg' }, [...cc.currencies, { currency: 'ALL', payments: 0, label: 'In euros' }].map((c) => h('button', { class: c.currency === cc.viewing ? 'on' : '', title: c.currency === 'ALL' ? 'Show everything in euros' : `${c.payments} payments`,
       onclick: guard(async () => { await api('/api/settings', { view_currency: c.currency }); location.reload(); }) }, c.label || c.currency))) : null;
     const nav = h('div', { class: 'monthnav' }, h('button', { 'aria-label': 'Previous month', onclick: () => step(-1) }, '‹'), h('span', {}, monthName(month)), h('button', { 'aria-label': 'Next month', onclick: () => step(1) }, '›'));
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
     const outingTotal = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
-    const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
+    const proofChip = h('button', { class: 'proof ' + (pf.proven ? 'ok' : 'bad'), title: pf.proven ? 'Every statement for this month passed its checks and the balances join up.' : pf.reasons.join('\n'),
+      onclick: () => { if (!pf.proven) alert('Not proven:\n\n' + pf.reasons.map((r) => '• ' + r).join('\n')); } }, pf.proven ? '✓ Proven' : '⚠ Not proven · tap to see why');
+    const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month), ' ', proofChip), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
       h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
         h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
     const trendCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Month by month'), h('span', { class: 'faint', style: { fontSize: '13px' } }, 'tap a bar')),

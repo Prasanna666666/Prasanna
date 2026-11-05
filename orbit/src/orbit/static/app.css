@@ -215,3 +215,6 @@ input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
 .summary { justify-content: space-between; } @media (min-width: 981px) { .summary > div:nth-child(2) { border-left: 1px solid var(--line); padding-left: 40px; } }
 
 .tick { width: 32px; height: 32px; border-radius: 50%; background: rgba(16,185,129,.15); color: var(--good); display: grid; place-items: center; font-weight: 800; }
+
+.proof { margin-left: 10px; border: 0; border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; background: rgba(255,255,255,.22); color: #fff; }
+.proof.bad { background: #fff; color: var(--bad); }
