@@ -12,7 +12,7 @@ import time
 from datetime import date
 from typing import Any
 
-from . import agents, llm
+from . import agents, answers, llm
 from .db import get_setting
 from .modules import ALL, tools as registry
 
@@ -80,17 +80,31 @@ def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=N
 
     `trace` (optional) receives {'agent': name, 'tools': [names]} so the UI can show who answered.
     """
+    quick = answers.answer(conn, user_text)  # the common money questions: exact, instant, no model
+    if quick:
+        history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": quick}])
+        if trace is not None:
+            trace.append({"agent": "instant", "tools": []})
+        return quick
     client = client or llm.OllamaClient(get_setting(conn, "ollama_host", "") or None)
     model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
     if hasattr(client, "resolve"):
         model = client.resolve(model)
-    client.deadline = time.monotonic() + REPLY_SECONDS  # one reply never takes longer than this
+    client.deadline = time.monotonic() + REPLY_SECONDS  # an open question: the assistant gets this long
     try:
         return _chat(conn, history, user_text, client, model, today, trace)
     except llm.Slow:
         done = [m["content"] for m in history[::-1] if m.get("role") == "tool"][:1]
-        return ("That took longer than " + str(REPLY_SECONDS) + " seconds, so I stopped. Try a shorter or more specific question." +
-                (f"\n\nWhat I had found so far:\n{done[0][:700]}" if done else ""))
+        if history and history[-1].get("role") == "user":
+            history.append({"role": "assistant", "content": ""})
+        found = ""
+        if done:
+            try:
+                found = answers.render_any(json.loads(done[0]))
+            except ValueError:
+                found = done[0][:700]
+        return ("This one needs more thinking than I can do in " + str(REPLY_SECONDS) + " seconds. " +
+                (f"Here is what I found:\n{found}" if found else "Ask it as a shorter question, such as \"How much did I spend last month?\"."))
     finally:
         client.deadline = None
 

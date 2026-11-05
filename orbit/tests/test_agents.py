@@ -125,8 +125,8 @@ def test_a_reply_never_runs_past_its_time_and_says_so(conn, monkeypatch):
         def chat(self, model, messages, tools=None, **kw):
             raise llm.Slow("out of time")
 
-    reply = agent.chat(conn, [], "how much did I spend on groceries?", client=Stuck(), model="m")
-    assert "longer than" in reply and Stuck().__class__ is not None
+    reply = agent.chat(conn, [], "what do you make of my finances overall?", client=Stuck(), model="m")
+    assert "more thinking than" in reply
 
 
 def test_the_client_refuses_to_start_a_call_after_the_deadline(monkeypatch):
