@@ -328,3 +328,134 @@ def money_detective(conn, a=None):
         p = proof.month_proof(conn, {"month": latest})
         items += [{"kind": "not proven", "text": r} for r in p["reasons"] if not p["proven"]]
     return {"items": items[:30]}
+
+
+# ---- budgets, bills, tax, merchants ------------------------------------------------------------------------------------------------
+def budget_progress(conn, a=None):
+    """Each monthly budget against what was spent in that category in the month (money in a trip or event is not counted: it is one-time)."""
+    from . import dates
+
+    month = (a or {}).get("month") or (conn.execute("SELECT MAX(substr(day,1,7)) FROM ledger").fetchone()[0] or clock.today().strftime("%Y-%m"))
+    start, end = dates.month_bounds(month)
+    spent = {
+        r["category"]: r["t"] / 100
+        for r in conn.execute(
+            "SELECT category, SUM(amount_minor) AS t FROM ledger WHERE kind='expense' AND category<>'transfers' AND event_id IS NULL AND day>=? AND day<? GROUP BY category",
+            (start, end),
+        )
+    }
+    out = []
+    for b in conn.execute("SELECT category, monthly_minor FROM budgets ORDER BY category"):
+        budget, used = b["monthly_minor"] / 100, spent.get(b["category"], 0.0)
+        out.append(
+            {
+                "category": b["category"],
+                "budget": budget,
+                "spent": round(used, 2),
+                "left": round(budget - used, 2),
+                "percent": round(used / budget * 100) if budget else None,
+                "over": used > budget,
+            }
+        )
+    return {"month": month, "currency": _currency(conn), "budgets": out}
+
+
+def bills_due(conn, a=None):
+    """What is coming: invoices with a due date that no payment of that amount has settled yet, and the regular payments expected soon."""
+    days = int((a or {}).get("days", 45))
+    today = clock.today()
+    bills = []
+    for d in conn.execute(
+        "SELECT name, party, due_date, doc_date, total_minor FROM finance_docs WHERE kind='invoice' AND due_date IS NOT NULL AND total_minor IS NOT NULL ORDER BY due_date"
+    ):
+        due = date.fromisoformat(d["due_date"])
+        if (due - today).days > days or (today - due).days > 30:
+            continue
+        paid = conn.execute(
+            "SELECT 1 FROM transactions WHERE kind='expense' AND amount_minor=? AND day>=? LIMIT 1",
+            (d["total_minor"], (date.fromisoformat(d["doc_date"] or d["due_date"]) - __import__("datetime").timedelta(days=5)).isoformat()),
+        ).fetchone()
+        if not paid:
+            bills.append(
+                {"what": d["party"] or d["name"], "amount": d["total_minor"] / 100, "due": d["due_date"], "in_days": (due - today).days, "kind": "invoice"}
+            )
+    regular = [
+        {"what": r["merchant"].title(), "amount": r["amount"], "due": r["due"], "in_days": r["in_days"], "kind": "regular"}
+        for r in insight.upcoming_payments(conn, {"days": days})
+    ]
+    items = sorted([*bills, *regular], key=lambda x: x["due"])
+    return {"currency": _currency(conn), "items": items, "total": round(sum(i["amount"] for i in items), 2)}
+
+
+def tax_summary(conn, a=None):
+    """The facts a tax return asks for, for one year, from your documents and statements: income, tax already paid, interest, investments, insurance, assessments
+    and the balance of your accounts on 1 January. Facts only: not tax advice, and not a return."""
+    year = str((a or {}).get("year") or (conn.execute("SELECT MAX(substr(day,1,4)) FROM transactions").fetchone()[0] or clock.today().year))
+    annual = conn.execute(
+        "SELECT gross_minor, tax_minor, net_minor FROM finance_docs WHERE kind='annual_statement' AND period LIKE ? ORDER BY doc_date DESC LIMIT 1",
+        (year + "%",),
+    ).fetchone()
+    slips = conn.execute(
+        "SELECT COUNT(*) AS n, SUM(gross_minor) AS gross, SUM(tax_minor) AS tax, SUM(net_minor) AS net, SUM(pension_minor) AS pension FROM payslips WHERE period LIKE ?",
+        (year + "-%",),
+    ).fetchone()
+    y = next((r for r in yearly_overview(conn)["years"] if r["year"] == year), None) or {}
+    january = [
+        {"account": f["account"][-4:], "balance": f["closing_minor"] / 100, "as_of": f["period_end"]}
+        for f in conn.execute(
+            "SELECT s.account, s.closing_minor, s.period_end FROM statement_files s WHERE s.account<>'' AND s.closing_minor IS NOT NULL AND s.period_end<=? "
+            "AND s.period_end=(SELECT MAX(period_end) FROM statement_files WHERE account=s.account AND period_end<=?) AND s.status='verified'",
+            (f"{year}-01-01", f"{year}-01-01"),
+        )
+    ]
+    letters = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT name, party, doc_date AS date, total_minor/100.0 AS amount FROM finance_docs WHERE kind='tax' AND doc_date LIKE ? ORDER BY doc_date",
+            (year + "%",),
+        )
+    ]
+    return {
+        "year": year,
+        "currency": _currency(conn),
+        "annual_statement": None
+        if annual is None
+        else {"gross": (annual["gross_minor"] or 0) / 100, "tax_withheld": (annual["tax_minor"] or 0) / 100, "net": (annual["net_minor"] or 0) / 100},
+        "payslips": {
+            "count": slips["n"],
+            "gross": (slips["gross"] or 0) / 100,
+            "tax_withheld": (slips["tax"] or 0) / 100,
+            "net": (slips["net"] or 0) / 100,
+            "pension": (slips["pension"] or 0) / 100,
+        },
+        "interest_received": y.get("interest", 0),
+        "paid_into_investments": y.get("invested", 0),
+        "insurance_paid": y.get("insurance", 0),
+        "balances_on_1_january": january,
+        "tax_letters": letters,
+        "note": "Facts from your own documents and statements, as a checklist for a tax return. Not tax advice.",
+    }
+
+
+def merchant_history(conn, a):
+    """One shop or payee over time: total, count, per month, and the latest payments."""
+    needle = str(a.get("merchant", "")).strip().lower()
+    if not needle:
+        raise ValueError("which merchant?")
+    al = insight._aliases(conn)
+    rows = [
+        r
+        for r in conn.execute("SELECT day, note, amount_minor, category, kind FROM ledger WHERE kind='expense' AND category<>'transfers' ORDER BY day DESC")
+        if needle in (insight._name(al, r["note"]) or "") or needle in (r["note"] or "").lower()
+    ]
+    by_month: dict[str, float] = defaultdict(float)
+    for r in rows:
+        by_month[r["day"][:7]] += r["amount_minor"] / 100
+    return {
+        "merchant": needle,
+        "currency": _currency(conn),
+        "payments": len(rows),
+        "total": round(sum(r["amount_minor"] for r in rows) / 100, 2),
+        "per_month": [{"month": m, "spent": round(v, 2)} for m, v in sorted(by_month.items())][-24:],
+        "latest": [{"day": r["day"], "amount": r["amount_minor"] / 100, "category": r["category"], "note": (r["note"] or "")[:50]} for r in rows[:15]],
+    }

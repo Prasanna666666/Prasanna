@@ -21,7 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from . import agent, applenotes, clock, db, insight, llm, log, netguard, tagging
+from . import agent, applenotes, clock, db, insight, llm, log, netguard, report, tagging
 from .modules import ALL, documents, money
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -207,6 +207,8 @@ def make_handler(state: State):
             path = self.path.split("?", 1)[0]
             if path in ("/", "/index.html"):
                 return self._file("index.html")
+            if path.startswith("/report/"):
+                return self._report(path[len("/report/") :])
             if path.startswith("/static/"):
                 return self._file(path[len("/static/") :])
             if path.startswith("/api/"):
@@ -216,6 +218,15 @@ def make_handler(state: State):
                     log.failed("request failed", exc, path=path)
                     return self._fail(500, f"{type(exc).__name__}: {exc}")
             self._fail(HTTPStatus.NOT_FOUND, "not found")
+
+        def _report(self, year: str) -> None:
+            if not (year.isdigit() and len(year) == 4):
+                return self._fail(HTTPStatus.NOT_FOUND, "not found")
+            conn = state.connect()
+            try:
+                self._send(200, report.year_report(conn, year).encode(), "text/html; charset=utf-8")
+            finally:
+                conn.close()
 
         def _file(self, name: str) -> None:
             target = (STATIC / name).resolve()

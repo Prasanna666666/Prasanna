@@ -9,7 +9,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import audit, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify
+from .. import audit, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 from ..module import INT, Module, N, S, Tool
@@ -104,6 +104,12 @@ MIGRATIONS = (
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, target_minor INTEGER NOT NULL, by_date TEXT, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     """,
+    """
+    CREATE TABLE IF NOT EXISTS holdings (                                        -- what you typed in: investments, assets (house, car), debts (loan, mortgage)
+        id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('investment','asset','debt')),
+        value_minor INTEGER NOT NULL, units REAL, price_minor INTEGER, currency TEXT NOT NULL DEFAULT 'EUR', as_of TEXT NOT NULL
+    );
+    """,
 )
 
 
@@ -138,6 +144,13 @@ def list_transactions(conn, a):
     if a.get("category"):
         where.append("t.category=?")
         args.append(a["category"].lower())
+    if a.get("query"):
+        where.append("t.note LIKE ?")
+        args.append("%" + str(a["query"]).replace("%", "").replace("_", "") + "%")
+    for col, op, key in (("t.amount_minor", ">=", "min_amount"), ("t.amount_minor", "<=", "max_amount")):
+        if a.get(key) is not None:
+            where.append(f"{col} {op} ?")
+            args.append(round(float(a[key]) * 100))
     sql = (
         "SELECT t.id, t.day, t.kind, t.category, t.note, t.amount_minor/100.0 AS amount, t.native_minor/100.0 AS original, "
         "COALESCE(NULLIF(t.currency,''), (SELECT COALESCE((SELECT value FROM settings WHERE key='currency'),'EUR'))) AS currency, t.event_id, t.sub, e.name AS event "
@@ -645,7 +658,15 @@ MODULE = Module(
         Tool(
             "list_transactions",
             "List transactions, newest first.",
-            {"since": S("YYYY-MM-DD"), "until": S("YYYY-MM-DD"), "category": S("Category"), "limit": N("Max rows")},
+            {
+                "since": S("YYYY-MM-DD"),
+                "until": S("YYYY-MM-DD"),
+                "category": S("Category"),
+                "query": S("Words in the description"),
+                "min_amount": N("At least this much"),
+                "max_amount": N("At most this much"),
+                "limit": N("Max rows"),
+            },
             list_transactions,
         ),
         Tool(
@@ -699,6 +720,52 @@ MODULE = Module(
             "Whether a month is PROVEN (every statement checked, balances join up, reports equal the ledger) or not, with each reason.",
             {"month": S("YYYY-MM, default the newest month")},
             proof.month_proof,
+        ),
+        Tool("wealth_summary", "Net worth: accounts (proven statements) plus investments and assets, minus debts (typed by you).", {}, wealth.wealth_summary),
+        Tool("accounts_overview", "Each account with its balance from the latest proven statement.", {}, wealth.accounts_overview),
+        Tool("list_holdings", "What you typed in: investments, assets and debts.", {}, wealth.list_holdings),
+        Tool(
+            "add_holding",
+            "Add an investment (units and price), an asset (house, car) or a debt (loan, mortgage).",
+            {
+                "name": S("Name"),
+                "kind": S("investment, asset or debt"),
+                "value": N("Value (or units and price)"),
+                "units": N("Units held"),
+                "price": N("Price per unit"),
+                "currency": S("Currency, default the main one"),
+                "as_of": S("Date YYYY-MM-DD"),
+            },
+            wealth.add_holding,
+            ("name", "kind"),
+        ),
+        Tool(
+            "update_holding",
+            "Give an entered holding a new value or price.",
+            {"id": INT("Holding id"), "value": N("New value"), "units": N("Units"), "price": N("New price per unit"), "as_of": S("Date YYYY-MM-DD")},
+            wealth.update_holding,
+            ("id",),
+        ),
+        Tool("delete_holding", "Remove an entered holding.", {"id": INT("Holding id")}, wealth.delete_holding, ("id",)),
+        Tool(
+            "budget_progress",
+            "Each monthly budget against what was spent in that category this month.",
+            {"month": S("YYYY-MM, default the newest month")},
+            planning.budget_progress,
+        ),
+        Tool("bills_due", "Bills and regular payments coming up: what, how much, when.", {"days": INT("How many days ahead, default 45")}, planning.bills_due),
+        Tool(
+            "tax_summary",
+            "The facts a tax return asks for, for one year, from your documents and statements. Not tax advice.",
+            {"year": S("YYYY, default the newest year")},
+            planning.tax_summary,
+        ),
+        Tool(
+            "merchant_history",
+            "One shop or payee over time: total, per month, latest payments.",
+            {"merchant": S("Name or part of it")},
+            planning.merchant_history,
+            ("merchant",),
         ),
         Tool("yearly_overview", "Per year: salary, money in, spent, saved, savings rate, interest, invested, insurance paid.", {}, planning.yearly_overview),
         Tool("interest_earned", "Interest received per year and the estimated yearly rate for each account that earns it.", {}, planning.interest),
