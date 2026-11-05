@@ -233,7 +233,7 @@ def make_handler(state: State):
             if path == "/api/import":
                 return self._json({"ok": True, "started": start_import(state)})
             if path == "/api/settings":
-                for key in ("currency", "view_currency", "model", "ollama_host"):
+                for key in ("currency", "view_currency", "model", "ollama_host", "reply_seconds"):
                     if isinstance(body.get(key), str):
                         db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
                 db.ledger_view(conn)

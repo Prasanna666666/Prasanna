@@ -132,3 +132,13 @@ def test_a_clean_answer_is_marked_checked(conn):
     trace = []
     agent.chat(conn, [], "how much did I spend in October", client=Scripted("In October you spent 850.00 in total."), model="m", trace=trace)
     assert "checked" in trace[0]["tools"]
+
+
+def test_the_agent_gets_thirty_seconds_by_default_and_the_limit_can_be_changed(conn):
+    from orbit import db
+
+    assert agent.reply_seconds(conn) == 30
+    db.set_setting(conn, "reply_seconds", "60")
+    assert agent.reply_seconds(conn) == 60
+    db.set_setting(conn, "reply_seconds", "1")
+    assert agent.reply_seconds(conn) == 10  # never so low that every answer is cut off

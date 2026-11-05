@@ -17,7 +17,14 @@ from .db import get_setting
 from .modules import ALL, tools as registry
 
 MAX_STEPS = 8
-REPLY_SECONDS = 10
+REPLY_SECONDS = 30  # how long the agent may work on one answer; change it in Settings (reply_seconds)
+
+
+def reply_seconds(conn) -> int:
+    try:
+        return max(10, min(180, int(get_setting(conn, "reply_seconds", str(REPLY_SECONDS)))))
+    except ValueError:
+        return REPLY_SECONDS
 
 
 def system_prompt(conn: sqlite3.Connection, today: date | None = None, role: str = "") -> str:
@@ -86,7 +93,7 @@ def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=N
         model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
         if hasattr(client, "resolve"):
             model = client.resolve(model)
-        client.deadline = time.monotonic() + REPLY_SECONDS  # the agent gets this long
+        client.deadline = time.monotonic() + reply_seconds(conn)  # the agent gets this long
         reply = _chat(conn, history, user_text, client, model, today, trace)
     except (llm.Slow, RuntimeError) as exc:  # too slow, or the model is not running
         return _fallback(conn, history, start, user_text, trace, exc)
@@ -120,7 +127,7 @@ def _fallback(conn, history, start, user_text, trace, exc, problems=()):
     if problems:
         reply = "I can't give you that figure with confidence: " + problems[0] + ". Open Money > Files to see what needs a check."
     else:
-        reply = f"This needs more thinking than I can do in {REPLY_SECONDS} seconds. Try a shorter question, such as \"How much did I spend last month?\"."
+        reply = f"This needs more thinking than I can do in {reply_seconds(conn)} seconds. Try a shorter question, such as \"How much did I spend last month?\"."
     history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": reply}])
     return reply
 
