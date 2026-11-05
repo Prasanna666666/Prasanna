@@ -7,6 +7,7 @@ investment portfolio, for example) says so instead of guessing."""
 from __future__ import annotations
 
 import itertools
+import re
 import statistics
 from collections import defaultdict
 from datetime import date
@@ -65,27 +66,40 @@ def yearly_overview(conn, a=None):
 
 # ---- interest ----------------------------------------------------------------------------------------------------------------------
 def interest(conn, a=None):
-    """Interest received per year, and an estimated yearly rate for each account that earns it: interest / the average of its closing balances."""
-    rows = conn.execute(
-        "SELECT substr(day,1,4) AS y, account, SUM(amount_minor) AS t FROM ledger WHERE kind='income' AND category='interest' GROUP BY y, account"
-    ).fetchall()
+    """Interest received per year, and an ESTIMATED yearly rate for each account that earns it. The rate uses only the interest earned inside the statement periods that
+    are loaded, divided by the average of those statements' closing balances, scaled to a full year by the days those statements cover."""
     out = []
-    for r in rows:
-        balances = [
-            x["closing_minor"]
-            for x in conn.execute(
-                "SELECT closing_minor FROM statement_files WHERE account=? AND substr(period_end,1,4)=? AND closing_minor IS NOT NULL", (r["account"], r["y"])
+    for r in conn.execute(
+        "SELECT substr(day,1,4) AS y, account, SUM(amount_minor) AS t FROM ledger WHERE kind='income' AND category='interest' GROUP BY y, account"
+    ).fetchall():
+        files = conn.execute(
+            "SELECT period_start, period_end, closing_minor FROM statement_files WHERE account=? AND substr(period_end,1,4)=? AND period_start IS NOT NULL AND closing_minor IS NOT NULL AND status='verified'",
+            (r["account"], r["y"]),
+        ).fetchall()
+        rate = average = None
+        if files:
+            days = sum((date.fromisoformat(f["period_end"]) - date.fromisoformat(f["period_start"])).days + 1 for f in files)
+            average = statistics.mean(f["closing_minor"] for f in files)
+            earned = sum(
+                x["amount_minor"]
+                for f in files
+                for x in conn.execute(
+                    "SELECT amount_minor FROM ledger WHERE kind='income' AND category='interest' AND account=? AND day>=? AND day<=?",
+                    (r["account"], f["period_start"], f["period_end"]),
+                )
             )
-        ]
-        average = statistics.mean(balances) if balances else None
+            if average > 0 and days > 0:
+                rate = round(earned / average * 365 / days * 100, 2)
         out.append(
             {
                 "year": r["y"],
                 "account": (r["account"] or "")[-4:],
                 "interest": r["t"] / 100,
-                "average_balance": round(average / 100, 2) if average else None,
-                "rate_percent": round(r["t"] / average * 100, 2) if average and average > 0 else None,
-                "note": "estimate: interest divided by the average of the statements' closing balances" if average else "no balances to compare with",
+                "average_balance": None if average is None else round(average / 100, 2),
+                "rate_percent": rate,
+                "note": "estimate: interest earned in the loaded statement periods, scaled to a year"
+                if rate is not None
+                else "no proven statement balance to compare with",
             }
         )
     return {"currency": _currency(conn), "by_year": sorted(out, key=lambda x: (x["year"], x["account"]))}
@@ -459,3 +473,33 @@ def merchant_history(conn, a):
         "per_month": [{"month": m, "spent": round(v, 2)} for m, v in sorted(by_month.items())][-24:],
         "latest": [{"day": r["day"], "amount": r["amount_minor"] / 100, "category": r["category"], "note": (r["note"] or "")[:50]} for r in rows[:15]],
     }
+
+
+# ---- family ------------------------------------------------------------------------------------------------------------------------
+def family_money(conn, a=None):
+    """Money between you and the people on your People list: payments whose description names them (a whole word, not a part of another word).
+    Nothing is guessed from amounts: a payment counts only if the name is printed on it. Totals per person and per year."""
+    out = []
+    ledger = conn.execute("SELECT day, kind, amount_minor, note FROM ledger WHERE category<>'transfers' AND event_id IS NULL AND source<>'derived'").fetchall()
+    for p in conn.execute("SELECT id, name, relation FROM people ORDER BY name"):
+        name = p["name"].strip()
+        if len(name) < 3:
+            continue
+        pattern = re.compile(r"(?<!\w)" + re.escape(name.lower()) + r"(?!\w)")
+        mine = [r for r in ledger if pattern.search((r["note"] or "").lower())]
+        by_year: dict[str, list[float]] = defaultdict(lambda: [0.0, 0.0])
+        for r in mine:
+            by_year[r["day"][:4]][0 if r["kind"] == "expense" else 1] += r["amount_minor"] / 100
+        out.append(
+            {
+                "id": p["id"],
+                "name": name,
+                "relation": p["relation"],
+                "payments": len(mine),
+                "sent": round(sum(r["amount_minor"] for r in mine if r["kind"] == "expense") / 100, 2),
+                "received": round(sum(r["amount_minor"] for r in mine if r["kind"] == "income") / 100, 2),
+                "last": max((r["day"] for r in mine), default=None),
+                "by_year": [{"year": y, "sent": round(v[0], 2), "received": round(v[1], 2)} for y, v in sorted(by_year.items())],
+            }
+        )
+    return {"currency": _currency(conn), "people": out, "note": "Counted only where the person's name is printed on the payment."}

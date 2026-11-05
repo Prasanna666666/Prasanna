@@ -38,7 +38,8 @@ def test_interest_rate_is_an_estimate_from_balances_and_says_so(year):
             (end, end, 1, 1, "verified", "NL2", end[:8] + "01", end, closing),
         )
     r = planning.interest(year)["by_year"][0]
-    assert r["interest"] == 70.0 and r["average_balance"] == 11000.0 and r["rate_percent"] == round(70 / 11000 * 100, 2) and "estimate" in r["note"]
+    # the whole year's interest is 70, but only June and December are covered by statements: 10 + 10 earned in 61 days on an average 11,000
+    assert r["interest"] == 70.0 and r["average_balance"] == 11000.0 and r["rate_percent"] == round(20 / 11000 * 365 / 61 * 100, 2) and "estimate" in r["note"]
 
 
 def test_investments_show_contributions_and_never_invent_a_value(year):
@@ -111,3 +112,19 @@ def test_the_detective_collects_the_odd_things(conn, monkeypatch):
     tx(conn, "2026-12-03", 4999, account="A", note="Zalando")
     kinds = {i["kind"] for i in planning.money_detective(conn)["items"]}
     assert "duplicate payments" in kinds and "not proven" in kinds
+
+
+def test_family_money_counts_a_payment_only_when_the_name_is_printed_on_it(conn):
+    from orbit.modules import people
+
+    people.add_person(conn, {"name": "Amma", "relation": "mother"})
+    people.add_person(conn, {"name": "Ann", "relation": "friend"})
+    tx(conn, "2026-03-01", 20000, note="Overboeking Amma maandelijks")
+    tx(conn, "2026-04-01", 20000, note="Overboeking amma maandelijks")
+    tx(conn, "2026-05-01", 5000, kind="income", note="Amma terug")
+    tx(conn, "2026-05-02", 7000, note="Hannah birthday gift")  # 'Ann' is inside 'Hannah': not a match
+    tx(conn, "2026-05-03", 3000, note="Ann lunch")
+    f = {p["name"]: p for p in planning.family_money(conn)["people"]}
+    assert f["Amma"]["payments"] == 3 and f["Amma"]["sent"] == 400.0 and f["Amma"]["received"] == 50.0 and f["Amma"]["last"] == "2026-05-01"
+    assert f["Ann"]["payments"] == 1 and f["Ann"]["sent"] == 30.0  # a whole word only
+    assert f["Amma"]["by_year"] == [{"year": "2026", "sent": 400.0, "received": 50.0}]

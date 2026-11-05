@@ -58,6 +58,7 @@ AGENTS: tuple[AgentSpec, ...] = (
                 "timeline",
                 "suggestions",
                 "money_detective",
+                "family_money",
                 "wealth_summary",
                 "accounts_overview",
                 "list_holdings",

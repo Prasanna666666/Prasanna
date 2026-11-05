@@ -767,6 +767,7 @@ MODULE = Module(
             planning.merchant_history,
             ("merchant",),
         ),
+        Tool("family_money", "Money between you and each person on your People list, where their name is printed on the payment.", {}, planning.family_money),
         Tool("yearly_overview", "Per year: salary, money in, spent, saved, savings rate, interest, invested, insurance paid.", {}, planning.yearly_overview),
         Tool("interest_earned", "Interest received per year and the estimated yearly rate for each account that earns it.", {}, planning.interest),
         Tool("investments", "What was paid into investments each year. The portfolio value needs broker statements.", {}, planning.investments),

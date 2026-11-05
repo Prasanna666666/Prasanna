@@ -404,7 +404,7 @@ pages.money = () => moneyPage('Money', ['daily', 'income', 'events', 'regular'],
 pages.documents = () => moneyPage('Documents', ['documents']);
 
 pages.plan = async () => {
-  const [yo, goals, fc, tl, look, det, bud, bills] = await Promise.all([tool('yearly_overview'), tool('list_goals'), tool('forecast', { months: 6 }), tool('timeline'), tool('suggestions'), tool('money_detective'), tool('budget_progress'), tool('bills_due')]);
+  const [yo, goals, fc, tl, look, det, bud, bills, ins] = await Promise.all([tool('yearly_overview'), tool('list_goals'), tool('forecast', { months: 6 }), tool('timeline'), tool('suggestions'), tool('money_detective'), tool('budget_progress'), tool('bills_due'), tool('insurances')]);
   cur = yo.currency || cur;
   const wanted = route();
   let tab = wanted === 'tax' ? 'tax' : 'overview', taxYear = '';
@@ -418,6 +418,8 @@ pages.plan = async () => {
   const overview = () => [
     bills.items.length ? section('Coming up', h('div', { class: 'list' }, bills.items.slice(0, 5).map((x) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.what), h('div', { class: 'faint small' }, x.in_days <= 0 ? 'now' : `in ${x.in_days} days · ${x.due}`)), h('div', { class: 'num' }, money(x.amount, 2)))))) : null,
     section('Years', yearTable),
+    ins.paid.length ? section('Insurance', h('div', { class: 'list' }, ins.paid.slice().reverse().map((x) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.insurer.charAt(0).toUpperCase() + x.insurer.slice(1)), h('div', { class: 'faint small' }, x.year)), h('div', { class: 'num strong' }, money(x.paid)))),
+      ins.total_per_year.length ? row(h('div', { class: 'grow faint' }, 'Total per year'), h('div', { class: 'num faint' }, ins.total_per_year.slice().reverse().map((t) => `${t.year}: ${money(t.paid)}`).join('  ·  '))) : null)) : null,
     lookItems.length ? section('Worth a look', h('div', { class: 'list' }, lookItems.slice(0, 12).map((x) => row(h('span', { class: 'chip' }, x.k), h('div', { class: 'grow' }, x.t))))) : null];
   const goalsTab = () => {
     const budCat = h('input', { class: 'field', placeholder: 'Category (groceries…)', style: { flex: 1 } }), budAmt = h('input', { class: 'field', type: 'number', placeholder: 'Per month', style: { width: '130px' } });
@@ -465,7 +467,7 @@ pages.plan = async () => {
 };
 
 pages.wealth = async () => {
-  const [w, accounts, holdings] = await Promise.all([tool('wealth_summary'), tool('accounts_overview'), tool('list_holdings')]);
+  const [w, accounts, holdings, inv, intr] = await Promise.all([tool('wealth_summary'), tool('accounts_overview'), tool('list_holdings'), tool('investments'), tool('interest_earned')]);
   const row = (...cells) => h('div', { class: 'item' }, ...cells);
   const card = (title, ...body) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, title)), ...body);
   const kind = h('select', { class: 'field', style: { width: '140px' } }, [['investment', 'Investment'], ['asset', 'Asset'], ['debt', 'Debt']].map(([v, t]) => h('option', { value: v }, t)));
@@ -484,6 +486,10 @@ pages.wealth = async () => {
     w.series.length > 1 ? card('Accounts over time', barChart(w.series.slice(-12).map((x) => ({ month: x.month, nw: x.eur })), w.series[w.series.length - 1].month, () => {}, 'nw')) : null,
     card('Accounts', accounts.length ? h('div', { class: 'list' }, accounts.map((a) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, a.label + ' · ' + a.currency), h('div', { class: 'faint', style: { fontSize: '13px' } }, 'as of ' + a.as_of)),
       a.proven ? null : h('span', { class: 'chip' }, 'check'), h('div', { class: 'num', style: { fontWeight: 650 } }, a.eur == null ? a.balance.toLocaleString() : money(a.eur))))) : h('div', { class: 'empty' }, 'No account balances yet. They come from your statements.')),
+    inv.contributed_by_year.length ? card('Invested', h('div', { class: 'list' }, inv.contributed_by_year.slice().reverse().map((y) => row(h('div', { class: 'grow' }, y.year, h('span', { class: 'faint small' }, `  ${y.payments} payments`)), h('div', { class: 'num strong' }, money(y.contributed))))),
+      inv.paid_out_to_you ? h('div', { class: 'faint small', style: { marginTop: '10px' } }, `Paid back to you: ${money(inv.paid_out_to_you)}`) : null, inv.note ? h('div', { class: 'faint small', style: { marginTop: '10px' } }, inv.note) : null) : null,
+    intr.by_year.length ? card('Interest', h('div', { class: 'list' }, intr.by_year.slice().reverse().map((y) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, `${y.year} · …${y.account}`), h('div', { class: 'faint small' }, y.rate_percent == null ? y.note : `about ${y.rate_percent}% a year on an average ${money(y.average_balance)}`)), h('div', { class: 'num strong good' }, money(y.interest, 2))))),
+      h('div', { class: 'faint small', style: { marginTop: '10px' } }, 'An estimate: interest earned in the statement periods loaded, scaled to a year.')) : null,
     card('You added', h('div', { class: 'faint', style: { fontSize: '13px', marginBottom: '10px' } }, 'Values you typed in. Update them when they change.'),
       h('div', { class: 'row', style: { marginBottom: '12px', flexWrap: 'wrap' } }, kind, name, value, units, price, h('button', { class: 'btn primary', onclick: add }, 'Add')),
       holdings.length ? h('div', { class: 'list' }, holdings.map((x) => row(h('span', { class: 'chip' }, x.kind), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.name), h('div', { class: 'faint', style: { fontSize: '13px' } }, (x.units ? `${x.units} × ${x.price} · ` : '') + 'as of ' + x.as_of)),
@@ -522,12 +528,13 @@ pages.notes = async () => {
 };
 
 pages.people = async () => {
-  const [people, dates] = await Promise.all([tool('list_people'), tool('upcoming_dates', { days: 60 })]);
+  const [people, dates, fam] = await Promise.all([tool('list_people'), tool('upcoming_dates', { days: 60 }), tool('family_money')]);
+  const famBy = Object.fromEntries(fam.people.map((x) => [x.id, x]));
   const name = h('input', { class: 'field', placeholder: 'Name' }), rel = h('input', { class: 'field', placeholder: 'Relation (mother, friend...)' }), about = h('input', { class: 'field', placeholder: 'About (health notes, likes...)' }), bday = h('input', { class: 'field', type: 'date', title: 'Birthday' });
   return h('div', { class: 'stack' }, head('People', `${people.length} people`),
     h('div', { class: 'card row', style: { flexWrap: 'wrap' } }, name, rel, about, bday, h('button', { class: 'btn primary', onclick: guard(async () => { if (!name.value.trim()) return; const p = await tool('add_person', { name: name.value, relation: rel.value, about: about.value }); if (bday.value) await tool('add_important_date', { person_id: p.id, label: 'Birthday', date: bday.value }); render(); }) }, 'Add')),
     h('div', { class: 'grid g-main' }, h('div', { class: 'grid g2' }, people.map((p) => h('div', { class: 'card person' }, h('div', { class: 'avatar', style: { background: colour(p.name), width: '48px', height: '48px', fontSize: '17px' } }, initials(p.name)),
-      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, p.name), h('div', { class: 'muted', style: { fontSize: '13px' } }, [p.relation, p.about].filter(Boolean).join(' · '))), h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_person', { id: p.id }); render(); }) }, 'Remove')))),
+      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, p.name), h('div', { class: 'muted', style: { fontSize: '13px' } }, [p.relation, p.about].filter(Boolean).join(' · ')), famBy[p.id] && famBy[p.id].payments ? h('div', { class: 'faint small' }, `Sent ${money(famBy[p.id].sent)} · received ${money(famBy[p.id].received)} · ${famBy[p.id].payments} payments`) : null), h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_person', { id: p.id }); render(); }) }, 'Remove')))),
       h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Next 60 days')), dates.length ? h('div', { class: 'list' }, dates.map((d) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${d.name} · ${d.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, d.in_days === 0 ? 'today' : `in ${d.in_days} days`)), d.turning ? h('span', { class: 'chip' }, `turning ${d.turning}`) : null))) : h('div', { class: 'empty' }, 'Nothing coming up.'))));
 };
 
