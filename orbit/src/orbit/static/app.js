@@ -1361,20 +1361,16 @@
         const tasks = b.tasks_due.slice(0, 4);
         const dates =
             d.upcoming && d.upcoming.length
-                ? d.upcoming
-                      .slice(0, 3)
-                      .map((u) => ({
-                          n: u.merchant,
-                          s: u.in_days <= 0 ? 'now' : `in ${u.in_days} days`,
-                          a: money(u.amount),
-                      }))
-                : b.upcoming_dates
-                      .slice(0, 3)
-                      .map((u) => ({
-                          n: `${u.name} · ${u.label}`,
-                          s: u.in_days === 0 ? 'today' : `in ${u.in_days} days`,
-                          a: u.turning ? `turning ${u.turning}` : '',
-                      }));
+                ? d.upcoming.slice(0, 3).map((u) => ({
+                      n: u.merchant,
+                      s: u.in_days <= 0 ? 'now' : `in ${u.in_days} days`,
+                      a: money(u.amount),
+                  }))
+                : b.upcoming_dates.slice(0, 3).map((u) => ({
+                      n: `${u.name} · ${u.label}`,
+                      s: u.in_days === 0 ? 'today' : `in ${u.in_days} days`,
+                      a: u.turning ? `turning ${u.turning}` : '',
+                  }));
         const today = section(
             'Today',
             tasks.length || dates.length
@@ -1927,38 +1923,36 @@
                     ? h(
                           'div',
                           { class: 'list' },
-                          recurring
-                              .slice(0, 8)
-                              .map((r) =>
+                          recurring.slice(0, 8).map((r) =>
+                              h(
+                                  'div',
+                                  { class: 'item' },
+                                  h('span', {
+                                      class: 'sw',
+                                      style: {
+                                          width: '10px',
+                                          height: '10px',
+                                          borderRadius: '4px',
+                                          background: colour(r.merchant),
+                                          flex: 'none',
+                                      },
+                                  }),
                                   h(
                                       'div',
-                                      { class: 'item' },
-                                      h('span', {
-                                          class: 'sw',
-                                          style: {
-                                              width: '10px',
-                                              height: '10px',
-                                              borderRadius: '4px',
-                                              background: colour(r.merchant),
-                                              flex: 'none',
-                                          },
-                                      }),
+                                      { class: 'grow', style: { textTransform: 'capitalize', fontWeight: 600 } },
+                                      r.merchant,
                                       h(
                                           'div',
-                                          { class: 'grow', style: { textTransform: 'capitalize', fontWeight: 600 } },
-                                          r.merchant,
-                                          h(
-                                              'div',
-                                              {
-                                                  class: 'faint',
-                                                  style: { fontSize: '12px', textTransform: 'none', fontWeight: 400 },
-                                              },
-                                              `${r.times} payments · last ${r.last}`
-                                          )
-                                      ),
-                                      h('div', { class: 'num', style: { fontWeight: 650 } }, money(r.typical_amount, 2))
-                                  )
+                                          {
+                                              class: 'faint',
+                                              style: { fontSize: '12px', textTransform: 'none', fontWeight: 400 },
+                                          },
+                                          `${r.times} payments · last ${r.last}`
+                                      )
+                                  ),
+                                  h('div', { class: 'num', style: { fontWeight: 650 } }, money(r.typical_amount, 2))
                               )
+                          )
                       )
                     : h('div', { class: 'empty' }, 'None found yet.')
             );
@@ -2005,57 +1999,51 @@
                                 h(
                                     'tbody',
                                     {},
-                                    other
-                                        .slice(0, 30)
-                                        .map((d) =>
+                                    other.slice(0, 30).map((d) =>
+                                        h(
+                                            'tr',
+                                            {},
                                             h(
-                                                'tr',
+                                                'td',
                                                 {},
                                                 h(
-                                                    'td',
-                                                    {},
-                                                    h(
-                                                        'span',
-                                                        {
-                                                            class: 'chip',
-                                                            style: {
-                                                                background: 'transparent',
-                                                                border: '1px solid var(--line-strong)',
-                                                                color: KIND[d.kind] || 'var(--muted)',
-                                                            },
+                                                    'span',
+                                                    {
+                                                        class: 'chip',
+                                                        style: {
+                                                            background: 'transparent',
+                                                            border: '1px solid var(--line-strong)',
+                                                            color: KIND[d.kind] || 'var(--muted)',
                                                         },
-                                                        h('span', {
-                                                            class: 'sw',
-                                                            style: { background: KIND[d.kind] || '#999' },
-                                                        }),
-                                                        d.kind
-                                                    )
-                                                ),
-                                                h(
-                                                    'td',
-                                                    {},
-                                                    h(
-                                                        'div',
-                                                        { style: { fontWeight: 600 } },
-                                                        d.party || d.title || d.name
-                                                    ),
-                                                    d.summary
-                                                        ? h(
-                                                              'div',
-                                                              { class: 'faint', style: { fontSize: '12px' } },
-                                                              d.summary
-                                                          )
-                                                        : null
-                                                ),
-                                                h('td', { class: 'num' }, d.date || '-'),
-                                                h('td', { class: 'num' }, d.due_date || '-'),
-                                                h(
-                                                    'td',
-                                                    { class: 'r num', style: { fontWeight: 650 } },
-                                                    d.total != null ? money(d.total, 2) : '-'
+                                                    },
+                                                    h('span', {
+                                                        class: 'sw',
+                                                        style: { background: KIND[d.kind] || '#999' },
+                                                    }),
+                                                    d.kind
                                                 )
+                                            ),
+                                            h(
+                                                'td',
+                                                {},
+                                                h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name),
+                                                d.summary
+                                                    ? h(
+                                                          'div',
+                                                          { class: 'faint', style: { fontSize: '12px' } },
+                                                          d.summary
+                                                      )
+                                                    : null
+                                            ),
+                                            h('td', { class: 'num' }, d.date || '-'),
+                                            h('td', { class: 'num' }, d.due_date || '-'),
+                                            h(
+                                                'td',
+                                                { class: 'r num', style: { fontWeight: 650 } },
+                                                d.total != null ? money(d.total, 2) : '-'
                                             )
                                         )
+                                    )
                                 )
                             )
                           : h('div', { class: 'empty' }, 'Nothing else yet.')
