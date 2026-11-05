@@ -21,6 +21,9 @@ const ICONS = {
   home: 'M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9',
   chat: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z',
   plan: 'M3 17l5-6 4 3 6-8M14 6h4v4',
+  sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+  moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
+  auto: 'M12 3a9 9 0 1 0 0 18V3Z',
   spending: 'M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 3h18M7 15h3',
   income: 'M12 19V5m0 0-5 5m5-5 5 5M5 21h14',
   wealth: 'M4 20V10m6 10V4m6 16v-7m4 7H2',
@@ -64,11 +67,22 @@ function toast(text, bad) {
 const guard = (fn) => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message, true); } };
 
 // ------------------------------------------------------------------ shell
-const PAGES = [['home', 'Home'], ['spending', 'Spending'], ['income', 'Income'], ['wealth', 'Wealth'], ['plan', 'Plan'], ['tax', 'Tax'], ['documents', 'Documents'], ['chat', 'Ask Orbit'], ['tasks', 'Tasks'], ['notes', 'Notes'], ['people', 'People'], ['files', 'Files'], ['money', 'Money'], ['settings', 'Settings']];
-const MENU = [['home', 'spending', 'income', 'wealth'], ['plan', 'tax', 'documents'], ['chat', 'tasks', 'notes', 'people'], ['settings']];  // 'files' is reached from Documents; 'money' is the old address of Spending
+const PAGES = [['home', 'Home'], ['money', 'Money'], ['wealth', 'Wealth'], ['plan', 'Plan'], ['documents', 'Documents'], ['chat', 'Ask'], ['tasks', 'Tasks'], ['notes', 'Notes'], ['people', 'People'], ['files', 'Files'], ['settings', 'Settings']];
+const MENU = [['home', 'money', 'wealth', 'plan', 'documents', 'chat'], ['tasks', 'notes', 'people'], ['settings']];  // 'files' is reached from Documents
+const ALIAS = { spending: 'money', income: 'money', tax: 'plan' };  // old addresses still work
 function buildNav() {
   const label = Object.fromEntries(PAGES);
-  $('#nav').replaceChildren(...MENU.flatMap((group, i) => [i ? h('div', { class: 'nav-gap' }) : null, ...group.map((id) => h('a', { class: 'nav-item', href: '#/' + id, 'data-id': id }, icon(id), h('span', {}, label[id])))]).filter(Boolean));
+  $('#nav').replaceChildren(...MENU.flatMap((group, i) => [i ? h('div', { class: 'nav-gap' }) : null, ...group.map((id) => h('a', { class: 'nav-item' + (i ? ' minor' : ''), href: '#/' + id, 'data-id': id, title: label[id] }, icon(id), h('span', {}, label[id])))]).filter(Boolean));
+}
+function applyTheme(mode) {
+  document.documentElement.dataset.theme = mode;
+  const b = $('#theme'); if (b) { b.replaceChildren(icon(mode === 'dark' ? 'moon' : mode === 'light' ? 'sun' : 'auto')); b.title = 'Theme: ' + mode; }
+}
+function setupTheme() {
+  let mode = 'auto'; try { mode = localStorage.getItem('orbit.theme') || 'auto'; } catch (_) { /* private window */ }
+  applyTheme(mode);
+  const b = $('#theme'); if (!b) return;
+  b.addEventListener('click', () => { mode = mode === 'auto' ? 'dark' : mode === 'dark' ? 'light' : 'auto'; try { localStorage.setItem('orbit.theme', mode); } catch (_) { /* ignore */ } applyTheme(mode); });
 }
 async function refreshStatus() {
   try {
@@ -80,7 +94,7 @@ async function refreshStatus() {
 }
 const route = () => (location.hash.replace('#/', '') || 'home').split('?')[0];
 async function render() {
-  const wanted = route(), id = PAGES.some(([p]) => p === wanted) ? wanted : 'home';
+  const wanted = ALIAS[route()] || route(), id = PAGES.some(([p]) => p === wanted) ? wanted : 'home';
   document.querySelectorAll('.nav-item').forEach((a) => a.classList.toggle('active', a.dataset.id === id));
   const main = $('#main');
   main.replaceChildren(h('div', { class: 'empty' }, 'Loading...'));
@@ -88,6 +102,30 @@ async function render() {
   try { main.replaceChildren(await pages[id]()); } catch (e) { main.replaceChildren(h('div', { class: 'card' }, h('h2', {}, 'Something went wrong'), h('p', { class: 'muted' }, e.message))); }
 }
 const head = (title, sub, ...right) => h('div', { class: 'page-head' }, h('div', {}, h('h1', {}, title), sub && h('div', { class: 'sub' }, sub)), h('div', { class: 'row' }, ...right));
+
+// ------------------------------------------------------------------ small components
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Numbers that count up when they appear (not for people who asked for less motion). */
+function countUp(el, value, fmt) {
+  if (REDUCED || !Number.isFinite(value)) { el.textContent = fmt(value); return el; }
+  const t0 = performance.now(), ms = 650;
+  const tick = (t) => { const k = Math.min(1, (t - t0) / ms); el.textContent = fmt(value * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(tick); };
+  requestAnimationFrame(tick); return el;
+}
+/** A small area chart of a few numbers, drawn in the accent colours. */
+function sparkline(values, w = 280, hgt = 70) {
+  const v = values.length > 1 ? values : [0, ...values, 0], max = Math.max(...v, 1), min = Math.min(...v, 0);
+  const x = (i) => (i / (v.length - 1)) * w, y = (n) => hgt - 6 - ((n - min) / (max - min || 1)) * (hgt - 14);
+  const line = v.map((n, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(n).toFixed(1)}`).join(' ');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`); svg.setAttribute('class', 'spark'); svg.setAttribute('preserveAspectRatio', 'none');
+  svg.innerHTML = `<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".45"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>`
+    + `<path d="${line} L${w} ${hgt} L0 ${hgt} Z" fill="url(#sg)"/><path d="${line}" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return svg;
+}
+/** One big number with a label: the building block of the overview rows. */
+const stat = (label, value, sub, href, tone) => h(href ? 'a' : 'div', { class: 'stat', href }, h('div', { class: 'eyebrow' }, label), h('div', { class: 'stat-v num ' + (tone || '') }, value), sub ? h('div', { class: 'stat-sub' }, sub) : null);
+const section = (title, ...body) => h('section', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, title)), ...body);
 
 // ------------------------------------------------------------------ charts
 function donut(data) {
@@ -154,42 +192,41 @@ const pages = {};
 
 pages.home = async () => {
   const d = await api('/api/home'); cur = d.currency;
-  const b = d.briefing, hour = new Date().getHours(), month = startMonth(d.trend);
+  const b = d.briefing, hour = new Date().getHours(), month = startMonth(d.trend), has = d.trend.length > 0;
   const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-  const [dueSoon, det, checks] = await Promise.all([tool('bills_due', { days: 21 }), tool('money_detective'), tool('files_to_check')]);
-  const [daily, byMain, sum] = d.trend.length ? await Promise.all([tool('daily_spending', { month }), tool('spending_by_main', { month }), tool('spending_summary', { month })]) : [[], [], { income: 0 }];
-  const ask = h('input', { class: 'field', placeholder: 'Ask anything…', style: { fontSize: '16px', padding: '16px 20px', borderRadius: '18px' } });
+  const [dueSoon, det, checks, nw, yo] = await Promise.all([tool('bills_due', { days: 21 }), tool('money_detective'), tool('files_to_check'), tool('wealth_summary'), tool('yearly_overview')]);
+  const [daily, byMain, sum] = has ? await Promise.all([tool('daily_spending', { month }), tool('spending_by_main', { month }), tool('spending_summary', { month })]) : [[], [], { income: 0 }];
+  const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net, oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0), spent = monthly + oneTime;
+  const before = daily.reduce((x, r) => x + r.before, 0), delta = before > 0 ? ((monthly - before) / before) * 100 : null;
+  const ask = h('input', { class: 'field ask', placeholder: 'Ask anything about your money…' });
   ask.addEventListener('keydown', (e) => { if (e.key === 'Enter' && ask.value.trim()) { sessionStorage.setItem('orbit.ask', ask.value.trim()); location.hash = '#/chat'; } });
-  const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
-  const outings = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
-  const before = daily.reduce((x, r) => x + r.before, 0), ch = before > 0 ? ((dayTotal - before) / before) * 100 : null;
-  const link = (label, value, good) => h('a', { class: 'quiet', href: '#/spending' }, h('span', { class: 'faint' }, label), h('span', { class: 'num ' + (good ? 'good' : ''), style: { fontWeight: 650 } }, value));
-  const money_ = d.trend.length ? [
-    h('div', { class: 'card summary' },
-      h('div', {}, h('div', { class: 'eyebrow' }, 'Monthly · ' + monthName(month)), h('div', { class: 'num', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(dayTotal)),
-        h('div', { class: 'muted' }, ch == null || Math.abs(ch) < 10 ? '\u00a0' : `${ch >= 0 ? '↑' : '↓'} ${Math.abs(ch).toFixed(0)}%`)),
-      h('div', {}, h('div', { class: 'eyebrow' }, 'Money in'), h('div', { class: 'num good', style: { fontSize: '44px', fontWeight: 750, letterSpacing: '-.03em', margin: '6px 0 4px' } }, money(sum.income)),
-        h('div', { class: 'muted' }, '\u00a0')),
-      h('div', { class: 'quiets' }, link('One-time', signed(outings, 0)), h('a', { class: 'btn small', href: '#/spending', style: { alignSelf: 'flex-start' } }, 'Money'))),
-    daily.length ? dailyTiles(daily.slice(0, 8), null, null) : null] :
-    [h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, tasks and notes. Private, on this Mac.'), h('a', { class: 'btn primary', href: '#/spending' }, 'Add my files'))];
-  const tasksCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'To do')),
-    b.tasks_due.length ? h('div', { class: 'list' }, b.tasks_due.map((t) => h('div', { class: 'item' },
-      h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
-      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint', style: { fontSize: '13px' } }, t.due || 'no date'))))) : h('div', { class: 'empty' }, 'All done.'));
-  const bills = d.upcoming || [];
-  const upCard = h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Coming up')),
-    bills.length ? h('div', { class: 'list' }, bills.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.merchant) } }, initials(u.merchant)),
-      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, u.merchant), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days <= 0 ? 'now' : `in ${u.in_days} days`)), h('span', { class: 'num' }, money(u.amount))))) :
-    b.upcoming_dates.length ? h('div', { class: 'list' }, b.upcoming_dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.name) } }, initials(u.name)),
-      h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, `${u.name} · ${u.label}`), h('div', { class: 'faint', style: { fontSize: '13px' } }, u.in_days === 0 ? 'today' : `in ${u.in_days} days`)), u.turning ? h('span', { class: 'chip' }, `turning ${u.turning}`) : null))) : h('div', { class: 'empty' }, 'Nothing coming up.'));
+  const big = h('div', { class: 'big num' }); countUp(big, spent, (v) => money(v));
+  const hero = h('div', { class: 'card hero' },
+    h('div', { class: 'hero-top' }, h('div', {}, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)), big,
+      delta == null || Math.abs(delta) < 10 ? null : h('span', { class: 'delta' }, `${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}% monthly vs before`)),
+      h('div', { class: 'hero-spark' }, sparkline(d.trend.slice(-8).map((t) => t.spent)))),
+    h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(monthly))), h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(oneTime, 0))), h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
+  const year = yo.years[yo.years.length - 1];
+  const stats = h('div', { class: 'grid g3' },
+    stat('Net worth', nw.net_worth == null ? '–' : money(nw.net_worth), nw.net_worth == null ? 'Comes from your statements' : `Accounts ${money(nw.accounts || 0)}`, '#/wealth'),
+    stat(year ? `Kept in ${year.year}` : 'Kept', year && year.savings_rate != null ? year.savings_rate + '%' : '–', year ? `${signed(year.saved, 0)} saved` : '', '#/plan', year && year.saved < 0 ? 'bad' : 'good'),
+    stat('Due in 3 weeks', money(dueSoon.total), `${dueSoon.items.length} payment${dueSoon.items.length === 1 ? '' : 's'}`, '#/plan'));
   const attention = [
-    ...dueSoon.items.slice(0, 3).map((b) => ({ k: b.kind === 'invoice' ? 'bill' : 'due', t: `${b.what} · ${money(b.amount, 2)} · ${b.in_days <= 0 ? 'now' : `in ${b.in_days} days`}` })),
+    ...dueSoon.items.filter((x) => x.kind === 'invoice').slice(0, 2).map((x) => ({ k: 'bill', t: `${x.what} · ${money(x.amount, 2)} · ${x.in_days <= 0 ? 'now' : `in ${x.in_days} days`}` })),
     ...(checks.length ? [{ k: 'check', t: `${checks.length} file${checks.length === 1 ? '' : 's'} need a look` }] : []),
-    ...det.items.slice(0, 3).map((x) => ({ k: x.kind, t: x.text }))];
-  const attentionCard = attention.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Needs a look'), h('a', { href: '#/plan', class: 'faint', style: { fontSize: '13px' } }, 'Plan')),
-    h('div', { class: 'list' }, attention.map((x) => h('div', { class: 'item' }, h('span', { class: 'chip' }, x.k), h('div', { class: 'grow' }, x.t))))) : null;
-  return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask, ...money_.filter(Boolean), attentionCard, h('div', { class: 'grid g2' }, tasksCard, upCard));
+    ...det.items.slice(0, 3).map((x) => ({ k: x.kind, t: x.text }))].slice(0, 4);
+  const attentionCard = attention.length ? section('Needs a look', h('div', { class: 'list' }, attention.map((x) => h('div', { class: 'item' }, h('span', { class: 'chip' }, x.k), h('div', { class: 'grow', style: { fontSize: '14.5px' } }, x.t))))) : null;
+  const tasks = b.tasks_due.slice(0, 4);
+  const dates = d.upcoming && d.upcoming.length ? d.upcoming.slice(0, 3).map((u) => ({ n: u.merchant, s: u.in_days <= 0 ? 'now' : `in ${u.in_days} days`, a: money(u.amount) })) : b.upcoming_dates.slice(0, 3).map((u) => ({ n: `${u.name} · ${u.label}`, s: u.in_days === 0 ? 'today' : `in ${u.in_days} days`, a: u.turning ? `turning ${u.turning}` : '' }));
+  const today = section('Today',
+    tasks.length || dates.length ? h('div', { class: 'list' },
+      ...tasks.map((t) => h('div', { class: 'item' }, h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
+        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint small' }, t.due || 'no date')))),
+      ...dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.n) } }, initials(u.n)), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, u.n), h('div', { class: 'faint small' }, u.s)), h('span', { class: 'num' }, u.a)))) : h('div', { class: 'empty' }, 'Nothing today.'));
+  const welcome = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, private on this Mac. Add your statements to begin.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my files'));
+  return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask,
+    ...(has ? [hero, stats, daily.length ? section('This month', (() => { const t = dailyTiles(daily.slice(0, 6), null, null); t.classList.add('cols3'); return t; })(), h('a', { class: 'more', href: '#/money' }, 'All spending →')) : null] : [welcome]),
+    h('div', { class: 'grid g2' }, ...[attentionCard, today].filter(Boolean)));
 };
 
 pages.chat = async () => {
@@ -224,12 +261,12 @@ pages.chat = async () => {
     h('div', { class: 'chat' }, msgs, h('div', { class: 'composer' }, input, sendBtn)));
 };
 
-async function moneyPage(title, allowed) {
+async function moneyPage(title, allowed, startTab) {
   const [trend0, settings] = await Promise.all([tool('monthly_trend', { months: 12 }), api('/api/settings')]);
   cur = settings.currency;
   const now = new Date().toISOString().slice(0, 7);
   let month = location.hash.split('?m=')[1] || startMonth(trend0);
-  let tab = allowed[0]; const openCats = new Set(); const openEvents = new Set();
+  let tab = startTab || allowed[0]; const openCats = new Set(); const openEvents = new Set();
   const wrap = h('div', { class: 'stack' });
   const importBtn = h('button', { class: 'btn primary', onclick: guard(startImport) }, 'Read my files');
   const status = h('div', { class: 'card', style: { display: 'none' } });
@@ -241,7 +278,7 @@ async function moneyPage(title, allowed) {
     status.style.display = s.running || s.result || s.error ? '' : 'none';
     if (s.running) {
       importBtn.disabled = true; importBtn.textContent = 'Reading...';
-      status.replaceChildren(h('div', { class: 'row' }, h('span', { class: 'chip' }, 'In progress'), h('div', { class: 'grow muted' }, s.progress || 'Starting...')), h('div', { class: 'progress' }));
+      status.replaceChildren(h('div', { class: 'row' }, h('span', { class: 'chip' }, 'In progress'), h('div', { class: 'grow muted' }, s.progress || 'Starting...')), h('div', { class: 'progress busy' }));
       setTimeout(poll, 1500); return;
     }
     importBtn.disabled = false; importBtn.textContent = 'Read my files';
@@ -341,7 +378,7 @@ async function moneyPage(title, allowed) {
         ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${plain(c.issues) || 'could not be read'}`))) :
       unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} not double-checked`))) : null;
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['daily', 'Monthly'], ['income', 'Income'], ['events', 'One-time'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
+    const tabs = [['daily', 'Spending'], ['income', 'Income'], ['events', 'One-time'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
     const tabBar = allowed.length < 2 ? null : h('div', { class: 'seg' }, tabs.filter(([id]) => allowed.includes(id)).map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
     const content = { daily: dailyPane, income: incomePane, events: eventsPane, regular: [recCard],
       documents: [statusCard, docCard, detailsFold, h('div', { class: 'muted', style: { textAlign: 'center' } }, h('a', { href: '#/files' }, 'Search all files'))] }[tab];
@@ -358,50 +395,73 @@ async function moneyPage(title, allowed) {
     const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Add your money'),
       h('p', { class: 'muted' }, 'Put your PDFs in your finance folder, then press the button.'),
       h('div', {}, importBtn));
-    wrap.replaceChildren(...[head(title, null, empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : (title === 'Documents' ? null : hero), empty || title !== 'Spending' ? null : searchBox, empty || title !== 'Spending' ? null : results, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
+    wrap.replaceChildren(...[head(title, null, empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : (title === 'Documents' ? null : hero), empty || title !== 'Money' ? null : searchBox, empty || title !== 'Money' ? null : results, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
   }
   await draw(false); poll();
   return wrap;
 }
-pages.spending = () => moneyPage('Spending', ['daily', 'events', 'regular']);
-pages.money = pages.spending;
-pages.income = () => moneyPage('Income', ['income']);
+pages.money = () => moneyPage('Money', ['daily', 'income', 'events', 'regular'], ({ income: 'income' })[route()]);
 pages.documents = () => moneyPage('Documents', ['documents']);
 
 pages.plan = async () => {
-  const [yo, goals, fc, tl, look, det, nw, inv, bud, bills] = await Promise.all([tool('yearly_overview'), tool('list_goals'), tool('forecast', { months: 6 }), tool('timeline'), tool('suggestions'), tool('money_detective'), tool('net_worth'), tool('investments'), tool('budget_progress'), tool('bills_due')]);
+  const [yo, goals, fc, tl, look, det, bud, bills] = await Promise.all([tool('yearly_overview'), tool('list_goals'), tool('forecast', { months: 6 }), tool('timeline'), tool('suggestions'), tool('money_detective'), tool('budget_progress'), tool('bills_due')]);
   cur = yo.currency || cur;
+  const wanted = route();
+  let tab = wanted === 'tax' ? 'tax' : 'overview', taxYear = '';
+  const wrap = h('div', { class: 'stack' }), body = h('div', { class: 'stack' });
   const row = (...cells) => h('div', { class: 'item' }, ...cells);
+  const col = (w, t, cls = '') => h('div', { class: 'num ' + cls, style: { width: w + 'px', textAlign: 'right' } }, t);
   const yearTable = yo.years.length ? h('div', { class: 'list' },
-    row(h('div', { class: 'grow faint' }, 'Year'), ...['Salary', 'Spent', 'Saved', 'Kept'].map((t) => h('div', { class: 'faint', style: { width: '96px', textAlign: 'right' } }, t))),
-    ...yo.years.slice().reverse().map((y) => row(h('div', { class: 'grow', style: { fontWeight: 650 } }, y.year + (y.months < 12 ? ` · ${y.months} mo` : '')),
-      h('div', { class: 'num', style: { width: '96px', textAlign: 'right' } }, money(y.salary)), h('div', { class: 'num', style: { width: '96px', textAlign: 'right' } }, money(y.spent)),
-      h('div', { class: 'num ' + (y.saved >= 0 ? 'good' : 'bad'), style: { width: '96px', textAlign: 'right' } }, signed(y.saved, 0)),
-      h('div', { class: 'num', style: { width: '96px', textAlign: 'right' } }, y.savings_rate == null ? '–' : y.savings_rate + '%')))) : h('div', { class: 'empty' }, 'No data yet.');
-  const budCat = h('input', { class: 'field', placeholder: 'Category (groceries…)', style: { flex: 1 } }), budAmt = h('input', { class: 'field', type: 'number', placeholder: 'Per month', style: { width: '130px' } });
-  const addBudget = guard(async () => { if (!budCat.value.trim() || !(+budAmt.value > 0)) return; await tool('set_budget', { category: budCat.value.trim(), monthly_amount: +budAmt.value }); render(); });
-  const name = h('input', { class: 'field', placeholder: 'Save for…', style: { flex: 1 } }), target = h('input', { class: 'field', type: 'number', placeholder: 'Amount', style: { width: '130px' } }), by = h('input', { class: 'field', type: 'date', style: { width: '160px' } });
-  const addGoal = guard(async () => { if (!name.value.trim() || !(+target.value > 0)) return; await tool('add_goal', { name: name.value.trim(), target: +target.value, by: by.value || undefined }); render(); });
-  const goalList = goals.goals.length ? h('div', { class: 'list' }, goals.goals.map((g) => h('div', { class: 'item', style: { display: 'block' } },
-    h('div', { class: 'row' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, g.name), h('span', { class: 'num' }, money(g.target)),
-      g.on_track === undefined ? null : h('span', { class: 'chip', style: g.on_track ? '' : 'background: var(--bad-soft, #fde8ec); color: var(--bad)' }, g.on_track ? 'on track' : 'behind'),
-      h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_goal', { id: g.id }); render(); }) }, 'Remove')),
-    g.percent == null ? null : h('div', { class: 'progress', style: { marginTop: '8px' } }, h('i', { style: { width: Math.min(100, g.percent) + '%' } })),
-    h('div', { class: 'faint', style: { fontSize: '13px', marginTop: '4px' } }, [g.percent == null ? 'No balance yet' : `${g.percent}% · ${money(g.have)} now`, g.by ? `by ${g.by}` : '', g.needed_per_month ? `${money(g.needed_per_month)}/month needed` : ''].filter(Boolean).join(' · '))))) : h('div', { class: 'empty' }, 'No goals yet.');
-  const fcCard = fc.months.length ? h('div', { class: 'list' }, fc.months.map((m) => row(h('div', { class: 'grow' }, monthName(m.month)), h('div', { class: 'num faint' }, (m.income - m.spent >= 0 ? '+' : '') + signed(m.income - m.spent, 0)), h('div', { class: 'num', style: { width: '110px', textAlign: 'right', fontWeight: 650 } }, m.balance == null ? '' : money(m.balance))))) : h('div', { class: 'empty' }, fc.note);
+    row(h('div', { class: 'grow faint' }, 'Year'), ...['Salary', 'Spent', 'Saved', 'Kept'].map((t) => h('div', { class: 'faint', style: { width: '88px', textAlign: 'right' } }, t))),
+    ...yo.years.slice().reverse().map((y) => row(h('div', { class: 'grow', style: { fontWeight: 650 } }, y.year + (y.months < 12 ? ` · ${y.months} mo` : '')), col(88, money(y.salary)), col(88, money(y.spent)), col(88, signed(y.saved, 0), y.saved >= 0 ? 'good' : 'bad'), col(88, y.savings_rate == null ? '–' : y.savings_rate + '%')))) : h('div', { class: 'empty' }, 'No data yet.');
   const lookItems = [...look.items.map((x) => ({ k: x.topic, t: x.text })), ...det.items.map((x) => ({ k: x.kind, t: x.text }))];
-  const card = (title, ...body) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, title)), ...body);
-  return h('div', { class: 'stack' }, head('Plan', nw.latest == null ? '' : `${money(nw.latest)} in all accounts`),
-    bills.items.length ? card('Coming up', h('div', { class: 'list' }, bills.items.slice(0, 8).map((b) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, b.what), h('div', { class: 'faint', style: { fontSize: '13px' } }, b.in_days <= 0 ? 'now' : `in ${b.in_days} days · ${b.due}`)), h('div', { class: 'num' }, money(b.amount, 2)))))) : null,
-    card('Years', yearTable),
-    card('Budgets', h('div', { class: 'row', style: { marginBottom: '12px' } }, budCat, budAmt, h('button', { class: 'btn primary', onclick: addBudget }, 'Set')),
-      bud.budgets.length ? h('div', { class: 'list' }, bud.budgets.map((b) => h('div', { class: 'item', style: { display: 'block' } }, h('div', { class: 'row' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, b.category.charAt(0).toUpperCase() + b.category.slice(1)),
-        h('span', { class: 'num ' + (b.over ? 'bad' : '') }, `${money(b.spent)} of ${money(b.budget)}`)), h('div', { class: 'progress', style: { marginTop: '8px' } }, h('i', { style: { width: Math.min(100, b.percent || 0) + '%', background: b.over ? 'var(--bad)' : '' } }))))) : h('div', { class: 'empty' }, 'No budgets yet.')),
-    card('Goals', h('div', { class: 'row', style: { marginBottom: '12px' } }, name, target, by, h('button', { class: 'btn primary', onclick: addGoal }, 'Add')), goalList),
-    card('Next months', h('div', { class: 'faint', style: { fontSize: '13px', marginBottom: '8px' } }, fc.months.length ? 'An estimate from your last six months' : ''), fcCard),
-    lookItems.length ? card('Worth a look', h('div', { class: 'list' }, lookItems.slice(0, 12).map((x) => row(h('span', { class: 'chip' }, x.k), h('div', { class: 'grow' }, x.t))))) : null,
-    inv.contributed_by_year.length ? card('Invested', h('div', { class: 'list' }, inv.contributed_by_year.slice().reverse().map((y) => row(h('div', { class: 'grow' }, y.year), h('div', { class: 'num' }, money(y.contributed))))), h('div', { class: 'faint', style: { fontSize: '13px', marginTop: '8px' } }, inv.note)) : null,
-    card('Timeline', tl.items.length ? h('div', { class: 'list' }, tl.items.slice(0, 20).map((x) => row(h('div', { class: 'faint', style: { width: '104px', whiteSpace: 'nowrap' } }, x.date), h('div', { class: 'grow' }, x.what)))) : h('div', { class: 'empty' }, 'Nothing yet.')));
+  const overview = () => [
+    bills.items.length ? section('Coming up', h('div', { class: 'list' }, bills.items.slice(0, 5).map((x) => row(h('div', { class: 'grow' }, h('div', { style: { fontWeight: 650 } }, x.what), h('div', { class: 'faint small' }, x.in_days <= 0 ? 'now' : `in ${x.in_days} days · ${x.due}`)), h('div', { class: 'num' }, money(x.amount, 2)))))) : null,
+    section('Years', yearTable),
+    lookItems.length ? section('Worth a look', h('div', { class: 'list' }, lookItems.slice(0, 12).map((x) => row(h('span', { class: 'chip' }, x.k), h('div', { class: 'grow' }, x.t))))) : null];
+  const goalsTab = () => {
+    const budCat = h('input', { class: 'field', placeholder: 'Category (groceries…)', style: { flex: 1 } }), budAmt = h('input', { class: 'field', type: 'number', placeholder: 'Per month', style: { width: '130px' } });
+    const addBudget = guard(async () => { if (!budCat.value.trim() || !(+budAmt.value > 0)) return; await tool('set_budget', { category: budCat.value.trim(), monthly_amount: +budAmt.value }); render(); });
+    const name = h('input', { class: 'field', placeholder: 'Save for…', style: { flex: 1 } }), target = h('input', { class: 'field', type: 'number', placeholder: 'Amount', style: { width: '130px' } }), by = h('input', { class: 'field', type: 'date', style: { width: '160px' } });
+    const addGoal = guard(async () => { if (!name.value.trim() || !(+target.value > 0)) return; await tool('add_goal', { name: name.value.trim(), target: +target.value, by: by.value || undefined }); render(); });
+    return [
+      section('Goals', h('div', { class: 'row form' }, name, target, by, h('button', { class: 'btn primary', onclick: addGoal }, 'Add')),
+        goals.goals.length ? h('div', { class: 'list' }, goals.goals.map((g) => h('div', { class: 'item block' },
+          h('div', { class: 'row' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, g.name), h('span', { class: 'num' }, money(g.target)),
+            g.on_track === undefined ? null : h('span', { class: 'chip ' + (g.on_track ? '' : 'bad') }, g.on_track ? 'on track' : 'behind'),
+            h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_goal', { id: g.id }); render(); }) }, 'Remove')),
+          g.percent == null ? null : h('div', { class: 'progress' }, h('i', { style: { width: Math.min(100, g.percent) + '%' } })),
+          h('div', { class: 'faint small' }, [g.percent == null ? 'No balance yet' : `${g.percent}% · ${money(g.have)} now`, g.by ? `by ${g.by}` : '', g.needed_per_month ? `${money(g.needed_per_month)}/month needed` : ''].filter(Boolean).join(' · '))))) : h('div', { class: 'empty' }, 'No goals yet.')),
+      section('Budgets', h('div', { class: 'row form' }, budCat, budAmt, h('button', { class: 'btn primary', onclick: addBudget }, 'Set')),
+        bud.budgets.length ? h('div', { class: 'list' }, bud.budgets.map((x) => h('div', { class: 'item block' }, h('div', { class: 'row' }, h('div', { class: 'grow', style: { fontWeight: 650 } }, x.category.charAt(0).toUpperCase() + x.category.slice(1)),
+          h('span', { class: 'num ' + (x.over ? 'bad' : '') }, `${money(x.spent)} of ${money(x.budget)}`)), h('div', { class: 'progress' }, h('i', { class: x.over ? 'over' : '', style: { width: Math.min(100, x.percent || 0) + '%' } }))))) : h('div', { class: 'empty' }, 'No budgets yet.'))];
+  };
+  const outlook = () => [
+    section('Next months', h('div', { class: 'faint small', style: { marginBottom: '8px' } }, fc.months.length ? 'An estimate from your last six months' : ''),
+      fc.months.length ? h('div', { class: 'list' }, fc.months.map((m) => row(h('div', { class: 'grow' }, monthName(m.month)), h('div', { class: 'num faint' }, (m.income - m.spent >= 0 ? '+' : '') + signed(m.income - m.spent, 0)), col(110, m.balance == null ? '' : money(m.balance), 'strong')))) : h('div', { class: 'empty' }, fc.note)),
+    section('Timeline', tl.items.length ? h('div', { class: 'list' }, tl.items.slice(0, 20).map((x) => row(h('div', { class: 'faint', style: { width: '104px', whiteSpace: 'nowrap' } }, x.date), h('div', { class: 'grow' }, x.what)))) : h('div', { class: 'empty' }, 'Nothing yet.'))];
+  async function taxTab() {
+    const years = yo.years.map((y) => y.year).reverse();
+    taxYear = taxYear || years[0] || String(new Date().getFullYear());
+    const t = await tool('tax_summary', { year: taxYear }); cur = t.currency || cur;
+    const rows = [], a = t.annual_statement;
+    if (a) rows.push(['Annual statement · gross', money(a.gross)], ['Annual statement · tax withheld', money(a.tax_withheld)], ['Annual statement · net', money(a.net)]);
+    if (t.payslips.count) rows.push([`Payslips (${t.payslips.count}) · gross`, money(t.payslips.gross)], ['Payslips · tax withheld', money(t.payslips.tax_withheld)], ['Payslips · pension', money(t.payslips.pension)]);
+    rows.push(['Interest received', money(t.interest_received, 2)], ['Paid into investments', money(t.paid_into_investments)], ['Insurance paid', money(t.insurance_paid)]);
+    t.balances_on_1_january.forEach((x) => rows.push([`Balance on 1 January · …${x.account}`, money(x.balance)]));
+    t.tax_letters.forEach((l) => rows.push([`Tax letter ${l.date} · ${l.party || l.name}`, money(l.amount, 2)]));
+    const picker = h('div', { class: 'seg' }, (years.length ? years : [taxYear]).map((y) => h('button', { class: y === taxYear ? 'on' : '', onclick: () => { taxYear = y; show(); } }, y)));
+    return [h('div', { class: 'row between' }, picker, h('a', { class: 'btn primary', href: '/report/' + taxYear, target: '_blank' }, 'Print year report')),
+      section('Facts for your return', h('div', { class: 'list' }, rows.map(([k, v]) => row(h('div', { class: 'grow' }, k), h('div', { class: 'num strong' }, v))))), h('div', { class: 'muted small center' }, t.note)];
+  }
+  const tabs = [['overview', 'Overview'], ['goals', 'Goals & budgets'], ['outlook', 'Outlook'], ['tax', 'Tax']];
+  async function show() {
+    const content = tab === 'overview' ? overview() : tab === 'goals' ? goalsTab() : tab === 'outlook' ? outlook() : await taxTab();
+    body.replaceChildren(...content.filter(Boolean));
+    wrap.replaceChildren(head('Plan', null, h('div', { class: 'seg' }, tabs.map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; show(); } }, label)))), body);
+  }
+  await show();
+  return wrap;
 };
 
 pages.wealth = async () => {
@@ -431,29 +491,6 @@ pages.wealth = async () => {
         h('button', { class: 'btn ghost small', onclick: guard(async () => { const v = prompt('New ' + (x.units ? 'price per unit' : 'value') + ' for ' + x.name, x.units ? x.price : x.value); if (v == null || isNaN(+v)) return; await tool('update_holding', { id: x.id, ...(x.units ? { price: +v } : { value: +v }) }); render(); }) }, 'Update'),
         h('button', { class: 'btn ghost small', onclick: guard(async () => { await tool('delete_holding', { id: x.id }); render(); }) }, 'Remove')))) : h('div', { class: 'empty' }, 'Nothing added yet.')),
     h('div', { class: 'muted', style: { fontSize: '13px', textAlign: 'center' } }, w.note));
-};
-
-pages.tax = async () => {
-  const yo = await tool('yearly_overview');
-  const years = yo.years.map((y) => y.year).reverse();
-  let year = location.hash.split('?y=')[1] || years[0] || String(new Date().getFullYear());
-  const wrap = h('div', { class: 'stack' });
-  async function draw() {
-    const t = await tool('tax_summary', { year }); cur = t.currency || cur;
-    const rows = [];
-    const a = t.annual_statement;
-    if (a) rows.push(['Annual statement · gross', money(a.gross)], ['Annual statement · tax withheld', money(a.tax_withheld)], ['Annual statement · net', money(a.net)]);
-    if (t.payslips.count) rows.push([`Payslips (${t.payslips.count}) · gross`, money(t.payslips.gross)], ['Payslips · tax withheld', money(t.payslips.tax_withheld)], ['Payslips · pension', money(t.payslips.pension)]);
-    rows.push(['Interest received', money(t.interest_received, 2)], ['Paid into investments', money(t.paid_into_investments)], ['Insurance paid', money(t.insurance_paid)]);
-    t.balances_on_1_january.forEach((b) => rows.push([`Balance on 1 January · …${b.account}`, money(b.balance)]));
-    t.tax_letters.forEach((l) => rows.push([`Tax letter ${l.date} · ${l.party || l.name}`, money(l.amount, 2)]));
-    const picker = h('div', { class: 'seg' }, (years.length ? years : [year]).map((y) => h('button', { class: y === year ? 'on' : '', onclick: () => { year = y; draw(); } }, y)));
-    wrap.replaceChildren(head('Tax', 'Facts for your return, from your documents', picker, h('a', { class: 'btn primary', href: '/report/' + year, target: '_blank' }, 'Print year report')),
-      h('div', { class: 'card' }, h('div', { class: 'list' }, rows.map(([k, v]) => h('div', { class: 'item' }, h('div', { class: 'grow' }, k), h('div', { class: 'num', style: { fontWeight: 650 } }, v))))),
-      h('div', { class: 'muted', style: { fontSize: '13px', textAlign: 'center' } }, t.note));
-  }
-  await draw();
-  return wrap;
 };
 
 pages.tasks = async () => {
@@ -522,5 +559,6 @@ pages.settings = async () => {
 
 // ------------------------------------------------------------------ start
 buildNav(); refreshStatus(); setInterval(refreshStatus, 20000);
+setupTheme();
 api('/api/settings').then((s) => { cur = s.currency; }).finally(() => { window.addEventListener('hashchange', render); render(); });
 })();
