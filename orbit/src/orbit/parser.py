@@ -170,6 +170,11 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _done(out: Path, digest: str) -> bool:
+    """Has this content been read? A marker with no content in it is kept, because the readable copy is deleted once the app has stored it."""
+    return (out / ".done" / digest).exists() or (out / f"{digest}.json").exists()
+
+
 def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) -> None:
     doc = {
         "schema": SCHEMA,
@@ -182,6 +187,8 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) 
     }
     tmp = out / f".{digest}.tmp"
     tmp.write_text(json.dumps(doc, ensure_ascii=False))
+    (out / ".done").mkdir(exist_ok=True)
+    (out / ".done" / digest).touch()
     os.replace(tmp, out / f"{digest}.json")  # atomic: the app never sees a half-written file
 
 
@@ -196,7 +203,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     digest = sha256(f)
     if area:
         digest = hashlib.sha256((area + digest).encode()).hexdigest()  # the same file in two folders is two documents
-    if (out / f"{digest}.json").exists():
+    if _done(out, digest):
         return
     try:
         if suffix == ".mbox" and depth == 0:
@@ -237,7 +244,7 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
             inner.write_bytes(raw)
             _process(inner, f"{label}/{n:05d} {readers.mail_subject(raw)}.eml", out, area, isolated, counts, 1)
     seen.parent.mkdir(parents=True, exist_ok=True)
-    seen.write_text(label)
+    seen.touch()  # empty: a mail's name can be its subject, and nothing readable is kept here
 
 
 def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "", skip_folders: frozenset[str] = frozenset()) -> dict[str, int]:

@@ -4,6 +4,7 @@ never create, change or delete. Text inside documents is untrusted data and is n
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -39,6 +40,7 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
     """Load parser output. Strict validation: anything unexpected is skipped, never partially trusted."""
     people = [dict(r) for r in conn.execute("SELECT name FROM people")]
     new = known = rejected = 0
+    stored: list[Path] = []
     root = directory.resolve()
     for f in sorted(root.glob("*.json")):
         try:
@@ -77,7 +79,11 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
         )
         new += cur.rowcount
         known += 1 - cur.rowcount
+        stored.append(f)
     conn.commit()
+    if os.access(directory, os.W_OK):
+        for f in stored:  # the text now lives only in the encrypted database: the readable copy is removed as soon as it is safely stored
+            f.unlink(missing_ok=True)
     return {"new": new, "known": known, "rejected": rejected}
 
 

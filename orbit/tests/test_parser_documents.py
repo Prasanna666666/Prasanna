@@ -58,7 +58,7 @@ def test_ingest_validates_strictly(conn, tmp_path):
     _put(tmp_path, _doc(sha256="e" * 64), stem="f" * 64)  # name/hash mismatch
     (tmp_path / "junk.json").write_text("{not json")
     assert documents.ingest_dir(conn, tmp_path) == {"new": 1, "known": 0, "rejected": 5}
-    assert documents.ingest_dir(conn, tmp_path)["known"] == 1  # idempotent
+    assert documents.ingest_dir(conn, tmp_path) == {"new": 0, "known": 0, "rejected": 5}  # the stored one was deleted; nothing is stored twice
 
 
 def test_search_and_read_documents(conn, tmp_path):

@@ -3,7 +3,7 @@
 import json
 
 from orbit import extract, parser, relevance
-from orbit.modules import money
+from orbit.modules import documents, money
 from tests.test_finance import FakeModel, _load
 
 
@@ -94,3 +94,15 @@ def test_any_document_is_read_once_and_any_app_can_ask_for_its_kind(tmp_path, co
     money.import_statements(conn, client=FakeModel(kind=kind), model="fake")
     rows = money.documents_of_kind(conn, {"kind": "medical"})
     assert [r["title"] for r in rows] == ["Blood test"] and money.documents_of_kind(conn, {"kind": "ticket"}) == []
+
+
+def test_the_readable_copy_is_deleted_once_stored_and_the_file_is_not_read_again(tmp_path, conn):
+    inbox, out = tmp_path / "in", tmp_path / "parsed"
+    inbox.mkdir()
+    (inbox / "letter.txt").write_text("Invoice for the hotel, total EUR 100,00. Very personal text.")
+    assert parser.process_inbox(inbox, out, isolated=False)["parsed"] == 1
+    assert documents.ingest_dir(conn, out)["new"] == 1
+    assert not list(out.glob("*.json"))  # no readable copy is left on disk
+    assert not any("Very personal" in p.read_text(errors="ignore") for p in out.rglob("*") if p.is_file())
+    assert parser.process_inbox(inbox, out, isolated=False)["parsed"] == 0  # remembered by a marker with no content
+    assert conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1

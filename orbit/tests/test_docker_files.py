@@ -16,10 +16,10 @@ def test_parser_has_no_network_and_cannot_write_inbox():
     assert p["read_only"] is True and p["cap_drop"] == ["ALL"] and p["mem_limit"] and p["pids_limit"]
 
 
-def test_app_reads_parser_output_read_only_and_has_no_internet():
+def test_app_deletes_parser_output_after_storing_it_and_has_no_internet():
     a = S["app"]
     assert a["networks"] == ["private"] and C["networks"]["private"]["internal"] is True
-    assert "orbit-parsed:/parsed:ro" in a["volumes"]
+    assert "orbit-parsed:/parsed" in a["volumes"]  # writable only so the readable copy can be deleted once stored in the encrypted database
     assert a["build"]["target"] == "app" and S["parser"]["build"]["target"] == "parser"
     assert a["read_only"] is True and a["cap_drop"] == ["ALL"]
 

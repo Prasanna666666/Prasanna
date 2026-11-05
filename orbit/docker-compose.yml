@@ -42,7 +42,7 @@ services:
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
     volumes:
       - orbit-data:/data
-      - orbit-parsed:/parsed:ro   # parser output, read-only
+      - orbit-parsed:/parsed        # parser output; the app only deletes a readable copy once it is in the encrypted database
       - ${HOME}/OrbitInbox:/inbox:ro
     networks: [private]
     depends_on: [ollama]
