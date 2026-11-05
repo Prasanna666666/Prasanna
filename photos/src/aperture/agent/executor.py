@@ -20,18 +20,18 @@ from datetime import date, timedelta
 from typing import Any
 
 import numpy as np
+from images.db import chunked, in_clause
+from images.ml.protocols import ImageEmbedder
+from images.people.repository import named_people, resolve_name
+from images.search.dates import resolve
+from images.search.embeddings import EmbeddingIndex
+from images.search.filters import Filters, apply_filters
+from images.search.geo import GeoIndex
+from images.search.metadata import all_ids, date_ids, path_ids, place_ids, remembered
+from images.search.quick import quick_ids
+from images.search.text import search_text_ids
+from images.search.visual import VisualSearch
 
-from ..db import chunked, in_clause
-from ..ml.protocols import ImageEmbedder
-from ..people.repository import named_people, resolve_name
-from ..search.dates import resolve
-from ..search.embeddings import EmbeddingIndex
-from ..search.filters import Filters, apply_filters
-from ..search.geo import GeoIndex
-from ..search.metadata import all_ids, date_ids, path_ids, place_ids, remembered
-from ..search.quick import quick_ids
-from ..search.text import search_text_ids
-from ..search.visual import VisualSearch
 from .schema import Clause, Plan
 
 log = logging.getLogger(__name__)
@@ -430,7 +430,7 @@ class Executor:
 
     def _estimated_ids(self, query: str) -> np.ndarray:
         """Photos with no GPS of their own, located from the photos around them in time (kept only where that tested >= 80% accurate)."""
-        from ..search.metadata import estimated_place_ids
+        from images.search.metadata import estimated_place_ids
 
         try:
             ids = estimated_place_ids(self._conn, query)
@@ -445,7 +445,7 @@ class Executor:
                     ).fetchall(),
                 )
                 if rows:
-                    from ..search.filters import haversine_km
+                    from images.search.filters import haversine_km
 
                     near = np.array([r[0] for r in rows], np.int64)
                     dist = haversine_km(found[0], found[1], np.array([r[1] for r in rows]), np.array([r[2] for r in rows]))
@@ -510,7 +510,7 @@ class Executor:
         return np.setdiff1d(ids, np.array(drop, np.int64))
 
     def _near_the_anchors(self, ids: np.ndarray, anchors: np.ndarray, km: float = 300.0) -> np.ndarray:
-        from ..search.filters import haversine_km
+        from images.search.filters import haversine_km
 
         def positions(of: np.ndarray) -> np.ndarray:
             out = []
@@ -556,7 +556,7 @@ class Executor:
 
     def _vision_agrees(self, term: str) -> np.ndarray:
         """Photos whose Apple Vision labels share a word with the term (confident labels only)."""
-        from ..search.textnorm import tokens
+        from images.search.textnorm import tokens
 
         words = [w for w in tokens(term) if len(w) >= 3]
         if not words:

@@ -11,8 +11,8 @@ import time
 import urllib.request
 from pathlib import Path
 
-from .config import Paths, default_paths
-from .safety import enable_offline_guard
+from images.config import Paths, default_paths
+from images.safety import enable_offline_guard
 
 DEFAULT_PORT = 8765
 APP_NAME = "Atlas Photos"  # what the macOS launcher is called; the address below does not depend on it

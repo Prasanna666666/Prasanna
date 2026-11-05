@@ -11,9 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..colors import COLORS
-from ..search.dates import RELATIVE, DateSpec
-from ..search.filters import DAY_TYPES, KINDS, ORIENTATIONS, QUALITIES, TIMES_OF_DAY, TRISTATE, Filters
+from images.colors import COLORS
+from images.search.dates import RELATIVE, DateSpec
+from images.search.filters import DAY_TYPES, KINDS, ORIENTATIONS, QUALITIES, TIMES_OF_DAY, TRISTATE, Filters
 
 ENGINES = ("visual", "text", "path", "person", "place")
 INTENTS = ("find", "count", "export", "chat", "clarify", "question")

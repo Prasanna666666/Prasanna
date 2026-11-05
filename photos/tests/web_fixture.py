@@ -8,11 +8,11 @@ import time
 from types import SimpleNamespace
 
 import numpy as np
+from images.config import Paths, preview_rel, thumb_rel
 from PIL import Image, ImageDraw
 
 from aperture.agent.service import AgentReply
 from aperture.bootstrap import AppContext
-from aperture.config import Paths, preview_rel, thumb_rel
 from aperture.web.server import Web, make_handler
 
 PLACES = ["Goa, India", "Bengaluru, India", "Eindhoven, Netherlands", "Lisbon, Portugal", None]

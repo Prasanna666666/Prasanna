@@ -46,8 +46,9 @@ def test_needs_to_see_is_false_when_the_ai_is_unreachable(scanned):
 
 
 def test_caption_all_is_resumable_and_makes_text_searchable(scanned):
+    from images.search.text import search_text_ids
+
     from aperture.agent.captions import caption_all
-    from aperture.search.text import search_text_ids
 
     ctx = scanned
     conn = ctx.db.connect()

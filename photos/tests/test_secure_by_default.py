@@ -110,7 +110,7 @@ def test_secure_ui_passes_the_aperture_folder(monkeypatch, tmp_path):
 
 
 def test_drive_check_in_sandbox_needs_only_the_aperture_folder_writable(monkeypatch, tmp_path):
-    from aperture import safety
+    from images import safety
 
     drive = tmp_path / "Expansion"
     (drive / "Aperture").mkdir(parents=True)
@@ -227,7 +227,7 @@ def test_explicit_port_used_by_another_program_is_refused(monkeypatch, tmp_path,
 
 
 def test_the_running_copy_is_remembered_and_forgotten(monkeypatch, tmp_path):
-    from aperture.config import Paths
+    from images.config import Paths
 
     _secure_setup(monkeypatch, tmp_path)
     pid_file = Paths(tmp_path / "drive").data / "ui.pid"

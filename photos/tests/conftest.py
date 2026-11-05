@@ -7,12 +7,12 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from images.config import ENV_INTERNAL, Paths
+from images.indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
+from images.ml.protocols import DetectedFace
 from PIL import Image
 
 from aperture.bootstrap import AppContext
-from aperture.config import ENV_INTERNAL, Paths
-from aperture.indexing.pipeline import STAGE_FACES, STAGE_INDEX, STAGE_OCR, Services
-from aperture.ml.protocols import DetectedFace
 
 COLOURS = {"red": (220, 20, 20), "blue": (20, 20, 220), "green": (20, 200, 20)}
 
@@ -123,7 +123,7 @@ def fake_services(stage: str) -> Services:
 
 @pytest.fixture
 def scanned(ctx: AppContext) -> AppContext:
-    from aperture.indexing.runner import Scanner
+    from images.indexing.runner import Scanner
 
     summary = Scanner(ctx.paths, ctx.settings, ctx.db, fake_services).run()
     assert summary.state == "done", summary

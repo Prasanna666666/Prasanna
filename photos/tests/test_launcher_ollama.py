@@ -39,7 +39,7 @@ def test_when_the_engine_never_answers_start_up_carries_on_and_says_so(monkeypat
 def test_the_background_service_runs_the_sandboxed_web_app(monkeypatch, tmp_path):
     import plistlib
 
-    from aperture.config import Paths
+    from images.config import Paths
 
     monkeypatch.setattr(launcher.Path, "home", classmethod(lambda cls: tmp_path))
     monkeypatch.setattr(launcher, "_run", lambda cmd: "")

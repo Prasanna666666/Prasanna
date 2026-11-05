@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
+from images.indexing.progress import ScanLock
 
-from aperture.indexing.progress import ScanLock
 from aperture.ui import theme
 from aperture.ui.state import cached_coverage, drive_ok, get_context
 from aperture.ui.views import chat, library, organize, people, settings, status

@@ -5,7 +5,7 @@ import shutil
 
 import pytest
 
-from aperture.ml import ocr
+from images.ml import ocr
 
 
 def test_tesseract_missing_or_failing_gives_no_text_not_a_crash(monkeypatch):

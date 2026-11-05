@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import streamlit as st
+from images import library as lib
 
-from ... import library as lib
 from ...albums import build_albums, places_summary
 from ...bootstrap import AppContext
 from ..components import connection, photo_grid

@@ -24,12 +24,12 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .config import Paths, Settings
-from .db import chunked, in_clause
-from .indexing.discovery import meta_text_for
-from .indexing.progress import ScanLock
-from .models import Item
-from .safety import SafetyError, is_inside
+from images.config import Paths, Settings
+from images.db import chunked, in_clause
+from images.indexing.discovery import meta_text_for
+from images.indexing.progress import ScanLock
+from images.models import Item
+from images.safety import SafetyError, is_inside
 
 KEEP_RULES = {
     "oldest": "Keep the oldest photo",

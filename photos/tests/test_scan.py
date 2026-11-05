@@ -1,7 +1,8 @@
-from aperture import library as lib
+from images import library as lib
+from images.people import repository as people
+from images.search.text import search_text_ids
+
 from aperture.paging import make_page
-from aperture.people import repository as people
-from aperture.search.text import search_text_ids
 
 
 def test_scan_indexes_everything(scanned):
@@ -13,7 +14,8 @@ def test_scan_indexes_everything(scanned):
 
 def test_originals_untouched(scanned, library):
     before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in library.rglob("*.jpg")}
-    from aperture.indexing.runner import Scanner
+    from images.indexing.runner import Scanner
+
     from tests.conftest import fake_services
 
     Scanner(scanned.paths, scanned.settings, scanned.db, fake_services).run()
@@ -22,7 +24,8 @@ def test_originals_untouched(scanned, library):
 
 
 def test_scan_is_idempotent_and_resumable(scanned):
-    from aperture.indexing.runner import Scanner
+    from images.indexing.runner import Scanner
+
     from tests.conftest import fake_services
 
     second = Scanner(scanned.paths, scanned.settings, scanned.db, fake_services).run()

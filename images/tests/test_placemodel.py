@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-from aperture.db import MIGRATIONS
-from aperture.indexing import placemodel
-from aperture.search.embeddings import EmbeddingIndex
+from images.db import MIGRATIONS
+from images.indexing import placemodel
+from images.search.embeddings import EmbeddingIndex
 
 
 def _library(per_city=300, seed=1):
@@ -51,7 +51,7 @@ def _library(per_city=300, seed=1):
 
 
 def test_photos_that_look_like_a_known_place_are_located_and_ones_that_do_not_are_left_alone():
-    from aperture.search.geo import GeoIndex
+    from images.search.geo import GeoIndex
 
     conn, index, easy, ambiguous = _library()
     geo = GeoIndex(

@@ -255,7 +255,7 @@ def apply_dates(plan: Plan, phrase: str, spec: Any) -> Plan:
     (for example the text 'last month') is dropped, because it was a date, not something written in a photo."""
     if not phrase or spec.is_empty:
         return plan
-    from ..search.textnorm import tokens
+    from images.search.textnorm import tokens
 
     words = set(tokens(phrase))
     kept = tuple(c for c in plan.clauses if not (words and set(tokens(c.query)) <= words))

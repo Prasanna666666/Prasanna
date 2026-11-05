@@ -8,18 +8,18 @@ from datetime import date
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from images import library as lib
+from images.jsonutil import extract_json
+from images.people.repository import named_people, resolve_name
+from images.search.quick import probe
 
-from . import library as lib
 from .agent.captions import describe_item
 from .agent.executor import Executor
-from .agent.jsonutil import extract_json
 from .agent.knowledge import answer as answer_question
 from .agent.knowledge import gather_facts
 from .agent.llm import LLMError
 from .agent.service import CHAT_MAX_TOKENS, CHAT_SYSTEM, DATE_SCHEMA, DATE_SYSTEM
 from .agent.toolagent import close_matches
-from .people.repository import named_people, resolve_name
-from .search.quick import probe
 
 if TYPE_CHECKING:
     from .bootstrap import AppContext
@@ -184,9 +184,9 @@ class AgentParts:
 
     def probe_term(self, term: str) -> dict[str, Any]:
         """The probe tool: where does this word occur in the library? Counts per possible meaning, from the library itself.ctx."""
-        from .people.repository import resolve_name
-        from .search.metadata import path_ids, place_ids
-        from .search.text import search_text_ids
+        from images.people.repository import resolve_name
+        from images.search.metadata import path_ids, place_ids
+        from images.search.text import search_text_ids
 
         conn = self.ctx.db.connect()
         try:

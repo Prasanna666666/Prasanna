@@ -3,11 +3,10 @@
 import json
 import sqlite3
 
+from images.config import preview_rel
+from images.db import MIGRATIONS
+from images.indexing import venues
 from PIL import Image
-
-from aperture.config import preview_rel
-from aperture.db import MIGRATIONS
-from aperture.indexing import venues
 
 
 class Vision:

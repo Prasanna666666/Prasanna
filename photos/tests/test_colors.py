@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import pytest
+from images.colors import color_clause, measure
+from images.search.filters import Filters, apply_filters
 from PIL import Image
-
-from aperture.colors import color_clause, measure
-from aperture.search.filters import Filters, apply_filters
 
 
 @pytest.mark.parametrize(

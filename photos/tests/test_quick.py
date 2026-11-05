@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-
-from aperture.search.embeddings import EmbeddingIndex
-from aperture.search.quick import quick_ids
+from images.search.embeddings import EmbeddingIndex
+from images.search.quick import quick_ids
 
 
 def _empty_index() -> EmbeddingIndex:
@@ -29,7 +28,7 @@ def test_words_that_match_the_data_narrow_the_result(scanned):
 
 
 def test_probe_reports_only_real_hits(scanned):
-    from aperture.search.quick import probe
+    from images.search.quick import probe
 
     ctx = scanned
     conn = ctx.db.connect()

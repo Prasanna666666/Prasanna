@@ -20,9 +20,10 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Protocol
 
+from images.search.textnorm import tokens
+
 from .agent.planner import PlannerContext, PlanResult
 from .agent.schema import Plan
-from .search.textnorm import tokens
 
 TARGET = 0.90
 

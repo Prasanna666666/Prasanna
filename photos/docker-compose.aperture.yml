@@ -25,7 +25,7 @@ x-drive: &drive
 services:
   aperture:
     <<: *hardened
-    build: {context: ., dockerfile: Dockerfile.aperture}
+    build: {context: .., dockerfile: photos/Dockerfile.aperture}
     image: aperture:local
     tmpfs: ["/tmp", "/Volumes/Expansion"]
     volumes: *drive

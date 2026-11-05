@@ -18,7 +18,7 @@ def vision_available() -> bool:
 
 
 class VisionOCR:
-    """:class:`~aperture.ml.protocols.TextRecognizer` backed by Vision."""
+    """:class:`~images.ml.protocols.TextRecognizer` backed by Vision."""
 
     def __init__(self) -> None:
         import objc
@@ -58,7 +58,7 @@ def text_available() -> bool:
 
 
 class TesseractOCR:
-    """:class:`~aperture.ml.protocols.TextRecognizer` backed by the ``tesseract`` program (reads the picture from stdin, no files, no network)."""
+    """:class:`~images.ml.protocols.TextRecognizer` backed by the ``tesseract`` program (reads the picture from stdin, no files, no network)."""
 
     def __init__(self, languages: str = "eng+nld") -> None:
         self._languages = languages

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from ..people.repository import named_people
+from images.people.repository import named_people
 
 
 def suggest_prompts(conn: sqlite3.Connection, limit: int = 6) -> list[str]:

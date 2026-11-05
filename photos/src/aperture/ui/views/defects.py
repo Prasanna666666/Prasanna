@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import streamlit as st
+from images import library as lib
+from images import quality
 
-from ... import library as lib
-from ... import quality
 from ...bootstrap import AppContext
 from ..components import connection, pager, photo_grid, show_thumb
 from .organize import move_card

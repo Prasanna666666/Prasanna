@@ -2,11 +2,12 @@
 
 from datetime import date
 
+from images.config import Settings
+
 from aperture.agent.llm import LLMError, OllamaClient
 from aperture.agent.planner import PlanResult
 from aperture.agent.schema import Plan
 from aperture.agent.service import CHAT_SYSTEM, AgentService
-from aperture.config import Settings
 
 
 class FakePlanner:
@@ -98,8 +99,9 @@ def test_chat_voice_is_natural_short_and_photo_focused_with_examples():
 
 def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
     """Builds the agent exactly as the app does (this would have caught a missing import)."""
+    from images.config import Paths
+
     from aperture.bootstrap import AppContext
-    from aperture.config import Paths
 
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")
@@ -118,9 +120,10 @@ def test_the_real_agent_is_wired_for_conversation(tmp_path, monkeypatch):
 def test_the_date_comes_before_the_examples_and_is_not_glued_to_one(tmp_path, monkeypatch):
     from datetime import date
 
+    from images.config import Paths
+
     from aperture.agent.llm import OllamaClient
     from aperture.bootstrap import AppContext
-    from aperture.config import Paths
 
     sent = []
     monkeypatch.setattr(

@@ -4,10 +4,8 @@ import socket
 from pathlib import Path
 
 import pytest
-
-from aperture.config import ENV_INTERNAL
-from aperture.export import build_plan, create_job, run_export, run_job, sanitize_folder_name
-from aperture.safety import (
+from images.config import ENV_INTERNAL
+from images.safety import (
     SafetyError,
     WriteGuard,
     drive_problem,
@@ -16,6 +14,8 @@ from aperture.safety import (
     resolve_export_dir,
     resolve_photo_dir,
 )
+
+from aperture.export import build_plan, create_job, run_export, run_job, sanitize_folder_name
 
 
 def test_missing_drive_reported(tmp_path):
@@ -89,7 +89,7 @@ def test_background_job_roundtrip(scanned):
 
 
 def test_scan_skips_export_folder(tmp_path):
-    from aperture.indexing.discovery import discover
+    from images.indexing.discovery import discover
 
     (tmp_path / "exp").mkdir()
     (tmp_path / "exp" / "copy.jpg").write_bytes(b"x")
@@ -99,7 +99,7 @@ def test_scan_skips_export_folder(tmp_path):
 
 
 def test_trusted_hosts_default_empty_and_parse(monkeypatch):
-    from aperture.safety import trusted_hosts
+    from images.safety import trusted_hosts
 
     monkeypatch.delenv("APERTURE_TRUSTED_HOSTS", raising=False)
     assert trusted_hosts() == set()
@@ -108,7 +108,7 @@ def test_trusted_hosts_default_empty_and_parse(monkeypatch):
 
 
 def test_ollama_url_env_and_ui_host_env(monkeypatch, tmp_path):
-    from aperture.config import Paths, Settings
+    from images.config import Paths, Settings
 
     monkeypatch.setenv("APERTURE_OLLAMA_URL", "http://ollama:11434")
     assert Settings.defaults(Paths(tmp_path)).ollama_url == "http://ollama:11434"
@@ -117,7 +117,7 @@ def test_ollama_url_env_and_ui_host_env(monkeypatch, tmp_path):
 
 
 def test_never_online_beats_allow_network(monkeypatch):
-    from aperture.config import ENV_NEVER_ONLINE, ENV_ONLINE, online_allowed
+    from images.config import ENV_NEVER_ONLINE, ENV_ONLINE, online_allowed
 
     monkeypatch.setenv(ENV_ONLINE, "1")
     monkeypatch.delenv(ENV_NEVER_ONLINE, raising=False)
@@ -138,7 +138,7 @@ def test_fetch_models_refused_when_locked(monkeypatch, tmp_path, capsys):
 def test_single_mistral_model_and_old_settings_migrate(tmp_path):
     import json
 
-    from aperture.config import Paths, Settings
+    from images.config import Paths, Settings
 
     paths = Paths(tmp_path)
     d = Settings.defaults(paths)
@@ -165,7 +165,7 @@ def test_doctor_skips_slow_stats_unless_asked(monkeypatch, tmp_path, capsys):
 def test_aperture_folders_and_index_are_owner_only(tmp_path):
     import stat
 
-    from aperture.config import Paths
+    from images.config import Paths
 
     paths = Paths(tmp_path)
     paths.ensure()

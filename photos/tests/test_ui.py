@@ -56,7 +56,8 @@ def test_tidy_moves_duplicates_and_undo(ctx_env, library):
     import shutil
 
     shutil.copy2(library / "Family" / "blue_0.jpg", library / "blue_copy.jpg")
-    from aperture.indexing.runner import Scanner
+    from images.indexing.runner import Scanner
+
     from aperture.ui import state
 
     from .conftest import fake_services
@@ -106,8 +107,8 @@ def test_similar_shots_tab_runs(ctx_env):
 
 def _move_script() -> None:
     import streamlit as st
+    from images import library as lib
 
-    from aperture import library as lib
     from aperture.ui.components import connection
     from aperture.ui.state import get_context
     from aperture.ui.views.organize import move_card

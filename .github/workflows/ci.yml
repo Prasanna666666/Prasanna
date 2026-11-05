@@ -36,6 +36,34 @@ jobs:
       - run: ruff format --check .
       - run: mypy src
       - run: pytest -q
+  images:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: images
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
+  photos:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: photos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e "../images" -e ".[ui,dev]" pyyaml
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: pytest -q
   library:
     runs-on: ubuntu-latest
     defaults:

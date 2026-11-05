@@ -7,13 +7,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import streamlit as st
+from images import library as lib
+from images import quality
+from images.safety import SafetyError
+from images.similar import PRESETS, SimilarSettings, find_similar_groups
 
-from ... import library as lib
 from ... import organize as org
-from ... import quality
 from ...bootstrap import AppContext
-from ...safety import SafetyError
-from ...similar import PRESETS, SimilarSettings, find_similar_groups
 from ..components import connection, pager, show_thumb
 
 GROUPS_PER_PAGE = 5

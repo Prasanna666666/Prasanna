@@ -1,7 +1,7 @@
 def test_a_settings_file_from_the_time_of_the_cloud_option_still_loads_and_the_option_is_gone(tmp_path):
     import json
 
-    from aperture.config import Paths, Settings
+    from images.config import Paths, Settings
 
     paths = Paths(tmp_path / "Expansion")
     paths.ensure()

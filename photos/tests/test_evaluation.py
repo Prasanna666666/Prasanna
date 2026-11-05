@@ -5,12 +5,12 @@ import time
 from datetime import date
 
 import pytest
+from images.jsonutil import JSONExtractError, extract_json
+from images.search.visual import STRICTNESS
 
-from aperture.agent.jsonutil import JSONExtractError, extract_json
 from aperture.agent.planner import Planner
 from aperture.agent.schema import plan_from_raw
 from aperture.evaluation import GOLDEN_TEMPLATE, evaluate_plans, evaluate_retrieval, load_plan_cases, plan_mismatches
-from aperture.search.visual import STRICTNESS
 
 from .test_agent import ScriptedLLM
 
@@ -82,8 +82,9 @@ def test_retrieval_scores():
 
 def test_strictness_sweep_on_synthetic_library(scanned):
     """Strictest preset must give perfect precision on the colour library; it is a regression guard."""
+    from images.library import items_by_ids
+
     from aperture.evaluation import evaluate_retrieval
-    from aperture.library import items_by_ids
 
     from .test_agent import plan, service
 
@@ -133,7 +134,7 @@ def test_fuzzed_plans_never_raise_and_stay_valid():
             }
         plan, _ = plan_from_raw(raw)
         assert plan.intent in ("find", "count", "export", "chat", "clarify")
-        from aperture.search.dates import resolve
+        from images.search.dates import resolve
 
         resolve(plan.date, date(2026, 11, 2))  # must not raise either
 
@@ -142,11 +143,10 @@ def test_fuzzed_plans_never_raise_and_stay_valid():
 def test_scales_to_tens_of_thousands_of_photos(paths, n):
     """Synthetic library: text/path search, filters and listing stay fast and unbounded."""
     import numpy as np
-
-    from aperture.db import Database
-    from aperture.library import item_ids
-    from aperture.search.filters import Filters, apply_filters
-    from aperture.search.metadata import path_ids
+    from images.db import Database
+    from images.library import item_ids
+    from images.search.filters import Filters, apply_filters
+    from images.search.metadata import path_ids
 
     conn = Database(paths.db).connect()
     rows = [

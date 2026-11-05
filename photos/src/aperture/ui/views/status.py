@@ -5,10 +5,10 @@ from __future__ import annotations
 import time
 
 import streamlit as st
+from images import library as lib
+from images.indexing.progress import ScanLock, read_progress
 
-from ... import library as lib
 from ...bootstrap import AppContext
-from ...indexing.progress import ScanLock, read_progress
 from ..components import connection
 from ..state import caption_running, start_captions, start_scan
 

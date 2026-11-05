@@ -4,8 +4,9 @@ import json
 import threading
 from types import SimpleNamespace
 
+from images.config import Paths, Settings
+
 from aperture import bootstrap
-from aperture.config import Paths, Settings
 from aperture.ui import state
 
 
@@ -46,14 +47,14 @@ def test_warm_up_loads_models_only_when_no_scan_is_running(monkeypatch):
     monkeypatch.setattr(threading, "Thread", _InlineThread)
     for running, expected in ((False, ["index", "places", "facts", "clip", "warm", "llm"]), (True, ["index", "places", "facts"])):
         calls = []
-        monkeypatch.setattr("aperture.indexing.progress.ScanLock.running", lambda self, verify=False, r=running: r)
+        monkeypatch.setattr("images.indexing.progress.ScanLock.running", lambda self, verify=False, r=running: r)
         bootstrap.AppContext.warm_up(_fake_ctx(calls))
         assert calls == expected
 
 
 def test_warm_up_survives_a_failing_step(monkeypatch):
     monkeypatch.setattr(threading, "Thread", _InlineThread)
-    monkeypatch.setattr("aperture.indexing.progress.ScanLock.running", lambda self, verify=False: False)
+    monkeypatch.setattr("images.indexing.progress.ScanLock.running", lambda self, verify=False: False)
     calls = []
     ctx = _fake_ctx(calls)
     ctx.search_embedder = lambda: (_ for _ in ()).throw(RuntimeError("no model"))
@@ -83,8 +84,8 @@ def test_keep_alive_is_thirty_minutes():
 def test_a_stale_scan_marker_is_not_indexing_and_gets_no_stop_signal(tmp_path, monkeypatch):
     import os
 
-    from aperture.indexing import progress
-    from aperture.indexing.progress import ScanLock
+    from images.indexing import progress
+    from images.indexing.progress import ScanLock
 
     marker = tmp_path / "scan.pid"
     marker.write_text(str(os.getpid()))  # a live process, but not an Aperture scan (this test run)
@@ -103,8 +104,9 @@ def test_a_stale_scan_marker_is_not_indexing_and_gets_no_stop_signal(tmp_path, m
 
 
 def test_the_page_says_why_search_is_not_ready(tmp_path, monkeypatch):
+    from images.config import Paths
+
     from aperture.bootstrap import AppContext
-    from aperture.config import Paths
 
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")
@@ -171,7 +173,7 @@ def test_model_calls_are_recorded_with_what_the_model_saw_and_said(monkeypatch):
 
 
 def test_worked_out_locations_are_off_unless_asked_for():
-    from aperture.config import Settings
+    from images.config import Settings
 
     assert Settings().estimate_locations is False
 
@@ -181,9 +183,9 @@ def test_warming_up_runs_one_real_search_so_the_first_question_is_not_the_slow_o
 
 
 def test_switching_the_picture_model_throws_away_everything_derived_from_the_old_one(scanned):
-    from aperture.config import Settings
-    from aperture.db import meta_set
-    from aperture.indexing.runner import Scanner
+    from images.config import Settings
+    from images.db import meta_set
+    from images.indexing.runner import Scanner
 
     conn = scanned.db.connect()
     meta_set(conn, "clip_model", "ViT-B-32/laion2b_s34b_b79k")

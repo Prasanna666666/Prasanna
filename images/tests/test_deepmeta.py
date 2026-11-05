@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from aperture.indexing import deepmeta
+from images.indexing import deepmeta
 
 
 def _photo_with_exif(path: Path) -> Path:
@@ -45,7 +45,7 @@ def test_large_binary_values_are_summarised_not_dropped():
 
 
 def test_the_pass_is_resumable_and_stores_one_record_per_photo(tmp_path):
-    from aperture.db import MIGRATIONS
+    from images.db import MIGRATIONS
 
     conn = sqlite3.connect(":memory:")
     for script in MIGRATIONS:

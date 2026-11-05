@@ -5,10 +5,9 @@ import json
 import sqlite3
 
 import numpy as np
+from images.db import MIGRATIONS
+from images.indexing import derive, details
 from PIL import Image
-
-from aperture.db import MIGRATIONS
-from aperture.indexing import derive, details
 
 
 def _db():
@@ -89,8 +88,8 @@ def test_the_perceptual_hash_matches_copies_and_re_saves():
 
 
 def test_the_place_report_gives_the_numbers_behind_a_place_name():
-    from aperture.indexing import placereport
-    from aperture.search.geo import GeoIndex
+    from images.indexing import placereport
+    from images.search.geo import GeoIndex
 
     conn = _db()
     _item(conn, 1, "2026-03-01 10:00:00", "Nagoya, Japan")
@@ -104,7 +103,7 @@ def test_the_place_report_gives_the_numbers_behind_a_place_name():
 
 
 def test_the_gps_audit_separates_missing_in_the_file_from_failed_to_read():
-    from aperture.indexing import placereport
+    from images.indexing import placereport
 
     conn = _db()
     _item(conn, 1, "2026-03-01 10:00:00")  # the file has GPS but the index does not: the app failed to read it
@@ -119,7 +118,7 @@ def test_the_gps_audit_separates_missing_in_the_file_from_failed_to_read():
 def test_photos_without_gps_get_a_location_only_from_guesses_that_tested_at_least_80_percent_accurate():
     from datetime import datetime, timedelta
 
-    from aperture.search.geo import GeoIndex
+    from images.search.geo import GeoIndex
 
     conn = _db()
     geo = GeoIndex(
@@ -187,8 +186,9 @@ def test_explain_shows_every_reading_with_the_places_its_photos_are_really_from(
     import argparse
     from types import SimpleNamespace
 
+    from images.search.geo import GeoIndex
+
     from aperture import cli
-    from aperture.search.geo import GeoIndex
 
     conn = _db()
     conn.row_factory = sqlite3.Row

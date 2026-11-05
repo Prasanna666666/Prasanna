@@ -25,7 +25,7 @@ CLIP_MIN_P = 0.35  # and the label must win a real share of the vocabulary (a la
 
 
 def vocabulary() -> list[str]:
-    text = resources.files("aperture.data").joinpath("tag_vocabulary.txt").read_text(encoding="utf-8")
+    text = resources.files("images.data").joinpath("tag_vocabulary.txt").read_text(encoding="utf-8")
     return [line.strip() for line in text.splitlines() if line.strip() and not line.startswith("#")]
 
 

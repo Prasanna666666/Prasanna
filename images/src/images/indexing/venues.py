@@ -52,7 +52,7 @@ LABEL_SCORE = 0.8
 
 def _parse(raw: str) -> dict:
     """The model's JSON, tolerating a little text around it."""
-    from ..agent.jsonutil import extract_json
+    from ..jsonutil import extract_json
 
     data = extract_json(raw)
     return data if isinstance(data, dict) else {}

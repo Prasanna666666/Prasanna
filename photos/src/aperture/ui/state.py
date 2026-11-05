@@ -6,12 +6,12 @@ import subprocess
 import sys
 
 import streamlit as st
+from images import library as lib
+from images.config import default_paths
+from images.indexing.progress import ScanLock
+from images.safety import drive_problem
 
-from .. import library as lib
 from ..bootstrap import AppContext
-from ..config import default_paths
-from ..indexing.progress import ScanLock
-from ..safety import drive_problem
 
 
 @st.cache_resource(show_spinner=False)

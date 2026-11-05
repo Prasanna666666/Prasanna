@@ -22,7 +22,13 @@ def test_aperture_compose_security_properties():
 
 def test_dockerfile_runs_non_root_and_without_mac_extras():
     d = (ROOT / "Dockerfile.aperture").read_text()
-    assert "APERTURE_NEVER_ONLINE=1" in d and "USER 10001" in d and "[ml,ui]" in d and "mac" not in d.split("pip install")[-1]
+    assert (
+        "APERTURE_NEVER_ONLINE=1" in d
+        and "USER 10001" in d
+        and "images[ml]" in d
+        and "photos[ui]" in d
+        and "mac" not in d.split("pip install")[-1]
+    )
 
 
 def test_the_photo_index_lives_in_a_private_docker_volume_not_a_mac_folder():

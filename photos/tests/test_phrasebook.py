@@ -3,10 +3,10 @@
 from datetime import date
 
 import pytest
+from images.search.dates import resolve
 
 from aperture.agent import phrasebook
 from aperture.agent.schema import plan_from_raw
-from aperture.search.dates import resolve
 
 TODAY = date(2026, 11, 4)
 
@@ -58,9 +58,10 @@ def test_an_unknown_phrasing_gets_the_closest_known_phrases_as_examples_for_the_
 
 
 def test_the_date_step_uses_the_phrasebook_before_it_asks_the_model(tmp_path, monkeypatch):
+    from images.config import Paths
+
     from aperture.agent.llm import OllamaClient
     from aperture.bootstrap import AppContext
-    from aperture.config import Paths
 
     asked = []
     monkeypatch.setattr(

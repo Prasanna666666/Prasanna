@@ -9,11 +9,10 @@ description = "Private, offline, agentic AI photo assistant for macOS (Apple Sil
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-dependencies = ["numpy>=1.24", "pillow>=10", "pillow-heif>=0.16", "pymupdf>=1.24"]
+dependencies = ["numpy>=1.24", "pillow>=10", "pillow-heif>=0.16", "pymupdf>=1.24"]  # and the picture engine (../images)
 
 [project.optional-dependencies]
-ml = ["torch>=2.2", "open_clip_torch>=2.24", "onnxruntime>=1.17", "opencv-python-headless>=4.8"]
-mac = ["pyobjc-framework-Vision>=10", "pyobjc-framework-Quartz>=10", "pywebview>=5"]
+mac = ["pywebview>=5"]  # the machine-learning and Apple Vision extras are in ../images
 ui = ["streamlit>=1.48"]
 dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
 
@@ -24,7 +23,7 @@ aperture = "aperture.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aperture = ["py.typed", "eval_data/*.json", "web/static/*", "data/*.txt"]
+aperture = ["py.typed", "eval_data/*.json", "web/static/*"]
 
 [tool.ruff]
 line-length = 130
@@ -57,7 +56,7 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "tests"]
+pythonpath = ["src", "tests", "../images/src", "../kit/src"]
 markers = ["needs_models: requires real model files"]
 
 [tool.bandit]

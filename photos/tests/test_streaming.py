@@ -7,12 +7,12 @@ import urllib.request
 from datetime import date
 
 import pytest
+from images.config import Paths, Settings
 
 from aperture.agent.llm import LLMError, LLMUnavailable, OllamaClient
 from aperture.agent.planner import PlanResult
 from aperture.agent.schema import Plan
 from aperture.agent.service import AgentService
-from aperture.config import Paths, Settings
 
 
 class FakeResponse:

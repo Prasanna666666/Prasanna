@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "images"
+version = "1.5.0"
+description = "The picture engine every app shares: reading a picture (EXIF, places, text, faces, CLIP, labels), the index, and search over it"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "pillow>=10", "pillow-heif>=0.16", "pymupdf>=1.24"]
+
+[project.optional-dependencies]
+ml = ["torch>=2.2", "open_clip_torch>=2.24", "onnxruntime>=1.17", "opencv-python-headless>=4.8"]
+mac = ["pyobjc-framework-Vision>=10", "pyobjc-framework-Quartz>=10"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+images = ["data/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S", "BLE", "C4", "C90", "RUF"]
+ignore = [
+    "S310",    # URLs opened are the local model server's, validated by safety.py
+    "SIM105", "SIM102",
+    "S110", "S112",  # best-effort steps (a damaged photo, a missing tag) are skipped on purpose and counted elsewhere
+    "S603", "S607",  # fixed executables (git, osascript, open) with list arguments and no shell
+    "S104",    # the names "0.0.0.0" and "::" are compared, never bound
+    "S101", "S608", "S311", "BLE001",
+    "E501", "RUF001", "RUF002", "RUF012", "UP046", "UP047",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15   # a function above this is split, not excused
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = true
+

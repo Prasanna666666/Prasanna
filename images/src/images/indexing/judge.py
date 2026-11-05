@@ -73,7 +73,7 @@ def shrink(jpeg: bytes) -> bytes:
 
 
 def analyse(vision: Any, jpeg: bytes) -> dict:
-    from ..agent.jsonutil import extract_json
+    from ..jsonutil import extract_json
 
     data = extract_json(vision.extract(shrink(jpeg), PROMPT, SCHEMA, 900))
     return data if isinstance(data, dict) else {}

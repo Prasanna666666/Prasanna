@@ -29,11 +29,11 @@ from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
 import numpy as np
+from images import library as lib
+from images.config import preview_rel, thumb_rel
+from images.indexing.progress import ScanLock
 
-from .. import library as lib
 from ..agent.llm import CALL_LOG
-from ..config import preview_rel, thumb_rel
-from ..indexing.progress import ScanLock
 from . import browse
 
 STATIC = Path(__file__).parent / "static"
@@ -655,7 +655,7 @@ class _Handler(BaseHTTPRequestHandler):
                 stream.close()
 
     def _instant_matches(self, message: str) -> np.ndarray | None:
-        from ..search.quick import quick_ids
+        from images.search.quick import quick_ids
 
         ctx = self.web.ctx
         conn = ctx.db.connect()

@@ -4,7 +4,7 @@ Guarantees
 ----------
 * Originals are opened **read-only**; they are never moved, renamed or deleted.
 * The destination must be on the external drive, outside the source folder and
-  outside Aperture's own folder (see :func:`aperture.safety.resolve_export_dir`).
+  outside Aperture's own folder (see :func:`images.safety.resolve_export_dir`).
 * Existing files are never overwritten.  Identical content is skipped
   (re-running an export is idempotent); different content gets a numbered name.
 * Each copy is written to a ``.part`` file, SHA-256 verified (optional) and
@@ -27,9 +27,9 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from .config import Paths, Settings
-from .db import chunked, in_clause
-from .safety import SafetyError, WriteGuard, resolve_export_dir
+from images.config import Paths, Settings
+from images.db import chunked, in_clause
+from images.safety import SafetyError, WriteGuard, resolve_export_dir
 
 CHUNK = 4 * 1024 * 1024
 MIN_FREE_BYTES = 500 * 1024 * 1024

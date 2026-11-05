@@ -70,7 +70,7 @@ def _keypoints(anchors: np.ndarray, distances: np.ndarray) -> np.ndarray:
 
 
 class OnnxFaceAnalyzer:
-    """:class:`~aperture.ml.protocols.FaceAnalyzer` backed by onnxruntime."""
+    """:class:`~images.ml.protocols.FaceAnalyzer` backed by onnxruntime."""
 
     def __init__(
         self,

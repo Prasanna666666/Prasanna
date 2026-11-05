@@ -5,8 +5,8 @@ from __future__ import annotations
 import html
 
 import streamlit as st
+from images import library as lib
 
-from ... import library as lib
 from ...bootstrap import AppContext
 from ...diagnostics import run_checks
 from ..components import connection

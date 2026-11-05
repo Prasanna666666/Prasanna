@@ -3,8 +3,8 @@ import sqlite3
 import numpy as np
 from PIL import Image
 
-from aperture.db import MIGRATIONS
-from aperture.indexing import faceattrs
+from images.db import MIGRATIONS
+from images.indexing import faceattrs
 
 
 class Embedder:

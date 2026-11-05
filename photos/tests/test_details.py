@@ -4,10 +4,9 @@ import dataclasses
 import sqlite3
 
 import numpy as np
-
-from aperture.db import MIGRATIONS
-from aperture.indexing import details
-from aperture.ml.vision_details import Details, to_box
+from images.db import MIGRATIONS
+from images.indexing import details
+from images.ml.vision_details import Details, to_box
 
 
 def _db(n=3):
@@ -57,7 +56,7 @@ def test_an_unreadable_preview_is_recorded_and_the_pass_goes_on(tmp_path):
 
 
 def test_scene_and_landmark_tags_come_from_the_stored_embeddings_without_decoding_images():
-    from aperture.search.embeddings import EmbeddingIndex
+    from images.search.embeddings import EmbeddingIndex
 
     conn = _db(2)
     vectors = np.array([[1.0, 0.0], [0.0, 1.0]], np.float16)
@@ -110,8 +109,8 @@ def test_a_word_found_as_a_place_gets_no_guesses_from_appearance_and_tags_match_
 
 
 def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees():
-    from aperture.search.embeddings import EmbeddingIndex
-    from aperture.search.geo import GeoIndex
+    from images.search.embeddings import EmbeddingIndex
+    from images.search.geo import GeoIndex
 
     conn = _db(4)
     # photo 1: really in Tokyo (GPS), photo 2: GPS in Amsterdam, photo 3: no GPS
@@ -135,7 +134,7 @@ def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees
 
 
 def test_filler_words_are_not_looked_up_in_the_library():
-    from aperture.search import quick
+    from images.search import quick
 
     conn = _db(2)
     seen = []
@@ -150,9 +149,10 @@ def test_filler_words_are_not_looked_up_in_the_library():
 
 
 def test_a_place_gives_one_combined_answer_of_everything_taken_in_or_near_it():
+    from images.search.geo import GeoIndex
+
     from aperture.agent.executor import Executor
     from aperture.agent.schema import Clause, Plan
-    from aperture.search.geo import GeoIndex
 
     conn = _db(3)
     conn.row_factory = sqlite3.Row
@@ -273,7 +273,7 @@ def test_a_named_place_is_a_requirement_whatever_else_found_the_photos():
 
 
 def test_word_search_in_memory_gives_the_same_answer_as_the_database_and_follows_changes(tmp_path):
-    from aperture.search import metadata
+    from images.search import metadata
 
     conn = sqlite3.connect(tmp_path / "lib.db")
     conn.row_factory = sqlite3.Row
@@ -304,8 +304,8 @@ def test_word_search_in_memory_gives_the_same_answer_as_the_database_and_follows
 
 
 def test_the_in_memory_copy_answers_like_the_library_file_and_leaves_the_vectors_on_the_drive(tmp_path):
-    from aperture.search import metadata
-    from aperture.search.replica import Replica
+    from images.search import metadata
+    from images.search.replica import Replica
 
     source = tmp_path / "lib.db"
     conn = sqlite3.connect(source)

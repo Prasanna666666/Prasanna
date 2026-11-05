@@ -6,7 +6,8 @@ import sqlite3
 import time
 from collections.abc import Callable
 
-from ..config import Paths
+from images.config import Paths
+
 from .llm import Describer, LLMError
 
 

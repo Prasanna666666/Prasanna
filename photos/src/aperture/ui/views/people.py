@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import streamlit as st
+from images.people import repository as repo
 
 from ...bootstrap import AppContext
-from ...people import repository as repo
 from ..components import connection, photo_grid
 
 

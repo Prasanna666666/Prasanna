@@ -1,6 +1,6 @@
 .PHONY: install lint format type test check
 install:
-	pip install -e ".[ui,dev]"
+	pip install -e "../images" -e ".[ui,dev]"
 lint:
 	ruff check .
 format:

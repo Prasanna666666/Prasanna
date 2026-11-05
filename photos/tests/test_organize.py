@@ -2,11 +2,11 @@ import shutil
 from pathlib import Path
 
 import pytest
+from images.indexing.runner import Scanner
+from images.library import get_item, items_by_ids
+from images.safety import SafetyError
 
 from aperture import organize
-from aperture.indexing.runner import Scanner
-from aperture.library import get_item, items_by_ids
-from aperture.safety import SafetyError
 
 from .conftest import fake_services
 

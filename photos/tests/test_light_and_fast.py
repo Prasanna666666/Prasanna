@@ -4,8 +4,9 @@ import json
 import re
 from pathlib import Path
 
+from images.config import Paths, Settings
+
 from aperture.agent import llm
-from aperture.config import Paths, Settings
 
 LLM_SRC = Path(llm.__file__).read_text()
 

@@ -6,10 +6,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+from images.config import preview_rel
 from PIL import Image
 
 from aperture.agent.llm import OllamaClient, OllamaVision
-from aperture.config import preview_rel
 
 
 class FakeOllama:
@@ -73,7 +73,7 @@ def ollama(monkeypatch):
 def _library(tmp_path):
     import sqlite3
 
-    from aperture.db import MIGRATIONS
+    from images.db import MIGRATIONS
 
     conn = sqlite3.connect(":memory:")
     for s in MIGRATIONS:
@@ -91,7 +91,7 @@ def _library(tmp_path):
 
 
 def test_the_venue_pass_runs_end_to_end_through_the_real_vision_client(ollama, tmp_path):
-    from aperture.indexing import venues
+    from images.indexing import venues
 
     conn = _library(tmp_path)
     out = venues.run(conn, tmp_path, OllamaVision(ollama.url, "ministral-3:3b"))
@@ -107,7 +107,7 @@ def test_the_venue_pass_runs_end_to_end_through_the_real_vision_client(ollama, t
 
 
 def test_the_vision_judge_runs_end_to_end_through_the_real_vision_client(ollama, tmp_path):
-    from aperture.indexing import judge
+    from images.indexing import judge
 
     ollama.answers["vision"] = json.dumps(
         {

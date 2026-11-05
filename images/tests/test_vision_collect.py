@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from aperture.ml.vision_details import Details, VisionDetails
+from images.ml.vision_details import Details, VisionDetails
 
 
 class Fake:

@@ -17,11 +17,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
-from .bootstrap import AppContext, ServiceUnavailableError
-from .config import ENV_ONLINE, Paths, Settings, configure_environment, default_paths
+from images.config import ENV_ONLINE, Paths, Settings, configure_environment, default_paths
+from images.engine import ServiceUnavailableError
+from images.indexing.runner import ScanOptions
+from images.safety import drive_problem, enable_offline_guard, resolve_export_dir, resolve_photo_dir
+
+from .bootstrap import AppContext
 from .export import run_job
-from .indexing.runner import ScanOptions
-from .safety import drive_problem, enable_offline_guard, resolve_export_dir, resolve_photo_dir
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -187,7 +189,7 @@ def cmd_doctor(ctx: AppContext, with_stats: bool = False) -> int:
         line(False, "folders", str(exc))
     line(all((p.face_models / f).exists() for f in ("det_10g.onnx", "w600k_r50.onnx")), "face models", str(p.face_models))
     line((p.geo / "cities15000.txt").exists(), "place data (GeoNames)", "optional")
-    from .ml.ocr import text_available
+    from images.ml.ocr import text_available
 
     line(text_available(), "text recognition (Apple Vision or Tesseract)", "optional")
     try:
@@ -233,8 +235,9 @@ def cmd_eval_plans(ctx: AppContext) -> int:
 
 
 def cmd_eval(ctx: AppContext, args: argparse.Namespace) -> int:
+    from images.search.visual import STRICTNESS
+
     from .evaluation import GOLDEN_TEMPLATE, evaluate_retrieval
-    from .search.visual import STRICTNESS
 
     if args.template:
         Path(args.template).write_text(json.dumps(GOLDEN_TEMPLATE, indent=2))
@@ -252,7 +255,7 @@ def cmd_eval(ctx: AppContext, args: argparse.Namespace) -> int:
         reply = ctx.agent().ask(request)
         conn = ctx.db.connect()
         try:
-            from .library import items_by_ids
+            from images.library import items_by_ids
 
             found = items_by_ids(conn, reply.ids.tolist())
         finally:
@@ -296,7 +299,7 @@ def cmd_scan(ctx: AppContext, args: argparse.Namespace) -> int:
 
 def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
     """After the photos are indexed: read every remaining detail (full metadata, what is in each picture, flags, trips, duplicates)."""
-    from .indexing import derive
+    from images.indexing import derive
 
     print("reading the full metadata of every photo ...", flush=True)
     cmd_deepmeta(ctx, argparse.Namespace(limit=0))
@@ -308,7 +311,7 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
         return 0
     embedder = ctx.search_embedder()
     if embedder is not None and not stop.is_set():
-        from .indexing import faceattrs
+        from images.indexing import faceattrs
 
         print("reading expression and age group of every face ...", flush=True)
         conn = ctx.db.connect()
@@ -319,8 +322,8 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
             conn.close()
     age_model = ctx.paths.face_models / "genderage.onnx"
     if age_model.exists() and not stop.is_set():
-        from .indexing import faceages
-        from .ml.age import OnnxAgeEstimator
+        from images.indexing import faceages
+        from images.ml.age import OnnxAgeEstimator
 
         print("estimating the age of every face ...", flush=True)
         conn = ctx.db.connect()
@@ -352,7 +355,7 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
         print(
             f"  located {outcome['located']:,} of {outcome['without_gps']:,} photos without GPS; the rest are left without a location"
         )
-        from .indexing import placemodel
+        from images.indexing import placemodel
 
         print(
             "learning what your places look like from the photos that have GPS, then placing the rest by picture and time:",
@@ -381,7 +384,7 @@ def index_everything_else(ctx: AppContext, stop: threading.Event) -> int:
 
 
 def cmd_deepmeta(ctx: AppContext, args: argparse.Namespace) -> int:
-    from .indexing import deepmeta
+    from images.indexing import deepmeta
 
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -409,8 +412,8 @@ def cmd_deepmeta(ctx: AppContext, args: argparse.Namespace) -> int:
 
 
 def cmd_details(ctx: AppContext, args: argparse.Namespace) -> int:
-    from .indexing import details
-    from .ml.vision_details import VisionDetails, vision_available
+    from images.indexing import details
+    from images.ml.vision_details import VisionDetails, vision_available
 
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -444,7 +447,7 @@ def cmd_details(ctx: AppContext, args: argparse.Namespace) -> int:
 
 
 def cmd_where(ctx: AppContext, args: argparse.Namespace) -> int:
-    from .indexing import placereport
+    from images.indexing import placereport
 
     conn = ctx.db.connect()
     try:
@@ -456,7 +459,7 @@ def cmd_where(ctx: AppContext, args: argparse.Namespace) -> int:
 
 
 def cmd_judge(ctx: AppContext, args: argparse.Namespace) -> int:
-    from .indexing import judge
+    from images.indexing import judge
 
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -559,7 +562,7 @@ def cmd_profile(ctx: AppContext, args: argparse.Namespace) -> int:
     conn = ctx.db.connect()
     try:
         # As in the running app: everything a question needs is loaded at start-up, so load it first and time only the question.
-        from .search.metadata import TEXT_COLUMNS, _text_column, all_ids
+        from images.search.metadata import TEXT_COLUMNS, _text_column, all_ids
 
         ctx.geo()
         ctx.search_embedder()
@@ -609,7 +612,7 @@ def cmd_clear_estimates(ctx: AppContext) -> int:
 
 
 def cmd_venues(ctx: AppContext, args: argparse.Namespace) -> int:
-    from .indexing import venues
+    from images.indexing import venues
 
     stop = threading.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -648,7 +651,7 @@ def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
         print(f"  note: {note}")
     if len(reply.ids):
         conn = ctx.db.connect()
-        from .models import Item
+        from images.models import Item
 
         for item_id in reply.ids[: args.limit]:
             row = conn.execute("SELECT * FROM items WHERE id=?", (int(item_id),)).fetchone()
@@ -921,9 +924,10 @@ BUDGET = {"router": 1.5, "first words": 3.0, "AI plan": 6.0, "instant photo matc
 
 
 def cmd_check(ctx: AppContext) -> int:
+    from images.search.quick import quick_ids
+
     from .agent.planner import Planner, PlannerContext
     from .evaluation import evaluate_routes
-    from .search.quick import quick_ids
 
     llm, router = ctx.llm(), ctx.router()
     conn = ctx.db.connect()
@@ -1048,10 +1052,10 @@ def cmd_bench(paths: Paths) -> int:
     import pstats
     import time
 
+    from images.db import Database
     from streamlit.testing.v1 import AppTest
 
     from . import launcher
-    from .db import Database
 
     if _require_drive(paths):
         return 2
@@ -1098,7 +1102,7 @@ def _launcher_command(paths, args) -> int:
 
 
 def _cmd_fetch_models(ctx: AppContext, args: argparse.Namespace) -> int:
-    from .ml.fetch import fetch_all
+    from images.ml.fetch import fetch_all
 
     fetch_all(ctx.paths, ctx.settings)
     return 0

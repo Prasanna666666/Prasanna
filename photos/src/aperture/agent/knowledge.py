@@ -11,10 +11,9 @@ from collections.abc import Callable, Sequence
 from datetime import datetime
 
 import numpy as np
-
-from ..config import Paths
-from ..db import chunked, in_clause
-from ..indexing.progress import ScanLock, read_progress
+from images.config import Paths
+from images.db import chunked, in_clause
+from images.indexing.progress import ScanLock, read_progress
 
 SYSTEM_PROMPT = (
     "You are the Photos assistant, a private photo assistant. Answer the user's question in plain, friendly English, in 1 to 6 short "

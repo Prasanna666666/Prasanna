@@ -12,7 +12,8 @@ import os
 from dataclasses import dataclass, field
 from datetime import date
 
-from .jsonutil import JSONExtractError, extract_json
+from images.jsonutil import JSONExtractError, extract_json
+
 from .llm import LLMClient, LLMError
 from .schema import Plan, plan_from_raw, plan_schema
 

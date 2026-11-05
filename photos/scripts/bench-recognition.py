@@ -118,10 +118,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No photos found in {a.folder}.")
         return 2
     try:
-        from aperture.config import Settings, default_paths
-        from aperture.indexing import loaders
-        from aperture.ml.clip import OpenClipEmbedder
-        from aperture.ml.faces import OnnxFaceAnalyzer
+        from images.config import Settings, default_paths
+        from images.indexing import loaders
+        from images.ml.clip import OpenClipEmbedder
+        from images.ml.faces import OnnxFaceAnalyzer
     except ImportError as e:
         print(f"Run this from your Aperture virtual environment ({e}).")
         return 2

@@ -11,7 +11,7 @@ import numpy as np
 
 
 class OpenClipEmbedder:
-    """:class:`~aperture.ml.protocols.ImageEmbedder` backed by open_clip."""
+    """:class:`~images.ml.protocols.ImageEmbedder` backed by open_clip."""
 
     def __init__(self, model: str, pretrained: str, cache_dir: Path) -> None:
         import open_clip  # heavy import kept local so the rest of the app stays light

@@ -5,9 +5,9 @@ import sqlite3
 
 import numpy as np
 
-from aperture.db import MIGRATIONS, meta_get
-from aperture.indexing import judge
-from aperture.search.geo import GeoIndex
+from images.db import MIGRATIONS, meta_get
+from images.indexing import judge
+from images.search.geo import GeoIndex
 
 
 def _db():
@@ -56,7 +56,7 @@ GEO = GeoIndex(
 def _previews(tmp_path, ids):
     from PIL import Image
 
-    from aperture.config import preview_rel
+    from images.config import preview_rel
 
     for i in ids:
         path = tmp_path / preview_rel(i)

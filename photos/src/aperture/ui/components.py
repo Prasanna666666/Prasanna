@@ -8,13 +8,13 @@ from contextlib import contextmanager
 
 import numpy as np
 import streamlit as st
+from images import library
+from images.config import DENSITY_COLUMNS
+from images.models import Item
+from images.people.repository import faces_in_item
 
-from .. import library
 from ..bootstrap import AppContext
-from ..config import DENSITY_COLUMNS
-from ..models import Item
 from ..paging import Page, make_page, page_slice, page_window
-from ..people.repository import faces_in_item
 
 
 @contextmanager

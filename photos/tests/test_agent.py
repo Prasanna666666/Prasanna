@@ -3,14 +3,14 @@ from datetime import date
 
 import numpy as np
 import pytest
+from images.jsonutil import JSONExtractError, extract_json
+from images.search.dates import DateSpec, resolve
 
 from aperture.agent.executor import Executor
-from aperture.agent.jsonutil import JSONExtractError, extract_json
 from aperture.agent.llm import LLMUnavailable
 from aperture.agent.planner import Planner
 from aperture.agent.schema import plan_from_raw
 from aperture.agent.service import AgentService
-from aperture.search.dates import DateSpec, resolve
 
 
 class ScriptedLLM:
@@ -171,7 +171,7 @@ def test_a_written_word_that_matches_nothing_is_not_silently_dropped(scanned):
 
 
 def test_photos_with_gps_but_no_place_name_get_one_without_reading_files(scanned):
-    from aperture.search.geo import GeoIndex, fill_missing_places
+    from images.search.geo import GeoIndex, fill_missing_places
 
     conn = scanned.db.connect()
     conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76, place=NULL, place_text='' WHERE id=1")

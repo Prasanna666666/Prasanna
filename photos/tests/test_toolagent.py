@@ -464,8 +464,9 @@ def test_the_agent_is_shown_how_requests_become_tool_calls_but_never_told_what_t
 
 
 def test_library_context_is_retrieved_for_the_request(tmp_path, monkeypatch):
+    from images.config import Paths
+
     from aperture.bootstrap import AppContext
-    from aperture.config import Paths
 
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")
@@ -487,9 +488,10 @@ def test_library_context_is_retrieved_for_the_request(tmp_path, monkeypatch):
 
 # ------------------------------------------------------------------ the note that kept appearing after indexing finished
 def test_indexing_note_only_counts_photos_that_are_really_waiting(tmp_path, monkeypatch):
+    from images.config import Paths
+
     from aperture.agent.executor import ExecResult, Executor
     from aperture.bootstrap import AppContext
-    from aperture.config import Paths
 
     monkeypatch.setenv("APERTURE_ALLOW_INTERNAL", "1")
     paths = Paths(tmp_path / "Expansion")

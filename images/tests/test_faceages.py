@@ -4,9 +4,9 @@ import sqlite3
 
 from PIL import Image
 
-from aperture.db import MIGRATIONS
-from aperture.indexing import faceages
-from aperture.ml.age import age_group
+from images.db import MIGRATIONS
+from images.indexing import faceages
+from images.ml.age import age_group
 
 
 def test_an_estimate_near_a_boundary_gets_no_group():

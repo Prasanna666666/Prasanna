@@ -5,10 +5,11 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
+from images.ml.ocr import text_available
+from images.safety import drive_problem
+
 from .agent.llm import LLMError
 from .bootstrap import AppContext
-from .ml.ocr import text_available
-from .safety import drive_problem
 
 
 @dataclass(frozen=True)

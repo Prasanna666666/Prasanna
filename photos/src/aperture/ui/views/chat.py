@@ -7,14 +7,14 @@ import json
 import time
 
 import streamlit as st
+from images import library as lib
+from images.indexing.progress import ScanLock
+from images.search.quick import quick_ids
 
-from ... import library as lib
 from ...agent.llm import LLMError
 from ...agent.service import AgentReply
 from ...bootstrap import AppContext
 from ...export import create_job, read_job
-from ...indexing.progress import ScanLock
-from ...search.quick import quick_ids
 from .. import theme
 from ..components import connection, photo_grid
 from ..state import pause_scan_for_chat, start_export_job, start_scan, welcome_numbers

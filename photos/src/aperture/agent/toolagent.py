@@ -616,8 +616,9 @@ class ToolAgent:
     def _keyword_search(self, request: str, previous_ids: Any, history: Any, timings: dict[str, Any]) -> AgentReply | None:
         """The model could not answer in time. The content words of the message are looked up as a place, folder, person or written
         text, then validated against everything stored (no model call). None when the message has no content words."""
-        from ..search.quick import FILLER
-        from ..search.textnorm import tokens
+        from images.search.quick import FILLER
+        from images.search.textnorm import tokens
+
         from .schema import Clause
 
         words = [w for w in dict.fromkeys(tokens(request, min_len=3)) if w not in FILLER][:4]
