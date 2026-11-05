@@ -33,6 +33,7 @@ def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None
         )
     )
     try:
+        conn.commit()  # a copy is taken of a settled database: an open transaction would make the copy wait for it forever
         directory.mkdir(parents=True, exist_ok=True)
         target = directory / f"orbit-{today.isoformat()}.db"
         if not target.exists():

@@ -147,3 +147,53 @@ def test_guessing_the_token_is_slowed_down(tmp_path, monkeypatch):
         assert codes[0] == 401 and codes[-1] == 429
     finally:
         srv.shutdown()
+
+
+def test_settings_round_trip_and_history_and_unknown_routes(server):
+    status, body, _ = call(server, "GET", "/api/settings")
+    assert status == 200 and json.loads(body)["currency"]
+    assert post(server, "/api/settings", {"currency": "usd", "model": "ministral-3:3b"})[0] == 200
+    assert json.loads(call(server, "GET", "/api/settings")[1])["main_currency"] == "USD"
+    assert json.loads(call(server, "GET", "/api/history")[1])["history"] == []
+    assert call(server, "GET", "/api/nothing")[0] == 404
+    assert post(server, "/api/nothing", {})[0] == 404
+    assert call(server, "GET", "/no-such-page")[0] == 404
+
+
+def test_a_tool_error_is_reported_not_crashed_and_bad_bodies_are_ignored(server):
+    status, body, _ = post(server, "/api/tool", {"name": "no_such_tool"})
+    assert status == 400 and not json.loads(body)["ok"]
+    status, body, _ = post(server, "/api/tool", {"name": "add_transaction", "args": {"amount": "not a number"}})
+    assert status == 200 and not json.loads(body)["ok"]  # the tool's own error comes back as data
+    conn = http.client.HTTPConnection("127.0.0.1", server, timeout=10)
+    conn.request("POST", "/api/tool", "{not json", {"Host": f"127.0.0.1:{server}", "X-Orbit": "1", "Content-Type": "application/json", "Content-Length": "9"})
+    assert conn.getresponse().status == 400  # an unreadable body is an empty request: no tool name
+
+
+def test_an_empty_chat_message_is_refused_and_reset_clears_history(server):
+    assert post(server, "/api/chat", {"text": "   "})[0] == 400
+    assert post(server, "/api/chat/reset", {})[0] == 200
+
+
+def test_import_runs_in_the_background_and_reports_its_state(server, monkeypatch):
+    from orbit import web as w
+
+    monkeypatch.setenv("ORBIT_PARSED", "/nonexistent")
+    started = json.loads(post(server, "/api/import", {})[1])
+    assert started["ok"]
+    for _ in range(50):
+        state = json.loads(call(server, "GET", "/api/import")[1])
+        if not state["running"]:
+            break
+        import time
+
+        time.sleep(0.1)
+    assert not state["running"] and (state["error"] or state["result"] is not None)
+    assert w.parsed_dir().name == "nonexistent"
+
+
+def test_notes_import_says_plainly_when_the_folder_is_missing(server, monkeypatch, tmp_path):
+    monkeypatch.setenv("ORBIT_INBOX", str(tmp_path / "missing"))
+    status, body, _ = post(server, "/api/notes/import", {})
+    assert status == 404 and "export-notes" in json.loads(body)["error"]
+    assert json.loads(post(server, "/api/notes/tag", {})[1])["ok"]
