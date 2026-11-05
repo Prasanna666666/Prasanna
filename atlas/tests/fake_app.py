@@ -1,4 +1,4 @@
-"""A stand-in for an app that follows the module contract, so the hub is tested against a real server and a real socket."""
+"""A stand-in for an app that follows the module contract, so the atlas is tested against a real server and a real socket."""
 
 from __future__ import annotations
 

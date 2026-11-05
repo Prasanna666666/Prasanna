@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from hub.registry import ManifestError, load, parse, upstream_is_private
+from atlas.registry import ManifestError, load, parse, upstream_is_private
 
 
 def write(directory: Path, name: str, data: dict) -> None:
@@ -27,7 +27,7 @@ def test_only_this_computer_and_the_private_network_are_allowed_as_upstreams():
         assert not upstream_is_private(url)
 
 
-@pytest.mark.parametrize("bad", [{"id": "Bad Id"}, {"id": "home"}, {"id": "x", "name": ""}, {"upstream": "http://example.com"}])
+@pytest.mark.parametrize("bad", [{"id": "Bad Id"}, {"id": "atlas"}, {"id": "home"}, {"id": "x", "name": ""}, {"upstream": "http://example.com"}])
 def test_a_bad_module_file_is_refused_with_a_reason(tmp_path, bad):
     with pytest.raises(ManifestError):
         parse({**GOOD, **bad}, "x.json")
@@ -44,8 +44,8 @@ def test_two_modules_cannot_share_an_id_and_a_broken_file_stops_start_up(tmp_pat
 
 
 def test_an_environment_variable_can_point_a_module_somewhere_else(monkeypatch):
-    monkeypatch.setenv("HUB_UPSTREAM_HEALTH", "http://127.0.0.1:9999")
+    monkeypatch.setenv("ATLAS_UPSTREAM_HEALTH", "http://127.0.0.1:9999")
     assert parse(GOOD, "x").netloc == "127.0.0.1:9999"
-    monkeypatch.setenv("HUB_UPSTREAM_HEALTH", "http://evil.example")
+    monkeypatch.setenv("ATLAS_UPSTREAM_HEALTH", "http://evil.example")
     with pytest.raises(ManifestError):
         parse(GOOD, "x")

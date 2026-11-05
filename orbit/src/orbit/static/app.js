@@ -3920,10 +3920,10 @@
         );
     };
 
-    // ------------------------------------------------------------------ shown inside Home (the front door): its menu, search and chat button replace ours
+    // ------------------------------------------------------------------ shown inside Atlas (the shared page): its menu, search and chat button replace ours
     const toParent = (message) => {
         window.parent.postMessage(
-            { hub: 1, ...message },
+            { atlas: 1, ...message },
             (location.ancestorOrigins && location.ancestorOrigins[0]) || '*'
         );
     };
@@ -3932,7 +3932,7 @@
         document.documentElement.classList.add('embedded');
         window.addEventListener('message', (event) => {
             const m = event.data;
-            if (event.source !== window.parent || !m || m.hub !== 1) return;
+            if (event.source !== window.parent || !m || m.atlas !== 1) return;
             if (m.type === 'navigate' && typeof m.hash === 'string') location.hash = m.hash;
             else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode)) applyTheme(m.mode);
             else if (m.type === 'toggle-chat') setCorner(!corner.open);

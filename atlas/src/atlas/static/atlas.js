@@ -1,4 +1,4 @@
-/* Home front end. Plain JavaScript. All text from the apps is added with textContent, never as markup. */
+/* Atlas front end. Plain JavaScript. All text from the apps is added with textContent, never as markup. */
 (() => {
     'use strict';
     const $ = (selector) => document.querySelector(selector);
@@ -51,13 +51,13 @@
     // ---------------------------------------------------------------- talking to an app's page
     const tell = (module, message) => {
         const frame = state.frames.get(module.id);
-        if (frame && frame.contentWindow) frame.contentWindow.postMessage({ hub: 1, ...message }, origin(module));
+        if (frame && frame.contentWindow) frame.contentWindow.postMessage({ atlas: 1, ...message }, origin(module));
     };
     const broadcastTheme = () => state.modules.forEach((m) => tell(m, { type: 'theme', mode: state.mode }));
     window.addEventListener('message', (event) => {
         const module = state.modules.find((m) => event.origin === origin(m));
         const data = event.data;
-        if (!module || !data || data.hub !== 1) return;
+        if (!module || !data || data.atlas !== 1) return;
         if (data.type === 'ready') tell(module, { type: 'theme', mode: state.mode });
         else if (data.type === 'palette') openPalette();
         else if (data.type === 'chat') {
@@ -97,7 +97,7 @@
         const home = el('a', 'item');
         home.href = '#/';
         home.dataset.key = '';
-        home.append(icon(ICON.home), el('span', '', 'Home'));
+        home.append(icon(ICON.home), el('span', '', 'Overview'));
         nav.replaceChildren(home);
         for (const module of state.modules) {
             const group = el('div', 'group');
@@ -133,7 +133,7 @@
         document
             .querySelectorAll('#nav .group')
             .forEach((g) => g.classList.toggle('open', Boolean(module) && g.dataset.module === module.id));
-        document.title = module ? `${module.name} · Home` : 'Home';
+        document.title = module ? `${module.name} · Atlas` : 'Atlas';
         $('#fab').querySelector('span').textContent = module ? 'Ask ' + (module.app || module.name) : 'Ask';
         const host = $('#fab');
         if (module) tint(host, module);
@@ -153,7 +153,7 @@
     const renderDashboard = () => {
         const wrap = el('div', 'dash');
         wrap.append(
-            el('h1', '', 'Welcome home'),
+            el('h1', '', 'Welcome to Atlas'),
             el('div', 'sub', 'Everything private, in one place. Nothing here leaves this computer.')
         );
         const cards = el('div', 'cards');
@@ -221,7 +221,7 @@
     };
     const refreshHealth = async () => {
         try {
-            state.health = await (await fetch('/_hub/api/health')).json();
+            state.health = await (await fetch('/_atlas/api/health')).json();
         } catch (_) {
             state.health = {};
         }
@@ -312,7 +312,7 @@
             }
             let found = [];
             try {
-                found = (await (await fetch('/_hub/api/search?q=' + encodeURIComponent(raw))).json()).results || [];
+                found = (await (await fetch('/_atlas/api/search?q=' + encodeURIComponent(raw))).json()).results || [];
             } catch (_) {
                 found = [];
             }
@@ -399,14 +399,14 @@
     };
     const setupTheme = () => {
         try {
-            state.mode = localStorage.getItem('home.theme') || 'dark';
+            state.mode = localStorage.getItem('atlas.theme') || 'dark';
         } catch (_) {
             state.mode = 'dark';
         }
         $('#theme').addEventListener('click', () => {
             state.mode = state.mode === 'auto' ? 'dark' : state.mode === 'dark' ? 'light' : 'auto';
             try {
-                localStorage.setItem('home.theme', state.mode);
+                localStorage.setItem('atlas.theme', state.mode);
             } catch (_) {
                 /* private window: the choice just is not remembered */
             }
@@ -437,7 +437,7 @@
     (async () => {
         setupTheme();
         try {
-            state.modules = (await (await fetch('/_hub/api/modules')).json()).modules;
+            state.modules = (await (await fetch('/_atlas/api/modules')).json()).modules;
         } catch (_) {
             state.modules = [];
         }

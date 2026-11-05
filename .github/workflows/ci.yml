@@ -34,11 +34,11 @@ jobs:
           node-version: 22
       - run: npx --yes eslint@10.1.0 src/orbit/static/app.js
       - run: npx --yes prettier@3.8.1 --check src/orbit/static
-  hub:
+  atlas:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: hub
+        working-directory: atlas
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,8 +52,8 @@ jobs:
       - run: ruff format --check .
       - run: mypy src
       - run: pytest -q
-      - run: npx --yes eslint@10.1.0 src/hub/static/hub.js
-      - run: npx --yes prettier@3.8.1 --check src/hub/static
+      - run: npx --yes eslint@10.1.0 src/atlas/static/atlas.js
+      - run: npx --yes prettier@3.8.1 --check src/atlas/static
   security:
     runs-on: ubuntu-latest
     defaults:

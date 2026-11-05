@@ -153,7 +153,7 @@ def search_all(conn, a):
 
 
 def search_links(found: dict) -> list[dict]:
-    """The search result as one flat list for the front door: what it is, a line of detail, and the address inside Orbit that opens it."""
+    """The search result as one flat list for Atlas, the shared search: what it is, a line of detail, and the address inside Orbit that opens it."""
     from urllib.parse import quote
 
     out: list[dict] = []

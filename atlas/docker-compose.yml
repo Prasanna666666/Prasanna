@@ -1,0 +1,23 @@
+# Atlas: the one address for every app. It holds no data and talks only to the apps listed in modules.d (each on this computer).
+# Open http://atlas.localhost:8000   (*.localhost always means this computer; no setup needed)
+# Start the apps as usual (Orbit: ./scripts/up.sh, Lumo: scripts/up.sh); Atlas shows each one as running or not.
+name: atlas
+
+services:
+  atlas:
+    build: .
+    image: atlas:local
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    tmpfs: ["/tmp"]
+    mem_limit: 128m
+    pids_limit: 64
+    ports: ["127.0.0.1:${ATLAS_PORT:-8000}:8000"]
+    extra_hosts: ["host.docker.internal:host-gateway"]   # the apps publish their ports on this computer; this is how the atlas reaches them
+    environment:
+      ATLAS_PUBLIC_PORT: "${ATLAS_PORT:-8000}"
+      ATLAS_DOMAIN: "${ATLAS_DOMAIN:-atlas.localhost}"
+    volumes:
+      - ./modules.d:/app/modules.d:ro                   # add a module = add a file here (then: ./up.sh)

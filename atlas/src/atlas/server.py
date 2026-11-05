@@ -1,4 +1,4 @@
-"""The front door: one name for everything. ``home.localhost`` is the hub's own page; ``<module>.home.localhost`` is that module's app."""
+"""The front door: one name for everything. ``atlas.localhost`` is the atlas's own page; ``<module>.atlas.localhost`` is that module's app."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ from .registry import Module, load
 from .upstream import Upstreams
 
 STATIC = Path(__file__).with_name("static")
-STATIC_TYPES = {"hub.css": "text/css; charset=utf-8", "hub.js": "text/javascript; charset=utf-8", "icon.svg": "image/svg+xml"}
+STATIC_TYPES = {"atlas.css": "text/css; charset=utf-8", "atlas.js": "text/javascript; charset=utf-8", "icon.svg": "image/svg+xml"}
 LOCAL_ALIASES = frozenset({"localhost", "127.0.0.1", "[::1]"})
 
 
 def _split_host(value: str) -> tuple[str, str]:
-    """('home.localhost', '8000') from 'Home.Localhost:8000' (also '[::1]:8000')."""
+    """('atlas.localhost', '8000') from 'Atlas.Localhost:8000' (also '[::1]:8000')."""
     value = value.strip().lower()
     if value.startswith("["):
         host, _, rest = value.partition("]")
@@ -31,9 +31,9 @@ def _split_host(value: str) -> tuple[str, str]:
 
 
 @dataclass(frozen=True)
-class Hub:
+class Atlas:
     modules: dict[str, Module]
-    domain: str  # home.localhost
+    domain: str  # atlas.localhost
     port: int  # the port the browser uses
     upstreams: Upstreams
 
@@ -43,7 +43,7 @@ class Hub:
 
     @property
     def origins(self) -> frozenset[str]:
-        """Every origin that is the hub itself: its own page and each app's name."""
+        """Every origin that is the atlas itself: its own page and each app's name."""
         return frozenset({self.shell_origin, *(f"http://{m}.{self.domain}:{self.port}" for m in self.modules)})
 
     def resolve(self, host_header: str) -> tuple[str, Module | None]:
@@ -68,13 +68,13 @@ class Hub:
         )
 
 
-def make_handler(hub: Hub) -> type[BaseHTTPRequestHandler]:
-    return type("Handler", (_Handler,), {"hub": hub})
+def make_handler(atlas: Atlas) -> type[BaseHTTPRequestHandler]:
+    return type("Handler", (_Handler,), {"atlas": atlas})
 
 
 class _Handler(BaseHTTPRequestHandler):
-    hub: ClassVar[Hub]
-    server_version = "Home"
+    atlas: ClassVar[Atlas]
+    server_version = "Atlas"
     sys_version = ""
 
     def log_message(self, fmt: str, *args: Any) -> None:  # quiet: addresses and searches can be private
@@ -82,11 +82,11 @@ class _Handler(BaseHTTPRequestHandler):
 
     # ---- one entry point for every method: the Host header decides who gets the request ------------------------------
     def _handle(self) -> None:
-        kind, module = self.hub.resolve(self.headers.get("Host", ""))
+        kind, module = self.atlas.resolve(self.headers.get("Host", ""))
         if kind == "module" and module is not None:
-            return proxy.forward(self, module, self.hub.origins, self.hub.shell_origin)
+            return proxy.forward(self, module, self.atlas.origins, self.atlas.shell_origin)
         if kind == "alias":
-            return self._redirect(self.hub.shell_origin + self.path)
+            return self._redirect(self.atlas.shell_origin + self.path)
         if kind != "shell":
             return self._send(HTTPStatus.MISDIRECTED_REQUEST, b"unknown host", "text/plain; charset=utf-8")
         self._shell()
@@ -101,7 +101,7 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy", self.hub.shell_policy())
+        self.send_header("Content-Security-Policy", self.atlas.shell_policy())
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -117,36 +117,38 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    # ---- the hub's own page and API ----------------------------------------------------------------------------------
+    # ---- the atlas's own page and API ----------------------------------------------------------------------------------
     def _shell(self) -> None:
         if self.command not in ("GET", "HEAD"):
             return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")
         url = urlsplit(self.path)
         if url.path in ("/", "/index.html"):
             return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
-        if url.path.startswith("/_hub/static/") and url.path.rsplit("/", 1)[-1] in STATIC_TYPES:
+        if url.path.startswith("/_atlas/static/") and url.path.rsplit("/", 1)[-1] in STATIC_TYPES:
             name = url.path.rsplit("/", 1)[-1]
             return self._send(200, (STATIC / name).read_bytes(), STATIC_TYPES[name])
-        if url.path == "/_hub/api/modules":
-            return self._json({"modules": [m.public() for m in self.hub.modules.values()]})
-        if url.path == "/_hub/api/health":
-            return self._json(self.hub.upstreams.health())
-        if url.path == "/_hub/api/search":
+        if url.path == "/_atlas/api/modules":
+            return self._json({"modules": [m.public() for m in self.atlas.modules.values()]})
+        if url.path == "/_atlas/api/health":
+            return self._json(self.atlas.upstreams.health())
+        if url.path == "/_atlas/api/search":
             query = (parse_qs(url.query).get("q") or [""])[0][:200]
-            return self._json({"results": self.hub.upstreams.search(query)})
+            return self._json({"results": self.atlas.upstreams.search(query)})
         self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
 
 
-def build(modules_dir: Path | None = None, domain: str | None = None, port: int | None = None) -> Hub:
-    directory = modules_dir or Path(os.environ.get("HUB_MODULES_DIR", "modules.d"))
+def build(modules_dir: Path | None = None, domain: str | None = None, port: int | None = None) -> Atlas:
+    directory = modules_dir or Path(os.environ.get("ATLAS_MODULES_DIR", "modules.d"))
     modules = load(directory)
-    return Hub(modules, domain or os.environ.get("HUB_DOMAIN", "home.localhost"), port or int(os.environ.get("HUB_PUBLIC_PORT", "8000")), Upstreams(modules))
+    return Atlas(
+        modules, domain or os.environ.get("ATLAS_DOMAIN", "atlas.localhost"), port or int(os.environ.get("ATLAS_PUBLIC_PORT", "8000")), Upstreams(modules)
+    )
 
 
-def serve(hub: Hub, host: str, port: int) -> int:
-    server = ThreadingHTTPServer((host, port), make_handler(hub))
+def serve(atlas: Atlas, host: str, port: int) -> int:
+    server = ThreadingHTTPServer((host, port), make_handler(atlas))
     server.daemon_threads = True
-    print(f"Home is running: open {hub.shell_origin}  (modules: {', '.join(hub.modules) or 'none'})", flush=True)
+    print(f"Atlas is running: open {atlas.shell_origin}  (modules: {', '.join(atlas.modules) or 'none'})", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

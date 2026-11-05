@@ -1,6 +1,0 @@
-"""Home: one address and one look for every private app (Orbit for money, Lumo for photos, and whatever comes next).
-
-The hub holds no data. Each app stays its own sub-system with its own database, container and rules; the hub is the front door:
-it gives each app an address under one name, draws one menu, one search and one chat button, and checks that every app is up."""
-
-__version__ = "1.0.0"

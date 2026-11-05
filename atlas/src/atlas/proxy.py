@@ -1,7 +1,7 @@
 """Hand a browser request to the app that owns it and stream the answer back, unchanged.
 
-Nothing in a page or script is rewritten: each app is reached under its own name (finance.home.localhost), so its own absolute addresses keep working.
-The hub changes only what must change to be a safe front door: the Host and Origin it presents to the app, and the right to be shown inside the hub's page."""
+Nothing in a page or script is rewritten: each app is reached under its own name (finance.atlas.localhost), so its own absolute addresses keep working.
+The atlas changes only what must change to be a safe front door: the Host and Origin it presents to the app, and the right to be shown inside the atlas's page."""
 
 from __future__ import annotations
 
@@ -22,14 +22,14 @@ FRAME_ANCESTORS = re.compile(r"frame-ancestors[^;]*", re.IGNORECASE)
 
 
 def allow_framing(policy: str, shell_origin: str) -> str:
-    """The app forbids being framed; the hub allows its own page (and nobody else) to frame it."""
+    """The app forbids being framed; the atlas allows its own page (and nobody else) to frame it."""
     if FRAME_ANCESTORS.search(policy):
         return FRAME_ANCESTORS.sub(f"frame-ancestors {shell_origin}", policy)
     return f"{policy}; frame-ancestors {shell_origin}".lstrip("; ")
 
 
 def request_headers(handler: Any, module: Module, origins: frozenset[str]) -> dict[str, str] | None:
-    """The headers to send to the app, or None when the browser's Origin is not one of the hub's own (a page on another site)."""
+    """The headers to send to the app, or None when the browser's Origin is not one of the atlas's own (a page on another site)."""
     sent = {k: v for k, v in handler.headers.items() if k.lower() not in NOT_COPIED_REQUEST}
     origin = handler.headers.get("Origin")
     if origin is not None:

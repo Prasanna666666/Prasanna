@@ -9,5 +9,5 @@ Two private, offline apps live in this repository, one per branch:
 
 Nothing in either app talks to a cloud service while it runs.
 
-## Home
-`hub/` is the one address for the private apps in this repository family (Orbit for money, Lumo for photos, more to come): `http://home.localhost:8000`. See `hub/README.md`.
+## Atlas
+`atlas/` is the one address for the private apps in this repository family (Orbit for money, Lumo for photos, more to come): `http://atlas.localhost:8000`. See `atlas/README.md`.

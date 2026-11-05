@@ -1,4 +1,4 @@
-"""The modules the hub knows about: one small JSON file per module in ``modules.d``. Adding an app means dropping a file in; nothing else changes."""
+"""The modules the atlas knows about: one small JSON file per module in ``modules.d``. Adding an app means dropping a file in; nothing else changes."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 SLUG = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
-RESERVED = frozenset({"home", "www", "api", "static"})  # names the hub itself uses
+RESERVED = frozenset({"atlas", "home", "www", "api", "static"})  # names the atlas itself uses
 LOCAL_NAMES = frozenset({"localhost", "127.0.0.1", "::1", "host.docker.internal"})
 
 
@@ -29,7 +29,7 @@ class Page:
 
 @dataclass(frozen=True)
 class Auth:
-    """How the hub gets into an app's API on its own behalf (for search and health): a token the app prints into its own page."""
+    """How the atlas gets into an app's API on its own behalf (for search and health): a token the app prints into its own page."""
 
     meta: str  # name of the <meta> tag that holds the token
     header: str  # the header the API expects it in
@@ -53,12 +53,12 @@ class Module:
 
     @property
     def netloc(self) -> str:
-        """Where the hub connects."""
+        """Where the atlas connects."""
         return urlsplit(self.upstream).netloc
 
     @property
     def presented(self) -> str:
-        """What the app is told it was called as. The apps only answer their own local name, never the name the hub reaches them by (host.docker.internal)."""
+        """What the app is told it was called as. The apps only answer their own local name, never the name the atlas reaches them by (host.docker.internal)."""
         return self.host or f"127.0.0.1:{urlsplit(self.upstream).port or 80}"
 
     def public(self) -> dict[str, Any]:
@@ -77,7 +77,7 @@ class Module:
 
 
 def upstream_is_private(url: str) -> bool:
-    """The hub only ever talks to this computer or its private network, never the internet."""
+    """The atlas only ever talks to this computer or its private network, never the internet."""
     parts = urlsplit(url)
     host = (parts.hostname or "").lower()
     if parts.scheme != "http" or not host:
@@ -103,7 +103,7 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         raise ManifestError(f"{where}: the id must be lowercase letters, digits and dashes (not {sorted(RESERVED)})")
     if not raw.get("name"):
         raise ManifestError(f"{where}: a name is needed")
-    override = os.environ.get(f"HUB_UPSTREAM_{mid.upper().replace('-', '_')}")  # lets one machine point a module somewhere else without editing the file
+    override = os.environ.get(f"ATLAS_UPSTREAM_{mid.upper().replace('-', '_')}")  # lets one machine point a module somewhere else without editing the file
     upstream = str(override or raw.get("upstream", "")).rstrip("/")
     if not upstream_is_private(upstream):
         raise ManifestError(f"{where}: the upstream must be an http address on this computer or its private network, not {upstream!r}")

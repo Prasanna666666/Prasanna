@@ -165,7 +165,7 @@ def _get_history(state: State, conn, query: dict[str, str]) -> dict:
 
 
 def _get_search(state: State, conn, query: dict[str, str]) -> dict:
-    """Search for Home, the front door that searches every app: the same results as the search box, as a flat list with where each opens."""
+    """Search for Atlas, the one address that searches every app: the same results as the search box, as a flat list with where each opens."""
     return {"results": browse.search_links(browse.search_all(conn, {"query": query.get("q", "")[:200]}))}
 
 

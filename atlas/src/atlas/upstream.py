@@ -1,4 +1,4 @@
-"""The hub's own calls to the apps: is it up, and what does it find for this search. Short timeouts, run side by side, never raising."""
+"""The atlas's own calls to the apps: is it up, and what does it find for this search. Short timeouts, run side by side, never raising."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class Upstreams:
         self._health: dict[str, tuple[float, dict[str, Any]]] = {}
         self._lock = threading.Lock()
 
-    # ---- the token an app prints into its own page, which the hub needs to use that app's API -------------------------
+    # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
     def _token(self, module: Module, refresh: bool = False) -> str:
         assert module.auth is not None
         with self._lock:

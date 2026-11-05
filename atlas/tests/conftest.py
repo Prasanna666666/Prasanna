@@ -13,9 +13,9 @@ from typing import Any
 import pytest
 from fake_app import FakeApp
 
-from hub.registry import load
-from hub.server import Hub, make_handler
-from hub.upstream import Upstreams
+from atlas.registry import load
+from atlas.server import Atlas, make_handler
+from atlas.upstream import Upstreams
 
 
 def free_port() -> int:
@@ -26,7 +26,7 @@ def free_port() -> int:
 
 @dataclass
 class Running:
-    hub: Hub
+    atlas: Atlas
     port: int
     apps: dict[str, FakeApp]
 
@@ -40,7 +40,7 @@ class Running:
             conn.close()
 
     def shell(self, path: str) -> tuple[int, dict[str, str], bytes]:
-        return self.request("GET", path, f"home.localhost:{self.port}")
+        return self.request("GET", path, f"atlas.localhost:{self.port}")
 
     def json(self, path: str) -> Any:
         return json.loads(self.shell(path)[2])
@@ -57,11 +57,11 @@ def running(tmp_path: Path) -> Iterator[Running]:
     (tmp_path / "photos.json").write_text(json.dumps(manifest("photos", photos.url, search="/api/search", auth={"meta": "app-token", "header": "X-App-Token"})))
     port = free_port()
     modules = load(tmp_path)
-    hub = Hub(modules, "home.localhost", port, Upstreams(modules))
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(hub))
+    atlas = Atlas(modules, "atlas.localhost", port, Upstreams(modules))
+    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(atlas))
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield Running(hub, port, {"photos": photos, "money": money})
+    yield Running(atlas, port, {"photos": photos, "money": money})
     server.shutdown()
     server.server_close()
     photos.close()
