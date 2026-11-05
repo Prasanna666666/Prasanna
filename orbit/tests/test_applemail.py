@@ -29,7 +29,7 @@ def test_a_mailbox_script_gets_its_names_as_data_and_its_limits_as_numbers():
     script = applemail.build_script('Gmail"; evil();//', "INBOX", 30, False)
     params = json.loads(script.split("const P = ")[1].split(";\n")[0])
     assert params == {"account": 'Gmail"; evil();//', "mailbox": "INBOX", "days": 30, "only_attachments": False}  # a hostile name stays inside a string
-    assert applemail.build_script("a", "b", 10**9, True).count('"days": 18250') == 1 and '"days": 1,' in applemail.build_script("a", "b", -5, True)
+    assert '"days": null' in applemail.build_script("a", "b", None, True) and '"days": 1,' in applemail.build_script("a", "b", -5, True)
 
 
 def test_all_mail_is_copied_by_default_mailbox_by_mailbox_and_junk_trash_and_drafts_are_skipped(tmp_path):
@@ -84,4 +84,4 @@ def test_the_command_copies_all_mail_into_the_mail_folder_unless_told_to_keep_to
     assert cli._export_mail(["--days", "30"]) == 0
     assert got == {"out": tmp_path / "inbox" / "mail", "days": 30, "only": False}
     cli._export_mail(["--attachments-only"])
-    assert got["days"] == 3650 and got["only"] is True
+    assert got["days"] is None and got["only"] is True

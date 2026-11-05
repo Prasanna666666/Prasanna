@@ -4,7 +4,7 @@ Apple Mail already keeps your mail on this Mac (it does the talking to Gmail, Ou
 for the messages, through the built-in `osascript`, and writes each one as a .eml file into ~/OrbitInbox/mail/. The isolated reader (no network,
 inbox read-only) then reads the messages, their text and their attachments, like any other document. Nothing here connects to a mail server.
 
-All mail of the last N days (default 3650, ten years) is copied, one mailbox at a time, because the text of an email is often the crucial information (a booking
+All mail, with no date limit, is copied (`days` is an opt-in limit), one mailbox at a time, because the text of an email is often the crucial information (a booking
 time, a payment confirmation, an appointment). Junk, Trash and Drafts are always skipped. `only_attachments` narrows it to messages with an attachment.
 Re-running adds only what is new.
 """
@@ -34,12 +34,12 @@ JSON.stringify(out);
 MAILBOX_JXA = """
 const Mail = Application('Mail');
 const P = __PARAMS__;
-const cutoff = new Date(Date.now() - P.days * 86400000);
+const cutoff = P.days === null ? null : new Date(Date.now() - P.days * 86400000);
 const out = [];
 let msgs = [];
 try {
   const mb = Mail.accounts.byName(P.account).mailboxes.byName(P.mailbox);
-  msgs = mb.messages.whose({dateReceived: {'>': cutoff}})();
+  msgs = cutoff === null ? mb.messages() : mb.messages.whose({dateReceived: {'>': cutoff}})();
 } catch (e) {}
 for (const m of msgs) {
   if (P.only_attachments) {
@@ -55,9 +55,9 @@ JSON.stringify(out);
 """
 
 
-def build_script(account: str, mailbox: str, days: int, only_attachments: bool) -> str:
+def build_script(account: str, mailbox: str, days: int | None, only_attachments: bool) -> str:
     """The Mail script for one mailbox. Its settings are written in as a JSON literal (names are data there, never code)."""
-    params = {"account": account, "mailbox": mailbox, "days": max(1, min(int(days), 18250)), "only_attachments": bool(only_attachments)}
+    params = {"account": account, "mailbox": mailbox, "days": None if days is None else max(1, int(days)), "only_attachments": bool(only_attachments)}
     return MAILBOX_JXA.replace("__PARAMS__", json.dumps(params))
 
 
@@ -67,7 +67,7 @@ def _run(script: str, run: Runner, timeout: int) -> list:
     try:
         r = run(["osascript", "-l", "JavaScript", "-e", script], capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"Mail took too long to answer ({timeout // 60} minutes). Try fewer days, or open Mail first.") from e
+        raise RuntimeError(f"Mail took too long to answer ({timeout // 60} minutes). Open Mail first, or try --days 365 to copy less.") from e
     if r.returncode != 0:
         raise RuntimeError(
             "Could not read Mail. If macOS asked, allow your terminal to control Mail "
@@ -85,7 +85,7 @@ def list_mailboxes(run: Runner = subprocess.run) -> list[tuple[str, str]]:
     return [(str(m["account"]), str(m["mailbox"])) for m in found if isinstance(m, dict) and m.get("mailbox") not in SKIP_MAILBOXES]
 
 
-def fetch_mailbox(account: str, mailbox: str, days: int = 3650, only_attachments: bool = False, run: Runner = subprocess.run) -> list[dict]:
+def fetch_mailbox(account: str, mailbox: str, days: int | None = None, only_attachments: bool = False, run: Runner = subprocess.run) -> list[dict]:
     return _run(build_script(account, mailbox, days, only_attachments), run, 1800)
 
 
@@ -109,7 +109,7 @@ def write_messages(records: list[dict], outdir: Path) -> dict[str, int]:
 
 
 def export(
-    outdir: Path, days: int = 3650, only_attachments: bool = False, run: Runner = subprocess.run, progress: Callable[[str], None] = print
+    outdir: Path, days: int | None = None, only_attachments: bool = False, run: Runner = subprocess.run, progress: Callable[[str], None] = print
 ) -> dict[str, int]:
     """Copy the mail, mailbox by mailbox (each written before the next is asked for), and say where it is."""
     total = {"new": 0, "already_had": 0, "skipped": 0, "mailboxes": 0}
