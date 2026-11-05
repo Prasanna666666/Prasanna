@@ -1,9 +1,9 @@
-"""Apple Notes -> Orbit, in two separate steps so that nothing sensitive is ever sent anywhere.
+"""Apple Notes -> Finance, in two separate steps so that nothing sensitive is ever sent anywhere.
 
 1. export (runs natively on the Mac; needs the macOS Notes app): asks Notes for every note via the built-in
    `osascript` and writes one plain-text .md file per note into ~/OrbitInbox/notes/.
 2. import (runs anywhere, including inside the Docker container, which sees the inbox read-only): reads those files
-   into Orbit's notes table. Re-importing updates changed notes and never duplicates.
+   into Finance's notes table. Re-importing updates changed notes and never duplicates.
 
 Locked notes cannot be read by Notes' scripting interface and are skipped (and counted). Images and attachments are
 not exported - only text.

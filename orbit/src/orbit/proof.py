@@ -1,4 +1,4 @@
-"""Is this month PROVEN? Every number Orbit shows is only as good as the statements behind it, so for each month it says plainly either
+"""Is this month PROVEN? Every number Finance shows is only as good as the statements behind it, so for each month it says plainly either
 "proven" or "not proven, and here is why". Proven means ALL of the following hold, for every account that has payments in the month:
 
   1. a statement covers the whole month (no gap between statements longer than five days);

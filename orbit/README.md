@@ -1,4 +1,6 @@
-# Orbit
+# Finance
+
+*(The code lives in the `orbit/` folder and the command-line tool is `orbit`; those names stay so nothing you already have breaks.)*
 
 A private personal assistant. One local SQLite database, one chat, small modules.
 
@@ -6,7 +8,7 @@ A private personal assistant. One local SQLite database, one chat, small modules
 
 ```bash
 cd orbit && pip install -e ".[ui]"
-ollama pull ministral-3:3b       # the one local model Orbit uses (check the exact name at ollama.com/library)
+ollama pull ministral-3:3b       # the one local model Finance uses (check the exact name at ollama.com/library)
 orbit ui                         # Today / Chat / Tasks / Notes / Money / People / Settings
 orbit brief | orbit tools | orbit chat
 ```
@@ -37,14 +39,14 @@ Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` a
 - All containers: non-root, read-only filesystem, all capabilities dropped, no-new-privileges. UI on 127.0.0.1 only.
 - `gateway` and `ollama` are byte forwarders on Docker's default network (needed to show the page and reach Ollama on the Mac).
 - The **documents agent is read-only** and told to ignore instructions inside documents, so a booby-trapped PDF cannot make
-  Orbit change or delete anything.
-- Not covered by Orbit: Ollama itself and macOS (turn off Ollama update checks, or switch Wi-Fi off / use LuLu). Theft or loss of the Mac is out of scope, so FileVault is optional.
+  Finance change or delete anything.
+- Not covered by Finance: Ollama itself and macOS (turn off Ollama update checks, or switch Wi-Fi off / use LuLu). Theft or loss of the Mac is out of scope, so FileVault is optional.
 - Verify: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail;
   `docker compose exec app sh -c "touch /parsed/x"` must fail (read-only).
 - Untested on a real Mac (no Docker engine where this was written). Send only error text if a step fails.
 
 ## Your finance folder (statements, payslips, invoices, receipts, tax and insurance letters, contracts - any bank, any language)
-Keep your PDFs where they are and point Orbit at the folder; it is mounted **read-only** and only the offline parser can open it:
+Keep your PDFs where they are and point Finance at the folder; it is mounted **read-only** and only the offline parser can open it:
 ```bash
 ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance. Subfolders are fine (ing/2026/, payslips/ ...)
 ```
@@ -61,7 +63,7 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   known, a line is unexplained, or the layout is not understood). **A file that needs a check adds nothing to your totals**, and Money says so, with the reason.
 - **Payslips and invoices:** the model quotes each amount exactly as printed; an amount is kept only if that exact text is in the document.
 - **Honest limits.** Scanned (image-only) or password-protected PDFs have no text and are listed as such. A statement without balances can be read but
-  not proven. Categories and trip/event grouping are interpretation, not arithmetic: they can be wrong and are fixed by telling Orbit in chat.
+  not proven. Categories and trip/event grouping are interpretation, not arithmetic: they can be wrong and are fixed by telling Finance in chat.
 - **Safe to repeat and to interrupt.** A line is never stored twice, even when statements overlap. Reading takes a minute or two per file: the model is only
   asked for the layout.
 - **Verifier agents** (independent checkers; any one can fail a file; see `verify.py`). *Per file:* layout reader, balance prover (running balances add up),
@@ -104,13 +106,13 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
 - **Net worth page.** Net worth = account balances from proven statements + investments and assets you typed in - debts you typed in. Typed values are always labelled as typed by you and never mixed into the proven figures; update them when prices change. A holding in another currency is converted only when a rate for its date is loaded, otherwise it is left out and counted.
 - **Budgets and bills.** Monthly budgets with progress per category; bills coming up (invoices not yet paid, regular payments due) on Plan and Home.
 - **Tax page and year report.** The facts a tax return asks for (annual statement, payslips, tax withheld, interest, investments, insurance, balances on 1 January, tax letters) and a printable one-page report per year at `/report/<year>`. Facts only, not tax advice.
-- **Plan page.** Goals with progress; budgets; goals with progress and whether your pace gets you there; an estimate of the next months (from the median of your last six); a timeline (salary changes, trips, regular payments that started or stopped); interest received and an estimated rate per account; what was paid into investments and into each insurance; and *Worth a look* (rules applied to your own figures, double charges, price changes, large or unclear payments). Forecasts are labelled estimates; suggestions are rules, not advice. The value of an investment portfolio needs a broker's holdings statement, which Orbit cannot read yet.
+- **Plan page.** Goals with progress; budgets; goals with progress and whether your pace gets you there; an estimate of the next months (from the median of your last six); a timeline (salary changes, trips, regular payments that started or stopped); interest received and an estimated rate per account; what was paid into investments and into each insurance; and *Worth a look* (rules applied to your own figures, double charges, price changes, large or unclear payments). Forecasts are labelled estimates; suggestions are rules, not advice. The value of an investment portfolio needs a broker's holdings statement, which Finance cannot read yet.
 - **Family.** On the People page, each person shows what you sent and received where their name is printed on a payment (whole word only; nothing is guessed from amounts).
 - **Interest rate.** An estimate per account: interest earned inside the statement periods that are loaded, divided by their average closing balance, scaled to a year.
 - **Income, savings and investments.** A bonus is recognised from its description (bonus, gratificatie, 13e maand, winstdeling, ...). Savings = money in minus money spent, and the savings rate is saved / money in, per month and per year (a negative amount means more went out than came in; a month with no income has no rate rather than an invented one). Investments show what you paid in (counted from your payments), the value you typed in, and a gain or loss only for holdings where you also typed what you paid in.
 - **Warnings only.** A month that is fine shows nothing extra. A month that cannot be proven shows **⚠ Check this month** with each reason: a statement missing or needing a check, balances that do not join between statements, payments with no known account, reports that differ from the ledger, or a failed cross-check. Chat answers say "NOT PROVEN" next to any figure from such a month. Treat only proven months as final.
 - **Backups.** A copy is made daily (7 kept) and before every upgrade of the database, inside the app's data volume. They protect against mistakes, not against losing the disk: run `./scripts/backup.sh /path/to/external/drive` now and then. The copies stay encrypted.
-- **Opens with no password.** Open `http://orbit.localhost:8501`: there is no login, because it is your own laptop. Only pages from this Mac's own address are accepted, and changes need Orbit's own header, so other websites cannot read or change anything. Other programs running on your Mac could use the port; the database itself stays encrypted with a key in your Keychain.
+- **Opens with no password.** Open `http://finance.localhost:8501`: there is no login, because it is your own laptop. Only pages from this Mac's own address are accepted, and changes need Finance's own header, so other websites cannot read or change anything. Other programs running on your Mac could use the port; the database itself stays encrypted with a key in your Keychain.
 - **Watchers (plain rules, no model).** Duplicate charges, price changes on regular payments, unusually large payments, refunds tied to their purchase, one name per shop,
   upcoming regular payments (shown on Home), net worth in euros from proven closing balances, tax letters / insurance / VAT / annual statement vs payslips, exchange-rate
   freshness, a self-test of the readers, a tamper-evident audit log and a daily backup (kept 7 days, next to the database - also copy the folder elsewhere).
@@ -121,18 +123,18 @@ Then open **Money -> Read new finance files** (or `orbit import-statements`).
   a real file yet*:
   - **ABN AMRO:** download "Bij- en afschrijvingen" as **MT940** or **camt.053** (exact, read without a model), or the TXT export. PDF is read best-effort.
   - **Wise:** use the **CSV** statement. The PDF often has no date column (dates sit inside the description) and its headers vary by language and currency.
-  - **ICICI / SBI:** use the **CSV** or Excel-as-CSV export from net banking. ICICI PDFs are usually password-protected, which Orbit cannot open. SBI PDFs show
+  - **ICICI / SBI:** use the **CSV** or Excel-as-CSV export from net banking. ICICI PDFs are usually password-protected, which Finance cannot open. SBI PDFs show
     Txn/Post Date, Value Date, Description, Ref/Cheque No, Debit, Credit and a running Balance (sometimes with a CR/DR marker); they are read by layout.
   - **Credit cards (e.g. ABN AMRO card):** read by layout and proved by the previous/new balance printed on the statement.
 - **Categories, automatic.** Monthly spending: a few cheap keyword rules, then the local model for the merchants left (it sees only names, never
   amounts). **Trips, matches, shows and cancellations:** after every import the local model groups payments that belong together into named events
   (Asian Games 2026: Tickets, Flights, Stay ... Total), each under sports, events, trips or cancellations; refunds count negative, so a cancellation can
-  end below zero. Each payment is looked at once. Nothing to click: if something is wrong, tell Orbit in chat ("move the Ajax tickets to the PSV event").
+  end below zero. Each payment is looked at once. Nothing to click: if something is wrong, tell Finance in chat ("move the Ajax tickets to the PSV event").
 - **Views:** monthly tiles by category, one-time expenses (trips, events) with totals, month by month, regular payments, payslips, and chat ("what did I spend on food
-  last month?", "how much tax did I pay this year?"). **What did Orbit make of each file?** lists every file with counts only, never content.
-- Scanned (image-only) or password-protected PDFs have no text to read: Orbit lists them as "read: 0 transactions". Remove the password or use the bank's
+  last month?", "how much tax did I pay this year?"). **What did Finance make of each file?** lists every file with counts only, never content.
+- Scanned (image-only) or password-protected PDFs have no text to read: Finance lists them as "read: 0 transactions". Remove the password or use the bank's
   CSV/PDF download instead.
-- The model, Ollama, lives on your Mac in `~/.ollama/models` (about 2 GB); your data never leaves your Mac, and Orbit makes no network requests.
+- The model, Ollama, lives on your Mac in `~/.ollama/models` (about 2 GB); your data never leaves your Mac, and Finance makes no network requests.
 
 ## Your data boundary
 - Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).
@@ -155,7 +157,7 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
   reliable on a 3B model, and a confused agent can only affect its own area. The chat shows which agent answered.
 - **Auto-tagging**: `orbit tag` or the Notes page button tags untagged notes (rules + people names first, then the local
   model, limited to a fixed vocabulary). It never changes tags you set yourself.
-- If the model is not installed, Orbit tells you the exact `ollama pull` to run. It never switches to a different model family.
+- If the model is not installed, Finance tells you the exact `ollama pull` to run. It never switches to a different model family.
 
 ## Adding a feature
 1. Create `src/orbit/modules/health.py` with a `MODULE = Module(name, migrations, tools)` (see `tasks.py`).
@@ -175,13 +177,13 @@ Locked notes are skipped and counted; images/attachments are not exported (text 
 
 Dev: `pip install -e ".[dev]" && pytest`.
 
-## At a glance (same in Orbit and Lumo)
+## At a glance (same in Finance and Lumo)
 
 | | |
 |---|---|
 | Start | `./scripts/up.sh` (Docker) |
 | Stop | `./scripts/down.sh` |
-| Address | `http://orbit.localhost:8501` |
+| Address | `http://finance.localhost:8501` |
 | Internet | none: internal Docker network, in-code network lock |
 | Your files | read-only (`~/OrbitFinance`, `~/OrbitInbox`) |
 | What it learns | a Docker volume, not a folder on your Mac |
@@ -189,7 +191,7 @@ Dev: `pip install -e ".[dev]" && pytest`.
 | Chat | the round button in the corner, or `Ctrl/⌘ J` |
 | Search everything | `Ctrl/⌘ K` or `/` |
 
-## How it thinks (the same in Orbit and Lumo)
+## How it thinks (the same in Finance and Lumo)
 
 ```
 You ask  ->  AI: understand the question, choose the area and the tools
@@ -203,7 +205,7 @@ You ask  ->  AI: understand the question, choose the area and the tools
 Rules:
 - AI for understanding, routing, searching by meaning and explaining. Code for every calculation, filter, date and total.
 - RAG only for unstructured text (documents, notes), never for the ledger.
-- Source data is never changed by the AI. Orbit's assistant cannot delete an imported payment at all; other deletions need your own words.
+- Source data is never changed by the AI. Finance's assistant cannot delete an imported payment at all; other deletions need your own words.
 - One shared router. A new module registers its tools and they are reachable at once (the general agent sees every tool); give it its own agent in `agents.py` when it needs a narrower role.
 
 ## Where AI and RAG are used, and how
@@ -211,4 +213,4 @@ Rules:
 - **Figures** never come from retrieval or from the model: they come from code and SQL, and each one in an answer is checked against your data.
 
 ## One address for everything (Atlas)
-Orbit can run on its own at `http://orbit.localhost:8501`, or as one part of **Atlas** (`atlas/`, `http://atlas.localhost:8000`) together with Lumo (photos) and any future app, with one menu, one search and one chat button. Orbit stays its own sub-system: its own database, container, key and rules. When shown inside Atlas it hides its own menu and top bar and answers Atlas's `GET /api/health` and `GET /api/search?q=`. See `atlas/README.md` for the contract and how to add an app.
+Finance can run on its own at `http://finance.localhost:8501`, or as one part of **Atlas** (`atlas/`, `http://atlas.localhost:8000`) together with Lumo (photos) and any future app, with one menu, one search and one chat button. Finance stays its own sub-system: its own database, container, key and rules. When shown inside Atlas it hides its own menu and top bar and answers Atlas's `GET /api/health` and `GET /api/search?q=`. See `atlas/README.md` for the contract and how to add an app.

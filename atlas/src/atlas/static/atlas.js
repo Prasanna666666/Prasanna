@@ -32,7 +32,7 @@
         refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
     };
 
-    const state = { modules: [], health: {}, frames: new Map(), mode: 'dark', chatting: {} };
+    const state = { modules: [], health: {}, ai: null, frames: new Map(), mode: 'dark', chatting: {} };
     const byId = (id) => state.modules.find((m) => m.id === id);
     const origin = (module) => `${location.protocol}//${module.id}.${location.host}`;
 
@@ -211,18 +211,36 @@
     };
 
     // ---------------------------------------------------------------- chips and health
+    const aiChip = () => {
+        if (!state.ai || !state.ai.configured) return null;
+        const model = state.ai.models.find((m) => m.startsWith('ministral')) || state.ai.models[0] || '';
+        const chip = el(
+            'span',
+            'chip ' + (state.ai.up ? 'up' : 'down'),
+            state.ai.up ? `AI · ${model}` : 'AI model not running'
+        );
+        chip.prepend(el('i'));
+        chip.title = state.ai.up
+            ? 'One local model, shared by every app'
+            : 'Start Ollama: every app that reads or explains needs it';
+        return chip;
+    };
     const renderChips = () => {
         $('#chips').replaceChildren(
-            ...state.modules.map((module) => {
-                const chip = el('span', 'chip ' + statusClass(module), module.name);
-                chip.prepend(el('i'));
-                return chip;
-            })
+            ...[
+                aiChip(),
+                ...state.modules.map((module) => {
+                    const chip = el('span', 'chip ' + statusClass(module), module.name);
+                    chip.prepend(el('i'));
+                    return chip;
+                }),
+            ].filter(Boolean)
         );
     };
     const refreshHealth = async () => {
         try {
             state.health = await (await fetch('/_atlas/api/health')).json();
+            state.ai = await (await fetch('/_atlas/api/ai')).json();
         } catch (_) {
             state.health = {};
         }

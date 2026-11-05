@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start Orbit. The database key lives in the macOS Keychain (created on first run) and is handed to the app container as an environment variable (a Docker secret cannot be used with a read-only container).
+# Start Finance. The database key lives in the macOS Keychain (created on first run) and is handed to the app container as an environment variable (a Docker secret cannot be used with a read-only container).
 #   ./scripts/up.sh            start / rebuild
 #   ./scripts/up.sh --show-key print the key once so you can back it up (lose the key = lose the data)
 set -euo pipefail
@@ -30,4 +30,4 @@ export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep you
 mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
 docker compose up -d --build
-echo "Orbit: http://orbit.localhost:8501   (no password; drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"
+echo "Finance: http://finance.localhost:8501   (no password; drop files into ~/OrbitInbox; finance files are read from $ORBIT_FINANCE_DIR, read-only)"

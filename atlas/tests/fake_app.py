@@ -51,6 +51,8 @@ class _Handler(BaseHTTPRequestHandler):
                         {"results": [{"title": "Lisbon", "subtitle": "14 photos", "kind": "place", "link": "#/library?place=Lisbon"}, {"nope": 1}]}
                     ).encode(),
                 )
+        elif path == "/api/tags":
+            self._reply(200, b'{"models": [{"name": "ministral-3:3b"}, {"name": "other:7b"}]}')
         elif path == "/api/scan":
             if self.app.token and self.headers.get("X-App-Token") != self.app.token:
                 self._reply(403, b'{"error": "token"}')

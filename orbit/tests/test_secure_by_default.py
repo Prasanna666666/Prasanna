@@ -1,4 +1,4 @@
-"""Orbit's data commands refuse to open an unencrypted database unless explicitly allowed."""
+"""Finance's data commands refuse to open an unencrypted database unless explicitly allowed."""
 
 import pytest
 

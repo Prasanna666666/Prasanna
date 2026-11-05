@@ -1,6 +1,6 @@
 """Search over your own files, so the assistant answers from what your documents actually say and shows where it read it (retrieval-augmented answers).
 
-Orbit uses ONE local model, so retrieval is exact keyword search (SQLite full-text search with BM25 ranking), not a second embedding model: it runs offline, needs no
+Finance uses ONE local model, so retrieval is exact keyword search (SQLite full-text search with BM25 ranking), not a second embedding model: it runs offline, needs no
 extra download, and every answer can point at its source. Documents are cut into overlapping passages; notes and finance-file summaries are indexed too. The index is
 refreshed incrementally (only changed items are re-read). If full-text search is missing in the SQLite build, a simple word-match search is used instead.
 """

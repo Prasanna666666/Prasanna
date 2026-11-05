@@ -2,7 +2,7 @@
 
 Installed at start-up. DNS lookups of any other name are refused, and so is any connect() to an address that is
 not loopback or resolved from a trusted local host (e.g. the Ollama bridge inside the private Docker network).
-There is no public allowlist: Orbit makes no internet requests at all. This is defence in depth next to the
+There is no public allowlist: Finance makes no internet requests at all. This is defence in depth next to the
 container's internal-only network, not a replacement for it.
 """
 
@@ -47,7 +47,7 @@ def install() -> None:
             if h in _local_hosts:
                 _allowed_ips.update(r[4][0] for r in res)
             return res
-        raise EgressBlocked(f"blocked DNS lookup for {h!r}: Orbit is offline by design")
+        raise EgressBlocked(f"blocked DNS lookup for {h!r}: Finance is offline by design")
 
     def check(addr):
         if isinstance(addr, tuple) and addr and isinstance(addr[0], str):

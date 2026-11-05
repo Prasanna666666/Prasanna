@@ -125,7 +125,7 @@ def test_the_year_report_is_one_printable_page_with_the_year_and_a_warning_for_u
     tx(conn, "2026-03-25", 300000, kind="income", cat="salary", account="NL1", note="Acme <b>salary</b>")
     tx(conn, "2026-03-01", 100000, cat="rent", account="NL1", note="Huur")
     html = report.year_report(conn, "2026")
-    assert "<h1>Orbit · 2026</h1>" in html and "Tax checklist" in html and "Month by month" in html and "not tax or financial advice" in html
+    assert "<h1>Finance · 2026</h1>" in html and "Tax checklist" in html and "Month by month" in html and "not tax or financial advice" in html
     assert "not fully proven" in html and "2026-03" in html  # no statement backs this invented data
     assert "<script" not in html and "http" not in html.replace("https://", "")  # nothing is loaded from anywhere
 

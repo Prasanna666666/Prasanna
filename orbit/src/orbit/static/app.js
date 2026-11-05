@@ -1,4 +1,4 @@
-/* Orbit front end. No libraries, no network: it talks only to this server. */
+/* Finance front end. No libraries, no network: it talks only to this server. */
 (() => {
     'use strict';
 
@@ -701,7 +701,7 @@
                 location.hash = '#/documents';
             },
         ],
-        ['Ask Orbit', 'chat', () => setCorner(true)],
+        ['Ask Finance', 'chat', () => setCorner(true)],
         [
             'Tasks',
             'tasks',
@@ -915,10 +915,10 @@
             if (mine !== seq) return;
             const pg = pageItems(q);
             const ask = {
-                label: `Ask Orbit: “${input.value.trim()}”`,
+                label: `Ask Finance: “${input.value.trim()}”`,
                 sub: 'Chat',
                 icon: 'chat',
-                run: () => askOrbit(input.value.trim()),
+                run: () => askAssistant(input.value.trim()),
             };
             items = [
                 ...(pg.length ? [{ head: 'Pages' }, ...pg.slice(0, 4)] : []),
@@ -1265,7 +1265,7 @@
         const ask = h('input', { class: 'field ask', placeholder: 'Ask anything about your money…' });
         ask.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && ask.value.trim()) {
-                askOrbit(ask.value.trim());
+                askAssistant(ask.value.trim());
                 ask.value = '';
             }
         });
@@ -1463,7 +1463,7 @@
             'div',
             { class: 'card welcome-card' },
             h('div', { class: 'orb big' }),
-            h('h2', {}, 'Welcome to Orbit'),
+            h('h2', {}, 'Welcome to Finance'),
             h('p', { class: 'muted' }, 'Your money, private on this Mac. Add your statements to begin.'),
             h('a', { class: 'btn primary', href: '#/expenses' }, 'Add my files')
         );
@@ -1573,7 +1573,7 @@
                 'div',
                 { class: 'welcome' },
                 h('div', { class: 'orb' }),
-                h('h2', {}, 'Hi, I’m Orbit'),
+                h('h2', {}, 'Hi, I’m your finance assistant'),
                 h('div', { class: 'muted' }, 'Ask about your money, files, tasks or notes. Private, on this Mac.'),
                 h(
                     'div',
@@ -1662,7 +1662,7 @@
         const close = () => setCorner(false);
         const panel = h(
             'section',
-            { class: 'chat-panel', id: 'chat-panel', hidden: true, role: 'dialog', 'aria-label': 'Ask Orbit' },
+            { class: 'chat-panel', id: 'chat-panel', hidden: true, role: 'dialog', 'aria-label': 'Ask Finance' },
             h(
                 'header',
                 { class: 'chat-head' },
@@ -1670,7 +1670,7 @@
                 h(
                     'div',
                     { class: 'grow' },
-                    h('b', {}, 'Orbit'),
+                    h('b', {}, 'Finance'),
                     h('div', { class: 'faint small' }, 'Private · on this Mac')
                 ),
                 h('button', { class: 'btn ghost small', title: 'Start a new chat', onclick: guard(resetChat) }, 'New'),
@@ -1696,12 +1696,12 @@
                 class: 'fab',
                 id: 'chat-fab',
                 type: 'button',
-                'aria-label': 'Ask Orbit',
-                title: 'Ask Orbit  (Ctrl/⌘ J)',
+                'aria-label': 'Ask Finance',
+                title: 'Ask Finance  (Ctrl/⌘ J)',
                 onclick: () => setCorner(!corner.open),
             },
             icon('chat'),
-            h('span', {}, 'Ask Orbit')
+            h('span', {}, 'Ask Finance')
         );
         document.body.append(panel, fab);
         document.addEventListener('keydown', (e) => {
@@ -1730,7 +1730,7 @@
         }
     }
     /** Open the chat (from anywhere) and ask this. */
-    function askOrbit(text) {
+    function askAssistant(text) {
         if (route() === 'chat') {
             sessionStorage.setItem('orbit.ask', text);
             render();
@@ -1746,7 +1746,7 @@
         return h(
             'div',
             {},
-            head('Ask Orbit', null, h('button', { class: 'btn ghost', onclick: guard(resetChat) }, 'New chat')),
+            head('Ask Finance', null, h('button', { class: 'btn ghost', onclick: guard(resetChat) }, 'New chat')),
             h('div', { class: 'chat' }, chat.root)
         );
     };
@@ -2235,7 +2235,7 @@
                       h(
                           'div',
                           { class: 'muted', style: { textAlign: 'center', fontSize: '14px' } },
-                          'Not right? Tell Orbit in ',
+                          'Not right? Tell the assistant in ',
                           h('a', { href: '#/chat' }, 'chat'),
                           '.'
                       ),
@@ -3915,7 +3915,7 @@
             h(
                 'div',
                 { class: 'card muted' },
-                `Your data lives in ${s.data} (encrypted when the key is set). The model runs on this Mac and Orbit makes no internet requests.`
+                `Your data lives in ${s.data} (encrypted when the key is set). The model runs on this Mac and Finance makes no internet requests.`
             )
         );
     };
@@ -3936,7 +3936,7 @@
             if (m.type === 'navigate' && typeof m.hash === 'string') location.hash = m.hash;
             else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode)) applyTheme(m.mode);
             else if (m.type === 'toggle-chat') setCorner(!corner.open);
-            else if (m.type === 'ask' && typeof m.text === 'string') askOrbit(m.text);
+            else if (m.type === 'ask' && typeof m.text === 'string') askAssistant(m.text);
         });
         window.addEventListener('hashchange', () => toParent({ type: 'route', hash: location.hash }));
         toParent({ type: 'ready' });

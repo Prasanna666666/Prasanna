@@ -588,7 +588,7 @@ def files_to_check(conn, a=None):
 
 
 def statement_report(conn, a=None):
-    """For each finance file: what Orbit made of it, with no content shown. Use it to see which files could not be read."""
+    """For each finance file: what Finance made of it, with no content shown. Use it to see which files could not be read."""
     out = []
     for d in conn.execute(
         "SELECT d.name, d.kind, d.text, s.found, s.added FROM documents d LEFT JOIN statement_files s ON s.sha256=d.sha256 "

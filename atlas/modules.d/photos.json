@@ -1,7 +1,7 @@
 {
   "id": "photos",
   "name": "Photos",
-  "app": "Lumo",
+  "app": "Photos",
   "tagline": "Find any photo by describing it",
   "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01",
   "accent": ["#06b6d4", "#84cc16"],

@@ -43,7 +43,7 @@ def post(port, path, body, **kw):
 
 def test_the_page_and_its_files_are_served_with_safe_headers(server):
     status, body, headers = call(server, "GET", "/")
-    assert status == 200 and b"Orbit" in body and "default-src 'self'" in headers["Content-Security-Policy"]
+    assert status == 200 and b"Finance" in body and "default-src 'self'" in headers["Content-Security-Policy"]
     assert call(server, "GET", "/static/app.js")[0] == 200 and call(server, "GET", "/static/app.css")[0] == 200
 
 
@@ -287,4 +287,4 @@ def test_one_update_button_can_start_and_follow_the_file_reading(server):
             break
         time.sleep(0.1)
     assert not status["running"] and status["problems"] and "ollama" in status["problems"][0].lower()
-    assert call(server, "POST", "/api/scan", {})[0] == 403  # a change needs Orbit's own header
+    assert call(server, "POST", "/api/scan", {})[0] == 403  # a change needs Finance's own header

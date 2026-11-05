@@ -9,7 +9,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from .registry import Module
 
@@ -148,3 +148,17 @@ class Upstreams:
             results = list(pool.map(lambda m: self._scan_one(m, start), targets))
         modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
         return {"running": any(r["running"] for r in results), "modules": modules}
+
+    # ---- the one AI model all apps share (Ollama on this computer) -----------------------------------------------------
+    def ai(self, model_url: str) -> dict[str, Any]:
+        """Is the shared model server up, and which models does it hold? Atlas only looks; the apps are the ones that use it."""
+        if not model_url:
+            return {"configured": False, "up": False, "models": []}
+        parts = urlsplit(model_url)
+        probe = Module(id="model", name="AI model", upstream=model_url, host=f"127.0.0.1:{parts.port or 11434}")
+        try:
+            status, body = _get(probe, "/api/tags", HEALTH_SECONDS)
+            models = [str(m.get("name", "")) for m in json.loads(body).get("models", []) if isinstance(m, dict)] if status == 200 else []
+        except (OSError, http.client.HTTPException, ValueError, AttributeError):
+            return {"configured": True, "up": False, "models": []}
+        return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}

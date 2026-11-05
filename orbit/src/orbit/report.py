@@ -36,7 +36,7 @@ def year_report(conn, year: str) -> str:
     ).fetchall()
     nw = wealth.wealth_summary(conn)
     parts = [
-        f"<h1>Orbit · {escape(year)}</h1>",
+        f"<h1>Finance · {escape(year)}</h1>",
         "<p class=muted>Prepared on this computer from your own statements and documents. Facts and arithmetic only: not tax or financial advice.</p>",
         "<p class=warn>These months are not fully proven: " + ", ".join(escape(m) for m in unproven) + ". Check them before relying on this report.</p>"
         if unproven
@@ -101,7 +101,7 @@ def year_report(conn, year: str) -> str:
         "table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #ddd}th{color:#555;font-weight:600}"
         ".muted{color:#666}.warn{background:#fff4e5;border:1px solid #f0c36d;padding:.6rem .8rem;border-radius:8px}@media print{body{margin:0}}"
     )
-    return f"<!doctype html><meta charset=utf-8><title>Orbit {escape(year)}</title><style>{style}</style>" + "".join(parts)
+    return f"<!doctype html><meta charset=utf-8><title>Finance {escape(year)}</title><style>{style}</style>" + "".join(parts)
 
 
 def _tax_rows(t: dict, cur: str) -> list[list[str]]:

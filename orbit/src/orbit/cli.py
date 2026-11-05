@@ -93,7 +93,7 @@ def _import_statements(conn, rest: list[str]) -> int:  # after `ingest`: turns t
     return 0
 
 
-def _statement_report(conn, rest: list[str]) -> int:  # what Orbit made of each finance file; shows counts only, never content
+def _statement_report(conn, rest: list[str]) -> int:  # what Finance made of each finance file; shows counts only, never content
     from .modules import money
 
     for r in money.statement_report(conn):
@@ -127,7 +127,7 @@ def _tag(conn, rest: list[str]) -> int:
 def _chat(conn, rest: list[str]) -> int:
     history: list[dict] = []
     client = agent.llm.OllamaClient()
-    print("Orbit - Ctrl-D to quit")
+    print("Finance - Ctrl-D to quit")
     while True:
         try:
             text = input("you> ").strip()

@@ -1,14 +1,14 @@
 # Atlas
 
-One address, one menu, one search box and one chat button for every private app. **Orbit** (money) and **Lumo** (photos) stay two separate
+One address, one menu, one search box and one chat button for every private app. **Finance** (money) and **Photos** (photos) stay two separate
 sub-systems, each with its own database, container and rules. Atlas is only the front door: it holds no data and never reads yours.
 
 ```
  http://atlas.localhost:8000          the one address
         |
         +-- Atlas (menu, search, chat button, theme)
-        +-- finance.atlas.localhost  -> Orbit   (its own container and database)
-        +-- photos.atlas.localhost   -> Lumo    (its own container and index)
+        +-- finance.atlas.localhost  -> Finance   (its own container and database)
+        +-- photos.atlas.localhost   -> Photos    (its own container and index)
         +-- health.atlas.localhost   -> whatever comes next
 ```
 
@@ -22,15 +22,16 @@ cd atlas && ./up.sh        # then open http://atlas.localhost:8000
 ./down.sh                # stop Atlas only; the apps keep running and keep their data
 ```
 
-Start the apps as before (`orbit/scripts/up.sh`, Lumo's `scripts/up.sh`). Atlas shows each one as running or not; an app that is down
+Start the apps as before (`orbit/scripts/up.sh`, Photos's `scripts/up.sh`). Atlas shows each one as running or not; an app that is down
 shows a plain "not running" page and never blocks the others.
 
 ## What the shared page gives you
 - **One menu** with every app and its pages, a green dot for "running", and each app tints the page with its own colours.
-- **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments and files in Orbit, places, people and trips in Lumo), lists the pages, and can
+- **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments and files in Finance, places, people and trips in Photos), lists the pages, and can
   hand your question to an app's assistant.
 - **One chat button** (`Ctrl/⌘ J`): it opens the assistant of the app you are looking at.
-- **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Orbit reads new statements and files, Lumo indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
+- **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Finance reads new statements and files, Photos indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
+- **One AI model status**: a chip shows whether the one shared local model (Ollama) is running and which model it holds. Every app uses that same model; point Atlas at it with `ATLAS_MODEL_URL` (default `http://host.docker.internal:11434`).
 - **One theme**: dark, light or automatic for everything.
 
 ## Add an app (health, documents, anything)
@@ -72,7 +73,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 
 ## The contract an app follows
 - `GET /api/health` answers 200 when the app is up.
-- `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Orbit: `{"X-Orbit": "1"}`).
+- `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Finance: `{"X-Orbit": "1"}`).
 - `GET /api/search?q=text` (optional) answers `{"results": [{"title", "subtitle", "kind", "link"}]}`. `link` is a route inside the app, such as `#/library?place=Lisbon`.
 - The app keeps its own routes as `#/<page>` (a hash), so Atlas can send you to a page and follow where you go.
 - When it is shown inside Atlas (`window.self !== window.top`) the app hides its own menu, top bar and chat button, and listens for messages from Atlas:
@@ -81,7 +82,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 - It needs no change to its security: Atlas permits only its own page to frame the app, checks `Host` and `Origin` itself, and
   presents each app with the local name it already accepts.
 
-Orbit (`orbit/src/orbit/static/app.js`, `web.py`) and Lumo (`src/aperture/web`) are the two reference implementations.
+Finance (`orbit/src/orbit/static/app.js`, `web.py`) and Photos (`src/aperture/web`) are the two reference implementations.
 
 ## What it will not do
 - Merge the apps' data or databases, or read them. The only things Atlas asks an app for are its health and the results of a search you typed.

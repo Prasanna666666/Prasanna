@@ -1,5 +1,5 @@
 """What you own and owe. Account balances come ONLY from proven statements; everything else (a house, a car, a loan, shares) is typed by you, kept apart,
-and always labelled as entered by you, so a number Orbit proved is never mixed up with one it was told."""
+and always labelled as entered by you, so a number Finance proved is never mixed up with one it was told."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def wealth_summary(conn, a=None):
 
 def investments_overview(conn, a=None):
     """What went into investments, what it is worth now, and the gain or loss. Contributions are counted from your payments; the value is what you typed in
-    (Orbit cannot read a broker's statement), and a gain or loss is shown only for holdings where you also typed what you paid in."""
+    (Finance cannot read a broker's statement), and a gain or loss is shown only for holdings where you also typed what you paid in."""
     from . import planning
 
     held = [h for h in list_holdings(conn) if h["kind"] == "investment"]

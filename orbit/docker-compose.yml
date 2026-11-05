@@ -1,4 +1,4 @@
-# Orbit: offline, encrypted, and split by trust level.
+# Finance: offline, encrypted, and split by trust level.
 #
 #   parser  - opens untrusted files. network_mode: none (no network at all), inbox read-only, writes ONLY to `parsed`.
 #   app     - assistant + UI + encrypted database. Internal network (no internet). Sees `parsed` READ-ONLY, has no parser code.

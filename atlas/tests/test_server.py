@@ -90,3 +90,22 @@ def test_an_app_that_is_down_is_reported_and_does_not_stop_the_others(running):
     report = json.loads(start_update(running)[2])
     assert report["modules"]["money"]["up"] is False and "not running" in report["modules"]["money"]["problems"][0]
     assert report["modules"]["photos"]["up"] is True and running.apps["photos"].scanning
+
+
+def test_atlas_shows_whether_the_one_shared_model_is_up_and_what_it_holds(running):
+    assert running.json("/_atlas/api/ai") == {"configured": True, "up": True, "models": ["ministral-3:3b", "other:7b"]}
+    running.apps["photos"].close()  # the fake app stands in for the model server here
+    assert running.json("/_atlas/api/ai") == {"configured": True, "up": False, "models": []}
+
+
+def test_the_model_address_must_be_on_this_computer_or_its_private_network(monkeypatch, tmp_path):
+    import pytest
+
+    from atlas.registry import ManifestError
+    from atlas.server import build
+
+    monkeypatch.setenv("ATLAS_MODEL_URL", "http://example.com:11434")
+    with pytest.raises(ManifestError, match="ATLAS_MODEL_URL"):
+        build(tmp_path)
+    monkeypatch.setenv("ATLAS_MODEL_URL", "http://host.docker.internal:11434")
+    assert build(tmp_path).model_url == "http://host.docker.internal:11434"

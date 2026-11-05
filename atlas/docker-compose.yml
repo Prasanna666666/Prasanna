@@ -1,6 +1,6 @@
 # Atlas: the one address for every app. It holds no data and talks only to the apps listed in modules.d (each on this computer).
 # Open http://atlas.localhost:8000   (*.localhost always means this computer; no setup needed)
-# Start the apps as usual (Orbit: ./scripts/up.sh, Lumo: scripts/up.sh); Atlas shows each one as running or not.
+# Start the apps as usual (Finance: ./scripts/up.sh, Photos: scripts/up.sh); Atlas shows each one as running or not.
 name: atlas
 
 services:

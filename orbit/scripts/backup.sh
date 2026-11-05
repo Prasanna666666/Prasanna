@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copy Orbit's backups out of the container to a folder you choose (an external drive, for example).
+# Copy Finance's backups out of the container to a folder you choose (an external drive, for example).
 # They stay encrypted with your database key, so the copy is safe to keep anywhere; without the key (./scripts/up.sh --show-key) it cannot be opened.
 #   ./scripts/backup.sh /Volumes/MyDrive/orbit-backups
 set -euo pipefail

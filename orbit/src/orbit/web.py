@@ -1,4 +1,4 @@
-"""Orbit's web interface: a small local server (standard library only) that serves the page and exposes the same tools the assistant uses.
+"""Finance's web interface: a small local server (standard library only) that serves the page and exposes the same tools the assistant uses.
 
 Nothing here reaches the internet. It only answers requests for 127.0.0.1 / localhost (a request addressed to any other name is refused, which also
 stops DNS-rebinding), and anything that changes data must carry a custom header that a web page on another site cannot send.
@@ -27,7 +27,13 @@ from .modules import tools as registry
 from .modules.today import briefing_for
 
 STATIC = Path(__file__).with_name("static")
-ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "orbit.localhost"}  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
+ALLOWED_HOSTS = {
+    "127.0.0.1",
+    "localhost",
+    "[::1]",
+    "orbit.localhost",
+    "finance.localhost",
+}  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
 MAX_BODY = 1_000_000
 HISTORY_LIMIT = 24
 
@@ -67,12 +73,12 @@ def _cookie(value: str) -> str:
 def _login_page(message: str = "") -> bytes:
     note = f"<p class=bad>{message}</p>" if message else ""
     return (
-        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Orbit</title>"
+        "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Finance</title>"
         "<style>body{font:17px system-ui;display:grid;place-items:center;min-height:90vh;margin:0;background:#f6f6fb;color:#111}"
         "form{background:#fff;padding:2rem 2.2rem;border-radius:18px;box-shadow:0 6px 30px #0001;display:grid;gap:1rem;min-width:260px}"
         "input,button{font:inherit;padding:.8rem 1rem;border-radius:12px;border:1px solid #ccd}button{background:#6d5cff;color:#fff;border:0;cursor:pointer}"
         ".bad{color:#c0392b;margin:0}h1{margin:0;font-size:1.4rem}</style>"
-        f"<form method=post action=/login><h1>Orbit</h1>{note}<input type=password name=password placeholder=Password autofocus autocomplete=current-password>"
+        f"<form method=post action=/login><h1>Finance</h1>{note}<input type=password name=password placeholder=Password autofocus autocomplete=current-password>"
         "<button>Open</button></form>"
     ).encode()
 
@@ -212,7 +218,7 @@ def _post_chat(state: State, conn, body: dict) -> dict:
     if not text:
         raise _Fail(400, "empty message")
     if not state.chat_lock.acquire(blocking=False):
-        raise _Fail(429, "Orbit is still answering the last message.")
+        raise _Fail(429, "The assistant is still answering the last message.")
     try:
         trace: list = []
         reply = agent.chat(conn, state.history, text, trace=trace)
@@ -280,7 +286,7 @@ class _Handler(BaseHTTPRequestHandler):
     """Plumbing only: security checks, files, and handing each API route to its function in the tables above."""
 
     state: ClassVar[State]
-    server_version = "Orbit"
+    server_version = "Finance"
 
     def log_message(self, *args) -> None:  # quiet: requests may contain private words
         return
@@ -453,7 +459,7 @@ def serve(host: str = "127.0.0.1", port: int = 8501) -> int:
     httpd = ThreadingHTTPServer((host, port), make_handler(state))
     threading.Thread(target=_warm, daemon=True).start()
     threading.Thread(target=_self_check, daemon=True).start()
-    print(f"Orbit is running on http://{host}:{port}", flush=True)
+    print(f"Finance is running on http://{host}:{port}", flush=True)
     with contextlib.suppress(KeyboardInterrupt):
         httpd.serve_forever()
     return 0
@@ -479,9 +485,9 @@ def _self_check() -> None:
         try:
             for f in [*insight.self_test(conn), *insight.backup_status(conn)]:
                 if f.level != "ok":
-                    print(f"Orbit: {f.agent}: {f.message}", flush=True)
+                    print(f"Finance: {f.agent}: {f.message}", flush=True)
         finally:
             conn.close()
     except Exception as exc:  # noqa: BLE001 - a failing check must never stop the app from starting
         log.failed("start-up check failed", exc)
-        print(f"Orbit: start-up check could not run: {type(exc).__name__}", flush=True)
+        print(f"Finance: start-up check could not run: {type(exc).__name__}", flush=True)

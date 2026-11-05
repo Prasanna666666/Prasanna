@@ -99,7 +99,7 @@ def test_model_resolution_is_mistral_only():
 
 
 def test_same_context_and_keepalive_as_aperture_so_one_loaded_model_is_shared(monkeypatch):
-    """Ollama reloads a model when num_ctx changes; Orbit and Aperture must send the same value (4096)."""
+    """Ollama reloads a model when num_ctx changes; Finance and Photos must send the same value (4096)."""
     seen = {}
     monkeypatch.setattr(llm.OllamaClient, "_call", lambda self, path, body=None, timeout=300: seen.update(body=body) or {"message": {}})
     llm.OllamaClient("http://127.0.0.1:11434").chat("ministral-3:3b", [], None)

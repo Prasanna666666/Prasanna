@@ -1,6 +1,6 @@
 """Euro conversion at the rate of the day. Rates are the ECB's published daily reference rates (foreign currency per 1 EUR), stored locally.
 
-Orbit is offline, so the rates come from a file you load once: `scripts/fetch-rates.sh` (run on the Mac, outside Docker, the only step that goes online) downloads the ECB history into your
+Finance is offline, so the rates come from a file you load once: `scripts/fetch-rates.sh` (run on the Mac, outside Docker, the only step that goes online) downloads the ECB history into your
 finance folder; the next "Read my files" loads it. Nothing is converted with a made-up number: a payment with no rate for its day (or the days just before it)
 stays unconverted, is left out of 'all in euros' totals, and is reported.
 """

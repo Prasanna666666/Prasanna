@@ -13,7 +13,7 @@ from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlsplit
 
 from . import proxy
-from .registry import Module, load
+from .registry import ManifestError, Module, load, upstream_is_private
 from .upstream import Upstreams
 
 STATIC = Path(__file__).with_name("static")
@@ -37,6 +37,7 @@ class Atlas:
     domain: str  # atlas.localhost
     port: int  # the port the browser uses
     upstreams: Upstreams
+    model_url: str = ""  # the shared AI model server (Ollama), checked and shown but never used by Atlas itself
 
     @property
     def shell_origin(self) -> str:
@@ -149,6 +150,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/_atlas/api/modules": lambda _q: self._json({"modules": [m.public() for m in atlas.modules.values()]}),
             "/_atlas/api/health": lambda _q: self._json(atlas.upstreams.health()),
             "/_atlas/api/scan": lambda _q: self._json(atlas.upstreams.scan()),
+            "/_atlas/api/ai": lambda _q: self._json(atlas.upstreams.ai(atlas.model_url)),
             "/_atlas/api/search": lambda q: self._json({"results": atlas.upstreams.search((q.get("q") or [""])[0][:200])}),
         }
 
@@ -161,8 +163,15 @@ def _scan_allowed(handler: BaseHTTPRequestHandler, atlas: Atlas) -> bool:
 def build(modules_dir: Path | None = None, domain: str | None = None, port: int | None = None) -> Atlas:
     directory = modules_dir or Path(os.environ.get("ATLAS_MODULES_DIR", "modules.d"))
     modules = load(directory)
+    model_url = os.environ.get("ATLAS_MODEL_URL", "http://host.docker.internal:11434").rstrip("/")
+    if model_url and not upstream_is_private(model_url):
+        raise ManifestError(f"ATLAS_MODEL_URL must be an http address on this computer or its private network, not {model_url!r}")
     return Atlas(
-        modules, domain or os.environ.get("ATLAS_DOMAIN", "atlas.localhost"), port or int(os.environ.get("ATLAS_PUBLIC_PORT", "8000")), Upstreams(modules)
+        modules,
+        domain or os.environ.get("ATLAS_DOMAIN", "atlas.localhost"),
+        port or int(os.environ.get("ATLAS_PUBLIC_PORT", "8000")),
+        Upstreams(modules),
+        model_url,
     )
 
 

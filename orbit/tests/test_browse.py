@@ -41,7 +41,7 @@ def test_one_payment_in_full(pays):
     pid = pays.execute("SELECT id FROM transactions WHERE note='Huur september'").fetchone()[0]
     d = browse.payment_detail(pays, {"id": pid})
     assert d["amount"] == 800.0 and d["account"] == "…0001" and d["file"] == "s.pdf" and d["merchant"] == "huur september" and d["is_transfer"] is False
-    assert d["category_chosen_by"] == "Orbit" or d["category_chosen_by"] == "you"
+    assert d["category_chosen_by"] == "automatic" or d["category_chosen_by"] == "you"
     with pytest.raises(ValueError):
         browse.payment_detail(pays, {"id": 99999})
 

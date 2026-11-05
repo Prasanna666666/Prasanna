@@ -98,7 +98,7 @@ def payment_detail(conn, a):
         "original": r["native_minor"] / 100,
         "currency": r["currency"] or get_setting(conn, "currency", "EUR"),
         "category": r["category"],
-        "category_chosen_by": "you" if not r["auto"] else "Orbit",
+        "category_chosen_by": "you" if not r["auto"] else "automatic",
         "merchant": categorize.merchant(r["note"] or ""),
         "account": ("…" + r["account"][-4:]) if r["account"] else "not known",
         "file": r["source"] or "typed by hand",
@@ -153,7 +153,7 @@ def search_all(conn, a):
 
 
 def search_links(found: dict) -> list[dict]:
-    """The search result as one flat list for Atlas, the shared search: what it is, a line of detail, and the address inside Orbit that opens it."""
+    """The search result as one flat list for Atlas, the shared search: what it is, a line of detail, and the address inside Finance that opens it."""
     from urllib.parse import quote
 
     out: list[dict] = []

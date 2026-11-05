@@ -32,7 +32,7 @@ def reply_seconds(conn) -> int:
 def system_prompt(conn: sqlite3.Connection, today: date | None = None, role: str = "") -> str:
     today = today or clock.today()
     return (
-        "You are Orbit, the user's private personal assistant, running fully on their own computer. "
+        "You are the Finance assistant, the user's private personal assistant, running fully on their own computer. "
         + (role + " " if role else "You can use every tool. ")
         + "You work through tools backed by a local database.\n"
         f"Today is {today.strftime('%A')} {today.isoformat()}. Currency: {get_setting(conn, 'currency', 'EUR')}.\n"
@@ -154,7 +154,7 @@ def _chat(conn, history, user_text, client, model, today, trace):
     for _ in range(MAX_STEPS):
         if name == "chat":  # no tools, a short prompt: this is what keeps "Hi" fast
             system = (
-                "You are Orbit, the user's private personal assistant, running on their own computer. Chat briefly and warmly. "
+                "You are the Finance assistant, the user's private personal assistant, running on their own computer. Chat briefly and warmly. "
                 "You cannot see their data in this reply; if they want something done, tell them to ask for it."
             )
         else:

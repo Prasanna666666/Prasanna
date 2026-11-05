@@ -1,4 +1,4 @@
-"""Local model access (Ollama). No cloud model is used anywhere in Orbit."""
+"""Local model access (Ollama). No cloud model is used anywhere in Finance."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 
 from . import netguard
 
-# The ONLY model Orbit uses (disk space is limited: one model, no fallbacks). The exact tag could not be verified from
+# The ONLY model Finance uses (disk space is limited: one model, no fallbacks). The exact tag could not be verified from
 # the build sandbox; resolve() also accepts a single installed model whose name starts with "ministral".
 DEFAULT_MODEL = "ministral-3:3b"
 

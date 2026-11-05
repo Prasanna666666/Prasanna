@@ -1,7 +1,7 @@
-"""The planning side of Orbit: years, savings, goals, forecast, timeline, interest, investments, insurance and things worth a look.
+"""The planning side of Finance: years, savings, goals, forecast, timeline, interest, investments, insurance and things worth a look.
 
 Every number here is computed from the same proven ledger as the rest of the app, by exact arithmetic. Nothing is invented: a forecast is a labelled estimate
-from your own recent months, a suggestion is a rule applied to your figures (and says which), and anything that needs data Orbit does not have (the value of an
+from your own recent months, a suggestion is a rule applied to your figures (and says which), and anything that needs data Finance does not have (the value of an
 investment portfolio, for example) says so instead of guessing."""
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ def investments(conn, a=None):
         "contributed_by_year": per_year,
         "paid_out_to_you": returned / 100,
         "portfolio_value": None,
-        "note": "Orbit knows what you paid in, not what it is worth now: that needs your broker's holdings statement, which it cannot read yet."
+        "note": "Finance knows what you paid in, not what it is worth now: that needs your broker's holdings statement, which it cannot read yet."
         if not holdings
         else "",
     }

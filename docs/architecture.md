@@ -77,10 +77,12 @@ Conventions: ULID ids; money as integer minor units plus ISO currency (original 
 
 **One pipeline for everything that arrives** (PDF, CSV, photo, health export, ticket, note):
 `capture -> vault -> identify (type, hash, duplicate?) -> extract (several engines must agree) -> understand (classify, entities) -> deliver to module(s) -> the module verifies and stores, or says "needs a check" -> index, link, remind`.
+**One Update button, a different way of reading for each kind of data.** The button asks every module to read what is new; each module reads in the way that suits its data and keeps its own storage location. Photos get the extremely detailed indexing (EXIF, places, CLIP, faces, text in pictures), stay where they are on the external drive (read-only, referenced in place) and the index grows there or in the module's volume. PDFs, CSVs and other documents go through the document reader and the proofs, and their originals and data live on the Mac. A future health or travel module brings its own reading method behind the same button.
+
 A module never trusts the router: finance still proves balances. A misrouted file lands in the review queue, not in your numbers.
 
 ## 6. Module contract (v1 today, v2 target)
-- v1 (implemented in Orbit and Lumo): `GET /api/health`; `GET /api/search?q=`; `GET`/`POST /api/scan` (the one Update button: start reading everything new, report progress, summary, problems, items needing a check); routes as `#/<page>`; embed messages; one manifest file in `atlas/modules.d/`.
+- v1 (implemented in Finance and Photos): `GET /api/health`; `GET /api/search?q=`; `GET`/`POST /api/scan` (the one Update button: start reading everything new, report progress, summary, problems, items needing a check); routes as `#/<page>`; embed messages; one manifest file in `atlas/modules.d/`.
 - v2 (target): `GET /api/manifest` (pages, icon, accent, contract version); `GET /api/tools` (name, JSON schema, **read or write**, **sensitivity tier**); the standard `items_in_window(start, end, place?)` returning `{module, kind, title, when, where, amount?, ref, artifact_id?}`; `GET /api/entities` (people, places, trips this module knows); `GET /api/feed` (what needs a look); `accepts` (which artifact kinds the module can ingest); all calls signed by the platform (section 7).
 - Any module that implements `items_in_window` appears in every lens (trip, month, person) with no change to Atlas.
 
@@ -126,8 +128,8 @@ Tickets and health reports are served from the shared document store (by classif
 Own database and key; migrations and backup; tools declared with read or write and sensitivity; `items_in_window`; entities and feed; ingestors for the kinds it accepts, each with a proof or a review-queue path; contract tests; no import of another module; documented in `modules.d/`.
 
 ## 12. Where the code is today
-Implemented: Atlas shell, search, chat button and one Update button across Orbit and Lumo; contract v1; Orbit's answer checker, fast-path intents, agent-with-fallback, hybrid document search, balance proofs and cross-checks; no-network guards in both apps; separate databases; Orbit's database encryption; complexity gate, ESLint and Prettier in CI.
-Not yet: core database and shared intake (Orbit's reader is still inside Orbit); the link book, lenses and `items_in_window`; the shared assistant and AI gateway (each app still has its own chat engine); service-to-service signing (any local program can call a module's port); at-rest encryption for Lumo and the core; strict types everywhere; strict CSP in Orbit (it still allows inline styles); hash-pinned dependencies and digest-pinned images; fuzzing, mutation testing, import-linter, `make verify`; health and travel modules; the Docker images have not been built on a real Mac.
+Implemented: Atlas shell, search, chat button and one Update button across Finance and Photos; contract v1; Finance's answer checker, fast-path intents, agent-with-fallback, hybrid document search, balance proofs and cross-checks; no-network guards in both apps; separate databases; Finance's database encryption; complexity gate, ESLint and Prettier in CI.
+Not yet: core database and shared intake (Finance's reader is still inside Finance); the link book, lenses and `items_in_window`; the shared assistant and AI gateway (each app still has its own chat engine); service-to-service signing (any local program can call a module's port); at-rest encryption for Photos and the core; strict types everywhere; strict CSP in Finance (it still allows inline styles); hash-pinned dependencies and digest-pinned images; fuzzing, mutation testing, import-linter, `make verify`; health and travel modules; the Docker images have not been built on a real Mac.
 
 ## 13. Open decisions (defaults in bold; change by ADR)
 - Health locked each session: **yes**.
@@ -137,8 +139,8 @@ Not yet: core database and shared intake (Orbit's reader is still inside Orbit);
 
 ## 14. Order of work
 1. Foundation: one repository layout with a shared `kit`, this document, the enforcing gates (architecture tests, strict types, pinned dependencies), signed service-to-service calls.
-2. Core database and the shared intake taken out of Orbit.
-3. AI gateway and one assistant engine (merging Orbit's loop and Lumo's tool agent).
+2. Core database and the shared intake taken out of Finance.
+3. AI gateway and one assistant engine (merging Finance's loop and Photos's tool agent).
 4. Contract v2 (`tools`, `items_in_window`, `entities`, `feed`), the link book and the lenses.
 5. Health and travel modules, tier locks.
 6. The India-trip request as the end-to-end acceptance test.

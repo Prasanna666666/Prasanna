@@ -60,7 +60,7 @@ def running(tmp_path: Path) -> Iterator[Running]:
     )
     port = free_port()
     modules = load(tmp_path)
-    atlas = Atlas(modules, "atlas.localhost", port, Upstreams(modules))
+    atlas = Atlas(modules, "atlas.localhost", port, Upstreams(modules), model_url=photos.url)
     server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(atlas))
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
