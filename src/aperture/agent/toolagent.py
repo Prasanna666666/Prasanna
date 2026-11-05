@@ -41,6 +41,11 @@ PEEK_CHARS = 90  # how much of a reply is read before it is shown, to catch tool
 MAX_STEPS = 4  # tool rounds before the agent must answer: a budget, so it can never loop forever
 CONTEXT_LIMIT = 4.0  # seconds the facts lookup may take before the model runs without it
 SEARCH_TOOLS = ("find_photos", "count_photos", "copy_photos", "show_results")
+PLAN_TOOLS = (
+    "find_photos",
+    "count_photos",
+    "copy_photos",
+)  # the tools that turn a call into a search plan (show_results only re-shows what is on screen)
 HARD_LIMIT = (
     20.0  # no message may take longer than this: each model call gets only the time that is left, then the app answers by itself
 )
@@ -683,42 +688,16 @@ class ToolAgent:
         name, args = call["name"], call["arguments"]
         if name not in self.spec.tools:
             return json.dumps({"error": f"there is no tool called {name!r}"}), None
-        if name in ("find_photos", "count_photos", "copy_photos") and len(_list(args.get("places"))) >= 2:
+        if name in PLAN_TOOLS and len(_list(args.get("places"))) >= 2:
             return self._execute_any_place(name, args, request, previous_ids, history, timings)
-        if name in ("find_photos", "count_photos", "copy_photos"):
-            plan = plan_from_tool(name, args)
-            note = ""
-            if plan.scope == "previous" and previous_ids is None:
-                plan = dataclasses.replace(plan, scope="library")
-                note = "There were no earlier results, so the whole library was searched."
-            if not plan.has_constraints:
-                return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
-            say("Searching your photos")
-            reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)
-            reply.notes.insert(0, "Understood as: " + describe_call(name, args))  # so a misreading is visible at once
-            if note:
-                reply.notes.insert(0, note)  # the user is told too
-            return observation_of(reply, note), reply
+        if name in PLAN_TOOLS:
+            return self._tool_search(name, args, request, previous_ids, history, timings)
         if name == "library_overview":
             return (self._overview(previous_ids) if self._overview else "No overview available."), None
         if name == "look_at_photos" and self._deadline - time.monotonic() < SLOW_TOOL_MIN_REMAINING:
             return json.dumps({"error": "not enough time is left to look at photos; answer from what you already have"}), None
         if name in ("read_photo_text", "look_at_photos"):
-            if shown is None or not len(shown.ids):
-                return json.dumps({"error": "there are no search results yet; search for photos first"}), None
-            limit = 5 if name == "read_photo_text" else 3
-            try:
-                count = max(1, min(limit, int(args.get("count") or (3 if name == "read_photo_text" else 2))))
-            except (TypeError, ValueError):
-                count = 2
-            ids = [int(i) for i in shown.ids[:count]]
-            if name == "read_photo_text":
-                found = self._read_text(ids) if self._read_text else []
-                return json.dumps(
-                    {"photos": found} if found else {"photos": [], "note": "none of these photos has readable text"}
-                ), None
-            answers = self._look(ids, str(args.get("question", ""))) if self._look else []
-            return json.dumps({"photos": answers}), None
+            return self._tool_look(name, args, shown)
         if name == "show_results":
             if previous_ids is None or not len(previous_ids):
                 return json.dumps({"error": "nothing is on screen yet"}), None
@@ -740,6 +719,42 @@ class ToolAgent:
             matches = self._lookup(str(args.get("kind", "")), str(args.get("text", ""))) if self._lookup else []
             return json.dumps({"matches": matches}), None
         return json.dumps({"error": "unsupported"}), None
+
+    def _tool_search(
+        self, name: str, args: dict[str, Any], request: str, previous_ids: Any, history: Any, timings: dict[str, Any]
+    ):
+        """find_photos / count_photos / copy_photos: turn the call into a plan and run it."""
+        plan = plan_from_tool(name, args)
+        note = ""
+        if plan.scope == "previous" and previous_ids is None:
+            plan = dataclasses.replace(plan, scope="library")
+            note = "There were no earlier results, so the whole library was searched."
+        if not plan.has_constraints:
+            return json.dumps({"error": "no search conditions were given; ask the user what to look for"}), None
+        say("Searching your photos")
+        reply = self._service.run_plan(request, plan, previous_ids, history, [], timings)
+        reply.notes.insert(0, "Understood as: " + describe_call(name, args))  # so a misreading is visible at once
+        if note:
+            reply.notes.insert(0, note)  # the user is told too
+        return observation_of(reply, note), reply
+
+    def _tool_look(self, name: str, args: dict[str, Any], shown: AgentReply | None):
+        """read_photo_text / look_at_photos: read or look at the first few photos on screen."""
+        if shown is None or not len(shown.ids):
+            return json.dumps({"error": "there are no search results yet; search for photos first"}), None
+        limit = 5 if name == "read_photo_text" else 3
+        try:
+            count = max(1, min(limit, int(args.get("count") or (3 if name == "read_photo_text" else 2))))
+        except (TypeError, ValueError):
+            count = 2
+        ids = [int(i) for i in shown.ids[:count]]
+        if name == "read_photo_text":
+            found = self._read_text(ids) if self._read_text else []
+            return json.dumps(
+                {"photos": found} if found else {"photos": [], "note": "none of these photos has readable text"}
+            ), None
+        answers = self._look(ids, str(args.get("question", ""))) if self._look else []
+        return json.dumps({"photos": answers}), None
 
 
 def calc_date(today: date, args: dict[str, Any]) -> dict[str, str]:
