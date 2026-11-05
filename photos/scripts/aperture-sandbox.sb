@@ -1,0 +1,41 @@
+;; macOS Seatbelt profile for Aperture (used by scripts/aperture-sandboxed.sh).
+;; Kernel-enforced, so it holds even if a native library or a dependency tries to bypass Python-level guards.
+;; Parameters: PHOTO_DIR, EXPORT_DIR, AP_ROOT, ALLOW_MOVES ("yes"/"no").
+;; Later rules win over earlier ones.
+(version 1)
+(allow default)
+
+;; 1. No network at all, except this computer (the web page and a local Ollama).
+(deny network*)
+(allow network* (local ip "localhost:*"))
+(allow network* (remote ip "localhost:*"))
+(allow network* (local unix-socket))
+(allow network* (remote unix-socket))
+
+;; 2. Originals are read-only unless photo moves were explicitly enabled.
+(if (not (string=? (param "ALLOW_MOVES") "yes"))
+    (deny file-write* (subpath (param "PHOTO_DIR"))))
+
+;; 3. Aperture's own data folder and the export folder stay writable even when they sit inside the photo folder
+;;    (for example when the photos folder is the whole drive). Allowed again after the rule above.
+(allow file-write* (subpath (param "AP_ROOT")))
+(allow file-write* (subpath (param "EXPORT_DIR")))
+
+;; 4. Personal folders are not readable by Aperture at all (it has no business there): documents, desktop, downloads, pictures and movies
+;;    libraries, messages, cloud-synced folders, and the other apps' data. Parameter: HOME. The photo folder and Aperture's own data are
+;;    elsewhere (usually the external drive), so nothing it needs is affected. If your photos live inside one of these folders, move the
+;;    photo folder or remove that line.
+(deny file-read* (subpath (string-append (param "HOME") "/Documents")))
+(deny file-read* (subpath (string-append (param "HOME") "/Desktop")))
+(deny file-read* (subpath (string-append (param "HOME") "/Downloads")))
+(deny file-read* (subpath (string-append (param "HOME") "/Movies")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Mobile Documents")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Messages")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Mail")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Safari")))
+(deny file-read* (subpath (string-append (param "HOME") "/Library/Keychains")))
+(deny file-read* (subpath (string-append (param "HOME") "/.ssh")))
+(deny file-read* (subpath (string-append (param "HOME") "/.aws")))
+(deny file-read* (subpath (string-append (param "HOME") "/.orbit")))
+(deny file-read* (subpath (string-append (param "HOME") "/OrbitInbox")))
+(deny file-read* (subpath (string-append (param "HOME") "/ApertureVault.sparsebundle")))

@@ -1,0 +1,327 @@
+"""Photos's web app: real server, real files, scripted agent."""
+
+import json
+import urllib.error
+import urllib.request
+
+import pytest
+
+from web_fixture import make_ctx, start_server
+
+
+@pytest.fixture
+def app(tmp_path):
+    ctx, agent, ids = make_ctx(tmp_path)
+    web, server = start_server(ctx)
+    yield SimpleApp(web, server, agent, ids)
+    server.shutdown()
+
+
+class SimpleApp:
+    def __init__(self, web, server, agent, ids):
+        self.web, self.server, self.agent, self.ids = web, server, agent, ids
+        self.base = f"http://127.0.0.1:{server.server_port}"
+
+    def get(self, path, token=True, host=None, origin=None):
+        req = urllib.request.Request(self.base + path, headers={"X-Lumo-Token": self.web.token} if token else {})
+        if host:
+            req.add_header("Host", host)
+        if origin:
+            req.add_header("Origin", origin)
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, r.read(), dict(r.headers)
+        except urllib.error.HTTPError as e:
+            return e.code, e.read(), dict(e.headers)
+
+    def chat(self, message, conv="c1", history=None, token=True):
+        body = json.dumps({"message": message, "conv": conv, "history": history or []}).encode()
+        req = urllib.request.Request(
+            self.base + "/api/chat",
+            body,
+            {"Content-Type": "application/json", **({"X-Lumo-Token": self.web.token} if token else {})},
+        )
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, parse_sse(r.read().decode())
+        except urllib.error.HTTPError as e:
+            return e.code, []
+
+
+def parse_sse(text):
+    events = []
+    for block in text.strip().split("\n\n"):
+        name, data = "message", ""
+        for line in block.split("\n"):
+            if line.startswith("event:"):
+                name = line[6:].strip()
+            elif line.startswith("data:"):
+                data += line[5:].strip()
+        events.append((name, json.loads(data) if data else {}))
+    return events
+
+
+def test_page_loads_with_the_token_and_strict_security_headers(app):
+    status, body, headers = app.get("/", token=False)
+    html = body.decode()
+    assert status == 200 and app.web.token in html and "__TOKEN__" not in html
+    assert (
+        "default-src 'none'" in headers["Content-Security-Policy"] and "script-src 'self'" in headers["Content-Security-Policy"]
+    )
+    assert headers["X-Content-Type-Options"] == "nosniff" and headers["Cache-Control"] == "no-store"
+    assert "onclick" not in html and "<style" not in html and "https://" not in html  # nothing inline, nothing external
+    assert app.get("/static/app.js", token=False)[0] == 200 and app.get("/static/app.css", token=False)[0] == 200
+    assert app.get("/static/../server.py", token=False)[0] == 404
+
+
+def test_api_needs_the_token_and_the_right_host_and_origin(app):
+    assert app.get("/api/status", token=False)[0] == 403
+    assert app.get("/api/status")[0] == 200
+    assert app.get("/api/status", host="evil.example.com")[0] == 403  # DNS rebinding
+    assert app.get("/api/status", origin="http://evil.example.com")[0] == 403  # another website
+    assert app.get("/api/status", host=f"localhost:{app.web.port}")[0] == 200
+    assert app.chat("hello", token=False)[0] == 403
+    assert app.get(f"/api/photo/1/thumb?t={app.web.token}", token=False)[0] == 200  # images carry the token in the address
+
+
+def test_status_reports_the_state_and_counts(app):
+    import time
+
+    first = json.loads(app.get("/api/status")[1])  # counts are gathered in the background, never while a request waits
+    assert first["ai"] is True and first["search_ready"] is True and first["indexing"] is False
+    assert first["warm_problem"] == ""  # the page can say which brain answers and why it is not ready
+    for _ in range(40):
+        d = json.loads(app.get("/api/status")[1])
+        if d["photos"] == 70:
+            break
+        time.sleep(0.05)
+    assert d["photos"] == 70 and d["indexed"] == 70
+    assert json.loads(app.get("/api/suggestions")[1])["ideas"]
+
+
+def test_photos_are_served_by_number_only(app):
+    status, body, headers = app.get("/api/photo/5/thumb")
+    assert (
+        status == 200
+        and headers["Content-Type"] == "image/jpeg"
+        and body[:2] == b"\xff\xd8"
+        and "max-age" in headers["Cache-Control"]
+    )
+    assert app.get("/api/photo/5/preview")[0] == 200
+    assert app.get("/api/photo/999/thumb")[0] == 404
+    for bad in (
+        "/api/photo/../../etc/passwd/thumb",
+        "/api/photo/5/original",
+        "/api/photo/abc/thumb",
+        "/api/photo/5/thumb/../../x",
+    ):
+        assert app.get(bad)[0] == 404
+
+
+def test_item_details_hide_the_folder_path(app):
+    d = json.loads(app.get("/api/item/3")[1])
+    assert (
+        d["name"] == "IMG_0003.jpg"
+        and d["camera"] == "iPhone 15 Pro"
+        and "/photos" not in json.dumps(d)
+        and "Trips" not in json.dumps(d)
+    )
+    assert app.get("/api/item/9999")[0] == 404
+
+
+def test_photo_question_streams_ack_reply_results_done_and_remembers_the_set(app):
+    status, events = app.chat("beach photos", conv="a")
+    names = [n for n, _ in events]
+    assert status == 200 and names[0] == "ack" and names[-1] == "done" and "reply" in names and "results" in names
+    results = dict(events)["results"]
+    assert (
+        results["total"] == 41
+        and len(results["ids"]) == 41
+        and results["notes"] == ["3 photos have no GPS, so the place could not be checked."]
+    )
+    assert dict(events)["done"]["kind"] == "results"
+    # the next message in the same conversation gets the earlier result set; another conversation does not
+    app.chat("only the ones from March", conv="a")
+    app.chat("only the ones from March", conv="b")
+    assert len(app.agent.asked[1][1]) == 41 and app.agent.asked[2][1] is None
+
+
+def test_results_are_paged(app):
+    app.chat("all photos", conv="p")
+    events = dict(app.chat("all photos", conv="p")[1])
+    assert events["results"]["total"] == 70 and len(events["results"]["ids"]) == 60
+    page = json.loads(app.get("/api/results?conv=p&offset=60")[1])
+    assert page["total"] == 70 and len(page["ids"]) == 10 and page["ids"][0] == 61
+    assert json.loads(app.get("/api/results?conv=unknown&offset=0")[1]) == {"ids": [], "total": 0}
+
+
+def test_conversation_streams_word_by_word_without_photos(app):
+    _status, events = app.chat("tell me about RAW", history=[["user", "hi"], ["assistant", "Hello!"]])
+    deltas = [d["text"] for n, d in events if n == "delta"]
+    assert len(deltas) >= 5 and "".join(deltas).startswith("Sure, happy to help.")
+    assert not any(n in ("results", "preview") for n, _ in events) and events[-1][1]["text"].endswith("sensor data.")
+    assert app.agent.asked[-1][2] == [("user", "hi"), ("assistant", "Hello!")]
+
+
+def test_errors_reach_the_page_as_a_message_not_a_crash(app):
+    status, events = app.chat("boom")
+    assert status == 200 and events[-1] == ("error", {"message": "Ollama is not reachable"})
+    assert app.chat("still alive")[0] == 200  # the server survived
+
+
+def test_bad_requests_are_rejected(app):
+    base = app.base
+    for body, expected in (
+        (b"not json", 400),
+        (b"{}", 400),
+        (json.dumps({"message": "   "}).encode(), 400),
+        (b"x" * 70_000, 413),
+    ):
+        req = urllib.request.Request(
+            base + "/api/chat", body, {"Content-Type": "application/json", "X-Lumo-Token": app.web.token}
+        )
+        with pytest.raises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(req)
+        assert err.value.code == expected
+
+
+def test_every_answer_carries_how_it_was_answered_and_the_status_says_which_build(app):
+    from aperture.agent.llm import CALL_LOG
+
+    original = app.agent.ask
+
+    def asking_the_model(request, previous_ids=None, history=None):
+        CALL_LOG.get().append(
+            {
+                "model": "m",
+                "system": "THE INSTRUCTIONS",
+                "messages": [{"role": "user", "text": request}],
+                "tools": [],
+                "output": "THE ANSWER",
+                "tool_calls": [],
+            }
+        )
+        return original(request, previous_ids, history)
+
+    app.agent.ask = asking_the_model
+    done = dict(app.chat("tell me about RAW")[1])["done"]
+    assert done["trace"] == [
+        {
+            "model": "m",
+            "system": "THE INSTRUCTIONS",
+            "messages": [{"role": "user", "text": "tell me about RAW"}],
+            "tools": [],
+            "output": "THE ANSWER",
+            "tool_calls": [],
+        }
+    ]
+    assert (
+        dict(app.chat("tell me about RAW again")[1])["done"]["trace"][0]["system"] == "THE INSTRUCTIONS"
+    )  # a fresh log per message
+    status = json.loads(app.get("/api/status")[1])
+    assert isinstance(status["build"], str) and status["build"]
+
+
+def test_the_page_keeps_internals_out_of_sight():
+    from pathlib import Path
+
+    static = Path(__file__).parent.parent / "src" / "aperture" / "web" / "static"
+    js, html = (static / "app.js").read_text(), (static / "index.html").read_text()
+    assert "Brain:" not in js and "classic" not in js and 'id="build"' in html and "model call" not in js.lower()
+    import inspect
+
+    from aperture.ui.views import settings
+
+    assert "tool-using agent" not in inspect.getsource(settings)
+
+
+def test_a_count_answer_sends_the_number_not_the_whole_photo_grid():
+    from pathlib import Path
+
+    source = (Path(__file__).parent.parent / "src" / "aperture" / "web" / "server.py").read_text()
+    assert '[] if reply.kind == "count"' in source
+
+
+def test_each_answer_keeps_its_own_photos_so_scrolling_back_never_shows_newer_results():
+    from collections import OrderedDict
+
+    import numpy as np
+
+    from aperture.web.server import Web
+
+    web = Web.__new__(Web)  # only the result bookkeeping is under test
+    web._sets, web._convs = OrderedDict(), OrderedDict()
+    tokyo = web.remember_set(
+        np.array([1, 2, 3]),
+        [("Taken near Tokyo", np.array([1, 2, 3])), ("Same trip as your Tokyo photos", np.array([1, 2, 3, 4]))],
+    )
+    nagoya = web.remember_set(
+        np.array([7, 8]), [("Taken in Nagoya", np.array([7, 8])), ("Same trip as your Nagoya photos", np.array([7, 8, 9]))]
+    )
+    # the newest answer is Nagoya, yet the Tokyo answer's tab and its "Show more" still give Tokyo's photos
+    assert web.results("c", 0, group=1, rid=tokyo)["ids"] == [1, 2, 3, 4]
+    assert web.results("c", 0, rid=tokyo)["total"] == 3
+    assert web.results("c", 0, group=1, rid=nagoya)["ids"] == [7, 8, 9]
+    assert web.results("c", 0, rid="unknown")["total"] == 0 or web.results("c", 0, rid="unknown")["ids"] is not None
+
+
+def test_the_friendly_local_address_works_and_other_names_are_still_refused(app):
+    port = app.server.server_port
+    assert app.get("/api/status", host=f"lumo.localhost:{port}")[0] == 200  # the address the installer prints
+    assert app.get("/api/status", host=f"other.localhost:{port}")[0] == 403  # only that one name
+    assert app.get("/api/status", host="evil.example.com")[0] == 403
+
+
+def test_a_question_that_never_finishes_ends_with_an_apology_not_a_spinner():
+    import threading
+    import time
+
+    from aperture.web.server import ask_within
+
+    stuck = threading.Event()
+    start = time.monotonic()
+    reply = ask_within(lambda: stuck.wait(10), 0.2)
+    assert time.monotonic() - start < 2 and reply.kind == "error" and "taking longer" in reply.text
+    stuck.set()
+    assert ask_within(lambda: "fine", 5) == "fine"
+    try:
+        ask_within(lambda: (_ for _ in ()).throw(ValueError("boom")), 5)
+    except ValueError as exc:
+        assert str(exc) == "boom"  # a real failure still reaches the error handling
+
+
+def test_an_abandoned_question_cannot_keep_the_model_busy():
+
+    from aperture.agent import llm as llm_mod
+    from aperture.web.server import ask_within
+
+    seen = []
+
+    def work():
+        seen.append(llm_mod._time_left(180.0))  # what a model call made now would be allowed to wait
+        return "done"
+
+    assert ask_within(work, 20.0) == "done"
+    assert 1.0 <= seen[0] <= 20.0  # not 180: the question's own deadline applies
+    assert llm_mod._time_left(180.0) == 180.0  # outside a question there is no deadline
+
+
+def test_the_page_is_told_what_the_app_is_doing_while_a_question_runs(caplog):
+    import logging
+
+    from aperture.agent.progress import say
+    from aperture.web.server import ask_within
+
+    seen = []
+
+    def work():
+        say("Understanding your message")
+        say("Searching your photos")
+        return "answer"
+
+    with caplog.at_level(logging.INFO, logger="aperture.progress"):
+        assert ask_within(work, 5, seen.append) == "answer"
+    assert seen == ["Understanding your message", "Searching your photos"]
+    assert any(
+        "stage: Searching your photos (+" in r.getMessage() for r in caplog.records
+    )  # and every stage is logged with its time

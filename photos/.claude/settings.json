@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(//Volumes/**)",
+      "Edit(//Volumes/**)",
+      "Write(//Volumes/**)",
+      "Read(~/ApertureVault.sparsebundle/**)",
+      "Read(~/Aperture*/**)",
+      "Bash(docker cp:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker volume:*)",
+      "Bash(docker run:*)",
+      "Bash(sqlite3:*)",
+      "Bash(hdiutil attach:*)",
+      "Bash(security find-generic-password:*)"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+[server]
+address = "127.0.0.1"
+headless = true
+fileWatcherType = "none"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#4f46e5"
+font = "sans serif"
+baseFontSize = 15

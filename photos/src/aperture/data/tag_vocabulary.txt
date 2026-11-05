@@ -1,0 +1,279 @@
+# One label per line: objects, scenes, activities, landmarks, document types. Scored against every photo's stored image embedding.
+person
+selfie
+group of people
+child
+baby
+crowd
+dog
+cat
+bird
+horse
+cow
+fish
+insect
+flower
+tree
+forest
+grass
+garden
+mountain
+snow
+beach
+sea
+ocean
+lake
+river
+waterfall
+desert
+sky
+clouds
+sunset
+sunrise
+night sky
+rain
+fog
+city skyline
+street
+road
+bridge
+building
+skyscraper
+house
+church
+temple
+shrine
+mosque
+castle
+palace
+monument
+statue
+museum
+market
+shop
+restaurant
+cafe
+kitchen
+living room
+bedroom
+bathroom
+office
+classroom
+hospital
+airport
+airplane
+train
+railway station
+bus
+car
+taxi
+bicycle
+motorcycle
+boat
+ship
+food
+pizza
+burger
+sushi
+ramen
+noodles
+rice
+salad
+dessert
+cake
+birthday cake
+ice cream
+coffee
+tea
+beer
+wine
+cocktail
+fruit
+vegetables
+breakfast
+barbecue
+wedding
+birthday party
+festival
+fireworks
+concert
+stage
+sports
+football
+cricket
+tennis
+swimming
+running
+hiking
+skiing
+yoga
+gym
+playground
+zoo
+amusement park
+swimming pool
+camping
+road trip
+shopping
+screenshot
+document
+receipt
+invoice
+ticket
+menu
+sign
+poster
+map
+whiteboard
+book
+laptop
+phone
+television
+painting
+sculpture
+architecture
+tower
+Tokyo Tower
+Eiffel Tower
+Big Ben
+Statue of Liberty
+Colosseum
+Taj Mahal
+Great Wall of China
+Mount Fuji
+Shibuya Crossing
+Sensoji Temple
+Fushimi Inari Shrine
+Golden Gate Bridge
+Sydney Opera House
+Burj Khalifa
+Sagrada Familia
+Louvre
+Windmill
+tulip field
+canal
+aurora
+northern lights
+volcano
+glacier
+hot spring
+cherry blossom
+autumn leaves
+night city lights
+neon signs
+Senso-ji
+Meiji Shrine
+Tokyo Skytree
+Imperial Palace Tokyo
+Shinjuku
+Harajuku
+Akihabara
+Odaiba
+Tsukiji market
+Kinkaku-ji Golden Pavilion
+Kiyomizu-dera
+Arashiyama bamboo grove
+Nara deer
+Osaka Castle
+Dotonbori
+Himeji Castle
+Itsukushima torii gate
+Hiroshima Peace Memorial
+Nagoya Castle
+Shinkansen bullet train
+Kamakura Great Buddha
+Notre-Dame de Paris
+Arc de Triomphe
+Sacre-Coeur
+Versailles
+Mont Saint-Michel
+Champs-Elysees
+London Eye
+Tower Bridge
+Buckingham Palace
+Westminster Abbey
+Stonehenge
+Edinburgh Castle
+Giant's Causeway
+Trevi Fountain
+Leaning Tower of Pisa
+Vatican St Peter's Basilica
+Venice canals
+Florence Duomo
+Pompeii
+Brandenburg Gate
+Neuschwanstein Castle
+Cologne Cathedral
+Amsterdam canal houses
+Rijksmuseum
+Anne Frank House
+Kinderdijk windmills
+Keukenhof
+Atomium
+Grand Place Brussels
+Prague Castle
+Charles Bridge
+Budapest Parliament
+Chain Bridge Budapest
+Hallgrimskirkja
+Blue Lagoon
+Gullfoss
+Hungarian Parliament
+Acropolis
+Santorini
+Hagia Sophia
+Blue Mosque
+Cappadocia balloons
+Pyramids of Giza
+Sphinx
+Petra
+Burj Al Arab
+Sheikh Zayed Mosque
+Marina Bay Sands
+Petronas Towers
+Angkor Wat
+Grand Palace Bangkok
+Ha Long Bay
+Great Barrier Reef
+Uluru
+Sydney Harbour Bridge
+Machu Picchu
+Christ the Redeemer
+Sugarloaf Mountain
+Times Square
+Empire State Building
+Central Park
+Brooklyn Bridge
+Grand Canyon
+Niagara Falls
+Hollywood sign
+Space Needle
+CN Tower
+Chichen Itza
+Gateway of India
+India Gate
+Qutub Minar
+Red Fort
+Hawa Mahal
+Amber Fort
+Lotus Temple
+Golden Temple Amritsar
+Mysore Palace
+Vidhana Soudha
+Lalbagh
+Cubbon Park
+Nandi Hills
+Hampi
+Munnar tea plantations
+Kerala backwaters
+Gokarna beach
+Goa beach
+Charminar
+Marine Drive Mumbai
+Victoria Memorial
+Howrah Bridge
+Ganges ghats Varanasi
+Himalayan peaks
+Rohtang Pass
+Leh Ladakh
+Pangong Lake

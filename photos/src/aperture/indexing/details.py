@@ -1,0 +1,212 @@
+"""What is IN each picture, read once and stored: labels, objects with boxes, text with boxes, landmark and scene tags.
+
+Reads the small stored preview of each photo (the original is never opened here) and writes plain rows, so every later question
+is a database lookup. Resumable; commits as it goes.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+import time
+from collections.abc import Callable
+from importlib import resources
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from ..config import preview_rel
+from ..ml.vision_details import Details
+
+VERSION = 2  # 2: all the Vision readers + the perceptual hash; pictures read at version 1 are read again
+CLIP_TOP = 5
+CLIP_MIN_SCORE = 0.18  # cosine between image and "a photo of <label>" below which a tag is noise
+CLIP_MIN_P = 0.35  # and the label must win a real share of the vocabulary (a landmark tag on a plain street photo is wrong)
+
+
+def vocabulary() -> list[str]:
+    text = resources.files("aperture.data").joinpath("tag_vocabulary.txt").read_text(encoding="utf-8")
+    return [line.strip() for line in text.splitlines() if line.strip() and not line.startswith("#")]
+
+
+def pending(conn: sqlite3.Connection, limit: int = 0) -> list[int]:
+    sql = (
+        "SELECT i.id FROM items i LEFT JOIN photo_details d ON d.item_id=i.id "
+        "WHERE i.missing=0 AND i.meta_done=1 AND i.kind='image' AND (d.item_id IS NULL OR d.version < ?) ORDER BY i.id"
+    )
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+    return [r[0] for r in conn.execute(sql, (VERSION,))]
+
+
+def dhash(data: bytes) -> int | None:
+    """64-bit difference hash of a picture: copies, re-saves and small edits of a photo differ in only a few bits."""
+    try:
+        import io
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(data)) as image:
+            small = image.convert("L").resize((9, 8), Image.Resampling.LANCZOS)
+        pixels = list(small.getdata())
+        bits = 0
+        for row in range(8):
+            for col in range(8):
+                bits = (bits << 1) | (pixels[row * 9 + col] > pixels[row * 9 + col + 1])
+        return bits - (1 << 64) if bits >= (1 << 63) else bits  # SQLite integers are signed 64-bit
+    except Exception:
+        return None
+
+
+def store(conn: sqlite3.Connection, item_id: int, details: Details, phash: int | None = None) -> None:
+    for table in ("photo_labels", "photo_objects", "photo_text"):
+        conn.execute(
+            f"DELETE FROM {table} WHERE item_id=? " + ("AND source='vision'" if table == "photo_labels" else ""), (item_id,)
+        )
+    conn.executemany(
+        "INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'vision')",
+        [(item_id, label.lower(), score) for label, score in details.labels],
+    )
+    conn.executemany(
+        "INSERT INTO photo_objects(item_id, kind, label, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?,?)",
+        [(item_id, kind, label, score, *box) for kind, label, score, box in details.objects],
+    )
+    conn.executemany(
+        "INSERT INTO photo_text(item_id, text, score, x1, y1, x2, y2) VALUES (?,?,?,?,?,?,?)",
+        [(item_id, text, score, *box) for text, score, box in details.texts],
+    )
+    conn.execute(
+        "INSERT OR REPLACE INTO photo_details(item_id, version, read_at, phash) VALUES (?,?,?,?)",
+        (item_id, VERSION, time.time(), phash),
+    )
+
+
+def run(
+    conn: sqlite3.Connection,
+    data_dir: Path,
+    analyser: Any,
+    limit: int = 0,
+    stop: Any = None,
+    report: Callable[[int, int], None] | None = None,
+) -> tuple[int, int]:
+    """Analyse every picture that has no record yet. Returns (done, unreadable)."""
+    todo = pending(conn, limit)
+    done = bad = 0
+    for n, item_id in enumerate(todo, 1):
+        if stop is not None and stop.is_set():
+            break
+        path = data_dir / preview_rel(item_id)
+        try:
+            data = path.read_bytes()
+            store(conn, item_id, analyser.analyse(data), dhash(data))
+            done += 1
+        except Exception as exc:  # one unreadable preview must not stop the pass; it is recorded and skipped
+            conn.execute(
+                "INSERT OR REPLACE INTO photo_details(item_id, version, read_at, notes) VALUES (?,?,?,?)",
+                (item_id, VERSION, time.time(), f"{type(exc).__name__}: {exc}"[:300]),
+            )
+            bad += 1
+        if n % 100 == 0:
+            conn.commit()
+            if report:
+                report(n, len(todo))
+    conn.commit()
+    return done, bad
+
+
+def clip_tags(
+    conn: sqlite3.Connection,
+    index: Any,
+    embedder: Any,
+    labels: list[str] | None = None,
+    top: int = CLIP_TOP,
+    min_score: float = CLIP_MIN_SCORE,
+    min_p: float = CLIP_MIN_P,
+    geo: Any = None,
+    verify: bool = True,
+) -> int:
+    """Tag every photo with the vocabulary labels its stored embedding is closest to (no image is decoded: seconds, not hours)."""
+    labels = labels or vocabulary()
+    if len(index) == 0 or not labels:
+        return 0
+    text = embedder.embed_text([f"a photo of {label}" for label in labels]).astype(np.float32)
+    text /= np.maximum(np.linalg.norm(text, axis=1, keepdims=True), 1e-9)
+    conn.execute("DELETE FROM photo_labels WHERE source='clip'")
+    rows = 0
+    for start, block in index.chunks():
+        scores = block @ text.T
+        shifted = 100.0 * scores - (100.0 * scores).max(axis=1, keepdims=True)  # CLIP's own temperature
+        probs = np.exp(shifted) / np.exp(shifted).sum(axis=1, keepdims=True)
+        best = np.argsort(-scores, axis=1)[:, :top]
+        batch = []
+        for r in range(len(block)):
+            item = int(index.ids[start + r])
+            batch += [
+                (item, labels[j].lower(), float(scores[r, j]))
+                for j in best[r]
+                if scores[r, j] >= min_score and probs[r, j] >= min_p
+            ]
+        conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'clip')", batch)
+        rows += len(batch)
+    conn.commit()
+    if verify:
+        rows -= verify_clip_tags(conn, geo)
+    return rows
+
+
+LANDMARK_RADIUS_KM = 150
+STOP_WORDS = {"the", "and", "photo", "with", "of", "in", "a"}
+
+
+def _words(text: str) -> set[str]:
+    from ..search.textnorm import tokens
+
+    return {t for t in tokens(text) if len(t) >= 3 and t not in STOP_WORDS}
+
+
+def verify_clip_tags(conn: sqlite3.Connection, geo: Any) -> int:
+    """A guess from appearance is kept only when something independent agrees; everything else is deleted. Returns how many were removed.
+
+    - A landmark (a proper name such as "Tokyo Tower") must have GPS, and that GPS must be near the city in its name.
+    - Any other label must be confirmed by Apple Vision's own labels for the same photo (a shared word such as "dog" or "beach").
+    A guess that cannot be confirmed is not shown: wrong answers are worse than missing ones."""
+    from ..search.filters import haversine_km
+
+    removed = 0
+    labels = [r[0] for r in conn.execute("SELECT DISTINCT label FROM photo_labels WHERE source='clip'")]
+    vocab = {v.lower(): v for v in vocabulary()}
+    vision: dict[int, set[str]] = {}
+    for item_id, label in conn.execute("SELECT item_id, label FROM photo_labels WHERE source='vision'"):
+        vision.setdefault(item_id, set()).update(_words(label))
+    for label in labels:
+        landmark = vocab.get(label, label)[:1].isupper()
+        rows = conn.execute(
+            "SELECT l.rowid, l.item_id, i.gps_lat, i.gps_lon FROM photo_labels l JOIN items i ON i.id=l.item_id "
+            "WHERE l.source='clip' AND l.label=?",
+            (label,),
+        ).fetchall()
+        if landmark:
+            city = None
+            words = label.split()
+            for n in range(len(words), 0, -1):  # "tokyo tower" -> the city "tokyo"
+                found = geo.find(" ".join(words[:n])) if geo is not None else None
+                if found and found[2].split(",")[0].strip().lower() == " ".join(words[:n]).lower():
+                    city = found
+                    break
+            keep = set()
+            if city is not None:
+                for rowid, _item, lat, lon in rows:
+                    if (
+                        lat is not None
+                        and lon is not None
+                        and haversine_km(city[0], city[1], np.array([lat]), np.array([lon]))[0] <= LANDMARK_RADIUS_KM
+                    ):
+                        keep.add(rowid)
+        else:
+            wanted = _words(label)
+            keep = {rowid for rowid, item, _lat, _lon in rows if wanted & vision.get(item, set())}
+        drop = [(rowid,) for rowid, *_ in rows if rowid not in keep]
+        conn.executemany("DELETE FROM photo_labels WHERE rowid=?", drop)
+        removed += len(drop)
+    conn.commit()
+    return removed

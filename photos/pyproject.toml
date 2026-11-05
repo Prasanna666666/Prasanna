@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aperture-photos"
+version = "1.5.0"
+description = "Private, offline, agentic AI photo assistant for macOS (Apple Silicon)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "pillow>=10", "pillow-heif>=0.16", "pymupdf>=1.24"]
+
+[project.optional-dependencies]
+ml = ["torch>=2.2", "open_clip_torch>=2.24", "onnxruntime>=1.17", "opencv-python-headless>=4.8"]
+mac = ["pyobjc-framework-Vision>=10", "pyobjc-framework-Quartz>=10", "pywebview>=5"]
+ui = ["streamlit>=1.48"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
+
+[project.scripts]
+aperture = "aperture.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aperture = ["py.typed", "eval_data/*.json", "web/static/*", "data/*.txt"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S", "BLE", "C4", "C90", "RUF"]
+ignore = [
+    "S310",    # URLs opened are the local model server's, validated by safety.py
+    "SIM105", "SIM102",
+    "S110", "S112",  # best-effort steps (a damaged photo, a missing tag) are skipped on purpose and counted elsewhere
+    "S603", "S607",  # fixed executables (git, osascript, open) with list arguments and no shell
+    "S104",    # the names "0.0.0.0" and "::" are compared, never bound
+    "S101", "S608", "S311", "BLE001",
+    "E501", "RUF001", "RUF002", "RUF012", "UP046", "UP047",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15   # a function above this is split, not excused
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+markers = ["needs_models: requires real model files"]
+
+[tool.bandit]
+# Each skip is a reviewed, deliberate pattern, not noise:
+#  B310  URLs opened are the local model server's, validated in safety.py
+#  B608  SQL is assembled from column names written in the code, never from user input
+#  B104  the names "0.0.0.0" and "::" are compared (to recognise a local host), never bound
+skips = ["B310", "B608", "B104"]

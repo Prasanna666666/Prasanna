@@ -1,0 +1,336 @@
+"""What is IN each picture is read once and stored; later questions are database lookups."""
+
+import dataclasses
+import sqlite3
+
+import numpy as np
+
+from aperture.db import MIGRATIONS
+from aperture.indexing import details
+from aperture.ml.vision_details import Details, to_box
+
+
+def _db(n=3):
+    conn = sqlite3.connect(":memory:")
+    for script in MIGRATIONS:
+        conn.executescript(script)
+    for i in range(1, n + 1):
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, mtime, size, meta_done) VALUES (?,?,?,?,?,?,1)",
+            (i, f"/p/{i}.jpg", f"{i}.jpg", "image", 0, 0),
+        )
+    return conn
+
+
+class Fake:
+    def analyse(self, data):
+        return Details(
+            labels=[("Dog", 0.9)],
+            objects=[("animal", "Dog", 0.8, (0.1, 0.2, 0.5, 0.9))],
+            texts=[("EXIT", 0.99, (0.0, 0.0, 0.2, 0.1))],
+        )
+
+
+def test_vision_boxes_are_converted_to_top_left_fractions():
+    assert to_box((0.1, 0.2, 0.3, 0.4)) == (0.1, 0.4, 0.4, 0.8)  # Vision's origin is the bottom left
+
+
+def test_every_picture_gets_labels_objects_and_text_with_places(tmp_path):
+    conn = _db()
+    for i in (1, 2, 3):
+        d = tmp_path / "previews" / "0000"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{i}.jpg").write_bytes(b"x")
+    done, bad = details.run(conn, tmp_path, Fake())
+    assert (done, bad) == (3, 0) and details.pending(conn) == []
+    assert conn.execute("SELECT COUNT(*) FROM photo_labels WHERE label='dog'").fetchone()[0] == 3
+    assert conn.execute("SELECT x1, y2 FROM photo_objects WHERE item_id=1").fetchone() == (0.1, 0.9)
+    assert conn.execute("SELECT text FROM photo_text WHERE item_id=2").fetchone()[0] == "EXIT"
+
+
+def test_an_unreadable_preview_is_recorded_and_the_pass_goes_on(tmp_path):
+    conn = _db(2)
+    (tmp_path / "previews" / "0000").mkdir(parents=True)
+    (tmp_path / "previews" / "0000" / "2.jpg").write_bytes(b"x")  # item 1 has no preview
+    assert details.run(conn, tmp_path, Fake()) == (1, 1)
+    assert "FileNotFoundError" in conn.execute("SELECT notes FROM photo_details WHERE item_id=1").fetchone()[0]
+
+
+def test_scene_and_landmark_tags_come_from_the_stored_embeddings_without_decoding_images():
+    from aperture.search.embeddings import EmbeddingIndex
+
+    conn = _db(2)
+    vectors = np.array([[1.0, 0.0], [0.0, 1.0]], np.float16)
+    index = EmbeddingIndex(np.array([1, 2]), vectors)
+
+    class Embedder:
+        def embed_text(self, texts):
+            return np.array([[1.0, 0.0] if "tower" in t.lower() else [0.0, 1.0] for t in texts], np.float32)
+
+    assert details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "beach"], top=1, min_score=0.5, verify=False) == 2
+    tags = dict(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
+    assert tags == {1: "tokyo tower", 2: "beach"}
+
+
+def test_the_vocabulary_ships_with_the_app_and_includes_landmarks():
+    words = details.vocabulary()
+    assert "Tokyo Tower" in words and "dog" in words and len(words) > 150
+
+
+def test_labels_are_searchable_as_a_reading_of_a_word():
+    from aperture.agent.executor import Executor
+
+    conn = _db(3)
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.9, 'clip')")
+    conn.row_factory = sqlite3.Row
+    ex = Executor(conn, lambda: None, lambda: None)
+    assert ex._tag_ids("Tokyo Tower").tolist() == [2] and ex._tag_ids("zzz").tolist() == []
+
+
+def test_a_word_found_as_a_place_gets_no_guesses_from_appearance_and_tags_match_exactly():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _db(4)
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "UPDATE items SET gps_lat=35.68, gps_lon=139.76, place='Shinjuku, Japan', place_text=' shinjuku tokyo japan' WHERE id=1"
+    )
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'tokyo tower', 0.9, 'clip')")  # a landmark guess on a different photo
+    ex = Executor(conn, lambda: None, lambda: None)
+    assert ex._tag_ids("tokyo").tolist() == [] and ex._tag_ids("tokyo tower").tolist() == [2]  # exact label, not a part of one
+    labels = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Shinjuku"),)))]
+    assert labels == ["Taken in Shinjuku"] and not any("Looks like" in label or "Similar" in label for label in labels)
+    conn.execute("UPDATE photo_labels SET score=0.6 WHERE label='tokyo tower'")  # now only moderately sure, from one source
+    lone = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
+    assert lone == []  # a single look-alike clue with nothing else behind it is not shown
+    conn.execute("UPDATE items SET meta_text=' tokyo tower' WHERE id=2")  # a second, independent clue (a folder name) agrees
+    backed = [label for label, _ in ex.readings(Plan(intent="find", clauses=(Clause(engines=("tag",), query="tokyo tower"),)))]
+    assert any("Looks like" in label or "folders named" in label for label in backed)  # backed by hard evidence: shown
+
+
+def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees():
+    from aperture.search.embeddings import EmbeddingIndex
+    from aperture.search.geo import GeoIndex
+
+    conn = _db(4)
+    # photo 1: really in Tokyo (GPS), photo 2: GPS in Amsterdam, photo 3: no GPS
+    conn.execute("UPDATE items SET gps_lat=35.68, gps_lon=139.76 WHERE id=1")
+    conn.execute("UPDATE items SET gps_lat=52.37, gps_lon=4.90 WHERE id=2")
+    conn.execute("INSERT INTO photo_labels VALUES (4, 'dog', 0.9, 'vision')")  # photo 4: Apple Vision also sees a dog
+    geo = GeoIndex(["Tokyo"], ["Japan"], [" tokyo japan"], np.array([35.68]), np.array([139.76]))
+    vectors = np.ones((4, 2), np.float16)
+    index = EmbeddingIndex(np.array([1, 2, 3, 4]), vectors)
+
+    class Embedder:
+        def embed_text(self, texts):
+            return np.ones((len(texts), 2), np.float32)  # every photo matches every label equally well
+
+    details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "dog"], top=2, min_score=0.0, min_p=0.0, geo=geo)
+    tags = sorted(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
+    assert tags == [
+        (1, "tokyo tower"),
+        (4, "dog"),
+    ]  # the Amsterdam photo, the photo without GPS and the dog-less photos are all dropped
+
+
+def test_filler_words_are_not_looked_up_in_the_library():
+    from aperture.search import quick
+
+    conn = _db(2)
+    seen = []
+    originals = (quick.place_ids, quick.path_ids, quick.search_text_ids)
+    quick.place_ids = lambda c, phrase: seen.append(phrase) or np.zeros(0, np.int64)
+    quick.path_ids = quick.search_text_ids = lambda c, phrase: np.zeros(0, np.int64)
+    try:
+        quick.probe(conn, "show me the photos from this year of tokyo")
+    finally:
+        quick.place_ids, quick.path_ids, quick.search_text_ids = originals
+    assert seen and all(p not in ("show", "the", "this", "year", "photos", "from") for p in seen) and "tokyo" in seen
+
+
+def test_a_place_gives_one_combined_answer_of_everything_taken_in_or_near_it():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.search.geo import GeoIndex
+
+    conn = _db(3)
+    conn.row_factory = sqlite3.Row
+    conn.execute("UPDATE items SET gps_lat=35.18, gps_lon=136.90, place='Nagoya, Japan', place_text=' nagoya japan' WHERE id=1")
+    conn.execute(
+        "UPDATE items SET gps_lat=35.0, gps_lon=137.0, place='Okazaki, Japan', place_text=' okazaki japan' WHERE id=2"
+    )  # near, named after a town
+    geo = GeoIndex(["Nagoya"], ["Japan"], [" nagoya japan"], np.array([35.18]), np.array([136.90]))
+    ex = Executor(conn, lambda: None, lambda: None, geo_provider=lambda: geo)
+    readings = dict(ex.readings(Plan(intent="find", clauses=(Clause(engines=("place",), query="Nagoya"),))))
+    assert readings["Taken in or near Nagoya"].tolist() == [1, 2]  # the place name alone would have found only photo 1
+
+
+def test_a_concept_word_is_answered_by_its_trusted_picture_labels_and_they_lead():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _db(6)
+    conn.row_factory = sqlite3.Row
+    conn.execute("INSERT INTO photo_labels VALUES (1, 'baby', 0.95, 'face')")  # strong on its own
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'baby', 0.6, 'face')")  # only moderately sure ...
+    conn.execute("INSERT INTO photo_labels VALUES (2, 'baby', 0.7, 'vision')")  # ... but a second source agrees
+    conn.execute("INSERT INTO photo_labels VALUES (3, 'baby', 0.6, 'face')")  # one moderate source: not enough
+    conn.execute("INSERT INTO photo_labels VALUES (4, 'baby', 0.4, 'vision')")  # below the floor
+    ex = Executor(conn, lambda: None, lambda: None)
+    assert ex._tag_ids("baby").tolist() == [1, 2]
+    readings = ex.readings(Plan(intent="find", clauses=(Clause(engines=("visual",), query="baby"),)))
+    assert readings[0][0] == "Looks like baby" and readings[0][1].tolist() == [
+        1,
+        2,
+    ]  # and it leads, ahead of a stray written word
+
+
+def _hockey_library():
+    conn = _db(8)
+    conn.row_factory = sqlite3.Row
+    for i in (1, 2, 3):  # photos in a folder named hockey: 1 and 2 are in Nagoya, 3 is not
+        conn.execute("UPDATE items SET meta_text=' hockey tournament' WHERE id=?", (i,))
+    conn.execute(
+        "UPDATE items SET place='Nagoya, Japan', place_text=' nagoya japan' WHERE id IN (1, 2, 4, 5)"
+    )  # 4 and 5 are Nagoya, not hockey
+    return conn
+
+
+def test_several_conditions_are_each_judged_by_their_own_best_evidence_and_intersected():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _hockey_library()
+    ex = Executor(conn, lambda: None, lambda: None)
+    plan = Plan(
+        intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya"))
+    )
+    exploration = ex.explore(plan)
+    assert exploration.terms["hockey"].tolist() == [1, 2, 3] and exploration.terms["Nagoya"].tolist() == [1, 2, 4, 5]
+    assert exploration.together().tolist() == [1, 2]  # the hockey photos that are also in Nagoya
+    assert not any("Same trip" in label for label, _ in exploration.readings)  # no trip tabs for several conditions
+
+
+def test_a_request_with_several_conditions_answers_with_where_they_all_hold_even_when_the_models_search_method_finds_nothing():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.agent.service import AgentService
+
+    conn = _hockey_library()
+    service = AgentService(
+        planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False
+    )
+    plan = Plan(
+        intent="find", clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya"))
+    )
+    reply = service.run_plan(
+        "hockey game in nagoya", plan
+    )  # the strict search on 'looks like hockey' finds nothing here: no image model
+    assert sorted(reply.ids.tolist()) == [1, 2] and "hockey and Nagoya" in reply.text
+    assert [g[0] for g in reply.groups] == ["hockey and Nagoya"]  # just the answer, no other tabs
+
+
+def test_descriptions_from_the_model_find_the_subject_inside_the_place_when_nothing_is_labelled():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+
+    conn = _hockey_library()
+    ex = Executor(conn, lambda: None, lambda: None)
+    ex._visual_ids = lambda query, result: (
+        np.array([4, 9]) if "rink" in query else np.zeros(0, np.int64)
+    )  # 4 is in Nagoya, 9 is not
+    plan = Plan(
+        intent="find",
+        clauses=(Clause(engines=("visual",), query="hockey"), Clause(engines=("place", "path"), query="Nagoya")),
+        meanings=("ice hockey players on a rink", "a crowd in an arena"),
+    )
+    assert ex.explore(plan).together().tolist() == [
+        1,
+        2,
+        4,
+    ]  # the labelled ones plus the one that only LOOKS like hockey, inside Nagoya
+    assert Executor(conn, lambda: None, lambda: None).explore(dataclasses.replace(plan, meanings=())).together().tolist() == [
+        1,
+        2,
+    ]
+
+
+def test_a_named_place_is_a_requirement_whatever_else_found_the_photos():
+    from aperture.agent.executor import Executor
+    from aperture.agent.schema import Clause, Plan
+    from aperture.agent.service import AgentService
+
+    conn = _hockey_library()
+    service = AgentService(
+        planner=None, executor_factory=lambda: Executor(conn, lambda: None, lambda: None), known_people=lambda: [], rescue=False
+    )
+    plan = Plan(
+        intent="find", clauses=(Clause(engines=("place", "path"), query="Nagoya"), Clause(engines=("visual",), query="hockey"))
+    )
+    reply = service.run_plan("hockey in nagoya", plan)
+    assert set(reply.ids.tolist()) <= {1, 2, 4, 5} and all(set(ids.tolist()) <= {1, 2, 4, 5} for _, ids in reply.groups)
+
+
+def test_word_search_in_memory_gives_the_same_answer_as_the_database_and_follows_changes(tmp_path):
+    from aperture.search import metadata
+
+    conn = sqlite3.connect(tmp_path / "lib.db")
+    conn.row_factory = sqlite3.Row
+    for m in MIGRATIONS:
+        conn.executescript(m)
+    for i, (path, place) in enumerate(
+        [
+            (" hockey club eindhoven", " amstelveen netherlands"),
+            (" holiday nagoya", " nagoya japan"),
+            (" hockey nagoya", " nagoya japan"),
+        ],
+        1,
+    ):
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)",
+            (i, f"/p{i}", f"p{i}", "image", path, place),
+        )
+    conn.commit()
+    cached = metadata.path_ids(conn, "hockey nagoya").tolist()
+    direct = np.fromiter(
+        (r[0] for r in conn.execute("SELECT id FROM items WHERE meta_text LIKE '% hockey%' AND meta_text LIKE '% nagoya%'")),
+        np.int64,
+    ).tolist()
+    assert cached == direct == [3] and metadata.place_ids(conn, "nagoya").tolist() == [2, 3]
+    conn.execute("UPDATE items SET meta_text=' hockey nagoya' WHERE id=2")
+    conn.commit()
+    assert metadata.path_ids(conn, "hockey nagoya").tolist() == [2, 3]  # the file changed, so the remembered text was read again
+
+
+def test_the_in_memory_copy_answers_like_the_library_file_and_leaves_the_vectors_on_the_drive(tmp_path):
+    from aperture.search import metadata
+    from aperture.search.replica import Replica
+
+    source = tmp_path / "lib.db"
+    conn = sqlite3.connect(source)
+    for m in MIGRATIONS:
+        conn.executescript(m)
+    for i in (1, 2, 3):
+        conn.execute(
+            "INSERT INTO items(id, path, rel_path, kind, missing, meta_done, meta_text, place_text) VALUES(?,?,?,?,0,1,?,?)",
+            (i, f"/p{i}", f"p{i}", "image", " hockey club" if i < 3 else " holiday", " nagoya japan" if i != 2 else " amsterdam"),
+        )
+    conn.execute("INSERT INTO faces(item_id, score, px, emb) VALUES(1, 0.9, 100, ?)", (b"\x00" * 8,))
+    conn.execute("INSERT INTO photo_labels(item_id, label, source, score) VALUES(3, 'baby', 'face', 0.9)")
+    conn.commit()
+    replica = Replica(source)
+    assert replica.build() is True
+    mem = replica.connect()
+    assert mem.execute("SELECT COUNT(*) FROM items").fetchone()[0] == 3
+    assert "emb" not in [r[1] for r in mem.execute("PRAGMA table_info(faces)")]  # the vectors stay on the drive
+    assert metadata.all_ids(mem).tolist() == metadata.all_ids(conn).tolist() == [1, 2, 3]
+    assert metadata.path_ids(mem, "hockey").tolist() == [1, 2] and metadata.place_ids(mem, "nagoya").tolist() == [1, 3]
+    assert mem.execute("SELECT item_id FROM photo_labels WHERE label='baby'").fetchone()[0] == 3
+    assert mem.execute("SELECT COUNT(*) FROM embeddings").fetchone()[0] == 0  # a table that is not copied is still reachable
+    assert replica.stale() is False
+    conn.execute("UPDATE items SET missing=1 WHERE id=3")
+    conn.commit()
+    assert replica.stale() is True and replica.build() is True
+    assert metadata.all_ids(replica.connect()).tolist() == [1, 2]  # a rebuild follows the library
+    mem.close()
