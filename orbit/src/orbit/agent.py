@@ -80,33 +80,41 @@ def chat(conn: sqlite3.Connection, history: list[dict], user_text: str, client=N
 
     `trace` (optional) receives {'agent': name, 'tools': [names]} so the UI can show who answered.
     """
-    quick = answers.answer(conn, user_text)  # the common money questions: exact, instant, no model
+    start = len(history)
+    try:
+        client = client or llm.OllamaClient(get_setting(conn, "ollama_host", "") or None)
+        model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
+        if hasattr(client, "resolve"):
+            model = client.resolve(model)
+        client.deadline = time.monotonic() + REPLY_SECONDS  # the agent gets this long
+        reply = _chat(conn, history, user_text, client, model, today, trace)
+    except (llm.Slow, RuntimeError) as exc:  # too slow, or the model is not running
+        return _fallback(conn, history, start, user_text, trace, exc)
+    finally:
+        if client is not None:
+            client.deadline = None
+    unproven = answers.unproven_figures(reply, [m["content"] for m in history[start:] if m.get("role") == "tool"])
+    if unproven:  # the agent wrote a figure that no tool returned: never show it as fact
+        return _fallback(conn, history, start, user_text, trace, None, unproven)
+    return reply
+
+
+def _fallback(conn, history, start, user_text, trace, exc, unproven=()):
+    """The agent could not finish (or got a figure wrong). Code gives the exact answer if it is a common question; else what the tools had found."""
+    del history[start:]
+    quick = answers.answer(conn, user_text)
     if quick:
         history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": quick}])
         if trace is not None:
             trace.append({"agent": "instant", "tools": []})
         return quick
-    client = client or llm.OllamaClient(get_setting(conn, "ollama_host", "") or None)
-    model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)
-    if hasattr(client, "resolve"):
-        model = client.resolve(model)
-    client.deadline = time.monotonic() + REPLY_SECONDS  # an open question: the assistant gets this long
-    try:
-        return _chat(conn, history, user_text, client, model, today, trace)
-    except llm.Slow:
-        done = [m["content"] for m in history[::-1] if m.get("role") == "tool"][:1]
-        if history and history[-1].get("role") == "user":
-            history.append({"role": "assistant", "content": ""})
-        found = ""
-        if done:
-            try:
-                found = answers.render_any(json.loads(done[0]))
-            except ValueError:
-                found = done[0][:700]
-        return ("This one needs more thinking than I can do in " + str(REPLY_SECONDS) + " seconds. " +
-                (f"Here is what I found:\n{found}" if found else "Ask it as a shorter question, such as \"How much did I spend last month?\"."))
-    finally:
-        client.deadline = None
+    if isinstance(exc, RuntimeError) and not isinstance(exc, llm.Slow):
+        raise exc  # the model is not running and this is not a question code can answer: say so plainly
+    note = ("I could not confirm some figures in my answer against your data, so I am not showing it. " if unproven else
+            f"This needs more thinking than I can do in {REPLY_SECONDS} seconds. ")
+    reply = note + "Try a shorter question, such as \"How much did I spend last month?\"."
+    history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": reply}])
+    return reply
 
 
 def _chat(conn, history, user_text, client, model, today, trace):
