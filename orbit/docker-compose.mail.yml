@@ -1,0 +1,7 @@
+# Adds Apple Mail's own folder to the parser, read-only and without network, so the Update button also reads your mail.
+# scripts/up.sh includes this file when ~/Library/Mail exists. macOS may ask once to let Docker read it (System Settings > Privacy & Security > Full Disk Access).
+services:
+  parser:
+    environment: {ORBIT_MAIL: /mail}
+    volumes:
+      - ${ORBIT_MAIL_DIR:-${HOME}/Library/Mail}:/mail:ro

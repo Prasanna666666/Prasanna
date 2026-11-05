@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date
 
 from .tables import money_from_printed
 
-KINDS = ("bank_statement", "payslip", "annual_statement", "invoice", "receipt", "tax", "insurance", "contract", "other")
+KINDS = ("bank_statement", "payslip", "annual_statement", "invoice", "receipt", "tax", "insurance", "contract", "ticket", "booking", "medical", "other")
 MONEY_FIELDS = ("total", "vat", "gross", "net", "tax", "pension", "holiday_pay")
 _STR = {"type": ["string", "null"]}
 KIND_SCHEMA = {
@@ -27,6 +28,9 @@ KIND_SCHEMA = {
         "reference": {"type": "string"},  # YYYY-MM-DD; invoice / policy / case number
         "currency": {"type": "string"},
         "period": {"type": "string"},  # YYYY-MM for a payslip
+        "start_date": {"type": "string"},  # a ticket or booking: departure or check-in, YYYY-MM-DD
+        "end_date": {"type": "string"},  # return, arrival or check-out, YYYY-MM-DD
+        "place": {"type": "string"},  # where to: the destination or the hotel's city
         **dict.fromkeys(MONEY_FIELDS, _STR),  # each amount exactly as printed in the document, e.g. "3.500,00"
     },
     "required": ["kind"],
@@ -34,11 +38,12 @@ KIND_SCHEMA = {
 KIND_PROMPT = (
     "You read the start of a personal finance document. It may be in Dutch or English. Say what it is: bank_statement (a list of account "
     "transactions), payslip (salary slip / loonstrook), annual_statement (a yearly income statement / jaaropgave: gross, tax and net for a whole year), invoice (factuur), receipt (bon / kassabon), tax (belasting: aanslag, aangifte), insurance "
-    "(verzekering: polis, premie), contract (agreement, lease, loan), or other. Then give: title (a few words), summary (one short sentence), party "
+    "(verzekering: polis, premie), contract (agreement, lease, loan), ticket (a flight, train or event ticket or boarding pass), booking (a hotel, rental or "
+    "reservation confirmation), medical (a medical report, prescription, lab result or appointment letter), or other. A payment confirmation or order confirmation is a receipt. Then give: title (a few words), summary (one short sentence), party "
     "(who it is from or to: shop, supplier, employer, insurer, tax office), date and due_date as YYYY-MM-DD, reference (invoice / policy / case "
     'number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example "3.500,00"): '
     "total and vat for invoices and receipts; for a payslip also period as YYYY-MM and gross = bruto, net = netto paid out, tax = loonheffing, "
-    "pension = pensioen, holiday_pay = vakantiegeld; for an annual_statement give period as the year YYYY and gross, tax and net the same way. Leave out or use null what is not there. Never invent or recalculate."
+    "pension = pensioen, holiday_pay = vakantiegeld; for an annual_statement give period as the year YYYY and gross, tax and net the same way. For a ticket or booking also give start_date and end_date as YYYY-MM-DD and place (the destination), only as printed. Leave out or use null what is not there. Never invent or recalculate."
 )
 
 
@@ -73,9 +78,61 @@ def verify_amounts(info: dict, text: str) -> dict:
     return checked
 
 
+_MONTHS = {
+    **{
+        m: i
+        for i, m in enumerate(["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"], 1)
+    },
+    **{
+        m: i
+        for i, m in enumerate(["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"], 1)
+    },
+    **{m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)},
+    "mrt": 3,
+    "sept": 9,
+    "okt": 10,
+}
+_MONTH = "|".join(sorted(_MONTHS, key=len, reverse=True))
+_DATE_PATTERNS = (
+    (re.compile(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b"), (0, 1, 2)),  # 2026-01-12
+    (re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2})\b"), (2, 1, 0)),  # 12-01-2026, day first
+    (re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[ .-]*({_MONTH})\b[ .,-]*(20\d{{2}})\b", re.IGNORECASE), (2, 1, 0)),  # 12 January 2026, 12 jan 2026
+    (re.compile(rf"\b({_MONTH})\b[ .]+(\d{{1,2}})(?:st|nd|rd|th)?,?[ ]+(20\d{{2}})\b", re.IGNORECASE), (2, 0, 1)),  # January 12, 2026
+)
+
+
+def dates_in(text: str) -> set[str]:
+    """Every calendar date written in the text, as YYYY-MM-DD (day first for numbers, English and Dutch month names)."""
+    found: set[str] = set()
+    for pattern, (y, m, d) in _DATE_PATTERNS:
+        for match in pattern.finditer(text):
+            parts = match.groups()
+            month = parts[m]
+            month_no = int(month) if month.isdigit() else _MONTHS.get(month.lower(), 0)
+            try:
+                found.add(date(int(parts[y]), month_no, int(parts[d])).isoformat())
+            except ValueError:
+                continue
+    return found
+
+
+def verify_trip_fields(info: dict, text: str) -> dict:
+    """A ticket's or booking's dates and place are kept only if the document itself says them: the dates must be written in it, the end not before the start."""
+    checked = dict(info)
+    written = dates_in(text)
+    for field in ("start_date", "end_date"):
+        value = str(info.get(field) or "")
+        checked[field] = value if value in written else None
+    if checked["start_date"] and checked["end_date"] and checked["end_date"] < checked["start_date"]:
+        checked["end_date"] = None
+    place = str(info.get("place") or "").strip()
+    checked["place"] = place[:80] if place and place.lower() in text.lower() else ""
+    return checked
+
+
 def classify(client, model: str, name: str, text: str) -> dict:
     """What the file is and its key facts. Only the first part of the text goes to the (local) model; every amount is verified against the text."""
     data = _ask(client, model, KIND_PROMPT, f"File name: {name}\n\n{text[:3500]}", KIND_SCHEMA)
     if data.get("kind") not in KINDS:
         return {"kind": "other"}
-    return verify_amounts(data, text[:3500])
+    return verify_trip_fields(verify_amounts(data, text[:3500]), text[:3500])

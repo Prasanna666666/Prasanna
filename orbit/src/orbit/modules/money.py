@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 
-from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
+from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, relevance, standards, statements, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 from ..module import INT, Module, N, S, Tool
@@ -113,6 +113,12 @@ MIGRATIONS = (
     """,
     """
     ALTER TABLE holdings ADD COLUMN cost_minor INTEGER;                          -- what you paid in for it in total, so a gain or loss can be shown
+    """,
+    """
+    ALTER TABLE finance_docs ADD COLUMN start_date TEXT;                         -- a ticket or booking: departure or check-in (written in the document)
+    ALTER TABLE finance_docs ADD COLUMN end_date TEXT;
+    ALTER TABLE finance_docs ADD COLUMN place TEXT NOT NULL DEFAULT '';          -- where to
+    CREATE TABLE IF NOT EXISTS mail_skipped (sha256 TEXT PRIMARY KEY);           -- mail documents not worth asking the model about, so they are judged once
     """,
 )
 
@@ -293,7 +299,7 @@ def _remember_doc(conn, d, info) -> None:
     period = str(info.get("period") or "")
     conn.execute(
         "INSERT OR REPLACE INTO finance_docs (sha256, name, kind, title, summary, party, doc_date, due_date, reference, total_minor, vat_minor, currency, "
-        "gross_minor, tax_minor, net_minor, period) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "gross_minor, tax_minor, net_minor, period, start_date, end_date, place) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             d["sha256"],
             d["name"],
@@ -311,7 +317,29 @@ def _remember_doc(conn, d, info) -> None:
             _money(info.get("tax")),
             _money(info.get("net")),
             period if re.fullmatch(r"20\d{2}(-\d{2})?", period) else "",
+            _day(info.get("start_date")),
+            _day(info.get("end_date")),
+            str(info.get("place") or "")[:80],
         ),
+    )
+
+
+def travel_documents(conn, a=None):
+    """Tickets and bookings found in your files and mail: where to, from when to when (as the document itself writes them), and what they cost."""
+    where, args = ["kind IN ('ticket','booking')"], []
+    if (a or {}).get("place"):
+        where.append("place LIKE ?")
+        args.append(f"%{str(a['place'])[:60]}%")
+    if (a or {}).get("year"):
+        where.append("substr(COALESCE(start_date, doc_date),1,4)=?")
+        args.append(str(a["year"])[:4])
+    return rows(
+        conn.execute(
+            "SELECT name, kind, party, place, start_date, end_date, doc_date, reference, total_minor/100.0 AS total, currency FROM finance_docs WHERE "
+            + " AND ".join(where)
+            + " ORDER BY COALESCE(start_date, doc_date), name LIMIT 100",
+            args,
+        )
     )
 
 
@@ -408,10 +436,32 @@ class _Outcome:
     info: dict = field(default_factory=dict)
 
 
-def _pending_documents(conn) -> list:
+MAIL_BATCH = 150  # mail documents the model reads per Update, so one press never takes for ever; the rest wait for the next press
+
+
+def _pending_documents(conn) -> tuple[list, int]:
+    """The finance files not yet read, and the mail documents worth reading (a cheap check, no model) up to MAIL_BATCH; also how many mail documents wait."""
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
-    docs = conn.execute("SELECT sha256, name, kind, text, data FROM documents WHERE area='finance' ORDER BY id").fetchall()
-    return [d for d in docs if d["sha256"] not in done]
+    skipped = {r[0] for r in conn.execute("SELECT sha256 FROM mail_skipped")}
+    rows = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents WHERE area IN ('finance','mail') ORDER BY id").fetchall()
+    docs: list = []
+    taken = waiting = 0
+    for d in rows:
+        if d["sha256"] in done:
+            continue
+        if d["area"] == "finance":
+            docs.append(d)
+        elif d["sha256"] in skipped:
+            continue
+        elif not relevance.worth_reading(d["name"], d["kind"], d["text"]):
+            conn.execute("INSERT OR IGNORE INTO mail_skipped (sha256) VALUES (?)", (d["sha256"],))
+        elif taken >= MAIL_BATCH:
+            waiting += 1
+        else:
+            taken += 1
+            docs.append(d)
+    conn.commit()
+    return docs, waiting
 
 
 def _document_data(d) -> dict:
@@ -512,7 +562,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     only the exact standards can be imported (a guess at a layout could silently give wrong numbers)."""
     learned = categorize.learned_rules(conn)
     run = _Run()
-    docs = _pending_documents(conn)
+    docs, waiting = _pending_documents(conn)
     no_model = "The local model is not running, so these statements cannot be read. Start Ollama and try again."
     for index, d in enumerate(docs, 1):
         data = _document_data(d)
@@ -538,6 +588,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         "files_with_no_transactions": run.empty,
         "needs_check": run.needs_check,
         "problems": run.problems,
+        "mail_waiting": waiting,
     }
 
 
@@ -872,6 +923,12 @@ MODULE = Module(
             verification_report,
         ),
         Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),
+        Tool(
+            "travel_documents",
+            "Tickets and bookings found in the user's files and mail: destination, start and end dates as written in the document, and the cost. Use it for trips and travel.",
+            {"place": S("Part of a destination, for example India"), "year": S("Year, for example 2026")},
+            travel_documents,
+        ),
         Tool("list_payslips", "Payslips by month: gross, tax, pension, holiday pay and net salary.", {"limit": N("Max months, default 36")}, list_payslips),
         Tool(
             "top_merchants",

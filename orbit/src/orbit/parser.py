@@ -240,15 +240,57 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
     seen.write_text(label)
 
 
-def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "") -> dict[str, int]:
-    """Parse every new supported file under inbox into out/<sha256>.json. Same content is never parsed twice."""
+def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "", skip_folders: frozenset[str] = frozenset()) -> dict[str, int]:
+    """Parse every new supported file under inbox into out/<sha256>.json. Same content is never parsed twice. `skip_folders` are top-level folders handled elsewhere."""
     out.mkdir(parents=True, exist_ok=True)
     root = inbox.resolve()
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
     for f in sorted(root.rglob("*")):
         if not f.is_file() or f.is_symlink() or root not in f.resolve().parents:
             continue
+        if f.relative_to(root).parts[0] in skip_folders:
+            continue
         _process(f, f.name, out, area, isolated, counts)
+    return counts
+
+
+MAIL_SKIP_MAILBOXES = frozenset({"junk", "junk e-mail", "spam", "trash", "deleted messages", "deleted items", "drafts"})
+MAIL_BATCH = 1500  # new messages read per round, so a large mail store never blocks the other folders
+
+
+def _in_skipped_mailbox(relative: Path) -> bool:
+    return any(part.lower().removesuffix(".mbox") in MAIL_SKIP_MAILBOXES for part in relative.parts[:-1] if part.lower().endswith(".mbox"))
+
+
+def process_mail_store(store: Path, out: Path, isolated: bool = True, batch: int = MAIL_BATCH) -> dict[str, int]:
+    """Apple Mail's own folder (read-only): every message file except Junk, Trash and Drafts, only those not read before (a message is recognised by its
+    path, size and time, so the folder is not re-read every round). Messages become documents with the area `mail`, attachments included."""
+    out.mkdir(parents=True, exist_ok=True)
+    root = store.resolve()
+    cache_file = out / ".mailseen" / (hashlib.sha256(str(root).encode()).hexdigest()[:16] + ".json")
+    try:
+        seen: dict[str, str] = json.loads(cache_file.read_text()) if cache_file.exists() else {}
+    except (OSError, ValueError):
+        seen = {}
+    counts = {"parsed": 0, "skipped": 0, "failed": 0}
+    done = 0
+    for f in sorted(root.rglob("*.emlx")):
+        if f.is_symlink() or root not in f.resolve().parents:
+            continue
+        relative = f.relative_to(root)
+        if _in_skipped_mailbox(relative):
+            continue
+        stat = f.stat()
+        stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
+        if seen.get(str(relative)) == stamp:
+            continue
+        if done >= batch:
+            break
+        _process(f, f.name, out, "mail", isolated, counts)
+        seen[str(relative)] = stamp
+        done += 1
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps(seen))
     return counts
 
 
@@ -257,6 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--inbox", default=os.environ.get("ORBIT_INBOX", str(Path.home() / "OrbitInbox")))
     ap.add_argument("--out", default=os.environ.get("ORBIT_PARSED", str(Path.home() / "OrbitParsed")))
     ap.add_argument("--finance", default=os.environ.get("ORBIT_FINANCE", ""), help="folder of bank statements and finance files (read-only)")
+    ap.add_argument("--mail", default=os.environ.get("ORBIT_MAIL", ""), help="Apple Mail's own folder (read-only): all mail except Junk, Trash and Drafts")
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)
@@ -265,10 +308,16 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
         return 0
     while True:
-        res = process_inbox(Path(a.inbox), Path(a.out))
+        res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))
+        extra = []
         if a.finance and Path(a.finance).is_dir():
-            fin = process_inbox(Path(a.finance), Path(a.out), area="finance")
-            res = {k: res[k] + fin[k] for k in res}
+            extra.append(process_inbox(Path(a.finance), Path(a.out), area="finance"))
+        if (Path(a.inbox) / "mail").is_dir():  # mail exports dropped into the inbox (.mbox, .eml, .emlx)
+            extra.append(process_inbox(Path(a.inbox) / "mail", Path(a.out), area="mail"))
+        if a.mail and Path(a.mail).is_dir():
+            extra.append(process_mail_store(Path(a.mail), Path(a.out)))
+        for more in extra:
+            res = {k: res[k] + more[k] for k in res}
         if res["parsed"] or res["failed"]:
             print(res, flush=True)
         if not a.watch:

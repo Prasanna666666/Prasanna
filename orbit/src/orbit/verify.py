@@ -198,7 +198,7 @@ def documents_vs_bank(conn) -> list[Finding]:
     out = []
     covered = _months_with_transactions(conn)
     for d in conn.execute(
-        "SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('invoice','receipt') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"
+        "SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('invoice','receipt','ticket','booking') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"
     ):
         hit = conn.execute(
             "SELECT 1 FROM transactions WHERE kind='expense' AND amount_minor=? AND day>=? AND day<=?",

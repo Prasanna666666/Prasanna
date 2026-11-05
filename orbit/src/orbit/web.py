@@ -183,6 +183,8 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     problems = [*([job["error"]] if job.get("error") else []), *result.get("problems", [])]
     read = result.get("files", 0)
     summary = f"{read} file{'s' if read != 1 else ''} read, {result.get('new_transactions', 0)} new payments" if result else ""
+    if result and result.get("mail_waiting"):
+        summary += f"; {result['mail_waiting']} mail file{'s' if result['mail_waiting'] != 1 else ''} still waiting: press Update again"
     return {
         "running": job["running"],
         "progress": job.get("progress", ""),

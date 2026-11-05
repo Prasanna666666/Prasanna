@@ -63,7 +63,7 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
             rejected += 1
             continue
         tags = ",".join(rule_tags(f"{d['name']} {d['text'][:5000]}", people))
-        area = "finance" if d.get("area") == "finance" else ""
+        area = d["area"] if d.get("area") in ("finance", "mail") else ""
         structured = {
             k: d["data"][k]
             for k in ("rows", "lines", "table", "table_pdfplumber", "table_poppler")

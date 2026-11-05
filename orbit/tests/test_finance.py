@@ -83,14 +83,14 @@ class FakeModel:
         return {"content": "{}"}
 
 
-def _load(conn, tmp_path, name, rows=None, text=None, area="finance", cols=COLS):
+def _load(conn, tmp_path, name, rows=None, text=None, area="finance", cols=COLS, kind="pdf"):
     sha = (name.encode().hex() * 8)[:64]
     shown = text if text is not None else "\n".join(" ".join(r) for r in (rows or []))
     d = {
         "schema": 1,
         "sha256": sha,
         "name": name,
-        "kind": "pdf",
+        "kind": kind,
         "text": shown,
         "meta": {},
         "area": area,

@@ -19,6 +19,7 @@ If something here is wrong, the owner says so once and it is changed here.
 - Understanding runs on measured evidence: `python -m atlas.evaluate` scores the model by difficulty level and times each path; run it on the owner's Mac after any change to prompts or models.
 - The AI never modifies or deletes source data. Deletes need the owner's own words. Original files stay read-only.
 - **Everything offline.** The apps never connect to the internet or a mail server. The only online steps are ones the owner runs outside the apps (downloading the model once, the exchange-rate file, building the Docker images, and Apple Mail's own syncing). Email is read from local files: Apple Mail export, `.mbox` or `.emlx`; there is no live mail fetch unless the owner decides otherwise.
+- **Mail is read by the same Update button** (Apple Mail's folder, read-only, in the sealed reader), and **what is found in mail and documents feeds the calculations** (bills due, invoice-against-bank, tax, insurance, trips), not only search. A cheap gate picks what is worth the model's time; code verifies every amount and date.
 - Never connect to the cloud. Everything runs on the owner's machine. (The old optional cloud reader in Photos has been removed entirely.)
 
 ## Numbers and honesty
