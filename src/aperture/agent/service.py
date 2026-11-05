@@ -380,20 +380,51 @@ class AgentService:
         """Carry out a plan (from the planner or from a tool call) and write the reply. Shared by every kind of agent."""
         timings = {} if timings is None else timings
         warnings = [] if warnings is None else warnings
-        if (
-            self._date_step is not None and plan.intent in ("find", "count", "export") and mentions_time(request)
-        ):  # authoritative: the planner invents dates
-            started = time.perf_counter()
-            try:  # a small, focused step: is there a time expression the plan missed (or turned into words)?
-                phrase, spec = self._date_step(request)
-                plan = apply_dates(plan, phrase, spec)
-            except LLMError:
-                pass  # an extra check must never stop a search
-            timings["dates"] = round(time.perf_counter() - started, 2)
+        plan = self._with_dates(request, plan, timings)
         if plan.intent == "count" and not plan.has_constraints and previous_ids is None:
             plan = dataclasses.replace(plan, all_photos=True)  # "how many photos do I have?" means all of them
         base: dict[str, Any] = {"plan": plan, "warnings": warnings, "timings": timings}
 
+        early = self._reply_without_search(request, plan, previous_ids, history, base, timings)
+        if early is not None:
+            return early
+        try:
+            executor = self._executor_factory()
+            plan, outcome = self._search(executor, request, plan, previous_ids, timings)
+            base["plan"] = plan
+        except Exception as exc:
+            log.exception("plan execution failed")
+            return AgentReply("error", f"Something went wrong while searching: {exc}", **base)
+
+        say("Checking the results")
+        outcome, hard_ids = self._relax_if_empty(executor, plan, previous_ids, outcome)
+        groups, lead, exploration = self._arrange(executor, plan, outcome)
+        groups = self._enforce(plan, outcome, groups, exploration, hard_ids)
+        return self._final_reply(plan, outcome, groups, lead, base)
+
+    def _with_dates(self, request: str, plan: Plan, timings: dict[str, Any]) -> Plan:
+        """The date step is authoritative: the planner invents dates."""
+        if self._date_step is None or plan.intent not in ("find", "count", "export") or not mentions_time(request):
+            return plan
+        started = time.perf_counter()
+        try:  # a small, focused step: is there a time expression the plan missed (or turned into words)?
+            phrase, spec = self._date_step(request)
+            plan = apply_dates(plan, phrase, spec)
+        except LLMError:
+            pass  # an extra check must never stop a search
+        timings["dates"] = round(time.perf_counter() - started, 2)
+        return plan
+
+    def _reply_without_search(
+        self,
+        request: str,
+        plan: Plan,
+        previous_ids: np.ndarray | None,
+        history: Any,
+        base: dict[str, Any],
+        timings: dict[str, Any],
+    ) -> AgentReply | None:
+        """Small talk, questions about the library, 'show them again' and unclear requests: answered without searching."""
         if plan.intent == "chat":
             return self._chat_reply(request, history, base, plan.message)
         if plan.intent == "question":
@@ -409,95 +440,105 @@ class AgentService:
             return AgentReply(
                 "clarify", plan.message or "What should I look for - a subject, text, person, place or date?", **base
             )
+        return None
 
-        try:
-            executor = self._executor_factory()
-            started = time.perf_counter()
-            outcome = executor.run(plan, previous_ids)
-            timings["search"] = round(time.perf_counter() - started, 2)
-            if (
-                self._rescue
-                and len(outcome.ids) == 0
-                and plan.intent in ("find", "count", "export")
-                and plan.scope == "library"
-                and _only_plain_clauses(plan)
-                and any(r.matched == 0 for r in outcome.reports)
-            ):
-                rescued = executor.rescue(request)
-                if len(rescued):
-                    outcome.ids = rescued
-                    outcome.notes.append(
-                        "The AI's plan found nothing, so I searched your library for the words you typed. "
-                        "These are the closest matches, so double-check them."
-                    )
-            tried: list[str] = []
-            while (
-                self._reviser is not None
-                and len(outcome.ids) == 0
-                and plan.intent in ("find", "count", "export")
-                and len(tried) < MAX_REVISIONS
-            ):
-                # Nothing found: look at WHY, then let the model try a different plan (fewer words, other engine, wider place).
-                feedback = f"{explain_empty(outcome.reports)} Search scope was '{plan.scope}'."
-                started = time.perf_counter()
-                try:
-                    revised = self._reviser(request, plan, feedback)
-                except LLMError:
-                    break
-                timings[f"retry{len(tried) + 1}"] = round(time.perf_counter() - started, 2)
-                if revised is None or not revised.has_constraints or revised == plan:
-                    break
-                tried.append(describe_conditions(plan, outcome.date_range))
-                plan = revised
-                outcome = executor.run(plan, previous_ids if plan.scope == "previous" else None)
-                base["plan"] = plan
-            if tried and len(outcome.ids):
+    def _search(
+        self, executor: Any, request: str, plan: Plan, previous_ids: np.ndarray | None, timings: dict[str, Any]
+    ) -> tuple[Plan, Any]:
+        """Run the plan; if it finds nothing, rescue with the typed words, then let the model revise the plan a few times."""
+        started = time.perf_counter()
+        outcome = executor.run(plan, previous_ids)
+        timings["search"] = round(time.perf_counter() - started, 2)
+        if (
+            self._rescue
+            and len(outcome.ids) == 0
+            and plan.intent in ("find", "count", "export")
+            and plan.scope == "library"
+            and _only_plain_clauses(plan)
+            and any(r.matched == 0 for r in outcome.reports)
+        ):
+            rescued = executor.rescue(request)
+            if len(rescued):
+                outcome.ids = rescued
                 outcome.notes.append(
-                    "My first search found nothing (" + "; ".join(tried) + "), so I tried again with a different approach."
+                    "The AI's plan found nothing, so I searched your library for the words you typed. These are the closest matches, so double-check them."
                 )
-        except Exception as exc:
-            log.exception("plan execution failed")
-            return AgentReply("error", f"Something went wrong while searching: {exc}", **base)
+        tried: list[str] = []
+        while (
+            self._reviser is not None
+            and len(outcome.ids) == 0
+            and plan.intent in ("find", "count", "export")
+            and len(tried) < MAX_REVISIONS
+        ):
+            # Nothing found: look at WHY, then let the model try a different plan (fewer words, other engine, wider place).
+            feedback = f"{explain_empty(outcome.reports)} Search scope was '{plan.scope}'."
+            started = time.perf_counter()
+            try:
+                revised = self._reviser(request, plan, feedback)
+            except LLMError:
+                break
+            timings[f"retry{len(tried) + 1}"] = round(time.perf_counter() - started, 2)
+            if revised is None or not revised.has_constraints or revised == plan:
+                break
+            tried.append(describe_conditions(plan, outcome.date_range))
+            plan = revised
+            outcome = executor.run(plan, previous_ids if plan.scope == "previous" else None)
+        if tried and len(outcome.ids):
+            outcome.notes.append(
+                "My first search found nothing (" + "; ".join(tried) + "), so I tried again with a different approach."
+            )
+        return plan, outcome
 
-        say("Checking the results")
+    def _relax_if_empty(self, executor: Any, plan: Plan, previous_ids: np.ndarray | None, outcome: Any) -> tuple[Any, Any]:
+        """Nothing found for a find: keep the place, date or person and relax only the look. Returns the outcome and the photos that match the rest."""
+        if len(outcome.ids) != 0 or plan.intent != "find" or not hasattr(executor, "run_relaxed"):
+            return outcome, None
+        relaxed = executor.run_relaxed(plan, previous_ids)
+        if not len(relaxed.ids):
+            return outcome, None
+        what = " and ".join(c.query for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",))
+        outcome.ids, outcome.notes = (
+            relaxed.ids,
+            [
+                *outcome.notes,
+                f"No photo clearly shows {what}. These are the closest of the {len(relaxed.hard):,} photos that match the rest.",
+            ],
+        )
+        return outcome, relaxed.hard
+
+    def _arrange(self, executor: Any, plan: Plan, outcome: Any) -> tuple[list[tuple[str, np.ndarray]], str, Any]:
+        """Group the photos by the kind of evidence that found them (a place, a folder, a person, written text, how it looks). Returns (groups, lead label, exploration)."""
         groups: list[tuple[str, np.ndarray]] = []
         lead = ""
-        hard_ids = None
         exploration = None
-        if len(outcome.ids) == 0 and plan.intent == "find" and hasattr(executor, "run_relaxed"):
-            relaxed = executor.run_relaxed(plan, previous_ids)  # keep the place, date or person; only the look is relaxed
-            if len(relaxed.ids):
-                what = " and ".join(c.query for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",))
-                outcome.ids, outcome.notes = (
-                    relaxed.ids,
-                    [
-                        *outcome.notes,
-                        f"No photo clearly shows {what}. These are the closest of the {len(relaxed.hard):,} photos that match the rest.",
-                    ],
-                )
-                hard_ids = relaxed.hard
-        if plan.intent in ("find", "count") and hasattr(executor, "readings"):
-            try:
-                exploration = executor.explore(plan) if hasattr(executor, "explore") else None
-                readings = exploration.readings if exploration is not None else executor.readings(plan)
-                together = exploration.together() if exploration is not None else None
-                if together is not None and len(together):
-                    # Several conditions: each is judged by its OWN best evidence (a folder, a place, GPS, a trusted label ...) and the answer is
-                    # where all of them hold, not whatever the model's guessed search method happened to give.
-                    terms = exploration.terms if exploration is not None else []
-                    lead, outcome.ids = " and ".join(terms) if terms else "all of it", together
-                    groups = [(lead, together)]  # one clear answer, no pile of other categories
-                elif readings and _asks_for_one_thing(plan):
-                    # One thing was asked for: the most reliable way it can be found leads (place and GPS before folders, people, written
-                    # text and finally what the picture looks like), instead of a mixed search that silently narrows it to a few photos.
-                    lead, outcome.ids = readings[0][0], readings[0][1]
-                    groups = _merge_groups(None, readings)
-                else:
-                    groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), readings)
-            except Exception:  # listing the other readings must never break the answer
-                log.exception("listing readings failed")
+        if plan.intent not in ("find", "count") or not hasattr(executor, "readings"):
+            return groups, lead, exploration
+        try:
+            exploration = executor.explore(plan) if hasattr(executor, "explore") else None
+            readings = exploration.readings if exploration is not None else executor.readings(plan)
+            together = exploration.together() if exploration is not None else None
+            if together is not None and len(together):
+                # Several conditions: each is judged by its OWN best evidence (a folder, a place, GPS, a trusted label ...) and the answer is
+                # where all of them hold, not whatever the model's guessed search method happened to give.
+                terms = exploration.terms if exploration is not None else []
+                lead, outcome.ids = " and ".join(terms) if terms else "all of it", together
+                groups = [(lead, together)]  # one clear answer, no pile of other categories
+            elif readings and _asks_for_one_thing(plan):
+                # One thing was asked for: the most reliable way it can be found leads (place and GPS before folders, people, written
+                # text and finally what the picture looks like), instead of a mixed search that silently narrows it to a few photos.
+                lead, outcome.ids = readings[0][0], readings[0][1]
+                groups = _merge_groups(None, readings)
+            else:
+                groups = _merge_groups(len(outcome.ids) and ("Best match", outcome.ids), readings)
+        except Exception:  # listing the other readings must never break the answer
+            log.exception("listing readings failed")
+        return groups, lead, exploration
+
+    def _enforce(
+        self, plan: Plan, outcome: Any, groups: list[tuple[str, np.ndarray]], exploration: Any, hard_ids: Any
+    ) -> list[tuple[str, np.ndarray]]:
+        """What was asked for is a requirement, not a hint: a named place must hold for every photo, and a compound request keeps its exact conditions."""
         if exploration is not None:
-            # A place the person named is a requirement, not a hint: whatever else found these photos, they must be from that place.
             for clause in plan.clauses:
                 term = clause.query.strip()
                 if clause.exclude or "place" not in clause.engines or "visual" in clause.engines or term not in exploration.terms:
@@ -517,6 +558,11 @@ class AgentService:
             label, ids = groups[0]
             outcome.ids = ids
             outcome.notes.append(f"No exact match. Showing: {label}.")
+        return groups
+
+    def _final_reply(
+        self, plan: Plan, outcome: Any, groups: list[tuple[str, np.ndarray]], lead: str, base: dict[str, Any]
+    ) -> AgentReply:
         common = {
             **base,
             "groups": groups,
@@ -527,15 +573,11 @@ class AgentService:
         }
         conditions = lead or describe_conditions(plan, outcome.date_range)
         n = len(outcome.ids)
+        photos = f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}"
         if n == 0:
             return AgentReply("results", f"No photos found. {explain_empty(outcome.reports)}", **common)
         if plan.intent == "count":
-            return AgentReply("count", f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}", **common)
+            return AgentReply("count", photos, **common)
         if plan.intent == "export":
-            return AgentReply(
-                "export",
-                f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}. Ready to copy.",
-                folder_name=plan.folder_name,
-                **common,
-            )
-        return AgentReply("results", f"**{n:,}** photo{'s' if n != 1 else ''} · {conditions}", **common)
+            return AgentReply("export", f"{photos}. Ready to copy.", folder_name=plan.folder_name, **common)
+        return AgentReply("results", photos, **common)
