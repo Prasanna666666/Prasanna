@@ -1,7 +1,7 @@
 import pytest
 
-from orbit import browse, planning
-from orbit.modules import events, people, tasks
+from orbit import browse
+from orbit.modules import people, tasks
 from tests.test_tally import tx
 
 
