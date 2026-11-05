@@ -61,7 +61,7 @@ def test_text_in_pictures_joins_the_documents_in_one_search(drive, tmp_path):
     indexer.run_once(engine)
     conn = db.connect(tmp_path / "lib.db")
     db.migrate(conn, [store.MODULE])
-    hits = store.passages(conn, "Albert Heijn kassabon", 5, extra=pictures.text_sources(engine))
+    hits = store.passages(conn, "Albert Heijn kassabon", 5, more_sources=pictures.text_sources(engine))
     assert hits and hits[0]["source"] == "picture" and hits[0]["title"] == "receipt.jpg"
 
 

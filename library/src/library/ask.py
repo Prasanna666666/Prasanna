@@ -26,10 +26,10 @@ def _item(doc_id: int | None, hit: dict) -> dict[str, Any]:
     }
 
 
-def find_items(conn, questions: list[str], search: list[str] | None, limit: int = 8, extra=None) -> list[dict]:
+def find_items(conn, questions: list[str], search: list[str] | None, limit: int = 8, more_sources=None) -> list[dict]:
     """The best matching documents for the first question that finds anything ("show me those" has no topic of its own, so earlier questions are tried)."""
     for question in questions:
-        hits = store.passages(conn, question, 12, search, extra)
+        hits = store.passages(conn, question, 12, search, more_sources)
         if hits:
             break
     else:
@@ -45,9 +45,9 @@ def find_items(conn, questions: list[str], search: list[str] | None, limit: int 
     return items[:limit]
 
 
-def answer(conn, client, model: str, question: str, search: list[str] | None, extra=None) -> str:
+def answer(conn, client, model: str, question: str, search: list[str] | None, more_sources=None) -> str:
     """One answer in words, from the best passages."""
-    hits = store.passages(conn, question, 6, search, extra)
+    hits = store.passages(conn, question, 6, search, more_sources)
     if not hits:
         return NOT_FOUND
     passages = "\n\n".join(f"[{i}] {h['title']}: {h['text']}" for i, h in enumerate(hits, 1))

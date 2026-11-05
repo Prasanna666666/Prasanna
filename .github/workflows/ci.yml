@@ -129,6 +129,7 @@ jobs:
           python-version: "3.13"
       - run: pip install -e "../kit[secure]" -e ".[secure]" -e "../library[parse]" bandit pip-audit cyclonedx-bom
       - run: bandit -q -r src ../kit/src ../library/src -c pyproject.toml
+      - run: bandit -q -r ../images/src ../photos/src -c ../images/pyproject.toml -ll
       - run: pip-audit
       - run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4
