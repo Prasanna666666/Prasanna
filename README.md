@@ -52,7 +52,7 @@ Not in the new app yet: naming or merging people, Tidy up, Settings and the expo
 
 Measure it: `aperture check` (seconds per step), `aperture eval-routes`, `aperture eval-plans`. See `docs/safety.md` (items 8-11).
 
-Prefer a container? `docker-compose.aperture.yml` runs Aperture isolated with read-only photos; see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
+Prefer a container? `scripts/aperture-docker-up.sh` runs Lumo isolated (no internet, photos read-only); see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
 
 ## Best setup for an 8 GB M1 (what this app is built for)
 - The AI model (Ministral 3B) only understands language, with short prompts and tiny outputs. Search, matching and counting are plain code and image search: milliseconds.

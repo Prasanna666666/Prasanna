@@ -14,6 +14,7 @@ from __future__ import annotations
 import hmac
 import json
 import logging
+import os
 import re
 import secrets
 import subprocess
@@ -643,7 +644,10 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
 
 def serve(ctx: Any, port: int = 8765, ready: threading.Event | None = None) -> int:
     web = Web(ctx, port)
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(web))
+    # Loopback unless Docker says otherwise: inside the container the gateway must reach us, and the container's own
+    # network is internal (no internet), so listening on all of its interfaces is still private.
+    host = os.environ.get("APERTURE_UI_HOST", "127.0.0.1") if os.environ.get("APERTURE_SANDBOXED") == "1" else "127.0.0.1"
+    server = ThreadingHTTPServer((host, port), make_handler(web))
     server.daemon_threads = True
     try:
         ctx.warm_up()  # preload the photo index, the image-search model and the AI model in the background

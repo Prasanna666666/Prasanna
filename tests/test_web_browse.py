@@ -152,3 +152,12 @@ def test_the_browse_endpoints_need_the_token_and_answer_with_the_same_data(tmp_p
         assert c.get("/api/places")[1][0]["n"] > 0
     finally:
         server.shutdown()
+
+
+def test_serve_binds_loopback_unless_sandboxed(monkeypatch):
+    import inspect
+
+    from aperture.web import server
+
+    src = inspect.getsource(server.serve)
+    assert '"127.0.0.1"' in src and "APERTURE_SANDBOXED" in src

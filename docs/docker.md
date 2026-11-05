@@ -24,8 +24,8 @@ mkdir -p "$APERTURE_HOST_DRIVE"/{Aperture,Aperture_Exports}
 ollama pull ministral-3:3b                                  # native Ollama on the Mac (uses the GPU)
 # Models for Aperture itself (CLIP, faces, place data) must already be in $APERTURE_HOST_DRIVE/Aperture/models.
 # Get them once with the normal install (scripts/install.sh -> `aperture fetch-models`). The container cannot download.
-docker compose -f docker-compose.aperture.yml build
-docker compose -f docker-compose.aperture.yml up -d                                    # open http://127.0.0.1:8765
+scripts/aperture-docker-up.sh   # builds and starts Lumo (the fast web app)
+# or by hand: docker compose -f docker-compose.aperture.yml up -d --build                                    # open http://127.0.0.1:8765
 ```
 Docker Desktop: Settings > Resources > Memory about 4 GB (the Aperture container is capped at 5 GB; Ollama runs natively).
 
@@ -54,3 +54,6 @@ docker compose -f docker-compose.aperture.yml exec aperture sh -c "touch /Volume
 - Encrypt the drive (Finder > right-click > Encrypt) and keep FileVault on; Docker does not encrypt your data.
 - Untested on a real Mac: this was written without a Docker engine. If a step fails, send only the error text.
 - A Linux OCR engine (so photo text search works in Docker) is a possible later addition.
+
+- The container now starts Lumo's fast web app (`aperture web`). The older screens: `docker compose -f docker-compose.aperture.yml run --rm --service-ports aperture ui`.
+- Not built or run in the sandbox this was written in (no Docker daemon there): the first build on your Mac is the first real test.
