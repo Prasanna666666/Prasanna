@@ -38,7 +38,7 @@ Open http://127.0.0.1:8501. `orbit ui`, `chat`, `brief`, `tag`, `import-notes` a
 - `gateway` and `ollama` are byte forwarders on Docker's default network (needed to show the page and reach Ollama on the Mac).
 - The **documents agent is read-only** and told to ignore instructions inside documents, so a booby-trapped PDF cannot make
   Orbit change or delete anything.
-- Not covered by Orbit: Ollama itself and macOS (turn off Ollama update checks, or switch Wi-Fi off / use LuLu). Keep FileVault on.
+- Not covered by Orbit: Ollama itself and macOS (turn off Ollama update checks, or switch Wi-Fi off / use LuLu). Theft or loss of the Mac is out of scope, so FileVault is optional.
 - Verify: `docker compose exec app python -c "import urllib.request as u; u.urlopen('https://example.com')"` must fail;
   `docker compose exec app sh -c "touch /parsed/x"` must fail (read-only).
 - Untested on a real Mac (no Docker engine where this was written). Send only error text if a step fails.
