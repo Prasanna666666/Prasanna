@@ -8,10 +8,13 @@ shared between threads.
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import threading
 from pathlib import Path
 from typing import TypeVar
+
+from kit import db as kit_db
 
 T = TypeVar("T")
 
@@ -277,8 +280,7 @@ class Database:
 
     def connect(self) -> sqlite3.Connection:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.path, timeout=60, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
+        conn = self._open()
         try:
             mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()[0]
             if str(mode).lower() != "wal":  # some drive formats cannot do WAL
@@ -296,6 +298,20 @@ class Database:
                     self._migrate(conn)
                     self._ready = True
         return conn
+
+    def _open(self) -> sqlite3.Connection:
+        """A connection to the index: encrypted (SQLCipher, key from ORBIT_DB_KEY) when a key is set, otherwise plain as before. A plain index found
+        when a key is set is encrypted once, first."""
+        key = kit_db.database_key()
+        if key is None:
+            if os.environ.get("ORBIT_REQUIRE_ENCRYPTION") == "1":
+                raise kit_db.EncryptionError("The picture index must be encrypted but no database key was given (ORBIT_DB_KEY).")
+            conn = sqlite3.connect(self.path, timeout=60, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            return conn
+        with self._lock:
+            kit_db.encrypt_in_place(self.path, key)
+        return kit_db.connect(self.path, key, timeout=60)
 
     # ------------------------------------------------------------------
     def _migrate(self, conn: sqlite3.Connection) -> None:

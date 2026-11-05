@@ -30,7 +30,9 @@ def database_key() -> str | None:
     return os.environ.get("ORBIT_DB_KEY") or None
 
 
-def connect(path: str | Path | None = None, key: str | None = None, on_open: Callable[[sqlite3.Connection], None] | None = None) -> sqlite3.Connection:
+def connect(
+    path: str | Path | None = None, key: str | None = None, on_open: Callable[[sqlite3.Connection], None] | None = None, timeout: float = 5.0
+) -> sqlite3.Connection:
     """Open the database. With a key it is encrypted (SQLCipher: AES-256, whole file incl. indexes and WAL).
 
     ORBIT_REQUIRE_ENCRYPTION=1 (set in the Docker deployment) refuses to run without a key, so a missing
@@ -46,7 +48,7 @@ def connect(path: str | Path | None = None, key: str | None = None, on_open: Cal
             from sqlcipher3 import dbapi2 as cipher
         except ImportError as e:
             raise EncryptionError("A key was given but sqlcipher3 is not installed: pip install sqlcipher3-binary") from e
-        conn = cipher.connect(str(path), check_same_thread=False)
+        conn = cipher.connect(str(path), check_same_thread=False, timeout=timeout)
         conn.execute("PRAGMA key = \"x'" + _hexkey(key) + "'\"")  # raw 256-bit key; no passphrase stretching needed
         try:
             conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
@@ -55,7 +57,7 @@ def connect(path: str | Path | None = None, key: str | None = None, on_open: Cal
             raise EncryptionError("Wrong database key (or the file is not encrypted).") from e
         conn.row_factory = cipher.Row
     else:
-        conn = sqlite3.connect(str(path), check_same_thread=False)
+        conn = sqlite3.connect(str(path), check_same_thread=False, timeout=timeout)
         try:
             conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         except sqlite3.DatabaseError as e:
@@ -69,6 +71,53 @@ def connect(path: str | Path | None = None, key: str | None = None, on_open: Cal
     if Path(path).exists():
         os.chmod(path, 0o600)  # owner-only, even without a container
     return conn
+
+
+def encrypt_in_place(path: str | Path, key: str) -> bool:
+    """Encrypt a database that is still plain text (all tables, including full-text search). The plain file is kept beside it as `<name>.unencrypted`
+    until you delete it yourself; nothing is lost if this stops half way. Returns True if it converted a file, False if there was nothing to do."""
+    path = Path(path)
+    if not path.is_file() or path.stat().st_size == 0:
+        return False
+    try:
+        plain = sqlite3.connect(str(path))
+        plain.execute("SELECT count(*) FROM sqlite_master").fetchone()
+        plain.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        version = plain.execute("PRAGMA user_version").fetchone()[0]  # the export does not carry it, and a missing version would re-run every migration
+        plain.close()
+    except sqlite3.DatabaseError:
+        return False  # already encrypted
+    try:
+        from sqlcipher3 import dbapi2 as cipher
+    except ImportError as e:
+        raise EncryptionError("sqlcipher3 is not installed, so the database cannot be encrypted.") from e
+    target = path.with_name(path.name + ".encrypting")
+    target.unlink(missing_ok=True)
+    source = cipher.connect(str(path))
+    try:
+        source.execute(f"ATTACH DATABASE '{target}' AS enc KEY \"x'{_hexkey(key)}'\"")
+        source.execute("SELECT sqlcipher_export('enc')")
+        source.execute(f"PRAGMA enc.user_version = {int(version)}")
+        source.execute("DETACH DATABASE enc")
+    finally:
+        source.close()
+    check = cipher.connect(str(target))
+    try:
+        check.execute(f"PRAGMA key = \"x'{_hexkey(key)}'\"")
+        copied = check.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]
+    finally:
+        check.close()
+    original = sqlite3.connect(str(path))
+    try:
+        expected = original.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]
+    finally:
+        original.close()
+    if copied != expected:
+        target.unlink(missing_ok=True)
+        raise EncryptionError("The encrypted copy did not match the original; nothing was changed.")
+    path.rename(path.with_name(path.name + ".unencrypted"))
+    target.rename(path)
+    return True
 
 
 def _hexkey(key: str) -> str:

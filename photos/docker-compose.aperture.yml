@@ -30,6 +30,7 @@ services:
     tmpfs: ["/tmp", "/Volumes/Expansion"]
     volumes: *drive
     environment:
+      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key Documents keeps in the Keychain)}   # the picture index is encrypted; Documents' key
       PLATFORM_KEY: ${PLATFORM_KEY:-}   # signs Photos's calls to Documents; Atlas's calls to Photos are checked with it
       APERTURE_LIBRARY_URL: http://library.internal:8502   # Update is passed on to Documents, whose sealed indexer reads the pictures
       APERTURE_TRUSTED_HOSTS: ollama,library.internal

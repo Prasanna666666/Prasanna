@@ -25,6 +25,8 @@ services:
       LIBRARY_PHOTOS: /Volumes/Expansion/Photos
       APERTURE_NEVER_ONLINE: "1"
       APERTURE_SANDBOXED: "1"
+      ORBIT_REQUIRE_ENCRYPTION: "1"
+      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # the picture index is encrypted too
     mem_limit: 5g   # leave room for macOS and Ollama on an 8 GB Mac
     pids_limit: 256
 

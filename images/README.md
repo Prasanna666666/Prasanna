@@ -11,6 +11,9 @@ Everything that understands a picture lives here, once: reading a file (EXIF, da
 - **Documents** (`../library`) runs the engine: a sealed indexer container (no network, photos read-only) reads the photo folder and writes the index; the service answers pictures questions (`/api/pictures`, thumbnails, the text found in pictures joins the documents in one search) and relays Update.
 - **Photos** (`../photos`) imports this package to show and search the index (it opens the same volume, `library-pictures`) and, with `APERTURE_LIBRARY_URL` set (the Docker setup), passes Update on to Documents instead of indexing itself. A native install without that setting still indexes by itself as before.
 
+## Encrypted
+With `ORBIT_DB_KEY` set (the Docker setup) the index is an encrypted SQLCipher file, full-text index included; an existing plain index is converted once on first open and the plain file is kept beside it as `aperture.db.unencrypted` until you delete it. A native install with no key keeps a plain index as before.
+
 ## Still open
 - Photos still opens the index file directly to read and to write its own things (people's names, moves, captions). Moving every one of those reads and writes behind Documents' API (about 50 places) would make Documents the only program that touches the file; it is not done.
 - Pictures that arrive inside mail or the inbox (not in the photo folder) are read by Documents' own reader (text only); they are not yet fed through this engine.

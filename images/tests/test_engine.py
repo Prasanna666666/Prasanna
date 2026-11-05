@@ -22,3 +22,26 @@ def test_the_engine_opens_its_database_and_scans_a_folder_with_injected_models(p
     engine.settings.photo_dir = str(photos)
     summary = Scanner(engine.paths, engine.settings, engine.db, lambda stage: Services()).run()
     assert summary.state == "done" and engine.db.connect().execute("SELECT COUNT(*) FROM items").fetchone()[0] == 1
+
+
+def test_the_index_is_encrypted_with_a_key_and_an_old_plain_index_is_converted_once(paths, monkeypatch):
+    import sqlite3
+
+    from images.db import Database
+
+    plain = Database(paths.db)
+    conn = plain.connect()
+    conn.execute("INSERT INTO fts(rowid, text) VALUES (1, 'kassabon Albert Heijn')")
+    conn.commit()
+    conn.close()
+    assert sqlite3.connect(paths.db).execute("SELECT count(*) FROM sqlite_master").fetchone()[0] > 0  # readable without a key
+
+    monkeypatch.setenv("ORBIT_DB_KEY", "a-test-key")
+    secured = Database(paths.db).connect()
+    assert (
+        secured.execute("SELECT rowid FROM fts WHERE fts MATCH 'kassabon'").fetchall()[0][0] == 1
+    )  # the full-text index came along
+    secured.close()
+    with __import__("pytest").raises(sqlite3.DatabaseError):
+        sqlite3.connect(paths.db).execute("SELECT count(*) FROM sqlite_master").fetchone()  # no longer readable without the key
+    assert paths.db.with_name(paths.db.name + ".unencrypted").is_file()  # the old file is kept until you delete it

@@ -34,11 +34,14 @@ CMD ["--watch"]
 
 FROM base AS indexer
 # The picture indexer: the shared engine with its models (CPU PyTorch works on arm64 and x86), and Tesseract for the text in pictures. No network at runtime.
-RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld build-essential libsqlcipher-dev \
+ && MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3 \
+ && apt-get purge -y build-essential && rm -rf /var/lib/apt/lists/*
+COPY kit /app/kit
 COPY images /app/images
 COPY library /app/library
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
- && pip install --no-cache-dir "./images[ml]" ./library
+ && pip install --no-cache-dir ./kit "./images[ml]" ./library
 USER 10001
-ENV APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1
+ENV APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1 ORBIT_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["library-indexer"]
