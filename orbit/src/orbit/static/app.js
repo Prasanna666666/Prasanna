@@ -21,6 +21,7 @@ const ICONS = {
   home: 'M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9',
   chat: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z',
   plan: 'M3 17l5-6 4 3 6-8M14 6h4v4',
+  search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3',
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
   auto: 'M12 3a9 9 0 1 0 0 18V3Z',
@@ -79,7 +80,7 @@ function applyTheme(mode) {
   const b = $('#theme'); if (b) { b.replaceChildren(icon(mode === 'dark' ? 'moon' : mode === 'light' ? 'sun' : 'auto')); b.title = 'Theme: ' + mode; }
 }
 function setupTheme() {
-  let mode = 'auto'; try { mode = localStorage.getItem('orbit.theme') || 'auto'; } catch (_) { /* private window */ }
+  let mode = 'dark'; try { mode = localStorage.getItem('orbit.theme') || 'dark'; } catch (_) { /* private window */ }
   applyTheme(mode);
   const b = $('#theme'); if (!b) return;
   b.addEventListener('click', () => { mode = mode === 'auto' ? 'dark' : mode === 'dark' ? 'light' : 'auto'; try { localStorage.setItem('orbit.theme', mode); } catch (_) { /* ignore */ } applyTheme(mode); });
@@ -88,7 +89,7 @@ async function refreshStatus() {
   try {
     const s = await api('/api/status');
     $('#ai-pill').className = 'pill ' + (s.ai ? 'ok' : 'bad');
-    $('#ai-text').textContent = s.ai ? 'Assistant ready' : 'Assistant off';
+    $('#ai-text').textContent = s.ai ? 'Assistant ready' : 'Assistant off'; $('#ai-top').className = 'status ' + (s.ai ? 'ok' : 'bad'); $('#ai-top').textContent = s.ai ? 'Assistant ready' : 'Assistant off';
     $('#ai-pill').title = s.ai ? s.model : s.problem;
   } catch (_) { $('#ai-pill').className = 'pill bad'; $('#ai-text').textContent = 'Not responding'; }
 }
@@ -126,6 +127,60 @@ function sparkline(values, w = 280, hgt = 70) {
 /** One big number with a label: the building block of the overview rows. */
 const stat = (label, value, sub, href, tone) => h(href ? 'a' : 'div', { class: 'stat', href }, h('div', { class: 'eyebrow' }, label), h('div', { class: 'stat-v num ' + (tone || '') }, value), sub ? h('div', { class: 'stat-sub' }, sub) : null);
 const section = (title, ...body) => h('section', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, title)), ...body);
+
+// ------------------------------------------------------------------ category look
+const CATS = {
+  groceries: ['#22c55e', 'M3 4h2l2.4 11h10.2l2-8H6.2M9 20h.01M17 20h.01'],
+  food: ['#f97316', 'M7 3v8a2 2 0 0 0 2 2v8M5 3v6M9 3v6M17 3c-2 2-2.5 5-2.5 8h2.5v10'],
+  rent: ['#a855f7', 'M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9'],
+  insurance: ['#14b8a6', 'M12 3 4.5 6v5.5c0 4.4 3 8.2 7.5 9.5 4.5-1.3 7.5-5.1 7.5-9.5V6L12 3Z'],
+  shopping: ['#ec4899', 'M5 8h14l-1 12H6L5 8Zm4 0V7a3 3 0 0 1 6 0v1'],
+  utilities: ['#eab308', 'M13 2 4 14h7l-1 8 9-12h-7l1-8Z'],
+  subscriptions: ['#6366f1', 'M17 2l3 3-3 3M20 5H8a4 4 0 0 0-4 4v1M7 22l-3-3 3-3M4 19h12a4 4 0 0 0 4-4v-1'],
+  transport: ['#0ea5e9', 'M5 16V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v8H5Zm0 0v2m14-2v2M8 12h.01M16 12h.01'],
+  fuel: ['#f59e0b', 'M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M3 21h14M15 8h2a2 2 0 0 1 2 2v6a1.5 1.5 0 0 0 3 0V9l-3-3'],
+  medical: ['#f43f5e', 'M12 21s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9ZM12 9v6M9 12h6'],
+  salary: ['#10b981', 'M4 8h16v11H4V8Zm5 0V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M4 13h16'],
+  interest: ['#06b6d4', 'M19 5 5 19M7 7h.01M17 17h.01'],
+  investments: ['#8b5cf6', 'M3 17l5-6 4 3 6-8M14 6h4v4'],
+  cash: ['#84cc16', 'M12 5v14M9 8.5a3 3 0 0 1 3-1.5c2 0 3 1 3 2.5s-1 2-3 2.5-3 1-3 2.5 1 2.5 3 2.5a3 3 0 0 0 3-1.5'],
+  refund: ['#38bdf8', 'M4 12a8 8 0 1 0 3-6.2M4 4v4h4'],
+  trips: ['#3b82f6', 'M2 14l20-8-8 20-3-9-9-3Z'],
+  events: ['#ec4899', 'M3 9a2 2 0 0 0 0 6v3h18v-3a2 2 0 0 0 0-6V6H3v3Zm10-3v12'],
+  sports: ['#22c55e', 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18'],
+  cancellations: ['#ef4444', 'M6 6l12 12M18 6 6 18'],
+  transfers: ['#94a3b8', 'M7 7h13l-3-3M17 17H4l3 3'],
+  other: ['#94a3b8', 'M5 12h.01M12 12h.01M19 12h.01'],
+};
+const catColor = (n) => (CATS[String(n).toLowerCase()] || [colour(n)])[0];
+/** A coloured rounded square with the category's icon: the same look wherever a category appears. */
+const catBadge = (name, size = 40) => {
+  const k = CATS[String(name).toLowerCase()] || [colour(name), CATS.other[1]];
+  return h('span', { class: 'cat-badge', style: `width:${size}px;height:${size}px;--c:${k[0]}`, html: `<svg viewBox="0 0 24 24"><path d="${k[1]}"/></svg>` });
+};
+/** Money in against money spent, month by month, as two soft areas. */
+function areaChart(trend) {
+  const w = 640, hgt = 230, pad = { l: 10, r: 22, t: 14, b: 28 };
+  const rows = trend.slice(-12), max = Math.max(...rows.flatMap((t) => [t.spent, t.income]), 1);
+  const x = (i) => pad.l + (i * (w - pad.l - pad.r)) / Math.max(rows.length - 1, 1), y = (v) => hgt - pad.b - (v / max) * (hgt - pad.b - pad.t);
+  const line = (k) => rows.map((t, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(t[k]).toFixed(1)}`).join(' ');
+  const area = (k) => `${line(k)} L${x(rows.length - 1).toFixed(1)} ${hgt - pad.b} L${x(0).toFixed(1)} ${hgt - pad.b} Z`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${hgt}`); svg.setAttribute('class', 'area');
+  const grid = [0, 1, 2, 3].map((i) => { const gy = pad.t + (i * (hgt - pad.b - pad.t)) / 3; return `<line x1="${pad.l}" x2="${w - pad.r}" y1="${gy}" y2="${gy}" class="grid"/>`; }).join('');
+  const labels = rows.map((t, i) => (i % 2 === (rows.length - 1) % 2 ? `<text x="${x(i)}" y="${hgt - 8}" text-anchor="middle" class="axis">${new Date(t.month + '-15').toLocaleDateString(undefined, { month: 'short' })}</text>` : '')).join('');
+  const dots = (k, c) => rows.map((t, i) => `<circle cx="${x(i)}" cy="${y(t[k])}" r="4" fill="${c}" class="pt"><title>${monthName(t.month)} · ${k === 'spent' ? 'spent' : 'in'} ${money(t[k])}</title></circle>`).join('');
+  svg.innerHTML = `<defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ff5fa2" stop-opacity=".45"/><stop offset="1" stop-color="#ff5fa2" stop-opacity="0"/></linearGradient>`
+    + `<linearGradient id="gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#22d3ee" stop-opacity=".4"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient></defs>${grid}`
+    + `<path d="${area('income')}" fill="url(#gb)"/><path d="${line('income')}" fill="none" stroke="#22d3ee" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<path d="${area('spent')}" fill="url(#ga)"/><path d="${line('spent')}" fill="none" stroke="#ff5fa2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>${dots('income', '#22d3ee')}${dots('spent', '#ff5fa2')}${labels}`;
+  return h('div', {}, svg, h('div', { class: 'chart-legend' }, h('span', {}, h('i', { style: { background: '#ff5fa2' } }), 'Spent'), h('span', {}, h('i', { style: { background: '#22d3ee' } }), 'Money in')));
+}
+/** The donut with its legend: where the month's money went. */
+function spendDonut(rows) {
+  const data = rows.map((d) => ({ label: d.category, value: d.amount, colour: catColor(d.category) })), total = data.reduce((x, d) => x + d.value, 0) || 1;
+  return h('div', { class: 'donut-wrap' }, donut(data), h('div', { class: 'legend' }, data.slice(0, 7).map((d) => h('div', { class: 'legend-row' }, h('span', { class: 'sw', style: { background: d.colour } }), h('span', { class: 'nm' }, d.label), h('span', { class: 'amt num' }, money(d.value)), h('span', { class: 'faint small', style: { width: '40px', textAlign: 'right' } }, Math.round((d.value / total) * 100) + '%')))));
+}
 
 // ------------------------------------------------------------------ charts
 function donut(data) {
@@ -177,14 +232,123 @@ function plain(m) {
 function dailyTiles(daily, isOn, onTap) {
   const max = Math.max(...daily.map((d) => d.amount), 1);
   return h('div', { class: 'tiles' }, daily.map((d) => h(onTap ? 'button' : 'div', { class: 'tile' + (isOn && isOn(d.category) ? ' on' : ''), onclick: onTap ? () => onTap(d.category) : null },
-    h('div', { class: 'row' }, h('span', { class: 'sw', style: { width: '10px', height: '10px', borderRadius: '4px', background: colour(d.category) } }), h('span', { class: 'tname' }, d.category)),
-    h('div', { class: 'tamt num' }, money(d.amount)), h('div', { class: 'meter' }, h('i', { style: { width: (d.amount / max) * 100 + '%', background: colour(d.category) } })),
+    h('div', { class: 'row' }, catBadge(d.category, 34), h('span', { class: 'tname' }, d.category)),
+    h('div', { class: 'tamt num' }, money(d.amount)), h('div', { class: 'meter' }, h('i', { style: { width: (d.amount / max) * 100 + '%', background: catColor(d.category) } })),
     h('div', { class: 'faint', style: { fontSize: '12.5px', marginTop: '8px' } }, changeNote(d)))));
 }
 /** The month to open on: the latest with data, unless it is the current month and only a few days old. */
 function startMonth(trend) {
   // statements arrive after the month ends, so the newest month with data is the one to show
   return trend.length ? trend[trend.length - 1].month : new Date().toISOString().slice(0, 7);
+}
+
+// ------------------------------------------------------------------ finding things
+/** Go to the Payments list with some filters already chosen (a shop, a category, a month). */
+function goExplore(filters) {
+  try { sessionStorage.setItem('orbit.explore', JSON.stringify(filters || {})); } catch (_) { /* private window */ }
+  if (route() === 'money' || ALIAS[route()] === 'money') render(); else location.hash = '#/money';
+}
+const PAGE_LINKS = [['Home', 'home', () => { location.hash = '#/home'; }], ['Payments', 'money', () => goExplore({})], ['Spending', 'money', () => { location.hash = '#/money'; }], ['Income', 'income', () => { location.hash = '#/income'; }],
+  ['Wealth', 'wealth', () => { location.hash = '#/wealth'; }], ['Plan', 'plan', () => { location.hash = '#/plan'; }], ['Tax', 'documents', () => { location.hash = '#/tax'; }], ['Documents', 'documents', () => { location.hash = '#/documents'; }],
+  ['Ask Orbit', 'chat', () => { location.hash = '#/chat'; }], ['Tasks', 'tasks', () => { location.hash = '#/tasks'; }], ['Notes', 'notes', () => { location.hash = '#/notes'; }], ['People', 'people', () => { location.hash = '#/people'; }], ['Settings', 'settings', () => { location.hash = '#/settings'; }]];
+
+/** A side panel with everything known about one payment. */
+async function openPayment(id) {
+  const d = await tool('payment_detail', { id });
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const line = (k, v) => v == null || v === '' ? null : h('div', { class: 'kv' }, h('span', { class: 'faint' }, k), h('span', {}, v));
+  const foreign = d.currency !== cur ? new Intl.NumberFormat(undefined, { style: 'currency', currency: d.currency }).format(d.original) : null;
+  const ov = h('div', { class: 'overlay right', onclick: (e) => { if (e.target === ov) close(); } }, h('aside', { class: 'drawer' },
+    h('div', { class: 'row between' }, h('div', { class: 'eyebrow' }, 'Payment'), h('button', { class: 'btn ghost small', onclick: close }, 'Close')),
+    h('div', { class: 'row', style: { gap: '14px', marginTop: '10px' } }, catBadge(d.category, 52), h('div', {}, h('div', { class: 'drawer-amt num ' + (d.kind === 'income' ? 'good' : '') }, (d.kind === 'income' ? '+' : '−') + money(d.amount, 2)), foreign ? h('div', { class: 'faint' }, 'originally ' + foreign) : null)),
+    h('div', { class: 'drawer-note' }, d.note || '(no description)'),
+    h('div', { class: 'chips' }, h('span', { class: 'chip' }, d.category), d.is_transfer ? h('span', { class: 'chip' }, 'between your accounts') : null, d.event ? h('span', { class: 'chip' }, d.event + (d.sub ? ' · ' + d.sub : '')) : null,
+      d.same_amount_this_month ? h('span', { class: 'chip bad' }, `${d.same_amount_this_month} more of exactly this amount this month`) : null),
+    h('div', { class: 'kvs' }, line('Date', d.day), line('Account', d.account), line('From file', d.file), line('Shop / payee', d.merchant), line('Category chosen by', d.category_chosen_by), line('Balance after', d.balance_after == null ? null : money(d.balance_after, 2)),
+      d.refund_of ? line('Refund of', `${d.refund_of.day} · ${money(d.refund_of.amount, 2)}`) : null, ...d.refunded_by.map((r) => line('Refunded on', `${r.day} · ${money(r.amount, 2)}`))),
+    d.merchant ? h('button', { class: 'btn primary', style: { marginTop: '18px' }, onclick: () => { close(); goExplore({ q: d.merchant }); } }, `All payments to ${d.merchant}`) : null));
+  document.body.append(ov); document.addEventListener('keydown', onKey);
+}
+
+/** One search box for everything: pages, payments, shops, files, people, notes, tasks. Opens with Cmd/Ctrl+K or "/". */
+function openPalette() {
+  if ($('.palette')) return;
+  const input = h('input', { class: 'palette-input', placeholder: 'Search payments, shops, files, people… or jump to a page', autocomplete: 'off', spellcheck: 'false' });
+  const list = h('div', { class: 'palette-list' });
+  let items = [], active = 0, seq = 0;
+  const close = () => { ov.remove(); document.removeEventListener('keydown', onKey, true); };
+  const run = (it) => { close(); it.run(); };
+  const paint = () => {
+    list.replaceChildren(...(items.length ? items.map((it, i) => (it.head ? h('div', { class: 'palette-head' }, it.head) : h('button', { class: 'palette-item' + (i === active ? ' on' : ''), 'data-i': i, onclick: () => run(it), onmouseenter: () => { active = i; mark(); } },
+      it.cat ? catBadge(it.cat, 30) : h('span', { class: 'cat-badge', style: '--c:#8b5cf6;width:30px;height:30px', html: `<svg viewBox="0 0 24 24"><path d="${ICONS[it.icon] || ICONS.search}"/></svg>` }),
+      h('span', { class: 'grow' }, h('div', { class: 'strong' }, it.label), it.sub ? h('div', { class: 'faint small' }, it.sub) : null), it.right ? h('span', { class: 'num faint' }, it.right) : null))) : [h('div', { class: 'empty' }, 'No results')]));
+    list.querySelector('.on')?.scrollIntoView({ block: 'nearest' });
+  };
+  const mark = () => list.querySelectorAll('.palette-item').forEach((b) => b.classList.toggle('on', +b.dataset.i === active));
+  const pageItems = (q) => PAGE_LINKS.filter(([n]) => !q || n.toLowerCase().includes(q)).map(([n, icon, go]) => ({ label: n, sub: 'Go to', icon, run: go }));
+  const firstReal = () => { active = Math.max(0, items.findIndex((x) => !x.head)); };
+  const search = async () => {
+    const q = input.value.trim().toLowerCase(), mine = ++seq;
+    if (q.length < 2) { items = [{ head: 'Jump to' }, ...pageItems(q)]; firstReal(); paint(); return; }
+    const r = await tool('search_everything', { query: q });
+    if (mine !== seq) return;
+    const pg = pageItems(q);
+    items = [
+      ...(pg.length ? [{ head: 'Pages' }, ...pg.slice(0, 4)] : []),
+      ...(r.merchants.length ? [{ head: 'Shops and payees' }, ...r.merchants.map((m) => ({ label: m.merchant, sub: `${m.payments} payments`, right: money(m.spent), cat: 'other', run: () => goExplore({ q: m.merchant }) }))] : []),
+      ...(r.payments.length ? [{ head: 'Payments' }, ...r.payments.map((p) => ({ label: p.note, sub: `${p.day} · ${p.category}`, right: (p.kind === 'income' ? '+' : '−') + money(p.amount, 2), cat: p.category, run: () => openPayment(p.id) }))] : []),
+      ...(r.documents.length ? [{ head: 'Files' }, ...r.documents.map((d) => ({ label: d.party || d.name, sub: `${d.kind} · ${d.date || ''}`, right: d.total ? money(d.total, 2) : '', icon: 'documents', run: () => { location.hash = '#/documents'; } }))] : []),
+      ...(r.people.length ? [{ head: 'People' }, ...r.people.map((p) => ({ label: p.name, sub: p.relation, icon: 'people', run: () => { location.hash = '#/people'; } }))] : []),
+      ...(r.notes.length ? [{ head: 'Notes' }, ...r.notes.map((n) => ({ label: n.title, icon: 'notes', run: () => { location.hash = '#/notes'; } }))] : []),
+      ...(r.tasks.length ? [{ head: 'Tasks' }, ...r.tasks.map((t) => ({ label: t.title, sub: t.due || '', icon: 'tasks', run: () => { location.hash = '#/tasks'; } }))] : [])];
+    firstReal(); paint();
+  };
+  let timer;
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(guard(search), 140); });
+  const move = (d) => { const idx = items.map((x, i) => (x.head ? -1 : i)).filter((i) => i >= 0); if (!idx.length) return; active = idx[(idx.indexOf(active) + d + idx.length) % idx.length]; mark(); list.querySelector('.on')?.scrollIntoView({ block: 'nearest' }); };
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter' && items[active] && !items[active].head) { e.preventDefault(); run(items[active]); }
+  };
+  const ov = h('div', { class: 'overlay top', onclick: (e) => { if (e.target === ov) close(); } }, h('div', { class: 'palette' }, h('div', { class: 'palette-bar' }, icon('search'), input, h('kbd', {}, 'esc')), list));
+  document.body.append(ov); document.addEventListener('keydown', onKey, true);
+  items = [{ head: 'Jump to' }, ...pageItems('')]; firstReal(); paint(); input.focus();
+}
+document.addEventListener('keydown', (e) => {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+  if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) { e.preventDefault(); openPalette(); }
+});
+
+/** Every payment, with filters: words, month, category, money in or out, newest or largest; a page at a time, with totals for the whole selection. */
+function paymentsExplorer(months, categories, initial) {
+  const st = { q: '', month: '', category: '', kind: '', sort: 'date', ...initial };
+  const rows = h('div', { class: 'list' }), summary = h('div', { class: 'explore-sum' }), more = h('button', { class: 'btn', style: { display: 'none', margin: '16px auto 0' } }, 'Show more'), chips = h('div', { class: 'chips' });
+  let offset = 0;
+  const select = (key, options, all) => { const el = h('select', { class: 'field slim' }, h('option', { value: '' }, all), options.map((o) => h('option', { value: o.v }, o.t))); el.value = st[key]; el.addEventListener('change', () => { st[key] = el.value; load(true); }); return el; };
+  const q = h('input', { class: 'field slim grow', placeholder: 'Search words, shop, event…', value: st.q });
+  q.addEventListener('input', () => { clearTimeout(q.t); q.t = setTimeout(() => { st.q = q.value.trim(); load(true); }, 250); });
+  const seg = (key, opts) => { const el = h('div', { class: 'seg' }, opts.map(([v, t]) => h('button', { class: st[key] === v ? 'on' : '', onclick: () => { st[key] = v; [...el.children].forEach((b, i) => b.classList.toggle('on', opts[i][0] === v)); load(true); } }, t))); return el; };
+  const monthSel = select('month', months.slice().reverse().map((m) => ({ v: m, t: monthName(m) })), 'All time'), catSel = select('category', categories.map((c) => ({ v: c, t: c.charAt(0).toUpperCase() + c.slice(1) })), 'Any category');
+  const row = (t) => h('button', { class: 'xrow', onclick: guard(() => openPayment(t.id)) }, catBadge(t.category, 38),
+    h('span', { class: 'grow' }, h('div', { class: 'xnote' }, t.note || '-'), h('div', { class: 'faint small' }, [t.day, t.category, t.event].filter(Boolean).join(' · '))),
+    t.currency !== cur ? h('span', { class: 'faint small' }, new Intl.NumberFormat(undefined, { style: 'currency', currency: t.currency }).format(t.original)) : null,
+    h('span', { class: 'num strong ' + (t.kind === 'income' ? 'good' : '') }, (t.kind === 'income' ? '+' : '−') + money(t.amount, 2)));
+  async function load(reset) {
+    if (reset) { offset = 0; rows.replaceChildren(); }
+    const { q: words, ...rest } = st;
+    const r = await tool('explore_payments', { ...Object.fromEntries(Object.entries(rest).filter(([, v]) => v)), ...(words ? { query: words } : {}), limit: 40, offset });
+    rows.append(...r.rows.map(row)); offset += r.rows.length;
+    summary.replaceChildren(...[h('span', { class: 'strong' }, `${r.count.toLocaleString()} payment${r.count === 1 ? '' : 's'}`), r.spent ? h('span', { class: 'chip bad' }, 'spent ' + money(r.spent, 2)) : null, r.income ? h('span', { class: 'chip good-chip' }, 'in ' + money(r.income, 2)) : null].filter(Boolean));
+    chips.replaceChildren(...[['month', st.month ? monthName(st.month) : ''], ['category', st.category], ['q', st.q ? `“${st.q}”` : '']].filter(([, v]) => v).map(([k, v]) => h('button', { class: 'chip btnlike', onclick: () => { st[k] = ''; if (k === 'q') q.value = ''; monthSel.value = st.month; catSel.value = st.category; load(true); } }, v + ' ×')));
+    more.style.display = r.more ? '' : 'none'; if (!r.rows.length && reset) rows.append(h('div', { class: 'empty' }, 'No payments match.'));
+  }
+  more.addEventListener('click', guard(() => load(false)));
+  load(true);
+  return h('div', { class: 'stack' }, h('div', { class: 'card filters' }, h('div', { class: 'row', style: { flexWrap: 'wrap' } }, q, monthSel, catSel), h('div', { class: 'row between', style: { flexWrap: 'wrap', marginTop: '12px' } }, seg('kind', [['', 'All'], ['expense', 'Spent'], ['income', 'Money in']]), seg('sort', [['date', 'Newest'], ['amount', 'Largest']]))),
+    h('div', { class: 'row between' }, summary, chips), h('div', { class: 'card' }, rows, h('div', { class: 'row', style: { justifyContent: 'center' } }, more)));
 }
 
 // ------------------------------------------------------------------ pages
@@ -223,9 +387,15 @@ pages.home = async () => {
       ...tasks.map((t) => h('div', { class: 'item' }, h('button', { class: 'check', 'aria-label': 'Mark done', onclick: guard(async (e) => { await tool('complete_task', { id: t.id }); e.currentTarget.classList.add('done'); setTimeout(render, 350); }) }, h('span', { html: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', style: { display: 'contents' } })),
         h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, t.title), h('div', { class: 'faint small' }, t.due || 'no date')))),
       ...dates.map((u) => h('div', { class: 'item' }, h('div', { class: 'avatar', style: { background: colour(u.n) } }, initials(u.n)), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, u.n), h('div', { class: 'faint small' }, u.s)), h('span', { class: 'num' }, u.a)))) : h('div', { class: 'empty' }, 'Nothing today.'));
+  const go = (label, sub, ic, color, act) => h('button', { class: 'short', onclick: act }, h('span', { class: 'cat-badge', style: `--c:${color};width:44px;height:44px`, html: `<svg viewBox="0 0 24 24"><path d="${ICONS[ic] || CATS[ic][1]}"/></svg>` }), h('span', { class: 'short-t' }, label), h('span', { class: 'faint small' }, sub));
+  const shortcuts = h('div', { class: 'shorts' },
+    go('Payments', 'Browse and filter every one', 'search', '#8b5cf6', () => goExplore({})), go('Income', 'Salary and money in', 'income', '#10b981', () => { location.hash = '#/income'; }),
+    go('Wealth', 'Accounts and net worth', 'wealth', '#0ea5e9', () => { location.hash = '#/wealth'; }), go('Goals', 'Save for something', 'plan', '#f59e0b', () => { location.hash = '#/plan'; }),
+    go('Tax', 'Facts for your return', 'tax', '#ec4899', () => { location.hash = '#/tax'; }), go('Files', 'Invoices, letters, contracts', 'documents', '#14b8a6', () => { location.hash = '#/documents'; }));
   const welcome = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Welcome to Orbit'), h('p', { class: 'muted' }, 'Your money, private on this Mac. Add your statements to begin.'), h('a', { class: 'btn primary', href: '#/money' }, 'Add my files'));
   return h('div', { class: 'stack' }, head(`${hello}.`, new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })), ask,
-    ...(has ? [hero, stats, daily.length ? section('This month', (() => { const t = dailyTiles(daily.slice(0, 6), null, null); t.classList.add('cols3'); return t; })(), h('a', { class: 'more', href: '#/money' }, 'All spending →')) : null] : [welcome]),
+    ...(has ? [hero, stats, shortcuts,
+      h('div', { class: 'grid g2' }, section('Money in and out', areaChart(d.trend)), daily.length ? section('Where it went', spendDonut(daily), h('a', { class: 'more', href: '#/money' }, 'All spending →')) : null)] : [welcome]),
     h('div', { class: 'grid g2' }, ...[attentionCard, today].filter(Boolean)));
 };
 
@@ -266,7 +436,10 @@ async function moneyPage(title, allowed, startTab) {
   cur = settings.currency;
   const now = new Date().toISOString().slice(0, 7);
   let month = location.hash.split('?m=')[1] || startMonth(trend0);
-  let tab = startTab || allowed[0]; const openCats = new Set(); const openEvents = new Set();
+  let jump = null;
+  try { jump = JSON.parse(sessionStorage.getItem('orbit.explore') || 'null'); sessionStorage.removeItem('orbit.explore'); } catch (_) { /* ignore */ }
+  let explorer = null;
+  let tab = jump ? 'payments' : startTab || allowed[0]; const openCats = new Set(); const openEvents = new Set();
   const wrap = h('div', { class: 'stack' });
   const importBtn = h('button', { class: 'btn primary', onclick: guard(startImport) }, 'Read my files');
   const status = h('div', { class: 'card', style: { display: 'none' } });
@@ -329,12 +502,8 @@ async function moneyPage(title, allowed, startTab) {
     const tiles = dailyTiles(daily, (c) => openCats.has(c), (c) => { openCats.has(c) ? openCats.delete(c) : openCats.add(c); draw(false); });
     const opened = daily.filter((d) => openCats.has(d.category)).map((d) => h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', { style: { textTransform: 'capitalize' } }, d.category), h('span', { class: 'chip' }, money(d.amount))),
       h('div', { class: 'list' }, txs.filter((t) => !t.event && t.kind === 'expense' && (t.category === 'other' ? 'unsorted' : t.category) === d.category).map(payRow))));
-    const q = h('input', { class: 'field', placeholder: 'Search payments', style: { maxWidth: '280px' } });
-    const listBox = h('div', { class: 'list' });
-    const fillAll = () => { const f = q.value.toLowerCase(); listBox.replaceChildren(...txs.filter((t) => !f || (t.note + t.category + (t.event || '')).toLowerCase().includes(f)).slice(0, 200).map(payRow)); };
-    q.addEventListener('input', fillAll); fillAll();
-    const allPay = h('details', { class: 'card fold' }, h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'All payments'), h('span', { class: 'faint' }, ` · ${txs.length} this month`)), h('div', { style: { height: '14px' } }), q, h('div', { style: { height: '10px' } }), listBox);
-    const dailyPane = [daily.length ? tiles : h('div', { class: 'card empty' }, 'Nothing spent this month.'), ...opened, trendCard, allPay];
+    const dailyPane = [daily.length ? h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, 'Where it went')), spendDonut(daily)) : null, daily.length ? tiles : h('div', { class: 'card empty' }, 'Nothing spent this month.'), ...opened, trendCard,
+      h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn', onclick: () => { tab = 'payments'; draw(false); } }, 'Browse every payment →'))];
 
     // ---- trips & events: found by the model from your statements; tap a card for its lines
     const evCard = (ev) => { const open = openEvents.has(ev.id);
@@ -378,29 +547,20 @@ async function moneyPage(title, allowed, startTab) {
         ...bad.slice(0, 4).map((c) => h('div', { class: 'muted', style: { fontSize: '14px' } }, `${c.file}: ${plain(c.issues) || 'could not be read'}`))) :
       unproven.length ? h('div', { class: 'note-banner' }, h('div', { class: 'grow' }, h('b', {}, `${unproven.length} file${unproven.length === 1 ? '' : 's'} not double-checked`))) : null;
     const empty = !trend.length && !docs.length && !slips.length;
-    const tabs = [['daily', 'Spending'], ['income', 'Income'], ['events', 'One-time'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
+    const tabs = [['daily', 'Overview'], ['payments', 'Payments'], ['income', 'Income'], ['events', 'One-time'], ['regular', 'Regular'], ['documents', 'Files' + (ver.problems.length ? ` · ${ver.problems.length}` : '')]];
     const tabBar = allowed.length < 2 ? null : h('div', { class: 'seg' }, tabs.filter(([id]) => allowed.includes(id)).map(([id, label]) => h('button', { class: tab === id ? 'on' : '', onclick: () => { tab = id; draw(false); } }, label)));
-    const content = { daily: dailyPane, income: incomePane, events: eventsPane, regular: [recCard],
+    if (tab === 'payments' && !explorer) explorer = paymentsExplorer(trend.map((t) => t.month), [...new Set([...daily.map((d) => d.category), ...txs.map((t) => t.category)])].sort(), jump || {});
+    const content = { daily: dailyPane, payments: [explorer], income: incomePane, events: eventsPane, regular: [recCard],
       documents: [statusCard, docCard, detailsFold, h('div', { class: 'muted', style: { textAlign: 'center' } }, h('a', { href: '#/files' }, 'Search all files'))] }[tab];
-    const searchBox = h('input', { class: 'field', placeholder: 'Search payments (shop, words, …) and press Enter', style: { width: '100%' } }), results = h('div', { class: 'stack' });
-    searchBox.addEventListener('keydown', guard(async (e) => {
-      if (e.key !== 'Enter') return;
-      const q = searchBox.value.trim();
-      if (!q) { results.replaceChildren(); return; }
-      const rows = await tool('list_transactions', { query: q, limit: 40 });
-      const spent = rows.filter((r) => r.kind === 'expense').reduce((x, r) => x + r.amount, 0);
-      results.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, `${rows.length} found`), rows.length ? h('span', { class: 'chip' }, 'spent ' + money(spent, 2)) : null),
-        rows.length ? h('div', { class: 'list' }, rows.map((r) => h('div', { class: 'item' }, h('div', { class: 'faint', style: { width: '92px', whiteSpace: 'nowrap' } }, r.day), h('div', { class: 'grow' }, r.note), h('div', { class: 'num ' + (r.kind === 'income' ? 'good' : '') }, (r.kind === 'income' ? '+' : '') + money(r.amount, 2))))) : h('div', { class: 'empty' }, 'No payments match.')));
-    }));
     const first = h('div', { class: 'card welcome-card' }, h('div', { class: 'orb big' }), h('h2', {}, 'Add your money'),
       h('p', { class: 'muted' }, 'Put your PDFs in your finance folder, then press the button.'),
       h('div', {}, importBtn));
-    wrap.replaceChildren(...[head(title, null, empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : (title === 'Documents' ? null : hero), empty || title !== 'Money' ? null : searchBox, empty || title !== 'Money' ? null : results, empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
+    wrap.replaceChildren(...[head(title, null, empty ? null : curChips, empty ? null : nav, empty ? null : importBtn), status, empty ? null : checkNote, empty ? first : (title === 'Documents' ? null : hero), empty ? null : tabBar, ...(empty ? [] : content)].filter(Boolean));
   }
   await draw(false); poll();
   return wrap;
 }
-pages.money = () => moneyPage('Money', ['daily', 'income', 'events', 'regular'], ({ income: 'income' })[route()]);
+pages.money = () => moneyPage('Money', ['daily', 'payments', 'income', 'events', 'regular'], ({ income: 'income' })[route()]);
 pages.documents = () => moneyPage('Documents', ['documents']);
 
 pages.plan = async () => {
@@ -567,5 +727,6 @@ pages.settings = async () => {
 // ------------------------------------------------------------------ start
 buildNav(); refreshStatus(); setInterval(refreshStatus, 20000);
 setupTheme();
+$('#search-btn').addEventListener('click', openPalette);
 api('/api/settings').then((s) => { cur = s.currency; }).finally(() => { window.addEventListener('hashchange', render); render(); });
 })();

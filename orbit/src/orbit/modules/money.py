@@ -9,7 +9,7 @@ import statistics
 from collections import defaultdict
 from datetime import date
 
-from .. import audit, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
+from .. import audit, browse, categorize, clock, dates, extract, insight, payslips, planning, proof, rates, standards, statements, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 from ..module import INT, Module, N, S, Tool
@@ -766,6 +766,32 @@ MODULE = Module(
             {"merchant": S("Name or part of it")},
             planning.merchant_history,
             ("merchant",),
+        ),
+        Tool(
+            "explore_payments",
+            "Browse payments by filter, with the totals of the whole selection.",
+            {
+                "month": S("YYYY-MM"),
+                "year": S("YYYY"),
+                "category": S("Category"),
+                "kind": S("expense or income"),
+                "query": S("Words"),
+                "event": S("Event name"),
+                "min_amount": N("At least"),
+                "max_amount": N("At most"),
+                "sort": S("date or amount"),
+                "limit": INT("Rows, default 40"),
+                "offset": INT("Skip this many"),
+            },
+            browse.explore_payments,
+        ),
+        Tool("payment_detail", "Everything known about one payment: file, account, group, refunds.", {"id": INT("Payment id")}, browse.payment_detail, ("id",)),
+        Tool(
+            "search_everything",
+            "Search payments, shops, documents, people, notes and tasks at once.",
+            {"query": S("Words to look for")},
+            browse.search_all,
+            ("query",),
         ),
         Tool("family_money", "Money between you and each person on your People list, where their name is printed on the payment.", {}, planning.family_money),
         Tool("yearly_overview", "Per year: salary, money in, spent, saved, savings rate, interest, invested, insurance paid.", {}, planning.yearly_overview),
