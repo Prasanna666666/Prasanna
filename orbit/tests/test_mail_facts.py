@@ -32,8 +32,7 @@ def test_what_is_worth_reading():
     assert not relevance.worth_reading("scan.pdf", "pdf", "")
 
 
-def test_mail_is_gated_capped_and_each_judged_once(tmp_path, conn, monkeypatch):
-    monkeypatch.setattr(money, "MAIL_BATCH", 1)
+def test_mail_is_gated_and_each_judged_once(tmp_path, conn):
     _load(
         conn,
         tmp_path,
@@ -44,14 +43,12 @@ def test_mail_is_gated_capped_and_each_judged_once(tmp_path, conn, monkeypatch):
     )
     _load(conn, tmp_path, "hotel-invoice-mail-001", text="FACTUUR hotel total 100,00 EUR betaling", area="mail", kind="email")
     _load(conn, tmp_path, "taxi-invoice-mail-002", text="FACTUUR taxi total 20,00 EUR betaling", area="mail", kind="email")
-    docs, waiting = money._pending_documents(conn)
-    assert len(docs) == 1 and waiting == 1
+    assert len(money._pending_documents(conn)) == 2  # one press takes everything worth reading
     assert conn.execute("SELECT COUNT(*) FROM mail_skipped").fetchone()[0] == 1
     model = FakeModel()
     money.import_statements(conn, client=model, model="fake")
-    assert model.calls == 1  # the newsletter never reached the model, one invoice waits
-    docs, waiting = money._pending_documents(conn)
-    assert len(docs) == 1 and waiting == 0
+    assert model.calls == 2  # the newsletter never reached the model
+    assert money._pending_documents(conn) == []
 
 
 def test_the_mail_store_is_read_once_and_junk_is_skipped(tmp_path):

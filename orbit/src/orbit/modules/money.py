@@ -436,16 +436,12 @@ class _Outcome:
     info: dict = field(default_factory=dict)
 
 
-MAIL_BATCH = 150  # mail documents the model reads per Update, so one press never takes for ever; the rest wait for the next press
-
-
-def _pending_documents(conn) -> tuple[list, int]:
-    """The finance files not yet read, and the mail documents worth reading (a cheap check, no model) up to MAIL_BATCH; also how many mail documents wait."""
+def _pending_documents(conn) -> list:
+    """The finance files not yet read, and all mail documents worth reading (a cheap check, no model). One press reads everything."""
     done = {r[0] for r in conn.execute("SELECT sha256 FROM statement_files")}
     skipped = {r[0] for r in conn.execute("SELECT sha256 FROM mail_skipped")}
     rows = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents WHERE area IN ('finance','mail') ORDER BY id").fetchall()
     docs: list = []
-    taken = waiting = 0
     for d in rows:
         if d["sha256"] in done:
             continue
@@ -455,13 +451,10 @@ def _pending_documents(conn) -> tuple[list, int]:
             continue
         elif not relevance.worth_reading(d["name"], d["kind"], d["text"]):
             conn.execute("INSERT OR IGNORE INTO mail_skipped (sha256) VALUES (?)", (d["sha256"],))
-        elif taken >= MAIL_BATCH:
-            waiting += 1
         else:
-            taken += 1
             docs.append(d)
     conn.commit()
-    return docs, waiting
+    return docs
 
 
 def _document_data(d) -> dict:
@@ -562,7 +555,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     only the exact standards can be imported (a guess at a layout could silently give wrong numbers)."""
     learned = categorize.learned_rules(conn)
     run = _Run()
-    docs, waiting = _pending_documents(conn)
+    docs = _pending_documents(conn)
     no_model = "The local model is not running, so these statements cannot be read. Start Ollama and try again."
     for index, d in enumerate(docs, 1):
         data = _document_data(d)
@@ -588,7 +581,6 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
         "files_with_no_transactions": run.empty,
         "needs_check": run.needs_check,
         "problems": run.problems,
-        "mail_waiting": waiting,
     }
 
 

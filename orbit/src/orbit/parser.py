@@ -255,14 +255,19 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "",
 
 
 MAIL_SKIP_MAILBOXES = frozenset({"junk", "junk e-mail", "spam", "trash", "deleted messages", "deleted items", "drafts"})
-MAIL_BATCH = 1500  # new messages read per round, so a large mail store never blocks the other folders
+MAIL_SAVE_EVERY = 200  # the list of messages already read is saved this often, so an interrupted first read carries on where it stopped
 
 
 def _in_skipped_mailbox(relative: Path) -> bool:
     return any(part.lower().removesuffix(".mbox") in MAIL_SKIP_MAILBOXES for part in relative.parts[:-1] if part.lower().endswith(".mbox"))
 
 
-def process_mail_store(store: Path, out: Path, isolated: bool = True, batch: int = MAIL_BATCH) -> dict[str, int]:
+def _save_seen(cache_file: Path, seen: dict[str, str]) -> None:
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(json.dumps(seen))
+
+
+def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[str, int]:
     """Apple Mail's own folder (read-only): every message file except Junk, Trash and Drafts, only those not read before (a message is recognised by its
     path, size and time, so the folder is not re-read every round). Messages become documents with the area `mail`, attachments included."""
     out.mkdir(parents=True, exist_ok=True)
@@ -273,7 +278,6 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True, batch: int
     except (OSError, ValueError):
         seen = {}
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
-    done = 0
     for f in sorted(root.rglob("*.emlx")):
         if f.is_symlink() or root not in f.resolve().parents:
             continue
@@ -284,11 +288,10 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True, batch: int
         stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
         if seen.get(str(relative)) == stamp:
             continue
-        if done >= batch:
-            break
         _process(f, f.name, out, "mail", isolated, counts)
         seen[str(relative)] = stamp
-        done += 1
+        if counts["parsed"] % MAIL_SAVE_EVERY == 0:
+            _save_seen(cache_file, seen)
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(json.dumps(seen))
     return counts
