@@ -947,10 +947,43 @@ def open_when_ready(port: int, attempts: int = 90, health: str = "/api/health") 
             time.sleep(1)
 
 
-def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
-    """Start the UI under scripts/aperture-sandboxed.sh using the photo/export folders from the saved settings."""
+def _choose_port(requested: int | None, wanted: int) -> int | None:
+    """The port to serve on: the one asked for (it must be free) or the first free one from 8765. None, with the reason printed, when there is none."""
+    if requested is not None:
+        if not port_is_free(requested):
+            print(f"Port {requested} is in use by another program, not Aperture. Leave out --port and I will pick a free one.")
+            return None
+        return requested
+    port = wanted if port_is_free(wanted) else first_free_port(wanted)
+    if port is None:
+        print("No free port found near 8765. Close some programs and try again.")
+        return None
+    if port != wanted:
+        print(f"Port {wanted} is used by another program, so I am using {port}.")
+    return port
+
+
+def _supervise(cmd: list[str], env: dict[str, str], pid_file: Path) -> int:
+    """Run the sandboxed UI, remember its process id so the next start can stop it, and stop it on Ctrl+C."""
     import subprocess
 
+    proc = subprocess.Popen(cmd, env=env)
+    try:
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        pid_file.write_text(str(proc.pid))
+    except OSError:
+        pass  # not being able to remember it only means the next start cannot stop this one automatically
+    try:
+        return int(proc.wait() or 0)
+    except KeyboardInterrupt:
+        stop_process(proc.pid)
+        return 0
+    finally:
+        pid_file.unlink(missing_ok=True)
+
+
+def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
+    """Start the UI under scripts/aperture-sandboxed.sh using the photo/export folders from the saved settings."""
     if sys.platform != "darwin":
         print("secure-ui needs macOS (sandbox-exec). On other systems use Docker: docker-compose.aperture.yml")
         return 2
@@ -969,18 +1002,9 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     wanted = args.port if args.port is not None else 8765
     for line in stop_old_ui(pid_file, wanted):
         print(line)
-    if args.port is not None:
-        port = args.port
-        if not port_is_free(port):
-            print(f"Port {port} is in use by another program, not Aperture. Leave out --port and I will pick a free one.")
-            return 2
-    else:
-        port = wanted if port_is_free(wanted) else first_free_port(wanted)
-        if port is None:
-            print("No free port found near 8765. Close some programs and try again.")
-            return 2
-        if port != wanted:
-            print(f"Port {wanted} is used by another program, so I am using {port}.")
+    port = _choose_port(args.port, wanted)
+    if port is None:
+        return 2
     from . import launcher
     from .launcher import ensure_ollama
 
@@ -1007,19 +1031,7 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     if not args.no_browser:
         health = "/_stcore/health" if args.classic else "/api/health"
         threading.Thread(target=open_when_ready, args=(port, 90, health), daemon=True).start()
-    proc = subprocess.Popen(cmd, env=env)
-    try:
-        pid_file.parent.mkdir(parents=True, exist_ok=True)
-        pid_file.write_text(str(proc.pid))
-    except OSError:
-        pass  # not being able to remember it only means the next start cannot stop this one automatically
-    try:
-        return int(proc.wait() or 0)
-    except KeyboardInterrupt:
-        stop_process(proc.pid)
-        return 0
-    finally:
-        pid_file.unlink(missing_ok=True)
+    return _supervise(cmd, env, pid_file)
 
 
 def time_steps(steps: list[tuple[str, Callable[[], object]]]) -> list[tuple[str, float, str]]:

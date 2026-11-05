@@ -51,19 +51,8 @@ def _clause_ok(expected: dict[str, Any], plan: Plan) -> bool:
     return False
 
 
-def plan_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
-    """Why ``plan`` differs from the expectation (empty list = correct).
-
-    Extra clauses count as errors: inventing constraints is how false positives start."""
-    problems: list[str] = []
-    if plan.intent != expect["intent"]:
-        problems.append(f"intent {plan.intent!r} != {expect['intent']!r}")
-    if expect["intent"] in ("chat", "clarify"):
-        return problems
-    if plan.scope != expect["scope"]:
-        problems.append(f"scope {plan.scope!r} != {expect['scope']!r}")
-    if bool(plan.all_photos) != bool(expect["all_photos"]):
-        problems.append("all_photos differs")
+def _clause_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
+    problems = []
     for clause in expect["clauses"]:
         if not _clause_ok(clause, plan):
             problems.append(f"missing clause {clause['engines']}:{clause['query']}{' (NOT)' if clause['exclude'] else ''}")
@@ -71,11 +60,22 @@ def plan_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
         problems.append(f"{len(plan.clauses) - len(expect['clauses'])} invented clause(s)")
     if len(expect["clauses"]) > 1 and plan.match != expect["match"]:
         problems.append(f"match {plan.match!r} != {expect['match']!r}")
-    for key, want in expect["date"].items():
-        if getattr(plan.date, key) != want:
-            problems.append(f"date.{key} {getattr(plan.date, key)!r} != {want!r}")
+    return problems
+
+
+def _date_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
+    problems = [
+        f"date.{key} {getattr(plan.date, key)!r} != {want!r}"
+        for key, want in expect["date"].items()
+        if getattr(plan.date, key) != want
+    ]
     if not expect["date"] and not plan.date.is_empty:
         problems.append("invented a date")
+    return problems
+
+
+def _filter_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
+    problems = []
     for key, want in expect["filters"].items():
         got = getattr(plan.filters, key)
         if (key == "near" and str(got).lower() != str(want).lower()) or (key != "near" and got != want):
@@ -90,6 +90,23 @@ def plan_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
             problems.append(f"invented filters {sorted(extra)}")
     elif not plan.filters.is_empty:
         problems.append("invented filters")
+    return problems
+
+
+def plan_mismatches(plan: Plan, expect: dict[str, Any]) -> list[str]:
+    """Why ``plan`` differs from the expectation (empty list = correct).
+
+    Extra clauses count as errors: inventing constraints is how false positives start."""
+    problems: list[str] = []
+    if plan.intent != expect["intent"]:
+        problems.append(f"intent {plan.intent!r} != {expect['intent']!r}")
+    if expect["intent"] in ("chat", "clarify"):
+        return problems
+    if plan.scope != expect["scope"]:
+        problems.append(f"scope {plan.scope!r} != {expect['scope']!r}")
+    if bool(plan.all_photos) != bool(expect["all_photos"]):
+        problems.append("all_photos differs")
+    problems += _clause_mismatches(plan, expect) + _date_mismatches(plan, expect) + _filter_mismatches(plan, expect)
     if expect["folder_name"] and not plan.folder_name:
         problems.append("no folder name")
     return problems

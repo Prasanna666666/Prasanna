@@ -321,6 +321,28 @@ def observation_of(reply: AgentReply, note: str = "") -> str:
     return json.dumps(data)
 
 
+@dataclass
+class _Turn:
+    """Everything one question remembers while the agent works on it."""
+
+    request: str
+    previous_ids: Any
+    history: list[tuple[str, str]] | None
+    facts: str
+    timings: dict[str, Any]
+    began: float
+    system: str
+    messages: list[dict[str, Any]]
+    shown: AgentReply | None = None  # the last search that found photos: those photos go on screen
+    last_search: AgentReply | None = None  # the latest search, even an empty one
+    nudged: bool = False
+    acted: bool = False  # becomes True once a tool really ran
+    grounded: bool = (
+        False  # a tool that returns facts to answer from (library overview, text in photos, looking at photos) was used
+    )
+    read: bool = False  # a reading tool was used: then the model's own words are grounded in what it read
+
+
 class ToolAgent:
     """Same `ask` interface as AgentService; the model decides, uses tools, reads the results and answers."""
 
@@ -403,9 +425,50 @@ class ToolAgent:
         began = time.monotonic()
         say("Understanding your message")
         route = self._route(request, previous_ids)
+        talked = self._talk_only(request, history, route, timings, started)
+        if talked is not None:
+            return talked
+        say("Looking up what your library knows about this")
+        facts = self._facts_within(request, CONTEXT_LIMIT)
+        timings["context"] = round(time.perf_counter() - started, 2)
+        turn = _Turn(
+            request=request,
+            previous_ids=previous_ids,
+            history=history,
+            facts=facts,
+            timings=timings,
+            began=began,
+            system=self.system_message(facts, previous_ids is not None),
+            messages=self._messages(request, history),
+        )
+        self._deadline = time.monotonic() + TIME_BUDGET
+        for step in range(MAX_STEPS + 1):
+            final = step == MAX_STEPS or time.monotonic() >= self._deadline  # out of rounds or time: no more tools, just answer
+            decided = self._decide_step(turn, step, final)
+            if isinstance(decided, AgentReply):
+                return decided
+            first, events = decided
+            if first is None or (final and first[0] == "tool"):
+                break
+            kind, value, events, head = self._words_or_tools(first, events)
+            if kind != "tool":
+                reply = self._after_words(turn, head, events)
+                if reply is not None:
+                    return reply
+                continue  # it was told to use a tool: decide again
+            calls = [value] + [v for k, v in events if k == "tool"]
+            self._observe(turn, calls)
+            if turn.shown is not None and not turn.read and any(c["name"] in SEARCH_TOOLS for c in calls):
+                return self._finish_from_search(turn)
+        return AgentReply("chat", "I could not finish that. Could you say it another way?", timings=timings)
+
+    def _talk_only(
+        self, request: str, history: Any, route: str | None, timings: dict[str, Any], started: float
+    ) -> AgentReply | None:
+        """Plain conversation, or a comment on the earlier answer: talk, do not search again. None when this is a search."""
         if (
             route == "chat" and self._cloud_chat is not None and self._cloud_on()
-        ):  # plain conversation: a stronger model replies to your words (names hidden)
+        ):  # a stronger model replies to your words (names hidden)
             say("Asking the cloud model for a reply (only your words are sent)")
             text = self._cloud_chat(request, history)
             if text:
@@ -413,123 +476,124 @@ class ToolAgent:
                 timings["understood"] = "cloud"
                 return AgentReply("chat", text, timings=timings)
         if route in ("chat", "about"):
-            say("Writing a reply")  # conversation, or a comment on the earlier answer: talk, do not search again
+            say("Writing a reply")
             timings["route"] = round(time.perf_counter() - started, 2)
             return self._service._chat_reply(request, history, {"timings": timings}, "")
-        say("Looking up what your library knows about this")
-        facts = self._facts_within(request, CONTEXT_LIMIT)
-        timings["context"] = round(time.perf_counter() - started, 2)
-        system, messages = self.system_message(facts, previous_ids is not None), self._messages(request, history)
-        shown: AgentReply | None = None  # the last search that found photos: those photos go on screen
-        nudged = False
-        acted = False  # becomes True once a tool really ran
-        last_search: AgentReply | None = None  # the latest search, even an empty one
-        grounded = (
-            False  # a tool that returns facts to answer from (library overview, text in photos, looking at photos) was used
-        )
-        read = False  # a reading tool was used: then the model's own words are grounded in what it read
-        self._deadline = time.monotonic() + TIME_BUDGET
-        for step in range(MAX_STEPS + 1):
-            final = step == MAX_STEPS or time.monotonic() >= self._deadline  # out of rounds or time: no more tools, just answer
-            started = time.perf_counter()
-            say("Deciding how to search" if step == 0 else "Checking what it found")
-            try:
-                decided = None
-                if (
-                    self._cloud is not None and self._cloud_on() and step == 0 and not final
-                ):  # a stronger model reads the typed words (names hidden); anything wrong: local
-                    say("Asking the cloud model to understand your request (only its words are sent)")
-                    decided = self._cloud(request, previous_ids is not None)
-                if decided is not None:
-                    timings["understood"] = "cloud"  # shown on the answer so you can see which model read the request
-                    events: Any
-                    first, events = ("tool", decided), iter(())
-                else:
-                    if step == 0:
-                        timings["understood"] = "local"
-                    first, events = self._decide(
-                        system, messages, [] if final else None, timeout=max(3.0, HARD_LIMIT - (time.monotonic() - began))
-                    )
-            except LLMError as exc:
-                if (
-                    shown is None
-                ):  # the model is too slow or failed: answer from the stored data, without the model, so the user is never left waiting
-                    reply = self._keyword_search(request, previous_ids, history, timings)
-                    if reply is not None:
-                        return reply
-                return AgentReply("error", str(exc), timings=timings)
-            timings["decide"] = round(timings.get("decide", 0.0) + time.perf_counter() - started, 2)
-            if first is None or (final and first[0] == "tool"):
-                break
-            kind, value = first
-            if kind != "tool":
-                head, events = self._peek(
-                    value, events
-                )  # words arrive in pieces: look at the start of the reply before showing it
-                events = list(events)
-                tool_events = [v for k, v in events if k == "tool"]
-                if tool_events:  # it talked and then really called a tool: the call runs and the words before it are dropped
-                    kind, value, events = "tool", tool_events[0], [("tool", v) for v in tool_events[1:]]
-            if kind != "tool":
-                typed = bool(
-                    self._call_text.search("".join(head))
-                )  # a tool call typed out as text did nothing and its "results" are invented
-                if not acted and shown is None and (typed or self._mentions_library(facts, previous_ids)):
-                    if (
-                        nudged
-                    ):  # told twice and it still will not act: the planner does the search instead, so the answer is always real
-                        return self._service.ask(request, previous_ids, history)
-                    nudged = True
-                    messages.append({"role": "assistant", "content": ""})
-                    messages.append(
-                        {
-                            "role": "user",
-                            "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns.",
-                        }
-                    )
-                    continue
-                if acted and shown is None and not grounded:
-                    # It used tools but never showed any photos and now only talks ("let me check ..."): the app answers in its own plain words.
-                    if last_search is not None:  # a search ran and found nothing: say that, briefly
-                        return last_search
-                    return self._service.ask(request, previous_ids, history)
-                return self._answer("".join(head), iter(events), shown, timings, read)  # ---- 4. ANSWER: the model talks
-            calls = [value] + [v for k, v in events if k == "tool"]
-            messages.append(
+        return None
+
+    def _decide_step(self, turn: _Turn, step: int, final: bool) -> tuple[Any, Any] | AgentReply:
+        """The model's next move: (first event, the rest), or a finished reply when the model failed."""
+        started = time.perf_counter()
+        say("Deciding how to search" if step == 0 else "Checking what it found")
+        try:
+            decided = None
+            if self._cloud is not None and self._cloud_on() and step == 0 and not final:
+                # a stronger model reads the typed words (names hidden); anything wrong: local
+                say("Asking the cloud model to understand your request (only its words are sent)")
+                decided = self._cloud(turn.request, turn.previous_ids is not None)
+            if decided is not None:
+                turn.timings["understood"] = "cloud"  # shown on the answer so you can see which model read the request
+                first, events = ("tool", decided), iter(())
+            else:
+                if step == 0:
+                    turn.timings["understood"] = "local"
+                first, events = self._decide(
+                    turn.system,
+                    turn.messages,
+                    [] if final else None,
+                    timeout=max(3.0, HARD_LIMIT - (time.monotonic() - turn.began)),
+                )
+        except LLMError as exc:
+            if (
+                turn.shown is None
+            ):  # too slow or failed: answer from the stored data, without the model, so the user is never left waiting
+                reply = self._keyword_search(turn.request, turn.previous_ids, turn.history, turn.timings)
+                if reply is not None:
+                    return reply
+            return AgentReply("error", str(exc), timings=turn.timings)
+        turn.timings["decide"] = round(turn.timings.get("decide", 0.0) + time.perf_counter() - started, 2)
+        return first, events
+
+    def _words_or_tools(self, first: Any, events: Any) -> tuple[str, Any, Any, list[str]]:
+        """Words arrive in pieces: look at the start of the reply. If it talked and then really called a tool, the call runs and the words are dropped."""
+        kind, value = first
+        head: list[str] = []
+        if kind != "tool":
+            head, events = self._peek(value, events)
+            events = list(events)
+            tool_events = [v for k, v in events if k == "tool"]
+            if tool_events:
+                kind, value, events = "tool", tool_events[0], [("tool", v) for v in tool_events[1:]]
+        return kind, value, events, head
+
+    def _after_words(self, turn: _Turn, head: list[str], events: Any) -> AgentReply | None:
+        """The model answered in words. A finished reply, or None when it must be sent back to use a tool."""
+        typed = bool(
+            self._call_text.search("".join(head))
+        )  # a tool call typed out as text did nothing and its "results" are invented
+        if not turn.acted and turn.shown is None and (typed or self._mentions_library(turn.facts, turn.previous_ids)):
+            if (
+                turn.nudged
+            ):  # told twice and it still will not act: the planner does the search instead, so the answer is always real
+                return self._service.ask(turn.request, turn.previous_ids, turn.history)
+            turn.nudged = True
+            turn.messages.append({"role": "assistant", "content": ""})
+            turn.messages.append(
                 {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls],
+                    "role": "user",
+                    "content": "Do not ask or explain yet. Use a tool now to look in my library, then answer from what it returns.",
                 }
             )
-            for call in calls:  # ---- 3. OBSERVE
-                read = read or call["name"] in ("read_photo_text", "look_at_photos")
-                grounded = grounded or call["name"] in ("read_photo_text", "look_at_photos", "library_overview")
-                started = time.perf_counter()
-                text, reply = self._execute(call, request, previous_ids, history, timings, shown)
-                timings["tools"] = round(timings.get("tools", 0.0) + time.perf_counter() - started, 2)
-                acted = acted or not text.startswith('{"error"')  # a tool that really worked (a rejected call is not an action)
-                messages.append({"role": "tool", "tool_name": call["name"], "content": text})
-                if reply is not None:
-                    last_search = reply
-                if reply is not None and len(reply.ids):
-                    shown = reply
-            if shown is not None and not read and any(c["name"] in SEARCH_TOOLS for c in calls):
-                # Photos were found and the words come from the data, so another model pass would only be thrown away: answer now.
-                return AgentReply(
-                    shown.kind,
-                    shown.text,
-                    ids=shown.ids,
-                    plan=shown.plan,
-                    reports=shown.reports,
-                    notes=shown.notes,
-                    warnings=shown.warnings,
-                    folder_name=shown.folder_name,
-                    date_range=shown.date_range,
-                    timings=timings,
-                    groups=shown.groups,
-                )
-        return AgentReply("chat", "I could not finish that. Could you say it another way?", timings=timings)
+            return None
+        if turn.acted and turn.shown is None and not turn.grounded:
+            # It used tools but never showed any photos and now only talks ("let me check ..."): the app answers in its own plain words.
+            if turn.last_search is not None:  # a search ran and found nothing: say that, briefly
+                return turn.last_search
+            return self._service.ask(turn.request, turn.previous_ids, turn.history)
+        return self._answer("".join(head), iter(events), turn.shown, turn.timings, turn.read)  # ---- 4. ANSWER: the model talks
+
+    def _observe(self, turn: _Turn, calls: list[dict[str, Any]]) -> None:
+        """Run the tools the model asked for and give it what they returned (---- 3. OBSERVE)."""
+        turn.messages.append(
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls],
+            }
+        )
+        for call in calls:
+            turn.read = turn.read or call["name"] in ("read_photo_text", "look_at_photos")
+            turn.grounded = turn.grounded or call["name"] in ("read_photo_text", "look_at_photos", "library_overview")
+            started = time.perf_counter()
+            text, reply = self._execute(call, turn.request, turn.previous_ids, turn.history, turn.timings, turn.shown)
+            turn.timings["tools"] = round(turn.timings.get("tools", 0.0) + time.perf_counter() - started, 2)
+            turn.acted = turn.acted or not text.startswith(
+                '{"error"'
+            )  # a tool that really worked (a rejected call is not an action)
+            turn.messages.append({"role": "tool", "tool_name": call["name"], "content": text})
+            if reply is not None:
+                turn.last_search = reply
+                if len(reply.ids):
+                    turn.shown = reply
+
+    @staticmethod
+    def _finish_from_search(turn: _Turn) -> AgentReply:
+        """Photos were found and the words come from the data, so another model pass would only be thrown away: answer now."""
+        shown = turn.shown
+        assert shown is not None
+        return AgentReply(
+            shown.kind,
+            shown.text,
+            ids=shown.ids,
+            plan=shown.plan,
+            reports=shown.reports,
+            notes=shown.notes,
+            warnings=shown.warnings,
+            folder_name=shown.folder_name,
+            date_range=shown.date_range,
+            timings=turn.timings,
+            groups=shown.groups,
+        )
 
     def _peek(self, first: Any, events: Any) -> tuple[list[str], Any]:
         """Read the first words of a reply (up to PEEK_CHARS) without losing anything: returns those words and the rest of the stream."""

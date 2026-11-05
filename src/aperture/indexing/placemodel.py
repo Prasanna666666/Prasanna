@@ -100,9 +100,8 @@ def _top(candidates, w):
     return result
 
 
-def locate_by_picture(
-    conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = MIN_PRECISION, min_accepted: int = 30, seed: int = 7
-) -> dict:
+def _photo_table(conn: sqlite3.Connection, index: Any) -> tuple[dict[int, int], tuple[np.ndarray, ...]]:
+    """The photos that have a picture vector, as parallel arrays: id, time (minutes), GPS, whether a location was estimated, and the estimate."""
     rows = conn.execute(
         "SELECT id, taken_at, gps_lat, gps_lon, gps_est_lat, gps_est_lon FROM items WHERE missing=0 AND meta_done=1"
     ).fetchall()
@@ -122,14 +121,37 @@ def locate_by_picture(
         est.append(e is not None)
         elat.append(np.nan if e is None else e)
         elon.append(np.nan if eo is None else eo)
-    ids, times, lat, lon, est = (
+    arrays = (
         np.array(ids, np.int64),
         np.array(times, float),
         np.array(lat, float),
         np.array(lon, float),
         np.array(est, bool),
+        np.array(elat, float),
+        np.array(elon, float),
     )
-    elat, elon = np.array(elat, float), np.array(elon, float)
+    return row_of, arrays
+
+
+def _trusted_places(predicted: np.ndarray, accepted: np.ndarray, ok: np.ndarray, min_precision: float) -> set[int]:
+    """The places the model has earned the right to name: enough tests there, and the measured precision held up in that place alone."""
+    trusted: set[int] = set()
+    for cell in {c for c in predicted[accepted] if c is not None}:
+        m = accepted & (predicted == cell)
+        if m.sum() >= MIN_TESTS_PER_PLACE and ok[m].mean() >= min_precision:
+            trusted.add(int(cell))
+    return trusted
+
+
+def _centroids(cells: np.ndarray, lat: np.ndarray, lon: np.ndarray) -> dict[int, tuple[float, float]]:
+    """The middle of each place, from the photos that really have GPS."""
+    return {int(cell): (float(lat[cells == cell].mean()), float(lon[cells == cell].mean())) for cell in np.unique(cells)}
+
+
+def locate_by_picture(
+    conn: sqlite3.Connection, index: Any, geo: Any, min_precision: float = MIN_PRECISION, min_accepted: int = 30, seed: int = 7
+) -> dict:
+    row_of, (ids, times, lat, lon, est, elat, elon) = _photo_table(conn, index)
     has = ~np.isnan(lat)
     report: dict[str, Any] = {
         "tested": 0,
@@ -191,11 +213,7 @@ def locate_by_picture(
     # Accuracy per place, not only overall: home dominates the library and is easy; a rarer place has to earn its own 95%.
     predicted = np.array([c for c, _, _ in scored], dtype=object)
     accepted = prob >= threshold
-    trusted: set[int] = set()
-    for cell in {c for c in predicted[accepted] if c is not None}:
-        m = accepted & (predicted == cell)
-        if m.sum() >= MIN_TESTS_PER_PLACE and ok[m].mean() >= min_precision:
-            trusted.add(int(cell))
+    trusted = _trusted_places(predicted, accepted, ok, min_precision)
     report["trusted_places"] = len(trusted)
     # a picture that matches known photos of its place much less closely than the correctly placed test photos did is out of its depth
     floor = float(np.percentile(looks[ok], 10)) if ok.any() else 1.0
@@ -227,10 +245,7 @@ def locate_by_picture(
     q = np.flatnonzero(~has & ~est)
     if len(q) == 0:
         return report
-    centroid: dict[int, tuple[float, float]] = {}
-    for cell in np.unique(cells):
-        m = cells == cell
-        centroid[int(cell)] = (float(lat[g_idx][m].mean()), float(lon[g_idx][m].mean()))
+    centroid = _centroids(cells, lat[g_idx], lon[g_idx])
     updates = []
     for start in range(0, len(q), 4096):
         part = q[start : start + 4096]

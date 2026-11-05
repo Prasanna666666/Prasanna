@@ -25,7 +25,7 @@ from collections import OrderedDict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlparse
 
 import numpy as np
@@ -396,250 +396,261 @@ def memory_of(reply: Any, text: str, coverage: str = "") -> str:
     return " | ".join(p for p in parts if p)[:900]
 
 
+def _int_param(query: dict[str, list[str]], key: str, default: int) -> int:
+    try:
+        return int((query.get(key) or [str(default)])[0])
+    except ValueError:
+        return default
+
+
+class _Handler(BaseHTTPRequestHandler):
+    """Plumbing only: host, origin and token checks, files, and the server-sent-event chat stream."""
+
+    server_version = "Lumo"
+    sys_version = ""
+    web: ClassVar[Web]
+    allowed_hosts: ClassVar[frozenset[str]]
+    allowed_origins: ClassVar[frozenset[str]]
+
+    def log_message(self, fmt: str, *args: Any) -> None:  # quiet: nothing about your photos goes to a log
+        pass
+
+    # ---- helpers -----------------------------------------------------------------------------------------------------
+    def _headers(self, status: int, ctype: str, length: int | None = None, cache: str = "no-store") -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        if length is not None:
+            self.send_header("Content-Length", str(length))
+        self.send_header("Cache-Control", cache)
+        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+
+    def _json(self, obj: Any, status: int = 200) -> None:
+        body = json.dumps(obj).encode()
+        self._headers(status, "application/json; charset=utf-8", len(body))
+        self.wfile.write(body)
+
+    def _bytes(self, body: bytes, ctype: str, cache: str = "no-store") -> None:
+        self._headers(200, ctype, len(body), cache=cache)
+        self.wfile.write(body)
+
+    def _deny(self, status: HTTPStatus, message: str) -> None:
+        self._json({"error": message}, int(status))
+
+    def _checked(self, api: bool) -> bool:
+        if self.headers.get("Host", "") not in self.allowed_hosts:
+            self._deny(HTTPStatus.FORBIDDEN, "unknown host")
+            return False
+        origin = self.headers.get("Origin")
+        if origin is not None and origin not in self.allowed_origins:
+            self._deny(HTTPStatus.FORBIDDEN, "unknown origin")
+            return False
+        if api:
+            query = parse_qs(urlparse(self.path).query)
+            given = self.headers.get("X-Lumo-Token") or (query.get("t") or [""])[0]
+            if not hmac.compare_digest(given.encode(), self.web.token.encode()):
+                self._deny(HTTPStatus.FORBIDDEN, "missing or wrong token")
+                return False
+        return True
+
+    def _sse(self, event: str, data: Any) -> None:
+        self.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
+        self.wfile.flush()
+
+    # ---- GET ---------------------------------------------------------------------------------------------------------
+    def do_GET(self) -> None:
+        path = urlparse(self.path).path
+        if path == "/api/health":
+            return self._get_page(lambda: self._json({"ok": True}))
+        if path in ("/", "/index.html"):
+            return self._get_page(self._send_index)
+        if path.startswith("/static/"):
+            return self._get_page(lambda: self._send_static(path[len("/static/") :]))
+        if not path.startswith("/api/"):
+            return self._deny(HTTPStatus.NOT_FOUND, "not found")
+        if self._checked(True):
+            self._get_api(path, urlparse(self.path).query)
+
+    def _get_page(self, send: Any) -> None:
+        if self._checked(False):
+            send()
+
+    def _send_index(self) -> None:
+        html = (STATIC / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", self.web.token)
+        self._bytes(html.encode(), "text/html; charset=utf-8")
+
+    def _send_static(self, name: str) -> None:
+        if name in STATIC_FILES:
+            self._bytes((STATIC / name).read_bytes(), STATIC_FILES[name])
+        else:
+            self._deny(HTTPStatus.NOT_FOUND, "not found")
+
+    def _get_api(self, path: str, raw_query: str) -> None:
+        web, query = self.web, parse_qs(raw_query)
+        if path == "/api/status":
+            self._json(web.status())
+        elif path == "/api/suggestions":
+            self._json({"ideas": web.suggestions()})
+        elif path in BROWSE_PATHS:
+            self._json(web.browse(path[len("/api/") :], {k: v[0][:200] for k, v in query.items() if v}))
+        elif path == "/api/results":
+            offset, group = max(0, _int_param(query, "offset", 0)), _int_param(query, "group", -1)
+            self._json(
+                web.results((query.get("conv") or [""])[0][:64], offset, group=group, rid=(query.get("rid") or [""])[0][:32])
+            )
+        elif m := ID_PATH.match(path):
+            file = web.photo_file(int(m.group(1)), m.group(2))
+            if file is None:
+                self._deny(HTTPStatus.NOT_FOUND, "no such photo")
+            else:
+                self._bytes(file.read_bytes(), "image/jpeg", cache="private, max-age=86400")
+        elif m := ITEM_PATH.match(path):
+            found = web.item(int(m.group(1)))
+            self._json(found) if found else self._deny(HTTPStatus.NOT_FOUND, "no such photo")
+        else:
+            self._deny(HTTPStatus.NOT_FOUND, "not found")
+
+    # ---- POST --------------------------------------------------------------------------------------------------------
+    def _body(self) -> dict[str, Any] | None:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = -1
+        if not 0 < length <= MAX_BODY:
+            self._deny(HTTPStatus.REQUEST_ENTITY_TOO_LARGE if length > MAX_BODY else HTTPStatus.BAD_REQUEST, "bad body size")
+            return None
+        try:
+            data = json.loads(self.rfile.read(length))
+        except ValueError:
+            self._deny(HTTPStatus.BAD_REQUEST, "bad json")
+            return None
+        return data if isinstance(data, dict) else None
+
+    def do_POST(self) -> None:
+        path = urlparse(self.path).path
+        if not self._checked(True):
+            return
+        if path == "/api/scan/resume":
+            return self._json({"started": self.web.resume_indexing()})
+        if path not in ("/api/cloud", "/api/chat"):
+            return self._deny(HTTPStatus.NOT_FOUND, "not found")
+        body = self._body()
+        if body is None:
+            return
+        if path == "/api/cloud":
+            return self._json(self.web.set_cloud(bool(body.get("on"))))
+        message = str(body.get("message", "")).strip()[:2000]
+        if not message:
+            return self._deny(HTTPStatus.BAD_REQUEST, "empty message")
+        self._chat(message, str(body.get("conv", ""))[:64] or "default", _clean_history(body.get("history")))
+
+    # ---- the chat stream ---------------------------------------------------------------------------------------------
+    def _send_preview(self, message: str) -> None:
+        """Photo matches in milliseconds, before the AI has finished."""
+        ctx = self.web.ctx
+        if ctx.settings.quick_preview and ctx.search_ready():
+            ids = self._instant_matches(message)
+            if ids is not None and len(ids):
+                self._sse("preview", {"ids": [int(i) for i in ids[:PREVIEW]], "total": len(ids)})
+
+    def _send_matches(self, reply: Any, conv: str) -> None:
+        """The photos are known before the words: send them first, then any notes."""
+        if len(reply.ids) and reply.kind in ("results", "export", "count"):
+            self.web.remember(conv, reply.ids)
+            rid = self.web.remember_set(reply.ids, reply.groups)
+            self._sse(
+                "results",
+                {
+                    "rid": rid,
+                    "groups": [{"label": g[0], "count": len(g[1])} for g in reply.groups],
+                    "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]],
+                    "total": len(reply.ids),
+                    "kind": reply.kind,
+                    "notes": list(reply.notes),
+                    "warnings": list(reply.warnings),
+                },
+            )
+        elif reply.notes or reply.warnings:
+            self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
+
+    def _send_words(self, reply: Any, started: float) -> tuple[str, float | None]:
+        """Stream the reply word by word (or send it whole). Returns the full text and the time to the first words."""
+        if reply.stream is None:
+            self._sse("reply", {"text": reply.text})
+            return reply.text, None
+        parts: list[str] = []
+        first_words = None
+        for chunk in reply.stream:
+            if first_words is None:
+                first_words = round(time.perf_counter() - started, 2)
+            parts.append(chunk)
+            self._sse("delta", {"text": chunk})
+        return "".join(parts) or "...", first_words
+
+    def _chat(self, message: str, conv: str, history: list[tuple[str, str]]) -> None:
+        self._headers(200, "text/event-stream; charset=utf-8")
+        started = time.perf_counter()
+        stream = None
+        calls: list[dict[str, Any]] = []
+        log_token = CALL_LOG.set(calls)  # every model call made for this message is recorded here
+        web = self.web
+        try:
+            self._sse("ack", {})
+            self._send_preview(message)
+            with web.ai_lock:
+                web.pause_indexing_for_chat()  # indexing and the AI model together would swap an 8 GB Mac
+                reply = ask_within(
+                    lambda: web.ctx.agent().ask(message, web.previous(conv), history=history),
+                    ASK_LIMIT,
+                    lambda text: self._sse("status", {"text": text}),
+                )
+                stream = reply.stream
+                self._send_matches(reply, conv)
+                text, first_words = self._send_words(reply, started)
+            timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
+            self._sse(
+                "done",
+                {
+                    "took": round(time.perf_counter() - started, 2),
+                    "kind": reply.kind,
+                    "text": text,
+                    "record": memory_of(reply, text, web.coverage_note()),
+                    "timings": timings,
+                    "trace": calls,
+                },
+            )
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # the browser left (for example a new chat was started): stop quietly
+        except Exception as exc:
+            try:
+                self._sse("error", {"message": str(exc) or exc.__class__.__name__})
+            except OSError:
+                pass
+        finally:
+            CALL_LOG.reset(log_token)
+            if stream is not None and hasattr(stream, "close"):
+                stream.close()
+
+    def _instant_matches(self, message: str) -> np.ndarray | None:
+        from ..search.quick import quick_ids
+
+        ctx = self.web.ctx
+        conn = ctx.db.connect()
+        try:
+            return quick_ids(conn, message, ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness)
+        except Exception:
+            return None
+        finally:
+            conn.close()
+
+
 def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
     # *.localhost always resolves to this Mac (RFC 6761), so the friendly address the installer prints is as safe as 127.0.0.1
-    allowed_hosts = {f"127.0.0.1:{web.port}", f"localhost:{web.port}", f"lumo.localhost:{web.port}"}
-    allowed_origins = {f"http://{h}" for h in allowed_hosts}
-
-    class Handler(BaseHTTPRequestHandler):
-        server_version = "Lumo"
-        sys_version = ""
-
-        def log_message(self, fmt: str, *args: Any) -> None:  # quiet: nothing about your photos goes to a log
-            pass
-
-        # ---- helpers -------------------------------------------------------------------------------------------------
-        def _headers(self, status: int, ctype: str, length: int | None = None, cache: str = "no-store") -> None:
-            self.send_response(status)
-            self.send_header("Content-Type", ctype)
-            if length is not None:
-                self.send_header("Content-Length", str(length))
-            self.send_header("Cache-Control", cache)
-            self.send_header("Content-Security-Policy", CSP)
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Referrer-Policy", "no-referrer")
-            self.end_headers()
-
-        def _json(self, obj: Any, status: int = 200) -> None:
-            body = json.dumps(obj).encode()
-            self._headers(status, "application/json; charset=utf-8", len(body))
-            self.wfile.write(body)
-
-        def _deny(self, status: HTTPStatus, message: str) -> None:
-            self._json({"error": message}, int(status))
-
-        def _checked(self, api: bool) -> bool:
-            if self.headers.get("Host", "") not in allowed_hosts:
-                self._deny(HTTPStatus.FORBIDDEN, "unknown host")
-                return False
-            origin = self.headers.get("Origin")
-            if origin is not None and origin not in allowed_origins:
-                self._deny(HTTPStatus.FORBIDDEN, "unknown origin")
-                return False
-            if api:
-                query = parse_qs(urlparse(self.path).query)
-                given = self.headers.get("X-Lumo-Token") or (query.get("t") or [""])[0]
-                if not hmac.compare_digest(given.encode(), web.token.encode()):
-                    self._deny(HTTPStatus.FORBIDDEN, "missing or wrong token")
-                    return False
-            return True
-
-        def _sse(self, event: str, data: Any) -> None:
-            self.wfile.write(f"event: {event}\ndata: {json.dumps(data)}\n\n".encode())
-            self.wfile.flush()
-
-        # ---- GET -----------------------------------------------------------------------------------------------------
-        def do_GET(self) -> None:
-            url = urlparse(self.path)
-            path = url.path
-            if path == "/api/health":
-                if self._checked(False):
-                    self._json({"ok": True})
-                return
-            if path == "/" or path == "/index.html":
-                if self._checked(False):
-                    html = (STATIC / "index.html").read_text(encoding="utf-8").replace("__TOKEN__", web.token)
-                    body = html.encode()
-                    self._headers(200, "text/html; charset=utf-8", len(body))
-                    self.wfile.write(body)
-                return
-            if path.startswith("/static/"):
-                name = path[len("/static/") :]
-                if self._checked(False):
-                    if name in STATIC_FILES:
-                        body = (STATIC / name).read_bytes()
-                        self._headers(200, STATIC_FILES[name], len(body))
-                        self.wfile.write(body)
-                    else:
-                        self._deny(HTTPStatus.NOT_FOUND, "not found")
-                return
-            if not path.startswith("/api/"):
-                self._deny(HTTPStatus.NOT_FOUND, "not found")
-                return
-            if not self._checked(True):
-                return
-            if path == "/api/status":
-                self._json(web.status())
-            elif path == "/api/suggestions":
-                self._json({"ideas": web.suggestions()})
-            elif path in BROWSE_PATHS:
-                params = {k: v[0][:200] for k, v in parse_qs(url.query).items() if v}
-                self._json(web.browse(path[len("/api/") :], params))
-            elif path == "/api/results":
-                query = parse_qs(url.query)
-                try:
-                    offset = max(0, int((query.get("offset") or ["0"])[0]))
-                except ValueError:
-                    offset = 0
-                try:
-                    group = int((query.get("group") or ["-1"])[0])
-                except ValueError:
-                    group = -1
-                self._json(
-                    web.results((query.get("conv") or [""])[0][:64], offset, group=group, rid=(query.get("rid") or [""])[0][:32])
-                )
-            elif m := ID_PATH.match(path):
-                file = web.photo_file(int(m.group(1)), m.group(2))
-                if file is None:
-                    self._deny(HTTPStatus.NOT_FOUND, "no such photo")
-                else:
-                    body = file.read_bytes()
-                    self._headers(200, "image/jpeg", len(body), cache="private, max-age=86400")
-                    self.wfile.write(body)
-            elif m := ITEM_PATH.match(path):
-                found = web.item(int(m.group(1)))
-                self._json(found) if found else self._deny(HTTPStatus.NOT_FOUND, "no such photo")
-            else:
-                self._deny(HTTPStatus.NOT_FOUND, "not found")
-
-        # ---- POST ----------------------------------------------------------------------------------------------------
-        def _body(self) -> dict[str, Any] | None:
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-            except ValueError:
-                length = -1
-            if not 0 < length <= MAX_BODY:
-                self._deny(HTTPStatus.REQUEST_ENTITY_TOO_LARGE if length > MAX_BODY else HTTPStatus.BAD_REQUEST, "bad body size")
-                return None
-            try:
-                data = json.loads(self.rfile.read(length))
-            except ValueError:
-                self._deny(HTTPStatus.BAD_REQUEST, "bad json")
-                return None
-            return data if isinstance(data, dict) else None
-
-        def do_POST(self) -> None:
-            path = urlparse(self.path).path
-            if not self._checked(True):
-                return
-            if path == "/api/scan/resume":
-                self._json({"started": web.resume_indexing()})
-                return
-            if path == "/api/cloud":
-                body = self._body()
-                if body is not None:
-                    self._json(web.set_cloud(bool(body.get("on"))))
-                return
-            if path != "/api/chat":
-                self._deny(HTTPStatus.NOT_FOUND, "not found")
-                return
-            body = self._body()
-            if body is None:
-                return
-            message = str(body.get("message", "")).strip()[:2000]
-            if not message:
-                self._deny(HTTPStatus.BAD_REQUEST, "empty message")
-                return
-            self._chat(message, str(body.get("conv", ""))[:64] or "default", _clean_history(body.get("history")))
-
-        def _chat(self, message: str, conv: str, history: list[tuple[str, str]]) -> None:
-            self._headers(200, "text/event-stream; charset=utf-8")
-            started = time.perf_counter()
-            stream = None
-            first_words = None
-            calls: list[dict[str, Any]] = []
-            log_token = CALL_LOG.set(calls)  # every model call made for this message is recorded here
-            try:
-                self._sse("ack", {})
-                ctx = web.ctx
-                if ctx.settings.quick_preview and ctx.search_ready():  # photo matches in milliseconds, before the AI has finished
-                    ids = self._instant_matches(message)
-                    if ids is not None and len(ids):
-                        self._sse("preview", {"ids": [int(i) for i in ids[:PREVIEW]], "total": len(ids)})
-                with web.ai_lock:
-                    web.pause_indexing_for_chat()  # indexing and the AI model together would swap an 8 GB Mac
-                    reply = ask_within(
-                        lambda: ctx.agent().ask(message, web.previous(conv), history=history),
-                        ASK_LIMIT,
-                        lambda text: self._sse("status", {"text": text}),
-                    )
-                    stream = reply.stream
-                    text = reply.text
-                    if len(reply.ids) and reply.kind in ("results", "export", "count"):  # the photos are known before the words
-                        web.remember(conv, reply.ids)
-                        rid = web.remember_set(reply.ids, reply.groups)
-                        self._sse(
-                            "results",
-                            {
-                                "rid": rid,
-                                "groups": [{"label": g[0], "count": len(g[1])} for g in reply.groups],
-                                "ids": [] if reply.kind == "count" else [int(i) for i in reply.ids[:PAGE]],
-                                "total": len(reply.ids),
-                                "kind": reply.kind,
-                                "notes": list(reply.notes),
-                                "warnings": list(reply.warnings),
-                            },
-                        )
-                    elif reply.notes or reply.warnings:
-                        self._sse("notes", {"notes": list(reply.notes), "warnings": list(reply.warnings)})
-                    if stream is not None:
-                        parts = []
-                        for chunk in stream:
-                            if first_words is None:
-                                first_words = round(time.perf_counter() - started, 2)
-                            parts.append(chunk)
-                            self._sse("delta", {"text": chunk})
-                        text = "".join(parts) or "..."
-                    else:
-                        self._sse("reply", {"text": text})
-                took = round(time.perf_counter() - started, 2)
-                timings = {**reply.timings, **({"first_words": first_words} if first_words is not None else {})}
-                self._sse(
-                    "done",
-                    {
-                        "took": took,
-                        "kind": reply.kind,
-                        "text": text,
-                        "record": memory_of(reply, text, web.coverage_note()),
-                        "timings": timings,
-                        "trace": calls,
-                    },
-                )
-            except (BrokenPipeError, ConnectionResetError):
-                pass  # the browser left (for example a new chat was started): stop quietly
-            except Exception as exc:
-                try:
-                    self._sse("error", {"message": str(exc) or exc.__class__.__name__})
-                except OSError:
-                    pass
-            finally:
-                CALL_LOG.reset(log_token)
-                if stream is not None and hasattr(stream, "close"):
-                    stream.close()
-
-        def _instant_matches(self, message: str) -> np.ndarray | None:
-            from ..search.quick import quick_ids
-
-            ctx = web.ctx
-            conn = ctx.db.connect()
-            try:
-                return quick_ids(conn, message, ctx.embedding_index, ctx.search_embedder, ctx.settings.visual_strictness)
-            except Exception:
-                return None
-            finally:
-                conn.close()
-
-    return Handler
+    hosts = frozenset({f"127.0.0.1:{web.port}", f"localhost:{web.port}", f"lumo.localhost:{web.port}"})
+    origins = frozenset(f"http://{h}" for h in hosts)
+    return type("Handler", (_Handler,), {"web": web, "allowed_hosts": hosts, "allowed_origins": origins})
 
 
 def serve(ctx: Any, port: int = 8765, ready: threading.Event | None = None) -> int:

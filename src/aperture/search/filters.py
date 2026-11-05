@@ -95,90 +95,120 @@ def haversine_km(lat: float, lon: float, lats: np.ndarray, lons: np.ndarray) -> 
     return 2 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
 
 
-def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) -> tuple[np.ndarray, list[str]]:
-    """Ids of photos satisfying EVERY set filter, plus notes for the user."""
-    notes: list[str] = []
-    where: list[str] = ["missing=0", "meta_done=1"]
-    params: list[Any] = []
+class _Clauses:
+    """SQL conditions for the set filters, their parameters (in the same order as the placeholders) and notes for the user."""
+
+    def __init__(self) -> None:
+        self.where: list[str] = ["missing=0", "meta_done=1"]
+        self.params: list[Any] = []
+        self.notes: list[str] = []
+
+
+def _time_clauses(f: Filters, c: _Clauses) -> None:
     span = f.hours()
     if span:
         lo, hi = span
         hour = "CAST(substr(taken_at, 12, 2) AS INTEGER)"
-        where.append("taken_exif=1")  # a file date has no meaningful time of day
-        where.append(f"({hour} >= ? AND {hour} < ?)" if lo < hi else f"({hour} >= ? OR {hour} < ?)")
-        params += [lo, hi]
-        notes.append("Time of day only covers photos whose camera recorded the time.")
+        c.where.append("taken_exif=1")  # a file date has no meaningful time of day
+        c.where.append(f"({hour} >= ? AND {hour} < ?)" if lo < hi else f"({hour} >= ? OR {hour} < ?)")
+        c.params += [lo, hi]
+        c.notes.append("Time of day only covers photos whose camera recorded the time.")
     if f.day_type != "none":
-        where.append(
+        c.where.append(
             "strftime('%w', substr(taken_at, 1, 10)) " + ("IN ('0','6')" if f.day_type == "weekend" else "NOT IN ('0','6')")
         )
-    if f.orientation == "landscape":
-        where.append("width > height * 1.05")
-    elif f.orientation == "portrait":
-        where.append("height > width * 1.05")
-    elif f.orientation == "square":
-        where.append("width BETWEEN height / 1.05 AND height * 1.05")
+
+
+def _shape_clauses(conn: sqlite3.Connection, f: Filters, c: _Clauses) -> None:
+    orientation = {
+        "landscape": "width > height * 1.05",
+        "portrait": "height > width * 1.05",
+        "square": "width BETWEEN height / 1.05 AND height * 1.05",
+    }
+    if f.orientation in orientation:
+        c.where.append(orientation[f.orientation])
     if f.orientation != "none":
-        where.append("width IS NOT NULL AND height IS NOT NULL")
+        c.where.append("width IS NOT NULL AND height IS NOT NULL")
     if f.quality == "defects":
-        where.append("id IN (SELECT item_id FROM flags WHERE status='defect')")
+        c.where.append("id IN (SELECT item_id FROM flags WHERE status='defect')")
     elif f.quality == "no_defects":
-        where.append("id NOT IN (SELECT item_id FROM flags WHERE status='defect')")
+        c.where.append("id NOT IN (SELECT item_id FROM flags WHERE status='defect')")
     if f.color != "none":
         ensure_colors(conn)  # measured once per photo, from the small preview
         clause, color_params = color_clause(f.color)
-        where.append(clause)
-        params += color_params
-        notes.append("Colour is the photo's overall dominant colour.")
-    if f.has_gps != "none":
-        where.append("gps_lat IS NOT NULL" if f.has_gps == "yes" else "gps_lat IS NULL")
-    if f.kind == "image":
-        where.append("kind='image'")
-    elif f.kind == "document":
-        where.append("kind IN ('pdf','text')")
-    people = f"(SELECT COUNT(*) FROM faces fc WHERE fc.item_id=items.id AND fc.score>={FACE_MIN_SCORE} AND fc.px>={FACE_MIN_PX})"
-    if f.min_people >= 0 or f.max_people >= 0:
-        where.append("kind='image' AND faces_done=1")  # unknown until the face pass has looked at the photo
-        if f.min_people > 0:
-            where.append(f"{people} >= ?")
-            params.append(f.min_people)
-        if f.max_people >= 0:
-            where.append(f"{people} <= ?")
-            params.append(f.max_people)
-        pending = remembered(
-            conn,
-            "faces_pending",
-            lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0 AND kind='image' AND faces_done=0").fetchone()[0],
-        )
-        if pending:
-            notes.append(f"Face detection has not finished for {pending:,} photos, so they cannot be counted yet.")
-    sql = f"SELECT id FROM items WHERE {' AND '.join(where)}"
-    ids = remembered(conn, ("filter", sql, tuple(params)), lambda: _ids(conn, sql, tuple(params)))
+        c.where.append(clause)
+        c.params += color_params
+        c.notes.append("Colour is the photo's overall dominant colour.")
 
+
+def _kind_clauses(f: Filters, c: _Clauses) -> None:
+    if f.has_gps != "none":
+        c.where.append("gps_lat IS NOT NULL" if f.has_gps == "yes" else "gps_lat IS NULL")
+    if f.kind == "image":
+        c.where.append("kind='image'")
+    elif f.kind == "document":
+        c.where.append("kind IN ('pdf','text')")
+
+
+def _people_clauses(conn: sqlite3.Connection, f: Filters, c: _Clauses) -> None:
+    if f.min_people < 0 and f.max_people < 0:
+        return
+    people = f"(SELECT COUNT(*) FROM faces fc WHERE fc.item_id=items.id AND fc.score>={FACE_MIN_SCORE} AND fc.px>={FACE_MIN_PX})"
+    c.where.append("kind='image' AND faces_done=1")  # unknown until the face pass has looked at the photo
+    if f.min_people > 0:
+        c.where.append(f"{people} >= ?")
+        c.params.append(f.min_people)
+    if f.max_people >= 0:
+        c.where.append(f"{people} <= ?")
+        c.params.append(f.max_people)
+    pending = remembered(
+        conn,
+        "faces_pending",
+        lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0 AND kind='image' AND faces_done=0").fetchone()[0],
+    )
+    if pending:
+        c.notes.append(f"Face detection has not finished for {pending:,} photos, so they cannot be counted yet.")
+
+
+def _restrict_near(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None, ids: np.ndarray, notes: list[str]) -> np.ndarray:
+    """Keep only the photos within the radius of the named place."""
+    if geo is None:
+        notes.append("Place data is not installed (run `aperture fetch-models`), so I could not search near a place.")
+        return np.zeros(0, np.int64)
+    found = geo.find(f.near)
+    if found is None:
+        notes.append(f"I do not know a place called '{f.near}'.")
+        return np.zeros(0, np.int64)
+    lat, lon, label = found
+    rows = remembered(
+        conn,
+        "gps_positions",
+        lambda: conn.execute(
+            "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL"
+        ).fetchall(),
+    )
+    if rows:
+        near = np.array([r["id"] for r in rows], np.int64)
+        dist = haversine_km(lat, lon, np.array([r["gps_lat"] for r in rows]), np.array([r["gps_lon"] for r in rows]))
+        ids = np.intersect1d(ids, near[dist <= (f.radius_km or DEFAULT_RADIUS_KM)])
+    else:
+        ids = np.zeros(0, np.int64)
+    notes.append(f"'{f.near}' matched {label}.")
+    return ids
+
+
+def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) -> tuple[np.ndarray, list[str]]:
+    """Ids of photos satisfying EVERY set filter, plus notes for the user."""
+    c = _Clauses()
+    _time_clauses(f, c)
+    _shape_clauses(conn, f, c)
+    _kind_clauses(f, c)
+    _people_clauses(conn, f, c)
+    sql = f"SELECT id FROM items WHERE {' AND '.join(c.where)}"
+    ids = remembered(conn, ("filter", sql, tuple(c.params)), lambda: _ids(conn, sql, tuple(c.params)))
     if f.near:
-        found = geo.find(f.near) if geo is not None else None
-        if geo is None:
-            notes.append("Place data is not installed (run `aperture fetch-models`), so I could not search near a place.")
-            return np.zeros(0, np.int64), notes
-        if found is None:
-            notes.append(f"I do not know a place called '{f.near}'.")
-            return np.zeros(0, np.int64), notes
-        lat, lon, label = found
-        rows = remembered(
-            conn,
-            "gps_positions",
-            lambda: conn.execute(
-                "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL"
-            ).fetchall(),
-        )
-        if rows:
-            near = np.array([r["id"] for r in rows], np.int64)
-            dist = haversine_km(lat, lon, np.array([r["gps_lat"] for r in rows]), np.array([r["gps_lon"] for r in rows]))
-            ids = np.intersect1d(ids, near[dist <= (f.radius_km or DEFAULT_RADIUS_KM)])
-        else:
-            ids = np.zeros(0, np.int64)
-        notes.append(f"'{f.near}' matched {label}.")
-    return ids, notes
+        ids = _restrict_near(conn, f, geo, ids, c.notes)
+    return ids, c.notes
 
 
 FILTER_FIELDS = tuple(x.name for x in fields(Filters))

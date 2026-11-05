@@ -13,11 +13,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
       - run: pip install -e ".[ui,dev]"
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
       - run: pytest -q
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npx --yes eslint@10.1.0 src/aperture/web/static/app.js
+      - run: npx --yes prettier@3.8.1 --check src/aperture/web/static
   security:
     runs-on: ubuntu-latest
     steps:

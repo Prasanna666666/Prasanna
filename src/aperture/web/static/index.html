@@ -1,93 +1,131 @@
 <!doctype html>
 <html lang="en" data-theme="dark">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#0d9488">
-<meta name="lumo-token" content="__TOKEN__">
-<title>Lumo</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2306b6d4'/%3E%3Cstop offset='.5' stop-color='%2314b8a6'/%3E%3Cstop offset='1' stop-color='%2384cc16'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/static/app.css">
-</head>
-<body data-page="search">
-<div class="shell">
-  <aside class="side">
-    <span class="logo" aria-hidden="true"></span>
-    <nav id="nav" aria-label="Main"></nav>
-    <div class="side-foot">
-      <button class="theme" id="theme" type="button" aria-label="Change theme"></button>
-    </div>
-  </aside>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="color-scheme" content="light dark" />
+        <meta name="theme-color" content="#0d9488" />
+        <meta name="lumo-token" content="__TOKEN__" />
+        <title>Lumo</title>
+        <link
+            rel="icon"
+            href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2306b6d4'/%3E%3Cstop offset='.5' stop-color='%2314b8a6'/%3E%3Cstop offset='1' stop-color='%2384cc16'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Ccircle cx='16' cy='16' r='6' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E"
+        />
+        <link rel="stylesheet" href="/static/app.css" />
+    </head>
+    <body data-page="search">
+        <div class="shell">
+            <aside class="side">
+                <span class="logo" aria-hidden="true"></span>
+                <nav id="nav" aria-label="Main"></nav>
+                <div class="side-foot">
+                    <button class="theme" id="theme" type="button" aria-label="Change theme"></button>
+                </div>
+            </aside>
 
-  <div class="col">
-    <header class="top">
-      <form class="searchbox" id="topsearch" role="search" autocomplete="off">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3"/></svg>
-        <input id="topq" type="search" placeholder="Describe a photo to find it&hellip;" aria-label="Search your photos" maxlength="2000">
-        <kbd>/</kbd>
-      </form>
-      <div class="chips" id="chips" role="status" aria-live="polite"></div>
-      <button class="pill primary" id="ask-btn" type="button">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/></svg><span>Ask Lumo</span>
-      </button>
-    </header>
+            <div class="col">
+                <header class="top">
+                    <form class="searchbox" id="topsearch" role="search" autocomplete="off">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3" />
+                        </svg>
+                        <input
+                            id="topq"
+                            type="search"
+                            placeholder="Describe a photo to find it&hellip;"
+                            aria-label="Search your photos"
+                            maxlength="2000"
+                        />
+                        <kbd>&#8984;K</kbd>
+                    </form>
+                    <div class="chips" id="chips" role="status" aria-live="polite"></div>
+                </header>
 
-    <main class="main" id="main">
-      <section class="page" id="page-library" hidden></section>
-      <section class="page" id="page-trips" hidden></section>
-      <section class="page" id="page-places" hidden></section>
-      <section class="page" id="page-people" hidden></section>
-    </main>
+                <main class="main" id="main">
+                    <section class="page" id="page-library" hidden></section>
+                    <section class="page" id="page-trips" hidden></section>
+                    <section class="page" id="page-places" hidden></section>
+                    <section class="page" id="page-people" hidden></section>
+                </main>
 
-    <section class="chat" id="chat" aria-label="Chat with Lumo">
-      <header class="chat-head">
-        <span class="logo mini" aria-hidden="true"></span>
-        <div class="grow"><b>Lumo</b><div class="faint">Private &middot; runs on your Mac</div></div>
-        <button class="ghost" id="newchat" type="button" title="Start a new chat">New chat</button>
-        <button class="ghost chat-expand" id="chat-expand" type="button" title="Open full screen">Expand</button>
-        <button class="ghost chat-close" id="chat-close" type="button" aria-label="Close">&times;</button>
-      </header>
-      <div class="chat-scroll" id="chatscroll">
-        <div class="chat-inner">
-          <div id="welcome">
-            <p class="eyebrow">Private &middot; runs on your Mac</p>
-            <h1><span id="greeting">Hello</span>.<br>What are you looking for?</h1>
-            <p class="lede">Describe a photo in your own words, or just chat. Nothing leaves this computer.</p>
-            <div class="ideas" id="ideas"></div>
-          </div>
-          <div id="thread" aria-live="polite" aria-label="Conversation"></div>
+                <section class="chat" id="chat" aria-label="Chat with Lumo">
+                    <header class="chat-head">
+                        <span class="logo mini" aria-hidden="true"></span>
+                        <div class="grow">
+                            <b>Lumo</b>
+                            <div class="faint">Private &middot; runs on your Mac</div>
+                        </div>
+                        <button class="ghost" id="newchat" type="button" title="Start a new chat">New chat</button>
+                        <button class="ghost chat-expand" id="chat-expand" type="button" title="Open full screen">
+                            Expand
+                        </button>
+                        <button class="ghost chat-close" id="chat-close" type="button" aria-label="Close">
+                            &times;
+                        </button>
+                    </header>
+                    <div class="chat-scroll" id="chatscroll">
+                        <div class="chat-inner">
+                            <div id="welcome">
+                                <p class="eyebrow">Private &middot; runs on your Mac</p>
+                                <h1><span id="greeting">Hello</span>.<br />What are you looking for?</h1>
+                                <p class="lede">
+                                    Describe a photo in your own words, or just chat. Nothing leaves this computer.
+                                </p>
+                                <div class="ideas" id="ideas"></div>
+                            </div>
+                            <div id="thread" aria-live="polite" aria-label="Conversation"></div>
+                        </div>
+                    </div>
+                    <footer class="chat-foot">
+                        <form id="composer" autocomplete="off">
+                            <textarea
+                                id="input"
+                                rows="1"
+                                maxlength="2000"
+                                placeholder="Ask for photos, or ask anything&hellip;"
+                                aria-label="Message"
+                            ></textarea>
+                            <button id="send" type="submit" aria-label="Send">
+                                <svg class="i-send" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path d="M12 19V5M5 12l7-7 7 7" />
+                                </svg>
+                                <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true">
+                                    <rect x="7" y="7" width="10" height="10" rx="2" />
+                                </svg>
+                            </button>
+                        </form>
+                        <p class="warm" id="warm">Warming up: the first answer can take a little longer.</p>
+                        <p class="hint">
+                            Enter to send &middot; Shift+Enter for a new line &middot; <kbd>Ctrl/&#8984; J</kbd> to open
+                            the chat anywhere &middot; <span id="build"></span>
+                        </p>
+                    </footer>
+                </section>
+            </div>
         </div>
-      </div>
-      <footer class="chat-foot">
-        <form id="composer" autocomplete="off">
-          <textarea id="input" rows="1" maxlength="2000" placeholder="Ask for photos, or ask anything&hellip;" aria-label="Message"></textarea>
-          <button id="send" type="submit" aria-label="Send">
-            <svg class="i-send" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-            <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>
-          </button>
-        </form>
-        <p class="warm" id="warm">Warming up: the first answer can take a little longer.</p>
-        <p class="hint">Enter to send &middot; Shift+Enter for a new line &middot; <kbd>Ctrl/&#8984; J</kbd> to open the chat anywhere &middot; <span id="build"></span></p>
-      </footer>
-    </section>
-  </div>
-</div>
 
-<button class="fab" id="chat-fab" type="button" aria-label="Chat with Lumo" title="Chat with Lumo  (Ctrl/&#8984; J)">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z"/></svg><span>Ask Lumo</span>
-</button>
+        <button
+            class="fab"
+            id="chat-fab"
+            type="button"
+            aria-label="Chat with Lumo"
+            title="Chat with Lumo  (Ctrl/&#8984; J)"
+        >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12Z" /></svg
+            ><span>Ask Lumo</span>
+        </button>
 
-<div id="lightbox" hidden>
-  <button class="lb-close" id="lb-close" type="button" aria-label="Close">&times;</button>
-  <button class="lb-nav lb-prev" id="lb-prev" type="button" aria-label="Previous">&#8249;</button>
-  <figure>
-    <img id="lb-img" alt="">
-    <figcaption id="lb-cap"></figcaption>
-  </figure>
-  <button class="lb-nav lb-next" id="lb-next" type="button" aria-label="Next">&#8250;</button>
-</div>
+        <div id="lightbox" hidden>
+            <button class="lb-close" id="lb-close" type="button" aria-label="Close">&times;</button>
+            <button class="lb-nav lb-prev" id="lb-prev" type="button" aria-label="Previous">&#8249;</button>
+            <figure>
+                <img id="lb-img" alt="" />
+                <figcaption id="lb-cap"></figcaption>
+            </figure>
+            <button class="lb-nav lb-next" id="lb-next" type="button" aria-label="Next">&#8250;</button>
+        </div>
 
-<script src="/static/app.js" defer></script>
-</body>
+        <script src="/static/app.js" defer></script>
+    </body>
 </html>

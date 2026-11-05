@@ -7,6 +7,7 @@ normalised to 0..1 with the origin at the top left.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -94,70 +95,99 @@ class VisionDetails:
         return to_box((b.origin.x, b.origin.y, b.size.width, b.size.height))
 
     def _collect(self, name: str, request, out: Details) -> None:
-        results = request.results() or []
-        if name == "VNClassifyImageRequest":
-            out.labels += [
-                (str(r.identifier()), round(float(r.confidence()), 4))
-                for r in results
-                if float(r.confidence()) >= self.MIN_LABEL_CONFIDENCE
-            ]
-        elif name == "VNRecognizeTextRequest":
-            for r in results:
-                top = r.topCandidates_(1)
-                if top:
-                    out.texts.append((str(top[0].string()), round(float(top[0].confidence()), 4), self._box(r)))
-        elif name == "VNRecognizeAnimalsRequest":
-            for r in results:
-                label = str(r.labels()[0].identifier()) if r.labels() else "animal"
-                out.objects.append(("animal", label, round(float(r.confidence()), 4), self._box(r)))
-        elif name == "VNDetectHumanRectanglesRequest":
-            out.objects += [("person", "person", round(float(r.confidence()), 4), self._box(r)) for r in results]
-        elif name == "VNDetectBarcodesRequest":
-            out.objects += [
-                ("barcode", str(r.payloadStringValue() or r.symbology()), round(float(r.confidence()), 4), self._box(r))
-                for r in results
-            ]
-        elif name in ("VNGenerateAttentionBasedSaliencyImageRequest", "VNGenerateObjectnessBasedSaliencyImageRequest"):
-            kind = "attention" if "Attention" in name else "objectness"
-            for r in results:
-                for b in r.salientObjects() or []:
-                    box = b.boundingBox()
-                    out.objects.append(
-                        (
-                            kind,
-                            kind,
-                            round(float(b.confidence()), 4),
-                            to_box((box.origin.x, box.origin.y, box.size.width, box.size.height)),
-                        )
+        collector = self._collectors().get(name)
+        if collector is not None:
+            collector(request.results() or [], out, name)
+
+    def _collectors(self) -> dict[str, Any]:
+        """Which method reads the results of which Vision request."""
+        return {
+            "VNClassifyImageRequest": self._labels,
+            "VNRecognizeTextRequest": self._texts,
+            "VNRecognizeAnimalsRequest": self._animals,
+            "VNDetectHumanRectanglesRequest": lambda r, o, n: self._whole(r, o, "person"),
+            "VNDetectBarcodesRequest": self._barcodes,
+            "VNGenerateAttentionBasedSaliencyImageRequest": self._salient,
+            "VNGenerateObjectnessBasedSaliencyImageRequest": self._salient,
+            "VNDetectFaceCaptureQualityRequest": self._face_quality,
+            "VNDetectFaceLandmarksRequest": self._face_pose,
+            "VNDetectDocumentSegmentationRequest": lambda r, o, n: self._whole(r, o, "document"),
+            "VNDetectRectanglesRequest": lambda r, o, n: self._whole(r, o, "rectangle"),
+            "VNDetectHorizonRequest": self._horizon,
+            "VNDetectHumanBodyPoseRequest": self._pose,
+            "VNDetectHumanHandPoseRequest": self._pose,
+            "VNCalculateImageAestheticsScoresRequest": self._aesthetics,
+        }
+
+    def _labels(self, results, out: Details, name: str) -> None:
+        out.labels += [
+            (str(r.identifier()), round(float(r.confidence()), 4))
+            for r in results
+            if float(r.confidence()) >= self.MIN_LABEL_CONFIDENCE
+        ]
+
+    def _texts(self, results, out: Details, name: str) -> None:
+        for r in results:
+            top = r.topCandidates_(1)
+            if top:
+                out.texts.append((str(top[0].string()), round(float(top[0].confidence()), 4), self._box(r)))
+
+    def _animals(self, results, out: Details, name: str) -> None:
+        for r in results:
+            label = str(r.labels()[0].identifier()) if r.labels() else "animal"
+            out.objects.append(("animal", label, round(float(r.confidence()), 4), self._box(r)))
+
+    def _whole(self, results, out: Details, kind: str) -> None:
+        """Things found with a box and a confidence, all of one kind (person, document, rectangle)."""
+        out.objects += [(kind, kind, round(float(r.confidence()), 4), self._box(r)) for r in results]
+
+    def _barcodes(self, results, out: Details, name: str) -> None:
+        out.objects += [
+            ("barcode", str(r.payloadStringValue() or r.symbology()), round(float(r.confidence()), 4), self._box(r))
+            for r in results
+        ]
+
+    def _salient(self, results, out: Details, name: str) -> None:
+        kind = "attention" if "Attention" in name else "objectness"
+        for r in results:
+            for b in r.salientObjects() or []:
+                box = b.boundingBox()
+                out.objects.append(
+                    (
+                        kind,
+                        kind,
+                        round(float(b.confidence()), 4),
+                        to_box((box.origin.x, box.origin.y, box.size.width, box.size.height)),
                     )
-        elif name == "VNDetectFaceCaptureQualityRequest":
-            for r in results:
-                quality = r.faceCaptureQuality()
-                out.objects.append(("face", "face", round(float(quality), 4) if quality is not None else 0.0, self._box(r)))
-        elif name == "VNDetectFaceLandmarksRequest":
-            for r in (
-                results
-            ):  # head pose in degrees: yaw (turned left/right), roll (tilted); landmark count shows how much is visible
-                landmarks = r.landmarks()
-                count = (
-                    len(landmarks.allPoints().normalizedPoints())
-                    if landmarks is not None and landmarks.allPoints() is not None
-                    else 0
                 )
-                yaw = float(r.yaw() or 0.0) * 57.2958 if hasattr(r, "yaw") and r.yaw() is not None else 0.0
-                out.objects.append(("face_pose", f"yaw {yaw:.0f} landmarks {count}", round(yaw, 2), self._box(r)))
-        elif name == "VNDetectDocumentSegmentationRequest":
-            out.objects += [("document", "document", round(float(r.confidence()), 4), self._box(r)) for r in results]
-        elif name == "VNDetectRectanglesRequest":
-            out.objects += [("rectangle", "rectangle", round(float(r.confidence()), 4), self._box(r)) for r in results]
-        elif name == "VNDetectHorizonRequest":
-            for r in results:
-                out.objects.append(("horizon", "horizon", round(float(r.angle()) * 57.2958, 2), (0.0, 0.0, 1.0, 1.0)))
-        elif name in ("VNDetectHumanBodyPoseRequest", "VNDetectHumanHandPoseRequest"):
-            kind = "body" if "Body" in name else "hand"
-            out.objects += [(kind, kind, round(float(r.confidence()), 4), (0.0, 0.0, 1.0, 1.0)) for r in results]
-        elif name == "VNCalculateImageAestheticsScoresRequest":
-            for r in results:
-                out.objects.append(("aesthetic", "aesthetic", round(float(r.overallScore()), 4), (0.0, 0.0, 1.0, 1.0)))
-                if r.isUtility():
-                    out.objects.append(("aesthetic", "utility", 1.0, (0.0, 0.0, 1.0, 1.0)))
+
+    def _face_quality(self, results, out: Details, name: str) -> None:
+        for r in results:
+            quality = r.faceCaptureQuality()
+            out.objects.append(("face", "face", round(float(quality), 4) if quality is not None else 0.0, self._box(r)))
+
+    def _face_pose(self, results, out: Details, name: str) -> None:
+        """Head pose in degrees: yaw (turned left/right); the landmark count shows how much of the face is visible."""
+        for r in results:
+            landmarks = r.landmarks()
+            count = (
+                len(landmarks.allPoints().normalizedPoints())
+                if landmarks is not None and landmarks.allPoints() is not None
+                else 0
+            )
+            yaw = float(r.yaw() or 0.0) * 57.2958 if hasattr(r, "yaw") and r.yaw() is not None else 0.0
+            out.objects.append(("face_pose", f"yaw {yaw:.0f} landmarks {count}", round(yaw, 2), self._box(r)))
+
+    def _horizon(self, results, out: Details, name: str) -> None:
+        for r in results:
+            out.objects.append(("horizon", "horizon", round(float(r.angle()) * 57.2958, 2), (0.0, 0.0, 1.0, 1.0)))
+
+    def _pose(self, results, out: Details, name: str) -> None:
+        kind = "body" if "Body" in name else "hand"
+        out.objects += [(kind, kind, round(float(r.confidence()), 4), (0.0, 0.0, 1.0, 1.0)) for r in results]
+
+    def _aesthetics(self, results, out: Details, name: str) -> None:
+        for r in results:
+            out.objects.append(("aesthetic", "aesthetic", round(float(r.overallScore()), 4), (0.0, 0.0, 1.0, 1.0)))
+            if r.isUtility():
+                out.objects.append(("aesthetic", "utility", 1.0, (0.0, 0.0, 1.0, 1.0)))
