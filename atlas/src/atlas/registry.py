@@ -47,6 +47,9 @@ class Module:
     health: str = "/api/health"
     search: str = ""
     scan: str = ""  # optional: a path that reads everything new (GET = status, POST = start)
+    ask: str = ""  # optional: a path that answers one question for the single chat (POST {text, conv, history})
+    keywords: tuple[str, ...] = ()  # words that mean "this app" in a question; the router tries these before it asks the model
+    media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
     auth: Auth | None = None
     headers: tuple[tuple[str, str], ...] = ()  # fixed headers on Atlas's own calls (an app's change-protection header, for example)
@@ -75,6 +78,7 @@ class Module:
             "home": self.home,
             "searchable": bool(self.search),
             "scannable": bool(self.scan),
+            "askable": bool(self.ask),
             "pages": [{"id": p.id, "label": p.label, "icon": p.icon} for p in self.pages],
         }
 
@@ -123,6 +127,9 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         health=str(raw.get("health", "/api/health")),
         search=str(raw.get("search", "")),
         scan=str(raw.get("scan", "")),
+        ask=str(raw.get("ask", "")),
+        keywords=tuple(str(k).lower() for k in raw.get("keywords", [])),
+        media=str(raw.get("media", "")),
         headers=tuple((str(k), str(v)) for k, v in (raw.get("headers") or {}).items()),
         home=str(raw.get("home", "")),
         auth=Auth(str(auth["meta"]), str(auth["header"])) if isinstance(auth, dict) else None,

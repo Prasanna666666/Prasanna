@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,11 +13,13 @@ from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlsplit
 
 from . import proxy
+from .assistant import Assistant, clean_history
 from .registry import ManifestError, Module, load, upstream_is_private
 from .upstream import Upstreams
 
 STATIC = Path(__file__).with_name("static")
 STATIC_TYPES = {"atlas.css": "text/css; charset=utf-8", "atlas.js": "text/javascript; charset=utf-8", "icon.svg": "image/svg+xml"}
+MAX_CHAT_BODY = 32_000
 LOCAL_ALIASES = frozenset({"localhost", "127.0.0.1", "[::1]"})
 
 
@@ -37,7 +39,11 @@ class Atlas:
     domain: str  # atlas.localhost
     port: int  # the port the browser uses
     upstreams: Upstreams
-    model_url: str = ""  # the shared AI model server (Ollama), checked and shown but never used by Atlas itself
+    model_url: str = ""  # the shared AI model server (Ollama): shown, and used for routing a question and for plain conversation
+    assistant: Assistant = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "assistant", Assistant(self.modules, self.upstreams, self.model_url))
 
     @property
     def shell_origin(self) -> str:
@@ -100,7 +106,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        if "Cache-Control" not in (extra or {}):
+            self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", self.atlas.shell_policy())
@@ -109,6 +116,37 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
+
+    def _chat(self) -> None:
+        """One question to the single chat. Like starting an update, it needs the page's own origin and header."""
+        if not _scan_allowed(self, self.atlas):
+            return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
+        body = self._read_json()
+        text = str(body.get("text", "")).strip()
+        if not text:
+            return self._json({"error": "empty message"}, HTTPStatus.BAD_REQUEST)
+        conv = str(body.get("conv", ""))[:64] or "atlas"
+        self._json(self.atlas.assistant.answer(text, conv, clean_history(body.get("history"))))
+
+    def _read_json(self) -> dict[str, Any]:
+        """The request body as an object; anything missing, too large or not an object is an empty one."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(length)) if 0 < length <= MAX_CHAT_BODY else {}
+        except (ValueError, OSError):
+            return {}
+        return body if isinstance(body, dict) else {}
+
+    def _media(self, rest: str) -> None:
+        """A picture from an app, on the page's behalf. 'photos/api/photo/12/thumb' means the app 'photos', path '/api/photo/12/thumb'."""
+        module_id, _, path = rest.partition("/")
+        module = self.atlas.modules.get(module_id)
+        if module is None:
+            return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
+        status, data, ctype = self.atlas.upstreams.media(module, "/" + path)
+        if status != 200 or not ctype.startswith("image/"):
+            return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
+        self._send(200, data, ctype, {"Cache-Control": "private, max-age=3600"})
 
     def _start_scan(self) -> None:
         if not _scan_allowed(self, self.atlas):
@@ -128,18 +166,25 @@ class _Handler(BaseHTTPRequestHandler):
     def _shell(self) -> None:
         url = urlsplit(self.path)
         if self.command == "POST":
-            if url.path != "/_atlas/api/scan":
-                return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")
-            return self._start_scan()
+            return self._post(url.path)
         if self.command not in ("GET", "HEAD"):
             return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")
         name = url.path.rsplit("/", 1)[-1]
+        if url.path.startswith("/_atlas/api/media/"):
+            return self._media(url.path[len("/_atlas/api/media/") :])
         if url.path.startswith("/_atlas/static/") and name in STATIC_TYPES:
             return self._send(200, (STATIC / name).read_bytes(), STATIC_TYPES[name])
         route = self._get_routes().get(url.path)
         if route is None:
             return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
         route(parse_qs(url.query))
+
+    def _post(self, path: str) -> None:
+        routes = {"/_atlas/api/chat": self._chat, "/_atlas/api/scan": self._start_scan}
+        route = routes.get(path)
+        if route is None:
+            return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")
+        route()
 
     def _get_routes(self) -> dict[str, Callable[[dict[str, list[str]]], None]]:
         atlas = self.atlas

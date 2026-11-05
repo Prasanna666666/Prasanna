@@ -754,3 +754,217 @@ body.chatting .fab {
         padding-right: 112px;
     }
 }
+
+.achat {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 45;
+    width: min(440px, calc(100vw - 32px));
+    height: min(680px, calc(100vh - 44px));
+    display: flex;
+    flex-direction: column;
+    border-radius: 24px;
+    border: 1px solid var(--line-strong);
+    background: var(--glass);
+    backdrop-filter: blur(28px) saturate(1.5);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+}
+.achat[hidden] {
+    display: none;
+}
+.achat-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+}
+.achat-head .logo.mini {
+    width: 30px;
+    height: 30px;
+    border-radius: 10px;
+}
+.achat-head .grow {
+    flex: 1;
+    min-width: 0;
+}
+.achat-head .faint {
+    font-size: 12.5px;
+    color: var(--faint);
+}
+.ghost {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 6px 10px;
+    border-radius: 10px;
+}
+.ghost:hover {
+    background: var(--soft);
+    color: var(--fg);
+}
+.achat-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 16px;
+}
+#achat-thread {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.achat-welcome {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 4px;
+}
+.achat-welcome h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: -0.02em;
+}
+.achat-welcome p {
+    margin: 0 0 6px;
+    color: var(--muted);
+}
+.achat-idea {
+    text-align: left;
+    padding: 11px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--fg);
+}
+.achat-idea:hover {
+    border-color: var(--a1);
+    background: var(--soft);
+}
+.am-user {
+    align-self: flex-end;
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 18px 18px 4px 18px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--a1), var(--a2));
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.am-bot {
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.am-wait {
+    color: var(--faint);
+}
+.part {
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+}
+.part-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 11.5px;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+}
+.part-tag i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--c1), var(--c2));
+}
+.part-text p {
+    margin: 0 0 8px;
+}
+.part-text p:last-child {
+    margin: 0;
+}
+.part-error {
+    margin: 0;
+    color: var(--warn);
+}
+.part-note {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+.part-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+}
+.part-tile {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--soft);
+}
+.part-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.achat-foot {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--line);
+}
+.achat-foot textarea {
+    flex: 1;
+    resize: none;
+    max-height: 140px;
+    padding: 11px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    outline: none;
+    line-height: 1.4;
+}
+.achat-foot textarea:focus {
+    border-color: var(--a1);
+    box-shadow: 0 0 0 3px var(--soft);
+}
+.achat-foot button {
+    flex: none;
+    width: 42px;
+    height: 42px;
+    border: 0;
+    border-radius: 50%;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(135deg, var(--a1), var(--a2));
+}
+.achat-foot button:disabled {
+    opacity: 0.5;
+}
+.achat-foot svg {
+    width: 20px;
+    height: 20px;
+}
+@media (max-width: 860px) {
+    .achat {
+        right: 8px;
+        bottom: 8px;
+        left: 8px;
+        width: auto;
+        height: calc(100dvh - 16px);
+    }
+}

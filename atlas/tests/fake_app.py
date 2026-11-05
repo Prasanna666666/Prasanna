@@ -51,6 +51,11 @@ class _Handler(BaseHTTPRequestHandler):
                         {"results": [{"title": "Lisbon", "subtitle": "14 photos", "kind": "place", "link": "#/library?place=Lisbon"}, {"nope": 1}]}
                     ).encode(),
                 )
+        elif path == "/api/photo/1/thumb":
+            if self.app.token and self.headers.get("X-App-Token") != self.app.token:
+                self._reply(403, b"no")
+            else:
+                self._reply(200, b"\x89PNG fake", "image/png")
         elif path == "/api/tags":
             self._reply(200, b'{"models": [{"name": "ministral-3:3b"}, {"name": "other:7b"}]}')
         elif path == "/api/scan":
@@ -76,7 +81,30 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._reply(404, b'{"error": "not found"}')
 
+    def _post_ask(self) -> None:
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        if self.app.require_header and self.headers.get(self.app.require_header) != "1":
+            return self._reply(403, b'{"error": "header"}')
+        if self.app.token and self.headers.get("X-App-Token") != self.app.token:
+            return self._reply(403, b'{"error": "token"}')
+        self.app.asked.append(body)
+        items = (
+            [{"kind": "photo", "id": 1, "thumb": "/api/photo/1/thumb", "link": "#/library"}, {"kind": "photo", "thumb": "/etc/passwd"}]
+            if self.app.token
+            else []
+        )
+        self._reply(200, json.dumps({"text": f"answer to: {body['text']}", "items": items, "total": 41, "notes": ["one note"]}).encode())
+
+    def _post_model_chat(self) -> None:
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        self.app.model_calls.append(body)
+        self._reply(200, json.dumps({"message": {"role": "assistant", "content": self.app.model_reply}}).encode())
+
     def do_POST(self) -> None:
+        if self.path == "/api/ask":
+            return self._post_ask()
+        if self.path == "/api/chat":
+            return self._post_model_chat()
         if self.path == "/api/scan":
             if self.app.require_header and self.headers.get(self.app.require_header) != "1":
                 self._reply(403, b'{"error": "header"}')
@@ -98,6 +126,9 @@ class FakeApp:
         self.token = token
         self.seen: list[dict[str, str]] = []
         self.scanning = False
+        self.asked: list[dict[str, object]] = []
+        self.model_reply = "fake model reply"
+        self.model_calls: list[dict[str, object]] = []
         self.require_header = ""
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), type("Handler", (_Handler,), {"app": self}))
         self.server.daemon_threads = True

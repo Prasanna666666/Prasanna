@@ -288,3 +288,17 @@ def test_one_update_button_can_start_and_follow_the_file_reading(server):
         time.sleep(0.1)
     assert not status["running"] and status["problems"] and "ollama" in status["problems"][0].lower()
     assert call(server, "POST", "/api/scan", {})[0] == 403  # a change needs Finance's own header
+
+
+def test_the_one_chat_can_ask_finance_a_question_and_gets_text_back(server, monkeypatch):
+    from orbit import agent
+
+    monkeypatch.setattr(
+        agent,
+        "chat",
+        lambda conn, history, text, trace=None, **kw: (trace.append({"agent": "money", "tools": []}) if trace is not None else None) or f"You asked: {text}",
+    )
+    status, body, _ = post(server, "/api/ask", {"text": "how much did I spend?"})
+    assert status == 200 and json.loads(body) == {"ok": True, "text": "You asked: how much did I spend?", "items": [], "agent": "money"}
+    assert post(server, "/api/ask", {"text": "  "})[0] == 400
+    assert call(server, "POST", "/api/ask", {"text": "x"})[0] == 403  # a change needs the app's own header

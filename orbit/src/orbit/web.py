@@ -231,6 +231,12 @@ def _post_chat(state: State, conn, body: dict) -> dict:
         state.chat_lock.release()
 
 
+def _post_ask(state: State, conn, body: dict) -> dict:
+    """The contract's one-shot question, for Atlas's single chat: the same answer as the chat, in the shape every module returns it."""
+    out = _post_chat(state, conn, body)
+    return {"ok": True, "text": out["reply"], "items": [], "agent": out["agent"]}
+
+
 def _post_chat_reset(state: State, conn, body: dict) -> dict:
     state.history.clear()
     return {"ok": True}
@@ -264,6 +270,7 @@ def _post_notes_import(state: State, conn, body: dict) -> dict:
 
 
 POST_ROUTES = {
+    "/api/ask": _post_ask,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_import(state)},
     "/api/tool": _post_tool,
     "/api/chat": _post_chat,

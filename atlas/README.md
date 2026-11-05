@@ -29,7 +29,7 @@ shows a plain "not running" page and never blocks the others.
 - **One menu** with every app and its pages, a green dot for "running", and each app tints the page with its own colours.
 - **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments and files in Finance, places, people and trips in Photos), lists the pages, and can
   hand your question to an app's assistant.
-- **One chat button** (`Ctrl/⌘ J`): it opens the assistant of the app you are looking at.
+- **One chat** (the Ask button, or `Ctrl/⌘ J`): a single assistant for everything. Ask in plain words; it works out whether the question is about money, photos or both, asks each app (which answers with its own tools and checks), and shows the answers as labelled sections, with pictures where there are any. Plain conversation is answered by the shared model. The apps' own chat panels are hidden inside Atlas.
 - **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Finance reads new statements and files, Photos indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
 - **One AI model status**: a chip shows whether the one shared local model (Ollama) is running and which model it holds. Every app uses that same model; point Atlas at it with `ATLAS_MODEL_URL` (default `http://host.docker.internal:11434`).
 - **One theme**: dark, light or automatic for everything.
@@ -63,6 +63,9 @@ shows a plain "not running" page and never blocks the others.
 | `health` | a path that answers 200 when the app is up (default `/api/health`) |
 | `search` | optional path for the search box (see the contract); leave out if the app has no search |
 | `scan` | optional path for the Update button (see the contract) |
+| `ask` | optional path for the one chat (see the contract) |
+| `keywords` | words that mean this app in a question (the router tries them before it asks the model) |
+| `media` | the only path prefix Atlas may fetch pictures from for this app |
 | `headers` | optional fixed headers Atlas adds to its own calls to the app |
 | `home` | the page the app opens on (`#/route`) |
 | `pages` | menu entries; each `id` is a route of the app (`#/<id>`) |
@@ -73,6 +76,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 
 ## The contract an app follows
 - `GET /api/health` answers 200 when the app is up.
+- `POST /api/ask` (optional, for the one chat): body `{"text", "conv", "history": [[role, text]]}`, answers `{"text", "items": [{"kind", "thumb", "link"}], "total", "notes": []}`. `thumb` must sit under the manifest's `media` path; Atlas fetches pictures for the page so the app's token never reaches it.
 - `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Finance: `{"X-Orbit": "1"}`).
 - `GET /api/search?q=text` (optional) answers `{"results": [{"title", "subtitle", "kind", "link"}]}`. `link` is a route inside the app, such as `#/library?place=Lisbon`.
 - The app keeps its own routes as `#/<page>` (a hash), so Atlas can send you to a page and follow where you go.

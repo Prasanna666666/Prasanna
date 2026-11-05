@@ -32,7 +32,7 @@
         refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
     };
 
-    const state = { modules: [], health: {}, ai: null, frames: new Map(), mode: 'dark', chatting: {} };
+    const state = { modules: [], health: {}, ai: null, frames: new Map(), mode: 'dark' };
     const byId = (id) => state.modules.find((m) => m.id === id);
     const origin = (module) => `${location.protocol}//${module.id}.${location.host}`;
 
@@ -61,10 +61,9 @@
         if (!module || !data || data.atlas !== 1) return;
         if (data.type === 'ready') tell(module, { type: 'theme', mode: state.mode });
         else if (data.type === 'palette') openPalette();
-        else if (data.type === 'chat') {
-            state.chatting[module.id] = Boolean(data.open);
-            markChatting();
-        } else if (data.type === 'route' && typeof data.hash === 'string') followApp(module, data.hash);
+        else if (data.type === 'ask' && typeof data.text === 'string') askAtlas(data.text);
+        else if (data.type === 'toggle-chat') toggleChat();
+        else if (data.type === 'route' && typeof data.hash === 'string') followApp(module, data.hash);
     });
     const followApp = (module, hash) => {
         const now = parse();
@@ -135,19 +134,8 @@
             .querySelectorAll('#nav .group')
             .forEach((g) => g.classList.toggle('open', Boolean(module) && g.dataset.module === module.id));
         document.title = module ? `${module.name} · Atlas` : 'Atlas';
-        $('#fab').querySelector('span').textContent = module ? 'Ask ' + (module.app || module.name) : 'Ask';
-        const host = $('#fab');
-        if (module) tint(host, module);
-        host.style.setProperty('--a1', module ? module.accent[0] : '#6366f1');
-        host.style.setProperty('--a2', module ? module.accent[1] : '#ec4899');
         document.documentElement.style.setProperty('--a1', module ? module.accent[0] : '#6366f1');
         document.documentElement.style.setProperty('--a2', module ? module.accent[1] : '#ec4899');
-    };
-
-    // the shared Ask button steps aside while the open app shows its own chat panel
-    const markChatting = () => {
-        const { module } = parse();
-        document.body.classList.toggle('chatting', Boolean(module && state.chatting[module.id]));
     };
 
     // ---------------------------------------------------------------- the stage: the overview, or one app
@@ -207,7 +195,6 @@
         if (module) frameFor(module, route);
         else stage.prepend(renderDashboard());
         markActive();
-        markChatting();
     };
 
     // ---------------------------------------------------------------- chips and health
@@ -285,7 +272,7 @@
                           row.type = 'button';
                           row.dataset.i = i;
                           const dot = el('span', 'dotc');
-                          if (item.module) tint(row, item.module);
+                          tint(row, item.module || { accent: ['#6366f1', '#ec4899'] });
                           const text = el('span', 'grow');
                           text.append(el('div', 'strong', item.label));
                           if (item.sub) text.append(el('div', 'small', item.sub));
@@ -340,15 +327,7 @@
                 found = [];
             }
             if (mine !== seq) return;
-            const asks = state.modules.map((m) => ({
-                module: m,
-                label: `Ask ${m.app || m.name}: “${raw}”`,
-                sub: 'Chat',
-                run: () => {
-                    go(m, '');
-                    setTimeout(() => tell(m, { type: 'ask', text: raw }), 600);
-                },
-            }));
+            const asks = [{ label: `Ask Atlas: “${raw}”`, sub: 'Chat', run: () => askAtlas(raw) }];
             items = [
                 ...actions(q),
                 ...(pages.length ? [{ head: 'Pages' }, ...pages.slice(0, 5)] : []),
@@ -363,7 +342,7 @@
                           })),
                       ]
                     : []),
-                { head: 'Or ask' },
+                { head: 'Ask' },
                 ...asks,
             ];
             firstReal();
@@ -470,6 +449,148 @@
         }
     };
 
+    // ---------------------------------------------------------------- the one chat: ask anything; Atlas decides which app answers
+    const chat = { conv: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), history: [], busy: false };
+    const IDEAS = ['How much did I spend last month?', 'Show my photos from the last trip', 'What is my net worth?'];
+    const bold = (parent, text) => {
+        text.split(/(\*\*[^*]+\*\*)/).forEach((piece) => {
+            if (piece.startsWith('**') && piece.endsWith('**') && piece.length > 4)
+                parent.append(el('strong', '', piece.slice(2, -2)));
+            else if (piece) parent.append(piece);
+        });
+    };
+    const partNode = (part) => {
+        const module = byId(part.module);
+        const box = el('div', 'part');
+        tint(box, module || { accent: ['#6366f1', '#ec4899'] });
+        const tag = el('span', 'part-tag', part.name);
+        tag.prepend(el('i'));
+        box.append(tag);
+        if (!part.ok) {
+            box.append(el('p', 'part-error', part.error));
+            return box;
+        }
+        const body = el('div', 'part-text');
+        part.text.split(/\n{2,}/).forEach((paragraph) => {
+            const p = el('p');
+            bold(p, paragraph);
+            body.append(p);
+        });
+        box.append(body);
+        if (part.items && part.items.length && module) {
+            const grid = el('div', 'part-grid');
+            part.items.forEach((item) => {
+                const link = el('a', 'part-tile');
+                link.href = address(module, item.link.replace(/^#\/?/, ''));
+                const img = new Image();
+                img.alt = '';
+                img.loading = 'lazy';
+                img.src = item.thumb;
+                link.append(img);
+                grid.append(link);
+            });
+            box.append(grid);
+            if (part.total > part.items.length)
+                box.append(
+                    el('div', 'part-note', `${part.total.toLocaleString()} in all: open ${module.name} to see them`)
+                );
+        }
+        (part.notes || []).forEach((note) => box.append(el('div', 'part-note', note)));
+        return box;
+    };
+    const chatWelcome = () => {
+        const wrap = el('div', 'achat-welcome');
+        wrap.append(
+            el('h2', '', 'Ask me anything'),
+            el('p', '', 'Money, photos, documents. I work out which part to ask and show you who answered.')
+        );
+        IDEAS.forEach((idea) => {
+            const chip = el('button', 'achat-idea', idea);
+            chip.type = 'button';
+            chip.addEventListener('click', () => askAtlas(idea));
+            wrap.append(chip);
+        });
+        return wrap;
+    };
+    const resetChat = () => {
+        chat.conv = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
+        chat.history = [];
+        $('#achat-thread').replaceChildren(chatWelcome());
+    };
+    const setChatOpen = (on) => {
+        $('#achat').hidden = !on;
+        document.body.classList.toggle('chatting', on);
+        if (on) {
+            if (!$('#achat-thread').children.length) resetChat();
+            $('#achat-input').focus();
+        }
+    };
+    const toggleChat = () => setChatOpen($('#achat').hidden);
+    const addBubble = (cls, ...kids) => {
+        const bubble = el('div', cls);
+        bubble.append(...kids);
+        const thread = $('#achat-thread');
+        thread.append(bubble);
+        const scroller = $('#achat-scroll');
+        scroller.scrollTop = scroller.scrollHeight;
+        return bubble;
+    };
+    async function askAtlas(text) {
+        text = String(text || '').trim();
+        if (!text || chat.busy) return;
+        setChatOpen(true);
+        $('#achat-thread').querySelector('.achat-welcome')?.remove();
+        addBubble('am-user', text);
+        const waiting = addBubble('am-bot', el('span', 'am-wait', 'Thinking…'));
+        chat.busy = true;
+        $('#achat-send').disabled = true;
+        let parts;
+        try {
+            const reply = await fetch('/_atlas/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Atlas': '1' },
+                body: JSON.stringify({ text, conv: chat.conv, history: chat.history }),
+            });
+            parts = (await reply.json()).parts || [
+                { module: 'atlas', name: 'Atlas', ok: false, error: 'No answer came back.' },
+            ];
+        } catch (_) {
+            parts = [{ module: 'atlas', name: 'Atlas', ok: false, error: 'Atlas could not be reached.' }];
+        }
+        waiting.replaceChildren(...parts.map(partNode));
+        const said = parts
+            .filter((p) => p.ok)
+            .map((p) => `${p.name}: ${p.text}`)
+            .join('\n');
+        chat.history = [...chat.history, ['user', text], ['assistant', said || 'No answer.']].slice(-8);
+        chat.busy = false;
+        $('#achat-send').disabled = false;
+        $('#achat-scroll').scrollTop = $('#achat-scroll').scrollHeight;
+        $('#achat-input').focus();
+    }
+    const setupChat = () => {
+        const input = $('#achat-input');
+        $('#achat-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const text = input.value;
+            input.value = '';
+            input.style.height = 'auto';
+            askAtlas(text);
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+                e.preventDefault();
+                $('#achat-form').requestSubmit();
+            }
+        });
+        input.addEventListener('input', () => {
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+        });
+        $('#achat-new').addEventListener('click', resetChat);
+        $('#achat-close').addEventListener('click', () => setChatOpen(false));
+    };
+
     // ---------------------------------------------------------------- theme, keys, the one chat button
     const applyTheme = () => {
         document.documentElement.dataset.theme = state.mode;
@@ -494,12 +615,8 @@
         });
         applyTheme();
     };
-    const toggleChat = () => {
-        const { module } = parse();
-        if (module) tell(module, { type: 'toggle-chat' });
-        else openPalette();
-    };
     document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !palette && !$('#achat').hidden) setChatOpen(false);
         const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '');
         if (((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
             e.preventDefault();
@@ -512,6 +629,7 @@
     $('#search-btn').addEventListener('click', openPalette);
     $('#update').addEventListener('click', startScan);
     $('#fab').addEventListener('click', toggleChat);
+    setupChat();
     window.addEventListener('hashchange', render);
 
     // ---------------------------------------------------------------- start

@@ -54,9 +54,22 @@ def manifest(mid: str, upstream: str, **extra: Any) -> dict[str, Any]:
 def running(tmp_path: Path) -> Iterator[Running]:
     photos, money = FakeApp(token="secret"), FakeApp()
     money.require_header = "X-Fake"
-    (tmp_path / "money.json").write_text(json.dumps(manifest("money", money.url, health="/api/health", scan="/api/scan", headers={"X-Fake": "1"})))
+    (tmp_path / "money.json").write_text(
+        json.dumps(manifest("money", money.url, health="/api/health", scan="/api/scan", ask="/api/ask", keywords=["spent", "money"], headers={"X-Fake": "1"}))
+    )
     (tmp_path / "photos.json").write_text(
-        json.dumps(manifest("photos", photos.url, search="/api/search", scan="/api/scan", auth={"meta": "app-token", "header": "X-App-Token"}))
+        json.dumps(
+            manifest(
+                "photos",
+                photos.url,
+                search="/api/search",
+                scan="/api/scan",
+                ask="/api/ask",
+                keywords=["photo", "picture"],
+                media="/api/photo/",
+                auth={"meta": "app-token", "header": "X-App-Token"},
+            )
+        )
     )
     port = free_port()
     modules = load(tmp_path)

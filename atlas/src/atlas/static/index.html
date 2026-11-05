@@ -33,6 +33,30 @@
                 <main class="stage" id="stage" tabindex="-1"></main>
             </div>
         </div>
+        <section class="achat" id="achat" hidden aria-label="Chat with Atlas">
+            <header class="achat-head">
+                <span class="logo mini" aria-hidden="true"></span>
+                <div class="grow">
+                    <b>Atlas</b>
+                    <div class="faint">Private · one assistant for everything</div>
+                </div>
+                <button class="ghost" id="achat-new" type="button">New chat</button>
+                <button class="ghost" id="achat-close" type="button" aria-label="Close">&times;</button>
+            </header>
+            <div class="achat-scroll" id="achat-scroll"><div id="achat-thread"></div></div>
+            <form class="achat-foot" id="achat-form" autocomplete="off">
+                <textarea
+                    id="achat-input"
+                    rows="1"
+                    maxlength="2000"
+                    placeholder="Ask about money, photos, anything…"
+                    aria-label="Message"
+                ></textarea>
+                <button id="achat-send" type="submit" aria-label="Send">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                </button>
+            </form>
+        </section>
         <section class="scan" id="scan" hidden aria-live="polite" aria-label="Update"></section>
         <button class="fab" id="fab" type="button" aria-label="Ask">
             <svg viewBox="0 0 24 24" aria-hidden="true">

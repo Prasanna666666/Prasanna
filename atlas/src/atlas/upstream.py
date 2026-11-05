@@ -18,24 +18,29 @@ SEARCH_SECONDS = 2.5
 HEALTH_CACHE_SECONDS = 4.0
 MAX_RESULTS_PER_MODULE = 8
 SCAN_SECONDS = 4.0
+ASK_SECONDS = 60.0
+MAX_BODY = 8_000_000
 
 
-def _call(module: Module, method: str, path: str, timeout: float, extra: dict[str, str] | None = None) -> tuple[int, bytes]:
+def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict[str, str] | None = None, body: bytes = b"") -> tuple[int, bytes, str]:
     host, _, port = module.netloc.partition(":")
     conn = http.client.HTTPConnection(host, int(port or 80), timeout=timeout)
     headers = {"Host": module.presented, **dict(module.headers), **(extra or {})}
     if method == "POST":
-        headers["Content-Length"] = "0"
+        headers["Content-Length"] = str(len(body))
+        if body:
+            headers["Content-Type"] = "application/json"
     try:
-        conn.request(method, path, headers=headers)
+        conn.request(method, path, headers=headers, body=body or None)
         response = conn.getresponse()
-        return response.status, response.read(2_000_000)
+        return response.status, response.read(MAX_BODY), response.getheader("Content-Type", "")
     finally:
         conn.close()
 
 
 def _get(module: Module, path: str, timeout: float, extra: dict[str, str] | None = None) -> tuple[int, bytes]:
-    return _call(module, "GET", path, timeout, extra)
+    status, body, _ = _call(module, "GET", path, timeout, extra=extra)
+    return status, body
 
 
 class Upstreams:
@@ -58,12 +63,16 @@ class Upstreams:
             self._tokens[module.id] = token
         return token
 
-    def _authed(self, module: Module, method: str, path: str, timeout: float) -> tuple[int, bytes]:
+    def _authed_full(self, module: Module, method: str, path: str, timeout: float, body: bytes = b"") -> tuple[int, bytes, str]:
         if module.auth is None:
-            return _call(module, method, path, timeout)
-        status, body = _call(module, method, path, timeout, {module.auth.header: self._token(module)})
-        if status == 403:  # the app was restarted and printed a new token
-            status, body = _call(module, method, path, timeout, {module.auth.header: self._token(module, refresh=True)})
+            return _call(module, method, path, timeout, body=body)
+        result = _call(module, method, path, timeout, extra={module.auth.header: self._token(module)}, body=body)
+        if result[0] == 403:  # the app was restarted and printed a new token
+            result = _call(module, method, path, timeout, extra={module.auth.header: self._token(module, refresh=True)}, body=body)
+        return result
+
+    def _authed(self, module: Module, method: str, path: str, timeout: float) -> tuple[int, bytes]:
+        status, body, _ = self._authed_full(module, method, path, timeout)
         return status, body
 
     def _authed_get(self, module: Module, path: str, timeout: float) -> tuple[int, bytes]:
@@ -162,3 +171,41 @@ class Upstreams:
         except (OSError, http.client.HTTPException, ValueError, AttributeError):
             return {"configured": True, "up": False, "models": []}
         return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}
+
+    # ---- the single chat: one question to one app, and a picture from an app ------------------------------------------
+    def ask(self, module: Module, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
+        """One app's answer to one question, in the contract's shape. Never raises: a failure comes back as an error to show."""
+        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history}).encode()
+        try:
+            status, body, _ = self._authed_full(module, "POST", module.ask, ASK_SECONDS, payload)
+            raw = json.loads(body)
+        except (OSError, http.client.HTTPException, ValueError):
+            return {"ok": False, "error": f"{module.name} is not running"}
+        if status != 200 or not isinstance(raw, dict):
+            return {
+                "ok": False,
+                "error": str(raw.get("error", f"{module.name} could not answer"))[:300] if isinstance(raw, dict) else f"{module.name} could not answer",
+            }
+        items = []
+        for item in (raw.get("items") or [])[:24]:
+            thumb = str(item.get("thumb", "")) if isinstance(item, dict) else ""
+            if thumb.startswith(module.media) and module.media and ".." not in thumb:
+                items.append(
+                    {"kind": str(item.get("kind", ""))[:20], "thumb": f"/_atlas/api/media/{module.id}{thumb}", "link": str(item.get("link", ""))[:300]}
+                )
+        return {
+            "ok": True,
+            "text": str(raw.get("text", ""))[:6000],
+            "items": items,
+            "total": int(raw.get("total") or 0),
+            "notes": [str(n)[:300] for n in (raw.get("notes") or [])][:3],
+        }
+
+    def media(self, module: Module, path: str) -> tuple[int, bytes, str]:
+        """A picture from an app, fetched on the page's behalf (the app's token never reaches the page). Only the app's declared media path is allowed."""
+        if not module.media or not path.startswith(module.media) or ".." in path or "?" in path:
+            return 404, b"", ""
+        try:
+            return self._authed_full(module, "GET", path, SEARCH_SECONDS)
+        except (OSError, http.client.HTTPException):
+            return 502, b"", ""

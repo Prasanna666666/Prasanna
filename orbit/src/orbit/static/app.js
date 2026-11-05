@@ -1713,6 +1713,12 @@
         });
     }
     async function setCorner(on, text) {
+        if (EMBEDDED) {
+            // inside Atlas there is one chat for everything: hand the question or the request to it
+            if (text) toParent({ type: 'ask', text });
+            else if (on) toParent({ type: 'toggle-chat' });
+            return;
+        }
         const panel = $('#chat-panel');
         if (!panel) return;
         if (on && route() === 'chat') {
@@ -1720,7 +1726,6 @@
             return;
         } // the full page is already a chat
         corner.open = on;
-        if (EMBEDDED) toParent({ type: 'chat', open: on });
         panel.hidden = !on;
         document.body.classList.toggle('chat-open', on);
         if (on) {
@@ -1731,6 +1736,10 @@
     }
     /** Open the chat (from anywhere) and ask this. */
     function askAssistant(text) {
+        if (EMBEDDED) {
+            toParent({ type: 'ask', text });
+            return;
+        }
         if (route() === 'chat') {
             sessionStorage.setItem('orbit.ask', text);
             render();
@@ -3935,8 +3944,6 @@
             if (event.source !== window.parent || !m || m.atlas !== 1) return;
             if (m.type === 'navigate' && typeof m.hash === 'string') location.hash = m.hash;
             else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode)) applyTheme(m.mode);
-            else if (m.type === 'toggle-chat') setCorner(!corner.open);
-            else if (m.type === 'ask' && typeof m.text === 'string') askAssistant(m.text);
         });
         window.addEventListener('hashchange', () => toParent({ type: 'route', hash: location.hash }));
         toParent({ type: 'ready' });

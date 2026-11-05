@@ -19,13 +19,13 @@ def test_the_app_may_be_shown_inside_the_hub_page_and_nowhere_else(running):
 
 
 def test_a_page_from_another_site_cannot_act_through_the_hub(running):
-    status, _, _ = photos(running, "/api/chat", "POST", b"{}", {"Origin": "http://evil.example"})
+    status, _, _ = photos(running, "/api/echo", "POST", b"{}", {"Origin": "http://evil.example"})
     assert status == 403 and not any(s["method"] == "POST" for s in running.apps["photos"].seen)
 
 
 def test_the_hubs_own_origins_are_passed_on_as_the_apps_own(running):
     origin = f"http://photos.atlas.localhost:{running.port}"
-    status, _, body = photos(running, "/api/chat", "POST", b'{"a": 1}', {"Origin": origin, "Content-Type": "application/json"})
+    status, _, body = photos(running, "/api/echo", "POST", b'{"a": 1}', {"Origin": origin, "Content-Type": "application/json"})
     assert status == 200 and json.loads(body) == {"echo": '{"a": 1}'}
     assert running.apps["photos"].seen[-1]["origin"] == running.apps["photos"].url
 
@@ -36,7 +36,7 @@ def test_a_streamed_answer_arrives_in_pieces_not_all_at_the_end(running):
 
 
 def test_an_oversized_request_is_refused_before_it_reaches_the_app(running):
-    status, _, _ = photos(running, "/api/chat", "POST", None, {"Content-Length": str(50 * 1024 * 1024)})
+    status, _, _ = photos(running, "/api/echo", "POST", None, {"Content-Length": str(50 * 1024 * 1024)})
     assert status == 413
 
 
