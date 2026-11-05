@@ -240,65 +240,30 @@ class Executor:
     )  # facts: the photo's own GPS, place tag, folder name, or a named person
     SOFT = ("text", "tag", "visual")  # clues: a word that appears in the picture, or what the picture looks like
 
+    WORDING = (
+        ("place", "Taken in {}"),
+        ("near", "Taken near {}"),
+        ("estimated", "Probably taken in {}"),
+        ("path", "In folders named {}"),
+        ("person", "People called {}"),
+        ("tag", "Looks like {}"),
+        ("text", "The word {} in the photo"),
+        ("visual", "Similar to {}"),
+    )
+
     def explore(self, plan: Plan) -> Exploration:
         """Every way the search words could be meant, each searched on its own and then VALIDATED against everything stored about the
         photos: a photo is kept only if it has hard evidence (its GPS, place tag, folder or a named person) or at least two independent
         clues agree. Single weak clues (one word in a receipt, one look-alike guess) are dropped. Then the trip of the confirmed photos."""
         scratch = ExecResult(ids=np.zeros(0, np.int64))
         until = time.monotonic() + EXPLORE_SECONDS
-        universe = all_ids(self._conn)
-        limit = max(50, int(0.2 * len(universe)))  # a meaning that matches a fifth of the library says nothing
+        limit = max(50, int(0.2 * len(all_ids(self._conn))))  # a meaning that matches a fifth of the library says nothing
         found: list[tuple[str, np.ndarray]] = []
         term_sets: dict[str, np.ndarray] = {}
         terms = list(dict.fromkeys(c.query.strip() for c in plan.clauses if not c.exclude and c.query.strip()))
         for term in terms:
-            wording = (
-                ("place", f"Taken in {term}"),
-                ("near", f"Taken near {term}"),
-                ("estimated", f"Probably taken in {term}"),
-                ("path", f"In folders named {term}"),
-                ("person", f"People called {term}"),
-                ("tag", f"Looks like {term}"),
-                ("text", f"The word {term} in the photo"),
-                ("visual", f"Similar to {term}"),
-            )
-            readings: list[tuple[str, str, np.ndarray]] = []
-            identified = False  # found by hard evidence: guesses from appearance would only add noise
-            for engine, label in wording:
-                if identified and engine in ("tag", "visual"):
-                    continue
-                if time.monotonic() > until:  # a hard stop: whatever was found so far is the answer
-                    scratch.notes.append("Some ways of matching were skipped to keep this fast.")
-                    break
-                ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
-                if engine == "visual" and len(ids):
-                    ids = np.intersect1d(
-                        ids, self._vision_agrees(term)
-                    )  # a guess from appearance counts only if Apple Vision agrees
-                if 0 < len(ids) <= limit:
-                    readings.append((engine, label, np.sort(ids)))
-                    identified = identified or engine in self.HARD
-            hard_found = [(engine, ids) for engine, _, ids in readings if engine in self.HARD]
-            if len(hard_found) >= 2:
-                # Several hard facts point at the same word (the place name, GPS nearby, a folder...): one combined answer, not separate tabs.
-                # Photos near a city are often named after a smaller neighbouring town, so the place name alone misses them.
-                union = np.unique(np.concatenate([ids for _, ids in hard_found]))
-                readings = [("place", f"Taken in or near {term}", union)] + [r for r in readings if r[0] not in self.HARD]
-            hard = [ids for engine, _, ids in readings if engine in self.HARD]
-            confirmed = np.unique(np.concatenate(hard)) if hard else np.zeros(0, np.int64)
-            soft = [(label, ids) for engine, label, ids in readings if engine in self.SOFT]
-            support: dict[int, int] = {}
-            for _, ids in soft:
-                for i in ids.tolist():
-                    support[i] = support.get(i, 0) + 1
-            agreed = np.array(sorted(i for i, n in support.items() if n >= 2), np.int64)  # two independent clues agree
-            if len(agreed):
-                confirmed = np.union1d(confirmed, agreed)
-            for engine, _, ids in readings:
-                if (
-                    engine == "tag"
-                ):  # a picture label that is already strong, or backed by two sources, is evidence in its own right
-                    confirmed = np.union1d(confirmed, ids)
+            readings = self._read_term(term, scratch, until, limit)
+            confirmed = self._confirmed(readings)
             term_sets[term] = confirmed
             for engine, label, ids in readings:
                 if engine in self.SOFT:
@@ -313,48 +278,101 @@ class Executor:
             )  # one condition only: with several it just confuses
             if 0 < len(trip) <= limit:
                 found.append((f"Same trip as your {term} photos", np.sort(trip)))
+        when = self._dated(plan, found)
+        self._widen_subject(plan, term_sets, when, scratch)
+        return self._without_excluded(plan, found, term_sets, when, scratch)
+
+    def _read_term(self, term: str, scratch: ExecResult, until: float, limit: int) -> list[tuple[str, str, np.ndarray]]:
+        """One search word read every way (place, folder, person, text, look ...): [(engine, label, photo ids)], hard evidence merged."""
+        readings: list[tuple[str, str, np.ndarray]] = []
+        identified = False  # found by hard evidence: guesses from appearance would only add noise
+        for engine, template in self.WORDING:
+            if identified and engine in ("tag", "visual"):
+                continue
+            if time.monotonic() > until:  # a hard stop: whatever was found so far is the answer
+                scratch.notes.append("Some ways of matching were skipped to keep this fast.")
+                break
+            ids = self._near_ids(term, scratch) if engine == "near" else self._engine_ids(engine, term, scratch)
+            if engine == "visual" and len(ids):
+                ids = np.intersect1d(ids, self._vision_agrees(term))  # a guess from appearance counts only if Apple Vision agrees
+            if 0 < len(ids) <= limit:
+                readings.append((engine, template.format(term), np.sort(ids)))
+                identified = identified or engine in self.HARD
+        hard_found = [(engine, ids) for engine, _, ids in readings if engine in self.HARD]
+        if len(hard_found) >= 2:
+            # Several hard facts point at the same word (the place name, GPS nearby, a folder...): one combined answer, not separate tabs.
+            # Photos near a city are often named after a smaller neighbouring town, so the place name alone misses them.
+            union = np.unique(np.concatenate([ids for _, ids in hard_found]))
+            readings = [("place", f"Taken in or near {term}", union)] + [r for r in readings if r[0] not in self.HARD]
+        return readings
+
+    def _confirmed(self, readings: list[tuple[str, str, np.ndarray]]) -> np.ndarray:
+        """The photos with hard evidence, or where two independent soft clues agree, or a picture label that is strong in its own right."""
+        hard = [ids for engine, _, ids in readings if engine in self.HARD]
+        confirmed = np.unique(np.concatenate(hard)) if hard else np.zeros(0, np.int64)
+        support: dict[int, int] = {}
+        for engine, _, ids in readings:
+            if engine in self.SOFT:
+                for i in ids.tolist():
+                    support[i] = support.get(i, 0) + 1
+        agreed = np.array(sorted(i for i, n in support.items() if n >= 2), np.int64)  # two independent clues agree
+        if len(agreed):
+            confirmed = np.union1d(confirmed, agreed)
+        for engine, _, ids in readings:
+            if engine == "tag":  # a picture label that is already strong, or backed by two sources, is evidence in its own right
+                confirmed = np.union1d(confirmed, ids)
+        return confirmed
+
+    def _dated(self, plan: Plan, found: list[tuple[str, np.ndarray]]) -> np.ndarray | None:
+        """The photos taken in the time asked for (added as a group); None if no time was asked for."""
         span = resolve(plan.date, self._today()) if not plan.date.is_empty else None
-        when: np.ndarray | None = None
-        if span is not None:
-            ids = date_ids(self._conn, span[0].isoformat(), span[1].isoformat())
-            when = np.sort(ids)
-            if len(ids):
-                found.append((f"Taken {span[0].isoformat()} to {(span[1] - timedelta(days=1)).isoformat()}", np.sort(ids)))
+        if span is None:
+            return None
+        ids = np.sort(date_ids(self._conn, span[0].isoformat(), span[1].isoformat()))
+        if len(ids):
+            found.append((f"Taken {span[0].isoformat()} to {(span[1] - timedelta(days=1)).isoformat()}", ids))
+        return ids
+
+    def _widen_subject(self, plan: Plan, term_sets: dict[str, np.ndarray], when: np.ndarray | None, scratch: ExecResult) -> None:
+        """The subject has no label of its own (no folder or caption says "hockey"). Where the OTHER conditions already pin the photos down
+        (the place, the time), look at what the pictures show, using the cloud's plain descriptions of how it would look."""
         subject = next((c.query.strip() for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",)), "")
-        if plan.meanings and subject in term_sets:
-            # The subject has no label of its own (no folder or caption says "hockey"). Where the OTHER conditions already pin the photos down
-            # (the place, the time), look at what the pictures show, using the cloud's plain descriptions of how it would look.
-            fixed = [ids for term, ids in term_sets.items() if term != subject]
-            if when is not None:
-                fixed.append(when)
-            if fixed:
-                region = fixed[0]
-                for other in fixed[1:]:
-                    region = np.intersect1d(region, other)
-                if len(region):
-                    seen = [np.intersect1d(self._visual_ids(m, scratch), region) for m in plan.meanings]
-                    looks = np.unique(np.concatenate(seen)) if seen else np.zeros(0, np.int64)
-                    if len(looks):
-                        term_sets[subject] = np.union1d(term_sets[subject], looks)
-        banned = [
-            self._clause_ids(c, scratch) for c in plan.clauses if c.exclude
-        ]  # what the user said they do not want stays out
+        if not plan.meanings or subject not in term_sets:
+            return
+        fixed = [ids for term, ids in term_sets.items() if term != subject]
+        if when is not None:
+            fixed.append(when)
+        if not fixed:
+            return
+        region = fixed[0]
+        for other in fixed[1:]:
+            region = np.intersect1d(region, other)
+        if len(region):
+            seen = [np.intersect1d(self._visual_ids(m, scratch), region) for m in plan.meanings]
+            looks = np.unique(np.concatenate(seen)) if seen else np.zeros(0, np.int64)
+            if len(looks):
+                term_sets[subject] = np.union1d(term_sets[subject], looks)
+
+    def _without_excluded(
+        self,
+        plan: Plan,
+        found: list[tuple[str, np.ndarray]],
+        term_sets: dict[str, np.ndarray],
+        when: np.ndarray | None,
+        scratch: ExecResult,
+    ) -> Exploration:
+        """What the user said they do not want stays out, and the exact filters apply to every group and every condition."""
+        banned = [self._clause_ids(c, scratch) for c in plan.clauses if c.exclude]
         allowed = apply_filters(self._conn, plan.filters, self._geo_provider())[0] if not plan.filters.is_empty else None
-        kept: list[tuple[str, np.ndarray]] = []
-        for label, ids in found:
+
+        def clean(ids: np.ndarray) -> np.ndarray:
             for gone in banned:
                 ids = np.setdiff1d(ids, gone)
-            if allowed is not None:
-                ids = np.intersect1d(ids, allowed)
-            if len(ids):
-                kept.append((label, ids))
-        for term, ids in list(term_sets.items()):  # what the person excluded, and the exact filters, apply to every condition
-            for gone in banned:
-                ids = np.setdiff1d(ids, gone)
-            if allowed is not None:
-                ids = np.intersect1d(ids, allowed)
-            term_sets[term] = ids
-        return Exploration(kept, term_sets, when)
+            return np.intersect1d(ids, allowed) if allowed is not None else ids
+
+        kept = [(label, clean(ids)) for label, ids in found]
+        kept = [(label, ids) for label, ids in kept if len(ids)]
+        return Exploration(kept, {term: clean(ids) for term, ids in term_sets.items()}, when)
 
     def readings(self, plan: Plan) -> list[tuple[str, np.ndarray]]:
         return self.explore(plan).readings
