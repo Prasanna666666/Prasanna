@@ -360,6 +360,9 @@ class _Handler(JsonHandler):
             return False
         if not self._authorised():
             return False
+        if not self._signed():
+            self._fail(HTTPStatus.UNAUTHORIZED, "This request is not signed by the platform.")
+            return False
         if writing:
             origin = self.headers.get("Origin")
             if self.headers.get("X-Orbit") != "1" or (origin and not host_ok(origin.split("://", 1)[-1], ALLOWED_HOSTS)):

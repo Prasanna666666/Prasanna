@@ -32,6 +32,7 @@ import numpy as np
 from images import library as lib
 from images.config import preview_rel, thumb_rel
 from images.indexing.progress import ScanLock
+from kit import sign
 
 from .. import library_link
 from ..agent.llm import CALL_LOG
@@ -472,6 +473,9 @@ class _Handler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin is not None and origin not in self.allowed_origins:
             self._deny(HTTPStatus.FORBIDDEN, "unknown origin")
+            return False
+        if not sign.valid(self.command, self.path, self.headers.get(sign.HEADER)):
+            self._deny(HTTPStatus.UNAUTHORIZED, "this request is not signed by the platform")
             return False
         if api:
             query = parse_qs(urlparse(self.path).query)

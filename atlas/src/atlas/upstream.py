@@ -11,6 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+from kit.sign import sign
+
 from .registry import Module
 
 HEALTH_SECONDS = 1.5
@@ -26,7 +28,7 @@ MAX_BODY = 8_000_000
 def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict[str, str] | None = None, body: bytes = b"") -> tuple[int, bytes, str]:
     host, _, port = module.netloc.partition(":")
     conn = http.client.HTTPConnection(host, int(port or 80), timeout=timeout)
-    headers = {"Host": module.presented, **dict(module.headers), **(extra or {})}
+    headers = {"Host": module.presented, **dict(module.headers), **(extra or {}), **sign(method, path)}
     if method == "POST":
         headers["Content-Length"] = str(len(body))
         if body:

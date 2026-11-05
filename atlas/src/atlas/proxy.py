@@ -10,6 +10,8 @@ import re
 from http import HTTPStatus
 from typing import Any
 
+from kit.sign import sign
+
 from .registry import Module
 
 MAX_BODY = 10 * 1024 * 1024
@@ -71,7 +73,7 @@ def forward(handler: Any, module: Module, origins: frozenset[str], shell_origin:
     host, _, port = module.netloc.partition(":")
     conn = http.client.HTTPConnection(host, int(port or 80), timeout=CONNECT_SECONDS)
     try:
-        conn.request(handler.command, handler.path, body=body, headers=headers)
+        conn.request(handler.command, handler.path, body=body, headers={**headers, **sign(handler.command, handler.path)})
         if conn.sock is not None:
             conn.sock.settimeout(READ_SECONDS)
         response = conn.getresponse()

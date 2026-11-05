@@ -39,6 +39,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ORBIT_PARSED: /parsed
+      PLATFORM_KEY: ${PLATFORM_KEY:-}   # calls from the other apps must be signed with it (from the Keychain, by up.sh)
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
     volumes:
       - library-data:/data

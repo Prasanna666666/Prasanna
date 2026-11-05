@@ -10,7 +10,7 @@ from collections.abc import Collection
 from http.server import BaseHTTPRequestHandler
 from typing import Any, ClassVar
 
-from . import netguard
+from . import netguard, sign
 
 MAX_BODY = 1_000_000
 STRICT_CSP = "default-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
@@ -55,6 +55,10 @@ class JsonHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _signed(self) -> bool:
+        """A request from another program of the platform carries a fresh signature (see sign.py); with no secret set, nothing is checked."""
+        return sign.valid(self.command, self.path, self.headers.get(sign.HEADER))
+
     def _json(self, obj: Any, status: int = 200) -> None:
         self._send(status, json.dumps(obj, default=str).encode())
 
@@ -81,7 +85,10 @@ def call_local(base: str, method: str, path: str, header: str, unavailable: str,
         raise RuntimeError("The service address is not valid.")
     netguard.allow_local(parts.hostname)
     request = urllib.request.Request(  # noqa: S310 - http only, a host on this computer or its private network
-        url, method=method, data=b"{}" if method == "POST" else None, headers={header: "1", "Accept": "application/json"}
+        url,
+        method=method,
+        data=b"{}" if method == "POST" else None,
+        headers={header: "1", "Accept": "application/json", **sign.sign(method, parts.path + (f"?{parts.query}" if parts.query else ""))},
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310

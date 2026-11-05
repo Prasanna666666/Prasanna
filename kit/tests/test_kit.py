@@ -53,3 +53,23 @@ def test_host_check_and_the_shared_service_call(monkeypatch):
         http.call_local("ftp://x", "GET", "/", "X-Test", "down")
     with pytest.raises(RuntimeError, match="down"):
         http.call_local("http://127.0.0.1:9", "GET", "/", "X-Test", "down", timeout=1)
+
+
+def test_signatures_are_checked_only_with_a_secret_and_only_fresh_and_exact():
+    from kit import sign
+
+    secret = b"s3cret"
+    header = sign.sign("GET", "/api/documents?kind=ticket", secret, now=1000)[sign.HEADER]
+    assert sign.valid("GET", "/api/documents?kind=ticket", header, secret, now=1030)
+    assert not sign.valid("POST", "/api/documents?kind=ticket", header, secret, now=1030)  # another method
+    assert not sign.valid("GET", "/api/documents?kind=medical", header, secret, now=1030)  # another path
+    assert not sign.valid("GET", "/api/documents?kind=ticket", header, secret, now=1100)  # too old
+    assert not sign.valid("GET", "/api/documents?kind=ticket", header, b"other", now=1030)  # another secret
+    assert not sign.valid("GET", "/x", None, secret) and not sign.valid("GET", "/x", "junk", secret)
+
+
+def test_without_a_secret_nothing_is_signed_or_checked(monkeypatch):
+    from kit import sign
+
+    monkeypatch.delenv("PLATFORM_KEY", raising=False)
+    assert sign.sign("GET", "/x") == {} and sign.valid("GET", "/x", None) is True

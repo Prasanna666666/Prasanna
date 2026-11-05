@@ -43,6 +43,7 @@ If something here is wrong, the owner says so once and it is changed here.
 - Threat model: **theft or loss of the laptop is out of scope.** No login password, no FileVault requirement. Other programs and web pages reaching local ports, hostile files, prompt injection, leaks and bugs **are** in scope.
 - Health data is locked until unlocked each session (default; change by decision).
 - **Very personal data (mail, documents, statements) is kept only in the encrypted database.** The sealed reader's readable copy is deleted as soon as the app has stored it; only content-free markers remain. Nothing personal goes to logs, the network or git.
+- **Calls between the platform's programs are signed** with a shared secret kept in the Keychain (`scripts/platform-key.sh`); a service refuses unsigned requests. Opening an app's port directly in a browser therefore no longer works: use Atlas.
 - Docker by default for both apps; no internet for the apps; originals mounted read-only.
 - The macOS launcher bundle and data folders keep their old internal names so nothing already on the machine breaks.
 

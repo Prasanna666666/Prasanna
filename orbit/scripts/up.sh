@@ -27,5 +27,6 @@ security delete-generic-password -a "$USER" -s orbit-web-token >/dev/null 2>&1 |
 export ORBIT_TOKEN=""
 mkdir -p "$HOME/OrbitInbox/notes"
 export ORBIT_DB_KEY="$KEY"
+source ../scripts/platform-key.sh
 docker compose up -d --build
 echo "Finance: http://finance.localhost:8501   (no password; files and mail are read by Documents: ../library/scripts/up.sh)"

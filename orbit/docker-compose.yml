@@ -22,6 +22,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ORBIT_INBOX: /inbox
+      PLATFORM_KEY: ${PLATFORM_KEY:-}   # the apps sign their calls to each other (from the Keychain, by up.sh)
       LIBRARY_URL: http://library.internal:8502   # the Documents service reads every file and mail; Finance takes the documents that matter here
       ORBIT_TOKEN: ${ORBIT_TOKEN:-}   # the web token from up.sh; empty = no token required (development only)
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh

@@ -20,7 +20,7 @@ atlas = ["static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src", "tests"]
+pythonpath = ["src", "tests", "../kit/src"]
 
 [tool.ruff]
 line-length = 160
@@ -37,5 +37,6 @@ ignore = ["S101", "PLR0913", "PLR2004", "E501", "S310"]
 max-complexity = 15
 
 [tool.mypy]
+mypy_path = "src:../kit/src"
 strict = true
 python_version = "3.10"

@@ -93,3 +93,13 @@ def test_one_update_reads_judges_and_serves_everything(server):
 def test_an_unknown_document_and_unknown_route_say_so(server):
     port, _ = server
     assert call(port, "GET", "/api/document?id=999")[0] == 404 and call(port, "GET", "/api/nothing")[0] == 404
+
+
+def test_with_the_platform_key_set_an_unsigned_request_is_refused_and_a_signed_one_works(server, monkeypatch):
+    from kit import sign
+
+    port, _ = server
+    monkeypatch.setenv("PLATFORM_KEY", "a-shared-secret")
+    assert call(port, "GET", "/api/status")[0] == 401  # another program on this computer, without the key
+    assert call(port, "GET", "/api/status", headers=sign.sign("GET", "/api/status"))[0] == 200
+    assert call(port, "GET", "/api/status", headers=sign.sign("GET", "/api/other"))[0] == 401  # a signature for another path

@@ -5,7 +5,7 @@ name: atlas
 
 services:
   atlas:
-    build: .
+    build: {context: .., dockerfile: atlas/Dockerfile}
     image: atlas:local
     read_only: true
     cap_drop: [ALL]
@@ -17,6 +17,7 @@ services:
     ports: ["127.0.0.1:${ATLAS_PORT:-8000}:8000"]
     extra_hosts: ["host.docker.internal:host-gateway"]   # the apps publish their ports on this computer; this is how the atlas reaches them
     environment:
+      PLATFORM_KEY: "${PLATFORM_KEY:-}"   # signs Atlas's calls to the apps (from the Keychain, by up.sh)
       ATLAS_PUBLIC_PORT: "${ATLAS_PORT:-8000}"
       ATLAS_DOMAIN: "${ATLAS_DOMAIN:-atlas.localhost}"
     volumes:

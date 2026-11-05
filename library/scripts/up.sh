@@ -17,6 +17,7 @@ mkdir -p "$HOME/OrbitInbox"
 export ORBIT_FINANCE_DIR="${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}"   # keep your finance folder where it is: ORBIT_FINANCE_DIR=/path ./scripts/up.sh
 mkdir -p "$ORBIT_FINANCE_DIR"
 export ORBIT_DB_KEY="$KEY"
+source ../scripts/platform-key.sh
 FILES=(-f docker-compose.yml)
 [ -d "${ORBIT_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ORBIT_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ORBIT_NO_MAIL=1 to turn off)
 [ -d "${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos" ] && FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected

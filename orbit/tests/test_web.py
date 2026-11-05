@@ -338,3 +338,11 @@ def test_asking_for_documents_works_even_when_the_model_is_not_running(server):
     assert out["ok"] and [i["title"] for i in out["items"]] == ["ziggo-march.pdf"]
     nothing = post(server, "/api/ask", {"text": "show me the Albert Heijn invoices", "show": {"documents": True}})
     assert nothing[0] in (200, 502)  # nothing matched, so it falls back to the assistant, which needs the model
+
+
+def test_with_the_platform_key_set_an_unsigned_request_is_refused_and_a_signed_one_works(server, monkeypatch):
+    from kit import sign
+
+    monkeypatch.setenv("PLATFORM_KEY", "a-shared-secret")
+    assert call(server, "GET", "/api/home")[0] == 401
+    assert call(server, "GET", "/api/home", headers=sign.sign("GET", "/api/home"))[0] == 200

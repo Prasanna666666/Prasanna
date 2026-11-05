@@ -234,6 +234,9 @@ class _Handler(JsonHandler):
         if not host_ok(self.headers.get("Host"), ALLOWED_HOSTS):
             self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8502")
             return False
+        if not self._signed():
+            self._fail(HTTPStatus.UNAUTHORIZED, "This request is not signed by the platform.")
+            return False
         if writing:
             origin = self.headers.get("Origin")
             if self.headers.get("X-Library") != "1" or (origin and not host_ok(origin.split("://", 1)[-1], ALLOWED_HOSTS)):
