@@ -313,12 +313,7 @@
             } // a preview that was not confirmed
             if (d.kind !== 'error' && d.text) history.push({ role: 'assistant', text: d.record || d.text });
             if (SHOW_TRACE) addTrace(msg, d);
-            const who =
-                d.timings && d.timings.understood === 'cloud'
-                    ? '  \u00b7  \u2601 cloud understood the request'
-                    : d.timings && d.timings.understood === 'local'
-                      ? '  \u00b7  understood locally'
-                      : '';
+            const who = d.timings && d.timings.understood === 'local' ? '  \u00b7  understood locally' : '';
             if (d.took >= 0.01) {
                 msg.body.append(
                     el(
@@ -1096,38 +1091,10 @@
         }
         return c;
     }
-    async function setCloud(on) {
-        try {
-            const r = await (
-                await api('/api/cloud', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ on }),
-                })
-            ).json();
-            if (!r.ok) alert(r.error);
-        } catch (e) {
-            /* the next status refresh shows the truth */
-        }
-        refreshStatus();
-    }
     const searchChip = (s) => {
         if (s.search_ready) return chip('Search ready', 'ok');
         return s.warm_problem ? chip('Search unavailable', 'bad') : chip('Search warming up', 'warn');
     };
-    function cloudChips(s) {
-        const state = s.cloud && s.cloud.state;
-        if (state === 'connected') {
-            const spent = Number(s.cloud.spent || 0).toFixed(2);
-            const cap = Number(s.cloud.cap || 0).toFixed(0);
-            return [chip(`Cloud on · $${spent} of $${cap}`, 'ok', { text: 'Turn off', run: () => setCloud(false) })];
-        }
-        if (state === 'down') {
-            return [chip('Cloud not connected: local only', 'warn', { text: 'Turn off', run: () => setCloud(false) })];
-        }
-        if (state === 'local') return [chip('Local only', 'ok', { text: 'Use cloud', run: () => setCloud(true) })];
-        return [];
-    }
     function indexingChips(s) {
         const chips = [];
         if (s.photos) chips.push(chip(`${s.photos.toLocaleString()} photos`, 'ok'));
@@ -1157,7 +1124,6 @@
             $('#chips').replaceChildren(
                 searchChip(s),
                 chip(s.ai ? s.model : 'AI offline', s.ai ? 'ok' : 'bad'),
-                ...cloudChips(s),
                 ...indexingChips(s)
             );
             notReady = !s.search_ready && !s.warm_problem;

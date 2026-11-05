@@ -335,7 +335,7 @@ class Executor:
 
     def _widen_subject(self, plan: Plan, term_sets: dict[str, np.ndarray], when: np.ndarray | None, scratch: ExecResult) -> None:
         """The subject has no label of its own (no folder or caption says "hockey"). Where the OTHER conditions already pin the photos down
-        (the place, the time), look at what the pictures show, using the cloud's plain descriptions of how it would look."""
+        (the place, the time), look at what the pictures show, using the model's plain descriptions of how it would look."""
         subject = next((c.query.strip() for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",)), "")
         if not plan.meanings or subject not in term_sets:
             return

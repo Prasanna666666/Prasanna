@@ -6,7 +6,6 @@ import argparse
 import json
 import logging
 import os
-import re
 import shutil
 import signal
 import sys
@@ -86,12 +85,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     vn.add_argument("--hours", type=float, default=0.0, help="stop after this many hours (0 = until done)")
     vn.add_argument("--limit", type=int, default=0)
-    cl = sub.add_parser(
-        "cloud", help="optional: let a cloud model understand what you type (only the words, names hidden); enable | off | status"
-    )
-    cl.add_argument("action", choices=["enable", "off", "status", "test"])
-    cl.add_argument("--forget-key", action="store_true", help="with `off`: also delete the API key from the Keychain")
-    sub.add_parser("cloud-gateway", help="(internal) the sandboxed program that talks to the cloud provider; started for you")
     ask = sub.add_parser("ask", help="ask the agent in plain English")
     ask.add_argument("request", nargs="+")
     ask.add_argument("--limit", type=int, default=20, help="rows to print (results are never truncated internally)")
@@ -116,8 +109,6 @@ def build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("--photo-dir")
     cfg.add_argument("--export-dir")
     cfg.add_argument("--ollama-model")
-    cfg.add_argument("--cloud-model", help="the cloud model that reads your typed question (default claude-haiku-5-5)")
-    cfg.add_argument("--cloud-cap", type=float, help="monthly spending cap in USD for the cloud option (default 5)")
     cfg.add_argument(
         "--image-model",
         choices=["small", "large"],
@@ -650,122 +641,6 @@ def cmd_venues(ctx: AppContext, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_cloud_gateway() -> int:
-    """Run the gateway. It never opens the library: everything it needs arrives in its environment."""
-    from .cloud import gateway as gw
-
-    key = os.environ.pop("APERTURE_CLOUD_KEY", "")
-    if not key:
-        print("no API key was given to the gateway")
-        return 2
-    prices = tuple(float(x) for x in os.environ.get("APERTURE_CLOUD_PRICES", "1.0,5.0").split(","))
-    usage = gw.Usage(Path.home() / "Library" / "Application Support" / "Lumo" / "cloud-usage.json")
-    gateway = gw.Gateway(
-        key,
-        usage,
-        os.environ.get("APERTURE_CLOUD_MODEL", gw.DEFAULT_MODEL),
-        float(os.environ.get("APERTURE_CLOUD_CAP", "5")),
-        (prices[0], prices[1]),
-    )
-    return gw.serve(gateway, int(os.environ.get("APERTURE_CLOUD_PORT", "8770")))
-
-
-def cmd_cloud(paths: Paths, args: argparse.Namespace) -> int:
-    import subprocess
-
-    from . import launcher
-
-    settings = Settings.load(paths)
-    user = os.environ.get("USER", "")
-    if args.action == "enable":
-        if sys.platform != "darwin":
-            print("The cloud option stores its key in the macOS Keychain, so it needs a Mac.")
-            return 2
-        import getpass
-
-        print(
-            "Paste your Anthropic API key when asked. It starts with sk-ant- and comes from console.anthropic.com > API keys.\n"
-            "It is NOT your Mac password or your Claude login. What you type is hidden and goes straight into your Keychain, never into a file."
-        )
-        typed = getpass.getpass("API key: ")
-        found = re.search(
-            r"sk-ant-[A-Za-z0-9_\-]{20,}", typed
-        )  # a paste can carry invisible extras (spaces, a newline, terminal markers)
-        if not found:
-            print(
-                f"That was not an API key: {len(typed.strip())} characters"
-                f"{', and it does not contain sk-ant-' if 'sk-ant-' not in typed else ', but it looks cut short'}. Nothing was saved. "
-                "Create a key at console.anthropic.com > API keys, copy all of it, and try again."
-            )
-            return 1
-        done = subprocess.run(
-            ["/usr/bin/security", "-i"],
-            input=f"add-generic-password -U -s {launcher.KEYCHAIN_SERVICE} -a {user} -w {found.group(0)}\n",
-            text=True,
-            check=False,
-            capture_output=True,
-        )  # typed on stdin, so the key never appears in a command line
-        if done.returncode != 0:
-            print("The Keychain refused to save the key, so the cloud option stays off.")
-            return 1
-        if not launcher.keychain_key().startswith("sk-ant-"):
-            subprocess.run(
-                ["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False
-            )
-            print(
-                "That was not an API key (they start with sk-ant-), so it was not kept. Create one at console.anthropic.com under API keys and try again."
-            )
-            return 1
-        settings.cloud_interpreter = True
-        settings.save(paths)
-        print(
-            f"On. Only the words of what you type leave this Mac, with the names from your library replaced by placeholders. Never photos, faces, "
-            f"places, dates or results. Monthly cap ${settings.cloud_cap_usd:.2f}; if the cloud is unreachable the local model is used. "
-            "Restart the app: aperture secure-ui"
-        )
-        return 0
-    if args.action == "off":
-        settings.cloud_interpreter = False
-        settings.save(paths)
-        if args.forget_key:
-            subprocess.run(
-                ["/usr/bin/security", "delete-generic-password", "-s", launcher.KEYCHAIN_SERVICE, "-a", user], check=False
-            )
-            print("Off, and the key was removed from the Keychain.")
-        else:
-            print("Off. Nothing is sent to the cloud. (The key is still in the Keychain; add --forget-key to remove it.)")
-        return 0
-    if args.action == "test":
-        question = "photos of <PERSON_1> from the last 3 months"
-        print(f"sending only this to the cloud: {question!r}")
-        try:
-            http = urllib.request.Request(
-                f"http://127.0.0.1:{settings.cloud_port}/interpret",
-                data=json.dumps({"question": question, "has_previous": False}).encode(),
-            )
-            with urllib.request.urlopen(http, timeout=30) as response:
-                plan = json.loads(response.read()).get("plan")
-            print("the cloud understood it:", json.dumps(plan) if plan else "no usable plan (the local model would take over)")
-            return 0 if plan else 1
-        except urllib.error.HTTPError as exc:
-            print("failed:", json.loads(exc.read() or b"{}").get("error", f"HTTP {exc.code}"))
-        except OSError:
-            print(
-                "the gateway is not running: start the app with `aperture secure-ui` or `aperture install-service`, then try again"
-            )
-        return 1
-    print(
-        f"cloud understanding: {'ON' if settings.cloud_interpreter else 'off'}; model {settings.cloud_model}; monthly cap ${settings.cloud_cap_usd:.2f}"
-    )
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{settings.cloud_port}/status", timeout=2) as response:
-            info = json.loads(response.read())
-        print(f"gateway running: spent ${info['spent_usd']:.4f} of ${info['cap_usd']:.2f} this month ({info['month']})")
-    except OSError:
-        print("gateway: not running (it starts with `aperture secure-ui` when this is on)")
-    return 0
-
-
 def cmd_ask(ctx: AppContext, args: argparse.Namespace) -> int:
     reply = ctx.agent().ask(" ".join(args.request))
     print(reply.text)
@@ -935,7 +810,6 @@ def stop_old_ui(pid_file: Path, port: int) -> list[str]:
 def open_when_ready(port: int, attempts: int = 90, health: str = "/api/health") -> None:
     """Open the page in the default browser as soon as the server answers (runs in a background thread)."""
     import time
-    import urllib.request
     import webbrowser
 
     for _ in range(attempts):
@@ -1005,19 +879,11 @@ def cmd_secure_ui(paths: Paths, args: argparse.Namespace) -> int:
     port = _choose_port(args.port, wanted)
     if port is None:
         return 2
-    from . import launcher
     from .launcher import ensure_ollama
 
     print("Starting the AI engine (Ollama) if it is not running ...", flush=True)
     if not ensure_ollama():
         print("The AI engine did not answer within 45 seconds. Open the Ollama app yourself; the page will say when it is ready.")
-    if settings.cloud_interpreter:
-        problem = launcher.ensure_gateway(settings)
-        print(
-            "Cloud understanding is on: only the words you type are sent, with names hidden."
-            if not problem
-            else f"Cloud understanding is on but unavailable ({problem}); the local model is used."
-        )
     cmd = [str(script), str(photo)]
     export = Path(settings.export_dir).expanduser() if settings.export_dir else None
     if export is not None and export.is_dir():
@@ -1274,12 +1140,6 @@ def _cmd_settings(ctx: AppContext, args: argparse.Namespace) -> int:
             f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo."
         )
         changed = True
-    if args.cloud_model:
-        s.cloud_model = args.cloud_model
-        changed = True
-    if args.cloud_cap is not None:
-        s.cloud_cap_usd = max(0.0, args.cloud_cap)
-        changed = True
     if args.estimate_locations:
         s.estimate_locations = args.estimate_locations == "on"
         changed = True
@@ -1334,10 +1194,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     enable_offline_guard()  # no-op while fetching models
 
     # commands that need no library (and so no drive): run before anything is opened
-    if args.command == "cloud-gateway":
-        return cmd_cloud_gateway()
-    if args.command == "cloud":
-        return 2 if _require_drive(paths) else cmd_cloud(paths, args)
     if args.command == "secure-ui":
         return cmd_secure_ui(paths, args)
     if args.command in ("app", "ui", "install-launcher", "install-service"):

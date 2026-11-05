@@ -10,13 +10,12 @@ import sys
 import time
 import urllib.request
 from pathlib import Path
-from typing import Any
 
 from .config import Paths, default_paths
 from .safety import enable_offline_guard
 
 DEFAULT_PORT = 8765
-APP_NAME = "Lumo"
+APP_NAME = "Atlas Photos"  # what the macOS launcher is called; the address below does not depend on it
 
 
 def ui_script() -> Path:
@@ -149,93 +148,6 @@ def ensure_ollama(wait: float = 45.0) -> bool:
     return False
 
 
-KEYCHAIN_SERVICE = "aperture-cloud"
-
-
-def keychain_key() -> str | None:
-    """The cloud API key from the macOS Keychain (never stored in a file)."""
-    user = os.environ.get("USER", "")
-    out = _run(["/usr/bin/security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", user, "-w"]).strip()
-    return out or None
-
-
-def gateway_up(port: int) -> bool:
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=1.0):
-            return True
-    except OSError:
-        return False
-
-
-def gateway_status(port: int) -> dict[str, Any] | None:
-    """What the running gateway says about itself (model, spend this month, cap), or None when it is not running."""
-    import json
-
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=1.0) as response:
-            info = json.loads(response.read())
-        return info if isinstance(info, dict) else None
-    except (OSError, ValueError):
-        return None
-
-
-def gateway_command() -> list[str]:
-    """The gateway runs in its own sandbox that cannot read the drive, photos or personal folders."""
-    command = [sys.executable, "-m", "aperture", "cloud-gateway"]
-    profile = Path(__file__).resolve().parents[2] / "scripts" / "aperture-gateway.sb"
-    if profile.exists() and Path("/usr/bin/sandbox-exec").exists():
-        command = ["/usr/bin/sandbox-exec", "-f", str(profile), "-D", f"HOME={Path.home()}", *command]
-    return command
-
-
-def gateway_environment(settings: Any, key: str) -> dict[str, str]:
-    """Everything the gateway gets: the key, the one host it may reach, and its limits. Never the library path."""
-    from .cloud.gateway import PROVIDER_HOST
-
-    env = {
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": str(Path.home()),
-        "APERTURE_CLOUD_KEY": key,
-        "APERTURE_TRUSTED_HOSTS": PROVIDER_HOST,
-        "APERTURE_CLOUD_MODEL": settings.cloud_model,
-        "APERTURE_CLOUD_CAP": str(settings.cloud_cap_usd),
-        "APERTURE_CLOUD_PORT": str(settings.cloud_port),
-        "APERTURE_CLOUD_PRICES": f"{settings.cloud_price_in},{settings.cloud_price_out}",
-    }
-    return env
-
-
-def ensure_gateway(settings: Any, wait: float = 6.0) -> str:
-    """Start the cloud gateway if it is not running. Returns "" when it is up, otherwise why not (the local model is used instead)."""
-    import time
-
-    if gateway_up(settings.cloud_port):
-        return ""
-    key = keychain_key()
-    if not key:
-        return "there is no API key in the Keychain (run: aperture cloud enable)"
-    log_dir = Path.home() / "Library" / "Logs" / APP_NAME
-    log_dir.mkdir(parents=True, exist_ok=True)
-    with open(log_dir / "gateway.log", "ab") as log:
-        try:
-            subprocess.Popen(
-                gateway_command(),
-                env=gateway_environment(settings, key),
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=log,
-                start_new_session=True,
-            )
-        except OSError as exc:
-            return f"the gateway could not start ({exc.__class__.__name__})"
-    deadline = time.monotonic() + wait
-    while time.monotonic() < deadline:
-        if gateway_up(settings.cloud_port):
-            return ""
-        time.sleep(0.3)
-    return "the gateway did not start in time"
-
-
 def _update_in_background() -> None:
     """Best-effort ``git pull`` of the source checkout; never waited for, never prompts."""
     repo = Path(__file__).resolve().parents[2]
@@ -312,9 +224,10 @@ exit 0
     resources = destination / "Contents" / "Resources"
     if write_icns(resources / "AppIcon.icns"):
         info["CFBundleIconFile"] = "AppIcon"
-    old = destination.parent / "Aperture.app"  # earlier name: remove the stale launcher
-    if old.is_dir() and old != destination:
-        shutil.rmtree(old, ignore_errors=True)
+    for earlier in ("Aperture.app", "Lumo.app"):  # earlier names: remove the stale launchers
+        old = destination.parent / earlier
+        if old.is_dir() and old != destination:
+            shutil.rmtree(old, ignore_errors=True)
     (destination / "Contents" / "Info.plist").write_bytes(plistlib.dumps(info))
     os.utime(destination)
     _sign(destination)
@@ -375,6 +288,6 @@ def install_service(paths: Paths, port: int = DEFAULT_PORT) -> str:
     _free_port(port)  # clear leftovers from earlier manual starts
     _run(["/bin/launchctl", "bootstrap", domain, str(plist)])
     _run(["/bin/launchctl", "kickstart", "-k", f"{domain}/{SERVICE_LABEL}"])
-    for old in (f"{APP_NAME}.app", "Aperture.app"):
+    for old in (f"{APP_NAME}.app", "Aperture.app", "Lumo.app"):
         shutil.rmtree(Path.home() / "Applications" / old, ignore_errors=True)
-    return f"http://{APP_NAME.lower()}.localhost:{port}"
+    return f"http://photos.localhost:{port}"

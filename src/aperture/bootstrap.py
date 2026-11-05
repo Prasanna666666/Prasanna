@@ -171,32 +171,6 @@ class AppContext:
         if embedder is not None and len(index):
             VisualSearch(index, embedder).search("a photo of people")
 
-    _cloud_chat: Any = None
-    cloud_on: bool = False  # the switch in the header: every launch starts fully local
-
-    def _cloud_interpreter(self, people_names: Any) -> Any:
-        """The optional cloud question reader (off unless switched on); it only ever receives the redacted words of the question."""
-        if not self.settings.cloud_interpreter:
-            return None
-        from .cloud.client import CloudInterpreter
-
-        def places() -> list[str]:
-            def load() -> list[str]:
-                conn = self.db.connect()
-                try:
-                    rows = conn.execute(
-                        "SELECT DISTINCT place FROM items WHERE place IS NOT NULL AND place<>'' AND missing=0"
-                    ).fetchall()
-                    return sorted({str(r[0]).split(",")[0].strip() for r in rows if r[0]})
-                finally:
-                    conn.close()
-
-            return self.memo("cloud_places", 300.0, load)
-
-        interpreter = CloudInterpreter(self.settings.cloud_port, people_names, places)
-        self._cloud_chat = lambda request, history: interpreter.chat(request, history) if self.cloud_on else None
-        return lambda question, has_previous: interpreter(question, has_previous) if self.cloud_on else None
-
     def warm_ai(self) -> None:
         agent = self.agent()
         if hasattr(agent, "warm"):
@@ -409,9 +383,6 @@ class AppContext:
                 look=parts.look,
                 probe=parts.probe_term,
                 inspect=parts.inspect_results,
-                cloud=self._cloud_interpreter(parts.people_names),
-                cloud_chat=self._cloud_chat,
-                cloud_on=lambda: self.cloud_on,
             )
         vision = OllamaVision(self.settings.ollama_url, self.settings.vision_model, timeout=120.0)
 

@@ -231,7 +231,7 @@ def test_a_request_with_several_conditions_answers_with_where_they_all_hold_even
     assert [g[0] for g in reply.groups] == ["hockey and Nagoya"]  # just the answer, no other tabs
 
 
-def test_descriptions_from_the_cloud_find_the_subject_inside_the_place_when_nothing_is_labelled():
+def test_descriptions_from_the_model_find_the_subject_inside_the_place_when_nothing_is_labelled():
     from aperture.agent.executor import Executor
     from aperture.agent.schema import Clause, Plan
 

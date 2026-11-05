@@ -29,17 +29,7 @@
     `APERTURE_SANDBOXED=1` (set by `scripts/aperture-sandboxed.sh` and by the Docker image). `aperture secure-ui` is the one-command way;
     `aperture --insecure <command>` is the deliberate override. Existing background services started before this change keep running the
     old, unsandboxed code until you stop them.
-12. **Optional cloud understanding (off by default).** `aperture cloud enable` lets a cloud model read the *words you type*, nothing else.
-    - **What leaves the Mac:** the question, with every person and place name from your library replaced by a placeholder (`<PERSON_1>`,
-      `<PLACE_1>`) on your Mac before it is sent, whether photos are on screen (yes or no), and today's date. Never photos, faces, places, dates in
-      your library, labels, counts or results. The placeholders in the answer are mapped back locally.
-    - **Who talks to the cloud:** only the *gateway*, a separate program that has no access to your library, runs in its own Seatbelt profile
-      (`scripts/aperture-gateway.sb`: no reading of `/Volumes` or personal folders) and may reach only the provider's host
-      (`APERTURE_TRUSTED_HOSTS`). The app itself stays air-gapped and talks to the gateway over loopback.
-    - **The key** lives in the macOS Keychain (never in a file, an argument or this repository) and is handed to the gateway through its environment.
-    - **Limits:** a monthly spending cap (default $5; the prices are placeholders, set your provider's in the settings), a strict check of every plan
-      the provider returns (only known tools and arguments are accepted), and automatic fallback to the local model on any problem.
-    - **Off:** `aperture cloud off` (and `--forget-key` to delete the key).
+12. **No cloud, at all.** There is no cloud option: no key, no gateway, no account. Everything, including understanding what you type, runs on this Mac. (An earlier optional cloud reader was removed.)
 13. **Strongest setup.** Theft or loss of the computer or drive is out of scope (optional extra: encrypt the drive, `diskutil apfs encryptVolume /Volumes/<drive> -user disk`). Run the app in the sandbox (no
     internet, photos read-only, personal folders unreadable: `scripts/aperture-sandbox.sb` rule 4) and eject the drive when you are done. No
     option protects data from malware already running as you while the drive is unlocked; Docker does not either.

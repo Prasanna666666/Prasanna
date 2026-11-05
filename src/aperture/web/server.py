@@ -174,40 +174,6 @@ class Web:
         self._cache[key] = (now, value)
         return value
 
-    def set_cloud(self, on: bool) -> dict[str, Any]:
-        """The header switch. Turning it on needs the cloud to be set up and its gateway running; every launch starts with it off."""
-        from ..launcher import gateway_up
-
-        if on and not self.ctx.settings.cloud_interpreter:
-            return {"ok": False, "error": "The cloud is not set up. Run: .venv/bin/python -m aperture cloud enable"}
-        if on and not gateway_up(self.ctx.settings.cloud_port):
-            return {
-                "ok": False,
-                "error": "The cloud connection is not running. Restart the app: .venv/bin/python -m aperture install-service",
-            }
-        if on:  # a real request first: it only turns on if the cloud really answers
-            from ..cloud.client import check
-
-            problem = check(self.ctx.settings.cloud_port)
-            if problem:
-                return {"ok": False, "error": f"The cloud did not answer, so it stays off. {problem}"}
-        self.ctx.cloud_on = on
-        self._cache.pop("cloud_up", None)
-        return {"ok": True, "cloud": self.cloud_info()}
-
-    def cloud_info(self) -> dict[str, Any]:
-        """Whether a cloud model is reading the typed questions (names hidden) and what it has cost this month, shown in the header."""
-        if not self.ctx.settings.cloud_interpreter:
-            return {"state": "off"}  # not set up
-        if not getattr(self.ctx, "cloud_on", False):
-            return {"state": "local"}  # set up, switched off: nothing leaves the Mac
-        from ..launcher import gateway_status
-
-        info = self.cached("cloud_up", 10, lambda: gateway_status(self.ctx.settings.cloud_port))
-        if info is None:
-            return {"state": "down"}
-        return {"state": "connected", "spent": info.get("spent_usd"), "cap": info.get("cap_usd")}
-
     def status(self) -> dict[str, Any]:
         ctx = self.ctx
 
@@ -220,7 +186,6 @@ class Web:
             "build": self.build,
             "search_ready": bool(ctx.search_ready()),
             "warm_problem": ctx.warm_problem(),
-            "cloud": self.cloud_info(),
             "indexing": ScanLock(ctx.paths).running(verify=True),
             "paused_for_chat": self.paused_for_chat,
         }
@@ -586,16 +551,16 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path in ("/api/scan", "/api/scan/resume"):
             return self._json({"started": self.web.resume_indexing()})
-        if path not in ("/api/cloud", "/api/chat", "/api/ask"):
+        if path not in ("/api/chat", "/api/ask"):
             return self._deny(HTTPStatus.NOT_FOUND, "not found")
         body = self._body()
         if body is None:
             return
-        if path == "/api/cloud":
-            return self._json(self.web.set_cloud(bool(body.get("on"))))
         message = str(body.get("message", body.get("text", ""))).strip()[:2000]
         if not message:
             return self._deny(HTTPStatus.BAD_REQUEST, "empty message")
+        if path == "/api/ask" and body.get("fast"):
+            return self._json({"handled": False})  # no photo question is answered without the model yet
         if path == "/api/ask":
             return self._json(
                 self.web.ask_once(message, str(body.get("conv", ""))[:64] or "atlas", _clean_history(body.get("history")))

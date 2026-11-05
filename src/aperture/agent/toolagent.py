@@ -360,11 +360,7 @@ class ToolAgent:
         today: Callable[[], date] = date.today,
         max_tokens: int = CHAT_MAX_TOKENS,
         spec: AgentSpec = ASSISTANT,
-        cloud: Callable[[str, bool], dict[str, Any] | None] | None = None,
-        cloud_chat: Callable[[str, list[tuple[str, str]] | None], str | None] | None = None,
-        cloud_on: Callable[[], bool] = lambda: True,
     ) -> None:
-        self._cloud, self._cloud_chat, self._cloud_on = cloud, cloud_chat, cloud_on
         self._llm, self._service, self._context, self._today = llm, service, context, today
         self._overview, self._lookup, self._max_tokens, self.spec = overview, lookup, max_tokens, spec
         self._read_text, self._look, self._probe, self._inspect = read_text, look, probe, inspect
@@ -466,15 +462,6 @@ class ToolAgent:
         self, request: str, history: Any, route: str | None, timings: dict[str, Any], started: float
     ) -> AgentReply | None:
         """Plain conversation, or a comment on the earlier answer: talk, do not search again. None when this is a search."""
-        if (
-            route == "chat" and self._cloud_chat is not None and self._cloud_on()
-        ):  # a stronger model replies to your words (names hidden)
-            say("Asking the cloud model for a reply (only your words are sent)")
-            text = self._cloud_chat(request, history)
-            if text:
-                timings["route"] = round(time.perf_counter() - started, 2)
-                timings["understood"] = "cloud"
-                return AgentReply("chat", text, timings=timings)
         if route in ("chat", "about"):
             say("Writing a reply")
             timings["route"] = round(time.perf_counter() - started, 2)
@@ -486,23 +473,14 @@ class ToolAgent:
         started = time.perf_counter()
         say("Deciding how to search" if step == 0 else "Checking what it found")
         try:
-            decided = None
-            if self._cloud is not None and self._cloud_on() and step == 0 and not final:
-                # a stronger model reads the typed words (names hidden); anything wrong: local
-                say("Asking the cloud model to understand your request (only its words are sent)")
-                decided = self._cloud(turn.request, turn.previous_ids is not None)
-            if decided is not None:
-                turn.timings["understood"] = "cloud"  # shown on the answer so you can see which model read the request
-                first, events = ("tool", decided), iter(())
-            else:
-                if step == 0:
-                    turn.timings["understood"] = "local"
-                first, events = self._decide(
-                    turn.system,
-                    turn.messages,
-                    [] if final else None,
-                    timeout=max(3.0, HARD_LIMIT - (time.monotonic() - turn.began)),
-                )
+            if step == 0:
+                turn.timings["understood"] = "local"
+            first, events = self._decide(
+                turn.system,
+                turn.messages,
+                [] if final else None,
+                timeout=max(3.0, HARD_LIMIT - (time.monotonic() - turn.began)),
+            )
         except LLMError as exc:
             if (
                 turn.shown is None
