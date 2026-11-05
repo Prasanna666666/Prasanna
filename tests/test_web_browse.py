@@ -201,3 +201,27 @@ def test_one_update_button_can_start_and_follow_the_indexing(tmp_path, monkeypat
     assert set(status) == {"running", "progress", "summary", "problems", "needs_check"} and status["running"] is False
     assert call("POST", "/api/scan") == {"started": True} and started and started[0][-1] == "scan"
     server.shutdown()
+
+
+def test_the_one_chat_can_ask_photos_a_question_and_gets_text_and_pictures_back(tmp_path):
+    ctx, agent, _ids = make_ctx(tmp_path)
+    web, server = start_server(ctx)
+    port = server.server_address[1]
+
+    def ask(body):
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/ask",
+            data=json.dumps(body).encode(),
+            method="POST",
+            headers={"X-Lumo-Token": web.token, "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as r:
+            return json.loads(r.read())
+
+    found = ask({"text": "photos from the beach", "conv": "atlas", "history": [["user", "hi"], ["assistant", "hello"]]})
+    assert found["text"].startswith("I found **41 photos**") and found["total"] == 41 and len(found["items"]) == 24
+    assert found["items"][0]["thumb"].startswith("/api/photo/") and found["items"][0]["kind"] == "photo" and found["notes"]
+    assert agent.asked[-1][2] == [("user", "hi"), ("assistant", "hello")]  # the conversation so far reached the agent
+    said = ask({"text": "what is a RAW file?"})
+    assert said["text"] == "Sure, happy to help. RAW keeps all the sensor data." and said["items"] == [] and said["total"] == 0
+    server.shutdown()

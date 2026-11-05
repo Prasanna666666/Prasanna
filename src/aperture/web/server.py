@@ -295,6 +295,35 @@ class Web:
             "height": found.height,
         }
 
+    def ask_once(self, message: str, conv: str, history: list[tuple[str, str]]) -> dict[str, Any]:
+        """The contract's one-shot question, for Atlas's single chat: the same answer as the chat, in one piece, with the first photos as items."""
+        with self.ai_lock:
+            self.pause_indexing_for_chat()
+            reply = ask_within(lambda: self.ctx.agent().ask(message, self.previous(conv), history=history), ASK_LIMIT)
+            stream = reply.stream
+            try:
+                text = "".join(stream) or "..." if stream is not None else reply.text
+            finally:
+                if stream is not None and hasattr(stream, "close"):
+                    stream.close()
+            shown = len(reply.ids) and reply.kind in ("results", "export", "count")
+            if shown:
+                self.remember(conv, reply.ids)
+        items = (
+            [
+                {"kind": "photo", "id": int(i), "thumb": f"/api/photo/{int(i)}/thumb", "link": "#/library"}
+                for i in reply.ids[:PREVIEW]
+            ]
+            if shown and reply.kind != "count"
+            else []
+        )
+        return {
+            "text": text,
+            "items": items,
+            "total": len(reply.ids) if shown else 0,
+            "notes": [str(n) for n in [*reply.notes, *reply.warnings]][:3],
+        }
+
     def scan_status(self) -> dict[str, Any]:
         """Where indexing stands, in the shape every module reports it (the contract's scan status), for Atlas's one Update button."""
         self.refresh_counts_async()
@@ -557,16 +586,20 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path in ("/api/scan", "/api/scan/resume"):
             return self._json({"started": self.web.resume_indexing()})
-        if path not in ("/api/cloud", "/api/chat"):
+        if path not in ("/api/cloud", "/api/chat", "/api/ask"):
             return self._deny(HTTPStatus.NOT_FOUND, "not found")
         body = self._body()
         if body is None:
             return
         if path == "/api/cloud":
             return self._json(self.web.set_cloud(bool(body.get("on"))))
-        message = str(body.get("message", "")).strip()[:2000]
+        message = str(body.get("message", body.get("text", ""))).strip()[:2000]
         if not message:
             return self._deny(HTTPStatus.BAD_REQUEST, "empty message")
+        if path == "/api/ask":
+            return self._json(
+                self.web.ask_once(message, str(body.get("conv", ""))[:64] or "atlas", _clean_history(body.get("history")))
+            )
         self._chat(message, str(body.get("conv", ""))[:64] or "default", _clean_history(body.get("history")))
 
     # ---- the chat stream ---------------------------------------------------------------------------------------------

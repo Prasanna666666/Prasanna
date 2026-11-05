@@ -711,9 +711,13 @@
     // ---------------------------------------------------------------- the corner chat: the same conversation, one tap away from every page
     const corner = { open: false };
     function setCorner(on) {
+        if (EMBEDDED) {
+            // inside Atlas there is one chat for everything
+            if (on) toParent({ type: 'toggle-chat' });
+            return;
+        }
         if (on && where().page === 'search') return; // the full page is already the chat
         corner.open = on;
-        if (EMBEDDED) toParent({ type: 'chat', open: on });
         document.body.classList.toggle('chat-open', on);
         if (on) {
             stick = true;
@@ -722,6 +726,10 @@
         }
     }
     function askAssistant(text) {
+        if (EMBEDDED) {
+            toParent({ type: 'ask', text });
+            return;
+        }
         go('search');
         ask(text);
     }
@@ -1193,8 +1201,6 @@
             if (m.type === 'navigate' && typeof m.hash === 'string') location.hash = m.hash;
             else if (m.type === 'theme' && ['dark', 'light', 'auto'].includes(m.mode))
                 document.documentElement.dataset.theme = m.mode;
-            else if (m.type === 'toggle-chat') setCorner(!corner.open);
-            else if (m.type === 'ask' && typeof m.text === 'string') askAssistant(m.text);
         });
         window.addEventListener('hashchange', () => toParent({ type: 'route', hash: location.hash }));
         toParent({ type: 'ready' });
