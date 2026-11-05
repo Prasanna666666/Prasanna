@@ -4,7 +4,7 @@ Apple Mail already keeps your mail on this Mac (it does the talking to Gmail, Ou
 for the messages, through the built-in `osascript`, and writes each one as a .eml file into ~/OrbitInbox/mail/. The isolated reader (no network,
 inbox read-only) then reads the messages, their text and their attachments, like any other document. Nothing here connects to a mail server.
 
-All mail of the last N days (default 365) is copied, one mailbox at a time, because the text of an email is often the crucial information (a booking
+All mail of the last N days (default 3650, ten years) is copied, one mailbox at a time, because the text of an email is often the crucial information (a booking
 time, a payment confirmation, an appointment). Junk, Trash and Drafts are always skipped. `only_attachments` narrows it to messages with an attachment.
 Re-running adds only what is new.
 """
@@ -57,7 +57,7 @@ JSON.stringify(out);
 
 def build_script(account: str, mailbox: str, days: int, only_attachments: bool) -> str:
     """The Mail script for one mailbox. Its settings are written in as a JSON literal (names are data there, never code)."""
-    params = {"account": account, "mailbox": mailbox, "days": max(1, min(int(days), 3650)), "only_attachments": bool(only_attachments)}
+    params = {"account": account, "mailbox": mailbox, "days": max(1, min(int(days), 18250)), "only_attachments": bool(only_attachments)}
     return MAILBOX_JXA.replace("__PARAMS__", json.dumps(params))
 
 
@@ -85,7 +85,7 @@ def list_mailboxes(run: Runner = subprocess.run) -> list[tuple[str, str]]:
     return [(str(m["account"]), str(m["mailbox"])) for m in found if isinstance(m, dict) and m.get("mailbox") not in SKIP_MAILBOXES]
 
 
-def fetch_mailbox(account: str, mailbox: str, days: int = 365, only_attachments: bool = False, run: Runner = subprocess.run) -> list[dict]:
+def fetch_mailbox(account: str, mailbox: str, days: int = 3650, only_attachments: bool = False, run: Runner = subprocess.run) -> list[dict]:
     return _run(build_script(account, mailbox, days, only_attachments), run, 1800)
 
 
@@ -109,7 +109,7 @@ def write_messages(records: list[dict], outdir: Path) -> dict[str, int]:
 
 
 def export(
-    outdir: Path, days: int = 365, only_attachments: bool = False, run: Runner = subprocess.run, progress: Callable[[str], None] = print
+    outdir: Path, days: int = 3650, only_attachments: bool = False, run: Runner = subprocess.run, progress: Callable[[str], None] = print
 ) -> dict[str, int]:
     """Copy the mail, mailbox by mailbox (each written before the next is asked for), and say where it is."""
     total = {"new": 0, "already_had": 0, "skipped": 0, "mailboxes": 0}

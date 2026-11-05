@@ -60,7 +60,7 @@ def _export_notes(rest: list[str]) -> int:  # a native Mac step
 
 
 def _export_mail(rest: list[str]) -> int:  # a native Mac step: copies your mail into the inbox as .eml files; connects to no mail server
-    days = int(rest[rest.index("--days") + 1]) if "--days" in rest else 365
+    days = int(rest[rest.index("--days") + 1]) if "--days" in rest else 3650
     only_attachments = "--attachments-only" in rest  # by default ALL mail: the text of an email is often the crucial information
     folders = [a for i, a in enumerate(rest) if not a.startswith("--") and (i == 0 or rest[i - 1] != "--days")]
     out = Path(folders[0]) if folders else _mail_inbox()
