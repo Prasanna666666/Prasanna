@@ -56,3 +56,10 @@ check_untyped_defs = true
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 markers = ["needs_models: requires real model files"]
+
+[tool.bandit]
+# Each skip is a reviewed, deliberate pattern, not noise:
+#  B310  URLs opened are the local model server's, validated in safety.py
+#  B608  SQL is assembled from column names written in the code, never from user input
+#  B104  the names "0.0.0.0" and "::" are compared (to recognise a local host), never bound
+skips = ["B310", "B608", "B104"]

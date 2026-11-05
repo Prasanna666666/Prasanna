@@ -27,8 +27,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -e ".[ui]" bandit pip-audit cyclonedx-bom
-      - run: bandit -q -r src -ll
+      - run: pip install -e ".[ui]" "bandit[toml]" pip-audit cyclonedx-bom
+      - run: bandit -q -r src -c pyproject.toml -ll
       - run: pip-audit
       - run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4
