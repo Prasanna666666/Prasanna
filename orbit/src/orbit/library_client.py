@@ -8,16 +8,13 @@ report stays in the Documents service for the apps that need it.
 
 from __future__ import annotations
 
-import json
 import os
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from collections.abc import Callable
 from typing import Any
 
-from kit import netguard
+from kit.http import call_local
 
 from . import db
 from .modules import documents
@@ -33,17 +30,13 @@ def base_url() -> str:
 
 
 def _http(method: str, path: str) -> dict[str, Any]:
-    url = base_url() + path
-    parts = urllib.parse.urlsplit(url)
-    if parts.scheme != "http" or not parts.hostname:
-        raise RuntimeError("The Documents service address is not valid.")
-    netguard.allow_local(parts.hostname)
-    request = urllib.request.Request(url, method=method, headers={"X-Library": "1", "Accept": "application/json"}, data=b"{}" if method == "POST" else None)  # noqa: S310 - http only, a local host
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:  # noqa: S310
-            return json.loads(response.read())
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise RuntimeError("The Documents service is not running, so new files and mail cannot be read yet. Start it and press Update again.") from exc
+    return call_local(
+        base_url(),
+        method,
+        path,
+        "X-Library",
+        "The Documents service is not running, so new files and mail cannot be read yet. Start it and press Update again.",
+    )
 
 
 def update(progress: Callable[[str], None] | None = None, fetch: Fetch = _http) -> list[str]:

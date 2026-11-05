@@ -11,7 +11,7 @@ def test_a_daily_backup_is_verified_kept_for_seven_days_and_pruned(conn, tmp_pat
     for day in range(10):
         found = backup.daily(conn, folder, keep=7, today=date(2026, 3, 1) + timedelta(days=day))
         assert all(f.level == "ok" for f in found)
-    names = backup.restorable(folder)
+    names = sorted(x.name for x in folder.glob("orbit-*.db"))
     assert len(names) == 7 and names[-1] == "orbit-2026-03-10.db"
     from orbit import db
 
@@ -24,11 +24,10 @@ def test_an_old_newest_backup_is_a_warning_and_a_second_run_the_same_day_adds_no
     folder = tmp_path / "b"
     backup.daily(conn, folder, today=date(2026, 3, 1))
     backup.daily(conn, folder, today=date(2026, 3, 1))
-    assert len(backup.restorable(folder)) == 1
+    assert len(sorted(x.name for x in folder.glob("orbit-*.db"))) == 1
     (folder / "orbit-2026-03-01.db").rename(folder / "orbit-2026-02-20.db")
     found = backup.daily(conn, folder, keep=30, today=date(2026, 3, 1))
     assert any(f.agent == "backup" and f.level == "ok" for f in found)  # today's was made, so the latest is fresh
-    assert backup.oldest_kept(date(2026, 3, 8), 7) == "2026-03-01"
 
 
 def test_an_unwritable_backup_folder_is_reported_not_raised(conn, tmp_path):

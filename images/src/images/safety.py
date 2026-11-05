@@ -48,12 +48,6 @@ def drive_problem(drive: Path) -> str | None:
     return None
 
 
-def require_drive(paths: Paths) -> None:
-    problem = drive_problem(paths.drive)
-    if problem:
-        raise SafetyError(problem)
-
-
 # --------------------------------------------------------------------------
 # Path rules
 # --------------------------------------------------------------------------

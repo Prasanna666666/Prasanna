@@ -4,7 +4,7 @@ Backups live next to the database, so they protect against a mistake or a damage
 from __future__ import annotations
 
 import sqlite3
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 from kit import log
@@ -61,12 +61,3 @@ def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None
         log.failed("backup failed", e)
         found.append(Finding("backup", "warn", "backup", f"no backup could be made ({type(e).__name__})"))
     return found
-
-
-def restorable(directory: Path | None = None) -> list[str]:
-    directory = directory or (db.home() / "backups")
-    return [p.name for p in sorted(directory.glob("orbit-*.db"))]
-
-
-def oldest_kept(today: date, keep: int = 7) -> str:
-    return (today - timedelta(days=keep)).isoformat()

@@ -41,3 +41,15 @@ def test_a_key_is_required_when_encryption_is_required(tmp_path, monkeypatch):
     monkeypatch.delenv("ORBIT_DB_KEY_FILE", raising=False)
     with pytest.raises(db.EncryptionError):
         db.connect(tmp_path / "x.db")
+
+
+def test_host_check_and_the_shared_service_call(monkeypatch):
+    from kit import http
+
+    allowed = {"127.0.0.1", "localhost", "[::1]"}
+    assert http.host_ok("127.0.0.1:8501", allowed) and http.host_ok("[::1]:80", allowed) and http.host_ok("LOCALHOST", allowed)
+    assert not http.host_ok("evil.example.com", allowed) and not http.host_ok(None, allowed) and not http.host_ok("localhost.evil.com", allowed)
+    with pytest.raises(RuntimeError, match="not valid"):
+        http.call_local("ftp://x", "GET", "/", "X-Test", "down")
+    with pytest.raises(RuntimeError, match="down"):
+        http.call_local("http://127.0.0.1:9", "GET", "/", "X-Test", "down", timeout=1)

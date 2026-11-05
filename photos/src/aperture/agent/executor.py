@@ -454,22 +454,6 @@ class Executor:
         except sqlite3.Error:
             return np.zeros(0, np.int64)
 
-    def _same_trip_without_gps(self, anchors: np.ndarray) -> np.ndarray:
-        """Photos that carry no GPS (screenshots, forwarded or location-off shots) but were taken during the trip of the given photos."""
-        trip = self._trip_ids(anchors)
-        if len(trip) == 0:
-            return trip
-        try:
-            keep: list[int] = []
-            for part in chunked(trip.tolist(), 500):
-                marks = ",".join("?" * len(part))
-                keep += [
-                    r[0] for r in self._conn.execute(f"SELECT id FROM items WHERE gps_lat IS NULL AND id IN ({marks})", part)
-                ]
-            return np.array(sorted(keep), np.int64)
-        except sqlite3.Error:
-            return np.zeros(0, np.int64)
-
     def _trip_ids(self, anchors: np.ndarray) -> np.ndarray:
         """All photos of the trips/events that contain any of these photos (see `aperture scan`, which builds the events), except any photo
         whose own location (GPS or estimated) is far from where the anchors are: a trip never reaches another country."""

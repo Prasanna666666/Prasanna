@@ -62,14 +62,3 @@ def make_snippet(text: str, terms: list[str], width: int = SNIPPET_WIDTH) -> str
         if term:
             fragment = re.sub(re.escape(term), lambda m: f"\x02{m.group(0)}\x03", fragment, flags=re.IGNORECASE)
     return ("... " if start else "") + fragment + (" ..." if stop < len(flat) else "")
-
-
-def snippets_for(conn: sqlite3.Connection, ids: list[int], query: str, *, phrase: bool = False) -> dict[int, str]:
-    """Highlighted excerpts for just the photos on the current page."""
-    terms = [query.strip().strip('"')] if phrase else parse_terms(query)
-    out: dict[int, str] = {}
-    for item_id in ids:
-        row = conn.execute("SELECT text FROM fts WHERE rowid=?", (item_id,)).fetchone()
-        if row:
-            out[item_id] = make_snippet(row[0], terms)
-    return out

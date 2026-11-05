@@ -61,7 +61,7 @@ def test_ensure_quality_and_labels_roundtrip(scanned):
     quality.mark_ok(conn, [suggestions[2][0]])
     assert len(quality.suggest_defects(conn)) == 2  # reviewed photos are not suggested again
     marked = quality.defect_ids(conn)
-    assert len(marked) == 2 and set(quality.defect_reasons(conn, marked.tolist())) == set(marked.tolist())
+    assert len(marked) == 2
     from images.library import item_ids
 
     assert len(item_ids(conn, hide_defects=True)) == 3 and len(item_ids(conn)) == 5

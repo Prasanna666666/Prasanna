@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from collections.abc import Callable
 from pathlib import Path
 from typing import TypeVar
 
@@ -345,13 +344,3 @@ def in_clause(values: list[int] | list[str]) -> str:
 def chunked(values: list[T], size: int = 500) -> list[list[T]]:
     """Split a list so IN (...) clauses stay under SQLite's variable limit."""
     return [values[i : i + size] for i in range(0, len(values), size)]
-
-
-def run_in_transaction(conn: sqlite3.Connection, fn: Callable[[], None]) -> None:
-    """Run ``fn`` and commit, or roll back if it raises."""
-    try:
-        fn()
-        conn.commit()
-    except BaseException:
-        conn.rollback()
-        raise

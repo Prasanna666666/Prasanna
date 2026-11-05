@@ -15,4 +15,4 @@ Everything that understands a picture lives here, once: reading a file (EXIF, da
 - Photos still opens the index file directly to read and to write its own things (people's names, moves, captions). Moving every one of those reads and writes behind Documents' API (about 50 places) would make Documents the only program that touches the file; it is not done.
 - Pictures that arrive inside mail or the inbox (not in the photo folder) are read by Documents' own reader (text only); they are not yet fed through this engine.
 - Not run on a real Mac: the Docker images (the indexer carries PyTorch and the models come from the drive) have not been built.
-- Move the existing index once: `photos/scripts/adopt-index.sh` copies the old `aperture-data` volume into `library-pictures`.
+- Move the existing index once: `photos/scripts/aperture-docker-migrate.sh` copies the index from the drive (or, with `FROM_VOLUME=aperture-data`, from the old volume) into `library-pictures`.

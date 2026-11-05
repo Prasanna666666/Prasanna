@@ -17,11 +17,12 @@ import threading
 import time
 import urllib.parse
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
 from kit import llm, log, netguard
+from kit.http import Fail, JsonHandler, host_ok
 
 from . import agent, applenotes, browse, clock, db, insight, library_client, report, tagging
 from .modules import ALL, money
@@ -36,17 +37,7 @@ ALLOWED_HOSTS = {
     "orbit.localhost",
     "finance.localhost",
 }  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
-MAX_BODY = 1_000_000
 HISTORY_LIMIT = 24
-
-
-def _host_ok(value: str | None) -> bool:
-    """True for 127.0.0.1 / localhost / [::1] (with or without a port)."""
-    if not value:
-        return False
-    host = value.strip().lower()
-    host = host.split("]")[0] + "]" if host.startswith("[") else host.split(":")[0]
-    return host in ALLOWED_HOSTS
 
 
 class State:
@@ -137,15 +128,6 @@ def start_import(state: State) -> bool:
     return True
 
 
-class _Fail(Exception):
-    """A request that cannot be served: the status and the plain-words message sent back."""
-
-    def __init__(self, status: int, message: str) -> None:
-        super().__init__(message)
-        self.status = status
-        self.message = message
-
-
 # ---- the API: one small function per route, found in a table (the handler below only does plumbing) -----------------
 def _get_home(state: State, conn, query: dict[str, str]) -> dict:
     return {
@@ -218,7 +200,7 @@ GET_ROUTES = {
 def _post_tool(state: State, conn, body: dict) -> dict:
     name = str(body.get("name", ""))
     if name not in registry(ALL):
-        raise _Fail(400, f"unknown tool {name!r}")
+        raise Fail(400, f"unknown tool {name!r}")
     out, error = agent.run_tool(conn, name, body.get("args") or {})
     data = json.loads(out)
     return {"ok": not error, "data": None if error else data, "error": data.get("error") if error else ""}
@@ -227,9 +209,9 @@ def _post_tool(state: State, conn, body: dict) -> dict:
 def _post_chat(state: State, conn, body: dict) -> dict:
     text = str(body.get("text", "")).strip()[:4000]
     if not text:
-        raise _Fail(400, "empty message")
+        raise Fail(400, "empty message")
     if not state.chat_lock.acquire(blocking=False):
-        raise _Fail(429, "The assistant is still answering the last message.")
+        raise Fail(429, "The assistant is still answering the last message.")
     try:
         trace: list = []
         reply = agent.chat(conn, state.history, text, trace=trace)
@@ -237,7 +219,7 @@ def _post_chat(state: State, conn, body: dict) -> dict:
         return {"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general", "tools": trace[0]["tools"] if trace else []}
     except Exception as exc:
         log.failed("chat failed", exc)
-        raise _Fail(502, str(exc)) from exc
+        raise Fail(502, str(exc)) from exc
     finally:
         state.chat_lock.release()
 
@@ -300,7 +282,7 @@ def _post_settings(state: State, conn, body: dict) -> dict:
         try:
             llm.OllamaClient(body["ollama_host"].strip())  # refuses anything that is not this computer or its private network
         except ValueError as exc:
-            raise _Fail(400, str(exc)) from exc
+            raise Fail(400, str(exc)) from exc
     for key in ("currency", "view_currency", "model", "ollama_host", "reply_seconds"):
         if isinstance(body.get(key), str):
             db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
@@ -318,7 +300,7 @@ def _post_notes_tag(state: State, conn, body: dict) -> dict:
 
 def _post_notes_import(state: State, conn, body: dict) -> dict:
     if not inbox_dir().is_dir():
-        raise _Fail(404, f"{inbox_dir()} not found - run `orbit export-notes` on your Mac first")
+        raise Fail(404, f"{inbox_dir()} not found - run `orbit export-notes` on your Mac first")
     return {"ok": True, **applenotes.import_dir(conn, inbox_dir())}
 
 
@@ -342,38 +324,14 @@ def _refusals_this_minute(state: State) -> float:
     return now
 
 
-class _Handler(BaseHTTPRequestHandler):
+class _Handler(JsonHandler):
     """Plumbing only: security checks, files, and handing each API route to its function in the tables above."""
 
     state: ClassVar[State]
     server_version = "Finance"
-
-    def log_message(self, *args) -> None:  # quiet: requests may contain private words
-        return
+    csp = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
     # ---- plumbing ---------------------------------------------------------------------------------------------
-    def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8", extra: dict | None = None) -> None:
-        self.send_response(status)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header(
-            "Content-Security-Policy",
-            "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
-        )
-        for k, v in (extra or {}).items():
-            self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _json(self, obj: Any, status: int = 200) -> None:
-        self._send(status, json.dumps(obj, default=str).encode())
-
-    def _fail(self, status: int, message: str) -> None:
-        self._json({"ok": False, "error": message}, status)
-
     def _redirect_with_cookie(self) -> None:
         """Remember the visit in a cookie that scripts on other sites cannot read or send, then go to the home page."""
         self.send_response(303)
@@ -400,27 +358,17 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _guard(self, writing: bool) -> bool:
         host = self.headers.get("Host", "")
-        if not _host_ok(host):
+        if not host_ok(host, ALLOWED_HOSTS):
             self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8501")
             return False
         if not self._authorised():
             return False
         if writing:
             origin = self.headers.get("Origin")
-            if self.headers.get("X-Orbit") != "1" or (origin and not _host_ok(origin.split("://", 1)[-1])):
+            if self.headers.get("X-Orbit") != "1" or (origin and not host_ok(origin.split("://", 1)[-1], ALLOWED_HOSTS)):
                 self._fail(HTTPStatus.FORBIDDEN, "Request refused.")
                 return False
         return True
-
-    def _body(self) -> dict:
-        try:
-            size = int(self.headers.get("Content-Length", "0"))
-            if not 0 <= size <= MAX_BODY:
-                return {}
-            data = json.loads(self.rfile.read(size) or b"{}")
-            return data if isinstance(data, dict) else {}
-        except (ValueError, OSError):
-            return {}
 
     def _run_api(self, routes: dict, path: str, *args) -> None:
         """Look the route up, run it with its own database connection, and turn every outcome into a response."""
@@ -430,7 +378,7 @@ class _Handler(BaseHTTPRequestHandler):
         conn = self.state.connect()
         try:
             self._json(route(self.state, conn, *args))
-        except _Fail as failure:
+        except Fail as failure:
             self._fail(failure.status, failure.message)
         except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
             log.failed("request failed", exc, path=path)
@@ -447,7 +395,7 @@ class _Handler(BaseHTTPRequestHandler):
             and offered
             and path == "/"
             and hmac.compare_digest(offered.encode(), self.state.token.encode())
-            and _host_ok(self.headers.get("Host"))
+            and host_ok(self.headers.get("Host"), ALLOWED_HOSTS)
         ):
             return self._redirect_with_cookie()  # the link from up.sh: the token is dropped from the address bar
         if not self._guard(False):
@@ -481,7 +429,7 @@ class _Handler(BaseHTTPRequestHandler):
     # ---- POST -------------------------------------------------------------------------------------------------
     def _login(self) -> None:
         """The password form: the right password sets the cookie (once per browser); a wrong one is counted, and too many are refused for a minute."""
-        if not _host_ok(self.headers.get("Host")):
+        if not host_ok(self.headers.get("Host"), ALLOWED_HOSTS):
             return self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed.")
         now = _refusals_this_minute(self.state)
         if len(self.state.refused) > 10:
@@ -506,7 +454,7 @@ class _Handler(BaseHTTPRequestHandler):
         self._run_api(POST_ROUTES, path, self._body())
 
 
-def make_handler(state: State) -> type[BaseHTTPRequestHandler]:
+def make_handler(state: State) -> type[_Handler]:
     return type("Handler", (_Handler,), {"state": state})
 
 

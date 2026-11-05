@@ -266,20 +266,6 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
     return None
 
 
-def render_any(data) -> str:
-    """A readable text for any tool result, used when the assistant ran out of time after a tool had already answered."""
-    if isinstance(data, list):
-        return (
-            "\n".join(
-                "- " + ", ".join(f"{k}: {v}" for k, v in row.items() if v not in (None, "")) if isinstance(row, dict) else f"- {row}" for row in data[:10]
-            )
-            or "Nothing found."
-        )
-    if isinstance(data, dict):
-        return "\n".join(f"{k}: {v}" for k, v in data.items() if not isinstance(v, (list, dict)) and v not in (None, ""))
-    return str(data)
-
-
 _NUM = re.compile(r"(?<![\w.])\d{1,3}(?:,\d{3})+(?:\.\d+)?|(?<![\w.])\d+\.\d+|(?<![\w.])\d{3,}")
 
 

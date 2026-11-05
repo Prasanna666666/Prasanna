@@ -26,10 +26,6 @@ def _mb(n: int) -> str:
 # --------------------------------------------------------------------------
 # Shared pieces
 # --------------------------------------------------------------------------
-def _switch(ctx: AppContext) -> bool:
-    """Moving is always preview-then-confirm, so no separate master switch is needed."""
-    ctx.settings.allow_moves = True
-    return True
 
 
 def _report(report: org.MoveReport) -> None:

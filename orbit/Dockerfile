@@ -1,7 +1,7 @@
 # The Finance app image (build from the repository root: it carries the shared kit and Finance). It opens no files and has NO document-parsing libraries: the Documents service (../library) reads every file and mail.
 FROM python:3.12-slim AS base
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin orbit \
- && mkdir /data /parsed && chown 10001 /data /parsed
+ && mkdir /data && chown 10001 /data
 WORKDIR /app
 COPY kit /app/kit
 COPY orbit /app/orbit

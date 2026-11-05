@@ -642,16 +642,6 @@ class ToolAgent:
         if hasattr(events, "close"):
             events.close()
 
-    def _about_photos(self, request: str, previous_ids: Any) -> bool:
-        """A tiny model call (the same model): is this message about the user's photos, or just conversation?"""
-        router = getattr(self._service, "_router", None)
-        if router is None:
-            return False
-        try:
-            return router(request, previous_ids is not None) != "chat"
-        except LLMError:
-            return False
-
     def _answer(
         self, first_words: str, events: Any, shown: AgentReply | None, timings: dict[str, Any], read: bool = False
     ) -> AgentReply:

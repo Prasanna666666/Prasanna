@@ -196,17 +196,3 @@ def defect_ids(conn: sqlite3.Connection) -> np.ndarray:
         "SELECT f.item_id FROM flags f JOIN items i ON i.id=f.item_id WHERE f.status='defect' AND i.missing=0 ORDER BY i.taken_at DESC, i.id"
     )
     return np.fromiter((r[0] for r in rows), np.int64)
-
-
-def defect_reasons(conn: sqlite3.Connection, ids: Sequence[int]) -> dict[int, str]:
-    out: dict[int, str] = {}
-    for part in chunked([int(i) for i in ids]):
-        out.update(
-            {
-                r["item_id"]: r["reason"] or "defect"
-                for r in conn.execute(
-                    f"SELECT item_id, reason FROM flags WHERE status='defect' AND item_id IN ({in_clause(part)})", part
-                )
-            }
-        )
-    return out

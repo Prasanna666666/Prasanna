@@ -301,14 +301,6 @@ class Toolbox:
         )
 
 
-@dataclass
-class Finish:
-    set_name: str
-    message: str
-    show: str
-    folder_name: str
-
-
 class AgentLoop:
     """Same ``ask`` interface as :class:`AgentService`, but model-driven."""
 

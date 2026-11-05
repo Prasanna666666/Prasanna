@@ -5,12 +5,10 @@ Update through here. Without `APERTURE_LIBRARY_URL` (a native install) Photos in
 
 from __future__ import annotations
 
-import json
 import os
-import urllib.error
-import urllib.parse
-import urllib.request
 from typing import Any
+
+from kit.http import call_local
 
 TIMEOUT = 10
 
@@ -24,19 +22,14 @@ def delegated() -> bool:
 
 
 def _call(method: str, path: str) -> dict[str, Any]:
-    url = base_url() + path
-    parts = urllib.parse.urlsplit(url)
-    if parts.scheme != "http" or not parts.hostname:
-        raise RuntimeError("The Documents service address is not valid.")
-    request = urllib.request.Request(
-        url, method=method, data=b"{}" if method == "POST" else None, headers={"X-Library": "1", "Accept": "application/json"}
+    return call_local(
+        base_url(),
+        method,
+        path,
+        "X-Library",
+        "The Documents service is not running, so new pictures cannot be read yet.",
+        TIMEOUT,
     )
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            data = json.loads(response.read())
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise RuntimeError("The Documents service is not running, so new pictures cannot be read yet.") from exc
-    return data if isinstance(data, dict) else {}
 
 
 def request_scan() -> bool:

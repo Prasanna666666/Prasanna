@@ -235,8 +235,3 @@ class Planner:
                 continue
             return PlanResult(plan=plan, warnings=warnings, attempts=attempt)
         raise PlanningError(f"The local model could not produce a valid plan after {self._max_attempts} tries ({last_error}).")
-
-
-def debug_prompt(request: str, ctx: PlannerContext) -> str:
-    """The exact user prompt sent to the model (for the 'How I searched' panel)."""
-    return json.dumps(Planner._user_prompt(request, ctx))

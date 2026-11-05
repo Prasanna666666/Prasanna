@@ -14,7 +14,7 @@
    `APERTURE_NEVER_ONLINE=1`, which refuses to enable the network at all (`aperture fetch-models` is refused inside it). `sandbox-exec` is deprecated by Apple but still works; this profile
    was written without access to a Mac, so run the self-test before relying on it.
 9. **Private storage.** With Docker (`docker-compose.aperture.yml`) everything Photos learns about your photos lives in the named volume
-   `aperture-data`, inside Docker's own disk image: no folder on the Mac, so no program or assistant on the Mac can browse it. Move an
+   `library-pictures`, inside Docker's own disk image: no folder on the Mac, so no program or assistant on the Mac can browse it. Move an
    existing index in with `scripts/aperture-docker-migrate.sh`. `.claude/settings.json` additionally denies the coding assistant
    any read of `/Volumes`, the vault and docker cp/exec/volume/run commands. Without Docker, use the encrypted vault below.
    **Encryption at rest.** Photos's index (dates, GPS, places, faces, text, labels, full metadata), thumbnails and previews are
