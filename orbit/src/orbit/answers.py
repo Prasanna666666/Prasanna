@@ -234,6 +234,40 @@ def _calls(turns: list[dict]) -> list[tuple[str, dict, str]]:
     return out
 
 
+_MONTHLY = ("spending_summary", "income_summary", "daily_spending", "spending_by_main")
+
+
+def _stale(conn, calls) -> list[str]:
+    """Each report the agent used must give exactly the same result when run again now: if not, the data changed under the answer."""
+    from . import agent
+
+    out = []
+    for name, args, seen in calls:
+        if name in REPORTS:
+            again, error = agent.run_tool(conn, name, args)
+            if error or again != seen:
+                out.append(f"{name} gives a different result now than when it was read")
+    return out
+
+
+def _untied(conn, calls, months: list[str] | None) -> list[str]:
+    """Every month the answer is about must tie, to the cent, to the raw ledger."""
+    from . import verify
+
+    named = sorted({str(a["month"])[:7] for _, a, _ in calls if a.get("month")} | set(months or []))
+    if not named and any(n in _MONTHLY for n, _, _ in calls):  # a report with no month named: its default month is the newest with data
+        named = [r["month"] for r in tools(ALL)["monthly_trend"].fn(conn, {"months": 1})]
+    return [f"{m}: {why}" for m in named if (why := verify.tally_month(conn, m))]
+
+
+def _health_note(conn) -> list[str]:
+    waiting = conn.execute("SELECT COUNT(*) FROM statement_files WHERE status IN ('needs_check','unverified')").fetchone()[0]
+    failed = conn.execute("SELECT COUNT(*) FROM findings WHERE level='fail'").fetchone()[0]
+    if waiting or failed:
+        return [f"{waiting} file(s) are waiting for a check and {failed} check(s) have failed, so these figures may be incomplete (see Money > Files)."]
+    return []
+
+
 def audit(conn, reply: str, turns: list[dict], months: list[str] | None = None) -> tuple[list[str], list[str]]:
     """Check an answer against your data at this moment. Returns (problems, notes).
     A problem means the answer must not be shown. A note is something you must be told alongside it.
@@ -241,27 +275,10 @@ def audit(conn, reply: str, turns: list[dict], months: list[str] | None = None) 
       2. each report the agent used still gives the same result when run again now;
       3. every month the answer is about still ties, to the cent, to the raw ledger;
       4. no file is waiting for a check and no cross-check has failed (else you are told the figures may be incomplete)."""
-    from . import agent, verify
-
-    problems, notes, calls = [], [], _calls(turns)
+    calls = _calls(turns)
+    problems = []
     bad = unproven_figures(reply, [c[2] for c in calls])
     if bad:
         problems.append("figures not returned by any tool: " + ", ".join(f"{n:,.2f}" for n in bad[:4]))
-    for name, args, seen in calls:
-        if name in REPORTS:
-            again, error = agent.run_tool(conn, name, args)
-            if error or again != seen:
-                problems.append(f"{name} gives a different result now than when it was read")
-    months = sorted({str(a["month"])[:7] for _, a, _ in calls if a.get("month")} | set(months or []))
-    if not months and calls:  # a report with no month named: its default month is the newest with data
-        latest = [r["month"] for r in tools(ALL)["monthly_trend"].fn(conn, {"months": 1})]
-        months = latest if any(n in REPORTS and n in ("spending_summary", "income_summary", "daily_spending", "spending_by_main") for n, _, _ in calls) else []
-    for m in months:
-        why = verify.tally_month(conn, m)
-        if why:
-            problems.append(f"{m}: {why}")
-    waiting = conn.execute("SELECT COUNT(*) FROM statement_files WHERE status IN ('needs_check','unverified')").fetchone()[0]
-    failed = conn.execute("SELECT COUNT(*) FROM findings WHERE level='fail'").fetchone()[0]
-    if waiting or failed:
-        notes.append(f"{waiting} file(s) are waiting for a check and {failed} check(s) have failed, so these figures may be incomplete (see Money > Files).")
-    return problems, notes
+    problems += _stale(conn, calls) + _untied(conn, calls, months)
+    return problems, _health_note(conn)
