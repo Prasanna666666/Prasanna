@@ -340,3 +340,22 @@ def test_asking_for_documents_works_even_when_the_model_is_not_running(server):
     assert out["ok"] and [i["title"] for i in out["items"]] == ["ziggo-march.pdf"]
     nothing = post(server, "/api/ask", {"text": "show me the Albert Heijn invoices", "show": {"documents": True}})
     assert nothing[0] in (200, 502)  # nothing matched, so it falls back to the assistant, which needs the model
+
+
+def test_the_one_chat_can_ask_for_the_instant_answer_only(server, monkeypatch):
+    from orbit import agent
+
+    def boom(*a, **kw):
+        raise AssertionError("the chat (and so the model) must not run for the instant answer")
+
+    monkeypatch.setattr(agent, "chat", boom)
+    c = db.connect()
+    c.execute(
+        "INSERT INTO transactions (day, amount_minor, kind, category, note, source) VALUES ('2026-10-04', 5000, 'expense', 'groceries', 'Albert Heijn', 'manual')"
+    )
+    c.commit()
+    c.close()
+    known = json.loads(post(server, "/api/ask", {"text": "how much did I spend in October", "fast": True})[1])
+    assert known["handled"] is True and "50.00" in known["text"]
+    unknown = json.loads(post(server, "/api/ask", {"text": "October, what was the damage?", "fast": True})[1])
+    assert unknown == {"ok": True, "handled": False, "text": "", "items": [], "agent": "instant"}

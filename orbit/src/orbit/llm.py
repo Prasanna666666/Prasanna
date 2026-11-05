@@ -88,14 +88,16 @@ class OllamaClient:
         with contextlib.suppress(RuntimeError):
             self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": KEEP, "options": {"num_ctx": 4096}}, timeout=120)
 
-    def chat(self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None, num_ctx: int = 4096) -> dict[str, Any]:
-        """`schema` forces the answer to be JSON of that shape (Ollama's constrained output)."""
+    def chat(
+        self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None, num_ctx: int = 4096, max_tokens: int | None = None
+    ) -> dict[str, Any]:
+        """`schema` forces the answer to be JSON of that shape (Ollama's constrained output). `max_tokens` caps a short answer (a routing choice needs a handful)."""
         body: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "stream": False,
             "keep_alive": KEEP,
-            "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx, "num_predict": 600 if schema else 350},
+            "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx, "num_predict": max_tokens or (600 if schema else 350)},
         }
         if schema:
             body["format"] = schema

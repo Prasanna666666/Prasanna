@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -223,6 +224,7 @@ def build(modules_dir: Path | None = None, domain: str | None = None, port: int 
 def serve(atlas: Atlas, host: str, port: int) -> int:
     server = ThreadingHTTPServer((host, port), make_handler(atlas))
     server.daemon_threads = True
+    threading.Thread(target=atlas.assistant.model.warm, daemon=True).start()  # best effort: the first question should not pay for loading the model
     print(f"Atlas is running: open {atlas.shell_origin}  (modules: {', '.join(atlas.modules) or 'none'})", flush=True)
     try:
         server.serve_forever()

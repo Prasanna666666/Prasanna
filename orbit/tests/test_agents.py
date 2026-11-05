@@ -25,6 +25,17 @@ def test_ambiguous_uses_classifier_else_general():
     assert agents.route("hello there", classify=lambda t, n: "banana") == "general"
 
 
+def test_the_model_decides_which_specialist_and_the_word_rules_only_step_in_when_it_cannot():
+    # the words say money, the model says it is about tasks: the model wins
+    assert agents.route("remind me about my spending review", classify=lambda t, n: "tasks") == "tasks"
+
+    def broken(text, names):
+        raise RuntimeError("model not running")
+
+    assert agents.route("how much did I spend on groceries", classify=broken) == "money"  # no model: the word rules decide
+    assert agents.route("hello there", classify=broken) == "general"
+
+
 def test_agent_tools_exist_and_are_least_privilege():
     all_tools = set(tools(ALL))
     for a in agents.AGENTS:
@@ -114,7 +125,7 @@ def test_small_talk_gets_a_short_reply_with_no_tools_and_no_big_prompt(conn):
     class Client:
         def chat(self, model, messages, tools=None, **kw):
             seen.append((messages[0]["content"], tools))
-            return {"content": "chat" if "Reply with exactly one word" in messages[0]["content"] else "Hello! How can I help?"}
+            return {"content": '{"agent": "chat"}' if kw.get("schema") else "Hello! How can I help?"}
 
     out = agent.chat(conn, [], "hi", client=Client(), model="m")
     assert out == "Hello! How can I help?"

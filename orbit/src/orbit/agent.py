@@ -72,21 +72,34 @@ def run_tool(conn: sqlite3.Connection, name: str, args: dict[str, Any] | str, al
 
 
 def _classifier(client, model: str):
+    """One tiny constrained model call: which specialist (or plain chat) a message is for. The answer can only be one of the names, in a few tokens."""
+
     def classify(text: str, names: list[str]) -> str:
-        msg = client.chat(
-            model,
-            [
-                {
-                    "role": "system",
-                    "content": "Reply with exactly one word: " + ", ".join(names) + ", chat (greetings, thanks, small talk or a "
-                    "general question that needs none of the user's data), or general (a request that spans several areas or fits none). No other text.",
-                },
-                {"role": "user", "content": text},
-            ],
+        choices = [*names, "chat", "general"]
+        schema = {"type": "object", "properties": {"agent": {"type": "string", "enum": choices}}, "required": ["agent"]}
+        system = (
+            "Decide which specialist a message is for. Specialists: "
+            + ", ".join(names)
+            + ". Answer chat for greetings, thanks, small talk or a general question "
+            "that needs none of the user's data, and general for a request that spans several areas or fits none."
         )
-        return msg.get("content") or ""
+        msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema, max_tokens=24)
+        try:
+            return str(json.loads(msg.get("content") or "{}").get("agent", ""))
+        except (ValueError, AttributeError):
+            return ""
 
     return classify
+
+
+def quick_answer(conn: sqlite3.Connection, user_text: str) -> tuple[str | None, list[str]]:
+    """The exact answer, from code, for a question the app recognises, or None. It is held to the same checks as every other answer. No model is used."""
+    used: list[str] = []
+    quick = answers.answer(conn, user_text, used)
+    if not quick:
+        return None, []
+    bad, notes = answers.audit(conn, quick, [], used)
+    return (None, bad) if bad else (quick + ("\n\n" + " ".join(notes) if notes else ""), [])
 
 
 def chat(
@@ -97,6 +110,12 @@ def chat(
     `trace` (optional) receives {'agent': name, 'tools': [names]} so the UI can show who answered.
     """
     start = len(history)
+    quick, _ = quick_answer(conn, user_text)  # a recognised question never waits for the model
+    if quick is not None:
+        history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": quick}])
+        if trace is not None:
+            trace.append({"agent": "instant", "tools": ["checked"]})
+        return quick
     try:
         client = client or llm.OllamaClient(get_setting(conn, "ollama_host", "") or None)
         model = model or get_setting(conn, "model", llm.DEFAULT_MODEL)

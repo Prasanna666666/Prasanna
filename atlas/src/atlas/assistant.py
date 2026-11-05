@@ -19,6 +19,7 @@ from .upstream import Upstreams
 
 ROUTE_SECONDS = 8.0
 CHAT_SECONDS = 45.0
+WARM_SECONDS = 120.0
 MAX_TEXT = 2000
 MAX_TURNS = 8
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
@@ -85,6 +86,11 @@ class ModelClient:
         finally:
             conn.close()
 
+    def warm(self) -> None:
+        """Load the model in the background so the first question does not wait for it (the same context size as the apps, so nothing reloads)."""
+        if self.url and self.model():
+            self.chat("Reply with one word.", [{"role": "user", "content": "hi"}], WARM_SECONDS, max_tokens=1)
+
     def model(self) -> str:
         if self._model:
             return self._model
@@ -136,14 +142,20 @@ class Assistant:
         apps = self._askable()
         if not apps:
             return Plan([], True, {"photos": False, "documents": False}, "chat")
-        planned = self._model_plan(text, history, apps)
-        if planned is not None:
-            return planned
+        planned = self.model_plan(text, history)
+        return planned if planned is not None else self.word_plan(text)
+
+    def word_plan(self, text: str) -> Plan:
+        """The fallback: simple word rules, used only when the model cannot plan."""
         show = wants_to_see(text)
-        hit = match_by_words(text, apps)
+        hit = match_by_words(text, self._askable())
         return Plan(hit, False, show, "words") if hit else Plan([], False, show, "unsure")
 
-    def _model_plan(self, text: str, history: list[list[str]], apps: list[Module]) -> Plan | None:
+    def model_plan(self, text: str, history: list[list[str]]) -> Plan | None:
+        """The model's plan, or None when it is not running or does not answer in the expected shape."""
+        apps = self._askable()
+        if not apps:
+            return None
         parts = "; ".join(f"{m.id} = {m.tagline or m.name}" for m in apps)
         system = (
             "You are the planner of a private personal assistant. Read the user's last message, with the conversation so far, and decide what it needs. "
@@ -191,9 +203,27 @@ class Assistant:
             return {"module": "atlas", "name": "Atlas", "ok": False, "error": "The AI model is not running. Start Ollama and ask again."}
         return {"module": "atlas", "name": "Atlas", "ok": True, "text": reply, "items": [], "notes": []}
 
+    def _instant(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any] | None:
+        """Ask every app, side by side, whether it recognises the question as one it can answer exactly from code. If one does, that is the answer:
+        no model call, no waiting. Otherwise None and the model plans."""
+        apps = self._askable()
+        if not apps:
+            return None
+        with ThreadPoolExecutor(max_workers=len(apps)) as pool:
+            results = list(pool.map(lambda m: self.upstreams.fast(m, text, conv, history), apps))
+        hit = [(m, r) for m, r in zip(apps, results, strict=True) if r is not None]
+        if not hit:
+            return None
+        show = {"photos": False, "documents": False}
+        parts = [{"module": m.id, "name": m.name, "show": show, **r} for m, r in hit]
+        return {"how": "instant", "routed": [m.id for m, _ in hit], "show": show, "parts": parts}
+
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """Understand the message, ask each chosen app (side by side), and return their answers as labelled parts."""
         text = text.strip()[:MAX_TEXT]
+        quick = self._instant(text, conv, history)
+        if quick is not None:
+            return quick
         plan = self.plan(text, history)
         if plan.how == "unsure":
             msg = "I could not tell whether that is about " + " or ".join(m.name.lower() for m in self._askable()) + ". Try saying which."

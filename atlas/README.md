@@ -76,6 +76,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 
 ## The contract an app follows
 - `GET /api/health` answers 200 when the app is up.
+- `POST /api/ask` with `"fast": true` (optional, strongly recommended): the app answers **only if it recognises the question as one it can answer exactly from code**, with no model: `{"handled": true, "text"}`, otherwise `{"handled": false}`. Atlas asks every app this first and, if one handles it, that is the answer: no model call, no waiting. The app must be strict: answering a different question than the one asked is worse than not answering (Finance answers only when every word of the question is accounted for).
 - `POST /api/ask` (optional, for the one chat): body `{"text", "conv", "history": [[role, text]]}`, answers `{"text", "items", "total", "notes": []}`. The body also carries `show: {"photos": bool, "documents": bool}`, what the user asked to see. An item is a picture `{"kind": "photo", "thumb", "link"}` or a document `{"kind": "document", "title", "subtitle", "text", "link"}`; an app returns documents only when `show.documents` is true, and may always offer pictures (the page folds them unless asked). `thumb` must sit under the manifest's `media` path; Atlas fetches pictures for the page so the app's token never reaches it.
 - `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Finance: `{"X-Orbit": "1"}`).
 - `GET /api/search?q=text` (optional) answers `{"results": [{"title", "subtitle", "kind", "link"}]}`. `link` is a route inside the app, such as `#/library?place=Lisbon`.
@@ -99,3 +100,13 @@ JavaScript with `eslint` and `prettier`. Tests run Atlas against real fake apps 
 
 Untested: building and running the Atlas container on a real Mac (written without a Docker engine; the code itself is tested natively), and
 Safari's handling of `*.localhost` (Chrome and Firefox treat every `*.localhost` as this computer).
+
+## Test the model on your machine
+```bash
+cd atlas && PYTHONPATH=src python3 -m atlas.evaluate                 # how well the model understands, by level, and how fast
+PYTHONPATH=src python3 -m atlas.evaluate --live http://atlas.localhost:8000   # also real questions through the running Atlas, timed per path
+```
+`eval/cases.json` has 30 messages in five levels (plain, other wording, several parts, follow-ups that need the conversation, reasoning and conversation).
+Each is scored on whether the model picked the right apps, recognised plain conversation, and decided correctly whether you asked to *see* pictures or documents.
+The simple word rules are scored on the same cases, so you can see what the model adds. With `--live` it also reports, for each path (`instant`,
+`model`, `words`), the median and slowest answer time and lists anything over 10 seconds. Add your own cases to the file; nothing in it is your data.

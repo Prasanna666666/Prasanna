@@ -20,6 +20,8 @@ class Scripted:
         self.reply, self.n = reply, 0
 
     def chat(self, model, messages, tools=None, **kw):
+        if kw.get("schema"):  # the routing question: which specialist is this for
+            return {"content": '{"agent": "money"}'}
         self.n += 1
         if messages[-1]["role"] == "user" and tools:
             return {"content": "", "tool_calls": [{"function": {"name": "spending_summary", "arguments": {"month": "2026-10"}}}]}
@@ -77,7 +79,7 @@ def test_instant_answers_work_even_when_the_model_server_is_off(conn, monkeypatc
 def test_the_agent_answers_when_its_figures_match_the_tools(conn):
     seed(conn)
     reply = "In October you spent 850.00 in total."  # 500 groceries... see seed: 50.00 + 800.00
-    out = agent.chat(conn, [], "how much did I spend in October", client=Scripted(reply), model="m")
+    out = agent.chat(conn, [], "October, what was the damage?", client=Scripted(reply), model="m")
     assert out.startswith(reply) and "NOT PROVEN" in out  # no statement backs this invented data, and the answer says so
 
 
@@ -111,13 +113,16 @@ def test_data_that_changes_while_the_agent_answers_is_caught(conn):
     class Racing(Scripted):
         def chat(self, model, messages, tools=None, **kw):
             r = super().chat(model, messages, tools, **kw)
-            if r.get("content"):
+            if r.get("content") and not kw.get("schema"):
                 tx(conn, "2026-10-12", 7700, note="late payment")  # a new payment lands before the answer is checked
             return r
 
-    out = agent.chat(conn, [], "how much did I spend in October", client=Racing("In October you spent 850.00 in total."), model="m")
-    assert "850.00 in total" not in out or "927.00" in out  # either refused, or replaced by the fresh exact answer
-    assert "927.00" in out
+    out = agent.chat(conn, [], "October, what was the damage?", client=Racing("In October you spent 850.00 in total."), model="m")
+    assert "850.00 in total" not in out  # the stale figure is never shown
+    assert "can't give you that figure with confidence" in out  # this wording is not one code can answer exactly, so it is refused, not guessed
+    assert "927.00" in agent.chat(
+        conn, [], "how much did I spend in October", client=Racing("unused"), model="m"
+    )  # a recognised question gets the fresh exact answer
 
 
 def test_files_waiting_for_a_check_are_always_mentioned(conn):
@@ -179,3 +184,18 @@ def test_the_assistant_can_never_delete_an_imported_payment_even_when_asked(conn
     agent.chat(conn, [], "please delete transaction 1", client=Asked(), model="m")
     assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == before
     assert "delete_transaction" not in offered and offered  # not even shown to the model
+
+
+def test_a_recognised_question_is_answered_by_code_without_ever_calling_the_model(conn):
+    seed(conn)
+
+    class Forbidden:
+        def chat(self, *a, **kw):
+            raise AssertionError("the model must not be used for a recognised question")
+
+    trace: list = []
+    out = agent.chat(conn, [], "how much did I spend in October", client=Forbidden(), model="m", trace=trace)
+    assert "850.00" in out and trace[0]["agent"] == "instant" and "checked" in trace[0]["tools"]
+    h: list = []
+    agent.chat(conn, h, "how much did I spend in October", client=Forbidden(), model="m")
+    assert [m["role"] for m in h] == ["user", "assistant"]  # and the conversation still remembers it

@@ -263,6 +263,9 @@ def _document_items(conn, text: str, history: list) -> list[dict]:
 def _post_ask(state: State, conn, body: dict) -> dict:
     """The contract's one-shot question, for Atlas's single chat: the same answer as the chat, in the shape every module returns it.
     Documents come back only when the user asked to see them (`show.documents`); finding files is a lookup, so it needs no model."""
+    if body.get("fast"):  # only if the app recognises the question: an exact answer from code, no model, no waiting
+        quick, _ = agent.quick_answer(conn, str(body.get("text", "")))
+        return {"ok": True, "handled": quick is not None, "text": quick or "", "items": [], "agent": "instant"}
     raw_show = body.get("show")
     show: dict = raw_show if isinstance(raw_show, dict) else {}
     if show.get("documents"):

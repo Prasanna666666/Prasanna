@@ -15,9 +15,10 @@ If something here is wrong, the owner says so once and it is changed here.
 - **AI is for understanding, routing, semantic search and explanation. The model decides what a message means, which part it is about and what to show. Do not decide that with word lists or regular expressions** (they are only a fallback when the model is down).
 - **Code, SQL and specialised tools do the actual work**: every figure, filter, date and total; EXIF, CLIP, faces and OCR for photos.
 - **Agents and RAG wherever they are the right tool** (open questions, several steps, documents and notes). Retrieval only for unstructured text, never for the ledger.
-- **Simple, recognised requests bypass the AI for speed**, and still pass the same answer check.
+- **Simple, recognised requests bypass the AI for speed**, and still pass the same answer check. Recognition must be strict: code answers only when every word of the question is accounted for; anything with a condition it does not apply goes to the model, never to a wrong answer.
+- Understanding runs on measured evidence: `python -m atlas.evaluate` scores the model by difficulty level and times each path; run it on the owner's Mac after any change to prompts or models.
 - The AI never modifies or deletes source data. Deletes need the owner's own words. Original files stay read-only.
-- Never connect to the cloud. Everything runs on the owner's machine.
+- Never connect to the cloud. Everything runs on the owner's machine. (The old optional cloud reader in Photos has been removed entirely.)
 
 ## Numbers and honesty
 - **Numbers must be exactly right.** Business-critical. No excuses. A figure that cannot be proven is not shown as fact; say plainly what could not be proven.

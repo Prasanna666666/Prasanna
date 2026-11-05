@@ -133,3 +133,18 @@ def test_the_planner_sees_the_conversation_so_that_show_me_those_works(running):
     assert (
         sent["format"] == "json" and "how many beach shots do I have?" in sent["messages"][1]["content"] and "show me those" in sent["messages"][1]["content"]
     )
+
+
+def test_a_question_an_app_recognises_is_answered_instantly_with_no_model_call(running):
+    running.apps["photos"].plan_reply = '{"apps": ["photos"], "chat": false, "show": {}}'
+    status, reply = chat(running, "tell me exactly what I spent")
+    assert reply["how"] == "instant" and reply["routed"] == ["money"] and reply["parts"][0]["text"] == "the exact answer"
+    assert running.apps["photos"].model_calls == []  # the model was never asked: not to plan, not to answer
+    assert running.apps["money"].asked == [] and running.apps["photos"].asked == []  # and no app's assistant ran either
+
+
+def test_every_app_is_asked_whether_it_recognises_the_question_before_the_model_plans(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'
+    _, reply = chat(running, "anything from last summer?")
+    assert running.apps["money"].fast_calls == ["anything from last summer?"] and running.apps["photos"].fast_calls == ["anything from last summer?"]
+    assert reply["how"] == "model" and reply["routed"] == ["money"] and running.apps["money"].asked  # nobody recognised it, so the model planned

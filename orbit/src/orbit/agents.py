@@ -193,13 +193,14 @@ def route_by_keywords(text: str) -> str | None:
 
 
 def route(text: str, classify=None) -> str:
-    """Pick an agent. Keywords first (instant, no model call); `classify(text, names)` as tie-breaker; else 'general'."""
-    picked = route_by_keywords(text)
-    if picked:
-        return picked
+    """Pick an agent. The model decides what the message is about (`classify(text, names)`); the word rules only step in when there is no model
+    or it does not answer properly, so a message is never sent to the wrong specialist just because it contains a familiar word."""
     if classify:
-        answer = (classify(text, [a.name for a in AGENTS]) or "").strip().lower()
+        try:
+            answer = (classify(text, [a.name for a in AGENTS]) or "").strip().lower()
+        except Exception:  # noqa: BLE001 - the model being slow or down must not stop the question: the word rules decide
+            answer = ""
         for name in (*BY_NAME, "chat", "general"):
             if re.search(rf"\b{name}\b", answer):
                 return name
-    return "general"
+    return route_by_keywords(text) or "general"

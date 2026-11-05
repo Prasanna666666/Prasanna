@@ -45,6 +45,8 @@ class _Ask:
     def __init__(self, conn, text: str, used: list) -> None:
         self.text, self.used, self._tools, self.conn = text, used, tools(ALL), conn
         self.months = [r["month"] for r in self.run("monthly_trend", {"months": 120})]
+        self.used_month = False  # did the answer apply the month named in the question?
+        self.used_words: set[str] = set()  # category names the answer applied
 
     def run(self, name: str, args: dict | None = None):
         return self._tools[name].fn(self.conn, args or {})
@@ -53,6 +55,7 @@ class _Ask:
         return any(re.search(rf"\b{w}", self.text) for w in words)
 
     def month(self) -> str | None:
+        self.used_month = True
         return _month(self.text, self.months)
 
 
@@ -134,6 +137,7 @@ def _spending(q: _Ask) -> str:
     s = q.run("spending_summary", {"month": month})
     cats = {c["category"]: c["spent"] for c in s["by_category"]}
     asked = [c for c in cats if re.search(rf"\b{re.escape(c)}", q.text)]
+    q.used_words.update(asked)
     cur = s.get("currency", "EUR")
     if asked:
         return "\n".join(f"{_label(month)}: {c} {_m(cats[c], cur)}." for c in asked)
@@ -156,6 +160,98 @@ INTENTS = (
 )
 
 
+# words that only frame a question and add no condition to it
+FRAME = frozenset(
+    [
+        "a",
+        "an",
+        "the",
+        "i",
+        "me",
+        "my",
+        "mine",
+        "we",
+        "our",
+        "you",
+        "your",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "am",
+        "do",
+        "does",
+        "did",
+        "how",
+        "what",
+        "which",
+        "when",
+        "where",
+        "who",
+        "much",
+        "many",
+        "in",
+        "of",
+        "for",
+        "on",
+        "at",
+        "to",
+        "from",
+        "by",
+        "please",
+        "can",
+        "could",
+        "tell",
+        "show",
+        "give",
+        "list",
+        "any",
+        "all",
+        "there",
+        "it",
+        "its",
+        "that",
+        "this",
+        "last",
+        "previous",
+        "month",
+        "money",
+        "total",
+        "now",
+        "with",
+        "payments",
+        "payment",
+        "bills",
+        "bill",
+        "files",
+        "file",
+        "accounts",
+        "account",
+    ]
+)
+MONTH_WORDS = frozenset([*MONTHS, *(m[:3] for m in MONTHS)])
+
+
+def _fully_understood(q: _Ask, intent_words: tuple[str, ...]) -> bool:
+    """Code may answer only when every word of the question is accounted for: the intent's own words, plain framing, and the month and categories the
+    answer actually applied. Anything left over (a merchant, "more than", "and", "together", a year or a week) is a condition the answer would
+    silently ignore, so the question goes to the assistant instead."""
+    rest = q.text
+    for w in intent_words:
+        rest = re.sub(rf"\b{w}\w*", " ", rest)
+    tokens = re.findall(r"[^\W\d_]+|\d+", rest)
+    named = {t for t in tokens if t in MONTH_WORDS}
+    if len(named) > 1 or (named and not q.used_month):
+        return False
+    left = [
+        t
+        for t in tokens
+        if t not in FRAME and t not in named and t not in q.used_words and not (t.isdigit() and len(t) == 4 and q.used_month and t.startswith("20"))
+    ]
+    return not left
+
+
 def answer(conn, text: str, used: list | None = None) -> str | None:
     """A complete answer, or None if this question needs the assistant. The months it is about are appended to `used` so they can be checked."""
     t = " ".join(text.lower().split())
@@ -165,7 +261,8 @@ def answer(conn, text: str, used: list | None = None) -> str | None:
     q = _Ask(conn, t, used if used is not None else [])
     for words, handler in INTENTS:
         if q.has(*words):
-            return handler(q)
+            reply = handler(q)
+            return reply if _fully_understood(q, words) else None
     return None
 
 
