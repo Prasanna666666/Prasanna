@@ -252,8 +252,8 @@ pages.money = async () => {
     function step(n) { const d = new Date(month + '-15'); d.setMonth(d.getMonth() + n); month = d.toISOString().slice(0, 7); openCats.clear(); draw(false); }
     const dayTotal = (byMain.find((m) => m.main === 'others') || { net: 0 }).net;
     const outingTotal = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0);
-    const proofChip = h('button', { class: 'proof ' + (pf.proven ? 'ok' : 'bad'), title: pf.proven ? 'Every statement for this month passed its checks and the balances join up.' : pf.reasons.join('\n'),
-      onclick: () => { if (!pf.proven) alert('Not proven:\n\n' + pf.reasons.map((r) => '• ' + r).join('\n')); } }, pf.proven ? '✓ Proven' : '⚠ Not proven · tap to see why');
+    const proofChip = pf.proven ? null : h('button', { class: 'proof bad', title: pf.reasons.join('\n'),
+      onclick: () => alert('Not proven:\n\n' + pf.reasons.map((r) => '• ' + r).join('\n')) }, '⚠ Check this month · tap to see why');  // nothing is shown for a month that is fine
     const hero = h('div', { class: 'card hero' }, h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month), ' ', proofChip), h('div', { class: 'big num' }, money(dayTotal + outingTotal)),
       h('div', { class: 'meta' }, h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(dayTotal))), h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(outingTotal, 0))),
         h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))));
