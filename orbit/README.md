@@ -186,4 +186,5 @@ Dev: `pip install -e ".[dev]" && pytest`.
 | Your files | read-only (`~/OrbitFinance`, `~/OrbitInbox`) |
 | What it learns | a Docker volume, not a folder on your Mac |
 | The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
-| Chat | the round button in the corner, or `Ctrl/⌘ J`; `/` jumps to search |
+| Chat | the round button in the corner, or `Ctrl/⌘ J` |
+| Search everything | `Ctrl/⌘ K` or `/` |
