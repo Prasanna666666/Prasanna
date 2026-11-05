@@ -24,7 +24,7 @@ mkdir -p "$APERTURE_HOST_DRIVE"/{Aperture,Aperture_Exports}
 ollama pull ministral-3:3b                                  # native Ollama on the Mac (uses the GPU)
 # Models for Aperture itself (CLIP, faces, place data) must already be in $APERTURE_HOST_DRIVE/Aperture/models.
 # Get them once with the normal install (scripts/install.sh -> `aperture fetch-models`). The container cannot download.
-scripts/aperture-docker-up.sh   # builds and starts Lumo (the fast web app)
+scripts/up.sh   # builds and starts Lumo (the fast web app)
 # or by hand: docker compose -f docker-compose.aperture.yml up -d --build                                    # open http://127.0.0.1:8765
 ```
 Docker Desktop: Settings > Resources > Memory about 4 GB (the Aperture container is capped at 5 GB; Ollama runs natively).

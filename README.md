@@ -13,7 +13,11 @@ library (tested design target: ~500 GB) on an external drive and lets you search
 - **Safe export.** Copies (never moves) to a folder outside the library: temp file, fsync, SHA-256 verify, atomic rename, no overwrites, manifest.
 - **Resumable indexing** in passes (index, faces, text), low priority, small memory footprint for 8 GB machines.
 
-## Install (macOS, Python 3.10+)
+## Quick start (Docker, the normal way)
+
+`ollama pull ministral-3:3b`, then `./scripts/up.sh` and open http://lumo.localhost:8765. Docker has no Apple text-reading for photos and no GPU (slower indexing); if you want speed instead, use the native install below.
+
+## Install natively (macOS, Python 3.10+)
 
 ```bash
 git clone https://github.com/Prasanna666666/Prasanna.git && cd Prasanna
@@ -52,7 +56,7 @@ Not in the new app yet: naming or merging people, Tidy up, Settings and the expo
 
 Measure it: `aperture check` (seconds per step), `aperture eval-routes`, `aperture eval-plans`. See `docs/safety.md` (items 8-11).
 
-Prefer a container? `scripts/aperture-docker-up.sh` runs Lumo isolated (no internet, photos read-only); see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
+Prefer a container? `scripts/up.sh` runs Lumo isolated (no internet, photos read-only); see `docs/docker.md` for the trade-offs (CPU only, no photo OCR).
 
 ## Best setup for an 8 GB M1 (what this app is built for)
 - The AI model (Ministral 3B) only understands language, with short prompts and tiny outputs. Search, matching and counting are plain code and image search: milliseconds.
@@ -93,3 +97,16 @@ Aim for >= 90% on both. If `eval-plans` is lower, try a larger Ollama model in S
 Visual strictness presets (`strict/balanced/broad`) are tunable defaults; calibrate on your library in Settings. NTFS drives are read-only on macOS and are rejected. First full index of 500 GB takes many hours.
 
 MIT licensed.
+
+## At a glance (same in Orbit and Lumo)
+
+| | |
+|---|---|
+| Start | `./scripts/up.sh` (Docker) |
+| Stop | `./scripts/down.sh` |
+| Address | `http://lumo.localhost:8765` |
+| Internet | none: internal Docker network, in-code network lock |
+| Your files | read-only |
+| What it learns | a Docker volume, not a folder on your Mac |
+| The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
+| Chat | the round button in the corner, or `Ctrl/⌘ J`; `/` jumps to search |
