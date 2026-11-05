@@ -1202,6 +1202,107 @@ def cmd_bench(paths: Paths) -> int:
     return 0
 
 
+def _launcher_command(paths, args) -> int:
+    from . import launcher
+
+    if args.command == "ui":
+        return launcher.run_ui(args.port)
+    if _require_drive(paths):
+        return 2
+    if args.command == "install-service":
+        url = launcher.install_service(paths)
+        print(f"Lumo is running in the background and starts at every login.\nOpen: {url}\n(also works: http://127.0.0.1:8765)")
+        return 0
+    if args.command == "app":
+        return launcher.run_window(args.port)
+    print(launcher.install_app_bundle(paths, None if not args.dest else Path(args.dest)))
+    return 0
+
+
+def _cmd_fetch_models(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .ml.fetch import fetch_all
+
+    fetch_all(ctx.paths, ctx.settings)
+    return 0
+
+
+def _cmd_web(ctx: AppContext, args: argparse.Namespace) -> int:
+    from .web.server import serve
+
+    return serve(ctx, args.port)
+
+
+def _cmd_export_job(ctx: AppContext, args: argparse.Namespace) -> int:
+    report = run_job(ctx.paths, ctx.settings, ctx.db.connect(), args.job_id)
+    print(f"export done: {report.copied} copied, {report.skipped_identical} already there, {len(report.failed)} failed")
+    return 0 if not report.failed else 1
+
+
+def _cmd_stats(ctx: AppContext, args: argparse.Namespace) -> int:
+    print(json.dumps(_stats(ctx.db.connect()), indent=2))
+    return 0
+
+
+def _cmd_settings(ctx: AppContext, args: argparse.Namespace) -> int:
+    s: Settings = ctx.settings
+    paths = ctx.paths
+    changed = False
+    if args.photo_dir:
+        s.photo_dir = str(resolve_photo_dir(paths, args.photo_dir))
+        changed = True
+    if args.export_dir:
+        s.export_dir = str(resolve_export_dir(paths, args.export_dir, s.photo_dir))
+        changed = True
+    if args.ollama_model:
+        s.ollama_model = args.ollama_model
+        changed = True
+    if args.image_model:
+        s.clip_model, s.clip_pretrained = IMAGE_MODELS[args.image_model]
+        print(
+            f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo."
+        )
+        changed = True
+    if args.cloud_model:
+        s.cloud_model = args.cloud_model
+        changed = True
+    if args.cloud_cap is not None:
+        s.cloud_cap_usd = max(0.0, args.cloud_cap)
+        changed = True
+    if args.estimate_locations:
+        s.estimate_locations = args.estimate_locations == "on"
+        changed = True
+    if changed:
+        s.save(paths)
+    print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
+    return 0
+
+
+# Commands that run with the app's context (settings, database, models). Each takes (ctx, args).
+WITH_CONTEXT = {
+    "fetch-models": _cmd_fetch_models,
+    "doctor": lambda ctx, args: cmd_doctor(ctx, args.stats),
+    "scan": cmd_scan,
+    "where": cmd_where,
+    "profile": cmd_profile,
+    "explain": cmd_explain,
+    "clear-estimates": lambda ctx, args: cmd_clear_estimates(ctx),
+    "venues": cmd_venues,
+    "judge": cmd_judge,
+    "details": cmd_details,
+    "deepmeta": cmd_deepmeta,
+    "ask": cmd_ask,
+    "web": _cmd_web,
+    "eval-plans": lambda ctx, args: cmd_eval_plans(ctx),
+    "eval-routes": lambda ctx, args: cmd_eval_routes(ctx),
+    "check": lambda ctx, args: cmd_check(ctx),
+    "eval-tools": lambda ctx, args: cmd_eval_tools(ctx),
+    "eval": cmd_eval,
+    "export-job": _cmd_export_job,
+    "stats": _cmd_stats,
+    "settings": _cmd_settings,
+}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     paths = default_paths()
@@ -1220,32 +1321,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_environment(paths, online=online)
     enable_offline_guard()  # no-op while fetching models
 
+    # commands that need no library (and so no drive): run before anything is opened
     if args.command == "cloud-gateway":
         return cmd_cloud_gateway()
     if args.command == "cloud":
-        if _require_drive(paths):
-            return 2
-        return cmd_cloud(paths, args)
+        return 2 if _require_drive(paths) else cmd_cloud(paths, args)
     if args.command == "secure-ui":
         return cmd_secure_ui(paths, args)
     if args.command in ("app", "ui", "install-launcher", "install-service"):
-        from . import launcher
-
-        if args.command == "ui":
-            return launcher.run_ui(args.port)
-        if _require_drive(paths):
-            return 2
-        if args.command == "install-service":
-            url = launcher.install_service(paths)
-            print(
-                f"Lumo is running in the background and starts at every login.\nOpen: {url}\n(also works: http://127.0.0.1:8765)"
-            )
-            return 0
-        if args.command == "app":
-            return launcher.run_window(args.port)
-        print(launcher.install_app_bundle(paths, None if not args.dest else __import__("pathlib").Path(args.dest)))
-        return 0
-
+        return _launcher_command(paths, args)
     if args.command == "bench":
         return cmd_bench(paths)
     if args.command == "caption":
@@ -1254,85 +1338,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     if _require_drive(paths):
         return 2
     _setup_logging(paths)
-    ctx = AppContext(paths)
-    if args.command == "fetch-models":
-        from .ml.fetch import fetch_all
-
-        fetch_all(paths, ctx.settings)
-        return 0
-    if args.command == "doctor":
-        return cmd_doctor(ctx, args.stats)
-    if args.command == "scan":
-        return cmd_scan(ctx, args)
-    if args.command == "where":
-        return cmd_where(ctx, args)
-    if args.command == "profile":
-        return cmd_profile(ctx, args)
-    if args.command == "explain":
-        return cmd_explain(ctx, args)
-    if args.command == "clear-estimates":
-        return cmd_clear_estimates(ctx)
-    if args.command == "venues":
-        return cmd_venues(ctx, args)
-    if args.command == "judge":
-        return cmd_judge(ctx, args)
-    if args.command == "details":
-        return cmd_details(ctx, args)
-    if args.command == "deepmeta":
-        return cmd_deepmeta(ctx, args)
-    if args.command == "ask":
-        return cmd_ask(ctx, args)
-    if args.command == "web":
-        from .web.server import serve
-
-        return serve(ctx, args.port)
-    if args.command == "eval-plans":
-        return cmd_eval_plans(ctx)
-    if args.command == "eval-routes":
-        return cmd_eval_routes(ctx)
-    if args.command == "check":
-        return cmd_check(ctx)
-    if args.command == "eval-tools":
-        return cmd_eval_tools(ctx)
-    if args.command == "eval":
-        return cmd_eval(ctx, args)
-    if args.command == "export-job":
-        conn = ctx.db.connect()
-        report = run_job(paths, ctx.settings, conn, args.job_id)
-        print(f"export done: {report.copied} copied, {report.skipped_identical} already there, {len(report.failed)} failed")
-        return 0 if not report.failed else 1
-    if args.command == "stats":
-        print(json.dumps(_stats(ctx.db.connect()), indent=2))
-        return 0
-    if args.command == "settings":
-        s: Settings = ctx.settings
-        if args.photo_dir:
-            s.photo_dir = str(resolve_photo_dir(paths, args.photo_dir))
-        if args.export_dir:
-            s.export_dir = str(resolve_export_dir(paths, args.export_dir, s.photo_dir))
-        if args.ollama_model:
-            s.ollama_model = args.ollama_model
-        if args.image_model:
-            s.clip_model, s.clip_pretrained = IMAGE_MODELS[args.image_model]
-            print(
-                f"picture model: {s.clip_model}/{s.clip_pretrained}. Next: `aperture fetch-models` (once, outside the sandbox) and then `scan` to re-read every photo."
-            )
-        if args.cloud_model:
-            s.cloud_model = args.cloud_model
-        if args.cloud_cap is not None:
-            s.cloud_cap_usd = max(0.0, args.cloud_cap)
-        if args.estimate_locations:
-            s.estimate_locations = args.estimate_locations == "on"
-        if (
-            args.photo_dir
-            or args.export_dir
-            or args.ollama_model
-            or args.estimate_locations
-            or args.image_model
-            or args.cloud_model
-            or args.cloud_cap is not None
-        ):
-            s.save(paths)
-        print(json.dumps(json.loads(paths.settings_file.read_text()) if paths.settings_file.exists() else {}, indent=2))
-        return 0
-    return 2
+    handler = WITH_CONTEXT.get(args.command)
+    return handler(AppContext(paths), args) if handler else 2
