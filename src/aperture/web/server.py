@@ -33,6 +33,7 @@ from .. import library as lib
 from ..agent.llm import CALL_LOG
 from ..config import preview_rel, thumb_rel
 from ..indexing.progress import ScanLock
+from . import browse
 
 STATIC = Path(__file__).parent / "static"
 STATIC_FILES = {"app.css": "text/css; charset=utf-8", "app.js": "text/javascript; charset=utf-8"}
@@ -51,6 +52,7 @@ CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
     "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
+BROWSE_PATHS = frozenset({"/api/library", "/api/timeline", "/api/trips", "/api/places", "/api/people"})
 ID_PATH = re.compile(r"^/api/photo/(\d{1,12})/(thumb|preview)$")
 ITEM_PATH = re.compile(r"^/api/item/(\d{1,12})$")
 
@@ -259,6 +261,21 @@ class Web:
         self.paused_for_chat = False
         return True
 
+    def browse(self, what: str, query: dict[str, str]) -> Any:
+        """The library as pages: photos by date, the timeline, trips, places, people. The lists that change slowly are kept for a minute."""
+        conn = self.ctx.db.connect()
+        try:
+            if what == "library":
+                try:
+                    offset = max(0, int(query.get("offset", "0")))
+                except ValueError:
+                    offset = 0
+                return browse.library(conn, query, offset)
+            fn: Any = {"timeline": browse.timeline, "trips": browse.trips, "places": browse.places, "people": browse.people}[what]
+            return self.cached("browse:" + what, 60.0, lambda: fn(conn))
+        finally:
+            conn.close()
+
     def item(self, item_id: int) -> dict[str, Any] | None:
         conn = self.ctx.db.connect()
         try:
@@ -464,6 +481,9 @@ def make_handler(web: Web) -> type[BaseHTTPRequestHandler]:
                 self._json(web.status())
             elif path == "/api/suggestions":
                 self._json({"ideas": web.suggestions()})
+            elif path in BROWSE_PATHS:
+                params = {k: v[0][:200] for k, v in parse_qs(url.query).items() if v}
+                self._json(web.browse(path[len("/api/") :], params))
             elif path == "/api/results":
                 query = parse_qs(url.query)
                 try:

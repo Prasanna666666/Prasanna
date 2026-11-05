@@ -266,10 +266,138 @@
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask(input.value); } });
   form.addEventListener('submit', (e) => { e.preventDefault(); if (busy && controller) controller.abort(); else ask(input.value); });
   $('#newchat').addEventListener('click', newChat);
+  $('#topsearch').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#topq').value.trim(); if (!t) return; $('#topq').value = ''; go('search'); ask(t); });
   document.addEventListener('keydown', (e) => {
     if (!lb.hidden) { if (e.key === 'Escape') lbClose(); else if (e.key === 'ArrowLeft') lbStep(-1); else if (e.key === 'ArrowRight') lbStep(1); return; }
-    if (e.key === '/' && document.activeElement !== input) { e.preventDefault(); input.focus(); }
+    if (e.key === '/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement ? document.activeElement.tagName : '')) { e.preventDefault(); (where().page === 'search' ? input : $('#topq')).focus(); }
   });
+
+  // ---------------------------------------------------------------- navigation, theme and the browsing pages
+  const SVG = 'http://www.w3.org/2000/svg';
+  const icon = (d) => { const svg = document.createElementNS(SVG, 'svg'), path = document.createElementNS(SVG, 'path'); svg.setAttribute('viewBox', '0 0 24 24'); path.setAttribute('d', d); svg.append(path); return svg; };
+  const NAV = [
+    ['search', 'Search', 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM21 21l-4.3-4.3'],
+    ['library', 'Library', 'M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01'],
+    ['trips', 'Trips', 'M2 14l20-8-8 20-3-9-9-3Z'],
+    ['places', 'Places', 'M12 21s-7-5.3-7-11a7 7 0 0 1 14 0c0 5.7-7 11-7 11ZM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z'],
+    ['people', 'People', 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2A6 6 0 0 1 21 20'],
+  ];
+  const PAGES = NAV.map((n) => n[0]);
+  const THEME_ICONS = { dark: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z', light: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4', auto: 'M12 3a9 9 0 1 0 0 18V3Z' };
+  function setupTheme() {
+    let mode = 'dark'; try { mode = localStorage.getItem('lumo.theme') || 'dark'; } catch (_) { /* private window */ }
+    const apply = () => { document.documentElement.dataset.theme = mode; $('#theme').replaceChildren(icon(THEME_ICONS[mode])); $('#theme').title = 'Theme: ' + mode; };
+    $('#theme').addEventListener('click', () => { mode = mode === 'auto' ? 'dark' : mode === 'dark' ? 'light' : 'auto'; try { localStorage.setItem('lumo.theme', mode); } catch (_) { /* ignore */ } apply(); });
+    apply();
+  }
+  $('#nav').replaceChildren(...NAV.map(([id, label, d]) => { const a = el('a', 'nav-item'); a.href = '#/' + id; a.dataset.id = id; a.append(icon(d), el('span', '', label)); return a; }));
+  function where() {
+    const [page, query] = location.hash.replace(/^#\/?/, '').split('?');
+    return { page: PAGES.includes(page) ? page : 'search', params: Object.fromEntries(new URLSearchParams(query || '')) };
+  }
+  function go(page, params) {
+    const clean = Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v));
+    const qs = new URLSearchParams(clean).toString(), target = '#/' + page + (qs ? '?' + qs : '');
+    if (location.hash === target) render(); else location.hash = target;
+  }
+  const getJson = async (path) => (await api(path)).json();
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthLabel = (ym) => MONTHS[+ym.slice(5, 7) - 1] || ym;
+  const pageHead = (title, sub, ...right) => { const head = el('div', 'page-head'), left = el('div'); left.append(el('h1', '', title)); if (sub) left.append(el('div', 'sub', sub)); head.append(left, ...right); return head; };
+  const seg = (options, current, pick) => { const box = el('div', 'seg'); for (const [value, label] of options) { const b = el('button', value === current ? 'on' : '', label); b.type = 'button'; b.addEventListener('click', () => pick(value)); box.append(b); } return box; };
+  const tag = (label, clear) => { const b = el('button', 'tag', label + ' \u00d7'); b.type = 'button'; b.title = 'Remove this filter'; b.addEventListener('click', clear); return b; };
+  const dateRange = (a, b) => (a === b ? a : `${a} \u2192 ${b}`);
+  function coverCard(id, title, subtitle, count, onClick) {
+    const card = el('button', 'cover'); card.type = 'button';
+    const img = new Image(); img.alt = ''; img.decoding = 'async'; img.loading = 'lazy'; img.onload = () => card.classList.add('loaded'); img.src = photoUrl(id, 'thumb');
+    const label = el('div', 'label'); label.append(el('b', '', title), el('span', '', subtitle));
+    card.append(img, label); if (count != null) card.append(el('span', 'badge', count.toLocaleString()));
+    card.addEventListener('click', onClick); return card;
+  }
+  let libSeq = 0;
+  async function showLibrary(params) {
+    const host = $('#page-library'), mine = ++libSeq;
+    host.replaceChildren(el('div', 'empty', 'Loading\u2026'));
+    const [tl, people] = await Promise.all([getJson('/api/timeline'), params.person ? getJson('/api/people') : Promise.resolve([])]);
+    if (mine !== libSeq) return;
+    const filters = ['year', 'month', 'place', 'person', 'from', 'to'].reduce((o, k) => (params[k] ? { ...o, [k]: params[k] } : o), {});
+    const change = (c) => go('library', { ...params, ...c });
+    const sub = el('div', 'sub', ''), grid = el('div', 'pgrid'), sentinel = el('div', 'sentinel'), moreBtn = el('button', 'pill more', 'Show more'); moreBtn.type = 'button';
+    const head = el('div', 'page-head'), left = el('div'); left.append(el('h1', '', 'Library'), sub); head.append(left);
+    const facets = el('div', 'facets');
+    facets.append(seg([['', `All \u00b7 ${tl.total.toLocaleString()}`], ...tl.years.map((y) => [y.year, `${y.year} \u00b7 ${y.total.toLocaleString()}`])], params.year || '', (v) => change({ year: v, month: '', from: '', to: '', trip: '' })));
+    const yr = tl.years.find((y) => y.year === params.year);
+    if (yr) facets.append(seg([['', 'All months'], ...yr.months.slice().reverse().map((m) => [m.month, `${monthLabel(m.month)} \u00b7 ${m.n}`])], params.month || '', (v) => change({ month: v })));
+    const tags = el('div', 'tagrow');
+    if (params.place) tags.append(tag(params.place, () => change({ place: '' })));
+    if (params.person) tags.append(tag((people.find((p) => String(p.id) === params.person) || {}).name || 'Person', () => change({ person: '', name: '' })));
+    if (params.from || params.to) tags.append(tag(params.trip ? `${params.trip} \u00b7 ${dateRange(params.from, params.to)}` : dateRange(params.from, params.to), () => change({ from: '', to: '', trip: '' })));
+    host.replaceChildren(head, facets, tags, grid, sentinel, moreBtn);
+    const g = { ids: [], grid }; let total = 0, loading = false;
+    async function more() {
+      if (loading || mine !== libSeq || (total && g.ids.length >= total)) return;
+      loading = true;
+      try {
+        const d = await getJson('/api/library?' + new URLSearchParams({ ...filters, offset: String(g.ids.length) }));
+        if (mine !== libSeq) return;
+        total = d.total; addTiles(g, d.ids);
+        sub.textContent = total ? `${total.toLocaleString()} photo${total === 1 ? '' : 's'}` : '';
+        if (!total) grid.replaceWith(el('div', 'empty', 'No photos match.'));
+      } catch (_) { /* keep what is shown */ }
+      loading = false; moreBtn.hidden = g.ids.length >= total;
+    }
+    moreBtn.addEventListener('click', more);
+    new IntersectionObserver((entries) => { if (entries.some((x) => x.isIntersecting)) more(); }, { rootMargin: '600px' }).observe(sentinel);
+    await more();
+  }
+  async function showTrips() {
+    const host = $('#page-trips'); host.replaceChildren(el('div', 'empty', 'Loading\u2026'));
+    const trips = await getJson('/api/trips');
+    const body = [pageHead('Trips', trips.length ? `${trips.length} trips and occasions, newest first` : '')];
+    if (!trips.length) body.push(el('div', 'empty', 'No trips yet. They appear once photos have dates and places.'));
+    let year = '';
+    const cards = el('div', 'cards'); body.push(cards);
+    for (const t of trips) {
+      if (t.start.slice(0, 4) !== year) { year = t.start.slice(0, 4); cards.append(el('div', 'band wide', year)); }
+      cards.append(coverCard(t.cover, t.title, dateRange(t.start, t.stop), t.n, () => go('library', { from: t.start, to: t.stop, trip: t.title })));
+    }
+    host.replaceChildren(...body);
+  }
+  async function showPlaces() {
+    const host = $('#page-places'); host.replaceChildren(el('div', 'empty', 'Loading\u2026'));
+    const places = await getJson('/api/places');
+    const cards = el('div', 'cards'), filter = el('input', 'field'); filter.type = 'search'; filter.placeholder = 'Find a place\u2026';
+    const fill = () => { const f = filter.value.trim().toLowerCase(); cards.replaceChildren(...places.filter((p) => !f || p.place.toLowerCase().includes(f)).map((p) => coverCard(p.cover, p.place.split(',')[0], p.country || p.place, p.n, () => go('library', { place: p.place })))); };
+    filter.addEventListener('input', fill); fill();
+    host.replaceChildren(pageHead('Places', places.length ? `${places.length} places` : ''), ...(places.length ? [filter, el('div', 'band', ''), cards] : [el('div', 'empty', 'No places yet. Photos with a location appear here.')]));
+  }
+  function faceStyle(node, id, box) {          // the clearest face of a person, zoomed into the photo it comes from
+    node.style.backgroundImage = `url("${photoUrl(id, 'thumb')}")`;
+    const [x1, y1, x2, y2] = box, w = Math.max(x2 - x1, y2 - y1) * 1.7;
+    if (!(w < 0.98)) { node.style.backgroundSize = 'cover'; node.style.backgroundPosition = 'center'; return; }
+    const pos = (c) => Math.min(100, Math.max(0, ((c - w / 2) / (1 - w)) * 100));
+    node.style.backgroundSize = `${100 / w}% ${100 / w}%`; node.style.backgroundPosition = `${pos((x1 + x2) / 2)}% ${pos((y1 + y2) / 2)}%`;
+  }
+  async function showPeople() {
+    const host = $('#page-people'); host.replaceChildren(el('div', 'empty', 'Loading\u2026'));
+    const people = await getJson('/api/people'), grid = el('div', 'people');
+    people.forEach((p, i) => {
+      const b = el('button', 'person'), face = el('div', 'face'); b.type = 'button'; faceStyle(face, p.cover, p.box);
+      b.append(face, el('b', '', p.name || `Person ${i + 1}`), el('span', '', `${p.n.toLocaleString()} photo${p.n === 1 ? '' : 's'}`));
+      b.addEventListener('click', () => go('library', { person: String(p.id) })); grid.append(b);
+    });
+    host.replaceChildren(pageHead('People', people.length ? `${people.length} people found in your photos` : ''), people.length ? grid : el('div', 'empty', 'No people yet. Faces are grouped while your library is indexed.'));
+  }
+  async function render() {
+    const { page, params } = where();
+    document.body.dataset.page = page;
+    document.querySelectorAll('.nav-item').forEach((a) => a.classList.toggle('active', a.dataset.id === page));
+    for (const id of PAGES) $('#page-' + id).hidden = id !== page;
+    try {
+      if (page === 'library') await showLibrary(params); else if (page === 'trips') await showTrips(); else if (page === 'places') await showPlaces(); else if (page === 'people') await showPeople();
+    } catch (e) { const host = $('#page-' + page); host.replaceChildren(el('div', 'empty', `Could not load this page: ${e.message}`)); }
+    if (page !== 'search') window.scrollTo({ top: 0 });
+  }
 
   // ---------------------------------------------------------------- status chips + first screen
   function chip(label, state, action) {
@@ -312,5 +440,6 @@
   }
   const h = new Date().getHours();
   $('#greeting').textContent = h < 5 ? 'Hello' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-  autosize(); refreshStatus(); loadIdeas(); setInterval(refreshStatus, 4000); input.focus();
+  setupTheme(); window.addEventListener('hashchange', render); render();
+  autosize(); refreshStatus(); loadIdeas(); setInterval(refreshStatus, 4000); if (where().page === 'search') input.focus();
 })();

@@ -40,8 +40,14 @@ Lumo is a small local web app written for speed: the page opens instantly and "N
 stream in first (milliseconds), then the checked answer, then the reply word by word. One-subject
 searches skip the AI plan, and every message first goes through a tiny model-driven router (no phrase lists anywhere). It is plain HTML/CSS/JS served by the standard library
 (no frameworks, no CDN, no new packages) with a strict Content-Security-Policy, a per-run token, host/origin checks and photos served
-only by number from Aperture's own thumbnail folders. Not in the new app yet: the Photos browser, People, Tidy up, Settings and the
-export/move cards (use `--classic` for those).
+only by number from Aperture's own thumbnail folders.
+
+It is laid out like a regular website: a slim menu (Search, Library, Trips, Places, People), a search bar on every page and a status strip.
+**Search** is the chat. **Library** shows every photo, newest first, narrowed by year and month, and loads more as you scroll. **Trips** lists trips and occasions
+(from the library's own events, or runs of photos taken close together); **Places** lists every place with its photo count; **People** shows the faces found, each with
+their clearest photo. Open any of them to see just those photos, with a removable filter chip; click a photo for the full-size view with arrow-key navigation.
+Dark (Lagoon, the default), light (Shoreline) or automatic theme from the button at the bottom of the menu; on a phone the menu becomes a tab bar.
+Not in the new app yet: naming or merging people, Tidy up, Settings and the export/move cards (use `--classic` for those).
 
 Measure it: `aperture check` (seconds per step), `aperture eval-routes`, `aperture eval-plans`. See `docs/safety.md` (items 8-11).
 
