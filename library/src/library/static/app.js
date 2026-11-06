@@ -2,7 +2,7 @@
 (() => {
     const $ = (s) => document.querySelector(s);
     const EMBEDDED = window.parent !== window;
-    const state = { kind: '', q: '' };
+    const state = { kind: '', q: '', source: 'files' };
 
     const api = (path) => fetch(path, { headers: { Accept: 'application/json' } }).then((r) => r.json());
     const el = (tag, props, ...kids) => {
@@ -57,7 +57,9 @@
             }
             return;
         }
-        const r = await api(`/api/documents?limit=200${state.kind ? `&kind=${encodeURIComponent(state.kind)}` : ''}`);
+        const r = await api(
+            `/api/documents?limit=200&source=${state.source}${state.kind ? `&kind=${encodeURIComponent(state.kind)}` : ''}`
+        );
         showList(r.documents.reverse());
     }
 
@@ -96,7 +98,8 @@
     // ---------------------------------------------------------------- sections: documents, and (when pictures are set up) the picture library
     const SECTIONS = [
         ['documents', 'Documents'],
-        ['library', 'Library'],
+        ['mail', 'Emails'],
+        ['library', 'Pictures'],
         ['trips', 'Trips'],
         ['places', 'Places'],
         ['people', 'People'],
@@ -107,8 +110,8 @@
     function tabs(current) {
         const box = $('#tabs');
         box.replaceChildren();
-        if (!withPictures) return;
         for (const [id, label] of SECTIONS) {
+            if (!withPictures && !['documents', 'mail'].includes(id)) continue;
             const b = el('button', { type: 'button' }, label);
             b.setAttribute('aria-pressed', String(id === current));
             b.addEventListener('click', () => (location.hash = id === 'documents' ? '#/home' : `#/${id}`));
@@ -118,9 +121,12 @@
 
     function route() {
         const [path, query] = location.hash.replace(/^#\//, '').split('?');
-        const section =
-            SECTIONS.some(([id]) => id === path) && path !== 'documents' && withPictures ? path : 'documents';
-        tabs(section);
+        const known = SECTIONS.some(([id]) => id === path) && path !== 'documents';
+        const tab = known && (withPictures || path === 'mail') ? path : 'documents';
+        const section = tab === 'mail' ? 'documents' : tab; // emails are the document list, filtered to mail
+        const source = tab === 'mail' ? 'mail' : 'files';
+        state.source = source;
+        tabs(tab);
         $('#page-documents').hidden = section !== 'documents';
         $('#page-pictures').hidden = section === 'documents' || section === 'changes';
         $('#page-changes').hidden = section !== 'changes';

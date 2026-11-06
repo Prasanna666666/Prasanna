@@ -198,7 +198,7 @@
                 )
             );
         }
-        host().replaceChildren(head('Library'), sub, facets, tags, grid, sentinel, moreBtn);
+        host().replaceChildren(head('Pictures'), sub, facets, tags, grid, sentinel, moreBtn);
         const g = { ids: [], grid };
         let total = 0,
             loading = false;

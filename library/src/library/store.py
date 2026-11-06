@@ -187,7 +187,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None) -> dict
                 out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Update again."
                 continue
             if progress and index % 5 == 1:
-                progress(f"Reading {index} of {len(pending)}")
+                progress(f"{index} read so far")  # the total is not known: more files may still be arriving
             try:
                 facts = extract.classify(client, model, d["name"], d["text"])
             except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
@@ -222,7 +222,15 @@ def _as_document(r) -> dict[str, Any]:
 
 
 def list_documents(
-    conn, kinds: list[str] | None = None, area: str = "", place: str = "", year: str = "", since: int = 0, limit: int = 100, full: bool = False
+    conn,
+    kinds: list[str] | None = None,
+    area: str = "",
+    place: str = "",
+    year: str = "",
+    since: int = 0,
+    limit: int = 100,
+    full: bool = False,
+    source: str = "",
 ) -> list[dict]:
     """Ready documents, oldest first. `kinds` are classified kinds (invoice, ticket, medical ...); a document is returned when its kind is listed or, with `area`, when it came from that area.
     Without either, everything the model recognised (not "other") is returned. With `full`, the text and structured data come too."""
@@ -230,6 +238,8 @@ def list_documents(
     out: list[dict] = []
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE ready > ? ORDER BY ready", (max(0, int(since)),)):
         doc = _as_document(r)
+        if source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
+            continue
         if wanted or area:
             if doc["kind"] not in wanted and not (area and doc["area"] == area):
                 continue

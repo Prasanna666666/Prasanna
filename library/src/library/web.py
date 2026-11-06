@@ -132,7 +132,15 @@ def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
     since = int(query["since"]) if query.get("since", "").isdigit() else 0
     limit = int(query["limit"]) if query.get("limit", "").isdigit() else 100
     found = store.list_documents(
-        conn, _list_arg(query, "kind"), query.get("area", "")[:20], query.get("place", "")[:80], query.get("year", "")[:4], since, limit, full
+        conn,
+        _list_arg(query, "kind"),
+        query.get("area", "")[:20],
+        query.get("place", "")[:80],
+        query.get("year", "")[:4],
+        since,
+        limit,
+        full,
+        query.get("source", "")[:5],
     )
     return {"documents": found}
 

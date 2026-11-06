@@ -254,3 +254,8 @@ def test_a_file_that_changed_or_a_missing_folder_name_stops_the_filing(inbox):
     window = open_window(inbox, out["data"]["change_id"])
     assert any("changed since" in p for p in window["problems"])
     assert not changes.confirm(inbox.state, inbox.conn, out["data"]["change_id"], window["nonce"])["ok"] and inbox.invoice.is_file()
+
+
+def test_documents_and_emails_are_listed_apart(inbox):
+    names_of = lambda source: {d["name"] for d in store.list_documents(inbox.conn, ["invoice", "insurance"], source=source)}  # noqa: E731
+    assert names_of("mail") == {"offer.eml"} and names_of("files") == {"scan001.pdf", "letter.pdf"}

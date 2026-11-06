@@ -86,7 +86,7 @@ def _take_documents(state: State, conn) -> list[str]:
     if not library_client.base_url():
         return []
     try:
-        problems = library_client.update(lambda m: state.importing.update(progress=m))
+        problems = library_client.update(lambda _m: state.importing.update(progress="Waiting for Documents to finish reading…"))
         library_client.pull(conn)
     except RuntimeError as exc:
         return [str(exc)]

@@ -19,8 +19,13 @@
       "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5"
     },
     {
+      "id": "mail",
+      "label": "Emails",
+      "icon": "M3 6h18v12H3V6Zm0 0 9 7 9-7"
+    },
+    {
       "id": "library",
-      "label": "Library",
+      "label": "Pictures",
       "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01"
     },
     {

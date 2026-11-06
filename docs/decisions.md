@@ -52,3 +52,5 @@ If something here is wrong, the owner says so once and it is changed here.
 - Do not make the owner explain things again. Check this list and `docs/architecture.md` first.
 - Do the work; report briefly and honestly: what changed, what was verified, what was not.
 - Ask only when a decision truly belongs to the owner.
+
+- **What the person sees:** Documents has three sections of the same store: **Documents** (files), **Emails** (mail) and **Pictures**, plus Trips, Places, People and Changes. Finance is the money views and calculations over those documents, not a second reader. While reading, progress shows only a number done so far (no total, because files may still arrive); Finance shows "Waiting for Documents" until Documents is done.
