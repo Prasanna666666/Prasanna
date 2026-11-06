@@ -5,7 +5,7 @@
 #   gateway / ollama bridge - dumb byte forwarders (the service on 127.0.0.1 only; Ollama on your Mac).
 #
 # Start with ./scripts/up.sh (it keeps the database key in the macOS Keychain). Other apps (Finance today, Health and Travel later) ask this service for documents.
-name: library
+name: atlas-documents
 
 x-hardened: &hardened
   read_only: true
@@ -71,4 +71,6 @@ networks:
 
 volumes:
   library-data:
+    name: library_library-data     # the volumes that already hold your documents keep their names, so they are found again
   library-parsed:
+    name: library_library-parsed

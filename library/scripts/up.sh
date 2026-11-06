@@ -22,5 +22,6 @@ source ../scripts/platform-key.sh
 FILES=(-f docker-compose.yml)
 [ -d "${ATLAS_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ATLAS_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ATLAS_NO_MAIL=1 to turn off)
 [ -d "${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos" ] && FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected
+docker compose -p library down --remove-orphans >/dev/null 2>&1 || true   # containers of the earlier name hold the same port; the volumes stay
 docker compose "${FILES[@]}" up -d --build
 echo "Documents: http://documents.localhost:8502   (drop files into ~/AtlasInbox; finance files go in $ATLAS_FINANCE_DIR; mail is read from Apple Mail, read-only)"

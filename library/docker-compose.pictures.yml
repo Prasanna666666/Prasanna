@@ -57,6 +57,7 @@ services:
       ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
 
 volumes:
-  library-mailpictures: {}
+  library-mailpictures:
+    name: library_library-mailpictures
   library-pictures:
     name: library-pictures   # a fixed name: Photos opens the same volume

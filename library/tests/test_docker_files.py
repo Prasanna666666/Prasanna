@@ -51,3 +51,14 @@ def test_only_the_service_can_write_to_the_photos_and_only_for_changes_you_confi
         v for v in pictures["app"]["volumes"] if v.endswith(("/Photos:/Volumes/Expansion/Photos", "/Aperture_Exports:/Volumes/Expansion/Aperture_Exports"))
     ]
     assert len(writable) == 2  # the service: moves and exports, after a confirmation (library/changes.py)
+
+
+def test_atlas_starts_by_itself_at_login_and_everything_restarts_with_docker():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    installer = (root / "scripts" / "install-autostart.sh").read_text()
+    assert "RunAtLoad" in installer and "local.atlas.start" in installer and "osacompile" in installer
+    for compose in ("finance", "library", "atlas"):
+        assert "restart: unless-stopped" in (root / compose / "docker-compose.yml").read_text()
+    assert "./up.sh" in (root / "scripts" / "start-at-login.sh").read_text()
