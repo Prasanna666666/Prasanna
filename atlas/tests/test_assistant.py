@@ -237,3 +237,13 @@ def test_a_question_about_their_data_that_got_no_tool_is_asked_again_with_a_tool
     photos.script = [text("ok")]
     chat(running, "pictures of the beach")
     assert offered(loop_calls(photos)[0]) == {"photos__find_pictures"}
+
+
+def test_wanting_to_see_something_with_no_tool_chosen_is_asked_again_with_a_tool_required(running):
+    photos = running.apps["photos"]
+    photos.tools = [tool("find_pictures", show=1)]
+    photos.pick, photos.pick_when_required = [], ["photos__find_pictures"]
+    photos.pick_extra = {"about_their_data": False, "wants_to_see": True}
+    photos.script = [text("ok")]
+    chat(running, "I would love to see Goa again")
+    assert offered(loop_calls(photos)[0]) == {"photos__find_pictures"}

@@ -234,7 +234,9 @@ class Assistant:
         picked = self.model.pick(system, question, shape(0))
         if picked is None:
             return None
-        if picked.get("about_their_data") is True and not picked.get("tools"):  # about their data but no tool: ask once more, now that one is required
+        if (picked.get("about_their_data") is True or picked.get("wants_to_see") is True) and not picked.get(
+            "tools"
+        ):  # wanting to see something is about their data too: ask once more, now that a tool is required
             picked = self.model.pick(system, question, shape(1)) or picked
         chosen = picked.get("tools")
         wanted = {n for n in chosen if isinstance(n, str)} if isinstance(chosen, list) else set()
