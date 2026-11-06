@@ -128,6 +128,20 @@ def print_report(rows: list[dict[str, Any]], results: list[dict[str, Any]]) -> N
             print(f"    {r['seconds']:>6.1f}s  {r['text']}")
 
 
+def unreachable(base_url: str) -> str:
+    """Why Atlas cannot be asked at all, in words ('' when it answers): checked once before the cases, so a stopped app is not reported as 34 wrong answers."""
+    parts = urlsplit(base_url)
+    conn = http.client.HTTPConnection("127.0.0.1", parts.port or 8000, timeout=10)
+    try:
+        conn.request("GET", "/", headers={"Host": parts.netloc})
+        status = conn.getresponse().status
+    except (OSError, http.client.HTTPException) as exc:
+        return f"nothing answers on 127.0.0.1:{parts.port or 8000} ({exc.__class__.__name__}). Is the app running? Start it with ./scripts/up.sh"
+    finally:
+        conn.close()
+    return "" if status < 500 else f"Atlas answered with an error (HTTP {status}). Look at its log: docker compose logs"
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Test that the assistant uses the right parts of the app, and how fast it answers.")
     ap.add_argument("--live", metavar="URL", required=True, help="a running Atlas, for example http://atlas.localhost:8000")
@@ -135,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-accuracy", type=float, default=0.0, help="exit with an error if the share of cases handled correctly is below this (0 to 1)")
     args = ap.parse_args(argv)
     cases = load_cases(args.cases)
+    why = unreachable(args.live)
+    if why:
+        print(f"Cannot evaluate: {why}")
+        return 2
     results = run(args.live, cases)
     print_report(summarise(results), results)
     accuracy = sum(r["ok"] for r in results) / len(results)

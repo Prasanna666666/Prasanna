@@ -37,3 +37,8 @@ def test_the_run_scores_real_questions_through_a_running_atlas_and_times_them(ru
 def test_percentiles():
     assert percentile([], 95) == 0.0 and percentile([3.0, 1.0, 2.0], 50) == 2.0 and percentile([1.0, 2.0, 3.0, 4.0], 95) == 4.0
     json.dumps(percentile([1.0], 50))
+
+
+def test_a_stopped_app_is_reported_as_such_not_as_wrong_answers(capsys):
+    assert "Is the app running" in evaluate.unreachable("http://atlas.localhost:1")
+    assert evaluate.main(["--live", "http://atlas.localhost:1"]) == 2 and "Cannot evaluate" in capsys.readouterr().out
