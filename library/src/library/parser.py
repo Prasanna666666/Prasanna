@@ -401,17 +401,17 @@ FOUND_FILE = ".found"
 
 def write_found(a: argparse.Namespace) -> None:
     """Count what is there before reading it: files in the inbox and collections, and mail. The app shows these as the totals."""
-    documents = _supported(Path(a.inbox), skip=frozenset({"mail"}))
-    for _name, folder in collections(a.collection):
-        if folder.is_dir():
-            documents += _supported(folder)
+    by_folder = {"inbox": _supported(Path(a.inbox), skip=frozenset({"mail"}))}
+    for name, folder in collections(a.collection):
+        by_folder[name] = _supported(folder) if folder.is_dir() else 0
+    documents = sum(by_folder.values())
     mails = _supported(Path(a.inbox) / "mail") if (Path(a.inbox) / "mail").is_dir() else 0
     if a.mail and Path(a.mail).is_dir():
         mails += _supported(Path(a.mail), only_emlx=True)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / f"{FOUND_FILE}.tmp"
-    tmp.write_text(json.dumps({"documents": documents, "mails": mails, "mail_connected": bool(a.mail and Path(a.mail).is_dir())}))
+    tmp.write_text(json.dumps({"documents": documents, "mails": mails, "mail_connected": bool(a.mail and Path(a.mail).is_dir()), "by_folder": by_folder}))
     os.replace(tmp, out / FOUND_FILE)
 
 

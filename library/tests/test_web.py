@@ -150,3 +150,15 @@ def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monk
     assert "not connected" in {r["name"]: r["detail"] for r in web._parts(state, conn)}["Mails"]
     (parsed / ".found").write_text(json.dumps({"documents": 1, "mails": 0, "mail_connected": True}))
     assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Mails"] == "0 mails"
+
+
+def test_the_documents_line_says_how_many_files_each_folder_holds(tmp_path, monkeypatch):
+    parsed = tmp_path / "parsed"
+    parsed.mkdir()
+    monkeypatch.setenv("ATLAS_PARSED", str(parsed))
+    conn = db.connect(tmp_path / "library.db")
+    db.migrate(conn, [store.MODULE])
+    (parsed / ".found").write_text(json.dumps({"documents": 35, "mails": 0, "mail_connected": False, "by_folder": {"inbox": 0, "finance": 35}}))
+    state = web.State()
+    state._engine = None
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "0 of 35 files (inbox 0, finance 35)"

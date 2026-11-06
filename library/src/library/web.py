@@ -255,7 +255,12 @@ def _found() -> dict[str, Any]:
     """The full number of files and mails the reader found in its folders (it counts at the start of every round)."""
     try:
         data = json.loads((parsed_dir() / ".found").read_text())
-        return {"documents": int(data["documents"]), "mails": int(data["mails"]), "mail_connected": data.get("mail_connected") is True}
+        return {
+            "documents": int(data["documents"]),
+            "mails": int(data["mails"]),
+            "mail_connected": data.get("mail_connected") is True,
+            "by_folder": {str(k)[:20]: int(v) for k, v in (data.get("by_folder") or {}).items()},
+        }
     except (OSError, ValueError, KeyError, TypeError):
         return {}
 
@@ -279,7 +284,10 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
     mail_row = _row("Mails", mails, found.get("mails"), "mails")
     if found and not found.get("mail_connected") and not mails and not found.get("mails"):
         mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
-    rows = [_row("Documents", files, found.get("documents"), "files"), mail_row]
+    docs_row = _row("Documents", files, found.get("documents"), "files")
+    if found.get("by_folder"):  # where the number comes from, so a folder that is empty or missing is seen at once
+        docs_row["detail"] += " (" + ", ".join(f"{k} {v}" for k, v in found["by_folder"].items()) + ")"
+    rows = [docs_row, mail_row]
     engine = state.engine()
     if engine is None:
         rows.insert(1, {"name": "Photos", "detail": "not connected: the photo drive was not found when Documents started"})
