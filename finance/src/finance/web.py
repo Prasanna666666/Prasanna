@@ -35,7 +35,6 @@ ALLOWED_HOSTS = {
     "localhost",
     "[::1]",
     "finance.localhost",
-    "finance.localhost",
 }  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
 
 
