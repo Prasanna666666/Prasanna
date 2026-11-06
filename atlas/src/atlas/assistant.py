@@ -34,6 +34,7 @@ TOOL_RESULT_CHARS = 2500  # the model's window is 4096 tokens: a long result wou
 HISTORY_TURNS = 6
 HISTORY_CHARS = 600
 TOOLS_CACHED_SECONDS = 60.0
+KEEP_LOADED = "10m"  # the same value every app sends: the model stays loaded between questions
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
 SEPARATOR = "__"
 
@@ -90,6 +91,7 @@ class ModelClient:
             "model": self.model(),
             "stream": False,
             "messages": messages,
+            "keep_alive": KEEP_LOADED,
             "options": {"temperature": 0.1, "num_ctx": NUM_CTX, "num_predict": max_tokens},
         }
         if tools:

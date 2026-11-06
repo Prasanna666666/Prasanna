@@ -15,6 +15,10 @@ HEADER = "X-Platform-Sig"
 WINDOW_SECONDS = 60
 
 
+def required() -> bool:
+    return os.environ.get("ATLAS_REQUIRE_SIGNATURE") == "1"
+
+
 def key() -> bytes | None:
     value = os.environ.get("PLATFORM_KEY", "")
     return value.encode() if value else None
@@ -37,7 +41,7 @@ def valid(method: str, path: str, header: str | None, secret: bytes | None = Non
     """True when there is no secret to check against, or the header is a fresh signature of this method and path."""
     secret = secret if secret is not None else key()
     if secret is None:
-        return True
+        return not required()  # a throwaway or test run checks nothing; a deployed service (ATLAS_REQUIRE_SIGNATURE=1) refuses everything without the secret
     try:
         stamp_text, _, given = (header or "").partition(".")
         stamp = int(stamp_text)

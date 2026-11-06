@@ -44,12 +44,12 @@ def test_model_resolution_is_mistral_only():
         FakeOllama(["ministral-3:3b-a", "ministral-3:3b-b"]).resolve("ministral-3:3b")
 
 
-def test_same_context_and_keepalive_as_aperture_so_one_loaded_model_is_shared(monkeypatch):
-    """Ollama reloads a model when num_ctx changes; Finance and Photos must send the same value (4096)."""
+def test_same_context_and_keepalive_in_every_part_so_one_loaded_model_is_shared(monkeypatch):
+    """Ollama reloads a model when num_ctx changes; every part must send the same value (4096)."""
     seen = {}
     monkeypatch.setattr(llm.OllamaClient, "_call", lambda self, path, body=None, timeout=300: seen.update(body=body) or {"message": {}})
     llm.OllamaClient("http://127.0.0.1:11434").chat("ministral-3:3b", [], None)
-    assert seen["body"]["options"]["num_ctx"] == 4096 and seen["body"]["keep_alive"] == "2m"
+    assert seen["body"]["options"]["num_ctx"] == 4096 and seen["body"]["keep_alive"] == llm.KEEP == "10m"
 
 
 def test_the_client_refuses_to_start_a_call_after_the_deadline(monkeypatch):

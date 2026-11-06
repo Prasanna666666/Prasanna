@@ -281,3 +281,29 @@ def test_health_documents_stay_out_of_every_list_search_and_answer_until_unlocke
         assert [d["name"] for d in store.list_documents(inbox.conn, ["medical"])] == ["blood.pdf"] and store.get_document(inbox.conn, "h")
     finally:
         store.set_health_unlocked(False)
+
+
+def test_whole_library_pages_are_worked_out_once_per_change_to_the_library(world, monkeypatch):
+    calls = []
+    real = pictures.browsing.timeline
+    monkeypatch.setattr(pictures.browsing, "timeline", lambda conn: calls.append(1) or real(conn))
+    pictures.browse(world.engine, "timeline", {})
+    pictures.browse(world.engine, "timeline", {})
+    assert len(calls) == 1  # the second click used the first answer
+    index = world.engine.db.connect()
+    index.execute("UPDATE items SET missing=1 WHERE id=(SELECT MIN(id) FROM items)")
+    index.commit()
+    index.close()
+    pictures.browse(world.engine, "timeline", {})
+    assert len(calls) == 2  # a photo went missing: worked out again
+
+
+def test_unlocked_health_closes_again_by_itself(monkeypatch):
+    store.set_health_unlocked(True)
+    assert store.health_unlocked()
+    now = store.time.monotonic()
+    monkeypatch.setattr(store.time, "monotonic", lambda: now + store.HEALTH_OPEN_SECONDS + 1)
+    assert not store.health_unlocked()  # left alone for a quarter of an hour
+    monkeypatch.undo()
+    store.set_health_unlocked(False)
+    assert not store.health_unlocked()

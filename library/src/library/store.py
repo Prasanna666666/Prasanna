@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections import Counter
+import time
 from collections.abc import Callable, Iterator
 from datetime import date
 from pathlib import Path
@@ -76,6 +76,18 @@ MIGRATIONS = (
         at REAL NOT NULL
     );
     CREATE INDEX file_moves_batch ON file_moves (batch);
+    """,
+    """
+    ALTER TABLE documents ADD COLUMN fact_kind TEXT;   -- the kind the model gave (invoice, ticket ...), kept apart so counting and listing by kind never read every document
+    UPDATE documents SET fact_kind=json_extract(facts,'$.kind') WHERE facts<>'';
+    CREATE INDEX documents_fact_kind ON documents (judged, fact_kind);
+    CREATE INDEX documents_area ON documents (area);
+    CREATE TRIGGER documents_kind_new AFTER INSERT ON documents WHEN NEW.facts<>'' BEGIN
+        UPDATE documents SET fact_kind=json_extract(NEW.facts,'$.kind') WHERE id=NEW.id;
+    END;
+    CREATE TRIGGER documents_kind_changed AFTER UPDATE OF facts ON documents BEGIN
+        UPDATE documents SET fact_kind=CASE WHEN NEW.facts<>'' THEN json_extract(NEW.facts,'$.kind') END WHERE id=NEW.id;
+    END;
     """,
 )
 MODULE = Module("library", MIGRATIONS)
@@ -208,15 +220,16 @@ LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready"
 
 # ---- Health is locked: medical documents stay out of every list, search and answer until the person unlocks them; it locks again whenever the service starts -------
 HEALTH_KINDS = frozenset({"medical"})
-_health = {"unlocked": False}
+HEALTH_OPEN_SECONDS = 900  # unlocked Health closes again by itself after this long without being used
+_health: dict[str, Any] = {"until": 0.0}
 
 
 def health_unlocked() -> bool:
-    return _health["unlocked"]
+    return time.monotonic() < _health["until"]
 
 
 def set_health_unlocked(value: bool) -> None:
-    _health["unlocked"] = value
+    _health["until"] = time.monotonic() + HEALTH_OPEN_SECONDS if value else 0.0
 
 
 def _is_health(facts_json: str) -> bool:
@@ -225,9 +238,10 @@ def _is_health(facts_json: str) -> bool:
 
 def hidden_health_count(conn) -> int:
     """How many documents are held back while Health is locked (0 once it is unlocked)."""
-    if _health["unlocked"]:
+    if health_unlocked():
         return 0
-    return sum(_is_health(r["facts"]) for r in conn.execute("SELECT facts FROM documents WHERE judged=1 AND facts<>''"))
+    marks = ",".join("?" for _ in HEALTH_KINDS)
+    return conn.execute(f"SELECT COUNT(*) FROM documents WHERE judged=1 AND fact_kind IN ({marks})", sorted(HEALTH_KINDS)).fetchone()[0]
 
 
 def _as_document(r) -> dict[str, Any]:
@@ -260,9 +274,13 @@ def list_documents(
     Without either, everything the model recognised (not "other") is returned. With `full`, the text and structured data come too."""
     wanted = set(kinds or [])
     out: list[dict] = []
-    for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE ready > ? ORDER BY ready", (max(0, int(since)),)):
+    where, args = "ready > ?", [max(0, int(since))]
+    if wanted and not area:
+        where += f" AND fact_kind IN ({','.join('?' for _ in wanted)})"
+        args += sorted(wanted)
+    for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE {where} ORDER BY ready", args):
         doc = _as_document(r)
-        if not _health["unlocked"] and doc["kind"] in HEALTH_KINDS:
+        if not health_unlocked() and doc["kind"] in HEALTH_KINDS:
             continue
         if source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
             continue
@@ -288,18 +306,25 @@ def list_documents(
 
 def get_document(conn, sha: str) -> dict | None:
     r = conn.execute("SELECT * FROM documents WHERE sha256=? OR id=?", (sha, sha if sha.isdigit() else -1)).fetchone()
-    if r is None or (not _health["unlocked"] and _is_health(r["facts"])):
+    if r is None or (not health_unlocked() and _is_health(r["facts"])):
         return None
     return {**_as_document(r), "text": r["text"], "data": r["data"]}
 
 
 def _sources(conn) -> Iterator[tuple[str, str, str, str]]:
     for r in conn.execute("SELECT id, name, text, facts FROM documents"):
-        if not _health["unlocked"] and _is_health(r["facts"]):
+        if not health_unlocked() and _is_health(r["facts"]):
             continue
         facts = json.loads(r["facts"]) if r["facts"] else {}
         summary = " ".join(str(facts.get(k) or "") for k in ("title", "summary", "party", "reference", "place")).strip()
         yield f"d{r['id']}", "document", r["name"], (summary + " " + r["text"]).strip()
+
+
+def _fingerprint(conn, more_sources=None) -> str:
+    """Changes whenever something searchable changed (a document arrived or was judged, Health was locked or unlocked, pictures gained text): the search checks nothing else."""
+    r = conn.execute("SELECT COUNT(*), COALESCE(MAX(id),0), COALESCE(SUM(judged),0), COALESCE(MAX(ready),0) FROM documents").fetchone()
+    more = getattr(more_sources, "fingerprint", None)
+    return f"{tuple(r)}|{health_unlocked()}|{more() if more else ''}"
 
 
 def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None = None, more_sources=None) -> list[dict]:
@@ -310,7 +335,7 @@ def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None
         if more_sources is not None:
             yield from more_sources(c)
 
-    return rag.retrieve(conn, question, limit, alternatives, sources=sources)
+    return rag.retrieve(conn, question, limit, alternatives, sources=sources, fingerprint=_fingerprint(conn, more_sources))
 
 
 def counts(conn) -> dict[str, Any]:
@@ -320,12 +345,11 @@ def counts(conn) -> dict[str, Any]:
 
 def by_kind(conn) -> list[dict]:
     """How many documents of each recognised kind there are."""
-    tally: Counter[str] = Counter()
-    for r in conn.execute("SELECT facts FROM documents WHERE judged=1 AND facts<>''"):
-        kind = json.loads(r["facts"]).get("kind", "other")
-        if _health["unlocked"] or kind not in HEALTH_KINDS:
-            tally[kind] += 1
-    return [{"kind": k, "count": n} for k, n in tally.most_common()]
+    out = [
+        {"kind": r[0] or "other", "count": r[1]}
+        for r in conn.execute("SELECT fact_kind, COUNT(*) FROM documents WHERE judged=1 AND fact_kind IS NOT NULL GROUP BY fact_kind ORDER BY COUNT(*) DESC")
+    ]
+    return [x for x in out if health_unlocked() or x["kind"] not in HEALTH_KINDS]
 
 
 # ---- trips: derived from the tickets and bookings that were read -----------------------------------------------------------------

@@ -16,7 +16,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from kit import db, llm, log, netguard
+from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
 from . import changes, pictures, store, tools
@@ -110,6 +110,7 @@ def _read_all(state: State) -> None:
         state.scan["problems"] = [f"{type(exc).__name__}: {exc}"]
     finally:
         state.scan["running"] = False
+        _CACHE.clear()
         conn.close()
 
 
@@ -222,16 +223,19 @@ def _get_medical(state: State, conn, query: dict[str, str]) -> dict:
     """Health: locked until the person unlocks it; locked again every time the service starts."""
     if not store.health_unlocked():
         return {"locked": True, "held_back": store.hidden_health_count(conn), "documents": []}
+    store.set_health_unlocked(True)  # being used keeps it open; left alone it closes by itself
     return {"locked": False, "held_back": 0, "documents": store.list_documents(conn, sorted(store.HEALTH_KINDS), limit=200)}
 
 
 def _post_medical_unlock(state: State, conn, body: dict) -> dict:
     store.set_health_unlocked(True)
+    _CACHE.clear()
     return {"ok": True}
 
 
 def _post_medical_lock(state: State, conn, body: dict) -> dict:
     store.set_health_unlocked(False)
+    _CACHE.clear()
     return {"ok": True}
 
 
@@ -248,7 +252,7 @@ def _post_undo(state: State, conn, body: dict) -> dict:
 
 
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
-    return {**store.counts(conn), "kinds": store.by_kind(conn)}
+    return _cached("status", lambda: {**store.counts(conn), "kinds": store.by_kind(conn)})
 
 
 def _found() -> dict[str, Any]:
@@ -276,8 +280,27 @@ def _row(name: str, read: int, total: int | None, noun: str) -> dict[str, str]:
 _FILE_OF = "area || '|' || substr(name, 1, instr(name || '/', '/') - 1)"
 
 
+_CACHE: dict[str, tuple[float, Any]] = {}
+STATUS_TTL = 3.0  # the page asks every second or so while an Update runs; counting a big library more often than this is wasted work
+
+
+def _cached(key: str, make):
+    """The answer of `make`, reused for a few seconds."""
+    now = time.monotonic()
+    hit = _CACHE.get(key)
+    if hit and now - hit[0] < STATUS_TTL:
+        return hit[1]
+    value = make()
+    _CACHE[key] = (now, value)
+    return value
+
+
 def _parts(state: State, conn) -> list[dict[str, str]]:
     """What the Update shows: Documents, Photos and Mails, each as a number of files the person can check."""
+    return _cached("parts", lambda: _parts_now(state, conn))
+
+
+def _parts_now(state: State, conn) -> list[dict[str, str]]:
     found = _found()
     files = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
     mails = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area='mail'").fetchone()[0]
@@ -425,6 +448,8 @@ def make_handler(state: State) -> type[_Handler]:
 
 def serve(host: str = "127.0.0.1", port: int = 8502) -> int:
     netguard.install()
+    if sign.required() and sign.key() is None:
+        raise RuntimeError("This service needs the platform key (PLATFORM_KEY) and has none: start it with ./up.sh.")
     state = State()
     conn = state.connect()
     db.migrate(conn, [store.MODULE])

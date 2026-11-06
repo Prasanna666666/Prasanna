@@ -34,7 +34,7 @@ def host() -> str:
     return os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 
 
-KEEP = "2m"  # the same value Aperture sends, so one loaded model is shared on an 8 GB Mac
+KEEP = "10m"  # one loaded model shared by every part: long enough that a question after a short pause does not wait for it to load again
 
 
 class Slow(RuntimeError):

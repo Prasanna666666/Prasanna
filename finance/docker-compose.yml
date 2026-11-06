@@ -22,7 +22,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ATLAS_INBOX: /inbox
-      PLATFORM_KEY: ${PLATFORM_KEY:-}   # the apps sign their calls to each other (from the Keychain, by up.sh)
+      PLATFORM_KEY: ${PLATFORM_KEY:?run ./up.sh (it reads the key from the Keychain)}   # the apps sign their calls to each other (from the Keychain, by up.sh)
       LIBRARY_URL: http://library.internal:8502   # the Documents service reads every file and mail; Finance takes the documents that matter here
       ATLAS_TOKEN: ${ATLAS_TOKEN:-}   # the web token from up.sh; empty = no token required (development only)
       ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
@@ -32,6 +32,8 @@ services:
     networks: [private]
     depends_on: [ollama, library]
     mem_limit: 1g
+    pids_limit: 128
+    cpus: 1.0
 
   gateway:
     <<: *hardened

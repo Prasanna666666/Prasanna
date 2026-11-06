@@ -21,7 +21,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from kit import consent, llm, log, netguard
+from kit import consent, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
 from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
@@ -406,6 +406,8 @@ def make_handler(state: State) -> type[_Handler]:
 
 def serve(host: str = "127.0.0.1", port: int = 8501) -> int:
     netguard.install()
+    if sign.required() and sign.key() is None:
+        raise RuntimeError("This service needs the platform key (PLATFORM_KEY) and has none: start it with ./up.sh.")
     conn = db.connect()
     db.migrate(conn, ALL)
     conn.close()

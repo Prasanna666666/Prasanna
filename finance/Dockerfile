@@ -15,6 +15,6 @@ RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
 RUN pip install --no-cache-dir ./kit ./finance
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
-ENV ATLAS_REQUIRE_ENCRYPTION=1
+ENV ATLAS_REQUIRE_ENCRYPTION=1 ATLAS_REQUIRE_SIGNATURE=1
 ENTRYPOINT ["finance"]
 CMD ["ui", "--host", "0.0.0.0", "--port", "8501"]

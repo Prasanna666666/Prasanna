@@ -40,7 +40,7 @@ services:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ATLAS_PARSED: /parsed
       LIBRARY_INBOX: /inbox   # where originals are filed into folders, only after you confirm in the window (bank statements are mounted read-only, never filed)
-      PLATFORM_KEY: ${PLATFORM_KEY:-}   # calls from the other apps must be signed with it (from the Keychain, by up.sh)
+      PLATFORM_KEY: ${PLATFORM_KEY:?run ./up.sh (it reads the key from the Keychain)}   # calls from the other apps must be signed with it (from the Keychain, by up.sh)
       ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
     volumes:
       - library-data:/data

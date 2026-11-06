@@ -55,7 +55,8 @@ class Upstreams:
 
     # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
     def _token(self, module: Module, refresh: bool = False) -> str:
-        assert module.auth is not None
+        if module.auth is None:
+            raise RuntimeError(f"{module.name} has no token set-up")
         with self._lock:
             if not refresh and module.id in self._tokens:
                 return self._tokens[module.id]

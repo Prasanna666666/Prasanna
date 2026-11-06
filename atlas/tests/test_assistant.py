@@ -267,3 +267,11 @@ def test_a_part_of_the_app_the_question_touches_but_the_model_skipped_is_offered
     _, reply = chat(running, "my Goa trip and what it cost")
     assert set(reply["routed"]) == {"photos", "money"}
     assert "money__spending_between" in loop_calls(photos)[2]["messages"][-1]["content"]
+
+
+def test_atlas_keeps_the_model_loaded_as_long_as_every_other_part_does(running):
+    from kit.llm import KEEP
+
+    from atlas.assistant import KEEP_LOADED
+
+    assert KEEP_LOADED == KEEP  # different values make the model server reload the model

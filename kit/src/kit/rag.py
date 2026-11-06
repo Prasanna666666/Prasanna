@@ -80,6 +80,14 @@ def _fts(conn) -> bool:
             "CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(source UNINDEXED, ref UNINDEXED, title, body, tokenize='unicode61 remove_diacritics 2')"
         )
         conn.execute("CREATE TABLE IF NOT EXISTS search_seen (ref TEXT PRIMARY KEY, digest TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS search_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        have = {r[1] for r in conn.execute("PRAGMA table_info(search_seen)")}
+        for column in (
+            "first_row",
+            "last_row",
+        ):  # where an item's passages sit in the index: deleting by row number is instant, deleting by ref scans everything
+            if column not in have:
+                conn.execute(f"ALTER TABLE search_seen ADD COLUMN {column} INTEGER")
         return True
     except sqlite3.Error as exc:  # no FTS5 in this SQLite build: search falls back to counting words
         log.failed("fts5 unavailable", exc)
@@ -97,27 +105,45 @@ def chunks(text: str) -> list[str]:
     return out
 
 
-def reindex(conn, sources) -> int:
-    """Bring the index up to date. Returns how many items were (re)indexed."""
+def _forget(conn, ref: str, first: int | None, last: int | None) -> None:
+    """Take an item's passages out of the index (by row number when known; the slow way only for items indexed by an older version)."""
+    if first is not None and last is not None:
+        conn.execute("DELETE FROM search_index WHERE rowid BETWEEN ? AND ?", (first, last))
+    else:
+        conn.execute("DELETE FROM search_index WHERE ref=?", (ref,))
+
+
+def reindex(conn, sources, fingerprint: str = "") -> int:
+    """Bring the index up to date. Returns how many items were (re)indexed. With a `fingerprint` that has not changed since the last time, nothing is read at all."""
     if not _fts(conn):
         return 0
-    seen = {r["ref"]: r["digest"] for r in conn.execute("SELECT ref, digest FROM search_seen")}
+    if fingerprint:
+        row = conn.execute("SELECT value FROM search_state WHERE key='fingerprint'").fetchone()
+        if row and row[0] == fingerprint:
+            return 0
+    seen = {r["ref"]: (r["digest"], r["first_row"], r["last_row"]) for r in conn.execute("SELECT ref, digest, first_row, last_row FROM search_seen")}
     done, live = 0, set()
     for ref, source, title, body in sources(conn):
         live.add(ref)
         digest = hashlib.sha256((title + "\0" + body).encode()).hexdigest()[:16]
-        if seen.get(ref) == digest:
+        before = seen.get(ref)
+        if before and before[0] == digest:
             continue
-        conn.execute("DELETE FROM search_index WHERE ref=?", (ref,))
-        conn.executemany(
-            "INSERT INTO search_index (source, ref, title, body) VALUES (?,?,?,?)",
-            [(source, ref, title, c) for c in chunks(body)] or [(source, ref, title, "")],
-        )
-        conn.execute("INSERT OR REPLACE INTO search_seen (ref, digest) VALUES (?,?)", (ref, digest))
+        if before:  # changed: its old passages go; a new item has none, so nothing is searched for
+            _forget(conn, ref, before[1], before[2])
+        rows = [(source, ref, title, c) for c in chunks(body)] or [(source, ref, title, "")]
+        first = last = None
+        for row in rows:
+            last = conn.execute("INSERT INTO search_index (source, ref, title, body) VALUES (?,?,?,?)", row).lastrowid
+            first = first if first is not None else last
+        conn.execute("INSERT OR REPLACE INTO search_seen (ref, digest, first_row, last_row) VALUES (?,?,?,?)", (ref, digest, first, last))
         done += 1
-    for gone in set(seen) - live:  # a deleted document or note leaves the index too
-        conn.execute("DELETE FROM search_index WHERE ref=?", (gone,))
-        conn.execute("DELETE FROM search_seen WHERE ref=?", (gone,))
+    for gone, (_digest, first, last) in seen.items():  # a deleted document or note leaves the index too
+        if gone not in live:
+            _forget(conn, gone, first, last)
+            conn.execute("DELETE FROM search_seen WHERE ref=?", (gone,))
+    if fingerprint:
+        conn.execute("INSERT OR REPLACE INTO search_state (key, value) VALUES ('fingerprint', ?)", (fingerprint,))
     conn.commit()
     return done
 
@@ -167,7 +193,7 @@ def _ranked(conn, words: list[str], k: int) -> list[dict] | None:
     return [{"rid": r["rid"], "source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
 
 
-def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None, *, sources) -> list[dict]:
+def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None, *, sources, fingerprint: str = "") -> list[dict]:
     """The best passages for a question, each with where it came from: [{source, title, text, score}].
 
     The assistant may pass other ways of asking the same thing (synonyms, the other language: "dekking" for "cover"). Each phrasing is searched and the
@@ -177,7 +203,7 @@ def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = N
     if not searches:
         return []
     if _fts(conn):
-        reindex(conn, sources)
+        reindex(conn, sources, fingerprint)
         fused: dict[int, dict] = {}
         for words in searches:
             ranked = _ranked(conn, words, k)

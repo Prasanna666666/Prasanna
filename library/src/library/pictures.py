@@ -182,6 +182,15 @@ def text_sources(engine: Engine) -> Callable[[Any], Iterator[tuple[str, str, str
         finally:
             conn.close()
 
+    def fingerprint() -> str:
+        conn = engine.db.connect()
+        try:
+            r = conn.execute("SELECT COUNT(*), COALESCE(MAX(indexed_at),0), COALESCE(SUM(ocr_chars),0) FROM items WHERE missing=0 AND ocr_done=1").fetchone()
+        finally:
+            conn.close()
+        return str(tuple(r))
+
+    sources.fingerprint = fingerprint  # type: ignore[attr-defined]  # lets the search skip re-reading the pictures' text when nothing changed
     return sources
 
 
@@ -189,8 +198,21 @@ def text_sources(engine: Engine) -> Callable[[Any], Iterator[tuple[str, str, str
 BROWSE = frozenset({"library", "timeline", "trips", "places", "people", "highlights"})
 
 
+_BROWSE_CACHE: dict[tuple[int, str], tuple[str, Any]] = {}
+_CACHED_PAGES = frozenset(
+    {"timeline", "trips", "places", "people", "highlights"}
+)  # whole-library pages: worked out once per change to the library, not per click
+
+
+def _library_fingerprint(conn) -> str:
+    items = conn.execute("SELECT COUNT(*), COALESCE(MAX(indexed_at),0), COALESCE(SUM(missing),0) FROM items").fetchone()
+    faces = conn.execute("SELECT COUNT(*), COALESCE(SUM(person_id),0) FROM faces").fetchone()
+    names = conn.execute("SELECT COUNT(*), COALESCE(SUM(hidden),0), COALESCE(SUM(length(name)),0) FROM people").fetchone()
+    return f"{tuple(items)}{tuple(faces)}{tuple(names)}"
+
+
 def browse(engine: Engine, what: str, query: dict[str, str]) -> Any:
-    """One page of the library: `library` (a page of photos, newest first, narrowed by year, month, dates, place or person), `timeline`, `trips`, `places`, `people`."""
+    """One page of the library: `library` (a page of photos, newest first, narrowed by year, month, dates, place or person), `timeline`, `trips`, `places`, `people`, `highlights`."""
     if what not in BROWSE:
         raise ValueError(f"unknown page {what!r}")
     conn = engine.db.connect()
@@ -198,6 +220,13 @@ def browse(engine: Engine, what: str, query: dict[str, str]) -> Any:
         if what == "library":
             offset = int(query["offset"]) if query.get("offset", "").isdigit() else 0
             return browsing.library(conn, query, offset)
+        if what in _CACHED_PAGES:
+            key, now = (id(engine), what), _library_fingerprint(conn)
+            hit = _BROWSE_CACHE.get(key)
+            if hit and hit[0] == now:
+                return hit[1]
+            _BROWSE_CACHE[key] = (now, getattr(browsing, what)(conn))
+            return _BROWSE_CACHE[key][1]
         return getattr(browsing, what)(conn)
     finally:
         conn.close()

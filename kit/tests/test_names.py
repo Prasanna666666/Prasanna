@@ -24,3 +24,16 @@ def test_the_old_data_folder_is_renamed_once(tmp_path, monkeypatch):
     (tmp_path / ".orbit").mkdir()
     (tmp_path / ".orbit" / "keep.txt").write_text("x")
     assert db.home() == tmp_path / ".atlas" and (tmp_path / ".atlas" / "keep.txt").read_text() == "x" and not (tmp_path / ".orbit").exists()
+
+
+def test_a_deployed_service_without_the_platform_key_refuses_everything(monkeypatch):
+    from kit import sign
+
+    monkeypatch.delenv("PLATFORM_KEY", raising=False)
+    monkeypatch.delenv("ATLAS_REQUIRE_SIGNATURE", raising=False)
+    assert sign.valid("GET", "/api/x", None) is True  # a throwaway run checks nothing
+    monkeypatch.setenv("ATLAS_REQUIRE_SIGNATURE", "1")
+    assert sign.valid("GET", "/api/x", None) is False and sign.valid("GET", "/api/x", "1.abc") is False
+    monkeypatch.setenv("PLATFORM_KEY", "k")
+    header = sign.sign("GET", "/api/x")["X-Platform-Sig"]
+    assert sign.valid("GET", "/api/x", header) is True and sign.valid("POST", "/api/x", header) is False
