@@ -160,4 +160,4 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
     (inbox / "mail" / "m.eml").write_text("Subject: hi\n\nbody")
     ns = argparse.Namespace(inbox=str(inbox), out=str(tmp_path / "out"), collection=[], mail="")
     parser.write_found(ns)
-    assert json.loads((tmp_path / "out" / ".found").read_text()) == {"documents": 2, "mails": 1}
+    assert json.loads((tmp_path / "out" / ".found").read_text()) == {"documents": 2, "mails": 1, "mail_connected": False}

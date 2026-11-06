@@ -411,7 +411,7 @@ def write_found(a: argparse.Namespace) -> None:
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     tmp = out / f"{FOUND_FILE}.tmp"
-    tmp.write_text(json.dumps({"documents": documents, "mails": mails}))
+    tmp.write_text(json.dumps({"documents": documents, "mails": mails, "mail_connected": bool(a.mail and Path(a.mail).is_dir())}))
     os.replace(tmp, out / FOUND_FILE)
 
 

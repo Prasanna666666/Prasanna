@@ -117,18 +117,36 @@ def test_the_albums_route_only_prepares_and_says_plainly_when_there_is_nothing_t
     assert "/api/change/albums" in web.POST_ROUTES
 
 
-def test_the_update_shows_documents_pictures_and_mails_each_with_its_full_number(tmp_path, monkeypatch):
+def test_the_update_counts_files_the_way_the_person_does_even_when_one_file_holds_many_documents(tmp_path, monkeypatch):
     parsed = tmp_path / "parsed"
     parsed.mkdir()
-    (parsed / ".found").write_text(json.dumps({"documents": 480, "mails": 12}))
+    (parsed / ".found").write_text(json.dumps({"documents": 36, "mails": 12}))
     monkeypatch.setenv("ATLAS_PARSED", str(parsed))
     conn = db.connect(tmp_path / "library.db")
     db.migrate(conn, [store.MODULE])
-    conn.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES ('a','a.pdf','pdf','t','')")
-    conn.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES ('b','m.eml','email','t','mail')")
+    add = "INSERT INTO documents (sha256, name, kind, text, area) VALUES (?,?,?,?,?)"
+    conn.execute(add, ("a", "archive.zip/one.pdf", "pdf", "t", ""))
+    conn.execute(add, ("b", "archive.zip/two.pdf", "pdf", "t", ""))  # the same zip: one file
+    conn.execute(add, ("c", "letter.pdf", "pdf", "t", ""))
+    conn.execute(add, ("d", "m.eml", "email", "t", "mail"))
+    conn.execute(add, ("e", "m.eml/photo.jpg", "image", "t", "mail"))  # an attachment of the same message: one mail
     state = web.State()
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
-    assert rows["Documents"] == "1 documents from 480 files" and rows["Mails"] == "1 mails from 12 files" and "not connected" in rows["Photos"]
-    (parsed / ".found").write_text(json.dumps({"documents": 1, "mails": 1}))
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "1 documents from 1 files"
+    assert rows["Documents"] == "2 of 36 files" and rows["Mails"] == "1 of 12 mails" and "not connected" in rows["Photos"]
+    (parsed / ".found").write_text(json.dumps({"documents": 2, "mails": 1}))
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files"
+
+
+def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monkeypatch):
+    parsed = tmp_path / "parsed"
+    parsed.mkdir()
+    monkeypatch.setenv("ATLAS_PARSED", str(parsed))
+    conn = db.connect(tmp_path / "library.db")
+    db.migrate(conn, [store.MODULE])
+    state = web.State()
+    state._engine = None
+    (parsed / ".found").write_text(json.dumps({"documents": 1, "mails": 0, "mail_connected": False}))
+    assert "not connected" in {r["name"]: r["detail"] for r in web._parts(state, conn)}["Mails"]
+    (parsed / ".found").write_text(json.dumps({"documents": 1, "mails": 0, "mail_connected": True}))
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Mails"] == "0 mails"

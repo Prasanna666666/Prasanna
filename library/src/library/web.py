@@ -251,30 +251,35 @@ def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**store.counts(conn), "kinds": store.by_kind(conn)}
 
 
-def _found() -> dict[str, int]:
+def _found() -> dict[str, Any]:
     """The full number of files and mails the reader found in its folders (it counts at the start of every round)."""
     try:
         data = json.loads((parsed_dir() / ".found").read_text())
-        return {"documents": int(data["documents"]), "mails": int(data["mails"])}
+        return {"documents": int(data["documents"]), "mails": int(data["mails"]), "mail_connected": data.get("mail_connected") is True}
     except (OSError, ValueError, KeyError, TypeError):
         return {}
 
 
-def _row(name: str, stored: int, total: int | None, noun: str, running: str = "") -> dict[str, str]:
-    """One line of the Update: what was read, and (when known) how many files it came from: an archive or a mail export holds many documents, so the two differ."""
-    detail = f"{stored:,} {noun}" + (f" from {total:,} files" if total is not None else "")
-    return {"name": name, "detail": detail + (f" · {running}" if running else "")}
+def _row(name: str, read: int, total: int | None, noun: str) -> dict[str, str]:
+    """One line of the Update, in files (or mails), the way the person counts them: "12 of 36 files" while reading, "36 files" when done."""
+    if total is not None and read < total:
+        return {"name": name, "detail": f"{read:,} of {total:,} {noun}"}
+    return {"name": name, "detail": f"{max(read, total or 0):,} {noun}"}
+
+
+# One file can become many documents (an archive, a mail with attachments), so files are counted by the name of the file they came from.
+_FILE_OF = "area || '|' || substr(name, 1, instr(name || '/', '/') - 1)"
 
 
 def _parts(state: State, conn) -> list[dict[str, str]]:
-    """What the Update shows: Documents, Photos and Mails, each with its full number."""
+    """What the Update shows: Documents, Photos and Mails, each as a number of files the person can check."""
     found = _found()
-    kinds = conn.execute("SELECT SUM(area NOT IN ('mail','pictures')) AS files, SUM(area='mail') AS mails FROM documents").fetchone()
-    busy = state.scan["progress"] if state.scan["running"] else ""
-    rows = [
-        _row("Documents", int(kinds["files"] or 0), found.get("documents"), "documents", busy),
-        _row("Mails", int(kinds["mails"] or 0), found.get("mails"), "mails"),
-    ]
+    files = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
+    mails = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area='mail'").fetchone()[0]
+    mail_row = _row("Mails", mails, found.get("mails"), "mails")
+    if found and not found.get("mail_connected") and not mails and not found.get("mails"):
+        mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
+    rows = [_row("Documents", files, found.get("documents"), "files"), mail_row]
     engine = state.engine()
     if engine is None:
         rows.insert(1, {"name": "Photos", "detail": "not connected: the photo drive was not found when Documents started"})
