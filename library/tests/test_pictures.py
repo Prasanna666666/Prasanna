@@ -131,3 +131,32 @@ def test_the_library_can_be_browsed_as_pages_and_a_picture_is_described(drive):
     [first, *_] = page["ids"]
     assert pictures.item(engine, first)["name"].endswith(".jpg") and pictures.item(engine, 99999) is None
     assert pictures.preview_file(engine, first) is None or pictures.preview_file(engine, first).is_file()
+
+
+def test_a_photographed_receipt_becomes_a_document_that_is_judged_like_any_other(drive, tmp_path):
+    import json
+
+    class ReceiptOCR(FakeOCR):
+        def read(self, image_bytes):
+            return "KASSABON bon betaling totaal EUR 23,45 Albert Heijn Utrecht" if super().read(image_bytes) else ""
+
+    engine = pictures.build_engine()
+    engine.services_for_stage = lambda stage: Services(ocr=ReceiptOCR()) if stage == STAGE_OCR else Services()
+    indexer.run_once(engine)
+    conn = db.connect(tmp_path / "docs.db")
+    db.migrate(conn, [store.MODULE])
+    index = engine.db.connect()
+    assert store.ingest_pictures(conn, index) == 1  # only the picture with a receipt's text; the beach photo has none
+    assert store.ingest_pictures(conn, index) == 0  # and never twice
+    index.execute(
+        "UPDATE items SET rel_path='Inbox/other.jpg' WHERE rel_path='beach.jpg'"
+    )  # a picture that came with the inbox is read by the document reader already
+    index.commit()
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": json.dumps({"kind": "receipt", "title": "Albert Heijn", "party": "Albert Heijn", "total": "23,45", "currency": "EUR"})}
+
+    assert store.judge_pending(conn, Model(), "fake")["read"] == 1
+    [doc] = store.list_documents(conn, ["receipt"])
+    assert doc["area"] == "pictures" and doc["name"] == "receipt.jpg" and float(doc["facts"]["total"]) == 23.45  # Finance takes it from here like any receipt

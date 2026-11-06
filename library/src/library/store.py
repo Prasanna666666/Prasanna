@@ -165,7 +165,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None) -> dict
         exact = _exact_facts(d)
         if exact is not None:
             _mark_ready(conn, d["sha256"], 1, exact)
-        elif d["area"] in ("", "mail") and not relevance.worth_reading(d["name"], d["kind"], d["text"]):
+        elif d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"]):
             _mark_ready(conn, d["sha256"], 2, None)
             out["skipped"] += 1
             continue
@@ -322,3 +322,29 @@ def documents_between(conn, start: str, end: str, limit: int = 100) -> list[dict
         if len(out) >= limit:
             break
     return sorted(out, key=lambda d: str(d["facts"].get("start_date") or d["facts"].get("date")))
+
+
+# ---- pictures of documents: a photographed receipt or letter is read like any other document ---------------------------------------------
+PICTURE_ROOTS = ("Inbox/", "MailPictures/")  # these are read by the document reader already: only photos from the photo folder itself are added here
+
+
+def ingest_pictures(conn, engine_conn) -> int:
+    """Pictures in the photo folder that have readable text (a receipt, a letter, a ticket) become documents, so they are judged, searched and used for
+    bills like any file. The text is what the picture engine already read; nothing is read twice. Returns how many were added."""
+    import hashlib
+
+    added = 0
+    rows = engine_conn.execute(
+        "SELECT i.rel_path AS name, f.text AS text FROM items i JOIN fts f ON f.rowid=i.id "
+        "WHERE i.missing=0 AND i.kind='image' AND length(f.text) >= ? AND i.rel_path NOT LIKE 'Inbox/%' AND i.rel_path NOT LIKE 'MailPictures/%'",
+        (relevance.MIN_TEXT,),
+    ).fetchall()
+    for r in rows:
+        sha = hashlib.sha256(f"picture\0{r['name']}\0{r['text']}".encode()).hexdigest()
+        cur = conn.execute(
+            "INSERT OR IGNORE INTO documents (sha256, name, kind, text, area, data, parsed_at) VALUES (?,?,?,?,?,?,?)",
+            (sha, str(r["name"])[:255], "image", str(r["text"])[:MAX_TEXT], "pictures", "", ""),
+        )
+        added += cur.rowcount
+    conn.commit()
+    return added

@@ -94,6 +94,15 @@ def _read_all(state: State) -> None:
             state.scan["progress"] = "Reading pictures…"
             done = pictures.wait_for_scan(engine, lambda m: state.scan.update(progress=m))
             state.scan["summary"] += f"; {done}" if done else ""
+            index = engine.db.connect()
+            try:
+                found = store.ingest_pictures(conn, index)  # photographed receipts and letters are read like any other document
+            finally:
+                index.close()
+            if found:
+                state.scan["progress"] = f"Reading {found} pictures of documents…"
+                store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m))
+                state.scan["summary"] += f"; {found} pictures of documents"
         state.scan["problems"] = [problem] if problem else []
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)
