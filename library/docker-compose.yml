@@ -44,7 +44,7 @@ services:
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
     volumes:
       - library-data:/data
-      - ${HOME}/OrbitInbox:/inbox   # writable ONLY for filing documents into folders; the reader keeps its own read-only view
+      - ${HOME}/OrbitInbox:/inbox:${LIBRARY_INBOX_MODE:-ro}   # read-only. Filing documents into folders needs LIBRARY_INBOX_MODE=rw when you start it
       - library-parsed:/parsed    # writable only so the readable copy can be deleted once it is in the encrypted database
     networks: [private]
     depends_on: [ollama]

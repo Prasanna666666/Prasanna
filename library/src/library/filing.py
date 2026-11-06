@@ -66,6 +66,8 @@ def prepare(conn, args: dict) -> tuple[list[list], str, str, list[str]]:
     root = inbox()
     if root is None:
         raise ValueError("the inbox folder is not available for filing here")
+    if not os.access(root, os.W_OK):
+        raise ValueError("filing is switched off: the inbox is read-only. Start Documents with LIBRARY_INBOX_MODE=rw to allow it")
     mail = args.get("mail") is True
     name = sanitize_folder_name(str(args.get("folder", "")))
     if not str(args.get("folder", "")).strip():
