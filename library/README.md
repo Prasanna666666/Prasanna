@@ -35,7 +35,7 @@ Sources read-only; the reader has no network; the service has no internet; the d
 `parser.PARSERS` maps each kind of file (text, csv, pdf, image, sheet, doc, html, email, json; archives and mailboxes are opened first) to its own reader. A new kind of file is a new function and its extensions, nothing else. Formats that can be recognised exactly need no model (`recognise.py`: bank standards, the ECB rate file).
 
 ## Pictures
-The picture engine (`../images`) runs here too: a sealed indexer reads your photo folder and the service answers from its index (`GET /api/pictures?q=`, thumbnails at `/api/pictures/thumb/<id>`, text found in pictures searchable together with the documents). Photos opens the same index and passes Update on to this service. Set up by `docker-compose.pictures.yml` (included by `scripts/up.sh` when the photo drive is connected). The rest of this section is about pictures inside mail and the inbox:
+The picture engine (`../images`) runs here too: a sealed indexer reads your photo folder and the service answers from its index (`GET /api/pictures?q=`, thumbnails at `/api/pictures/thumb/<id>`, text found in pictures searchable together with the documents). The page has tabs for the picture library (by date), trips, places and people. Set up by `docker-compose.pictures.yml` (included by `scripts/up.sh` when the photo drive is connected). The rest of this section is about pictures inside mail and the inbox:
 
 A picture is read with offline OCR. If there is text in it (a photographed receipt, a letter), it is a document and is judged like any other. If there is none, it is a **photo**: it is stored with the kind `photo` and no model is asked, and `GET /api/documents?kind=photo` lists them, for the Photos app to take. Photos keeps its own deep index (faces, places, picture search); it does not yet read this list, so nothing is handed over today.
 
@@ -43,4 +43,4 @@ A picture is read with offline OCR. If there is text in it (a photographed recei
 Documents depends only on the shared `kit` (`../kit`: encrypted database, local model client, no-network guard, retrieval, and the checks on what a model reads out of a document). It imports nothing from Finance, and its image contains nothing of Finance. Finance and Documents each build from the repository root.
 
 ## Not done yet
-Not run on a real Mac or with the real model: the Docker images have not been built and the Apple Mail folder has not been read. Photos does not yet take its pictures from here.
+Not run on a real Mac or with the real model: the Docker images have not been built and the Apple Mail folder has not been read.

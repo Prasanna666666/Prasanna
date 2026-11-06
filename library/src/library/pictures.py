@@ -16,11 +16,14 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
-from images.config import Paths, thumb_rel
+from images import browse as browsing
+from images.config import Paths, preview_rel, thumb_rel
 from images.engine import Engine
 from images.indexing.runner import ScanSummary
 from images.library import items_by_ids
-from images.search.quick import quick_ids
+from images.search.dates import DateSpec
+from images.search.executor import Executor
+from images.search.plan import Clause, Plan
 
 Progress = Callable[[str], None]
 WAKE, STATUS = "pictures-scan.wake", "pictures-scan.status.json"
@@ -40,9 +43,13 @@ def build_engine(root: Path | None = None) -> Engine:
     """The engine over the drive that holds the photos and the index. The photo folder is `LIBRARY_PHOTOS`, or `<drive>/Photos`."""
     paths = Paths(drive=root or drive() or Path("/nonexistent"))
     engine = Engine(paths)
-    folder = os.environ.get("LIBRARY_PHOTOS", "")
-    if folder and engine.settings.photo_dir != folder:
-        engine.settings.photo_dir = folder
+    wanted = {"photo_dir": os.environ.get("LIBRARY_PHOTOS", ""), "extra_dirs": os.environ.get("LIBRARY_EXTRA_PICTURES", "")}
+    changed = False
+    for name, value in wanted.items():
+        if value and getattr(engine.settings, name) != value:
+            setattr(engine.settings, name, value)
+            changed = True
+    if changed:
         engine.settings.save(paths)
     return engine
 
@@ -95,11 +102,34 @@ def wait_for_scan(engine: Engine, progress: Progress, poll: float = 2.0, appear:
 
 
 # ---- asking ----------------------------------------------------------------------------------------------------------------------
-def search(engine: Engine, text: str, limit: int = 24) -> list[dict[str, Any]]:
-    """Pictures that fit the words, best first: by words in the text/place/name, otherwise by what the picture looks like."""
-    conn = engine.db.connect()
+def find(engine: Engine, args: dict[str, Any], limit: int = 24) -> list[dict[str, Any]]:
+    """Pictures that fit everything asked, best first: what they show or say (`query`), a place, a person, and the days they were taken (`from`, `to`,
+    or a `year`/`month`). The picture engine's own search does the matching: words in the text and names, the places, the people and what the picture looks like."""
+    clauses = []
+    if str(args.get("query", "")).strip():
+        clauses.append(Clause(("visual", "text", "path"), str(args["query"]).strip()[:200]))
+    if str(args.get("place", "")).strip():
+        clauses.append(Clause(("place",), str(args["place"]).strip()[:100]))
+    if str(args.get("person", "")).strip():
+        clauses.append(Clause(("person",), str(args["person"]).strip()[:100]))
+    year, month = str(args.get("year", "")), str(args.get("month", ""))
+    when = DateSpec(
+        year=int(year) if year.isdigit() and len(year) == 4 else 0,
+        month=int(month) if month.isdigit() and 1 <= int(month) <= 12 else 0,
+        start=str(args.get("from", ""))[:10],
+        end=str(args.get("to", ""))[:10],
+    )
+    plan = Plan(intent="find", clauses=tuple(clauses), date=when)
+    if not plan.has_constraints:
+        return []
+    conn = engine.question_db()
     try:
-        ids = [int(i) for i in quick_ids(conn, text, engine.embedding_index, engine.search_embedder)[: min(limit, MAX_RESULTS)]]
+        ids = [
+            int(i)
+            for i in Executor(conn, engine.embedding_index, engine.search_embedder, engine.settings.visual_strictness, geo_provider=engine.ready_geo)
+            .run(plan)
+            .ids[: min(limit, MAX_RESULTS)]
+        ]
         found = items_by_ids(conn, ids)
     finally:
         conn.close()
@@ -114,6 +144,10 @@ def search(engine: Engine, text: str, limit: int = 24) -> list[dict[str, Any]]:
         for i in ids
         if i in found
     ]
+
+
+def search(engine: Engine, text: str, limit: int = 24) -> list[dict[str, Any]]:
+    return find(engine, {"query": text}, limit)
 
 
 def thumb_file(engine: Engine, item_id: int) -> Path | None:
@@ -145,28 +179,36 @@ def text_sources(engine: Engine) -> Callable[[Any], Iterator[tuple[str, str, str
     return sources
 
 
-def in_window(engine: Engine, start: str, end: str, limit: int = 24) -> list[dict[str, Any]]:
-    """Pictures taken within the window (inclusive), oldest first."""
+# ---- browsing: the library as pages (by date, trips, places, people) ---------------------------------------------------------------
+BROWSE = frozenset({"library", "timeline", "trips", "places", "people"})
+
+
+def browse(engine: Engine, what: str, query: dict[str, str]) -> Any:
+    """One page of the library: `library` (a page of photos, newest first, narrowed by year, month, dates, place or person), `timeline`, `trips`, `places`, `people`."""
+    if what not in BROWSE:
+        raise ValueError(f"unknown page {what!r}")
     conn = engine.db.connect()
     try:
-        ids = [
-            int(r[0])
-            for r in conn.execute(
-                "SELECT id FROM items WHERE missing=0 AND kind='image' AND substr(taken_at,1,10) BETWEEN ? AND ? ORDER BY taken_at, id LIMIT ?",
-                (start, end, min(limit, MAX_RESULTS)),
-            )
-        ]
-        found = items_by_ids(conn, ids)
+        if what == "library":
+            offset = int(query["offset"]) if query.get("offset", "").isdigit() else 0
+            return browsing.library(conn, query, offset)
+        return getattr(browsing, what)(conn)
     finally:
         conn.close()
-    return [
-        {
-            "id": i,
-            "name": Path(found[i].rel_path or found[i].path).name,
-            "taken": found[i].taken_at,
-            "place": found[i].place,
-            "thumb": f"/api/pictures/thumb/{i}",
-        }
-        for i in ids
-        if i in found
-    ]
+
+
+def item(engine: Engine, item_id: int) -> dict[str, Any] | None:
+    conn = engine.db.connect()
+    try:
+        found = items_by_ids(conn, [item_id]).get(item_id)
+    finally:
+        conn.close()
+    if found is None:
+        return None
+    return {"id": item_id, "name": Path(found.rel_path or found.path).name, "taken": found.taken_at, "place": found.place, "camera": found.camera}
+
+
+def preview_file(engine: Engine, item_id: int) -> Path | None:
+    data = engine.paths.data.resolve()
+    path = (data / preview_rel(int(item_id))).resolve()
+    return path if data in path.parents and path.is_file() else None

@@ -1,5 +1,5 @@
 # Adds pictures: the sealed indexer reads your photo folder (read-only) with the shared picture engine, and the service answers from the index.
-# scripts/up.sh includes this file when the photo drive is connected. The index lives in the Docker volume `library-pictures`, which Photos opens too.
+# scripts/up.sh includes this file when the photo drive is connected. The index lives in the Docker volume `library-pictures`.
 x-hardened: &hardened
   read_only: true
   cap_drop: [ALL]
@@ -11,8 +11,16 @@ x-drive: &drive
   - library-pictures:/Volumes/Expansion/Aperture/data
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos:ro
+  - ${HOME}/OrbitInbox:/Volumes/Expansion/Inbox:ro
+  - library-mailpictures:/Volumes/Expansion/MailPictures:ro
 
 services:
+  parser:   # pictures that arrive in mail are kept for the picture engine
+    environment:
+      LIBRARY_PICTURES_IN: /pictures-in
+    volumes:
+      - library-mailpictures:/pictures-in
+
   indexer:   # reads the photos: no network at all, photos read-only, writes only the index
     <<: *hardened
     build: {context: .., dockerfile: library/Dockerfile, target: indexer}
@@ -23,6 +31,7 @@ services:
     environment: &pictures
       LIBRARY_PICTURES_DRIVE: /Volumes/Expansion
       LIBRARY_PHOTOS: /Volumes/Expansion/Photos
+      LIBRARY_EXTRA_PICTURES: /Volumes/Expansion/Inbox,/Volumes/Expansion/MailPictures   # pictures dropped in the inbox, and pictures that came in mail
       APERTURE_NEVER_ONLINE: "1"
       APERTURE_SANDBOXED: "1"
       ORBIT_REQUIRE_ENCRYPTION: "1"
@@ -45,5 +54,6 @@ services:
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
 
 volumes:
+  library-mailpictures: {}
   library-pictures:
     name: library-pictures   # a fixed name: Photos opens the same volume

@@ -2,6 +2,7 @@
 
 import json
 import mailbox
+import os
 from email.message import EmailMessage
 
 import pytest
@@ -149,3 +150,26 @@ def test_information_that_is_only_in_the_text_of_an_email_is_found_too(tmp_path,
     flight = find(conn, "show me the email about my flight", ["vlucht", "reservering"])  # the model supplies the Dutch phrasings
     assert [i["title"] for i in flight] == ["all.mbox/00001 Uw reservering.eml"]
     assert "gate D7" in flight[0]["text"]  # no attachment at all: the text itself is the document
+
+
+def test_a_picture_in_a_mail_is_also_kept_as_a_file_for_the_picture_engine(tmp_path, monkeypatch):
+    import io
+
+    from PIL import Image
+
+    png = io.BytesIO()
+    Image.frombytes("RGB", (400, 300), os.urandom(400 * 300 * 3)).save(png, "PNG")  # a real picture, not a logo or a tracking pixel
+    (tmp_path / "in").mkdir()
+    write_mbox(tmp_path / "in" / "all.mbox", [message("Photo of the receipt", "See the picture.", {"receipt.png": png.getvalue()})])
+    kept = tmp_path / "kept"
+    monkeypatch.setenv("LIBRARY_PICTURES_IN", str(kept))
+    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False, area="mail")
+    files = list(kept.iterdir())
+    assert (
+        len(files) == 1 and files[0].suffix == ".png" and files[0].read_bytes() == png.getvalue()
+    )  # named by its content: the same picture twice is kept once
+    parser.process_inbox(tmp_path / "in", tmp_path / "out2", isolated=False, area="mail")
+    assert len(list(kept.iterdir())) == 1
+    monkeypatch.delenv("LIBRARY_PICTURES_IN")
+    parser.process_inbox(tmp_path / "in", tmp_path / "out3", isolated=False, area="mail")
+    assert len(list(kept.iterdir())) == 1  # without the folder set, nothing is kept

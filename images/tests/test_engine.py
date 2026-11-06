@@ -45,3 +45,22 @@ def test_the_index_is_encrypted_with_a_key_and_an_old_plain_index_is_converted_o
     with __import__("pytest").raises(sqlite3.DatabaseError):
         sqlite3.connect(paths.db).execute("SELECT count(*) FROM sqlite_master").fetchone()  # no longer readable without the key
     assert paths.db.with_name(paths.db.name + ".unencrypted").is_file()  # the old file is kept until you delete it
+
+
+def test_pictures_from_more_than_one_folder_are_indexed_together(paths):
+    from PIL import Image
+
+    from images.indexing.pipeline import Services
+    from images.indexing.runner import Scanner
+
+    photos, inbox = paths.drive / "Photos", paths.drive / "Inbox"
+    photos.mkdir()
+    inbox.mkdir()
+    Image.new("RGB", (40, 30), (200, 20, 20)).save(photos / "red.jpg")
+    Image.new("RGB", (40, 30), (20, 20, 200)).save(inbox / "attachment.png")
+    engine = Engine(paths)
+    engine.settings.photo_dir = str(photos)
+    engine.settings.extra_dirs = str(inbox)
+    Scanner(engine.paths, engine.settings, engine.db, lambda stage: Services()).run()
+    names = sorted(r[0] for r in engine.db.connect().execute("SELECT rel_path FROM items WHERE missing=0"))
+    assert names == ["Inbox/attachment.png", "red.jpg"]  # a file from the other folder is named by that folder

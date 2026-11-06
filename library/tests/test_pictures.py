@@ -109,5 +109,25 @@ def test_pictures_taken_within_a_window_are_found_by_date(drive):
     conn.execute("UPDATE items SET taken_at='2026-03-02T10:00:00' WHERE rel_path LIKE '%beach%'")
     conn.commit()
     conn.close()
-    assert [p["name"] for p in pictures.in_window(engine, "2026-01-12", "2026-01-30")] == ["receipt.jpg"]
-    assert pictures.in_window(engine, "2025-01-01", "2025-12-31") == []
+    assert [p["name"] for p in pictures.find(engine, {"from": "2026-01-12", "to": "2026-01-30"})] == ["receipt.jpg"]
+    assert pictures.find(engine, {"from": "2025-01-01", "to": "2025-12-31"}) == []
+    assert [p["name"] for p in pictures.find(engine, {"query": "kassabon", "year": "2026"})] == ["receipt.jpg"]  # words and a year together
+    assert pictures.find(engine, {}) == []  # nothing to look for: nothing returned, never everything
+
+
+def test_the_library_can_be_browsed_as_pages_and_a_picture_is_described(drive):
+    engine = engine_with_fake_models()
+    indexer.run_once(engine)
+    page = pictures.browse(engine, "library", {"year": "2026"})
+    assert {"ids", "total", "offset", "more"} <= set(page) and page["total"] == 2
+    assert pictures.browse(engine, "timeline", {})["total"] == 2
+    assert isinstance(pictures.browse(engine, "trips", {}), list) and isinstance(pictures.browse(engine, "people", {}), list)
+    try:
+        pictures.browse(engine, "nonsense", {})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an unknown page must be refused")
+    [first, *_] = page["ids"]
+    assert pictures.item(engine, first)["name"].endswith(".jpg") and pictures.item(engine, 99999) is None
+    assert pictures.preview_file(engine, first) is None or pictures.preview_file(engine, first).is_file()

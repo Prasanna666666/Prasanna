@@ -17,6 +17,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -229,6 +230,8 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         res = extract_isolated(f) if isolated else extract(f)
         _write(out, digest, label, f.stat().st_size, res, area)
         counts["parsed"] += 1
+        if depth and area == "mail" and res["kind"] == "image":
+            keep_picture(f)
         if suffix in (".eml", ".emlx") and depth < 2:
             with tempfile.TemporaryDirectory() as tmp:
                 for name, content in (readers.read_emlx(f) if suffix == ".emlx" else readers.read_eml(f))[1][:20]:
@@ -238,6 +241,22 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
+
+
+PICTURES_IN = "LIBRARY_PICTURES_IN"  # where a picture that arrived as a mail attachment is kept, for the picture engine to index like any other
+
+
+def keep_picture(f: Path) -> None:
+    """A picture from a mail is also kept as a plain file (named by its content), so the picture engine reads it like every other picture: its date, its
+    text, the people in it. Without the folder set, nothing is kept."""
+    target_dir = os.environ.get(PICTURES_IN, "")
+    if not target_dir:
+        return
+    folder = Path(target_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / f"{sha256(f)}{f.suffix.lower()}"
+    if not target.exists():
+        shutil.copyfile(f, target)
 
 
 def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], digest: str) -> None:

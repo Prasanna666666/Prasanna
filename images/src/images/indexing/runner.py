@@ -110,7 +110,9 @@ class Scanner:
                 raise FileNotFoundError(f"Photo folder not found: {photo_dir}")
             conn = self.db.connect()
             self._check_embedding_model(conn)
-            found = reconcile(conn, self.paths, photo_dir, discover(photo_dir, skip=self._skipped()))
+            extra = [resolve_photo_dir(self.paths, d) for d in (x.strip() for x in self.settings.extra_dirs.split(",")) if d]
+            files = [f for root in (photo_dir, *(d for d in extra if d.is_dir())) for f in discover(root, skip=self._skipped())]
+            found = reconcile(conn, self.paths, photo_dir, files, extra)
             log.info("found %d files (%d new, %d changed)", found.found, found.new, found.changed)
 
             stages = self.settings.stages

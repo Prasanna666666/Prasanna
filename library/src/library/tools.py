@@ -118,14 +118,11 @@ def trips(state, conn, a: dict) -> Result:
 
 
 def find_pictures(state, conn, a: dict) -> Result:
-    """Pictures by what they show or say (words, a place, a person's name) and/or the days they were taken."""
+    """Pictures by what they show or say, a place, a person and/or the days they were taken."""
     engine = state.engine()
     if engine is None:
         raise ValueError("pictures are not set up")
-    window, query = _dates(a), str(a.get("query", ""))[:300].strip()
-    found = pictures.in_window(engine, *window, limit=60) if window and not query else pictures.search(engine, query, 60)
-    if window and query:
-        found = [p for p in found if p["taken"] and window[0] <= p["taken"][:10] <= window[1]]
+    found = pictures.find(engine, a, 60)
     data = {"count": len(found), "pictures": [{"name": p["name"], "taken": p["taken"], "place": p["place"]} for p in found[:30]]}
     return data, [_photo_item(p) for p in found[:MAX_ITEMS]] if a.get("show") is True else []
 
@@ -195,8 +192,17 @@ TOOLS = (
     ),
     Tool(
         "find_pictures",
-        "Find pictures by what they show or say (a place, a person's name, words in them) and/or the days they were taken. Returns how many and the first ones.",
-        {"query": _str("Words, a place or a person"), "from": _str("First day, YYYY-MM-DD"), "to": _str("Last day, YYYY-MM-DD"), "show": _show()},
+        "Find pictures by what they show or say, a place, a person and/or when they were taken, all at once. Returns how many and the first ones.",
+        {
+            "query": _str("What is in the picture or written in it, in plain words"),
+            "place": _str("A place, for example Goa"),
+            "person": _str("A person's name"),
+            "year": _str("A year"),
+            "month": _str("A month number, 1 to 12"),
+            "from": _str("First day, YYYY-MM-DD"),
+            "to": _str("Last day, YYYY-MM-DD"),
+            "show": _show(),
+        },
         find_pictures,
     ),
     Tool("library_overview", "How many files, mails and pictures there are and of which kinds.", {}, overview),

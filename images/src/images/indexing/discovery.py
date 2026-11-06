@@ -92,14 +92,24 @@ def delete_derived(conn: sqlite3.Connection, paths: Paths, item_ids: list[int]) 
         conn.execute("DELETE FROM embeddings WHERE item_id=?", (item_id,))
 
 
-def reconcile(conn: sqlite3.Connection, paths: Paths, photo_dir: Path, files: list[FoundFile]) -> ReconcileResult:
-    """Insert new files, reset changed ones, and flag vanished ones as missing."""
+def reconcile(
+    conn: sqlite3.Connection, paths: Paths, photo_dir: Path, files: list[FoundFile], extra_roots: Iterable[Path] = ()
+) -> ReconcileResult:
+    """Insert new files, reset changed ones, and flag vanished ones as missing. A file under another root is named by that root's folder name and its path inside it."""
+    others = [Path(r) for r in extra_roots]
+
+    def relative(path: str) -> str:
+        for root in others:
+            if path.startswith(str(root) + os.sep):
+                return os.path.join(root.name, os.path.relpath(path, root))
+        return os.path.relpath(path, photo_dir)
+
     existing = {r["path"]: r for r in conn.execute("SELECT id, path, size, mtime FROM items")}
     seen: set[str] = set()
     new = changed = 0
     for f in files:
         seen.add(f.path)
-        rel = os.path.relpath(f.path, photo_dir)
+        rel = relative(f.path)
         row = existing.get(f.path)
         clip_done = 1 if f.kind == "text" else 0
         faces_done = 0 if f.kind == "image" else 1

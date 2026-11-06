@@ -160,6 +160,21 @@ def _get_pictures_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**pictures.counts(engine), **pictures.scan_state(engine)}
 
 
+def _get_browse(state: State, conn, query: dict[str, str]) -> dict:
+    """/api/pictures/browse?page=library|timeline|trips|places|people (&year= &month= &from= &to= &place= &person= &offset=)"""
+    try:
+        return {"page": pictures.browse(_engine_or_fail(state), query.get("page", ""), query)}
+    except ValueError as exc:
+        raise Fail(400, str(exc)) from exc
+
+
+def _get_item(state: State, conn, query: dict[str, str]) -> dict:
+    found = pictures.item(_engine_or_fail(state), int(query["id"])) if query.get("id", "").isdigit() else None
+    if found is None:
+        raise Fail(404, "no such picture")
+    return found
+
+
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**store.counts(conn), "kinds": store.by_kind(conn)}
 
@@ -186,6 +201,8 @@ GET_ROUTES = {
     "/api/document": _get_document,
     "/api/status": _get_status,
     "/api/tools": _get_tools,
+    "/api/pictures/browse": _get_browse,
+    "/api/pictures/item": _get_item,
     "/api/pictures": _get_pictures,
     "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,
@@ -238,7 +255,9 @@ class _Handler(JsonHandler):
         if path.startswith("/static/"):
             return self._file(path.removeprefix("/static/"))
         if path.startswith("/api/pictures/thumb/"):
-            return self._thumb(path.removeprefix("/api/pictures/thumb/"))
+            return self._thumb(path.removeprefix("/api/pictures/thumb/"), preview=False)
+        if path.startswith("/api/pictures/preview/"):
+            return self._thumb(path.removeprefix("/api/pictures/preview/"), preview=True)
         if path.startswith("/api/"):
             return self._run(GET_ROUTES, path, {k: v[0] for k, v in urllib.parse.parse_qs(query).items() if v})
         self._fail(HTTPStatus.NOT_FOUND, "not found")
@@ -247,9 +266,12 @@ class _Handler(JsonHandler):
         if self._guard(True):
             self._run(POST_ROUTES, self.path.partition("?")[0], self._body())
 
-    def _thumb(self, raw_id: str) -> None:
+    def _thumb(self, raw_id: str, preview: bool) -> None:
         engine = self.state.engine()
-        found = pictures.thumb_file(engine, int(raw_id)) if engine is not None and raw_id.isdigit() else None
+        lookup = pictures.preview_file if preview else pictures.thumb_file
+        found = lookup(engine, int(raw_id)) if engine is not None and raw_id.isdigit() else None
+        if found is None and preview and engine is not None and raw_id.isdigit():
+            found = pictures.thumb_file(engine, int(raw_id))  # no large copy yet: the small one
         if found is None:
             return self._fail(HTTPStatus.NOT_FOUND, "not found")
         self._send(200, found.read_bytes(), "image/jpeg")

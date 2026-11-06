@@ -50,20 +50,6 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q
-  photos:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: photos
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-      - run: pip install -e "../images" -e ".[ui,dev]" pyyaml
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: pytest -q
   library:
     runs-on: ubuntu-latest
     defaults:
@@ -95,8 +81,8 @@ jobs:
           node-version: 22
       - run: npx --yes eslint@10.1.0 src/orbit/static/app.js
       - run: npx --yes prettier@3.8.1 --check src/orbit/static
-      - run: npx --yes eslint@10.1.0 ../photos/src/aperture/web/static/app.js
-      - run: npx --yes prettier@3.8.1 --check ../photos/src/aperture/web/static
+      - run: npx --yes eslint@10.1.0 ../library/src/library/static/app.js ../library/src/library/static/pictures.js
+      - run: npx --yes prettier@3.8.1 --check ../library/src/library/static
   atlas:
     runs-on: ubuntu-latest
     defaults:
@@ -131,7 +117,7 @@ jobs:
           python-version: "3.13"
       - run: pip install -e "../kit[secure]" -e ".[secure]" -e "../library[parse]" bandit pip-audit cyclonedx-bom
       - run: bandit -q -r src ../kit/src ../library/src -c pyproject.toml
-      - run: bandit -q -r ../images/src ../photos/src -c ../images/pyproject.toml -ll
+      - run: bandit -q -r ../images/src -c ../images/pyproject.toml -ll
       - run: pip-audit
       - run: cyclonedx-py environment -o sbom.json
       - uses: actions/upload-artifact@v4

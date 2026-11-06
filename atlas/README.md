@@ -1,6 +1,6 @@
 # Atlas
 
-One address, one menu, one search box and one chat button for every private app. **Finance** (money) and **Photos** (photos) stay two separate
+One address, one menu, one search box and one chat button for every private app. **Finance** (money) and **Documents** (files, mail and pictures) stay two separate
 sub-systems, each with its own database, container and rules. Atlas is only the front door: it holds no data and never reads yours.
 
 ```
@@ -8,7 +8,7 @@ sub-systems, each with its own database, container and rules. Atlas is only the 
         |
         +-- Atlas (menu, search, chat button, theme)
         +-- finance.atlas.localhost  -> Finance   (its own container and database)
-        +-- photos.atlas.localhost   -> Photos    (its own container and index)
+        +-- documents.atlas.localhost -> Documents (files, mail, pictures; its own container and index)
         +-- health.atlas.localhost   -> whatever comes next
 ```
 
@@ -22,12 +22,12 @@ cd atlas && ./up.sh        # then open http://atlas.localhost:8000
 ./down.sh                # stop Atlas only; the apps keep running and keep their data
 ```
 
-Start the apps as before (`orbit/scripts/up.sh`, Photos's `scripts/up.sh`). Atlas shows each one as running or not; an app that is down
+Start the apps as before (`orbit/scripts/up.sh`, `library/scripts/up.sh`). Atlas shows each one as running or not; an app that is down
 shows a plain "not running" page and never blocks the others.
 
 ## What the shared page gives you
 - **One menu** with every app and its pages, a green dot for "running", and each app tints the page with its own colours.
-- **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments and files in Finance, places, people and trips in Photos), lists the pages, and can
+- **One search** (`Ctrl/⌘ K`, or `/`): it asks every app at once (payments in Finance; files, mail and pictures in Documents), lists the pages, and can
   hand your question to an app's assistant.
 - **One chat** (the Ask button, or `Ctrl/⌘ J`): a single assistant over all of your data. Every part of the app (money, documents and mail, pictures, whatever comes next) publishes the tools it has, and the one assistant can use any of them, in any order, inside one answer: the dates on a ticket, then what was spent on those days, then the pictures taken on them. The model decides what to look up; the tools do the looking, counting and adding; every figure in the answer is checked against what the tools returned before it is shown, and a month that does not tie to the ledger is not given at all. It is a conversation first: **pictures and documents appear only when you ask to see them** ("show me photos from Goa"). A count or a question is answered in words. When the model is not running the answer says so. The parts' own chat panels are hidden inside Atlas.
 - **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Finance reads new statements and files, Photos indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
@@ -87,7 +87,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 - It needs no change to its security: Atlas permits only its own page to frame the app, checks `Host` and `Origin` itself, and
   presents each app with the local name it already accepts.
 
-Finance (`orbit/src/orbit/static/app.js`, `web.py`) and Photos (`src/aperture/web`) are the two reference implementations.
+Finance (`orbit/src/orbit/static/app.js`, `web.py`) and Documents (`library/src/library/web.py`) are the two reference implementations.
 
 ## What it will not do
 - Merge the apps' data or databases, or read them. The only things Atlas asks an app for are its health and the results of a search you typed.

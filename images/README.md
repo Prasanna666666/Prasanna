@@ -3,19 +3,19 @@
 Everything that understands a picture lives here, once: reading a file (EXIF, date, GPS and place names, text in the picture with Apple Vision or Tesseract, faces and who they are, CLIP embeddings, labels, quality), the index in one SQLite file, and every kind of search over it (words, places, dates, people, colours, "something that looks like this").
 
 - `images.engine.Engine`: settings, the database, the models, the scan. Nothing about chat or screens.
-- `images.indexing`, `images.ml`, `images.search`, `images.people`, `images.quality`, `images.library`: moved here unchanged from the Photos app.
+- `images.indexing`, `images.ml`, `images.search`, `images.people`, `images.quality`, `images.library`: moved here unchanged from the old Photos app, together with `images.search.plan`/`executor` (the structured search) and `images.browse` (the pages).
 - The index keeps its old name and place (`<drive>/Aperture/data/aperture.db`), so a library that is already indexed is found where it was.
 - Heavy extras: `pip install "images[ml]"` (torch, CLIP, onnxruntime, OpenCV) and, on a Mac, `images[mac]` (Apple Vision).
 
 ## Who uses it
-- **Documents** (`../library`) runs the engine: a sealed indexer container (no network, photos read-only) reads the photo folder and writes the index; the service answers pictures questions (`/api/pictures`, thumbnails, the text found in pictures joins the documents in one search) and relays Update.
-- **Photos** (`../photos`) imports this package to show and search the index (it opens the same volume, `library-pictures`) and, with `APERTURE_LIBRARY_URL` set (the Docker setup), passes Update on to Documents instead of indexing itself. A native install without that setting still indexes by itself as before.
+**Documents** (`../library`) is the only program that runs it. A sealed indexer container (no network, photos read-only) reads the photo folder, the inbox and the pictures that came in mail, and writes the index. The Documents service answers from the index: the library by date, trips, places and people as pages, the tools the one assistant uses (`find_pictures`), and thumbnails. Pictures in mail are kept as plain files in a private volume (named by their content) so they are read like every other picture.
+
+There is no separate Photos app any more. What it had that is not carried over: the chat-style search screen (the one assistant does that), organising and moving photos into folders, exporting, albums, the macOS launcher and the command line. They are in git history (the commit that removed `photos/`) if one is wanted back.
 
 ## Encrypted
 With `ORBIT_DB_KEY` set (the Docker setup) the index is an encrypted SQLCipher file, full-text index included; an existing plain index is converted once on first open and the plain file is kept beside it as `aperture.db.unencrypted` until you delete it. A native install with no key keeps a plain index as before.
 
 ## Still open
-- Photos still opens the index file directly to read and to write its own things (people's names, moves, captions). Moving every one of those reads and writes behind Documents' API (about 50 places) would make Documents the only program that touches the file; it is not done.
-- Pictures that arrive inside mail or the inbox (not in the photo folder) are read by Documents' own reader (text only); they are not yet fed through this engine.
 - Not run on a real Mac: the Docker images (the indexer carries PyTorch and the models come from the drive) have not been built.
-- Move the existing index once: `photos/scripts/aperture-docker-migrate.sh` copies the index from the drive (or, with `FROM_VOLUME=aperture-data`, from the old volume) into `library-pictures`.
+- Move the existing index once: `library/scripts/adopt-picture-index.sh` copies the index from the drive (or, with `FROM_VOLUME=aperture-data`, from the old volume) into `library-pictures`.
+- The vision-model steps that named venues and judged pictures with the local model are in the engine but nothing runs them yet.

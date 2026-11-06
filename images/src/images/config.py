@@ -149,6 +149,7 @@ class Settings:
     schema: int = 9  # bumped when a default changed on purpose; older files get the new value
     photo_dir: str = ""
     export_dir: str = ""
+    extra_dirs: str = ""  # more folders on the drive to index with the photo folder, comma separated (pictures that arrived in mail or the inbox)
     rescue_search: bool = (
         False  # when a search finds nothing, do NOT fall back to matching the typed words against file names and text
     )

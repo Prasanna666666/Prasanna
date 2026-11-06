@@ -4,7 +4,7 @@ Every change is checked against this list before it is called done. It records w
 If something here is wrong, the owner says so once and it is changed here.
 
 ## The product
-- One personal platform called **Atlas**, one address (`http://atlas.localhost:8000`), one look. Today it holds **Finance** and **Photos**; **health, travel, documents and more** are coming. No codenames on screen (not Orbit, not Lumo, not Aperture).
+- One personal platform called **Atlas**, one address (`http://atlas.localhost:8000`), one look. Today it holds **Finance** and **Documents** (files, mail and pictures in one); **health, travel, documents and more** are coming. No codenames on screen (not Orbit, not Lumo, not Aperture).
 - It is **one app**. Behind the one address its parts (money, documents and mail, pictures, later health and travel) keep their own storage and tools, but **every part's data is available to the one assistant and is used based on the question**: it can chain tools across parts inside one answer (ticket dates, then spending on those days, then the pictures taken on them). Parts do not talk to each other behind the scenes; the assistant is where they meet.
 - **One chatbot for everything (one assistant over all data, using every part's tools)**, a general assistant the owner can simply talk to, which can also find information, browse, filter and find what things have in common, and give pictures or documents **only when asked**. No per-app chat buttons.
 - **One button to read everything new** (documents, pictures, anything). Each kind of data is read in the way that suits it: photos get the extremely detailed indexing and stay on the external drive; PDFs and other documents keep their own reading and live on the Mac.

@@ -4,23 +4,64 @@
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="light dark" />
-        <title>Documents</title>
+        <title>Documents and pictures</title>
         <link rel="icon" href="/static/icon.svg" type="image/svg+xml" />
         <link rel="stylesheet" href="/static/app.css" />
     </head>
     <body>
         <main>
             <header>
-                <h1>Documents</h1>
+                <h1>Documents and pictures</h1>
                 <p id="count" class="muted"></p>
             </header>
-            <form id="find" role="search">
-                <input id="q" type="search" placeholder="Search your files and mail" autocomplete="off" aria-label="Search" />
-            </form>
-            <nav id="kinds" aria-label="Kinds"></nav>
-            <section id="list" aria-live="polite"></section>
-            <article id="doc" hidden></article>
+            <nav id="tabs" aria-label="Sections"></nav>
+            <section id="page-documents">
+                <form id="find" role="search">
+                    <input
+                        id="q"
+                        type="search"
+                        placeholder="Search your files and mail"
+                        autocomplete="off"
+                        aria-label="Search"
+                    />
+                </form>
+                <nav id="kinds" aria-label="Kinds"></nav>
+                <section id="list" aria-live="polite"></section>
+                <article id="doc" hidden></article>
+            </section>
+            <section id="page-pictures" hidden></section>
         </main>
+        <div id="lightbox" hidden>
+            <button
+                class="lb-close"
+                id="lb-close"
+                type="button"
+                aria-label="Close"
+            >
+                &times;
+            </button>
+            <button
+                class="lb-nav lb-prev"
+                id="lb-prev"
+                type="button"
+                aria-label="Previous"
+            >
+                &#8249;
+            </button>
+            <figure>
+                <img id="lb-img" alt="" />
+                <figcaption id="lb-cap"></figcaption>
+            </figure>
+            <button
+                class="lb-nav lb-next"
+                id="lb-next"
+                type="button"
+                aria-label="Next"
+            >
+                &#8250;
+            </button>
+        </div>
         <script src="/static/app.js"></script>
+        <script src="/static/pictures.js"></script>
     </body>
 </html>
