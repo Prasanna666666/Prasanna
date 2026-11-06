@@ -1,6 +1,6 @@
 import json
 
-from atlas.evaluate import handled, load_cases, percentile, run, summarise
+from atlas.evaluate import handled, load_cases, main, percentile, run, summarise, unreachable
 
 
 def test_the_shipped_cases_cover_five_levels_and_say_what_each_expects():
@@ -40,5 +40,5 @@ def test_percentiles():
 
 
 def test_a_stopped_app_is_reported_as_such_not_as_wrong_answers(capsys):
-    assert "Is the app running" in evaluate.unreachable("http://atlas.localhost:1")
-    assert evaluate.main(["--live", "http://atlas.localhost:1"]) == 2 and "Cannot evaluate" in capsys.readouterr().out
+    assert "Is the app running" in unreachable("http://atlas.localhost:1")
+    assert main(["--live", "http://atlas.localhost:1"]) == 2 and "Cannot evaluate" in capsys.readouterr().out
