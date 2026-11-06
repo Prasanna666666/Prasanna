@@ -133,6 +133,7 @@ class Turn:
     outputs: list[str] = field(default_factory=list)
     items: list[dict[str, str]] = field(default_factory=list)
     show: bool = False  # the model judged that the person asked to SEE pictures or files; then every tool that can show them is told to
+    nudged: bool = False
     asked_to_show: bool = False  # the model asked for pictures or files to be shown (whether or not any were found)
     notes: list[str] = field(default_factory=list)  # things the person must be told next to a figure (a month that is not proven, files waiting for a check)
 
@@ -263,6 +264,10 @@ class Assistant:
             calls = message.get("tool_calls") or []
             turn.messages.append({"role": "assistant", "content": message.get("content") or "", "tool_calls": calls})
             if not calls:
+                nudge = self._nudge(turn)
+                if nudge:  # answering without the data it was given tools for, or leaving out a kind of data the question touches: told once, then it answers
+                    turn.messages.append({"role": "user", "content": nudge})
+                    continue
                 return self._checked(str(message.get("content") or "").strip(), turn)
             for call in calls:
                 self._run(call, turn)
@@ -310,6 +315,19 @@ class Assistant:
                     False, "I can't give you that figure with confidence: figures not returned by any tool: " + ", ".join(f"{n:g}" for n in unproven), turn
                 )
         return self._reply(True, reply or "I have nothing to add.", turn)
+
+    @staticmethod
+    def _nudge(turn: Turn) -> str:
+        """One reminder per question, when the model is about to answer without having used its tools, or without a part of the app the question touches."""
+        if turn.nudged or not turn.by_name:
+            return ""
+        turn.nudged = True
+        if not turn.used:
+            return "You have tools for this. Call the right tool now to get the data; do not answer from memory."
+        unused = [t.public for t in turn.by_name.values() if t.module.id not in turn.used][:4]
+        if unused:
+            return "If the question also asks for data from another part, call one of these now: " + ", ".join(unused) + ". If not, answer."
+        return ""
 
     @staticmethod
     def _reply(ok: bool, text: str, turn: Turn) -> dict[str, Any]:

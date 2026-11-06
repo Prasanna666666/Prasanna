@@ -84,6 +84,7 @@ def test_pictures_are_shown_only_when_the_model_says_the_person_asked_to_see_the
 
 def test_plain_conversation_uses_no_tool(running):
     running.apps["money"].tools = [tool("spending_between")]
+    running.apps["photos"].pick = []  # the model chooses no tool for a greeting, so nothing nudges it
     running.apps["photos"].script = [text("Hello! What can I help with?")]
     _, reply = chat(running, "hello")
     assert reply["routed"] == [] and reply["parts"][0]["text"] == "Hello! What can I help with?" and running.apps["money"].asked == []
@@ -247,3 +248,22 @@ def test_wanting_to_see_something_with_no_tool_chosen_is_asked_again_with_a_tool
     photos.script = [text("ok")]
     chat(running, "I would love to see Goa again")
     assert offered(loop_calls(photos)[0]) == {"photos__find_pictures"}
+
+
+def test_a_model_that_answers_without_using_its_tools_is_told_once_to_use_them(running):
+    photos = running.apps["photos"]
+    photos.tools = [tool("find_pictures", show=1)]
+    photos.script = [text("I think you have none."), call("photos__find_pictures"), text("Found.")]
+    _, reply = chat(running, "pictures of the beach")
+    assert reply["routed"] == ["photos"] and len(loop_calls(photos)) == 3
+    assert "do not answer from memory" in loop_calls(photos)[1]["messages"][-1]["content"]
+
+
+def test_a_part_of_the_app_the_question_touches_but_the_model_skipped_is_offered_once(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_between")]
+    photos.tools = [tool("find_pictures")]
+    photos.script = [call("photos__find_pictures"), text("Photos only."), call("money__spending_between"), text("Both.")]
+    _, reply = chat(running, "my Goa trip and what it cost")
+    assert set(reply["routed"]) == {"photos", "money"}
+    assert "money__spending_between" in loop_calls(photos)[2]["messages"][-1]["content"]
