@@ -4,7 +4,7 @@
 
 The cases live in ``eval/cases.json`` (levels 1 to 5: plain, other wording, several parts, follow-ups, reasoning). Each is sent through a running Atlas
 (the apps and the model must be up). A case is handled correctly when the assistant used at least the parts the question needs (it may use more: a question
-can chain tools), used none for plain conversation, and showed pictures or files exactly when the person asked to see them."""
+can chain tools), used none for plain conversation, and asked to show pictures or files exactly when the person asked to see them."""
 
 from __future__ import annotations
 
@@ -29,18 +29,12 @@ def load_cases(path: Path) -> list[dict[str, Any]]:
 
 
 def handled(reply: dict[str, Any] | None, expect: dict[str, Any]) -> bool:
-    """Did the assistant use the parts the question needs, and show pictures or files only when asked?"""
+    """Did the assistant use the parts the question needs (none for plain talk), and ask to show pictures or files exactly when the person asked to see them?
+    Asking is what is scored, not whether anything was found, so the result does not depend on what is in this person's library."""
     if reply is None:
         return False
     routed = set(reply.get("routed", []))
-    needed = set(expect["apps"])
-    show = reply.get("show", {})
-    return (
-        needed <= routed
-        and (bool(expect["apps"]) or not routed)
-        and bool(show.get("photos", False)) == bool(expect["photos"])
-        and bool(show.get("documents", False)) == bool(expect["documents"])
-    )
+    return set(expect["apps"]) <= routed and (bool(expect["apps"]) or not routed) and bool(reply.get("asked_to_show", False)) == bool(expect["show"])
 
 
 def percentile(values: list[float], pct: float) -> float:
@@ -84,7 +78,7 @@ def run(base_url: str, cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "ok": handled(reply, case["expect"]),
                 "answered": reply is not None and any(p.get("ok") for p in reply.get("parts", [])),
                 "seconds": seconds,
-                "got": None if reply is None else {"used": reply.get("routed"), "show": reply.get("show")},
+                "got": None if reply is None else {"used": reply.get("routed"), "asked_to_show": reply.get("asked_to_show")},
                 "expected": case["expect"],
             }
         )

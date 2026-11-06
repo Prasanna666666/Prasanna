@@ -132,6 +132,7 @@ class Turn:
     used: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
     items: list[dict[str, str]] = field(default_factory=list)
+    asked_to_show: bool = False  # the model asked for pictures or files to be shown (whether or not any were found)
     notes: list[str] = field(default_factory=list)  # things the person must be told next to a figure (a month that is not proven, files waiting for a check)
 
 
@@ -163,7 +164,8 @@ def system_prompt(today: date) -> str:
         "mail, pictures. Use the tools for anything about their data; never state a figure, date or fact about them that a tool did not return. Chain tools "
         "when a question needs it (for example: find the dates of a trip in the tickets, then look up what was spent on those days, then the pictures taken "
         "on them). Only use the tools that the question needs. Show pictures or files (the tools' show argument) ONLY when the user asks to see them; "
-        "a count or a question is answered in words. Answer briefly in the user's language, in plain words. Greetings and general questions need no tool. "
+        'a count or a question is answered in words. Answer briefly in the user\'s language, in plain words. Greetings and general questions need no tool, but any question about their own data MUST call a tool first; a follow-up ("show me those") '
+        "repeats the earlier tool with the same details and show true. "
         f"Today is {today.isoformat()}."
     )
 
@@ -212,8 +214,10 @@ class Assistant:
         }
         system = (
             "You choose which tools an assistant needs to answer the user's last message. Choose every tool the answer may need, including a tool that must run "
-            "after another (for example one that finds the dates of a trip, and then ones that use those dates). Choose none for a greeting or a general "
-            f"question that needs no data of theirs. At most {MAX_PICKED}. The tools:\n" + "\n".join(t.line for t in tools)
+            "after another (for example one that finds the dates of a trip, and then ones that use those dates). Choose none ONLY for a greeting or a general "
+            "question about the world that needs no data of theirs. Anything about their money, payments, bills, files, mail, documents, pictures, trips or "
+            'saving, and any follow-up to such a question ("and the month before?", "show me those"), needs tools: when unsure, choose them. '
+            f" At most {MAX_PICKED}. The tools:\n" + "\n".join(t.line for t in tools)
         )
         context = "\n".join(f"{role}: {turn[:300]}" for role, turn in history[-4:])
         picked = self.model.pick(system, f"Conversation so far:\n{context or '(none)'}\n\nMessage: {text}", schema)
@@ -262,6 +266,7 @@ class Assistant:
             if tool.module.id not in turn.used:
                 turn.used.append(tool.module.id)
             turn.notes.extend(n for n in result.get("notes") or [] if n not in turn.notes)
+            turn.asked_to_show = turn.asked_to_show or args.get("show") is True
             for item in result.get("items") or []:
                 # a change waiting for the person is always shown (it needs them); pictures and files only when the model says the person asked to see them
                 if item["kind"] == "confirm" or args.get("show") is True:
@@ -298,4 +303,4 @@ class Assistant:
         }
         part: dict[str, Any] = {"module": "atlas", "name": "Atlas", "ok": ok, "show": show}
         part.update({"text": text, "items": items, "notes": turn.notes[:3]} if ok else {"error": text})
-        return {"how": "agent" if ok else "down", "routed": used, "show": show, "parts": [part]}
+        return {"how": "agent" if ok else "down", "routed": used, "show": show, "asked_to_show": turn.asked_to_show, "parts": [part]}
