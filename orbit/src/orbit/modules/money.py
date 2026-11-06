@@ -13,7 +13,7 @@ from datetime import date, timedelta
 from kit import extract
 from kit.module import INT, Module, N, S, Tool
 
-from .. import audit, browse, categorize, clock, dates, db, insight, payslips, planning, proof, rates, standards, statements, tables, verify, wealth
+from .. import audit, browse, canary, categorize, clock, dates, db, insight, payslips, planning, proof, rates, standards, statements, tables, verify, wealth
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 
@@ -602,6 +602,15 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     run = _Run()
     docs = _pending_documents(conn)
     no_model = "The local model is not running, so these statements cannot be read. Start Ollama and try again."
+    if client is not None and model and any(_needs_model(d) for d in docs):
+        try:
+            broken = canary.model_check(client, model)
+        except RuntimeError as exc:
+            broken = f"the model could not be reached ({exc})"
+        if broken:  # before touching a single file: this is the model's problem, so none of the files is marked as failed
+            run.problems.append(f"Nothing was read: {broken}. This is a problem with the model, not with your files, and they will be tried again.")
+            return _finished(conn, client, model, progress, run, learned_done=False)
+    streak: list[str] = []
     for index, d in enumerate(docs, 1):
         data = _document_data(d)
         if rates.looks_like_ecb(data.get("rows")):
@@ -612,12 +621,49 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
                 run.problems.append(no_model)
             continue
         try:
-            out = _read_document(conn, d, data, client, model, progress, (index, len(docs)))
+            out = _read_document(conn, d, data, client, model, _with_failures(progress, run), (index, len(docs)))
         except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
             run.problems.append(str(exc))
             break
         _record_document(conn, d, out, learned, run)
-    _after_import(conn, client, model, progress, run)
+        streak = [*streak, d["sha256"]] if _layout_failed(out) else []
+        if len(streak) >= FAIL_FAST:
+            _stop_early(conn, run, streak)
+            break
+    return _finished(conn, client, model, progress, run)
+
+
+FAIL_FAST = 3  # this many files in a row whose layout could not be understood: stop, do not go through all of them to find out
+LAYOUT_FAILED = "the layout of this file could not be understood"
+
+
+def _layout_failed(out: _Outcome) -> bool:
+    return out.read is not None and out.read.status == "needs_check" and bool(out.read.issues) and out.read.issues[0].startswith(LAYOUT_FAILED)
+
+
+def _with_failures(progress, run: _Run):
+    """The progress line also says how many files could not be read so far, so a problem shows after the first files, not after the last."""
+    if progress is None:
+        return None
+    return lambda message: progress(message + (f" ({len(run.needs_check)} could not be read so far)" if run.needs_check else ""))
+
+
+def _stop_early(conn, run: _Run, streak: list[str]) -> None:
+    """Several files in a row failed the same way: that is the model struggling, not several bad files. Stop now, forget those failures so they are
+    tried again, and say so plainly."""
+    conn.executemany("DELETE FROM statement_files WHERE sha256=?", [(sha,) for sha in streak])
+    conn.commit()
+    del run.needs_check[-len(streak) :]
+    run.files -= len(streak)
+    run.problems.append(
+        f"Stopped after {len(streak)} files in a row could not be read. That usually means the model is struggling, not your files. "
+        "Nothing was lost: these and the rest will be tried again at the next Update."
+    )
+
+
+def _finished(conn, client, model, progress, run: _Run, learned_done: bool = True) -> dict:
+    if learned_done:
+        _after_import(conn, client, model, progress, run)
     return {
         "files": run.files,
         "new_transactions": run.added,

@@ -3,6 +3,8 @@ If a code change, a library update or a corrupted file ever makes the readers gi
 
 from __future__ import annotations
 
+import time
+
 from kit.amounts import money_from_printed
 
 from . import rates, standards, tables
@@ -54,3 +56,23 @@ def run() -> list[Finding]:
     if problems:
         return [Finding("self-test", "fail", "readers", "; ".join(problems))]
     return [Finding("self-test", "ok", "readers", "the readers still give the exact right answer on known samples")]
+
+
+_MODEL_OK_FOR = 600.0  # seconds a passed model check is trusted for
+_model_checked: dict[str, float] = {}
+
+
+def model_check(client, model: str) -> str | None:
+    """Before any of your statements is read: can the model describe the columns of a known statement, and does reading it that way give the exact right
+    answer? None if yes. Otherwise the plain reason: the problem is then the model, and none of your files are blamed or touched."""
+    if time.monotonic() - _model_checked.get(model, -_MODEL_OK_FOR) < _MODEL_OK_FOR:
+        return None
+    layout, why = tables.infer_layout_why(client, model, _table(SAMPLE))
+    if layout is None:
+        return f"the model could not describe the columns of a sample statement ({why})"
+    read = tables.parse_table(_table(SAMPLE), layout)
+    want = [("2026-10-02", 2345, "expense"), ("2026-10-25", 285000, "income"), ("2026-10-26", 110000, "expense")]
+    if read.status != "verified" or sorted((t.day, t.amount_minor, t.kind) for t in read.txns) != want:
+        return "the model described the columns of a sample statement wrongly, so its figures would not add up"
+    _model_checked[model] = time.monotonic()
+    return None
