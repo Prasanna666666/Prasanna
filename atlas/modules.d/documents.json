@@ -19,5 +19,6 @@
   "scan": "/api/scan",
   "media": "/api/pictures/thumb/",
   "tools": "/api/tools",
-  "tool": "/api/tool"
+  "tool": "/api/tool",
+  "hidden": true
 }

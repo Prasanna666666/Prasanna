@@ -105,6 +105,9 @@ def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
     if window and a.get("place"):
         found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or d["kind"] not in ("ticket", "booking")]
     data = {"count": len(found), "documents": [_doc_row(d) for d in found[:40]]}
+    held = store.hidden_health_count(conn)
+    if held:
+        data["note"] = f"{held} health documents are locked and were left out. If the person asks for them, tell them to open Health in Atlas and unlock it."
     return data, [_doc_item(d) for d in found[:MAX_ITEMS]] if a.get("show") is True else []
 
 

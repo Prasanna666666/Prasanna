@@ -51,6 +51,7 @@ class Module:
     tool: str = ""  # optional: where the assistant runs one of them (POST {name, args, user_text} -> {ok, data, error, items})
     media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
+    hidden: bool = False  # works for the chat, the search and the Update, but is not an app of its own in the menu
     auth: Auth | None = None
     headers: tuple[tuple[str, str], ...] = ()  # fixed headers on Atlas's own calls (an app's change-protection header, for example)
     host: str = ""  # the Host the app is told it was called by; empty means 127.0.0.1 with its port
@@ -76,6 +77,7 @@ class Module:
             "icon": self.icon,
             "accent": list(self.accent),
             "home": self.home,
+            "hidden": self.hidden,
             "searchable": bool(self.search),
             "scannable": bool(self.scan),
             "askable": bool(self.tool),
@@ -132,6 +134,7 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         media=str(raw.get("media", "")),
         headers=tuple((str(k), str(v)) for k, v in (raw.get("headers") or {}).items()),
         home=str(raw.get("home", "")),
+        hidden=raw.get("hidden") is True,
         auth=Auth(str(auth["meta"]), str(auth["header"])) if isinstance(auth, dict) else None,
         host=str(raw.get("host", "")),
         pages=tuple(_page(p, where) for p in raw.get("pages", [])),

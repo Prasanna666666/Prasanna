@@ -4,9 +4,9 @@
   "headers": {
     "X-Library": "1"
   },
-  "id": "pictures",
-  "name": "Pictures",
-  "app": "Pictures",
+  "id": "photos",
+  "name": "Photos",
+  "app": "Photos",
   "tagline": "Photos by place, person, trip and what is in them",
   "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01",
   "accent": [
@@ -17,7 +17,7 @@
   "pages": [
     {
       "id": "library",
-      "label": "Pictures",
+      "label": "Photos",
       "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01"
     },
     {

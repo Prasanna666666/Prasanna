@@ -218,6 +218,23 @@ def _post_cancel(state: State, conn, body: dict) -> dict:
     return changes.cancel(conn, str(body.get("id", ""))[:20])
 
 
+def _get_medical(state: State, conn, query: dict[str, str]) -> dict:
+    """Health: locked until the person unlocks it; locked again every time the service starts."""
+    if not store.health_unlocked():
+        return {"locked": True, "held_back": store.hidden_health_count(conn), "documents": []}
+    return {"locked": False, "held_back": 0, "documents": store.list_documents(conn, sorted(store.HEALTH_KINDS), limit=200)}
+
+
+def _post_medical_unlock(state: State, conn, body: dict) -> dict:
+    store.set_health_unlocked(True)
+    return {"ok": True}
+
+
+def _post_medical_lock(state: State, conn, body: dict) -> dict:
+    store.set_health_unlocked(False)
+    return {"ok": True}
+
+
 def _post_albums(state: State, conn, body: dict) -> dict:
     """The Trips page asks for the trip albums: only prepared, the confirmation window does the rest."""
     try:
@@ -249,7 +266,7 @@ def _row(name: str, stored: int, total: int | None, noun: str, running: str = ""
 
 
 def _parts(state: State, conn) -> list[dict[str, str]]:
-    """What the Update shows: Documents, Pictures and Mails, each with its full number."""
+    """What the Update shows: Documents, Photos and Mails, each with its full number."""
     found = _found()
     kinds = conn.execute("SELECT SUM(area NOT IN ('mail','pictures')) AS files, SUM(area='mail') AS mails FROM documents").fetchone()
     busy = state.scan["progress"] if state.scan["running"] else ""
@@ -259,10 +276,10 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
     ]
     engine = state.engine()
     if engine is None:
-        rows.insert(1, {"name": "Pictures", "detail": "not connected: the photo drive was not found when Documents started"})
+        rows.insert(1, {"name": "Photos", "detail": "not connected: the photo drive was not found when Documents started"})
     else:
         c = pictures.counts(engine)
-        rows.insert(1, _row("Pictures", c["indexed"], c["pictures"], "pictures"))
+        rows.insert(1, _row("Photos", c["indexed"], c["pictures"], "photos"))
     return rows
 
 
@@ -298,6 +315,7 @@ GET_ROUTES = {
     "/api/tools": _get_tools,
     "/api/pictures/browse": _get_browse,
     "/api/changes": _get_changes,
+    "/api/medical": _get_medical,
     "/api/change": _get_change,
     "/api/pictures/item": _get_item,
     "/api/pictures": _get_pictures,
@@ -310,6 +328,8 @@ POST_ROUTES = {
     "/api/change/cancel": _post_cancel,
     "/api/change/undo": _post_undo,
     "/api/change/albums": _post_albums,
+    "/api/medical/unlock": _post_medical_unlock,
+    "/api/medical/lock": _post_medical_lock,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
 }
 

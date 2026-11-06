@@ -99,7 +99,7 @@
         home.dataset.key = '';
         home.append(icon(ICON.home), el('span', '', 'Overview'));
         nav.replaceChildren(home);
-        for (const module of state.modules) {
+        for (const module of state.modules.filter((m) => !m.hidden)) {
             const group = el('div', 'group');
             group.dataset.module = module.id;
             tint(group, module);
@@ -146,7 +146,7 @@
             el('div', 'sub', 'Everything private, in one place. Nothing here leaves this computer.')
         );
         const cards = el('div', 'cards');
-        for (const module of state.modules) {
+        for (const module of state.modules.filter((m) => !m.hidden)) {
             const card = el('div', 'card');
             tint(card, module);
             const badge = el('div', 'badge');
@@ -216,11 +216,13 @@
         $('#chips').replaceChildren(
             ...[
                 aiChip(),
-                ...state.modules.map((module) => {
-                    const chip = el('span', 'chip ' + statusClass(module), module.name);
-                    chip.prepend(el('i'));
-                    return chip;
-                }),
+                ...state.modules
+                    .filter((m) => !m.hidden)
+                    .map((module) => {
+                        const chip = el('span', 'chip ' + statusClass(module), module.name);
+                        chip.prepend(el('i'));
+                        return chip;
+                    }),
             ].filter(Boolean)
         );
     };
@@ -395,19 +397,6 @@
 
     // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
     const scan = { timer: null, hide: null };
-    const scanLine = (module, info) => {
-        const row = el(
-            'div',
-            'scan-row' + (info.running ? ' busy' : info.problems.length || info.needs_check ? ' warn' : '')
-        );
-        const text = el('div', 'scan-text');
-        const detail = info.running ? info.progress || 'Reading…' : info.summary || (info.up ? 'Nothing new' : '');
-        text.append(el('b', '', module.name), el('span', '', detail));
-        info.problems.forEach((p) => text.append(el('span', 'scan-problem', p)));
-        if (info.needs_check) text.append(el('span', 'scan-problem', `${info.needs_check} need a check`));
-        row.append(el('i'), text);
-        return row;
-    };
     const partLine = (part, busy, warn = false) => {
         const row = el('div', 'scan-row' + (warn ? ' warn' : busy ? ' busy' : ''));
         const text = el('div', 'scan-text');
@@ -429,10 +418,9 @@
         for (const m of state.modules) {
             const info = report.modules[m.id];
             if (!info) continue;
-            if (info.parts && info.parts.length) {
-                info.parts.forEach((p) => rows.push(partLine(p, info.running)));
-                info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
-            } else if (info.problems.length || info.needs_check) rows.push(scanLine(m, info)); // an app without rows speaks only when something is wrong
+            if (!info.parts || !info.parts.length) continue; // an app without rows (Finance) is not listed here: if it is down, its dot at the top says so
+            info.parts.forEach((p) => rows.push(partLine(p, info.running)));
+            info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
         }
         panel.replaceChildren(head, ...rows);
         panel.hidden = false;

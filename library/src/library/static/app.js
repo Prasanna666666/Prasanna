@@ -119,8 +119,60 @@
         }
     }
 
+    async function showHealth() {
+        const r = await api('/api/medical');
+        const list = $('#list');
+        list.replaceChildren();
+        const post = (path) =>
+            fetch(path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Library': '1' },
+                body: '{}',
+            });
+        if (r.locked) {
+            const unlock = el('button', { type: 'button', className: 'card' }, el('b', {}, 'Unlock Health'));
+            unlock.addEventListener('click', async () => {
+                await post('/api/medical/unlock');
+                showHealth();
+            });
+            list.append(
+                el(
+                    'p',
+                    { className: 'muted' },
+                    `Health is locked${r.held_back ? `: ${r.held_back} documents are held back` : ''}. They stay out of search and chat until you unlock them, and lock again whenever Atlas starts.`
+                ),
+                unlock
+            );
+            return;
+        }
+        const lock = el('button', { type: 'button', className: 'card' }, el('b', {}, 'Lock Health again'));
+        lock.addEventListener('click', async () => {
+            await post('/api/medical/lock');
+            showHealth();
+        });
+        list.append(lock);
+        if (!r.documents.length) list.append(el('p', { className: 'muted' }, 'No health documents yet. Press Update.'));
+        for (const d of r.documents.reverse()) {
+            const card = el(
+                'button',
+                { className: 'card', type: 'button' },
+                el('b', {}, d.facts.title || d.name),
+                el('span', {}, subtitle(d) || d.name)
+            );
+            card.addEventListener('click', () => (location.hash = `#/doc/${d.id}`));
+            list.append(card);
+        }
+    }
+
     function route() {
         const [path, query] = location.hash.replace(/^#\//, '').split('?');
+        if (path === 'health') {
+            $('#page-documents').hidden = false;
+            $('#page-pictures').hidden = true;
+            $('#page-changes').hidden = true;
+            $('#doc').hidden = true;
+            return showHealth();
+        }
         const known = SECTIONS.some(([id]) => id === path) && path !== 'documents';
         const tab = known && (withPictures || path === 'mail') ? path : 'documents';
         const section = tab === 'mail' ? 'documents' : tab; // emails are the document list, filtered to mail

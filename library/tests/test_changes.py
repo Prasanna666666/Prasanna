@@ -259,3 +259,25 @@ def test_a_file_that_changed_or_a_missing_folder_name_stops_the_filing(inbox):
 def test_documents_and_emails_are_listed_apart(inbox):
     names_of = lambda source: {d["name"] for d in store.list_documents(inbox.conn, ["invoice", "insurance"], source=source)}  # noqa: E731
     assert names_of("mail") == {"offer.eml"} and names_of("files") == {"scan001.pdf", "letter.pdf"}
+
+
+def test_health_documents_stay_out_of_every_list_search_and_answer_until_unlocked(inbox):
+    import json
+
+    inbox.conn.execute(
+        "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready) VALUES ('h','blood.pdf','pdf','haemoglobin 14','',?,1,99)",
+        (json.dumps({"kind": "medical"}),),
+    )
+    inbox.conn.commit()
+    store.set_health_unlocked(False)
+    try:
+        assert all(d["kind"] != "medical" for d in store.list_documents(inbox.conn, ["medical", "invoice"]))
+        assert store.get_document(inbox.conn, "h") is None and store.hidden_health_count(inbox.conn) == 1
+        assert not any("haemoglobin" in p["text"] for p in store.passages(inbox.conn, "haemoglobin"))
+        assert {"kind": "medical", "count": 1} not in store.by_kind(inbox.conn)
+        out = tools.run(inbox.state, inbox.conn, "find_documents", {"kind": "invoice"})
+        assert "locked" in out["data"]["note"]
+        store.set_health_unlocked(True)
+        assert [d["name"] for d in store.list_documents(inbox.conn, ["medical"])] == ["blood.pdf"] and store.get_document(inbox.conn, "h")
+    finally:
+        store.set_health_unlocked(False)

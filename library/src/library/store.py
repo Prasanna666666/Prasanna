@@ -206,6 +206,30 @@ def judge_pending(conn, client, model, progress: Progress | None = None) -> dict
 LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready"
 
 
+# ---- Health is locked: medical documents stay out of every list, search and answer until the person unlocks them; it locks again whenever the service starts -------
+HEALTH_KINDS = frozenset({"medical"})
+_health = {"unlocked": False}
+
+
+def health_unlocked() -> bool:
+    return _health["unlocked"]
+
+
+def set_health_unlocked(value: bool) -> None:
+    _health["unlocked"] = value
+
+
+def _is_health(facts_json: str) -> bool:
+    return bool(facts_json) and json.loads(facts_json).get("kind") in HEALTH_KINDS
+
+
+def hidden_health_count(conn) -> int:
+    """How many documents are held back while Health is locked (0 once it is unlocked)."""
+    if _health["unlocked"]:
+        return 0
+    return sum(_is_health(r["facts"]) for r in conn.execute("SELECT facts FROM documents WHERE judged=1 AND facts<>''"))
+
+
 def _as_document(r) -> dict[str, Any]:
     facts = json.loads(r["facts"]) if r["facts"] else {}
     doc: dict[str, Any] = {
@@ -238,6 +262,8 @@ def list_documents(
     out: list[dict] = []
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE ready > ? ORDER BY ready", (max(0, int(since)),)):
         doc = _as_document(r)
+        if not _health["unlocked"] and doc["kind"] in HEALTH_KINDS:
+            continue
         if source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
             continue
         if wanted or area:
@@ -262,13 +288,15 @@ def list_documents(
 
 def get_document(conn, sha: str) -> dict | None:
     r = conn.execute("SELECT * FROM documents WHERE sha256=? OR id=?", (sha, sha if sha.isdigit() else -1)).fetchone()
-    if r is None:
+    if r is None or (not _health["unlocked"] and _is_health(r["facts"])):
         return None
     return {**_as_document(r), "text": r["text"], "data": r["data"]}
 
 
 def _sources(conn) -> Iterator[tuple[str, str, str, str]]:
     for r in conn.execute("SELECT id, name, text, facts FROM documents"):
+        if not _health["unlocked"] and _is_health(r["facts"]):
+            continue
         facts = json.loads(r["facts"]) if r["facts"] else {}
         summary = " ".join(str(facts.get(k) or "") for k in ("title", "summary", "party", "reference", "place")).strip()
         yield f"d{r['id']}", "document", r["name"], (summary + " " + r["text"]).strip()
@@ -294,7 +322,9 @@ def by_kind(conn) -> list[dict]:
     """How many documents of each recognised kind there are."""
     tally: Counter[str] = Counter()
     for r in conn.execute("SELECT facts FROM documents WHERE judged=1 AND facts<>''"):
-        tally[json.loads(r["facts"]).get("kind", "other")] += 1
+        kind = json.loads(r["facts"]).get("kind", "other")
+        if _health["unlocked"] or kind not in HEALTH_KINDS:
+            tally[kind] += 1
     return [{"kind": k, "count": n} for k, n in tally.most_common()]
 
 
