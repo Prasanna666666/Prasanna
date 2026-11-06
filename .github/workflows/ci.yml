@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: orbit
+        working-directory: finance
     strategy:
       matrix:
         python: ["3.10", "3.11", "3.13"]
@@ -20,7 +20,7 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
-      - run: pytest -q --cov=orbit --cov-fail-under=85
+      - run: pytest -q --cov=finance --cov-fail-under=85
   kit:
     runs-on: ubuntu-latest
     defaults:
@@ -64,7 +64,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: sudo apt-get update && sudo apt-get install -y poppler-utils
-      - run: pip install -e "../kit[secure]" -e "../images" -e "../orbit" -e ".[parse,dev]" pyyaml
+      - run: pip install -e "../kit[secure]" -e "../images" -e "../finance" -e ".[parse,dev]" pyyaml
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
@@ -73,14 +73,14 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: orbit
+        working-directory: finance
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx --yes eslint@10.1.0 src/orbit/static/app.js
-      - run: npx --yes prettier@3.8.1 --check src/orbit/static
+      - run: npx --yes eslint@10.1.0 src/finance/static/app.js
+      - run: npx --yes prettier@3.8.1 --check src/finance/static
       - run: npx --yes eslint@10.1.0 ../library/src/library/static/app.js ../library/src/library/static/pictures.js
       - run: npx --yes prettier@3.8.1 --check ../library/src/library/static
   atlas:
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: orbit
+        working-directory: finance
     steps:
       - uses: actions/checkout@v4
         with:
@@ -123,7 +123,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: sbom
-          path: orbit/sbom.json
+          path: finance/sbom.json
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

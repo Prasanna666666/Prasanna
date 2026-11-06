@@ -22,7 +22,7 @@ cd atlas && ./up.sh        # then open http://atlas.localhost:8000
 ./down.sh                # stop Atlas only; the apps keep running and keep their data
 ```
 
-Start the apps as before (`orbit/scripts/up.sh`, `library/scripts/up.sh`). Atlas shows each one as running or not; an app that is down
+Start the apps as before (`finance/scripts/up.sh`, `library/scripts/up.sh`). Atlas shows each one as running or not; an app that is down
 shows a plain "not running" page and never blocks the others.
 
 ## What the shared page gives you
@@ -78,7 +78,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 - `GET /api/health` answers 200 when the app is up.
 - `GET /api/tools` (the tools this part offers the one assistant): `{"tools": [{"name", "description", "parameters"}]}`, `parameters` a JSON schema object with only a-z, 0-9 and `_` in tool names. A tool that can return pictures or files takes a `show` argument and returns them only when `show` is true: the model sets it only when the person asked to see them.
 - `POST /api/tool` body `{"name", "args", "user_text"}` -> `{"ok", "data", "error", "items": [], "notes": []}`. `user_text` is what the person typed, so the part can apply its own rules (a delete runs only if the person's own words asked for it). An item is a picture `{"kind": "photo", "thumb", "link"}` or a document `{"kind": "document", "title", "subtitle", "text", "link"}`; `thumb` must sit under the manifest's `media` path, and Atlas fetches pictures for the page so a part's token never reaches it. `notes` are things the person must be told next to the figures (a month that is not proven).
-- `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Finance: `{"X-Orbit": "1"}`).
+- `GET /api/scan` and `POST /api/scan` (optional, for the Update button): `POST` starts reading everything new and answers `{"started": true|false}`; `GET` answers `{"running", "progress", "summary", "problems": [], "needs_check": 0}`. An app whose changes need a protection header lists it under `headers` in its manifest (Finance: `{"X-Finance": "1"}`).
 - `GET /api/search?q=text` (optional) answers `{"results": [{"title", "subtitle", "kind", "link"}]}`. `link` is a route inside the app, such as `#/library?place=Lisbon`.
 - The app keeps its own routes as `#/<page>` (a hash), so Atlas can send you to a page and follow where you go.
 - When it is shown inside Atlas (`window.self !== window.top`) the app hides its own menu, top bar and chat button, and listens for messages from Atlas:
@@ -87,7 +87,7 @@ Point a module somewhere else on one machine without editing the file: `ATLAS_UP
 - It needs no change to its security: Atlas permits only its own page to frame the app, checks `Host` and `Origin` itself, and
   presents each app with the local name it already accepts.
 
-Finance (`orbit/src/orbit/static/app.js`, `web.py`) and Documents (`library/src/library/web.py`) are the two reference implementations.
+Finance (`finance/src/finance/static/app.js`, `web.py`) and Documents (`library/src/library/web.py`) are the two reference implementations.
 
 ## What it will not do
 - Merge the apps' data or databases, or read them. The only things Atlas asks an app for are its health and the results of a search you typed.

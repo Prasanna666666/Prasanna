@@ -6,8 +6,8 @@ import urllib.parse
 
 import pytest
 from kit import db, extract
-from orbit import library_client
-from orbit.modules import ALL, money
+from finance import library_client
+from finance.modules import ALL, money
 
 from library import parser, store
 from tests.test_readers import fake_ocr, scanned_pdf  # noqa: F401 - the fixture is used by name

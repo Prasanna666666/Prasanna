@@ -76,7 +76,7 @@
   ],
   "scan": "/api/scan",
   "headers": {
-    "X-Orbit": "1"
+    "X-Finance": "1"
   },
   "tools": "/api/tools",
   "tool": "/api/tool"

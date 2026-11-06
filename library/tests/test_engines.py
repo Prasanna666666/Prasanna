@@ -1,7 +1,7 @@
 import copy
 
 import pytest
-from orbit import tables, verify
+from finance import tables, verify
 
 from library import readers
 

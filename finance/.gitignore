@@ -1,0 +1,16 @@
+# Finance must never contain real personal data. These patterns keep it out of git; tests/test_data_boundary.py enforces it.
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.ofx
+*.qif
+*.mbox
+*.eml
+inbox/
+OrbitInbox/
+.orbit/

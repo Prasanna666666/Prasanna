@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-_NAME = "orbit"
+_NAME = "finance"
 
 
 class _Json(logging.Formatter):
