@@ -216,3 +216,24 @@ def test_each_question_has_its_own_turn_id_that_reaches_the_part(running):
         chat(running, "find things")
     first, second = money.asked[-2], money.asked[-1]
     assert first["turn"] and second["turn"] and first["turn"] != second["turn"]
+
+
+def test_when_the_model_judges_the_person_wants_to_see_it_every_tool_that_can_show_is_told_to(running):
+    photos = running.apps["photos"]
+    photos.tools = [tool("find_pictures", show=1, place=1), tool("count_things")]
+    photos.tool_results["find_pictures"] = {"ok": True, "data": {"count": 1}, "items": [{"kind": "photo", "thumb": "/api/photo/1/thumb", "link": "#/library"}]}
+    photos.pick_extra = {"about_their_data": True, "wants_to_see": True}
+    photos.script = [call("photos__find_pictures", place="Goa"), text("Here they are.")]  # the model forgot the show argument
+    _, reply = chat(running, "show me photos from Goa")
+    assert reply["asked_to_show"] is True and reply["show"]["photos"] is True
+    assert photos.asked[-1]["args"]["show"] is True
+
+
+def test_a_question_about_their_data_that_got_no_tool_is_asked_again_with_a_tool_required(running):
+    photos = running.apps["photos"]
+    photos.tools = [tool("find_pictures", show=1)]
+    photos.pick, photos.pick_when_required = [], ["photos__find_pictures"]
+    photos.pick_extra = {"about_their_data": True, "wants_to_see": False}
+    photos.script = [text("ok")]
+    chat(running, "pictures of the beach")
+    assert offered(loop_calls(photos)[0]) == {"photos__find_pictures"}

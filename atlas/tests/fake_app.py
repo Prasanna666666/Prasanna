@@ -99,7 +99,9 @@ class _Handler(BaseHTTPRequestHandler):
         if isinstance(body.get("format"), dict):  # the tool-choosing question: by default the fake picks every tool it was offered
             names = body["format"]["properties"]["tools"]["items"]["enum"]
             pick = self.app.pick if self.app.pick is not None else names
-            return self._reply(200, json.dumps({"message": {"role": "assistant", "content": json.dumps({"tools": pick})}}).encode())
+            if body["format"]["properties"]["tools"].get("minItems"):  # asked again because a tool is required
+                pick = self.app.pick_when_required if self.app.pick_when_required is not None else names
+            return self._reply(200, json.dumps({"message": {"role": "assistant", "content": json.dumps({**self.app.pick_extra, "tools": pick})}}).encode())
         message = self.app.script.pop(0) if self.app.script else {"role": "assistant", "content": self.app.model_reply}
         self._reply(200, json.dumps({"message": {"role": "assistant", **message}}).encode())
 
@@ -133,6 +135,8 @@ class FakeApp:
         self.tools: list[dict[str, object]] = []  # what this part offers the assistant
         self.tool_results: dict[str, dict[str, object]] = {}  # what each tool returns when it is run
         self.model_reply = "fake model reply"
+        self.pick_extra: dict = {}  # more of what the fake model says when choosing, for example {"wants_to_see": True}
+        self.pick_when_required: list[str] | None = None
         self.pick: list[str] | None = None  # the tools the fake model chooses when asked which it needs (None: all offered)
         self.script: list[dict[str, object]] = []  # the model's next messages, in order (a tool call, then the answer)
         self.model_calls: list[dict[str, object]] = []

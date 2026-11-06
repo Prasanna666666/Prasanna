@@ -132,6 +132,7 @@ class Turn:
     used: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
     items: list[dict[str, str]] = field(default_factory=list)
+    show: bool = False  # the model judged that the person asked to SEE pictures or files; then every tool that can show them is told to
     asked_to_show: bool = False  # the model asked for pictures or files to be shown (whether or not any were found)
     notes: list[str] = field(default_factory=list)  # things the person must be told next to a figure (a month that is not proven, files waiting for a check)
 
@@ -201,17 +202,26 @@ class Assistant:
             return consent.says(consent.DELETE, text)
         return True
 
-    def choose(self, text: str, history: list[list[str]], tools: list[Tool]) -> list[Tool] | None:
+    def choose(self, text: str, history: list[list[str]], tools: list[Tool]) -> tuple[list[Tool], bool] | None:
         """Which tools this message may need (at most MAX_PICKED), chosen by the model from a one-line index of all of them; none for plain conversation.
-        None if the model is not running. Only the chosen tools are described in full afterwards, so any number of tools fits the small window."""
+        Also whether the person asked to SEE pictures or files. None if the model is not running. Only the chosen tools are described in full afterwards, so any number of tools fits the small window."""
         if not tools:
-            return []
+            return [], False
         names = [t.public for t in tools]
-        schema = {
-            "type": "object",
-            "properties": {"tools": {"type": "array", "items": {"type": "string", "enum": names}, "maxItems": MAX_PICKED}},
-            "required": ["tools"],
-        }
+
+        def shape(at_least: int) -> dict[str, Any]:
+            return {
+                "type": "object",
+                "properties": {
+                    "about_their_data": {"type": "boolean"},  # decided first: is it about their money, files, mail, pictures, trips?
+                    "wants_to_see": {
+                        "type": "boolean"
+                    },  # do they ask to SEE pictures, documents or mail (show, give me, I want to see), not just count or ask?
+                    "tools": {"type": "array", "items": {"type": "string", "enum": names}, "minItems": at_least, "maxItems": MAX_PICKED},
+                },
+                "required": ["about_their_data", "wants_to_see", "tools"],
+            }
+
         system = (
             "You choose which tools an assistant needs to answer the user's last message. Choose every tool the answer may need, including a tool that must run "
             "after another (for example one that finds the dates of a trip, and then ones that use those dates). Choose none ONLY for a greeting or a general "
@@ -220,12 +230,15 @@ class Assistant:
             f" At most {MAX_PICKED}. The tools:\n" + "\n".join(t.line for t in tools)
         )
         context = "\n".join(f"{role}: {turn[:300]}" for role, turn in history[-4:])
-        picked = self.model.pick(system, f"Conversation so far:\n{context or '(none)'}\n\nMessage: {text}", schema)
+        question = f"Conversation so far:\n{context or '(none)'}\n\nMessage: {text}"
+        picked = self.model.pick(system, question, shape(0))
         if picked is None:
             return None
+        if picked.get("about_their_data") is True and not picked.get("tools"):  # about their data but no tool: ask once more, now that one is required
+            picked = self.model.pick(system, question, shape(1)) or picked
         chosen = picked.get("tools")
         wanted = {n for n in chosen if isinstance(n, str)} if isinstance(chosen, list) else set()
-        return [t for t in tools if t.public in wanted]
+        return [t for t in tools if t.public in wanted], picked.get("wants_to_see") is True
 
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """One question: the model uses whichever tools of whichever parts it needs, then answers. Returns the answer as one labelled part."""
@@ -234,8 +247,8 @@ class Assistant:
         chosen = self.choose(text, history, tools)
         if chosen is None:
             return self._reply(False, "The AI model is not running. Start Ollama and ask again.", Turn(text, {}))
-        tools = chosen
-        turn = Turn(text, {t.public: t for t in tools})
+        tools, wants_to_see = chosen
+        turn = Turn(text, {t.public: t for t in tools}, show=wants_to_see)
         turn.messages = [
             {"role": "system", "content": system_prompt(datetime.now().astimezone().date())},
             *({"role": r, "content": t[:HISTORY_CHARS]} for r, t in history[-HISTORY_TURNS:]),
@@ -259,6 +272,8 @@ class Assistant:
         tool = turn.by_name.get(name)
         raw_args = (function or {}).get("arguments") or {}
         args = raw_args if isinstance(raw_args, dict) else {}
+        if turn.show and tool is not None and "show" in tool.parameters.get("properties", {}):
+            args = {**args, "show": True}  # decided once, by the model, for the whole question: a small model forgets the argument
         if tool is None:
             result: dict[str, Any] = {"ok": False, "error": f"tool {name!r} is not available"}
         else:
