@@ -226,7 +226,7 @@ class Assistant:
             "You choose which tools an assistant needs to answer the user's last message. Choose every tool the answer may need, including a tool that must run "
             "after another (for example one that finds the dates of a trip, and then ones that use those dates). Choose none ONLY for a greeting or a general "
             "question about the world that needs no data of theirs. Anything about their money, payments, bills, files, mail, documents, pictures, trips or "
-            'saving, and any follow-up to such a question ("and the month before?", "show me those"), needs tools: when unsure, choose them. '
+            'saving, and any follow-up to such a question ("and the month before?", "show me those"), needs tools: when unsure, choose them. Choose from EVERY kind of data the question touches (money, files and mail, pictures): a trip and what it cost needs both. '
             f" At most {MAX_PICKED}. The tools:\n" + "\n".join(t.line for t in tools)
         )
         context = "\n".join(f"{role}: {turn[:300]}" for role, turn in history[-4:])
