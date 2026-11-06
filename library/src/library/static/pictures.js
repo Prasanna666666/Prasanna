@@ -198,7 +198,7 @@
                 )
             );
         }
-        host().replaceChildren(head('Pictures'), sub, facets, tags, grid, sentinel, moreBtn);
+        host().replaceChildren(head('Photos'), sub, facets, tags, grid, sentinel, moreBtn);
         const g = { ids: [], grid };
         let total = 0,
             loading = false;
@@ -295,7 +295,7 @@
             head('Places', places.length ? `${places.length} places` : ''),
             ...(places.length
                 ? [filter, cards]
-                : [el('div', 'empty', 'No places yet. Pictures with a location appear here.')])
+                : [el('div', 'empty', 'No places yet. Photos with a location appear here.')])
         );
     }
     function faceStyle(node, id, box) {

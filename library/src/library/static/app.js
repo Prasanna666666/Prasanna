@@ -99,7 +99,7 @@
     const SECTIONS = [
         ['documents', 'Documents'],
         ['mail', 'Emails'],
-        ['library', 'Pictures'],
+        ['library', 'Photos'],
         ['trips', 'Trips'],
         ['places', 'Places'],
         ['people', 'People'],
@@ -188,7 +188,7 @@
                 el(
                     'p',
                     { className: 'muted' },
-                    'Pictures are not connected. The photo drive was not found when Documents started. Connect it, then start Documents again.'
+                    'Photos are not connected. The photo drive was not found when Documents started. Connect it, then start Documents again.'
                 )
             );
             return;
