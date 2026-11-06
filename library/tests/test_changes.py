@@ -181,3 +181,17 @@ def test_whats_new_counts_new_documents_and_waiting_changes(world):
     prepare(world)
     out = tools.run(world.state, world.conn, "whats_new", {})
     assert len(out["data"]["waiting_for_confirmation"]) == 1
+
+
+def test_trip_albums_are_one_change_one_window_and_can_be_undone(world, monkeypatch):
+    trip = {"title": "Goa", "place": "Goa", "start": "2000-01-01", "stop": "2100-01-01", "n": 2, "cover": 1}
+    monkeypatch.setattr(changes.browse, "trips", lambda _conn: [trip])
+    monkeypatch.setattr(changes, "MIN_TRIP_PHOTOS", 1)
+    out = tools.run(world.state, world.conn, "preview_trip_albums", {})
+    assert out["ok"] and out["items"][0]["kind"] == "confirm" and names(world.photos) == ["beach.jpg", "receipt.jpg"]  # nothing moved yet
+    change = out["data"]["change_id"]
+    window = open_window(world, change)
+    assert window["problems"] == [] and {e["to"].split("/")[-2] for e in window["list"]} == {"2000 Goa"}
+    done = changes.confirm(world.state, world.conn, change, window["nonce"])
+    assert done["ok"] and (world.photos / "Trips" / "2000 Goa" / "beach.jpg").is_file()
+    assert changes.undo(world.state, world.conn, done["batch"])["ok"] and (world.photos / "beach.jpg").is_file()

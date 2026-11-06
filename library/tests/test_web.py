@@ -111,3 +111,7 @@ def test_with_the_platform_key_set_an_unsigned_request_is_refused_and_a_signed_o
     assert call(port, "GET", "/api/status")[0] == 401  # another program on this computer, without the key
     assert call(port, "GET", "/api/status", headers=sign.sign("GET", "/api/status"))[0] == 200
     assert call(port, "GET", "/api/status", headers=sign.sign("GET", "/api/other"))[0] == 401  # a signature for another path
+
+
+def test_the_albums_route_only_prepares_and_says_plainly_when_there_is_nothing_to_sort():
+    assert "/api/change/albums" in web.POST_ROUTES

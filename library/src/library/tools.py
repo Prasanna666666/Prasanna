@@ -150,6 +150,11 @@ def preview_move(state, conn, a: dict, ask: Ask | None = None) -> Result:
     return data, [card]
 
 
+def preview_albums(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    data, card = changes.prepare_albums(state, conn, a)
+    return data, [card]
+
+
 def preview_delete(state, conn, a: dict, ask: Ask | None = None) -> Result:
     data, card = changes.prepare(state, conn, "delete", _filters(a))
     return data, [card]
@@ -287,6 +292,13 @@ TOOLS = (
         "as find_pictures plus a folder name.",
         {**_PICTURE_FILTERS, "folder": _str("Name of the export folder")},
         preview_export,
+    ),
+    Tool(
+        "preview_trip_albums",
+        "Prepare sorting the pictures of every trip into its own album folder (Trips/<year> <place>). This changes NOTHING: it opens a confirmation window for the "
+        "person, who reviews the full list and presses Confirm themselves. You cannot confirm. Optionally one year only.",
+        {"year": _str("Only trips that began in this year")},
+        preview_albums,
     ),
     Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),
     Tool(

@@ -45,7 +45,7 @@ MIGRATIONS = (
     """
     CREATE TABLE pending_changes (
         id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,                      -- move | delete | export
+        kind TEXT NOT NULL,                      -- move | albums | delete | export
         label TEXT NOT NULL,
         dest TEXT NOT NULL,
         entries TEXT NOT NULL,                   -- [[item id, from, to, size, modified]], what would happen and what each file looked like when it was prepared

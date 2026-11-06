@@ -247,8 +247,26 @@
                 )
             );
         }
+        const albums = el('button', 'btn', 'Sort into trip albums…');
+        albums.type = 'button';
+        albums.addEventListener('click', async () => {
+            albums.disabled = true;
+            const r = await (
+                await fetch('/api/change/albums', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Library': '1' },
+                    body: '{}',
+                })
+            ).json();
+            if (r.change_id) location.hash = `#/changes?id=${r.change_id}`;
+            else {
+                albums.disabled = false;
+                albums.textContent = r.error || 'Nothing to sort';
+            }
+        });
         host().replaceChildren(
             head('Trips', trips.length ? `${trips.length} trips and occasions, newest first` : ''),
+            ...(trips.length ? [albums] : []),
             trips.length ? cards : el('div', 'empty', 'No trips yet. They appear once pictures have dates and places.')
         );
     }

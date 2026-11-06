@@ -209,6 +209,14 @@ def _post_cancel(state: State, conn, body: dict) -> dict:
     return changes.cancel(conn, str(body.get("id", ""))[:20])
 
 
+def _post_albums(state: State, conn, body: dict) -> dict:
+    """The Trips page asks for the trip albums: only prepared, the confirmation window does the rest."""
+    try:
+        return _guarded(lambda: {"ok": True, **changes.prepare_albums(state, conn, {"year": str(body.get("year", ""))[:4]})[0]})
+    except ValueError as why:
+        raise Fail(400, str(why)) from why
+
+
 def _post_undo(state: State, conn, body: dict) -> dict:
     return _guarded(lambda: changes.undo(state, conn, str(body.get("batch", ""))[:20]))
 
@@ -253,6 +261,7 @@ POST_ROUTES = {
     "/api/change/confirm": _post_confirm,
     "/api/change/cancel": _post_cancel,
     "/api/change/undo": _post_undo,
+    "/api/change/albums": _post_albums,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
 }
 

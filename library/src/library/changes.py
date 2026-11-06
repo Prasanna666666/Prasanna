@@ -20,12 +20,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from images import export, organize
+from images import browse, export, organize
 from images.safety import SafetyError, is_inside
 
 from . import pictures
 
 TRASH_FOLDER = "Aperture - deleted"
+ALBUMS_FOLDER = "Trips"  # automatic albums: one folder per trip inside it
+MIN_TRIP_PHOTOS = 5
 EXPIRES_SECONDS = 3600  # a prepared change that was not confirmed within an hour is forgotten
 MAX_FILES = 1000  # one change touches at most this many files: a bigger one is split, so a slip never reaches everything
 EXAMPLES = 8
@@ -85,6 +87,11 @@ def prepare(state, conn, kind: str, args: dict) -> tuple[dict[str, Any], dict[st
         index.close()
     if not entries:
         raise ValueError("there is nothing to copy for that request")
+    return _remember(conn, kind, label, dest, entries)
+
+
+def _remember(conn, kind: str, label: str, dest: str, entries: list[list]) -> tuple[dict[str, Any], dict[str, str]]:
+    """Store a prepared change (nothing on disk changes) and return what the assistant may say and the card that opens the window."""
     change = uuid.uuid4().hex[:10]
     conn.execute(
         "INSERT INTO pending_changes (id, kind, label, dest, entries, nonce, created) VALUES (?,?,?,?,?,?,?)",
@@ -105,6 +112,33 @@ def prepare(state, conn, kind: str, args: dict) -> tuple[dict[str, Any], dict[st
     }
     card = {"kind": "confirm", "title": f"Confirm: {label}", "subtitle": "Waiting for you. Nothing has changed yet.", "link": f"#/changes?id={change}"}
     return data, card
+
+
+def prepare_albums(state, conn, args: dict) -> tuple[dict[str, Any], dict[str, str]]:
+    """Sort the pictures of every trip into its own folder `Trips/<year> <place>` inside the photo folder: one change, one window, nothing done until confirmed."""
+    engine = _engine(state)
+    photo_dir = Path(engine.settings.photo_dir)
+    year = str(args.get("year", ""))[:4]
+    index = engine.db.connect()
+    try:
+        trips = [t for t in browse.trips(index) if t["place"] and t["n"] >= MIN_TRIP_PHOTOS and (not year or t["start"][:4] == year)]
+        entries: list[list] = []
+        names: list[str] = []
+        taken: set[int] = set()
+        for trip in trips:
+            ids = [i for i in pictures.find_ids(engine, {"from": trip["start"], "to": trip["stop"]}) if i not in taken]
+            folder = f"{ALBUMS_FOLDER}/{export.sanitize_folder_name(trip['start'][:4] + ' ' + trip['place'])}"
+            plan = organize.plan_move(index, engine.paths, engine.settings, ids, photo_dir / folder)
+            if plan.entries:
+                taken.update(e.item_id for e in plan.entries)
+                names.append(folder)
+                entries += [[e.item_id, e.src, e.dst, *_stamp(e.src)] for e in plan.entries]
+    finally:
+        index.close()
+    if not entries:
+        raise ValueError("no trip has pictures that could be sorted into an album (or they are already sorted)")
+    label = f"sort {len(entries)} pictures into {len(names)} trip albums inside {ALBUMS_FOLDER}"
+    return _remember(conn, "albums", label, str(photo_dir / ALBUMS_FOLDER), entries[:MAX_FILES])
 
 
 def _stamp(path: str) -> list[float]:
