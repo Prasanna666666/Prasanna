@@ -96,6 +96,10 @@ class _Handler(BaseHTTPRequestHandler):
         """The fake doubles as the model: it answers with the next message of its script (text and/or tool calls)."""
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         self.app.model_calls.append(body)
+        if isinstance(body.get("format"), dict):  # the tool-choosing question: by default the fake picks every tool it was offered
+            names = body["format"]["properties"]["tools"]["items"]["enum"]
+            pick = self.app.pick if self.app.pick is not None else names
+            return self._reply(200, json.dumps({"message": {"role": "assistant", "content": json.dumps({"tools": pick})}}).encode())
         message = self.app.script.pop(0) if self.app.script else {"role": "assistant", "content": self.app.model_reply}
         self._reply(200, json.dumps({"message": {"role": "assistant", **message}}).encode())
 
@@ -129,6 +133,7 @@ class FakeApp:
         self.tools: list[dict[str, object]] = []  # what this part offers the assistant
         self.tool_results: dict[str, dict[str, object]] = {}  # what each tool returns when it is run
         self.model_reply = "fake model reply"
+        self.pick: list[str] | None = None  # the tools the fake model chooses when asked which it needs (None: all offered)
         self.script: list[dict[str, object]] = []  # the model's next messages, in order (a tool call, then the answer)
         self.model_calls: list[dict[str, object]] = []
         self.require_header = ""

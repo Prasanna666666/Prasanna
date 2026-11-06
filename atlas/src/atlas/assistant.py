@@ -27,7 +27,11 @@ WARM_SECONDS = 120.0
 MAX_TEXT = 2000
 MAX_TURNS = 8
 MAX_STEPS = 8
-TOOL_RESULT_CHARS = 6000
+MAX_PICKED = 10  # tools the model may carry into one answer: the window is small, and the index of every tool would not fit beside the conversation
+INDEX_LINE_CHARS = 80
+TOOL_RESULT_CHARS = 2500  # the model's window is 4096 tokens: a long result would push the question out of it
+HISTORY_TURNS = 6
+HISTORY_CHARS = 600
 TOOLS_CACHED_SECONDS = 60.0
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
 SEPARATOR = "__"
@@ -77,7 +81,9 @@ class ModelClient:
         self._model = next((n for n in names if n.startswith("ministral")), names[0] if names else "")
         return self._model
 
-    def _request(self, messages: list[dict[str, Any]], timeout: float, max_tokens: int, tools: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
+    def _request(
+        self, messages: list[dict[str, Any]], timeout: float, max_tokens: int, tools: list[dict[str, Any]] | None = None, schema: dict[str, Any] | None = None
+    ) -> dict[str, Any] | None:
         if not self.url or not self.model():
             return None
         request: dict[str, Any] = {
@@ -88,6 +94,9 @@ class ModelClient:
         }
         if tools:
             request["tools"] = tools
+        if schema:
+            request["format"] = schema
+            request["options"]["temperature"] = 0
         out = self._call("POST", "/api/chat", request, timeout)
         message = out.get("message") if isinstance(out, dict) else None
         return message if isinstance(message, dict) else None
@@ -97,6 +106,15 @@ class ModelClient:
         message = self._request([{"role": "system", "content": system}, *messages], timeout, max_tokens)
         text = message.get("content") if message else None
         return str(text).strip() if text else None
+
+    def pick(self, system: str, user: str, schema: dict[str, Any], timeout: float = CALL_SECONDS) -> dict[str, Any] | None:
+        """A short answer forced into a shape (Ollama's constrained output): the parsed JSON, or None when the model is not running or does not comply."""
+        message = self._request([{"role": "system", "content": system}, {"role": "user", "content": user}], timeout, 200, schema=schema)
+        try:
+            data = json.loads((message or {}).get("content") or "")
+        except ValueError:
+            return None
+        return data if isinstance(data, dict) else None
 
     def step(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], timeout: float = CALL_SECONDS) -> dict[str, Any] | None:
         """One turn of the assistant loop: the model's message (text and/or tool calls), or None when it is not running or too slow."""
@@ -128,6 +146,11 @@ class Tool:
     @property
     def public(self) -> str:
         return f"{self.module.id}{SEPARATOR}{self.name}"
+
+    @property
+    def line(self) -> str:
+        """One short line for the index the model chooses from: the name and the start of what it does."""
+        return f"{self.public}: {' '.join(self.description.split())[:INDEX_LINE_CHARS]}"
 
     def schema(self) -> dict[str, Any]:
         return {"type": "function", "function": {"name": self.public, "description": self.description[:600], "parameters": self.parameters}}
@@ -168,14 +191,42 @@ class Assistant:
                 self._tools = (time.monotonic(), found)
         return found
 
+    def choose(self, text: str, history: list[list[str]], tools: list[Tool]) -> list[Tool] | None:
+        """Which tools this message may need (at most MAX_PICKED), chosen by the model from a one-line index of all of them; none for plain conversation.
+        None if the model is not running. Only the chosen tools are described in full afterwards, so any number of tools fits the small window."""
+        if not tools:
+            return []
+        names = [t.public for t in tools]
+        schema = {
+            "type": "object",
+            "properties": {"tools": {"type": "array", "items": {"type": "string", "enum": names}, "maxItems": MAX_PICKED}},
+            "required": ["tools"],
+        }
+        system = (
+            "You choose which tools an assistant needs to answer the user's last message. Choose every tool the answer may need, including a tool that must run "
+            "after another (for example one that finds the dates of a trip, and then ones that use those dates). Choose none for a greeting or a general "
+            f"question that needs no data of theirs. At most {MAX_PICKED}. The tools:\n" + "\n".join(t.line for t in tools)
+        )
+        context = "\n".join(f"{role}: {turn[:300]}" for role, turn in history[-4:])
+        picked = self.model.pick(system, f"Conversation so far:\n{context or '(none)'}\n\nMessage: {text}", schema)
+        if picked is None:
+            return None
+        chosen = picked.get("tools")
+        wanted = {n for n in chosen if isinstance(n, str)} if isinstance(chosen, list) else set()
+        return [t for t in tools if t.public in wanted]
+
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """One question: the model uses whichever tools of whichever parts it needs, then answers. Returns the answer as one labelled part."""
         text = text.strip()[:MAX_TEXT]
         tools = [t for t in self.tools() if not t.name.startswith("delete_") or DELETE_WORDS.search(text.lower())]  # only the person's own words can delete
+        chosen = self.choose(text, history, tools)
+        if chosen is None:
+            return self._reply(False, "The AI model is not running. Start Ollama and ask again.", Turn(text, {}))
+        tools = chosen
         turn = Turn(text, {t.public: t for t in tools})
         turn.messages = [
             {"role": "system", "content": system_prompt(datetime.now().astimezone().date())},
-            *({"role": r, "content": t} for r, t in history),
+            *({"role": r, "content": t[:HISTORY_CHARS]} for r, t in history[-HISTORY_TURNS:]),
             {"role": "user", "content": text},
         ]
         for _ in range(MAX_STEPS):

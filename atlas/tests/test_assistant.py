@@ -32,6 +32,11 @@ def text(content):
     return {"content": content}
 
 
+def loop_calls(app):
+    """The calls of the answering loop (not the question of which tools to carry)."""
+    return [c for c in app.model_calls if not isinstance(c.get("format"), dict)]
+
+
 def offered(app_call):
     return {t["function"]["name"] for t in app_call.get("tools", [])}
 
@@ -45,7 +50,7 @@ def test_a_question_uses_the_tool_it_needs_and_the_answer_says_which_part_was_us
     assert status == 200 and reply["how"] == "agent" and reply["routed"] == ["money"]
     assert reply["parts"][0]["text"] == "You spent 290.00 in those days." and money.asked[-1]["args"] == {"from": "2026-01-12", "to": "2026-01-30"}
     assert money.asked[-1]["user_text"] == "what did I spend between 12 and 30 January?"
-    assert "money__spending_between" in offered(photos.model_calls[0])
+    assert "money__spending_between" in offered(loop_calls(photos)[0])
 
 
 def test_one_answer_can_chain_tools_of_different_parts(running):
@@ -62,7 +67,7 @@ def test_one_answer_can_chain_tools_of_different_parts(running):
     status, reply = chat(running, "show me the photos of my India trip")
     assert reply["routed"] == ["money", "photos"] and reply["show"] == {"photos": True, "documents": False}
     assert reply["parts"][0]["items"] == [{"kind": "photo", "thumb": "/_atlas/api/media/photos/api/photo/1/thumb", "link": "#/library"}]
-    second = photos.model_calls[1]["messages"]
+    second = loop_calls(photos)[1]["messages"]
     assert any(m["role"] == "tool" and "2026-01-12" in m["content"] for m in second)  # the result of the first tool reached the model before the second call
 
 
@@ -85,7 +90,7 @@ def test_plain_conversation_uses_no_tool(running):
 def test_the_conversation_so_far_reaches_the_model(running):
     running.apps["photos"].script = [text("Those are from Goa.")]
     chat(running, "show me those", history=[["user", "how many beach shots do I have?"], ["assistant", "41"]])
-    sent = running.apps["photos"].model_calls[0]["messages"]
+    sent = loop_calls(running.apps["photos"])[0]["messages"]
     assert [m["content"] for m in sent[1:]] == ["how many beach shots do I have?", "41", "show me those"]
 
 
@@ -103,7 +108,7 @@ def test_a_part_that_is_down_gives_the_model_a_plain_error_and_the_rest_still_wo
     money.close()
     photos.script = [call("money__spending_between"), call("photos__find_photos", request="x"), text("I could not reach your money, but you have 41 photos.")]
     _, reply = chat(running, "money and photos please")
-    tool_messages = [m["content"] for m in photos.model_calls[1]["messages"] if m["role"] == "tool"]
+    tool_messages = [m["content"] for m in loop_calls(photos)[1]["messages"] if m["role"] == "tool"]
     assert "not running" in tool_messages[0] and reply["parts"][0]["ok"] is True and "41 photos" in reply["parts"][0]["text"]
 
 
@@ -113,7 +118,7 @@ def test_a_figure_no_tool_returned_is_corrected_once_and_refused_if_it_stays(run
     money.tool_results["spending_between"] = {"ok": True, "data": {"spent": 290.0}}
     photos.script = [call("money__spending_between"), text("You spent 1,234.56."), text("You spent 290.00.")]
     _, reply = chat(running, "how much did I spend?")
-    assert reply["parts"][0]["text"] == "You spent 290.00." and "1234.56" in photos.model_calls[2]["messages"][-1]["content"].replace(",", "")
+    assert reply["parts"][0]["text"] == "You spent 290.00." and "1234.56" in loop_calls(photos)[2]["messages"][-1]["content"].replace(",", "")
     photos.script = [call("money__spending_between"), text("You spent 1,234.56."), text("Still 1,234.56.")]
     _, reply = chat(running, "how much did I spend?")
     assert reply["parts"][0]["ok"] is False and "can't give you that figure" in reply["parts"][0]["error"] and "Still" not in reply["parts"][0]["error"]
@@ -124,18 +129,18 @@ def test_a_delete_tool_is_offered_only_when_the_person_used_a_delete_word(runnin
     money.tools = [tool("spending_between"), tool("delete_person", id=1)]
     photos.script = [text("ok")]
     chat(running, "who is Amma?")
-    assert "money__delete_person" not in offered(photos.model_calls[0]) and "money__spending_between" in offered(photos.model_calls[0])
+    assert "money__delete_person" not in offered(loop_calls(photos)[0]) and "money__spending_between" in offered(loop_calls(photos)[0])
     running.atlas.assistant._tools = None
     photos.script = [text("ok")]
     chat(running, "please delete Amma")
-    assert "money__delete_person" in offered(photos.model_calls[-1])
+    assert "money__delete_person" in offered(loop_calls(photos)[-1])
 
 
 def test_a_tool_the_model_invents_is_refused(running):
     photos = running.apps["photos"]
     photos.script = [call("money__format_disk"), text("Sorry, I cannot do that.")]
     chat(running, "do something")
-    assert any(m["role"] == "tool" and "not available" in m["content"] for m in photos.model_calls[1]["messages"]) and running.apps["money"].asked == []
+    assert any(m["role"] == "tool" and "not available" in m["content"] for m in loop_calls(photos)[1]["messages"]) and running.apps["money"].asked == []
 
 
 def test_only_the_pages_own_origin_and_header_can_ask_and_the_message_must_not_be_empty(running):
@@ -161,3 +166,25 @@ def test_notes_a_part_attaches_to_its_figures_are_shown_with_the_answer(running)
     photos.script = [call("money__spending_summary"), text("You spent 850.00.")]
     _, reply = chat(running, "how much did I spend in October?")
     assert reply["parts"][0]["notes"] == ["October 2026 is NOT PROVEN: a file is missing."]
+
+
+def test_only_the_tools_the_model_chose_are_described_to_it_and_the_index_lists_every_tool(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_between"), tool("net_worth")]
+    photos.tools = [tool("find_photos")]
+    photos.pick = ["money__net_worth"]
+    photos.script = [text("ok")]
+    chat(running, "what is my net worth?")
+    choosing = next(c for c in photos.model_calls if isinstance(c.get("format"), dict))
+    index = choosing["messages"][0]["content"]
+    assert all(name in index for name in ("money__spending_between", "money__net_worth", "photos__find_photos"))  # the index shows every tool, in one line each
+    assert offered(loop_calls(photos)[0]) == {"money__net_worth"}  # but only the chosen one is carried into the answer
+
+
+def test_a_tool_name_the_model_makes_up_when_choosing_is_ignored(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("net_worth")]
+    photos.pick = ["money__net_worth", "money__format_disk"]
+    photos.script = [text("ok")]
+    chat(running, "hello")
+    assert offered(loop_calls(photos)[0]) == {"money__net_worth"}
