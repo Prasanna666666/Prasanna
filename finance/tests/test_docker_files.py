@@ -19,7 +19,7 @@ def test_finance_opens_no_files_and_has_no_internet():
 
 def test_database_key_comes_from_the_environment_never_from_a_file_in_the_repo():
     assert "secrets" not in S["app"] and "secrets" not in C  # a read-only container cannot be given a Docker secret
-    assert S["app"]["environment"]["ORBIT_DB_KEY"].startswith("${ORBIT_DB_KEY:?")  # up.sh must supply it from the Keychain
+    assert S["app"]["environment"]["ATLAS_DB_KEY"].startswith("${ATLAS_DB_KEY:?")  # up.sh must supply it from the Keychain
     assert not any("key" in v.lower() and "=" in v for v in S["app"].get("volumes", []))
     assert S["gateway"]["ports"] == ["127.0.0.1:8501:8501"]
 
@@ -27,7 +27,7 @@ def test_database_key_comes_from_the_environment_never_from_a_file_in_the_repo()
 def test_the_app_image_has_no_parsing_libraries():
     d = (ROOT / "Dockerfile").read_text()
     assert "secure" in d or "sqlcipher" in d
-    assert "pymupdf" not in d.lower() and "tesseract" not in d.lower() and "USER 10001" in d and "ORBIT_REQUIRE_ENCRYPTION=1" in d
+    assert "pymupdf" not in d.lower() and "tesseract" not in d.lower() and "USER 10001" in d and "ATLAS_REQUIRE_ENCRYPTION=1" in d
 
 
 def test_the_app_reaches_ollama_and_the_documents_service_only_through_forwarders():

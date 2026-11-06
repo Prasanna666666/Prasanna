@@ -13,7 +13,7 @@ Everything that understands a picture lives here, once: reading a file (EXIF, da
 There is no separate Photos app any more. The chat-style search screen is the one assistant now. Moving, deleting and exporting pictures (`images.organize`, `images.export`) are kept and used by Documents through the assistant: a change is prepared and only described, shown in a confirmation window, and carried out only when the person presses Confirm there after every check is run again; a move is journaled and can be undone, and a delete moves the picture to a trash folder. What is not carried over is the macOS launcher and the command line (in git history).
 
 ## Encrypted
-With `ORBIT_DB_KEY` set (the Docker setup) the index is an encrypted SQLCipher file, full-text index included; an existing plain index is converted once on first open and the plain file is kept beside it as `aperture.db.unencrypted` until you delete it. A native install with no key keeps a plain index as before.
+With `ATLAS_DB_KEY` set (the Docker setup) the index is an encrypted SQLCipher file, full-text index included; an existing plain index is converted once on first open and the plain file is kept beside it as `aperture.db.unencrypted` until you delete it. A native install with no key keeps a plain index as before.
 
 ## Still open
 - Not run on a real Mac: the Docker images (the indexer carries PyTorch and the models come from the drive) have not been built.

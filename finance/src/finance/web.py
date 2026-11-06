@@ -42,9 +42,9 @@ class State:
     """What the server remembers between requests. One person uses it, so this is simple on purpose."""
 
     def __init__(self, token: str | None = None) -> None:
-        self.token = os.environ.get("ORBIT_TOKEN", "") if token is None else token  # when set, every request must carry it (see _authorised)
+        self.token = os.environ.get("ATLAS_TOKEN", "") if token is None else token  # when set, every request must carry it (see _authorised)
         self.session = (
-            hashlib.sha256(b"orbit-session|" + self.token.encode()).hexdigest() if self.token else ""
+            hashlib.sha256(b"finance-session|" + self.token.encode()).hexdigest() if self.token else ""
         )  # what the cookie holds, so the password itself is never stored in the browser
         self.refused: list[float] = []  # when recent requests were refused, to slow down guessing
         self.importing: dict[str, Any] = {"running": False, "progress": "", "result": None, "error": ""}
@@ -56,7 +56,7 @@ class State:
 
 
 def _cookie(value: str) -> str:
-    return f"orbit_k={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000"
+    return f"finance_k={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=31536000"
 
 
 def _login_page(message: str = "") -> bytes:
@@ -73,7 +73,7 @@ def _login_page(message: str = "") -> bytes:
 
 
 def inbox_dir() -> Path:
-    return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
+    return Path(os.environ.get("ATLAS_INBOX", Path.home() / "AtlasInbox")) / "notes"
 
 
 def client_and_model(conn):
@@ -288,7 +288,7 @@ class _Handler(JsonHandler):
         if not self.state.token:
             return True
         now = _refusals_this_minute(self.state)
-        cookie = next((c.split("=", 1)[1] for c in self.headers.get("Cookie", "").split("; ") if c.startswith("orbit_k=")), "")
+        cookie = next((c.split("=", 1)[1] for c in self.headers.get("Cookie", "").split("; ") if c.startswith("finance_k=")), "")
         if hmac.compare_digest(cookie.encode(), self.state.session.encode()):
             return True
         log.event("request refused: no valid token", level=logging.WARNING)

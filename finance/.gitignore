@@ -12,5 +12,5 @@
 *.mbox
 *.eml
 inbox/
-OrbitInbox/
-.orbit/
+AtlasInbox/
+.atlas/

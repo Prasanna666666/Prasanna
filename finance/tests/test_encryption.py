@@ -33,9 +33,9 @@ def test_wrong_or_missing_key_refused(tmp_path):
 
 
 def test_require_encryption_never_falls_back_to_plaintext(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_REQUIRE_ENCRYPTION", "1")
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
-    monkeypatch.delenv("ORBIT_DB_KEY_FILE", raising=False)
+    monkeypatch.setenv("ATLAS_REQUIRE_ENCRYPTION", "1")
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
+    monkeypatch.delenv("ATLAS_DB_KEY_FILE", raising=False)
     with pytest.raises(db.EncryptionError, match="required"):
         db.connect(tmp_path / "x.db")
     assert not (tmp_path / "x.db").exists()
@@ -44,8 +44,8 @@ def test_require_encryption_never_falls_back_to_plaintext(tmp_path, monkeypatch)
 def test_key_from_file(tmp_path, monkeypatch):
     kf = tmp_path / "key"
     kf.write_text("filekey\n")
-    monkeypatch.setenv("ORBIT_DB_KEY_FILE", str(kf))
+    monkeypatch.setenv("ATLAS_DB_KEY_FILE", str(kf))
     _make(tmp_path / "o.db", None)
-    monkeypatch.delenv("ORBIT_DB_KEY_FILE")
+    monkeypatch.delenv("ATLAS_DB_KEY_FILE")
     c = db.connect(tmp_path / "o.db", key="filekey")
     assert c.execute("SELECT COUNT(*) FROM notes").fetchone()[0] == 1

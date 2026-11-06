@@ -1,7 +1,7 @@
 """Apple Mail -> the inbox folder, as plain .eml files, so nothing sensitive is ever sent anywhere.
 
 Apple Mail already keeps your mail on this Mac (it does the talking to Gmail, Outlook or iCloud, as it always has). This step only asks the Mail app
-for the messages, through the built-in `osascript`, and writes each one as a .eml file into ~/OrbitInbox/mail/. The isolated reader (no network,
+for the messages, through the built-in `osascript`, and writes each one as a .eml file into ~/AtlasInbox/mail/. The isolated reader (no network,
 inbox read-only) then reads the messages, their text and their attachments, like any other document. Nothing here connects to a mail server.
 
 All mail, with no date limit, is copied (`days` is an opt-in limit), one mailbox at a time, because the text of an email is often the crucial information (a booking

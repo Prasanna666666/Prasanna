@@ -21,12 +21,12 @@ services:
     image: library-parser:local
     network_mode: none          # cannot talk to anything, not even the app: the only exchange is files
     environment:
-      ORBIT_INBOX: /inbox
-      ORBIT_PARSED: /parsed
+      ATLAS_INBOX: /inbox
+      ATLAS_PARSED: /parsed
       LIBRARY_COLLECTIONS: finance=/collections/finance   # a folder you keep for one purpose; add more as apps arrive (health=/collections/health)
     volumes:
-      - ${HOME}/OrbitInbox:/inbox:ro
-      - ${ORBIT_FINANCE_DIR:-${HOME}/OrbitFinance}:/collections/finance:ro   # your bank statements and finance files
+      - ${HOME}/AtlasInbox:/inbox:ro
+      - ${ATLAS_FINANCE_DIR:-${HOME}/AtlasFinance}:/collections/finance:ro   # your bank statements and finance files
       - library-parsed:/parsed
     mem_limit: 1g
     pids_limit: 128
@@ -38,13 +38,13 @@ services:
     image: library:local
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
-      ORBIT_PARSED: /parsed
+      ATLAS_PARSED: /parsed
       LIBRARY_INBOX: /inbox   # where originals are filed into folders, only after you confirm in the window (bank statements are mounted read-only, never filed)
       PLATFORM_KEY: ${PLATFORM_KEY:-}   # calls from the other apps must be signed with it (from the Keychain, by up.sh)
-      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
+      ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
     volumes:
       - library-data:/data
-      - ${HOME}/OrbitInbox:/inbox:${LIBRARY_INBOX_MODE:-ro}   # read-only. Filing documents into folders needs LIBRARY_INBOX_MODE=rw when you start it
+      - ${HOME}/AtlasInbox:/inbox:${LIBRARY_INBOX_MODE:-ro}   # read-only. Filing documents into folders needs LIBRARY_INBOX_MODE=rw when you start it
       - library-parsed:/parsed    # writable only so the readable copy can be deleted once it is in the encrypted database
     networks: [private]
     depends_on: [ollama]

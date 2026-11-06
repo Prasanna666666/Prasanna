@@ -37,7 +37,7 @@ def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None
     try:
         conn.commit()  # a copy is taken of a settled database: an open transaction would make the copy wait for it forever
         directory.mkdir(parents=True, exist_ok=True)
-        target = directory / f"orbit-{today.isoformat()}.db"
+        target = directory / f"finance-{today.isoformat()}.db"
         if not target.exists():
             copy = db.connect(target)
             try:
@@ -52,9 +52,9 @@ def daily(conn, directory: Path | None = None, keep: int = 7, today: date | None
                 target.unlink(missing_ok=True)
                 found.append(Finding("backup", "fail", "backup", "today's backup could not be verified and was discarded"))
                 return found
-        for old in sorted(directory.glob("orbit-*.db"))[:-keep]:
+        for old in sorted(directory.glob("finance-*.db"))[:-keep]:
             old.unlink(missing_ok=True)
-        newest = sorted(directory.glob("orbit-*.db"))[-1].stem.removeprefix("orbit-")
+        newest = sorted(directory.glob("finance-*.db"))[-1].stem.removeprefix("finance-")
         age = (today - date.fromisoformat(newest)).days
         found.append(Finding("backup", "ok" if age <= 1 else "warn", "backup", f"last backup: {newest}" + ("" if age <= 1 else f" ({age} days ago)")))
     except (OSError, sqlite3.Error, ValueError, IndexError) as e:

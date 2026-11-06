@@ -27,7 +27,7 @@ SETTLE_SECONDS = 3
 
 
 def parsed_dir() -> Path:
-    return Path(os.environ.get("ORBIT_PARSED", Path.home() / "OrbitParsed"))
+    return Path(os.environ.get("ATLAS_PARSED", Path.home() / "AtlasParsed"))
 
 
 def model_client() -> tuple[Any, str]:
@@ -54,7 +54,7 @@ class State:
         return pictures.text_sources(engine) if engine is not None else None
 
     def connect(self):
-        return db.connect(Path(os.environ.get("ORBIT_HOME", Path.home() / ".orbit")) / "library.db")
+        return db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
 
 
 def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:

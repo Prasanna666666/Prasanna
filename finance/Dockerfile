@@ -5,7 +5,7 @@ RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin finance \
 WORKDIR /app
 COPY kit /app/kit
 COPY finance /app/finance
-ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ORBIT_HOME=/data
+ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ATLAS_HOME=/data
 
 FROM base AS app
 # The secure (encrypted) database: sqlcipher3-binary has no prebuilt version for Linux on Apple chips, so build the library against the
@@ -15,6 +15,6 @@ RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
 RUN pip install --no-cache-dir ./kit ./finance
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
-ENV ORBIT_REQUIRE_ENCRYPTION=1
+ENV ATLAS_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["finance"]
 CMD ["ui", "--host", "0.0.0.0", "--port", "8501"]

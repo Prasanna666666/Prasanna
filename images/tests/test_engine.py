@@ -36,7 +36,7 @@ def test_the_index_is_encrypted_with_a_key_and_an_old_plain_index_is_converted_o
     conn.close()
     assert sqlite3.connect(paths.db).execute("SELECT count(*) FROM sqlite_master").fetchone()[0] > 0  # readable without a key
 
-    monkeypatch.setenv("ORBIT_DB_KEY", "a-test-key")
+    monkeypatch.setenv("ATLAS_DB_KEY", "a-test-key")
     secured = Database(paths.db).connect()
     assert (
         secured.execute("SELECT rowid FROM fts WHERE fts MATCH 'kassabon'").fetchall()[0][0] == 1

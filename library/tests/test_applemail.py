@@ -73,7 +73,7 @@ def test_exporting_on_a_machine_without_the_mail_app_says_so(monkeypatch):
 
 
 def test_the_command_copies_all_mail_into_the_mail_folder_unless_told_to_keep_to_attachments(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_INBOX", str(tmp_path / "inbox"))
+    monkeypatch.setenv("ATLAS_INBOX", str(tmp_path / "inbox"))
     got = {}
 
     def export(out, days, only_attachments):

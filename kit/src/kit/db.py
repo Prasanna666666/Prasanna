@@ -12,7 +12,22 @@ from .module import Module
 
 
 def home() -> Path:
-    return Path(os.environ.get("ORBIT_HOME", Path.home() / ".orbit"))
+    """The data folder. A folder from the time the program was called Orbit is taken over, not copied: it is renamed once."""
+    if os.environ.get("ATLAS_HOME"):
+        return Path(os.environ["ATLAS_HOME"])
+    new, old = Path.home() / ".atlas", Path.home() / ".orbit"
+    if not new.exists() and old.is_dir():
+        old.rename(new)
+    return new
+
+
+def adopt_old_name(new: Path, old: Path) -> None:
+    """The database kept under its old name is renamed to the new one (with its journal files), only when the new name does not exist yet."""
+    if new.exists() or not old.exists():
+        return
+    for suffix in ("", "-wal", "-shm", "-journal"):
+        if Path(str(old) + suffix).exists():
+            Path(str(old) + suffix).rename(Path(str(new) + suffix))
 
 
 class EncryptionError(RuntimeError):
@@ -21,13 +36,13 @@ class EncryptionError(RuntimeError):
 
 def database_key() -> str | None:
     """The database key: from a file (Docker secret) or an env var. Never from a config file or the database itself."""
-    f = os.environ.get("ORBIT_DB_KEY_FILE")
+    f = os.environ.get("ATLAS_DB_KEY_FILE")
     if f:
         try:
             return Path(f).read_text().strip() or None
         except OSError as e:
             raise EncryptionError(f"Cannot read the database key file {f}: {e}") from e
-    return os.environ.get("ORBIT_DB_KEY") or None
+    return os.environ.get("ATLAS_DB_KEY") or None
 
 
 def connect(
@@ -35,14 +50,15 @@ def connect(
 ) -> sqlite3.Connection:
     """Open the database. With a key it is encrypted (SQLCipher: AES-256, whole file incl. indexes and WAL).
 
-    ORBIT_REQUIRE_ENCRYPTION=1 (set in the Docker deployment) refuses to run without a key, so a missing
+    ATLAS_REQUIRE_ENCRYPTION=1 (set in the Docker deployment) refuses to run without a key, so a missing
     secret can never silently fall back to a plain-text database."""
     if path is None:
         home().mkdir(parents=True, exist_ok=True)
-        path = home() / "orbit.db"
+        path = home() / "finance.db"
+        adopt_old_name(path, home() / "orbit.db")
     key = key or database_key()
-    if key is None and os.environ.get("ORBIT_REQUIRE_ENCRYPTION") == "1":
-        raise EncryptionError("Encryption is required but no database key was provided (ORBIT_DB_KEY_FILE / ORBIT_DB_KEY).")
+    if key is None and os.environ.get("ATLAS_REQUIRE_ENCRYPTION") == "1":
+        raise EncryptionError("Encryption is required but no database key was provided (ATLAS_DB_KEY_FILE / ATLAS_DB_KEY).")
     if key:
         try:
             from sqlcipher3 import dbapi2 as cipher
@@ -62,7 +78,7 @@ def connect(
             conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         except sqlite3.DatabaseError as e:
             conn.close()
-            raise EncryptionError("This database is encrypted: provide the key (ORBIT_DB_KEY_FILE / ORBIT_DB_KEY).") from e
+            raise EncryptionError("This database is encrypted: provide the key (ATLAS_DB_KEY_FILE / ATLAS_DB_KEY).") from e
         conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")

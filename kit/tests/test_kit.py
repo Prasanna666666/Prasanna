@@ -36,9 +36,9 @@ def test_the_database_migrates_a_module_and_retrieval_runs_over_any_sources(tmp_
 
 
 def test_a_key_is_required_when_encryption_is_required(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_REQUIRE_ENCRYPTION", "1")
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
-    monkeypatch.delenv("ORBIT_DB_KEY_FILE", raising=False)
+    monkeypatch.setenv("ATLAS_REQUIRE_ENCRYPTION", "1")
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
+    monkeypatch.delenv("ATLAS_DB_KEY_FILE", raising=False)
     with pytest.raises(db.EncryptionError):
         db.connect(tmp_path / "x.db")
 

@@ -14,7 +14,7 @@ finance brief | finance tools | finance chat
 Try in Chat: "remind me to call Amma every Sunday 6pm", "spent 450 on groceries", "add my father Ramesh, born 1958-03-14",
 "what's due this week?", "how am I doing on budget?".
 
-Data is in `~/.orbit/orbit.db` (override with `ORBIT_HOME`).
+Data is in `~/.atlas/finance.db` (override with `ATLAS_HOME`).
 
 ## Run in Docker (offline, encrypted, split by trust)
 Needs Ollama installed natively on the Mac (fast, uses the GPU) and Docker Desktop.
@@ -23,14 +23,14 @@ ollama pull ministral-3:3b                  # the ONLY step that needs internet 
 ./scripts/up.sh                             # creates the database key in your Keychain on first run, then starts everything
 ./scripts/up.sh --show-key                  # print the key ONCE and store it offline: lose the key = lose the data
 ```
-Open http://127.0.0.1:8501. `finance ui`, `chat`, `brief`, `tag` and `import-notes` **refuse to run without the encryption key** (so effectively only via Docker); for throwaway fake data use `ORBIT_ALLOW_PLAIN=1 ORBIT_HOME=/tmp/orbit-test finance ui`. Start the Documents service too (`library/scripts/up.sh`) so files and mail are read.
+Open http://127.0.0.1:8501. `finance ui`, `chat`, `brief`, `tag` and `import-notes` **refuse to run without the encryption key** (so effectively only via Docker); for throwaway fake data use `ATLAS_ALLOW_PLAIN=1 ATLAS_HOME=/tmp/atlas-test finance ui`. Start the Documents service too (`library/scripts/up.sh`) so files and mail are read.
 
 ```
  [Documents service: sealed reader + encrypted store] -- documents that matter here --> [Finance app: no internet, encrypted DB, assistant] -> 127.0.0.1:8501
 ```
 - **app**: opens no files at all, contains no parsing libraries, internal Docker network (no internet); it reaches the Documents service and Ollama only through byte forwarders.
 - **Encrypted database** (SQLCipher, AES-256): key in the macOS Keychain, handed to the app container as an environment variable by `up.sh` (Docker stores container settings inside its own disk image on your Mac, so keep FileVault on). It is never in this folder or in git.
-  `ORBIT_REQUIRE_ENCRYPTION=1` makes the app refuse to start without it - no silent plain-text fallback.
+  `ATLAS_REQUIRE_ENCRYPTION=1` makes the app refuse to start without it - no silent plain-text fallback.
 - All containers: non-root, read-only filesystem, all capabilities dropped, no-new-privileges. UI on 127.0.0.1 only.
 - `gateway` and `ollama` are byte forwarders on Docker's default network (needed to show the page and reach Ollama on the Mac).
 - The **documents agent is read-only** and told to ignore instructions inside documents, so a booby-trapped PDF cannot make
@@ -42,7 +42,7 @@ Open http://127.0.0.1:8501. `finance ui`, `chat`, `brief`, `tag` and `import-not
 ## Your finance folder (statements, payslips, invoices, receipts, tax and insurance letters, contracts - any bank, any language)
 Keep your PDFs where they are and point Finance at the folder; it is mounted **read-only** and only the offline parser can open it:
 ```bash
-ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance. Subfolders are fine (ing/2026/, payslips/ ...)
+ATLAS_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/AtlasFinance. Subfolders are fine (ing/2026/, payslips/ ...)
 ```
 Then open **Money -> Read new finance files** (or `finance import-statements`).
 - **Any finance file:** the model says what each file is (bank statement, payslip, invoice, receipt, tax, insurance, contract or other) and pulls
@@ -131,15 +131,15 @@ Then open **Money -> Read new finance files** (or `finance import-statements`).
 - The model, Ollama, lives on your Mac in `~/.ollama/models` (about 2 GB); your data never leaves your Mac, and Finance makes no network requests.
 
 ## Your data boundary
-- Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).
+- Real data lives only on your Mac: `~/AtlasInbox` (files you drop in), Docker volume `finance_finance-data` (the database), Ollama (model).
   It is never in this folder. `.gitignore` and `tests/test_data_boundary.py` block data files from git.
-- `mkdir -p ~/OrbitInbox` before `docker compose up`; it is mounted **read-only** into the app.
+- `mkdir -p ~/AtlasInbox` before `docker compose up`; it is mounted **read-only** into the app.
 - Never paste real statements/notes into a cloud AI chat (including the one that wrote this code). Paste error text only.
 
 ## Bring in your Apple Notes
 ```bash
 pip install -e .                 # on the Mac, outside Docker (no dependencies)
-finance export-notes               # allow the "control Notes" prompt; writes text files to ~/OrbitInbox/notes/
+finance export-notes               # allow the "control Notes" prompt; writes text files to ~/AtlasInbox/notes/
 finance import-notes               # or the button on the Notes page; safe to repeat - updates, never duplicates
 ```
 Locked notes are skipped and counted; images/attachments are not exported (text only). Untested on a real Mac.
@@ -179,7 +179,7 @@ Dev: `pip install -e ".[dev]" && pytest`.
 | Stop | `./scripts/down.sh` |
 | Address | `http://finance.localhost:8501` |
 | Internet | none: internal Docker network, in-code network lock |
-| Your files | read-only (`~/OrbitFinance`, `~/OrbitInbox`) |
+| Your files | read-only (`~/AtlasFinance`, `~/AtlasInbox`) |
 | What it learns | a Docker volume, not a folder on your Mac |
 | The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
 | Chat | the round button in the corner, or `Ctrl/⌘ J` |
@@ -219,14 +219,14 @@ ollama pull ministral-3:3b                  # the ONLY step that needs internet 
 ./scripts/up.sh                             # creates the database key in your Keychain on first run, then starts everything
 ./scripts/up.sh --show-key                  # print the key ONCE and store it offline: lose the key = lose the data
 ```
-Open http://127.0.0.1:8501. `finance ui`, `chat`, `brief`, `tag` and `import-notes` **refuse to run without the encryption key** (so effectively only via Docker); for throwaway fake data use `ORBIT_ALLOW_PLAIN=1 ORBIT_HOME=/tmp/orbit-test finance ui`. Start the Documents service too (`library/scripts/up.sh`) so files and mail are read.
+Open http://127.0.0.1:8501. `finance ui`, `chat`, `brief`, `tag` and `import-notes` **refuse to run without the encryption key** (so effectively only via Docker); for throwaway fake data use `ATLAS_ALLOW_PLAIN=1 ATLAS_HOME=/tmp/atlas-test finance ui`. Start the Documents service too (`library/scripts/up.sh`) so files and mail are read.
 
 ```
  [Documents service: sealed reader + encrypted store] -- documents that matter here --> [Finance app: no internet, encrypted DB, assistant] -> 127.0.0.1:8501
 ```
 - **app**: opens no files at all, contains no parsing libraries, internal Docker network (no internet); it reaches the Documents service and Ollama only through byte forwarders.
 - **Encrypted database** (SQLCipher, AES-256): key in the macOS Keychain, handed to the app container as an environment variable by `up.sh` (Docker stores container settings inside its own disk image on your Mac, so keep FileVault on). It is never in this folder or in git.
-  `ORBIT_REQUIRE_ENCRYPTION=1` makes the app refuse to start without it - no silent plain-text fallback.
+  `ATLAS_REQUIRE_ENCRYPTION=1` makes the app refuse to start without it - no silent plain-text fallback.
 - All containers: non-root, read-only filesystem, all capabilities dropped, no-new-privileges. UI on 127.0.0.1 only.
 - `gateway` and `ollama` are byte forwarders on Docker's default network (needed to show the page and reach Ollama on the Mac).
 - The **documents agent is read-only** and told to ignore instructions inside documents, so a booby-trapped PDF cannot make
@@ -238,7 +238,7 @@ Open http://127.0.0.1:8501. `finance ui`, `chat`, `brief`, `tag` and `import-not
 ## Your finance folder (statements, payslips, invoices, receipts, tax and insurance letters, contracts - any bank, any language)
 Keep your PDFs where they are and point Finance at the folder; it is mounted **read-only** and only the offline parser can open it:
 ```bash
-ORBIT_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/OrbitFinance. Subfolders are fine (ing/2026/, payslips/ ...)
+ATLAS_FINANCE_DIR="/path/to/your/finance folder" ./scripts/up.sh      # default: ~/AtlasFinance. Subfolders are fine (ing/2026/, payslips/ ...)
 ```
 Then open **Money -> Read new finance files** (or `finance import-statements`).
 - **Any finance file:** the model says what each file is (bank statement, payslip, invoice, receipt, tax, insurance, contract or other) and pulls
@@ -327,15 +327,15 @@ Then open **Money -> Read new finance files** (or `finance import-statements`).
 - The model, Ollama, lives on your Mac in `~/.ollama/models` (about 2 GB); your data never leaves your Mac, and Finance makes no network requests.
 
 ## Your data boundary
-- Real data lives only on your Mac: `~/OrbitInbox` (files you drop in), Docker volume `orbit-data` (the database), Ollama (model).
+- Real data lives only on your Mac: `~/AtlasInbox` (files you drop in), Docker volume `finance_finance-data` (the database), Ollama (model).
   It is never in this folder. `.gitignore` and `tests/test_data_boundary.py` block data files from git.
-- `mkdir -p ~/OrbitInbox` before `docker compose up`; it is mounted **read-only** into the app.
+- `mkdir -p ~/AtlasInbox` before `docker compose up`; it is mounted **read-only** into the app.
 - Never paste real statements/notes into a cloud AI chat (including the one that wrote this code). Paste error text only.
 
 ## Bring in your Apple Notes
 ```bash
 pip install -e .                 # on the Mac, outside Docker (no dependencies)
-finance export-notes               # allow the "control Notes" prompt; writes text files to ~/OrbitInbox/notes/
+finance export-notes               # allow the "control Notes" prompt; writes text files to ~/AtlasInbox/notes/
 finance import-notes               # or the button on the Notes page; safe to repeat - updates, never duplicates
 ```
 Locked notes are skipped and counted; images/attachments are not exported (text only). Untested on a real Mac.
@@ -375,7 +375,7 @@ Dev: `pip install -e ".[dev]" && pytest`.
 | Stop | `./scripts/down.sh` |
 | Address | `http://finance.localhost:8501` |
 | Internet | none: internal Docker network, in-code network lock |
-| Your files | read-only (`~/OrbitFinance`, `~/OrbitInbox`) |
+| Your files | read-only (`~/AtlasFinance`, `~/AtlasInbox`) |
 | What it learns | a Docker volume, not a folder on your Mac |
 | The AI | one local Ollama, shared by both apps (block its internet in your firewall) |
 | Chat | the round button in the corner, or `Ctrl/⌘ J` |
@@ -407,8 +407,8 @@ Finance can run on its own at `http://finance.localhost:8501`, or as one part of
 
 ## Mail, read offline
 Finance can read your email without ever connecting to a mail server. Apple Mail already keeps your mail on this Mac; you choose what to copy into the inbox. **The text of an email is often the crucial information** (a booking time, a payment confirmation, an appointment), so all mail is copied by default, not only messages with attachments.
-- **From Apple Mail (the Update button does it):** `scripts/up.sh` gives the sealed reader (no network) Apple Mail's own folder (`~/Library/Mail`) **read-only**, so the same Update button reads your mail: every message except Junk, Trash and Drafts, only new ones each time. macOS may ask once to let Docker read it (Full Disk Access); `ORBIT_NO_MAIL=1 ./scripts/up.sh` turns it off. Apple Mail keeps downloading mail itself as always; nothing here connects to a mail server. (`finance export-mail` still works as a manual copy.)
-- **From a mailbox export:** drop a `.mbox` file (Gmail Takeout, Thunderbird, Apple Mail's Export Mailbox) or Apple Mail's own `.emlx` files into `~/OrbitInbox/mail/`.
+- **From Apple Mail (the Update button does it):** `scripts/up.sh` gives the sealed reader (no network) Apple Mail's own folder (`~/Library/Mail`) **read-only**, so the same Update button reads your mail: every message except Junk, Trash and Drafts, only new ones each time. macOS may ask once to let Docker read it (Full Disk Access); `ATLAS_NO_MAIL=1 ./scripts/up.sh` turns it off. Apple Mail keeps downloading mail itself as always; nothing here connects to a mail server. (`finance export-mail` still works as a manual copy.)
+- **From a mailbox export:** drop a `.mbox` file (Gmail Takeout, Thunderbird, Apple Mail's Export Mailbox) or Apple Mail's own `.emlx` files into `~/AtlasInbox/mail/`.
 - **What the algorithms use:** a cheap check (no model) picks the mail worth reading: every attachment with text, and email text that shows an amount together with a word like invoice, ticket, booking, payslip, policy. The model says what each is; code verifies every amount and every date against the document's own text. Invoices and receipts then feed bills due and the invoice-against-bank check, payslips and tax papers feed tax, insurance papers feed the insurance list, and tickets and bookings (destination, dates, cost) feed trips. One press reads all of it, however much mail there is; the progress line shows how far it is. The list of messages already read is saved as it goes, so an interrupted first read carries on where it stopped.
 - **Any app can use it:** this reading applies to every file and mail, not only finance ones. `GET /api/documents?kind=medical,ticket&place=&year=` (and the chat's `documents_of_kind` tool) return what was found, so health, travel or any later app takes the kinds relevant to it. Bank statements are still imported only from the finance folder.
 - **Then** press Update. The sealed reader (no network, inbox read-only) reads each message's text and each attachment (PDF, scan, spreadsheet) as documents of their own, without opening links or running anything. Everything is searchable, and what you ask to see ("show me the email about my flight", "the flight tickets") appears only when you ask.

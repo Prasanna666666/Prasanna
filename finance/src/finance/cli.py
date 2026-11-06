@@ -21,21 +21,21 @@ def open_db():
 
 
 # Commands that touch your database. They need the encryption key (set by the Docker deployment / scripts/up.sh),
-# or an explicit ORBIT_ALLOW_PLAIN=1 for throwaway test data.
+# or an explicit ATLAS_ALLOW_PLAIN=1 for throwaway test data.
 NEEDS_SECURE = {"explain-month", "ui", "brief", "tag", "import-notes", "import-statements", "categorise", "statement-report"}
 REFUSAL = (
     "Refusing to open the database without encryption.\n"
     "  Normal way:   ./scripts/up.sh          (Docker: encrypted, offline, isolated)\n"
-    "  Throwaway:    ORBIT_ALLOW_PLAIN=1 ORBIT_HOME=/tmp/orbit-test orbit {cmd}   (fake data only)"
+    "  Throwaway:    ATLAS_ALLOW_PLAIN=1 ATLAS_HOME=/tmp/atlas-test finance {cmd}   (fake data only)"
 )
 
 
 def secure_ok() -> bool:
-    return bool(db.database_key()) or os.environ.get("ORBIT_ALLOW_PLAIN") == "1"
+    return bool(db.database_key()) or os.environ.get("ATLAS_ALLOW_PLAIN") == "1"
 
 
 def _inbox() -> Path:
-    return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "notes"
+    return Path(os.environ.get("ATLAS_INBOX", Path.home() / "AtlasInbox")) / "notes"
 
 
 def _model(conn, client) -> str:

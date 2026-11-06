@@ -11,8 +11,8 @@ def test_a_daily_backup_is_verified_kept_for_seven_days_and_pruned(conn, tmp_pat
     for day in range(10):
         found = backup.daily(conn, folder, keep=7, today=date(2026, 3, 1) + timedelta(days=day))
         assert all(f.level == "ok" for f in found)
-    names = sorted(x.name for x in folder.glob("orbit-*.db"))
-    assert len(names) == 7 and names[-1] == "orbit-2026-03-10.db"
+    names = sorted(x.name for x in folder.glob("finance-*.db"))
+    assert len(names) == 7 and names[-1] == "finance-2026-03-10.db"
     from finance import db
 
     copy = db.connect(folder / names[-1])
@@ -24,8 +24,8 @@ def test_an_old_newest_backup_is_a_warning_and_a_second_run_the_same_day_adds_no
     folder = tmp_path / "b"
     backup.daily(conn, folder, today=date(2026, 3, 1))
     backup.daily(conn, folder, today=date(2026, 3, 1))
-    assert len(sorted(x.name for x in folder.glob("orbit-*.db"))) == 1
-    (folder / "orbit-2026-03-01.db").rename(folder / "orbit-2026-02-20.db")
+    assert len(sorted(x.name for x in folder.glob("finance-*.db"))) == 1
+    (folder / "finance-2026-03-01.db").rename(folder / "finance-2026-02-20.db")
     found = backup.daily(conn, folder, keep=30, today=date(2026, 3, 1))
     assert any(f.agent == "backup" and f.level == "ok" for f in found)  # today's was made, so the latest is fresh
 

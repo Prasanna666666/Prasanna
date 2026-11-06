@@ -129,9 +129,9 @@ _visual_lines = readers.visual_lines
 
 
 def load_passwords() -> list[str]:
-    """Passwords for protected PDFs: one per line in passwords.txt (in your inbox, or the file named by ORBIT_PASSWORDS_FILE). Never stored."""
-    candidates = [os.environ.get("ORBIT_PASSWORDS_FILE", "")] + [
-        str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ORBIT_INBOX",) if os.environ.get(k)
+    """Passwords for protected PDFs: one per line in passwords.txt (in your inbox, or the file named by ATLAS_PASSWORDS_FILE). Never stored."""
+    candidates = [os.environ.get("ATLAS_PASSWORDS_FILE", "")] + [
+        str(Path(os.environ.get(k, "")) / "passwords.txt") for k in ("ATLAS_INBOX",) if os.environ.get(k)
     ]
     for c in candidates:
         if c and Path(c).is_file():
@@ -334,15 +334,15 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="library-parser")
-    ap.add_argument("--inbox", default=os.environ.get("ORBIT_INBOX", str(Path.home() / "OrbitInbox")))
-    ap.add_argument("--out", default=os.environ.get("ORBIT_PARSED", str(Path.home() / "OrbitParsed")))
+    ap.add_argument("--inbox", default=os.environ.get("ATLAS_INBOX", str(Path.home() / "AtlasInbox")))
+    ap.add_argument("--out", default=os.environ.get("ATLAS_PARSED", str(Path.home() / "AtlasParsed")))
     ap.add_argument(
         "--collection",
         action="append",
         default=[c for c in os.environ.get("LIBRARY_COLLECTIONS", "").split(",") if c],
         help="NAME=PATH: a folder you keep for one purpose (finance=/finance, health=/health), read-only; its files are always read and carry that name",
     )
-    ap.add_argument("--mail", default=os.environ.get("ORBIT_MAIL", ""), help="Apple Mail's own folder (read-only): all mail except Junk, Trash and Drafts")
+    ap.add_argument("--mail", default=os.environ.get("ATLAS_MAIL", ""), help="Apple Mail's own folder (read-only): all mail except Junk, Trash and Drafts")
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)

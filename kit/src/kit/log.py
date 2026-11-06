@@ -1,6 +1,6 @@
 """Operational logging that can never leak your finances: an event name and an error type, never a payment, a file's text, a question or an answer.
 
-One JSON object per line in `<data folder>/orbit.log` (rotated at 1 MB, 3 kept). If the file cannot be written, logging goes quietly to stderr instead."""
+One JSON object per line in `<data folder>/atlas.log` (rotated at 1 MB, 3 kept). If the file cannot be written, logging goes quietly to stderr instead."""
 
 from __future__ import annotations
 
@@ -33,9 +33,9 @@ def logger() -> logging.Logger:
     log.setLevel(logging.INFO)
     log.propagate = False
     try:
-        path = Path(os.environ.get("ORBIT_HOME", Path.home() / ".orbit"))
+        path = Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas"))
         path.mkdir(parents=True, exist_ok=True)
-        handler: logging.Handler = logging.handlers.RotatingFileHandler(path / "orbit.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
+        handler: logging.Handler = logging.handlers.RotatingFileHandler(path / "atlas.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")
     except OSError:
         handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(_Json())

@@ -19,7 +19,7 @@ The **one reader and store for everything that arrives**: files in your inbox, f
 - **Collections**: `LIBRARY_COLLECTIONS=finance=/collections/finance,health=/collections/health` names folders you keep for one purpose. A document carries its collection's name as its `area`; apps can ask for it.
 
 ## Mail
-Apple Mail keeps your Gmail on this Mac; the service reads Apple Mail's own folder (`~/Library/Mail`) **read-only**, every mailbox except Junk, Trash and Drafts, only new messages each time, with no date limit. macOS may ask once to let Docker read it (Full Disk Access); `ORBIT_NO_MAIL=1 ./scripts/up.sh` turns it off. Nothing connects to a mail server. `library export-mail` copies mail into the inbox as `.eml` files if you prefer. Mail text is data, never instructions.
+Apple Mail keeps your Gmail on this Mac; the service reads Apple Mail's own folder (`~/Library/Mail`) **read-only**, every mailbox except Junk, Trash and Drafts, only new messages each time, with no date limit. macOS may ask once to let Docker read it (Full Disk Access); `ATLAS_NO_MAIL=1 ./scripts/up.sh` turns it off. Nothing connects to a mail server. `library export-mail` copies mail into the inbox as `.eml` files if you prefer. Mail text is data, never instructions.
 
 ## Run
 ```bash

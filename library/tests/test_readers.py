@@ -96,11 +96,11 @@ def test_a_scan_without_tesseract_fails_clearly_instead_of_returning_nothing(tmp
 
 def test_a_password_protected_pdf_opens_with_the_password_from_passwords_txt_and_not_without(tmp_path, monkeypatch):
     text_pdf(tmp_path / "locked.pdf", password="geheim123")
-    monkeypatch.delenv("ORBIT_FINANCE", raising=False)
+    monkeypatch.delenv("ATLAS_FINANCE", raising=False)
     with pytest.raises(ValueError, match="password-protected"):
         parser.extract(tmp_path / "locked.pdf")
     (tmp_path / "passwords.txt").write_text("fout\ngeheim123\n")
-    monkeypatch.setenv("ORBIT_PASSWORDS_FILE", str(tmp_path / "passwords.txt"))
+    monkeypatch.setenv("ATLAS_PASSWORDS_FILE", str(tmp_path / "passwords.txt"))
     res = parser.extract(tmp_path / "locked.pdf")
     assert res["meta"].get("unlocked") and "Albert Heijn" in res["text"]
 

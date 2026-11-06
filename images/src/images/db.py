@@ -300,12 +300,12 @@ class Database:
         return conn
 
     def _open(self) -> sqlite3.Connection:
-        """A connection to the index: encrypted (SQLCipher, key from ORBIT_DB_KEY) when a key is set, otherwise plain as before. A plain index found
+        """A connection to the index: encrypted (SQLCipher, key from ATLAS_DB_KEY) when a key is set, otherwise plain as before. A plain index found
         when a key is set is encrypted once, first."""
         key = kit_db.database_key()
         if key is None:
-            if os.environ.get("ORBIT_REQUIRE_ENCRYPTION") == "1":
-                raise kit_db.EncryptionError("The picture index must be encrypted but no database key was given (ORBIT_DB_KEY).")
+            if os.environ.get("ATLAS_REQUIRE_ENCRYPTION") == "1":
+                raise kit_db.EncryptionError("The picture index must be encrypted but no database key was given (ATLAS_DB_KEY).")
             conn = sqlite3.connect(self.path, timeout=60, check_same_thread=False)
             conn.row_factory = sqlite3.Row
             return conn

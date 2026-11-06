@@ -10,7 +10,7 @@ from . import applemail, web
 
 
 def _mail_inbox() -> Path:
-    return Path(os.environ.get("ORBIT_INBOX", Path.home() / "OrbitInbox")) / "mail"
+    return Path(os.environ.get("ATLAS_INBOX", Path.home() / "AtlasInbox")) / "mail"
 
 
 def _serve(rest: list[str]) -> int:

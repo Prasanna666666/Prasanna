@@ -85,8 +85,8 @@ def test_the_settings_page_cannot_point_the_assistant_at_the_internet(tmp_path, 
 
     from finance import web
 
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
     from finance import db
     from finance.modules import ALL
 

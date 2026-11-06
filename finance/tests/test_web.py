@@ -14,8 +14,8 @@ from finance.modules import ALL
 
 @pytest.fixture
 def server(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_ALLOW_PLAIN", "1")
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
+    monkeypatch.setenv("ATLAS_ALLOW_PLAIN", "1")
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
     c = db.connect()
     db.migrate(c, ALL)
     c.close()
@@ -98,8 +98,8 @@ def test_with_a_token_nothing_is_served_without_the_cookie(tmp_path, monkeypatch
     from finance import db, web
     from finance.modules import ALL
 
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
     c = db.connect()
     db.migrate(c, ALL)
     c.close()
@@ -122,7 +122,7 @@ def test_with_a_token_nothing_is_served_without_the_cookie(tmp_path, monkeypatch
         )  # the password itself is never stored in the browser
         session = cookie.split(";")[0]
         assert get("/api/home", session)[0] == 200
-        assert get("/", "orbit_k=nope")[0] == 401
+        assert get("/", "finance_k=nope")[0] == 401
     finally:
         srv.shutdown()
 
@@ -170,7 +170,7 @@ def test_a_tool_error_is_reported_not_crashed_and_bad_bodies_are_ignored(server)
 
 def test_import_runs_in_the_background_and_reports_its_state(server, monkeypatch):
 
-    monkeypatch.setenv("ORBIT_PARSED", "/nonexistent")
+    monkeypatch.setenv("ATLAS_PARSED", "/nonexistent")
     started = json.loads(post(server, "/api/import", {})[1])
     assert started["ok"]
     for _ in range(50):
@@ -184,7 +184,7 @@ def test_import_runs_in_the_background_and_reports_its_state(server, monkeypatch
 
 
 def test_notes_import_says_plainly_when_the_folder_is_missing(server, monkeypatch, tmp_path):
-    monkeypatch.setenv("ORBIT_INBOX", str(tmp_path / "missing"))
+    monkeypatch.setenv("ATLAS_INBOX", str(tmp_path / "missing"))
     status, body, _ = post(server, "/api/notes/import", {})
     assert status == 404 and "export-notes" in json.loads(body)["error"]
     assert json.loads(post(server, "/api/notes/tag", {})[1])["ok"]
@@ -255,7 +255,7 @@ def test_guessing_the_password_on_the_form_is_slowed_down():
         srv.shutdown()
 
 
-def test_the_front_door_can_check_health_and_search_orbit(server):
+def test_the_front_door_can_check_health_and_search_finance(server):
     assert json.loads(call(server, "GET", "/api/health")[1]) == {"ok": True}
     post(server, "/api/tool", {"name": "add_task", "args": {"title": "Pay the Ziggo invoice"}})
     found = json.loads(call(server, "GET", "/api/search?q=ziggo")[1])["results"]

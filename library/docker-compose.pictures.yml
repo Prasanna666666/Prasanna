@@ -11,7 +11,7 @@ x-drive: &drive
   - library-pictures:/Volumes/Expansion/Aperture/data
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
   - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos:ro
-  - ${HOME}/OrbitInbox:/Volumes/Expansion/Inbox:ro
+  - ${HOME}/AtlasInbox:/Volumes/Expansion/Inbox:ro
   - library-mailpictures:/Volumes/Expansion/MailPictures:ro
 
 services:
@@ -34,8 +34,8 @@ services:
       LIBRARY_EXTRA_PICTURES: /Volumes/Expansion/Inbox,/Volumes/Expansion/MailPictures   # pictures dropped in the inbox, and pictures that came in mail
       APERTURE_NEVER_ONLINE: "1"
       APERTURE_SANDBOXED: "1"
-      ORBIT_REQUIRE_ENCRYPTION: "1"
-      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # the picture index is encrypted too
+      ATLAS_REQUIRE_ENCRYPTION: "1"
+      ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # the picture index is encrypted too
     mem_limit: 5g   # leave room for macOS and Ollama on an 8 GB Mac
     pids_limit: 256
 
@@ -53,8 +53,8 @@ services:
       <<: *pictures
       OLLAMA_HOST: http://ollama.internal:11434
       PLATFORM_KEY: ${PLATFORM_KEY:-}
-      ORBIT_PARSED: /parsed
-      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
+      ATLAS_PARSED: /parsed
+      ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
 
 volumes:
   library-mailpictures: {}

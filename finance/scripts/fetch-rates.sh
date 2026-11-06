@@ -1,10 +1,10 @@
 #!/bin/bash
 # Download the ECB's daily euro reference rates (the whole history) into your finance folder. The ONLY step of Finance that goes online, and it is not part
 # of the Finance app: run it yourself on the Mac. Afterwards press "Read my files" in Finance: it loads the rates and converts your payments to euros.
-#   ./scripts/fetch-rates.sh                         # into ~/OrbitFinance
+#   ./scripts/fetch-rates.sh                         # into ~/AtlasFinance
 #   ./scripts/fetch-rates.sh "/path/to/finance folder"
 set -euo pipefail
-DEST="${1:-${ORBIT_FINANCE_DIR:-$HOME/OrbitFinance}}"
+DEST="${1:-${ATLAS_FINANCE_DIR:-$HOME/AtlasFinance}}"
 mkdir -p "$DEST"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 echo "Downloading the ECB exchange rates ..."

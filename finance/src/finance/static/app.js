@@ -180,7 +180,7 @@
     function setupTheme() {
         let mode = 'dark';
         try {
-            mode = localStorage.getItem('orbit.theme') || 'dark';
+            mode = localStorage.getItem('finance.theme') || 'dark';
         } catch (_) {
             /* private window */
         }
@@ -190,7 +190,7 @@
         b.addEventListener('click', () => {
             mode = mode === 'auto' ? 'dark' : mode === 'dark' ? 'light' : 'auto';
             try {
-                localStorage.setItem('orbit.theme', mode);
+                localStorage.setItem('finance.theme', mode);
             } catch (_) {
                 /* ignore */
             }
@@ -627,7 +627,7 @@
     /** Go to the Payments list with some filters already chosen (a shop, a category, a month). */
     function goExplore(filters) {
         try {
-            sessionStorage.setItem('orbit.explore', JSON.stringify(filters || {}));
+            sessionStorage.setItem('finance.explore', JSON.stringify(filters || {}));
         } catch (_) {
             /* private window */
         }
@@ -1509,8 +1509,8 @@
         const asked = new URLSearchParams(location.hash.split('?')[1] || '').get('q');
         if (asked) jump = { q: asked };
         try {
-            const kept = JSON.parse(sessionStorage.getItem('orbit.explore') || 'null');
-            sessionStorage.removeItem('orbit.explore');
+            const kept = JSON.parse(sessionStorage.getItem('finance.explore') || 'null');
+            sessionStorage.removeItem('finance.explore');
             jump = jump || kept;
         } catch (_) {
             /* ignore */

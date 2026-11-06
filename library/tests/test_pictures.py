@@ -66,8 +66,8 @@ def test_text_in_pictures_joins_the_documents_in_one_search(drive, tmp_path):
 
 
 def test_the_service_serves_the_pictures_api_and_update_waits_for_the_indexer(drive, tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("ORBIT_PARSED", str(tmp_path / "parsed"))
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
     monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
     monkeypatch.setattr(web, "model_client", lambda: (None, ""))
     monkeypatch.setattr(pictures, "wait_for_scan", lambda engine, progress, **kw: indexer.run_once(engine))  # the sealed indexer, run in-process

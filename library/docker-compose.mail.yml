@@ -2,6 +2,6 @@
 # scripts/up.sh includes this file when ~/Library/Mail exists. macOS may ask once to let Docker read it (System Settings > Privacy & Security > Full Disk Access).
 services:
   parser:
-    environment: {ORBIT_MAIL: /mail}
+    environment: {ATLAS_MAIL: /mail}
     volumes:
-      - ${ORBIT_MAIL_DIR:-${HOME}/Library/Mail}:/mail:ro
+      - ${ATLAS_MAIL_DIR:-${HOME}/Library/Mail}:/mail:ro

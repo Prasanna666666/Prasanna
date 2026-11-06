@@ -13,8 +13,8 @@ def old_version(modules, keep):
 
 
 def test_an_old_database_is_upgraded_in_place_and_keeps_its_data(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
     conn = db.connect()
     db.migrate(conn, old_version(ALL, 1))
     conn.execute("INSERT INTO transactions (day, amount_minor, kind, category, note) VALUES ('2026-01-05', 1234, 'expense', 'food', 'old payment')")
@@ -31,8 +31,8 @@ def test_an_old_database_is_upgraded_in_place_and_keeps_its_data(tmp_path, monke
 
 
 def test_a_fresh_database_and_an_up_to_date_one_make_no_copy(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
     conn = db.connect()
     db.migrate(conn, ALL)
     db.migrate(conn, ALL)
@@ -40,8 +40,8 @@ def test_a_fresh_database_and_an_up_to_date_one_make_no_copy(tmp_path, monkeypat
 
 
 def test_a_failing_upgrade_says_where_the_safe_copy_is(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
     conn = db.connect()
     db.migrate(conn, old_version(ALL, 1))
     broken = [dataclasses.replace(m, migrations=(*m.migrations, "ALTER TABLE no_such_table ADD COLUMN x TEXT;")) if m.name == "tasks" else m for m in ALL]

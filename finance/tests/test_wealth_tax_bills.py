@@ -138,8 +138,8 @@ def test_the_report_page_is_served_only_to_the_logged_in_and_only_for_a_year(tmp
     from finance import db, web
     from finance.modules import ALL
 
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path))
-    monkeypatch.delenv("ORBIT_DB_KEY", raising=False)
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.delenv("ATLAS_DB_KEY", raising=False)
     c = db.connect()
     db.migrate(c, ALL)
     c.close()
@@ -156,7 +156,7 @@ def test_the_report_page_is_served_only_to_the_logged_in_and_only_for_a_year(tmp
     try:
         assert get("/report/2026")[0] == 401  # not without the password
         session = web.State(token="pw-123456").session
-        assert get("/report/2026", f"orbit_k={session}")[0] == 200
-        assert get("/report/abc", f"orbit_k={session}")[0] == 404 and get("/report/20266", f"orbit_k={session}")[0] == 404
+        assert get("/report/2026", f"finance_k={session}")[0] == 200
+        assert get("/report/abc", f"finance_k={session}")[0] == 404 and get("/report/20266", f"finance_k={session}")[0] == 404
     finally:
         srv.shutdown()

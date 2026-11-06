@@ -23,9 +23,9 @@ class Model:
 
 @pytest.fixture
 def server(tmp_path, monkeypatch):
-    monkeypatch.setenv("ORBIT_ALLOW_PLAIN", "1")
-    monkeypatch.setenv("ORBIT_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("ORBIT_PARSED", str(tmp_path / "parsed"))
+    monkeypatch.setenv("ATLAS_ALLOW_PLAIN", "1")
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
     monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
     monkeypatch.setattr(web, "model_client", lambda: (Model(), "fake"))
     (tmp_path / "home").mkdir()
@@ -121,7 +121,7 @@ def test_the_update_shows_documents_pictures_and_mails_each_with_its_full_number
     parsed = tmp_path / "parsed"
     parsed.mkdir()
     (parsed / ".found").write_text(json.dumps({"documents": 480, "mails": 12}))
-    monkeypatch.setenv("ORBIT_PARSED", str(parsed))
+    monkeypatch.setenv("ATLAS_PARSED", str(parsed))
     conn = db.connect(tmp_path / "library.db")
     db.migrate(conn, [store.MODULE])
     conn.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES ('a','a.pdf','pdf','t','')")

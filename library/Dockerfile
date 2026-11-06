@@ -6,7 +6,7 @@ FROM python:3.12-slim AS base
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin library \
  && mkdir /data /parsed && chown 10001 /data /parsed
 WORKDIR /app
-ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ORBIT_HOME=/data
+ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ATLAS_HOME=/data
 
 FROM base AS app
 # sqlcipher3-binary has no prebuilt version for Linux on Apple chips, so build the library against the system SQLCipher, then remove the compilers again.
@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
  && pip install --no-cache-dir ./kit "./images[ml]" ./library
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
-ENV ORBIT_REQUIRE_ENCRYPTION=1
+ENV ATLAS_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["library"]
 CMD ["serve", "--host", "0.0.0.0", "--port", "8502"]
 
@@ -43,5 +43,5 @@ COPY library /app/library
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
  && pip install --no-cache-dir ./kit "./images[ml]" ./library
 USER 10001
-ENV APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1 ORBIT_REQUIRE_ENCRYPTION=1
+ENV APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1 ATLAS_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["library-indexer"]

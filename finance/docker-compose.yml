@@ -21,14 +21,14 @@ services:
     image: finance:local
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
-      ORBIT_INBOX: /inbox
+      ATLAS_INBOX: /inbox
       PLATFORM_KEY: ${PLATFORM_KEY:-}   # the apps sign their calls to each other (from the Keychain, by up.sh)
       LIBRARY_URL: http://library.internal:8502   # the Documents service reads every file and mail; Finance takes the documents that matter here
-      ORBIT_TOKEN: ${ORBIT_TOKEN:-}   # the web token from up.sh; empty = no token required (development only)
-      ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
+      ATLAS_TOKEN: ${ATLAS_TOKEN:-}   # the web token from up.sh; empty = no token required (development only)
+      ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}   # passed from the Keychain by up.sh
     volumes:
-      - orbit-data:/data
-      - ${HOME}/OrbitInbox:/inbox:ro
+      - finance-data:/data
+      - ${HOME}/AtlasInbox:/inbox:ro
     networks: [private]
     depends_on: [ollama, library]
     mem_limit: 1g
@@ -61,5 +61,4 @@ networks:
   private: {internal: true}
 
 volumes:
-  orbit-data:
-    name: orbit_orbit-data   # the volume that already holds your database keeps its name, so it is found again
+  finance-data:
