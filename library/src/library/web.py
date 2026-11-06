@@ -261,7 +261,8 @@ def _found() -> dict[str, int]:
 
 
 def _row(name: str, stored: int, total: int | None, noun: str, running: str = "") -> dict[str, str]:
-    detail = f"{stored:,} of {total:,} {noun}" if total is not None and total > stored else f"{max(stored, total or 0):,} {noun}"
+    """One line of the Update: what was read, and (when known) how many files it came from: an archive or a mail export holds many documents, so the two differ."""
+    detail = f"{stored:,} {noun}" + (f" from {total:,} files" if total is not None else "")
     return {"name": name, "detail": detail + (f" · {running}" if running else "")}
 
 
@@ -271,7 +272,7 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
     kinds = conn.execute("SELECT SUM(area NOT IN ('mail','pictures')) AS files, SUM(area='mail') AS mails FROM documents").fetchone()
     busy = state.scan["progress"] if state.scan["running"] else ""
     rows = [
-        _row("Documents", int(kinds["files"] or 0), found.get("documents"), "files", busy),
+        _row("Documents", int(kinds["files"] or 0), found.get("documents"), "documents", busy),
         _row("Mails", int(kinds["mails"] or 0), found.get("mails"), "mails"),
     ]
     engine = state.engine()

@@ -129,6 +129,6 @@ def test_the_update_shows_documents_pictures_and_mails_each_with_its_full_number
     state = web.State()
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
-    assert rows["Documents"] == "1 of 480 files" and rows["Mails"] == "1 of 12 mails" and "not connected" in rows["Photos"]
+    assert rows["Documents"] == "1 documents from 480 files" and rows["Mails"] == "1 mails from 12 files" and "not connected" in rows["Photos"]
     (parsed / ".found").write_text(json.dumps({"documents": 1, "mails": 1}))
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "1 files"
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "1 documents from 1 files"
