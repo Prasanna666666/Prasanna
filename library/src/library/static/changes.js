@@ -71,7 +71,7 @@
         const note = el(
             'p',
             'muted',
-            d.kind === 'export'
+            d.kind === 'export' || d.kind === 'file_copy'
                 ? 'The originals stay where they are. Nothing is changed until you press Confirm.'
                 : d.kind === 'delete'
                   ? 'They are moved to a trash folder inside your photo folder, not erased, and you can put them back with Undo.'
@@ -89,7 +89,7 @@
         (d.problems || []).forEach((p) => problems.append(el('p', '', p)));
         const result = el('p', 'dialog-result');
         const confirm = button(
-            d.kind === 'delete' ? 'Delete' : d.kind === 'export' ? 'Copy' : 'Move',
+            d.kind === 'delete' ? 'Delete' : d.kind === 'export' || d.kind === 'file_copy' ? 'Copy' : 'Move',
             d.kind === 'delete' ? 'btn danger' : 'btn primary',
             async () => {
                 confirm.disabled = true;

@@ -53,3 +53,9 @@ Documents depends only on the shared `kit` (`../kit`: encrypted database, local 
 
 ## Not done yet
 Not run on a real Mac or with the real model: the Docker images have not been built and the Apple Mail folder has not been read.
+
+
+## Filing and albums (all through the confirmation window)
+- `preview_file_documents` (tool): moves original documents of a kind into a folder inside the inbox, or with `mail` copies mail messages into `Filed mail/<folder>`. The file behind a document is found again by name and proved by its content hash. Moves can be undone; copies leave the original in place. Bank statements (a named collection) and Apple Mail's own store are never touched. Documents that came out of an archive or a mail have no file of their own and are not filed.
+- `preview_trip_albums` (tool) and the **Sort into trip albums** button on the Trips page: one change that sorts every trip's pictures into `Trips/<year> <place>`.
+- `whats_new` (tool): new documents of the last days by kind and what waits for confirmation (part of the weekly summary).

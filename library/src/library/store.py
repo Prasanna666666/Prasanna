@@ -45,7 +45,7 @@ MIGRATIONS = (
     """
     CREATE TABLE pending_changes (
         id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,                      -- move | albums | delete | export
+        kind TEXT NOT NULL,                      -- move | albums | delete | export | file_move | file_copy
         label TEXT NOT NULL,
         dest TEXT NOT NULL,
         entries TEXT NOT NULL,                   -- [[item id, from, to, size, modified]], what would happen and what each file looked like when it was prepared
@@ -64,6 +64,18 @@ MIGRATIONS = (
         action TEXT NOT NULL,                    -- prepared | opened | confirmed | refused | cancelled | undone
         detail TEXT NOT NULL DEFAULT ''
     );
+    """,
+    """
+    CREATE TABLE file_moves (
+        id INTEGER PRIMARY KEY,
+        batch TEXT NOT NULL,                     -- the journal number a filing can be undone with
+        src TEXT NOT NULL,
+        dst TEXT NOT NULL,
+        op TEXT NOT NULL,                        -- file_move | file_copy
+        status TEXT NOT NULL,                    -- pending (written before the file is touched) | done | failed | undone
+        at REAL NOT NULL
+    );
+    CREATE INDEX file_moves_batch ON file_moves (batch);
     """,
 )
 MODULE = Module("library", MIGRATIONS)

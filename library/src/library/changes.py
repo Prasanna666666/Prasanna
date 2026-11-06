@@ -23,7 +23,7 @@ from typing import Any
 from images import browse, export, organize
 from images.safety import SafetyError, is_inside
 
-from . import pictures
+from . import filing, pictures
 
 TRASH_FOLDER = "Aperture - deleted"
 ALBUMS_FOLDER = "Trips"  # automatic albums: one folder per trip inside it
@@ -114,6 +114,16 @@ def _remember(conn, kind: str, label: str, dest: str, entries: list[list]) -> tu
     return data, card
 
 
+def prepare_filing(conn, args: dict) -> tuple[dict[str, Any], dict[str, str]]:
+    """File the original documents (or copies of mail) into a folder of the inbox: one change, one window, nothing done until confirmed."""
+    entries, kind, dest, missing = filing.prepare(conn, args)
+    verb = "copy" if kind == filing.COPY else "move"
+    label = f"{verb} {len(entries)} {'mail messages' if kind == filing.COPY else 'documents'} into {Path(dest).name}"
+    data, card = _remember(conn, kind, label, dest, entries)
+    data["not_found_as_files"] = len(missing)
+    return data, card
+
+
 def prepare_albums(state, conn, args: dict) -> tuple[dict[str, Any], dict[str, str]]:
     """Sort the pictures of every trip into its own folder `Trips/<year> <place>` inside the photo folder: one change, one window, nothing done until confirmed."""
     engine = _engine(state)
@@ -192,7 +202,6 @@ def details(conn, state, change_id: str) -> dict[str, Any]:
     if row is None:
         raise Refused("there is no such change")
     entries = json.loads(row["entries"])
-    engine = _engine(state)
     expired = row["status"] == "pending" and time.time() - row["created"] > EXPIRES_SECONDS
     if row["status"] == "pending" and not expired:
         conn.execute("UPDATE pending_changes SET viewed=? WHERE id=?", (time.time(), change_id))
@@ -207,11 +216,15 @@ def details(conn, state, change_id: str) -> dict[str, Any]:
         "files": len(entries),
         "megabytes": round(sum(max(e[3], 0) for e in entries) / 1_000_000, 1),
         "list": [{"name": Path(e[1]).name, "from": str(Path(e[1]).parent), "to": e[2]} for e in entries[:LISTED]],
-        "problems": problems(engine, row["kind"], entries, row["dest"]) if row["status"] == "pending" and not expired else [],
+        "problems": _problems(state, row["kind"], entries, row["dest"]) if row["status"] == "pending" and not expired else [],
         "nonce": row["nonce"] if row["status"] == "pending" and not expired else "",
         "result": row["result"],
-        "undo_number": row["batch"] if row["kind"] != "export" and row["status"] == "done" else "",
+        "undo_number": row["batch"] if row["kind"] not in ("export", filing.COPY) and row["status"] == "done" else "",
     }
+
+
+def _problems(state, kind: str, entries: list[list], dest: str) -> list[str]:
+    return filing.problems(kind, entries, dest) if kind in filing.KINDS else problems(_engine(state), kind, entries, dest)
 
 
 # ---- 3 to 5. confirmed, checked, done ---------------------------------------------------------------------------------------------------
@@ -220,15 +233,16 @@ def confirm(state, conn, change_id: str, nonce: str) -> dict[str, Any]:
     row = conn.execute("SELECT * FROM pending_changes WHERE id=?", (change_id,)).fetchone()
     try:
         _allowed(row, nonce)
-        engine = _engine(state)
         entries = json.loads(row["entries"])
-        wrong = problems(engine, row["kind"], entries, row["dest"])
+        wrong = _problems(state, row["kind"], entries, row["dest"])
         if wrong:
             raise Refused("Not done: " + "; ".join(wrong) + ". Prepare it again.")
         if not _APPLYING.acquire(blocking=False):
             raise Refused("another change is being made: try again in a moment")
         try:
-            result = _carry_out(engine, conn, row, entries)
+            result = (
+                filing.carry_out(conn, row["kind"], entries, row["label"]) if row["kind"] in filing.KINDS else _carry_out(_engine(state), conn, row, entries)
+            )
         finally:
             _APPLYING.release()
     except Refused as why:
@@ -293,9 +307,15 @@ def cancel(conn, change_id: str) -> dict[str, Any]:
 
 def undo(state, conn, batch: str) -> dict[str, Any]:
     """The person pressed Undo for a move or delete that was done."""
-    row = conn.execute("SELECT id FROM pending_changes WHERE batch=? AND status='done'", (batch,)).fetchone()
+    row = conn.execute("SELECT id, kind FROM pending_changes WHERE batch=? AND status='done'", (batch,)).fetchone()
     if row is None:
         return {"ok": False, "error": "there is no such change to undo"}
+    if row["kind"] == filing.MOVE:
+        text = filing.undo(conn, batch)
+        conn.execute("UPDATE pending_changes SET status='undone', result=? WHERE id=?", (text, row["id"]))
+        conn.commit()
+        audit(conn, row["id"], "undone", text)
+        return {"ok": True, "text": text}
     engine = _engine(state)
     if pictures.scan_state(engine).get("running"):
         return {"ok": False, "error": "the pictures are being read right now: wait for that to finish"}
@@ -324,7 +344,7 @@ def overview(conn) -> dict[str, Any]:
             "status": r["status"],
             "files": len(json.loads(r["entries"])),
             "result": r["result"],
-            "undo_number": r["batch"] if r["status"] == "done" and r["kind"] != "export" else "",
+            "undo_number": r["batch"] if r["status"] == "done" and r["kind"] not in ("export", filing.COPY) else "",
         }
 
     cutoff = time.time() - EXPIRES_SECONDS

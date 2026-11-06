@@ -155,6 +155,11 @@ def preview_albums(state, conn, a: dict, ask: Ask | None = None) -> Result:
     return data, [card]
 
 
+def preview_filing(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    data, card = changes.prepare_filing(conn, {"kind": a.get("kind", ""), "folder": a.get("folder", ""), "mail": a.get("mail") is True})
+    return data, [card]
+
+
 def preview_delete(state, conn, a: dict, ask: Ask | None = None) -> Result:
     data, card = changes.prepare(state, conn, "delete", _filters(a))
     return data, [card]
@@ -299,6 +304,19 @@ TOOLS = (
         "person, who reviews the full list and presses Confirm themselves. You cannot confirm. Optionally one year only.",
         {"year": _str("Only trips that began in this year")},
         preview_albums,
+    ),
+    Tool(
+        "preview_file_documents",
+        "Prepare filing the person's original documents into a folder of their inbox (moved), or, with mail true, copying mail messages into a folder (the mail stays "
+        "where it is). This changes NOTHING: a confirmation window opens for the person, who reviews the list and presses Confirm themselves. You cannot confirm. "
+        "Bank statements are never touched.",
+        {
+            "kind": _str("Kind of document, for example invoice, insurance, contract"),
+            "folder": _str("Folder name"),
+            "mail": {"type": "boolean", "description": "Copy mail messages instead"},
+        },
+        preview_filing,
+        ("folder",),
     ),
     Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),
     Tool(

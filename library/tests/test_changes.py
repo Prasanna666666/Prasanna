@@ -10,7 +10,7 @@ from images.config import ENV_INTERNAL
 from kit import db
 from PIL import Image
 
-from library import changes, indexer, pictures, store, tools, web
+from library import changes, filing, indexer, pictures, store, tools, web
 from tests.test_pictures import engine_with_fake_models
 
 
@@ -195,3 +195,62 @@ def test_trip_albums_are_one_change_one_window_and_can_be_undone(world, monkeypa
     done = changes.confirm(world.state, world.conn, change, window["nonce"])
     assert done["ok"] and (world.photos / "Trips" / "2000 Goa" / "beach.jpg").is_file()
     assert changes.undo(world.state, world.conn, done["batch"])["ok"] and (world.photos / "beach.jpg").is_file()
+
+
+@pytest.fixture
+def inbox(world, tmp_path, monkeypatch):
+    """An inbox with an invoice, an insurance letter, a bank statement folder and one mail message, each already read into the store."""
+    import hashlib
+    import json
+
+    root = tmp_path / "inbox"
+    (root / "mail").mkdir(parents=True)
+    monkeypatch.setenv("LIBRARY_INBOX", str(root))
+
+    def add(path: Path, content: bytes, kind: str, area: str = "") -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        sha = hashlib.sha256(content).hexdigest()
+        sha = hashlib.sha256((area + sha).encode()).hexdigest() if area else sha
+        world.conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready) VALUES (?,?,?,?,?,?,1,?)",
+            (sha, path.name, "pdf", "t", area, json.dumps({"kind": kind}), world.conn.execute("SELECT COUNT(*)+1 FROM documents").fetchone()[0]),
+        )
+        return path
+
+    world.invoice = add(root / "scan001.pdf", b"invoice", "invoice")
+    world.letter = add(root / "letter.pdf", b"insurance", "insurance")
+    world.mail = add(root / "mail" / "offer.eml", b"mail", "invoice", area="mail")
+    world.root = root
+    world.conn.commit()
+    return world
+
+
+def test_originals_are_filed_only_through_the_window_and_can_be_put_back(inbox):
+    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "folder": "Invoices"})
+    assert out["ok"] and out["data"]["files"] == 1 and inbox.invoice.is_file()  # nothing moved yet
+    change = out["data"]["change_id"]
+    window = open_window(inbox, change)
+    assert window["problems"] == [] and window["list"][0]["to"].endswith("Invoices/scan001.pdf")
+    done = changes.confirm(inbox.state, inbox.conn, change, window["nonce"])
+    assert done["ok"] and (inbox.root / "Invoices" / "scan001.pdf").is_file() and not inbox.invoice.exists() and inbox.letter.is_file()
+    assert changes.undo(inbox.state, inbox.conn, done["batch"])["ok"] and inbox.invoice.is_file()
+
+
+def test_mail_is_copied_never_moved_and_the_mail_folder_is_never_a_destination(inbox):
+    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"folder": "Offers", "mail": True})
+    change = out["data"]["change_id"]
+    window = open_window(inbox, change)
+    done = changes.confirm(inbox.state, inbox.conn, change, window["nonce"])
+    assert done["ok"] and inbox.mail.is_file() and (inbox.root / "Filed mail" / "Offers" / "offer.eml").is_file()
+    assert done["batch"] is None and changes.details(inbox.conn, inbox.state, change)["undo_number"] == ""  # a copy needs no undo: the original never moved
+    assert filing.problems("file_move", [[1, str(inbox.invoice), str(inbox.root / "mail" / "x.pdf"), 7, 0]], str(inbox.root / "mail"))
+
+
+def test_a_file_that_changed_or_a_missing_folder_name_stops_the_filing(inbox):
+    assert not tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "folder": ""})["ok"]
+    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "folder": "Invoices"})
+    inbox.invoice.write_bytes(b"changed after it was prepared")
+    window = open_window(inbox, out["data"]["change_id"])
+    assert any("changed since" in p for p in window["problems"])
+    assert not changes.confirm(inbox.state, inbox.conn, out["data"]["change_id"], window["nonce"])["ok"] and inbox.invoice.is_file()

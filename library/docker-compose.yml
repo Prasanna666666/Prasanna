@@ -39,10 +39,12 @@ services:
     environment:
       OLLAMA_HOST: http://ollama.internal:11434   # Ollama refuses other names with HTTP 403; '.internal' names are accepted
       ORBIT_PARSED: /parsed
+      LIBRARY_INBOX: /inbox   # where originals are filed into folders, only after you confirm in the window (bank statements are mounted read-only, never filed)
       PLATFORM_KEY: ${PLATFORM_KEY:-}   # calls from the other apps must be signed with it (from the Keychain, by up.sh)
       ORBIT_DB_KEY: ${ORBIT_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
     volumes:
       - library-data:/data
+      - ${HOME}/OrbitInbox:/inbox   # writable ONLY for filing documents into folders; the reader keeps its own read-only view
       - library-parsed:/parsed    # writable only so the readable copy can be deleted once it is in the encrypted database
     networks: [private]
     depends_on: [ollama]
