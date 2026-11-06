@@ -89,12 +89,6 @@ def test_settings_and_the_home_summary(server):
     assert converted["view"] == "ALL" and converted["currency"] == "EUR"
 
 
-def test_chat_reports_a_missing_model_plainly(server, monkeypatch):
-    monkeypatch.setenv("OLLAMA_HOST", "http://127.0.0.1:9")  # nothing is listening
-    status, body, _ = post(server, "/api/chat", {"text": "hello"})
-    assert status == 502 and "Ollama" in json.loads(body)["error"]
-
-
 def test_with_a_token_nothing_is_served_without_the_cookie(tmp_path, monkeypatch):
     import http.client
     import threading
@@ -153,12 +147,11 @@ def test_guessing_the_token_is_slowed_down(tmp_path, monkeypatch):
         srv.shutdown()
 
 
-def test_settings_round_trip_and_history_and_unknown_routes(server):
+def test_settings_round_trip_and_unknown_routes(server):
     status, body, _ = call(server, "GET", "/api/settings")
     assert status == 200 and json.loads(body)["currency"]
     assert post(server, "/api/settings", {"currency": "usd", "model": "ministral-3:3b"})[0] == 200
     assert json.loads(call(server, "GET", "/api/settings")[1])["main_currency"] == "USD"
-    assert json.loads(call(server, "GET", "/api/history")[1])["history"] == []
     assert call(server, "GET", "/api/nothing")[0] == 404
     assert post(server, "/api/nothing", {})[0] == 404
     assert call(server, "GET", "/no-such-page")[0] == 404
@@ -172,11 +165,6 @@ def test_a_tool_error_is_reported_not_crashed_and_bad_bodies_are_ignored(server)
     conn = http.client.HTTPConnection("127.0.0.1", server, timeout=10)
     conn.request("POST", "/api/tool", "{not json", {"Host": f"127.0.0.1:{server}", "X-Orbit": "1", "Content-Type": "application/json", "Content-Length": "9"})
     assert conn.getresponse().status == 400  # an unreadable body is an empty request: no tool name
-
-
-def test_an_empty_chat_message_is_refused_and_reset_clears_history(server):
-    assert post(server, "/api/chat", {"text": "   "})[0] == 400
-    assert post(server, "/api/chat/reset", {})[0] == 200
 
 
 def test_import_runs_in_the_background_and_reports_its_state(server, monkeypatch):
@@ -288,61 +276,23 @@ def test_one_update_button_can_start_and_follow_the_file_reading(server):
     assert call(server, "POST", "/api/scan", {})[0] == 403  # a change needs Finance's own header
 
 
-def test_the_one_chat_can_ask_finance_a_question_and_gets_text_back(server, monkeypatch):
-    from orbit import agent
-
-    monkeypatch.setattr(
-        agent,
-        "chat",
-        lambda conn, history, text, trace=None, **kw: (trace.append({"agent": "money", "tools": []}) if trace is not None else None) or f"You asked: {text}",
-    )
-    status, body, _ = post(server, "/api/ask", {"text": "how much did I spend?"})
-    assert status == 200 and json.loads(body) == {"ok": True, "text": "You asked: how much did I spend?", "items": [], "agent": "money"}
-    assert post(server, "/api/ask", {"text": "  "})[0] == 400
-    assert call(server, "POST", "/api/ask", {"text": "x"})[0] == 403  # a change needs the app's own header
-
-
-def test_documents_come_back_only_when_the_user_asked_to_see_them(server, monkeypatch):
-    from orbit import agent
-
-    monkeypatch.setattr(agent, "chat", lambda conn, history, text, trace=None, **kw: "Ziggo charged you 62.50 in March.")
-    post(server, "/api/tool", {"name": "add_note", "args": {"title": "Trip", "body": "Ziggo mention in a note, not a file"}})
-    c = db.connect()
-    c.execute(
-        "INSERT INTO documents (sha256, name, kind, text) VALUES ('s1','ziggo-march.pdf','pdf','Ziggo internet and television invoice for March, total 62.50 euro')"
-    )
-    c.execute("INSERT INTO documents (sha256, name, kind, text) VALUES ('s2','rent.pdf','pdf','Rental agreement, monthly rent 1150 euro')")
-    c.commit()
-    c.close()
-    plain = json.loads(post(server, "/api/ask", {"text": "how much did Ziggo charge me?"})[1])
-    assert plain["items"] == []  # an answer is text unless documents were asked for
-    shown = json.loads(post(server, "/api/ask", {"text": "show me the Ziggo invoices", "show": {"documents": True}})[1])
-    assert [i["title"] for i in shown["items"]] == ["ziggo-march.pdf"] and shown["items"][0]["kind"] == "document" and "62.50" in shown["items"][0]["text"]
-    assert shown["text"] == "I found 1 file about that."  # a lookup: no model was needed
-    follow = json.loads(
-        post(
-            server,
-            "/api/ask",
-            {"text": "show me those documents", "show": {"documents": True}, "history": [["user", "how much did Ziggo charge me?"], ["assistant", "62.50"]]},
-        )[1]
-    )
-    assert [i["title"] for i in follow["items"]] == ["ziggo-march.pdf"]  # "those" has no topic, so the question before it is used
-
-
-def test_asking_for_documents_works_even_when_the_model_is_not_running(server):
-    c = db.connect()
-    c.execute("INSERT INTO documents (sha256, name, kind, text) VALUES ('s1','ziggo-march.pdf','pdf','Ziggo invoice for March, total 62.50 euro')")
-    c.commit()
-    c.close()  # no model in this test: the chat itself would fail
-    out = json.loads(post(server, "/api/ask", {"text": "show me the Ziggo invoices", "show": {"documents": True}})[1])
-    assert out["ok"] and [i["title"] for i in out["items"]] == ["ziggo-march.pdf"]
-    nothing = post(server, "/api/ask", {"text": "show me the Albert Heijn invoices", "show": {"documents": True}})
-    assert nothing[0] in (200, 502)  # nothing matched, so it falls back to the assistant, which needs the model
-
-
 def test_with_the_platform_key_set_an_unsigned_request_is_refused_and_a_signed_one_works(server, monkeypatch):
     from kit import sign
 
     monkeypatch.setenv("PLATFORM_KEY", "a-shared-secret")
     assert call(server, "GET", "/api/home")[0] == 401
     assert call(server, "GET", "/api/home", headers=sign.sign("GET", "/api/home"))[0] == 200
+
+
+def test_the_one_assistant_can_list_and_run_finances_tools_with_the_safety_rules_kept(server):
+    listed = json.loads(call(server, "GET", "/api/tools")[1])["tools"]
+    names = {t["name"] for t in listed}
+    assert "spending_between" in names and "delete_transaction" not in names  # no AI may delete a payment
+    assert all(set(t) == {"name", "description", "parameters"} and t["parameters"]["type"] == "object" for t in listed)
+    ran = json.loads(post(server, "/api/tool", {"name": "spending_between", "args": {"from": "2026-01-12", "to": "2026-01-30"}, "user_text": "x"})[1])
+    assert ran["ok"] is True and ran["data"]["spent"] == 0 and ran["notes"] == []
+    assert post(server, "/api/tool", {"name": "delete_transaction", "args": {"id": 1}, "user_text": "delete it"})[0] == 400
+    refused = json.loads(post(server, "/api/tool", {"name": "delete_person", "args": {"id": 1}, "user_text": "who is amma?"})[1])
+    assert refused["ok"] is False and "own words" in refused["error"]  # text from anywhere else cannot cause a delete
+    bad = json.loads(post(server, "/api/tool", {"name": "spending_between", "args": {"from": "2026-01-12"}, "user_text": "x"})[1])
+    assert bad["ok"] is False and "'from' and 'to'" in bad["error"]

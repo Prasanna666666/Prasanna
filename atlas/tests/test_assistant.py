@@ -20,57 +20,122 @@ def test_history_keeps_only_well_formed_recent_turns():
     assert len(cleaned) == 8 and cleaned[-1] == ["user", "19"] and all(r in ("user", "assistant") for r, _ in cleaned)
 
 
-def test_one_question_is_answered_by_the_app_it_is_about_and_says_which(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'  # the fake server doubles as the model
-    status, reply = chat(running, "how much money did I spend?")
-    assert status == 200 and reply["how"] == "model" and reply["routed"] == ["money"]
-    part = reply["parts"][0]
-    assert part["module"] == "money" and part["name"] == "Money" and part["text"] == "answer to: how much money did I spend?" and part["ok"] is True
-    assert running.apps["photos"].asked == []  # the other app was never asked
+def tool(name, **properties):
+    return {"name": name, "description": f"the {name} tool", "parameters": {"type": "object", "properties": {k: {"type": "string"} for k in properties}}}
 
 
-def test_a_question_about_two_apps_asks_both_and_returns_one_part_each(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}}'
-    status, reply = chat(running, "my photo and my money from India", history=[["user", "hi"], ["assistant", "hello"]])
-    assert status == 200 and reply["routed"] == ["money", "photos"] and [p["module"] for p in reply["parts"]] == ["money", "photos"]
-    assert running.apps["money"].asked[0]["history"] == [["user", "hi"], ["assistant", "hello"]]  # the conversation so far reaches the app
-    photos = reply["parts"][1]
-    assert photos["total"] == 41 and photos["notes"] == ["one note"]
-    assert photos["items"] == [{"kind": "photo", "thumb": "/_atlas/api/media/photos/api/photo/1/thumb", "link": "#/library"}]  # the unsafe path was dropped
+def call(name, **args):
+    return {"content": "", "tool_calls": [{"function": {"name": name, "arguments": args}}]}
 
 
-def test_the_model_picks_the_app(running):
-    running.apps[
-        "photos"
-    ].plan_reply = '{"apps": ["photos"], "chat": false, "show": {"photos": false, "documents": false}}'  # the fake server doubles as the model
-    status, reply = chat(running, "anything from last summer?")
-    assert reply["how"] == "model" and reply["routed"] == ["photos"] and running.apps["photos"].asked
+def text(content):
+    return {"content": content}
 
 
-def test_plain_conversation_is_answered_by_the_model_without_asking_any_app(running):
-    running.apps["photos"].plan_reply = '{"apps": [], "chat": true, "show": {}}'
-    running.apps["photos"].model_reply = "Hello! What can I help with?"
-    status, reply = chat(running, "hello")
-    assert reply["how"] == "model" and reply["routed"] == [] and reply["parts"][0]["text"] == "Hello! What can I help with?"
-    assert running.apps["money"].asked == [] and running.apps["photos"].asked == []
-    system = running.apps["photos"].model_calls[-1]["messages"][0]["content"]
-    assert "cannot see any of their data" in system and running.apps["photos"].model_calls[-1]["options"]["num_ctx"] == 4096
+def offered(app_call):
+    return {t["function"]["name"] for t in app_call.get("tools", [])}
 
 
-def test_without_the_model_every_question_says_so_and_nothing_is_guessed_from_words(running):
+def test_a_question_uses_the_tool_it_needs_and_the_answer_says_which_part_was_used(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_between", **{"from": 1, "to": 1})]
+    money.tool_results["spending_between"] = {"ok": True, "data": {"spent": 290.0, "payments": 2}}
+    photos.script = [call("money__spending_between", **{"from": "2026-01-12", "to": "2026-01-30"}), text("You spent 290.00 in those days.")]
+    status, reply = chat(running, "what did I spend between 12 and 30 January?")
+    assert status == 200 and reply["how"] == "agent" and reply["routed"] == ["money"]
+    assert reply["parts"][0]["text"] == "You spent 290.00 in those days." and money.asked[-1]["args"] == {"from": "2026-01-12", "to": "2026-01-30"}
+    assert money.asked[-1]["user_text"] == "what did I spend between 12 and 30 January?"
+    assert "money__spending_between" in offered(photos.model_calls[0])
+
+
+def test_one_answer_can_chain_tools_of_different_parts(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("trip_dates", place=1)]
+    money.tool_results["trip_dates"] = {"ok": True, "data": {"start": "2026-01-12", "end": "2026-01-30"}}
+    photos.tools = [tool("find_photos", request=1, show=1)]
+    photos.tool_results["find_photos"] = {"ok": True, "data": {"count": 41}, "items": [{"kind": "photo", "thumb": "/api/photo/1/thumb", "link": "#/library"}]}
+    photos.script = [
+        call("money__trip_dates", place="India"),
+        call("photos__find_photos", request="taken between 2026-01-12 and 2026-01-30", show=True),
+        text("Here are your India photos: 41 of them."),
+    ]
+    status, reply = chat(running, "show me the photos of my India trip")
+    assert reply["routed"] == ["money", "photos"] and reply["show"] == {"photos": True, "documents": False}
+    assert reply["parts"][0]["items"] == [{"kind": "photo", "thumb": "/_atlas/api/media/photos/api/photo/1/thumb", "link": "#/library"}]
+    second = photos.model_calls[1]["messages"]
+    assert any(m["role"] == "tool" and "2026-01-12" in m["content"] for m in second)  # the result of the first tool reached the model before the second call
+
+
+def test_pictures_are_shown_only_when_the_model_says_the_person_asked_to_see_them(running):
+    photos = running.apps["photos"]
+    photos.tools = [tool("find_photos", request=1, show=1)]
+    photos.tool_results["find_photos"] = {"ok": True, "data": {"count": 41}, "items": [{"kind": "photo", "thumb": "/api/photo/1/thumb", "link": "#/library"}]}
+    photos.script = [call("photos__find_photos", request="beach"), text("You have 41 beach photos.")]
+    _, reply = chat(running, "how many beach photos do I have?")
+    assert reply["parts"][0]["items"] == [] and reply["show"] == {"photos": False, "documents": False}
+
+
+def test_plain_conversation_uses_no_tool(running):
+    running.apps["money"].tools = [tool("spending_between")]
+    running.apps["photos"].script = [text("Hello! What can I help with?")]
+    _, reply = chat(running, "hello")
+    assert reply["routed"] == [] and reply["parts"][0]["text"] == "Hello! What can I help with?" and running.apps["money"].asked == []
+
+
+def test_the_conversation_so_far_reaches_the_model(running):
+    running.apps["photos"].script = [text("Those are from Goa.")]
+    chat(running, "show me those", history=[["user", "how many beach shots do I have?"], ["assistant", "41"]])
+    sent = running.apps["photos"].model_calls[0]["messages"]
+    assert [m["content"] for m in sent[1:]] == ["how many beach shots do I have?", "41", "show me those"]
+
+
+def test_without_the_model_the_answer_says_so_and_nothing_is_guessed(running):
     running.atlas.assistant.model.url = "http://127.0.0.1:1"
-    for text in ("hello", "how much money did I spend?"):
-        _, reply = chat(running, text)
-        assert reply["how"] == "down" and reply["routed"] == [] and "not running" in reply["parts"][0]["error"]
-    assert running.apps["money"].asked == [] and running.apps["photos"].asked == []
+    _, reply = chat(running, "how much money did I spend?")
+    assert reply["how"] == "down" and reply["routed"] == [] and "not running" in reply["parts"][0]["error"]
+    assert running.apps["money"].asked == []
 
 
-def test_an_app_that_is_down_answers_with_a_plain_error_and_the_other_still_answers(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}}'
-    running.apps["money"].close()
-    status, reply = chat(running, "my photo and my money")
-    by = {p["module"]: p for p in reply["parts"]}
-    assert by["money"]["ok"] is False and "not running" in by["money"]["error"] and by["photos"]["ok"] is True
+def test_a_part_that_is_down_gives_the_model_a_plain_error_and_the_rest_still_works(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools, photos.tools = [tool("spending_between")], [tool("find_photos")]
+    running.atlas.assistant.tools()  # both parts are known while they are up
+    money.close()
+    photos.script = [call("money__spending_between"), call("photos__find_photos", request="x"), text("I could not reach your money, but you have 41 photos.")]
+    _, reply = chat(running, "money and photos please")
+    tool_messages = [m["content"] for m in photos.model_calls[1]["messages"] if m["role"] == "tool"]
+    assert "not running" in tool_messages[0] and reply["parts"][0]["ok"] is True and "41 photos" in reply["parts"][0]["text"]
+
+
+def test_a_figure_no_tool_returned_is_corrected_once_and_refused_if_it_stays(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_between")]
+    money.tool_results["spending_between"] = {"ok": True, "data": {"spent": 290.0}}
+    photos.script = [call("money__spending_between"), text("You spent 1,234.56."), text("You spent 290.00.")]
+    _, reply = chat(running, "how much did I spend?")
+    assert reply["parts"][0]["text"] == "You spent 290.00." and "1234.56" in photos.model_calls[2]["messages"][-1]["content"].replace(",", "")
+    photos.script = [call("money__spending_between"), text("You spent 1,234.56."), text("Still 1,234.56.")]
+    _, reply = chat(running, "how much did I spend?")
+    assert reply["parts"][0]["ok"] is False and "can't give you that figure" in reply["parts"][0]["error"] and "Still" not in reply["parts"][0]["error"]
+
+
+def test_a_delete_tool_is_offered_only_when_the_person_used_a_delete_word(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_between"), tool("delete_person", id=1)]
+    photos.script = [text("ok")]
+    chat(running, "who is Amma?")
+    assert "money__delete_person" not in offered(photos.model_calls[0]) and "money__spending_between" in offered(photos.model_calls[0])
+    running.atlas.assistant._tools = None
+    photos.script = [text("ok")]
+    chat(running, "please delete Amma")
+    assert "money__delete_person" in offered(photos.model_calls[-1])
+
+
+def test_a_tool_the_model_invents_is_refused(running):
+    photos = running.apps["photos"]
+    photos.script = [call("money__format_disk"), text("Sorry, I cannot do that.")]
+    chat(running, "do something")
+    assert any(m["role"] == "tool" and "not available" in m["content"] for m in photos.model_calls[1]["messages"]) and running.apps["money"].asked == []
 
 
 def test_only_the_pages_own_origin_and_header_can_ask_and_the_message_must_not_be_empty(running):
@@ -89,63 +154,10 @@ def test_pictures_come_through_atlas_and_only_from_the_apps_declared_picture_pat
     assert running.shell("/_atlas/api/media/nothing/x")[0] == 404
 
 
-def test_a_plan_that_is_not_the_expected_shape_is_not_guessed_from_words(running):
-    for broken in ("Hello! I can look up your money or your photos.", "[1, 2]", '{"apps": "photos"}'):
-        running.apps["photos"].plan_reply = broken
-        _, reply = chat(running, "how much money did I spend?")
-        assert reply["how"] == "down" and reply["routed"] == []
-    assert running.apps["photos"].asked == [] and running.apps["money"].asked == []
-
-
-def test_the_model_may_name_several_apps(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}}'
-    assert chat(running, "anything from last summer?")[1]["routed"] == ["money", "photos"]
-
-
-def test_the_model_decides_what_to_show_not_a_word_list(running):
-    plan = '{"apps": ["photos"], "chat": false, "show": {"photos": %s, "documents": false}}'
-    running.apps["photos"].plan_reply = plan % "true"
-    _, reply = chat(running, "I would love to see Goa again")  # no showing word anywhere: the words alone would say no
-    assert reply["how"] == "model" and reply["show"]["photos"] is True and reply["parts"][0]["show"]["photos"] is True
-    running.apps["photos"].plan_reply = plan % "false"
-    _, reply = chat(running, "what is the best way to send pictures to my mum?")  # showing words and a picture word: the words alone would say yes
-    assert reply["show"]["photos"] is False
-
-
-def test_only_real_booleans_and_known_apps_are_accepted_from_the_model(running):
-    running.apps["photos"].plan_reply = '{"apps": ["photos", "bank"], "chat": false, "show": {"photos": "yes", "documents": 1}}'
-    _, reply = chat(running, "anything from last summer?")
-    assert reply["routed"] == ["photos"] and reply["show"] == {"photos": False, "documents": False}
-
-
-def test_the_planner_sees_the_conversation_so_that_show_me_those_works(running):
-    running.apps["photos"].plan_reply = '{"apps": ["photos"], "chat": false, "show": {"photos": true}}'
-    chat(running, "show me those", history=[["user", "how many beach shots do I have?"], ["assistant", "41"]])
-    sent = running.apps["photos"].model_calls[-1]
-    assert (
-        sent["format"] == "json" and "how many beach shots do I have?" in sent["messages"][1]["content"] and "show me those" in sent["messages"][1]["content"]
-    )
-
-
-def test_the_model_supplies_search_phrasings_in_both_languages_and_they_reach_the_app(running):
-    running.apps["photos"].plan_reply = json.dumps(
-        {"apps": ["money"], "chat": False, "show": {"documents": True}, "search": ["flight", " vlucht ", "reservering", "ticket", "a fifth is dropped", 7, ""]}
-    )
-    _, reply = chat(running, "show me the email about my flight")
-    assert running.apps["money"].asked[-1]["search"] == ["flight", "vlucht", "reservering", "ticket"]  # strings only, trimmed, at most four
-    assert reply["parts"][0]["show"]["documents"] is True
-
-
-def test_a_question_about_a_trip_gives_every_app_the_same_dates(running):
-    running.apps["money"].trips = [{"place": "India", "start": "2026-01-12", "end": "2026-01-30", "documents": 3}]
-    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}, "trip": {"place": "India", "year": "2026"}}'
-    status, reply = chat(running, "what did my India trip cost and what are the photos?")
-    window = {"place": "India", "start": "2026-01-12", "end": "2026-01-30"}
-    assert reply["trip"]["place"] == "India" and reply["routed"] == ["money", "photos"]
-    assert running.apps["money"].asked[-1]["window"] == window and running.apps["photos"].asked[-1]["window"] == window  # one trip, the same dates for all
-
-
-def test_a_trip_that_was_never_found_is_not_invented(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}, "trip": {"place": "Mars", "year": ""}}'
-    status, reply = chat(running, "what did my Mars trip cost?")
-    assert reply["trip"] is None and running.apps["money"].asked[-1]["window"] is None
+def test_notes_a_part_attaches_to_its_figures_are_shown_with_the_answer(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_summary")]
+    money.tool_results["spending_summary"] = {"ok": True, "data": {"spent": 850.0}, "notes": ["October 2026 is NOT PROVEN: a file is missing."]}
+    photos.script = [call("money__spending_summary"), text("You spent 850.00.")]
+    _, reply = chat(running, "how much did I spend in October?")
+    assert reply["parts"][0]["notes"] == ["October 2026 is NOT PROVEN: a file is missing."]

@@ -4,7 +4,7 @@ The model writes the answer; this decides whether it can be shown. It never writ
 
 from __future__ import annotations
 
-import re
+from kit.audit import unproven_figures
 
 from .modules import ALL, tools
 
@@ -14,27 +14,6 @@ MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "
 def _label(month: str) -> str:
     year, number = month.split("-")
     return f"{MONTH_NAMES[int(number) - 1]} {year}"
-
-
-_NUM = re.compile(r"(?<![\w.])\d{1,3}(?:,\d{3})+(?:\.\d+)?|(?<![\w.])\d+\.\d+|(?<![\w.])\d{3,}")
-
-
-def _numbers(text: str) -> set[float]:
-    return {float(m.replace(",", "")) for m in _NUM.findall(text)}
-
-
-def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:
-    """Figures in the agent's reply (amounts with decimals or thousands, and any number of 3+ digits) that no tool returned. Dates and years are ignored.
-    A figure counts as proven if a tool returned it, or its rounded or whole-number form. Empty if the agent used no tool: it then states no data of yours."""
-    if not tool_outputs:
-        return []
-    seen: set[float] = set()
-    for out in tool_outputs:
-        for v in re.findall(r"-?\d+(?:\.\d+)?", out):
-            x = abs(float(v))
-            seen |= {x, round(x), round(x, 1), round(x, 2)}
-    text = re.sub(r"\b(?:19|20)\d{2}(?:-\d{2}){0,2}\b", " ", reply)
-    return sorted(n for n in _numbers(text) if n not in seen and round(n) not in seen)
 
 
 # ---- the answer checker: runs on every answer, whoever wrote it ----------------------------------------------------------------
@@ -74,12 +53,12 @@ _MONTHLY = ("spending_summary", "income_summary", "daily_spending", "spending_by
 
 def _stale(conn, calls) -> list[str]:
     """Each report the agent used must give exactly the same result when run again now: if not, the data changed under the answer."""
-    from . import agent
+    from . import toolrun
 
     out = []
     for name, args, seen in calls:
         if name in REPORTS:
-            again, error = agent.run_tool(conn, name, args)
+            again, error = toolrun.run_tool(conn, name, args)
             if error or again != seen:
                 out.append(f"{name} gives a different result now than when it was read")
     return out
@@ -130,3 +109,12 @@ def audit(conn, reply: str, turns: list[dict], months: list[str] | None = None) 
         problems.append("figures not returned by any tool: " + ", ".join(f"{n:,.2f}" for n in bad[:4]))
     problems += _stale(conn, calls) + _untied(conn, calls, months)
     return problems, [*_proof_notes(conn, calls, months), *_health_note(conn)]
+
+
+def check_tool(conn, name: str, args: dict, output: str) -> tuple[list[str], list[str]]:
+    """The check on one report a tool just produced: its months must tie to the raw ledger (else it is not shown at all), and a month that is not
+    proven or files waiting for a check are said next to it. Other tools need no check."""
+    if name not in REPORTS:
+        return [], []
+    calls = [(name, args, output)]
+    return _untied(conn, calls, None), [*_proof_notes(conn, calls, None), *_health_note(conn)]

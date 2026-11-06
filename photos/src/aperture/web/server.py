@@ -22,7 +22,6 @@ import sys
 import threading
 import time
 from collections import OrderedDict
-from datetime import date
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -270,8 +269,39 @@ class Web:
             "height": found.height,
         }
 
+    TOOLS: ClassVar[list[dict[str, Any]]] = [
+        {
+            "name": "find_photos",
+            "description": (
+                "Find the person's photos with the picture engine's own search (what is in them, places, people, dates, text in them, folders) and say what was "
+                "found. Put everything that narrows the search in the request, including dates such as 'taken between 2026-01-12 and 2026-01-30'. Returns how "
+                "many matched and a short answer."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "request": {"type": "string", "description": "What to find, in plain words, with any dates or places"},
+                    "show": {"type": "boolean", "description": "true ONLY when the person asked to see the photos themselves"},
+                },
+                "required": ["request"],
+            },
+        }
+    ]
+
+    def run_tool(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        """Run one of the tools offered to the one assistant. Never raises: a failure comes back as an error the model can read."""
+        if name != "find_photos" or not str(args.get("request", "")).strip():
+            return {"ok": False, "data": None, "error": "find_photos needs a request"}
+        try:
+            found = self.ask_once(str(args["request"])[:2000], "assistant", [])
+        except Exception as exc:
+            log.debug("find_photos failed", exc_info=True)
+            return {"ok": False, "data": None, "error": f"{type(exc).__name__}: could not search the photos"}
+        data = {"answer": found["text"], "count": found["total"], "notes": found["notes"]}
+        return {"ok": True, "data": data, "error": "", "items": found["items"] if args.get("show") is True else []}
+
     def ask_once(self, message: str, conv: str, history: list[tuple[str, str]]) -> dict[str, Any]:
-        """The contract's one-shot question, for Atlas's single chat: the same answer as the chat, in one piece, with the first photos as items."""
+        """The picture engine's own question-answering, for the one assistant's find_photos tool: one answer, with the first photos as items."""
         with self.ai_lock:
             self.pause_indexing_for_chat()
             reply = ask_within(lambda: self.ctx.agent().ask(message, self.previous(conv), history=history), ASK_LIMIT)
@@ -327,18 +357,6 @@ class Web:
         data = self.ctx.paths.data.resolve()
         path = (data / (thumb_rel(item_id) if kind == "thumb" else preview_rel(item_id))).resolve()
         return path if data in path.parents and path.is_file() else None
-
-
-def _within_trip(message: str, window: Any) -> str:
-    """When Atlas has resolved a trip, the question is about the pictures taken on exactly those days."""
-    if not isinstance(window, dict):
-        return message
-    try:
-        start, end = date.fromisoformat(str(window.get("start"))), date.fromisoformat(str(window.get("end")))
-    except ValueError:
-        return message
-    place = str(window.get("place", ""))[:80]
-    return f"{message} (taken between {start.isoformat()} and {max(start, end).isoformat()}, on the trip to {place})"
 
 
 def _clean_history(raw: Any) -> list[tuple[str, str]]:
@@ -538,6 +556,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._json({"ideas": web.suggestions()})
         elif path == "/api/scan":
             self._json(web.scan_status())
+        elif path == "/api/tools":
+            self._json({"tools": Web.TOOLS})
         elif path == "/api/search":
             self._json(web.search((query.get("q") or [""])[0][:200]))
         elif path in BROWSE_PATHS:
@@ -581,7 +601,13 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if path in ("/api/scan", "/api/scan/resume"):
             return self._json({"started": self.web.resume_indexing()})
-        if path not in ("/api/chat", "/api/ask"):
+        if path == "/api/tool":
+            body = self._body()
+            if body is None:
+                return
+            args = body.get("args")
+            return self._json(self.web.run_tool(str(body.get("name", "")), args if isinstance(args, dict) else {}))
+        if path != "/api/chat":
             return self._deny(HTTPStatus.NOT_FOUND, "not found")
         body = self._body()
         if body is None:
@@ -589,14 +615,6 @@ class _Handler(BaseHTTPRequestHandler):
         message = str(body.get("message", body.get("text", ""))).strip()[:2000]
         if not message:
             return self._deny(HTTPStatus.BAD_REQUEST, "empty message")
-        if path == "/api/ask":
-            return self._json(
-                self.web.ask_once(
-                    _within_trip(message, body.get("window")),
-                    str(body.get("conv", ""))[:64] or "atlas",
-                    _clean_history(body.get("history")),
-                )
-            )
         self._chat(message, str(body.get("conv", ""))[:64] or "default", _clean_history(body.get("history")))
 
     # ---- the chat stream ---------------------------------------------------------------------------------------------

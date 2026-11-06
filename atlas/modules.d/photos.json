@@ -39,6 +39,7 @@
     }
   ],
   "scan": "/api/scan",
-  "ask": "/api/ask",
-  "media": "/api/photo/"
+  "media": "/api/photo/",
+  "tools": "/api/tools",
+  "tool": "/api/tool"
 }

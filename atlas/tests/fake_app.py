@@ -41,8 +41,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._reply(200, f"<!doctype html>{meta}<title>fake</title>".encode(), "text/html")
         elif path == "/api/health":
             self._reply(200, b'{"ok": true}')
-        elif path == "/api/trips":
-            self._reply(200, json.dumps({"trips": self.app.trips}).encode())
+        elif path == "/api/tools":
+            self._reply(200, json.dumps({"tools": self.app.tools}).encode())
         elif path == "/api/search":
             if self.app.token and self.headers.get("X-App-Token") != self.app.token:
                 self._reply(403, b'{"error": "token"}')
@@ -83,35 +83,25 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._reply(404, b'{"error": "not found"}')
 
-    def _post_ask(self) -> None:
+    def _post_tool(self) -> None:
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         if self.app.require_header and self.headers.get(self.app.require_header) != "1":
             return self._reply(403, b'{"error": "header"}')
         if self.app.token and self.headers.get("X-App-Token") != self.app.token:
             return self._reply(403, b'{"error": "token"}')
         self.app.asked.append(body)
-        items = (
-            [{"kind": "photo", "id": 1, "thumb": "/api/photo/1/thumb", "link": "#/library"}, {"kind": "photo", "thumb": "/etc/passwd"}]
-            if self.app.token
-            else []
-        )
-        if (body.get("show") or {}).get("documents") and not self.app.token:
-            items = [
-                {"kind": "document", "title": "ziggo.pdf", "subtitle": "from your files", "text": "Ziggo invoice", "link": "#/documents"},
-                {"kind": "document"},
-            ]
-        self._reply(200, json.dumps({"text": f"answer to: {body['text']}", "items": items, "total": 41, "notes": ["one note"]}).encode())
+        self._reply(200, json.dumps(self.app.tool_results.get(body["name"], {"ok": True, "data": {"echo": body["name"]}})).encode())
 
     def _post_model_chat(self) -> None:
+        """The fake doubles as the model: it answers with the next message of its script (text and/or tool calls)."""
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
         self.app.model_calls.append(body)
-        wants_json = body.get("format") == "json" and self.app.plan_reply is not None
-        reply = self.app.plan_reply if wants_json else self.app.model_reply
-        self._reply(200, json.dumps({"message": {"role": "assistant", "content": reply}}).encode())
+        message = self.app.script.pop(0) if self.app.script else {"role": "assistant", "content": self.app.model_reply}
+        self._reply(200, json.dumps({"message": {"role": "assistant", **message}}).encode())
 
     def do_POST(self) -> None:
-        if self.path == "/api/ask":
-            return self._post_ask()
+        if self.path == "/api/tool":
+            return self._post_tool()
         if self.path == "/api/chat":
             return self._post_model_chat()
         if self.path == "/api/scan":
@@ -136,9 +126,10 @@ class FakeApp:
         self.seen: list[dict[str, str]] = []
         self.scanning = False
         self.asked: list[dict[str, object]] = []
-        self.trips: list[dict[str, object]] = []
+        self.tools: list[dict[str, object]] = []  # what this part offers the assistant
+        self.tool_results: dict[str, dict[str, object]] = {}  # what each tool returns when it is run
         self.model_reply = "fake model reply"
-        self.plan_reply: str | None = None  # what the model answers when asked for JSON (the planner)
+        self.script: list[dict[str, object]] = []  # the model's next messages, in order (a tool call, then the answer)
         self.model_calls: list[dict[str, object]] = []
         self.require_header = ""
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), type("Handler", (_Handler,), {"app": self}))

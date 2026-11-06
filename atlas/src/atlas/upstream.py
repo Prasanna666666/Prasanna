@@ -176,51 +176,38 @@ class Upstreams:
         return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}
 
     # ---- the single chat: one question to one app, and a picture from an app ------------------------------------------
-    def trips(self, module: Module, place: str, year: str) -> list[dict[str, Any]]:
-        """The journeys the app found in the person's documents for this place and year ([] if none, or the app is not running)."""
-        if not module.trips:
+    def tool_specs(self, module: Module) -> list[dict[str, Any]]:
+        """The tools this part of the app offers (name, description, parameters), checked. [] if it offers none or is not running."""
+        if not module.tools:
             return []
         try:
-            status, body = self._authed_get(module, f"{module.trips}?place={quote(place[:80])}&year={quote(year[:4])}", ASK_SECONDS)
+            status, body = self._authed_get(module, module.tools, ASK_SECONDS)
             raw = json.loads(body)
         except (OSError, http.client.HTTPException, ValueError):
             return []
-        found = raw.get("trips") if status == 200 and isinstance(raw, dict) else None
-        return [t for t in (found or []) if isinstance(t, dict) and all(isinstance(t.get(k), str) for k in ("place", "start", "end"))][:5]
+        found = raw.get("tools") if status == 200 and isinstance(raw, dict) else None
+        return [
+            t
+            for t in (found or [])
+            if isinstance(t, dict) and re.fullmatch(r"[a-z][a-z0-9_]{0,60}", str(t.get("name", ""))) and isinstance(t.get("parameters"), dict)
+        ]
 
-    def ask(
-        self,
-        module: Module,
-        text: str,
-        conv: str,
-        history: list[list[str]],
-        *,
-        show: dict[str, bool] | None = None,
-        search: list[str] | None = None,
-        window: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
-        """One app's answer to one question, in the contract's shape. Never raises: a failure comes back as an error to show."""
-        payload = json.dumps(
-            {"text": text, "message": text, "conv": conv, "history": history, "show": show or {}, "search": search or [], "window": window}
-        ).encode()
+    def call_tool(self, module: Module, name: str, args: dict[str, Any], user_text: str) -> dict[str, Any]:
+        """Run one tool of one part. `user_text` lets the part apply its own rules (a delete needs the person's own words). Never raises."""
+        payload = json.dumps({"name": name, "args": args, "user_text": user_text}).encode()
         try:
-            status, body, _ = self._authed_full(module, "POST", module.ask, ASK_SECONDS, payload)
+            status, body, _ = self._authed_full(module, "POST", module.tool, ASK_SECONDS, payload)
             raw = json.loads(body)
         except (OSError, http.client.HTTPException, ValueError):
             return {"ok": False, "error": f"{module.name} is not running"}
         if status != 200 or not isinstance(raw, dict):
             return {
                 "ok": False,
-                "error": str(raw.get("error", f"{module.name} could not answer"))[:300] if isinstance(raw, dict) else f"{module.name} could not answer",
+                "error": str(raw.get("error", f"{module.name} could not do that"))[:300] if isinstance(raw, dict) else f"{module.name} could not do that",
             }
         items = [i for i in (self._item(module, x) for x in (raw.get("items") or [])[:24]) if i]
-        return {
-            "ok": True,
-            "text": str(raw.get("text", ""))[:6000],
-            "items": items,
-            "total": int(raw.get("total") or 0),
-            "notes": [str(n)[:300] for n in (raw.get("notes") or [])][:3],
-        }
+        notes = [str(n)[:300] for n in (raw.get("notes") or [])][:3]
+        return {"ok": bool(raw.get("ok", True)), "data": raw.get("data"), "error": str(raw.get("error", ""))[:300], "items": items, "notes": notes}
 
     @staticmethod
     def _item(module: Module, item: Any) -> dict[str, str] | None:

@@ -1,4 +1,4 @@
-"""orbit ui | chat | brief | tools | agents | tag | export-notes [dir] | import-notes [dir] | import-statements | categorise"""
+"""orbit ui | brief | tools | tag | export-notes [dir] | import-notes [dir] | import-statements | categorise"""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ import os
 import sys
 from pathlib import Path
 
-from kit import netguard
+from kit import llm, netguard
 
-from . import agent, agents, applenotes, clock, db, tagging
+from . import applenotes, clock, db, tagging
 from .modules import ALL, tools
 from .modules.today import briefing_for
 
@@ -22,7 +22,7 @@ def open_db():
 
 # Commands that touch your database. They need the encryption key (set by the Docker deployment / scripts/up.sh),
 # or an explicit ORBIT_ALLOW_PLAIN=1 for throwaway test data.
-NEEDS_SECURE = {"explain-month", "ui", "chat", "brief", "tag", "import-notes", "import-statements", "categorise", "statement-report"}
+NEEDS_SECURE = {"explain-month", "ui", "brief", "tag", "import-notes", "import-statements", "categorise", "statement-report"}
 REFUSAL = (
     "Refusing to open the database without encryption.\n"
     "  Normal way:   ./scripts/up.sh          (Docker: encrypted, offline, isolated)\n"
@@ -39,7 +39,7 @@ def _inbox() -> Path:
 
 
 def _model(conn, client) -> str:
-    return client.resolve(db.get_setting(conn, "model", agent.llm.DEFAULT_MODEL))
+    return client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))
 
 
 # ---- commands that need no database: never create one as a side effect ---------------------------------------------------------
@@ -63,12 +63,6 @@ def _list_tools(rest: list[str]) -> int:
     return 0
 
 
-def _list_agents(rest: list[str]) -> int:
-    for a in agents.AGENTS:
-        print(f"{a.name:9} {len(a.tools)} tools: {', '.join(sorted(a.tools))}")
-    return 0
-
-
 # ---- commands that open the database ----------------------------------------------------------------------------------------
 def _brief(conn, rest: list[str]) -> int:
     print(json.dumps(briefing_for(conn, clock.today()), indent=2, default=str))
@@ -83,10 +77,10 @@ def _import_statements(conn, rest: list[str]) -> int:  # takes what the Document
         print("Documents:", library_client.update(lambda m: print(" ", m, flush=True)) or "read")
         print(library_client.pull(conn))
 
-    client: agent.llm.OllamaClient | None = None
+    client: llm.OllamaClient | None = None
     model: str | None = None
     try:
-        client = agent.llm.OllamaClient()
+        client = llm.OllamaClient()
         model = _model(conn, client)
     except RuntimeError as exc:
         print(f"The local model is not available ({exc}). Statements are read by the local model, so nothing was imported.")
@@ -106,7 +100,7 @@ def _statement_report(conn, rest: list[str]) -> int:  # what Finance made of eac
 def _categorise(conn, rest: list[str]) -> int:  # the local model places merchants the rules could not
     from . import categorize
 
-    client = agent.llm.OllamaClient()
+    client = llm.OllamaClient()
     print("updated", categorize.recategorise_with_model(conn, client, _model(conn, client)), "transactions")
     return 0
 
@@ -118,27 +112,12 @@ def _import_notes(conn, rest: list[str]) -> int:
 
 def _tag(conn, rest: list[str]) -> int:
     try:
-        client = agent.llm.OllamaClient()
+        client = llm.OllamaClient()
         n = tagging.autotag_notes(conn, client, _model(conn, client))
     except RuntimeError:
         n = tagging.autotag_notes(conn)  # model unavailable: rules only
     print(f"tagged {n} note(s)")
     return 0
-
-
-def _chat(conn, rest: list[str]) -> int:
-    history: list[dict] = []
-    client = agent.llm.OllamaClient()
-    print("Finance - Ctrl-D to quit")
-    while True:
-        try:
-            text = input("you> ").strip()
-        except EOFError:
-            return 0
-        if text:
-            trace: list = []
-            print("orbit>", agent.chat(conn, history, text, client=client, trace=trace))
-            print(f"        [{trace[0]['agent']} agent]")
 
 
 def _explain_month(conn, rest: list[str]) -> int:  # shows amounts on YOUR screen only; nothing is sent anywhere
@@ -159,7 +138,7 @@ def _explain_month(conn, rest: list[str]) -> int:  # shows amounts on YOUR scree
     return 0
 
 
-NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "tools": _list_tools, "agents": _list_agents}
+NO_DATABASE = {"ui": _ui, "export-notes": _export_notes, "tools": _list_tools}
 WITH_DATABASE = {
     "brief": _brief,
     "import-statements": _import_statements,
@@ -167,7 +146,6 @@ WITH_DATABASE = {
     "categorise": _categorise,
     "import-notes": _import_notes,
     "tag": _tag,
-    "chat": _chat,
     "explain-month": _explain_month,
 }
 

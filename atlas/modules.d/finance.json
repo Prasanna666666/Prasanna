@@ -78,5 +78,6 @@
   "headers": {
     "X-Orbit": "1"
   },
-  "ask": "/api/ask"
+  "tools": "/api/tools",
+  "tool": "/api/tool"
 }

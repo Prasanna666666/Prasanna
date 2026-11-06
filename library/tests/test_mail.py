@@ -6,7 +6,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from library import ask, parser, readers, store
+from library import parser, readers, store, tools
 
 
 def message(subject, body, attach=None, to="me@example.com"):
@@ -23,6 +23,14 @@ def message(subject, body, attach=None, to="me@example.com"):
         kind = ("image", "png") if name.endswith(".png") else ("text", "plain")
         m.add_attachment(data, maintype=kind[0], subtype=kind[1], filename=name)
     return m
+
+
+def find(conn, question, alternatives=()):
+    """What the assistant's search_files tool shows for a question."""
+    from types import SimpleNamespace
+
+    state = SimpleNamespace(picture_text=lambda: None)
+    return tools.search_files(state, conn, {"question": question, "alternatives": list(alternatives), "show": True})[1]
 
 
 def write_mbox(path, messages):
@@ -120,7 +128,7 @@ def test_a_ticket_that_arrived_by_email_can_be_found_and_shown_when_asked_for(tm
     )
     parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     store.ingest_dir(conn, tmp_path / "out")
-    items = ask.find_items(conn, ["show me the flight tickets"], None)
+    items = find(conn, "show me the flight tickets")
     titles = [i["title"] for i in items]
     assert any(t.endswith("ticket.txt") for t in titles) and not any("Nieuwsbrief" in t for t in titles)  # the ticket is found, the newsletter is not
     assert all(i["kind"] == "document" and i["link"].startswith("#/doc/") for i in items)
@@ -137,7 +145,7 @@ def test_information_that_is_only_in_the_text_of_an_email_is_found_too(tmp_path,
     )
     parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     store.ingest_dir(conn, tmp_path / "out")
-    assert ask.find_items(conn, ["show me the email about my flight"], None) == []  # an English question, a Dutch email: the words alone do not meet
-    flight = ask.find_items(conn, ["show me the email about my flight"], ["vlucht", "reservering"])  # the model supplies the Dutch phrasings
+    assert find(conn, "show me the email about my flight") == []  # an English question, a Dutch email: the words alone do not meet
+    flight = find(conn, "show me the email about my flight", ["vlucht", "reservering"])  # the model supplies the Dutch phrasings
     assert [i["title"] for i in flight] == ["all.mbox/00001 Uw reservering.eml"]
     assert "gate D7" in flight[0]["text"]  # no attachment at all: the text itself is the document

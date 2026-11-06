@@ -1632,50 +1632,6 @@ a.stat:hover {
     min-width: 0;
 }
 
-/* ---------- chat: a corner button and panel on every page, and the same conversation on its own page ---------- */
-.fab {
-    position: fixed;
-    right: 26px;
-    bottom: 26px;
-    z-index: 55;
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    height: 60px;
-    padding: 0 22px 0 18px;
-    border: 0;
-    border-radius: 999px;
-    background: var(--grad);
-    color: #fff;
-    font-weight: 700;
-    font-size: 15px;
-    box-shadow:
-        0 18px 40px -12px rgba(140, 90, 255, 0.95),
-        0 0 0 0 rgba(140, 90, 255, 0.5);
-    animation: ring 3.2s ease-out 1.2s 2;
-    transition:
-        transform 0.18s,
-        filter 0.18s;
-}
-.fab:hover {
-    transform: translateY(-3px) scale(1.03);
-    filter: brightness(1.08);
-}
-.fab svg {
-    width: 24px;
-    height: 24px;
-    fill: none;
-    stroke: #fff;
-    stroke-width: 1.9;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.fab span {
-    display: contents;
-}
-.fab > span:last-child {
-    display: inline;
-}
 @keyframes ring {
     0% {
         box-shadow:
@@ -1689,76 +1645,11 @@ a.stat:hover {
             0 0 0 22px rgba(140, 90, 255, 0);
     }
 }
-body[data-page='chat'] .fab,
-body.chat-open .fab {
-    display: none;
-}
-.chat-panel {
-    position: fixed;
-    right: 26px;
-    bottom: 26px;
-    z-index: 56;
-    width: min(430px, calc(100vw - 32px));
-    height: min(700px, calc(100vh - 52px));
-    display: flex;
-    flex-direction: column;
-    border-radius: 26px;
-    overflow: hidden;
-    background: var(--glass);
-    backdrop-filter: blur(30px) saturate(1.5);
-    border: 1px solid var(--line-strong);
-    box-shadow: var(--shadow-lg);
-    transform-origin: bottom right;
-    animation: pop 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-.chat-panel[hidden] {
-    display: none;
-}
 @keyframes pop {
     from {
         opacity: 0;
         transform: translateY(14px) scale(0.96);
     }
-}
-.chat-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 14px 14px 18px;
-    border-bottom: 1px solid var(--line);
-    background: linear-gradient(180deg, var(--accent-soft), transparent);
-}
-.chat-head .orb {
-    width: 34px;
-    height: 34px;
-}
-.chat-head b {
-    font-size: 16px;
-}
-.chatbox {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    flex: 1;
-}
-.chat {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 210px);
-    min-height: 480px;
-}
-.msgs {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 18px 12px;
-    scroll-behavior: smooth;
-    min-height: 0;
-}
-.chat .msgs {
-    padding: 4px 4px 20px;
 }
 .msg {
     display: flex;
@@ -1778,50 +1669,6 @@ body.chat-open .fab {
 .orb.tiny::after {
     border-width: 2px;
 }
-.bubble {
-    max-width: min(640px, 84%);
-    padding: 12px 16px;
-    border-radius: 20px;
-    line-height: 1.55;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-}
-.bubble.user {
-    background: var(--grad);
-    color: #fff;
-    border-bottom-right-radius: 6px;
-    box-shadow: 0 14px 28px -16px rgba(140, 90, 255, 1);
-}
-.bubble.bot {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-bottom-left-radius: 6px;
-    box-shadow: var(--edge), var(--shadow);
-}
-.bubble .tags {
-    display: flex;
-    gap: 6px;
-    margin-top: 10px;
-    flex-wrap: wrap;
-}
-.typing {
-    display: inline-flex;
-    gap: 5px;
-    padding: 4px 0;
-}
-.typing i {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--faint);
-    animation: bob 1.2s infinite;
-}
-.typing i:nth-child(2) {
-    animation-delay: 0.15s;
-}
-.typing i:nth-child(3) {
-    animation-delay: 0.3s;
-}
 @keyframes bob {
     0%,
     60%,
@@ -1833,76 +1680,6 @@ body.chat-open .fab {
         transform: translateY(-5px);
         opacity: 1;
     }
-}
-.composer {
-    display: flex;
-    gap: 10px;
-    align-items: flex-end;
-    padding: 10px;
-    margin: 0 14px 14px;
-    background: var(--card);
-    border: 1px solid var(--line-strong);
-    border-radius: 22px;
-    box-shadow: var(--edge), var(--shadow);
-}
-.chat .composer {
-    margin: 0;
-    box-shadow: var(--edge), var(--shadow-lg);
-}
-.composer textarea {
-    flex: 1;
-    border: 0;
-    background: transparent;
-    resize: none;
-    outline: none;
-    padding: 9px 10px;
-    max-height: 130px;
-    min-height: 24px;
-}
-.send {
-    width: 42px;
-    height: 42px;
-    border-radius: 14px;
-    border: 0;
-    background: var(--grad);
-    color: #fff;
-    display: grid;
-    place-items: center;
-    flex: none;
-    box-shadow: 0 12px 22px -12px rgba(140, 90, 255, 1);
-}
-.send svg {
-    width: 20px;
-    height: 20px;
-    fill: none;
-    stroke: #fff;
-    stroke-width: 2.3;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.send[disabled] {
-    opacity: 0.5;
-}
-.suggest {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    margin: 20px 0 4px;
-}
-.suggest button {
-    border: 1px solid var(--line-strong);
-    background: var(--surface);
-    padding: 10px 16px;
-    border-radius: 15px;
-    color: var(--muted);
-    font-weight: 580;
-    text-align: left;
-}
-.suggest button:hover {
-    color: var(--ink);
-    border-color: var(--accent);
-    background: var(--accent-soft);
 }
 .welcome {
     margin: auto;
@@ -2032,23 +1809,6 @@ body.chat-open .fab {
     .short {
         padding: 14px;
     }
-    .fab {
-        right: 16px;
-        bottom: 82px;
-        height: 54px;
-        padding: 0 18px 0 14px;
-    }
-    .chat-panel {
-        inset: 0 0 64px 0;
-        width: 100%;
-        height: auto;
-        border-radius: 0;
-        border: 0;
-        background: var(--bg);
-    }
-    body.chat-open .side {
-        z-index: 40;
-    }
     .hero {
         padding: 24px;
     }
@@ -2063,9 +1823,6 @@ body.chat-open .fab {
     }
     h1 {
         font-size: 31px;
-    }
-    .chat {
-        height: calc(100vh - 290px);
     }
     .pickbar {
         flex-wrap: wrap;
@@ -2082,10 +1839,9 @@ body.chat-open .fab {
     }
 }
 
-/* shown inside Atlas: the shared page provides the menu, the search and the chat button */
+/* shown inside Atlas: the shared page provides the menu, and the search */
 .embedded .side,
-.embedded .top,
-.embedded .fab {
+.embedded .top {
     display: none;
 }
 .embedded .shell {

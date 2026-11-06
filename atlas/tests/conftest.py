@@ -55,7 +55,7 @@ def running(tmp_path: Path) -> Iterator[Running]:
     photos, money = FakeApp(token="secret"), FakeApp()
     money.require_header = "X-Fake"
     (tmp_path / "money.json").write_text(
-        json.dumps(manifest("money", money.url, health="/api/health", scan="/api/scan", ask="/api/ask", trips="/api/trips", headers={"X-Fake": "1"}))
+        json.dumps(manifest("money", money.url, health="/api/health", scan="/api/scan", tools="/api/tools", tool="/api/tool", headers={"X-Fake": "1"}))
     )
     (tmp_path / "photos.json").write_text(
         json.dumps(
@@ -64,7 +64,8 @@ def running(tmp_path: Path) -> Iterator[Running]:
                 photos.url,
                 search="/api/search",
                 scan="/api/scan",
-                ask="/api/ask",
+                tools="/api/tools",
+                tool="/api/tool",
                 media="/api/photo/",
                 auth={"meta": "app-token", "header": "X-App-Token"},
             )

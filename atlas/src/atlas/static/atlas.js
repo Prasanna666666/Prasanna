@@ -546,7 +546,7 @@
         const wrap = el('div', 'achat-welcome');
         wrap.append(
             el('h2', '', 'Ask me anything'),
-            el('p', '', 'Money, photos, documents. I work out which part to ask and show you who answered.')
+            el('p', '', 'Ask about your money, files, mail and pictures, together or one at a time.')
         );
         IDEAS.forEach((idea) => {
             const chip = el('button', 'achat-idea', idea);

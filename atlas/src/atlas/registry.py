@@ -47,8 +47,8 @@ class Module:
     health: str = "/api/health"
     search: str = ""
     scan: str = ""  # optional: a path that reads everything new (GET = status, POST = start)
-    trips: str = ""  # optional: a path that lists the journeys found in the person's documents (GET ?place=&year=)
-    ask: str = ""  # optional: a path that answers one question for the single chat (POST {text, conv, history})
+    tools: str = ""  # optional: where the part lists its tools for the one assistant (GET -> {tools: [{name, description, parameters}]})
+    tool: str = ""  # optional: where the assistant runs one of them (POST {name, args, user_text} -> {ok, data, error, items})
     media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
     auth: Auth | None = None
@@ -78,7 +78,7 @@ class Module:
             "home": self.home,
             "searchable": bool(self.search),
             "scannable": bool(self.scan),
-            "askable": bool(self.ask),
+            "askable": bool(self.tool),
             "pages": [{"id": p.id, "label": p.label, "icon": p.icon} for p in self.pages],
         }
 
@@ -127,8 +127,8 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         health=str(raw.get("health", "/api/health")),
         search=str(raw.get("search", "")),
         scan=str(raw.get("scan", "")),
-        ask=str(raw.get("ask", "")),
-        trips=str(raw.get("trips", "")),
+        tools=str(raw.get("tools", "")),
+        tool=str(raw.get("tool", "")),
         media=str(raw.get("media", "")),
         headers=tuple((str(k), str(v)) for k, v in (raw.get("headers") or {}).items()),
         home=str(raw.get("home", "")),

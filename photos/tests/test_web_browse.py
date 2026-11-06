@@ -203,25 +203,32 @@ def test_one_update_button_can_start_and_follow_the_indexing(tmp_path, monkeypat
     server.shutdown()
 
 
-def test_the_one_chat_can_ask_photos_a_question_and_gets_text_and_pictures_back(tmp_path):
-    ctx, agent, _ids = make_ctx(tmp_path)
+def test_the_one_assistant_lists_and_runs_the_photo_search_tool(tmp_path):
+    ctx, _agent, _ids = make_ctx(tmp_path)
     web, server = start_server(ctx)
     port = server.server_address[1]
 
-    def ask(body):
+    def call(method, path, body=None):
         req = urllib.request.Request(
-            f"http://127.0.0.1:{port}/api/ask",
-            data=json.dumps(body).encode(),
-            method="POST",
+            f"http://127.0.0.1:{port}{path}",
+            data=json.dumps(body).encode() if body is not None else None,
+            method=method,
             headers={"X-Lumo-Token": web.token, "Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req) as r:
             return json.loads(r.read())
 
-    found = ask({"text": "photos from the beach", "conv": "atlas", "history": [["user", "hi"], ["assistant", "hello"]]})
-    assert found["text"].startswith("I found **41 photos**") and found["total"] == 41 and len(found["items"]) == 24
-    assert found["items"][0]["thumb"].startswith("/api/photo/") and found["items"][0]["kind"] == "photo" and found["notes"]
-    assert agent.asked[-1][2] == [("user", "hi"), ("assistant", "hello")]  # the conversation so far reached the agent
-    said = ask({"text": "what is a RAW file?"})
-    assert said["text"] == "Sure, happy to help. RAW keeps all the sensor data." and said["items"] == [] and said["total"] == 0
+    [tool] = call("GET", "/api/tools")["tools"]
+    assert tool["name"] == "find_photos" and tool["parameters"]["required"] == ["request"]
+    found = call("POST", "/api/tool", {"name": "find_photos", "args": {"request": "photos from the beach", "show": True}})
+    assert found["ok"] and found["data"]["count"] == 41 and found["data"]["answer"].startswith("I found **41 photos**")
+    assert (
+        len(found["items"]) == 24
+        and found["items"][0]["kind"] == "photo"
+        and found["items"][0]["thumb"].startswith("/api/photo/")
+    )
+    quiet = call("POST", "/api/tool", {"name": "find_photos", "args": {"request": "photos from the beach"}})
+    assert quiet["ok"] and quiet["items"] == [] and quiet["data"]["count"] == 41  # shown only when asked for
+    assert call("POST", "/api/tool", {"name": "find_photos", "args": {}})["ok"] is False
+    assert call("POST", "/api/tool", {"name": "other", "args": {"request": "x"}})["ok"] is False
     server.shutdown()

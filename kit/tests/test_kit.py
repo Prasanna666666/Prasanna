@@ -73,3 +73,20 @@ def test_without_a_secret_nothing_is_signed_or_checked(monkeypatch):
 
     monkeypatch.delenv("PLATFORM_KEY", raising=False)
     assert sign.sign("GET", "/x") == {} and sign.valid("GET", "/x", None) is True
+
+
+def test_long_text_is_cut_into_overlapping_passages_and_short_text_is_kept_whole():
+    assert rag.chunks("") == []
+    assert rag.chunks("short text") == ["short text"]
+    parts = rag.chunks("word " * 600)
+    assert len(parts) > 3 and all(len(p) <= rag.CHUNK for p in parts)
+    assert parts[0][-rag.OVERLAP :].strip() in parts[1]  # neighbouring passages share text, so an answer split across a boundary is still found
+
+
+def test_unproven_figures_ignore_dates_and_small_counts():
+    from kit.audit import unproven_figures
+
+    tool = ['{"spent": 850.0, "month": "2026-10", "by_category": [{"category": "rent", "spent": 800.0}]}']
+    assert unproven_figures("You spent 850.00 on 2026-10-05, 3 payments, rent 800", tool) == []
+    assert unproven_figures("You spent 851.00", tool) == [851.0]
+    assert unproven_figures("No tool was used and 9,999 appears", []) == []

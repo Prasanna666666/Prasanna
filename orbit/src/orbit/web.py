@@ -13,10 +13,10 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import threading
 import time
 import urllib.parse
-from datetime import date
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -25,7 +25,7 @@ from typing import Any, ClassVar
 from kit import llm, log, netguard
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import agent, applenotes, browse, clock, db, insight, library_client, report, tagging
+from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
 from .modules import ALL, money
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -38,7 +38,6 @@ ALLOWED_HOSTS = {
     "orbit.localhost",
     "finance.localhost",
 }  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
-HISTORY_LIMIT = 24
 
 
 class State:
@@ -50,8 +49,6 @@ class State:
             hashlib.sha256(b"orbit-session|" + self.token.encode()).hexdigest() if self.token else ""
         )  # what the cookie holds, so the password itself is never stored in the browser
         self.refused: list[float] = []  # when recent requests were refused, to slow down guessing
-        self.history: list[dict] = []
-        self.chat_lock = threading.Lock()
         self.importing: dict[str, Any] = {"running": False, "progress": "", "result": None, "error": ""}
         self.import_lock = threading.Lock()
 
@@ -161,8 +158,15 @@ def _get_settings(state: State, conn, query: dict[str, str]) -> dict:
     }
 
 
-def _get_history(state: State, conn, query: dict[str, str]) -> dict:
-    return {"ok": True, "history": [h for h in state.history if h["role"] in ("user", "assistant") and h.get("content")]}
+def _get_tools(state: State, conn, query: dict[str, str]) -> dict:
+    """What Finance can do, for the one assistant: every tool except the ones no AI may run."""
+    return {
+        "tools": [
+            {"name": t.name, "description": t.description, "parameters": t.schema()["function"]["parameters"]}
+            for t in registry(ALL).values()
+            if t.name not in toolrun.NEVER_BY_AI
+        ]
+    }
 
 
 def _get_search(state: State, conn, query: dict[str, str]) -> dict:
@@ -192,104 +196,36 @@ GET_ROUTES = {
     "/api/search": _get_search,
     "/api/home": _get_home,
     "/api/status": _get_status,
+    "/api/tools": _get_tools,
     "/api/settings": _get_settings,
     "/api/import": lambda state, conn, query: {"ok": True, **state.importing},
-    "/api/history": _get_history,
 }
 
 
+DELETE_WORDS = re.compile(r"\b(delete|remove|erase|clear|get rid)\b")
+
+
 def _post_tool(state: State, conn, body: dict) -> dict:
+    """Run one tool for the one assistant. A delete runs only if the person's own words asked for it (text inside a document can never make it happen),
+    and a report is checked against the raw ledger first: if it does not tie, it is not given."""
     name = str(body.get("name", ""))
-    if name not in registry(ALL):
+    if name not in registry(ALL) or name in toolrun.NEVER_BY_AI:
         raise Fail(400, f"unknown tool {name!r}")
-    out, error = agent.run_tool(conn, name, body.get("args") or {})
+    if name.startswith("delete_") and not DELETE_WORDS.search(str(body.get("user_text", "")).lower()):
+        return {"ok": False, "data": None, "error": "refused: deleting needs you to ask for it in your own words"}
+    args = body.get("args") or {}
+    out, error = toolrun.run_tool(conn, name, args)
     data = json.loads(out)
-    return {"ok": not error, "data": None if error else data, "error": data.get("error") if error else ""}
-
-
-def _post_chat(state: State, conn, body: dict) -> dict:
-    text = str(body.get("text", "")).strip()[:4000]
-    if not text:
-        raise Fail(400, "empty message")
-    if not state.chat_lock.acquire(blocking=False):
-        raise Fail(429, "The assistant is still answering the last message.")
-    try:
-        trace: list = []
-        reply = agent.chat(conn, state.history, text, trace=trace)
-        del state.history[:-HISTORY_LIMIT]
-        return {"ok": True, "reply": reply, "agent": trace[0]["agent"] if trace else "general", "tools": trace[0]["tools"] if trace else []}
-    except Exception as exc:
-        log.failed("chat failed", exc)
-        raise Fail(502, str(exc)) from exc
-    finally:
-        state.chat_lock.release()
-
-
-def _document_items(conn, text: str, history: list, search: list[str] | None = None) -> list[dict]:
-    """The documents behind a question, only when the user asked to see them: the best matching files with a line of what they say.
-    "Show me those documents" has no topic of its own, so the question before it is used."""
-    from . import rag
-
-    questions = [text, *[t for role, t in reversed(history) if role == "user" and isinstance(t, str)][:2]]
-    hits: list[dict] = []
-    for question in questions:
-        hits = [h for h in rag.retrieve(conn, question, 12, search) if h["source"] in ("document", "file")]
-        if hits:
-            break
-    seen: set[str] = set()
-    items = []
-    for h in hits:
-        if h["title"] in seen:
-            continue
-        seen.add(h["title"])
-        items.append(
-            {
-                "kind": "document",
-                "title": h["title"],
-                "subtitle": "from your files",
-                "text": h["text"].replace("[", "").replace("]", "")[:300],
-                "link": "#/documents",
-            }
-        )
-    return items[:8]
-
-
-def _window(raw: Any) -> dict[str, str] | None:
-    """The trip window Atlas resolved for a question ({place, start, end}), or None; the dates must be real dates."""
-    if not isinstance(raw, dict):
-        return None
-    try:
-        start, end = date.fromisoformat(str(raw.get("start"))), date.fromisoformat(str(raw.get("end")))
-    except ValueError:
-        return None
-    return {"place": str(raw.get("place", ""))[:80], "start": start.isoformat(), "end": max(start, end).isoformat()}
-
-
-def _post_ask(state: State, conn, body: dict) -> dict:
-    """The contract's one-shot question, for Atlas's single chat: the same answer as the chat, in the shape every module returns it.
-    Documents come back only when the user asked to see them (`show.documents`); finding files is a lookup over the described documents."""
-    raw_show = body.get("show")
-    show: dict = raw_show if isinstance(raw_show, dict) else {}
-    if show.get("documents"):
-        history = [h for h in (body.get("history") or []) if isinstance(h, list) and len(h) == 2]
-        search = [str(x) for x in (body.get("search") or []) if isinstance(x, str)][:4]
-        items = _document_items(conn, str(body.get("text", "")), history, search)
-        if items:
-            n = len(items)
-            return {"ok": True, "text": f"I found {n} file{'s' if n != 1 else ''} about that.", "items": items, "agent": "files"}
-    window = _window(body.get("window"))
-    if window:  # the trip Atlas resolved: the question is about exactly these days
-        body = {
-            **body,
-            "text": f"{body.get('text', '')}\n\n(This is about the trip to {window['place']}, from {window['start']} to {window['end']}. Use only that period.)",
+    if error:
+        return {"ok": False, "data": None, "error": data.get("error")}
+    problems, notes = answers.check_tool(conn, name, args if isinstance(args, dict) else {}, out)
+    if problems:
+        return {
+            "ok": False,
+            "data": None,
+            "error": "I can't give you that figure with confidence: " + problems[0] + ". Open Money > Files to see what needs a check.",
         }
-    out = _post_chat(state, conn, body)
-    return {"ok": True, "text": out["reply"], "items": [], "agent": out["agent"]}
-
-
-def _post_chat_reset(state: State, conn, body: dict) -> dict:
-    state.history.clear()
-    return {"ok": True}
+    return {"ok": True, "data": data, "error": "", "notes": notes}
 
 
 def _post_settings(state: State, conn, body: dict) -> dict:
@@ -298,7 +234,7 @@ def _post_settings(state: State, conn, body: dict) -> dict:
             llm.OllamaClient(body["ollama_host"].strip())  # refuses anything that is not this computer or its private network
         except ValueError as exc:
             raise Fail(400, str(exc)) from exc
-    for key in ("currency", "view_currency", "model", "ollama_host", "reply_seconds"):
+    for key in ("currency", "view_currency", "model", "ollama_host"):
         if isinstance(body.get(key), str):
             db.set_setting(conn, key, body[key].upper()[:5] if key in ("currency", "view_currency") else body[key].strip()[:200])
     db.ledger_view(conn)
@@ -320,11 +256,8 @@ def _post_notes_import(state: State, conn, body: dict) -> dict:
 
 
 POST_ROUTES = {
-    "/api/ask": _post_ask,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_import(state)},
     "/api/tool": _post_tool,
-    "/api/chat": _post_chat,
-    "/api/chat/reset": _post_chat_reset,
     "/api/import": lambda state, conn, body: {"ok": True, "started": start_import(state)},
     "/api/settings": _post_settings,
     "/api/notes/tag": _post_notes_tag,

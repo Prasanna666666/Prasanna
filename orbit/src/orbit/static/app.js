@@ -141,7 +141,6 @@
         ['networth', 'Net worth'],
         ['plan', 'Plan'],
         ['documents', 'Documents'],
-        ['chat', 'Ask'],
         ['tasks', 'Tasks'],
         ['notes', 'Notes'],
         ['people', 'People'],
@@ -150,7 +149,7 @@
     ];
     const MENU = [
         ['home', 'income', 'expenses', 'savings', 'investments', 'networth', 'plan', 'documents'],
-        ['chat', 'tasks', 'notes', 'people'],
+        ['tasks', 'notes', 'people'],
         ['settings'],
     ]; // 'files' is reached from Documents
     const ALIAS = { money: 'expenses', spending: 'expenses', wealth: 'networth', tax: 'plan' }; // old addresses still work
@@ -216,7 +215,6 @@
         const wanted = ALIAS[route()] || route(),
             id = PAGES.some(([p]) => p === wanted) ? wanted : 'home';
         document.body.dataset.page = id;
-        if (id === 'chat' && corner.open) setCorner(false);
         document.querySelectorAll('.nav-item').forEach((a) => a.classList.toggle('active', a.dataset.id === id));
         const main = $('#main');
         main.replaceChildren(h('div', { class: 'empty' }, 'Loading...'));
@@ -701,7 +699,7 @@
                 location.hash = '#/documents';
             },
         ],
-        ['Ask Finance', 'chat', () => setCorner(true)],
+        ['Ask', 'chat', () => toParent({ type: 'toggle-chat' })],
         [
             'Tasks',
             'tasks',
@@ -1498,267 +1496,10 @@
         );
     };
 
-    // ------------------------------------------------------------------ the chat: one conversation, in a corner panel and on its own page
-    const IDEAS = {
-        home: ['How much did I spend last month?', 'What is my savings rate this year?', "What's my net worth?"],
-        income: ['How much did I earn this year?', 'Did I get a bonus this year?', 'What was my salary last month?'],
-        expenses: [
-            'How much did I spend last month?',
-            'What are my regular payments?',
-            'What was my biggest payment this year?',
-        ],
-        savings: [
-            "What's my savings rate this year?",
-            'Which month did I save the most?',
-            'Am I saving more than last year?',
-        ],
-        investments: [
-            'How much did I invest this year?',
-            'What is my investment gain or loss?',
-            'What interest did I earn?',
-        ],
-        networth: ["What's my net worth?", 'How much cash do I have?', 'What do I owe?'],
-        plan: ['Am I on track for my goals?', 'What bills are coming up?', 'Show my budgets'],
-        documents: [
-            'Which invoices are still unpaid?',
-            'What does my insurance cost per year?',
-            'Find my latest tax letter',
-        ],
-        tasks: ["What's on today?", 'What is overdue?'],
-        notes: ['What did I write about my trip?'],
-        people: ['Whose birthday is next?'],
-        settings: ['What can you do?'],
-    };
-    /** The conversation itself: bubbles with an avatar, a typing indicator, suggested questions and a message box. Both copies talk to the same server-side chat. */
-    function buildChat(compact) {
-        const msgs = h('div', { class: 'msgs' });
-        const input = h('textarea', {
-            rows: 1,
-            placeholder: 'Ask anything about your money…',
-            'aria-label': 'Message',
-        });
-        const sendBtn = h(
-            'button',
-            { class: 'send', 'aria-label': 'Send', type: 'button' },
-            h('span', {
-                html: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
-                style: { display: 'contents' },
-            })
-        );
-        let busy = false;
-        const scroll = () => {
-            msgs.scrollTop = msgs.scrollHeight;
-        };
-        const avatar = () => h('span', { class: 'orb tiny', 'aria-hidden': 'true' });
-        const say = (role, text, tags) => {
-            const bubble = h(
-                'div',
-                { class: 'bubble ' + role },
-                text,
-                tags && tags.length
-                    ? h(
-                          'div',
-                          { class: 'tags' },
-                          tags.map((t) => h('span', { class: 'chip' }, t))
-                      )
-                    : null
-            );
-            const row = h('div', { class: 'msg ' + role }, role === 'bot' ? avatar() : null, bubble);
-            msgs.append(row);
-            scroll();
-            return row;
-        };
-        const welcome = () =>
-            h(
-                'div',
-                { class: 'welcome' },
-                h('div', { class: 'orb' }),
-                h('h2', {}, 'Hi, I’m your finance assistant'),
-                h('div', { class: 'muted' }, 'Ask about your money, files, tasks or notes. Private, on this Mac.'),
-                h(
-                    'div',
-                    { class: 'suggest' },
-                    (IDEAS[document.body.dataset.page] || IDEAS.home).map((q) =>
-                        h('button', { type: 'button', onclick: () => send(q) }, q)
-                    )
-                )
-            );
-        async function load() {
-            const { history } = await api('/api/history');
-            msgs.replaceChildren();
-            if (!history.length) msgs.append(welcome());
-            else history.forEach((m) => say(m.role === 'user' ? 'user' : 'bot', m.content));
-        }
-        async function send(text) {
-            text = (text || input.value).trim();
-            if (!text || busy) return;
-            busy = true;
-            sendBtn.disabled = true;
-            input.value = '';
-            input.style.height = '';
-            msgs.querySelector('.welcome')?.remove();
-            say('user', text);
-            const note = h('div', { class: 'faint small' }),
-                typing = h(
-                    'div',
-                    { class: 'msg bot' },
-                    avatar(),
-                    h('div', { class: 'bubble bot' }, h('div', { class: 'typing' }, h('i'), h('i'), h('i')), note)
-                );
-            msgs.append(typing);
-            scroll();
-            const slow = setTimeout(() => {
-                note.textContent = 'Checking your numbers…';
-                scroll();
-            }, 3500);
-            try {
-                const r = await api('/api/chat', { text });
-                typing.remove();
-                say(
-                    'bot',
-                    r.reply || '(no answer)',
-                    [...(r.tools || [])]
-                        .filter((t) => t !== 'checked')
-                        .slice(0, 3)
-                        .concat(r.tools && r.tools.includes('checked') ? ['✓ checked'] : [])
-                );
-            } catch (e) {
-                typing.remove();
-                say('bot', e.message);
-            }
-            clearTimeout(slow);
-            busy = false;
-            sendBtn.disabled = false;
-            input.focus();
-        }
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
-                e.preventDefault();
-                send();
-            }
-        });
-        input.addEventListener('input', () => {
-            input.style.height = 'auto';
-            input.style.height = Math.min(input.scrollHeight, 130) + 'px';
-        });
-        sendBtn.addEventListener('click', () => send());
-        const root = h(
-            'div',
-            { class: 'chatbox' + (compact ? ' compact' : '') },
-            msgs,
-            h('div', { class: 'composer' }, input, sendBtn)
-        );
-        return { root, send, load, focus: () => input.focus() };
-    }
-    const corner = { chat: null, open: false };
-    async function resetChat() {
-        await api('/api/chat/reset', {});
-        if (corner.chat) await corner.chat.load();
-        if (route() === 'chat') render();
-    }
-    /** The round button in the corner of every page, and the panel it opens. */
-    function mountCornerChat() {
-        corner.chat = buildChat(true);
-        const close = () => setCorner(false);
-        const panel = h(
-            'section',
-            { class: 'chat-panel', id: 'chat-panel', hidden: true, role: 'dialog', 'aria-label': 'Ask Finance' },
-            h(
-                'header',
-                { class: 'chat-head' },
-                h('span', { class: 'orb' }),
-                h(
-                    'div',
-                    { class: 'grow' },
-                    h('b', {}, 'Finance'),
-                    h('div', { class: 'faint small' }, 'Private · on this Mac')
-                ),
-                h('button', { class: 'btn ghost small', title: 'Start a new chat', onclick: guard(resetChat) }, 'New'),
-                h(
-                    'button',
-                    {
-                        class: 'btn ghost small',
-                        title: 'Open on its own page',
-                        onclick: () => {
-                            close();
-                            location.hash = '#/chat';
-                        },
-                    },
-                    'Expand'
-                ),
-                h('button', { class: 'btn ghost small', 'aria-label': 'Close', onclick: close }, '✕')
-            ),
-            corner.chat.root
-        );
-        const fab = h(
-            'button',
-            {
-                class: 'fab',
-                id: 'chat-fab',
-                type: 'button',
-                'aria-label': 'Ask Finance',
-                title: 'Ask Finance  (Ctrl/⌘ J)',
-                onclick: () => setCorner(!corner.open),
-            },
-            icon('chat'),
-            h('span', {}, 'Ask Finance')
-        );
-        document.body.append(panel, fab);
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && corner.open && !$('.overlay')) setCorner(false);
-            else if ((e.key === 'j' || e.key === 'J') && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                setCorner(!corner.open);
-            }
-        });
-    }
-    async function setCorner(on, text) {
-        if (EMBEDDED) {
-            // inside Atlas there is one chat for everything: hand the question or the request to it
-            if (text) toParent({ type: 'ask', text });
-            else if (on) toParent({ type: 'toggle-chat' });
-            return;
-        }
-        const panel = $('#chat-panel');
-        if (!panel) return;
-        if (on && route() === 'chat') {
-            if (text) sessionStorage.setItem('orbit.ask', text);
-            return;
-        } // the full page is already a chat
-        corner.open = on;
-        panel.hidden = !on;
-        document.body.classList.toggle('chat-open', on);
-        if (on) {
-            await guard(corner.chat.load)();
-            corner.chat.focus();
-            if (text) corner.chat.send(text);
-        }
-    }
-    /** Open the chat (from anywhere) and ask this. */
+    /** Hand a question to the one chat that Atlas shows for everything. */
     function askAssistant(text) {
-        if (EMBEDDED) {
-            toParent({ type: 'ask', text });
-            return;
-        }
-        if (route() === 'chat') {
-            sessionStorage.setItem('orbit.ask', text);
-            render();
-        } else setCorner(true, text);
+        toParent({ type: 'ask', text });
     }
-
-    pages.chat = async () => {
-        const chat = buildChat(false);
-        await chat.load();
-        const pending = sessionStorage.getItem('orbit.ask');
-        sessionStorage.removeItem('orbit.ask');
-        if (pending) setTimeout(() => chat.send(pending), 50);
-        return h(
-            'div',
-            {},
-            head('Ask Finance', null, h('button', { class: 'btn ghost', onclick: guard(resetChat) }, 'New chat')),
-            h('div', { class: 'chat' }, chat.root)
-        );
-    };
 
     async function moneyPage(title, allowed, startTab) {
         const [trend0, settings] = await Promise.all([tool('monthly_trend', { months: 12 }), api('/api/settings')]);
@@ -2244,9 +1985,7 @@
                       h(
                           'div',
                           { class: 'muted', style: { textAlign: 'center', fontSize: '14px' } },
-                          'Not right? Tell the assistant in ',
-                          h('a', { href: '#/chat' }, 'chat'),
-                          '.'
+                          'Not right? Tell the assistant.'
                       ),
                   ]
                 : [
@@ -3956,7 +3695,6 @@
     setInterval(refreshStatus, 20000);
     setupTheme();
     $('#search-btn').addEventListener('click', openPalette);
-    mountCornerChat();
     api('/api/settings')
         .then((s) => {
             cur = s.currency;

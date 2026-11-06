@@ -92,8 +92,10 @@ def test_the_service_serves_the_pictures_api_and_update_waits_for_the_indexer(dr
         assert pic["name"] == "receipt.jpg" and call(port, "GET", "/api/pictures/status")[1]["pictures"] == 2
         status_code, body, headers = call(port, "GET", pic["thumb"])
         assert status_code == 200 and headers["Content-Type"] == "image/jpeg" and body[:2] == b"\xff\xd8"
-        asked = post(port, "/api/ask", {"text": "show me the kassabon photos", "show": {"photos": True}})[1]
-        assert asked["items"] and asked["items"][0]["kind"] == "photo" and asked["items"][0]["thumb"] == pic["thumb"]
+        asked = post(port, "/api/tool", {"name": "find_pictures", "args": {"query": "kassabon", "show": True}})[1]
+        assert asked["data"]["count"] == 1 and asked["items"][0]["kind"] == "photo" and asked["items"][0]["thumb"] == pic["thumb"]
+        assert post(port, "/api/tool", {"name": "find_pictures", "args": {"query": "kassabon"}})[1]["items"] == []
+        assert post(port, "/api/tool", {"name": "find_pictures", "args": {"from": "2000-01-01", "to": "2000-12-31"}})[1]["data"]["count"] == 0
         assert call(port, "GET", "/api/pictures/thumb/abc")[0] == 404 and json.dumps(1)
     finally:
         httpd.shutdown()

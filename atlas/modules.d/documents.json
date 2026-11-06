@@ -23,7 +23,7 @@
   "headers": {
     "X-Library": "1"
   },
-  "ask": "/api/ask",
   "media": "/api/pictures/thumb/",
-  "trips": "/api/trips"
+  "tools": "/api/tools",
+  "tool": "/api/tool"
 }

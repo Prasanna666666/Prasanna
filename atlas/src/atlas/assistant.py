@@ -1,28 +1,37 @@
-"""The one assistant. A question is routed to the app (or apps) it is about, each answers with its own tools and its own checks, and the answers are put
-together. Plain conversation is answered by the shared model directly.
+"""The one assistant, over all of the person's data.
 
-Every question is understood and answered by the model: it decides which app a question is about and what to show, and each app's own model-driven
-agent answers. The model never produces a figure on its own: figures come from the apps' tools and are checked there. When the model is not running,
-the answer says so; nothing is guessed from words."""
+There is one model and one conversation. Every part of the app (money, documents and mail, pictures, and whatever comes next) publishes the tools it has,
+and this assistant can use any of them in any order inside one answer: the dates on a ticket, then what was spent on those days, then the pictures taken
+on them. The model decides what to look up and in what order; the tools do all the looking, counting and adding; and every figure in the answer is checked
+against what the tools returned before it is shown. When the model is not running the answer says so; nothing is guessed from words."""
 
 from __future__ import annotations
 
 import http.client
 import json
-from concurrent.futures import ThreadPoolExecutor
+import re
+import threading
+import time
 from dataclasses import dataclass, field
+from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlsplit
+
+from kit.audit import unproven_figures
 
 from .registry import Module
 from .upstream import Upstreams
 
-ROUTE_SECONDS = 8.0
-CHAT_SECONDS = 45.0
+CALL_SECONDS = 90.0
 WARM_SECONDS = 120.0
 MAX_TEXT = 2000
 MAX_TURNS = 8
+MAX_STEPS = 8
+TOOL_RESULT_CHARS = 6000
+TOOLS_CACHED_SECONDS = 60.0
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
+SEPARATOR = "__"
+DELETE_WORDS = re.compile(r"\b(delete|remove|erase|clear|get rid)\b")
 
 
 def clean_history(raw: Any) -> list[list[str]]:
@@ -36,7 +45,7 @@ def clean_history(raw: Any) -> list[list[str]]:
 
 @dataclass
 class ModelClient:
-    """The shared local model (Ollama): one short call at a time, never raising."""
+    """The shared local model (Ollama): one call at a time, never raising."""
 
     url: str
     _model: str = field(default="", init=False)
@@ -68,33 +77,71 @@ class ModelClient:
         self._model = next((n for n in names if n.startswith("ministral")), names[0] if names else "")
         return self._model
 
-    def chat(self, system: str, messages: list[dict[str, str]], timeout: float, max_tokens: int = 400, json_mode: bool = False) -> str | None:
-        """The model's reply, or None when it is not running or too slow."""
+    def _request(self, messages: list[dict[str, Any]], timeout: float, max_tokens: int, tools: list[dict[str, Any]] | None = None) -> dict[str, Any] | None:
         if not self.url or not self.model():
             return None
         request: dict[str, Any] = {
             "model": self.model(),
             "stream": False,
-            "messages": [{"role": "system", "content": system}, *messages],
-            "options": {"temperature": 0, "num_ctx": NUM_CTX, "num_predict": max_tokens},
+            "messages": messages,
+            "options": {"temperature": 0.1, "num_ctx": NUM_CTX, "num_predict": max_tokens},
         }
-        if json_mode:
-            request["format"] = "json"
+        if tools:
+            request["tools"] = tools
         out = self._call("POST", "/api/chat", request, timeout)
-        text = ((out or {}).get("message") or {}).get("content") if isinstance(out, dict) else None
+        message = out.get("message") if isinstance(out, dict) else None
+        return message if isinstance(message, dict) else None
+
+    def chat(self, system: str, messages: list[dict[str, str]], timeout: float, max_tokens: int = 400) -> str | None:
+        """The model's reply, or None when it is not running or too slow."""
+        message = self._request([{"role": "system", "content": system}, *messages], timeout, max_tokens)
+        text = message.get("content") if message else None
         return str(text).strip() if text else None
+
+    def step(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], timeout: float = CALL_SECONDS) -> dict[str, Any] | None:
+        """One turn of the assistant loop: the model's message (text and/or tool calls), or None when it is not running or too slow."""
+        return self._request(messages, timeout, 700, tools)
+
+
+@dataclass
+class Turn:
+    """What happened while answering one question: the text asked, the tools that exist, which parts were used, what the tools returned, what to show."""
+
+    text: str
+    by_name: dict[str, Tool]
+    messages: list[dict[str, Any]] = field(default_factory=list)
+    used: list[str] = field(default_factory=list)
+    outputs: list[str] = field(default_factory=list)
+    items: list[dict[str, str]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # things the person must be told next to a figure (a month that is not proven, files waiting for a check)
 
 
 @dataclass(frozen=True)
-class Plan:
-    """What a message needs: the apps to ask, whether it is plain conversation, what to show, and how this was decided ("model", or "down" when the model could not plan)."""
+class Tool:
+    """One tool of one part of the app, as the model sees it."""
 
-    apps: list[Module]
-    chat: bool
-    show: dict[str, bool]
-    how: str
-    search: tuple[str, ...] = ()  # how the model would look for it in files and emails: the user's words, synonyms, and the Dutch or English equivalents
-    trip: tuple[str, str] | None = None  # (place, year) when the message is about one particular journey: everything in the answer then belongs to that trip
+    module: Module
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+    @property
+    def public(self) -> str:
+        return f"{self.module.id}{SEPARATOR}{self.name}"
+
+    def schema(self) -> dict[str, Any]:
+        return {"type": "function", "function": {"name": self.public, "description": self.description[:600], "parameters": self.parameters}}
+
+
+def system_prompt(today: date) -> str:
+    return (
+        "You are Atlas, the user's private personal assistant. You run on their own computer and can reach all of their data through tools: money, files and "
+        "mail, pictures. Use the tools for anything about their data; never state a figure, date or fact about them that a tool did not return. Chain tools "
+        "when a question needs it (for example: find the dates of a trip in the tickets, then look up what was spent on those days, then the pictures taken "
+        "on them). Only use the tools that the question needs. Show pictures or files (the tools' show argument) ONLY when the user asks to see them; "
+        "a count or a question is answered in words. Answer briefly in the user's language, in plain words. Greetings and general questions need no tool. "
+        f"Today is {today.isoformat()}."
+    )
 
 
 class Assistant:
@@ -102,103 +149,89 @@ class Assistant:
         self.modules = modules
         self.upstreams = upstreams
         self.model = ModelClient(model_url)
+        self._tools: tuple[float, list[Tool]] | None = None
+        self._lock = threading.Lock()
 
-    def _askable(self) -> list[Module]:
-        return [m for m in self.modules.values() if m.ask]
-
-    # ---- 1. understand the message: which part it is about, and whether the user wants to SEE pictures or documents ----------
-    def plan(self, text: str, history: list[list[str]]) -> Plan:
-        """The model reads the message (with the conversation so far) and decides. If it is not running or does not answer in the expected shape,
-        the plan says so ("down") and nothing is guessed."""
-        if not self._askable():
-            return Plan([], True, {"photos": False, "documents": False}, "chat")
-        planned = self.model_plan(text, history)
-        return planned if planned is not None else Plan([], False, {"photos": False, "documents": False}, "down")
-
-    def model_plan(self, text: str, history: list[list[str]]) -> Plan | None:
-        """The model's plan, or None when it is not running or does not answer in the expected shape."""
-        apps = self._askable()
-        if not apps:
-            return None
-        parts = "; ".join(f"{m.id} = {m.tagline or m.name}" for m in apps)
-        system = (
-            "You are the planner of a private personal assistant. Read the user's last message, with the conversation so far, and decide what it needs. "
-            f"Parts of the app: {parts}. "
-            'Reply with JSON only, in this shape: {"apps": [names of the parts the message is about, or an empty list], '
-            '"chat": true if it is a greeting or general conversation about none of the parts, '
-            '"show": {"photos": true only if the user asks to SEE pictures, "documents": true only if the user asks to SEE files, documents or emails}, '
-            '"trip": {"place": the destination, "year": the year or ""} only when the message is about one particular journey or trip (its tickets, costs, '
-            "photos, documents), otherwise null, "
-            '"search": up to 4 short phrases to look for in files and emails about this request: the user\'s own words, synonyms, and the same words in Dutch or English}. '
-            "Questions, counts and summaries are not requests to see anything, so show stays false for them. "
-            'A follow-up such as "show me those" refers to the conversation so far.'
-        )
-        context = "\n".join(f"{role}: {turn[:300]}" for role, turn in history[-4:])
-        said = self.model.chat(
-            system, [{"role": "user", "content": f"Conversation so far:\n{context or '(none)'}\n\nMessage: {text}"}], ROUTE_SECONDS, 120, True
-        )
-        return self._parse_plan(said, apps) if said else None
-
-    @staticmethod
-    def _parse_plan(said: str, apps: list[Module]) -> Plan | None:
-        """The model's plan, checked: only known app names, only real booleans. Anything else means it did not follow the instruction (None)."""
-        try:
-            data = json.loads(said)
-        except ValueError:
-            return None
-        if not isinstance(data, dict):
-            return None
-        named = data.get("apps")
-        if not isinstance(named, list):
-            return None
-        raw_show = data.get("show")
-        shown: dict[str, Any] = raw_show if isinstance(raw_show, dict) else {}
-        chosen = [m for m in apps if m.id in named]
-        show = {"photos": shown.get("photos") is True, "documents": shown.get("documents") is True}
-        raw_search = data.get("search")
-        search = tuple(x.strip()[:80] for x in raw_search if isinstance(x, str) and x.strip())[:4] if isinstance(raw_search, list) else ()
-        raw_trip = data.get("trip")
-        place = str(raw_trip.get("place", "")).strip()[:80] if isinstance(raw_trip, dict) else ""
-        year = str(raw_trip.get("year", "")).strip()[:4] if isinstance(raw_trip, dict) else ""
-        trip = (place, year if year.isdigit() else "") if place else None
-        return Plan(chosen, data.get("chat") is True or not chosen, show, "model", search, trip)
-
-    # ---- 2. the answer -----------------------------------------------------------------------------------------------
-    def _chat_only(self, text: str, history: list[list[str]]) -> dict[str, Any]:
-        topics = "; ".join(f"{m.name}: {m.tagline}" for m in self._askable())
-        system = (
-            "You are Atlas, a private assistant that lives on the user's own computer. In this reply you cannot see any of their data. "
-            f"If they want something done or looked up, tell them to ask about it, for example: {topics}. Chat briefly and warmly."
-        )
-        turns = [{"role": r, "content": t} for r, t in history]
-        reply = self.model.chat(system, [*turns, {"role": "user", "content": text}], CHAT_SECONDS)
-        if reply is None:
-            return {"module": "atlas", "name": "Atlas", "ok": False, "error": "The AI model is not running. Start Ollama and ask again."}
-        return {"module": "atlas", "name": "Atlas", "ok": True, "text": reply, "items": [], "notes": []}
+    def tools(self) -> list[Tool]:
+        """Every tool of every part that is running (listed again every minute, so a part that starts later joins in)."""
+        with self._lock:
+            if self._tools and time.monotonic() - self._tools[0] < TOOLS_CACHED_SECONDS:
+                return self._tools[1]
+        found = [
+            Tool(m, str(spec["name"]), str(spec.get("description", "")), spec["parameters"])
+            for m in self.modules.values()
+            if m.tool
+            for spec in self.upstreams.tool_specs(m)
+        ]
+        with self._lock:
+            if found:
+                self._tools = (time.monotonic(), found)
+        return found
 
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
-        """Understand the message, ask each chosen app (side by side), and return their answers as labelled parts."""
+        """One question: the model uses whichever tools of whichever parts it needs, then answers. Returns the answer as one labelled part."""
         text = text.strip()[:MAX_TEXT]
-        plan = self.plan(text, history)
-        if plan.how == "down":
-            msg = "The AI model is not running. Start Ollama and ask again."
-            return {"how": plan.how, "routed": [], "show": plan.show, "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
-        if not plan.apps:
-            return {"how": plan.how, "routed": [], "show": plan.show, "parts": [self._chat_only(text, history)]}
-        trip = self.find_trip(plan.trip)
-        window = {"place": trip["place"], "start": trip["start"], "end": trip["end"]} if trip else None
-        with ThreadPoolExecutor(max_workers=len(plan.apps)) as pool:
-            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, show=plan.show, search=list(plan.search), window=window), plan.apps))
-        parts = [{"module": m.id, "name": m.name, "show": plan.show, **r} for m, r in zip(plan.apps, results, strict=True)]
-        return {"how": plan.how, "routed": [m.id for m in plan.apps], "show": plan.show, "parts": parts, "trip": trip}
+        tools = [t for t in self.tools() if not t.name.startswith("delete_") or DELETE_WORDS.search(text.lower())]  # only the person's own words can delete
+        turn = Turn(text, {t.public: t for t in tools})
+        turn.messages = [
+            {"role": "system", "content": system_prompt(datetime.now().astimezone().date())},
+            *({"role": r, "content": t} for r, t in history),
+            {"role": "user", "content": text},
+        ]
+        for _ in range(MAX_STEPS):
+            message = self.model.step(turn.messages, [t.schema() for t in tools])
+            if message is None:
+                return self._reply(False, "The AI model is not running. Start Ollama and ask again.", turn)
+            calls = message.get("tool_calls") or []
+            turn.messages.append({"role": "assistant", "content": message.get("content") or "", "tool_calls": calls})
+            if not calls:
+                return self._checked(str(message.get("content") or "").strip(), turn)
+            for call in calls:
+                self._run(call, turn)
+        return self._reply(False, "That needed more steps than I can take in one go. Try asking in smaller pieces.", turn)
 
-    def find_trip(self, wanted: tuple[str, str] | None) -> dict[str, Any] | None:
-        """The journey a message is about, from the tickets and bookings that were read (the one with the most documents), or None. Every app is then
-        asked about the same dates, so the costs, the pictures and the papers all belong to the same trip."""
-        if wanted is None:
-            return None
-        for module in self.modules.values():
-            found = self.upstreams.trips(module, *wanted)
-            if found:
-                return found[0]
-        return None
+    def _run(self, call: Any, turn: Turn) -> None:
+        function = call.get("function") if isinstance(call, dict) else None
+        name = str((function or {}).get("name", ""))
+        tool = turn.by_name.get(name)
+        raw_args = (function or {}).get("arguments") or {}
+        args = raw_args if isinstance(raw_args, dict) else {}
+        if tool is None:
+            result: dict[str, Any] = {"ok": False, "error": f"tool {name!r} is not available"}
+        else:
+            result = self.upstreams.call_tool(tool.module, tool.name, args, turn.text)
+            if tool.module.id not in turn.used:
+                turn.used.append(tool.module.id)
+            turn.notes.extend(n for n in result.get("notes") or [] if n not in turn.notes)
+            if args.get("show") is True:  # pictures and files are shown only when the model says the person asked to see them
+                turn.items.extend(result.get("items") or [])
+        body = json.dumps({"error": result["error"]} if not result.get("ok") else result.get("data"), default=str)[:TOOL_RESULT_CHARS]
+        turn.outputs.append(body)
+        turn.messages.append({"role": "tool", "tool_name": name, "content": body})
+
+    def _checked(self, reply: str, turn: Turn) -> dict[str, Any]:
+        """Every figure in the answer must have come from a tool. If one did not, the model is told once and answers again; if it still invents one,
+        the answer is refused instead of shown."""
+        unproven = unproven_figures(reply, turn.outputs)
+        if unproven:
+            note = (
+                "These figures were not returned by any tool: "
+                + ", ".join(f"{n:g}" for n in unproven)
+                + ". Answer again using only figures the tools returned."
+            )
+            again = self.model.step([*turn.messages, {"role": "user", "content": note}], [])
+            reply = str((again or {}).get("content") or "").strip()
+            unproven = unproven_figures(reply, turn.outputs) if reply else unproven
+            if unproven or not reply:
+                return self._reply(
+                    False, "I can't give you that figure with confidence: figures not returned by any tool: " + ", ".join(f"{n:g}" for n in unproven), turn
+                )
+        return self._reply(True, reply or "I have nothing to add.", turn)
+
+    @staticmethod
+    def _reply(ok: bool, text: str, turn: Turn) -> dict[str, Any]:
+        used, items = turn.used, turn.items
+        show = {"photos": any(i["kind"] == "photo" for i in items), "documents": any(i["kind"] == "document" for i in items)}
+        part: dict[str, Any] = {"module": "atlas", "name": "Atlas", "ok": ok, "show": show}
+        part.update({"text": text, "items": items, "notes": turn.notes[:3]} if ok else {"error": text})
+        return {"how": "agent" if ok else "down", "routed": used, "show": show, "parts": [part]}

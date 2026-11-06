@@ -84,10 +84,18 @@ def test_one_update_reads_judges_and_serves_everything(server):
     assert call(port, "GET", "/api/documents?kind=ticket")[1]["documents"] == []
     assert call(port, "GET", f"/api/document?id={doc['id']}")[1]["name"] == "hotel.txt"
     assert call(port, "GET", "/api/search?q=hotel")[1]["results"][0]["link"] == f"#/doc/{doc['id']}"
-    asked = post(port, "/api/ask", {"text": "what did the hotel cost", "show": {"documents": True}})[1]
-    assert asked["items"][0]["title"] == "hotel.txt" and "1 file" in asked["text"]
-    in_words = post(port, "/api/ask", {"text": "what did the hotel cost"})[1]
-    assert "480" in in_words["text"] and in_words["items"] == []
+    specs = {t["name"] for t in call(port, "GET", "/api/tools")[1]["tools"]}
+    assert {"search_files", "find_documents", "read_document", "trips", "find_pictures", "library_overview"} <= specs
+    found = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice", "show": True}})[1]
+    assert found["ok"] and found["data"]["count"] == 1 and found["data"]["documents"][0]["party"] == "Hotel Delhi"
+    assert found["items"][0]["title"] == "Hotel" and found["items"][0]["link"] == f"#/doc/{doc['id']}"
+    quiet = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice"}})[1]
+    assert quiet["items"] == []  # nothing is shown unless the person asked to see it
+    dated = post(port, "/api/tool", {"name": "find_documents", "args": {"from": "2026-01-01", "to": "2026-01-31"}})[1]
+    assert dated["data"]["count"] == 1
+    assert post(port, "/api/tool", {"name": "read_document", "args": {"id": str(doc["id"])}})[1]["data"]["text"].startswith("FACTUUR")
+    assert post(port, "/api/tool", {"name": "nonsense", "args": {}})[1]["ok"] is False
+    assert post(port, "/api/tool", {"name": "find_pictures", "args": {"query": "x"}})[1]["ok"] is False  # pictures are not set up here
 
 
 def test_an_unknown_document_and_unknown_route_say_so(server):

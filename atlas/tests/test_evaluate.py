@@ -1,53 +1,37 @@
 import json
 
-from atlas.evaluate import DEFAULT_CASES, load_cases, percentile, run_live, run_understanding, summarise, understood
+from atlas.evaluate import handled, load_cases, percentile, run, summarise
 
 
-def test_the_shipped_cases_are_well_formed_and_cover_every_level():
-    cases = load_cases(DEFAULT_CASES)
+def test_the_shipped_cases_cover_five_levels_and_say_what_each_expects():
+    cases = load_cases(__import__("atlas.evaluate", fromlist=["DEFAULT_CASES"]).DEFAULT_CASES)
     assert {c["level"] for c in cases} == {1, 2, 3, 4, 5} and len(cases) >= 25
     for c in cases:
         assert set(c["expect"]) == {"apps", "chat", "photos", "documents"} and set(c["expect"]["apps"]) <= {"finance", "photos", "documents"}
-        assert c["expect"]["chat"] == (not c["expect"]["apps"])  # plain conversation means no app
-        assert all(r in ("user", "assistant") for r, _ in c.get("history", []))
 
 
-def test_a_plan_is_understood_only_when_apps_conversation_and_what_to_show_are_all_right(running):
-    assistant = running.atlas.assistant
-    running.apps["photos"].plan_reply = '{"apps": ["photos"], "chat": false, "show": {"photos": true, "documents": false}}'
-    plan = assistant.model_plan("show me photos", [])
-    assert understood(plan, {"apps": ["photos"], "chat": False, "photos": True, "documents": False})
-    assert not understood(plan, {"apps": ["photos"], "chat": False, "photos": False, "documents": False})  # shown when it should not be
-    assert not understood(plan, {"apps": ["money"], "chat": False, "photos": True, "documents": False})
-    assert not understood(None, {"apps": [], "chat": True, "photos": False, "documents": False})
+def test_a_case_is_handled_when_the_needed_parts_were_used_and_pictures_were_shown_only_when_asked():
+    ask_for_photos = {"apps": ["photos"], "chat": False, "photos": True, "documents": False}
+    assert handled({"routed": ["photos"], "show": {"photos": True}}, ask_for_photos)
+    assert handled({"routed": ["documents", "photos"], "show": {"photos": True}}, ask_for_photos)  # chaining uses more parts: fine
+    assert not handled({"routed": ["photos"], "show": {"photos": False}}, ask_for_photos)  # not shown when it should be
+    assert not handled({"routed": ["finance"], "show": {"photos": True}}, ask_for_photos)  # the needed part was not used
+    assert handled({"routed": [], "show": {}}, {"apps": [], "chat": True, "photos": False, "documents": False})
+    assert not handled({"routed": ["finance"], "show": {}}, {"apps": [], "chat": True, "photos": False, "documents": False})  # plain chat used a tool
+    assert not handled(None, ask_for_photos)
 
 
-def test_the_understanding_run_scores_the_model_and_times_it(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'
-    cases = [
-        {"level": 1, "text": "how much money did I spend?", "expect": {"apps": ["money"], "chat": False, "photos": False, "documents": False}},
-        {"level": 2, "text": "I would love to see the beach", "expect": {"apps": ["photos"], "chat": False, "photos": True, "documents": False}},
-    ]
-    results = run_understanding(running.atlas.assistant, cases)
-    assert [r["model_ok"] for r in results] == [True, False]
+def test_the_run_scores_real_questions_through_a_running_atlas_and_times_them(running):
+    photos, money = running.apps["photos"], running.apps["money"]
+    money.tools = [{"name": "spending_between", "description": "d", "parameters": {"type": "object", "properties": {}}}]
+    money.tool_results["spending_between"] = {"ok": True, "data": {"spent": 5.0}}
+    photos.script = [{"content": "", "tool_calls": [{"function": {"name": "money__spending_between", "arguments": {}}}]}, {"content": "5.00"}]
+    cases = [{"level": 1, "text": "how much did I spend?", "expect": {"apps": ["money"], "chat": False, "photos": False, "documents": False}}]
+    results = run(f"http://atlas.localhost:{running.port}", cases)
+    assert results[0]["ok"] is True and results[0]["answered"] is True and results[0]["seconds"] >= 0
     rows = summarise(results)
-    assert [(r["level"], r["cases"], r["model"]) for r in rows] == [(1, 1, 1.0), (2, 1, 0.0)] and rows[0]["p50"] >= 0
-
-
-def test_a_model_that_does_not_answer_is_counted_as_wrong_not_as_a_crash(running):
-    running.atlas.assistant.model.url = "http://127.0.0.1:1"
-    results = run_understanding(
-        running.atlas.assistant, [{"level": 1, "text": "hello", "expect": {"apps": [], "chat": True, "photos": False, "documents": False}}]
-    )
-    assert results[0]["model_ok"] is False and results[0]["model_answered"] is False and summarise(results)[0]["p50"] == 0.0
-
-
-def test_live_questions_report_which_path_answered_and_how_long(running):
-    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}}'
-    cases = [{"level": 1, "text": "tell me exactly what I spent"}, {"level": 2, "text": "how much money did I spend?"}]
-    out = run_live(f"http://atlas.localhost:{running.port}", cases)
-    assert [r["how"] for r in out] == ["model", "model"] and all(r["answered"] >= 1 and r["seconds"] >= 0 for r in out)
-    assert run_live("http://atlas.localhost:1", cases[:1])[0]["how"] == "unreachable"
+    assert [(r["level"], r["cases"], r["right"]) for r in rows] == [(1, 1, 1.0)]
+    assert run("http://atlas.localhost:1", cases)[0]["ok"] is False  # not reachable: counted as wrong, not a crash
 
 
 def test_percentiles():
