@@ -32,7 +32,7 @@ def test_the_app_image_has_no_parsing_libraries_and_the_parser_image_has_no_shar
     app = d.split("AS app")[1].split("AS parser")[0]
     parser = d.split("AS parser")[1].split("AS indexer")[0]
     assert "parse]" not in app and "USER 10001" in app and "USER 10001" in parser and "ATLAS_REQUIRE_ENCRYPTION=1" in app
-    assert "[parse]" in parser and "finance" not in parser.replace("ORBIT", "")  # the sealed reader carries only its own code
+    assert "[parse]" in parser and "finance" not in parser  # the sealed reader carries only its own code
 
 
 def test_the_picture_indexer_has_no_network_and_reads_the_photos_read_only():
