@@ -186,7 +186,7 @@ def text_sources(engine: Engine) -> Callable[[Any], Iterator[tuple[str, str, str
 
 
 # ---- browsing: the library as pages (by date, trips, places, people) ---------------------------------------------------------------
-BROWSE = frozenset({"library", "timeline", "trips", "places", "people"})
+BROWSE = frozenset({"library", "timeline", "trips", "places", "people", "highlights"})
 
 
 def browse(engine: Engine, what: str, query: dict[str, str]) -> Any:

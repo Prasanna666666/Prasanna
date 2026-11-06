@@ -198,7 +198,18 @@
                 )
             );
         }
-        host().replaceChildren(head('Photos'), sub, facets, tags, grid, sentinel, moreBtn);
+        const best = el('div', 'best');
+        host().replaceChildren(head('Photos'), best, sub, facets, tags, grid, sentinel, moreBtn);
+        if (!Object.keys(filters).length) {
+            // the best few on display, only on the Photos home (not when narrowed to a year, place or person)
+            browse('highlights').then((h) => {
+                if (mine !== seq || !h.ids.length) return;
+                const strip = el('div', 'pgrid');
+                const g2 = { ids: [], grid: strip };
+                addTiles(g2, h.ids);
+                best.replaceChildren(el('div', 'band', 'Highlights'), strip);
+            });
+        }
         const g = { ids: [], grid };
         let total = 0,
             loading = false;

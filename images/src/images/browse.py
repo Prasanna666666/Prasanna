@@ -49,6 +49,63 @@ def library(conn: sqlite3.Connection, q: dict[str, str], offset: int = 0, limit:
     return {"total": total, "ids": ids, "offset": offset, "more": offset + len(ids) < total}
 
 
+HIGHLIGHT_MIN_PIXELS = 2_000_000  # small pictures (icons, thumbnails) are never highlights
+HIGHLIGHT_MAX_TEXT = 40  # a picture full of text is a screenshot, a receipt or a letter, not a memory
+HIGHLIGHT_GAP_SECONDS = 120  # two pictures this close are the same moment: only the better one is shown
+HIGHLIGHT_PER_DAY = 2
+HIGHLIGHT_PER_PLACE = 3
+
+
+def _score(r: sqlite3.Row) -> float:
+    """How good a picture looks, from what was measured: resolution, detail (bytes per pixel: a blurred or flat picture compresses small), people and a place."""
+    pixels = r["width"] * r["height"]
+    detail = min((r["size"] / pixels) / 1.0, 1.0)
+    faces = r["faces"]
+    return (
+        0.35 * min(pixels / 12_000_000, 1.0)
+        + 0.35 * detail
+        + (0.25 if 1 <= faces <= 4 else 0.1 if faces else 0.0)
+        + (0.1 if r["place"] else 0.0)
+    )
+
+
+def highlights(conn: sqlite3.Connection, limit: int = 12) -> dict[str, Any]:
+    """A few of the best pictures, spread over days and places, never the same moment twice and never a screenshot or a document."""
+    rows = conn.execute(
+        "SELECT i.id, i.width, i.height, i.size, i.taken_at, i.place, "
+        f"(SELECT COUNT(*) FROM faces f WHERE f.item_id=i.id) AS faces FROM items i WHERE {LIVE} AND i.width*i.height>=? AND i.ocr_chars<? AND i.thumb IS NOT NULL",
+        (HIGHLIGHT_MIN_PIXELS, HIGHLIGHT_MAX_TEXT),
+    ).fetchall()
+    picked: list[int] = []
+    per_day: dict[str, int] = {}
+    per_place: dict[str, int] = {}
+    taken: list[tuple[str, str]] = []
+    for r in sorted(rows, key=lambda r: (-_score(r), -r["id"])):
+        if len(picked) >= max(1, min(int(limit), 60)):
+            break
+        day, at, place = (r["taken_at"] or "")[:10], r["taken_at"] or "", r["place"] or ""
+        if day and per_day.get(day, 0) >= HIGHLIGHT_PER_DAY:
+            continue
+        if place and per_place.get(place, 0) >= HIGHLIGHT_PER_PLACE:
+            continue
+        if at and any(d == day and abs(_seconds(t) - _seconds(at)) < HIGHLIGHT_GAP_SECONDS for d, t in taken):
+            continue
+        picked.append(r["id"])
+        per_day[day] = per_day.get(day, 0) + 1
+        per_place[place] = per_place.get(place, 0) + 1
+        taken.append((day, at))
+    return {"ids": picked, "total": len(rows)}
+
+
+def _seconds(stamp: str) -> int:
+    """Seconds into the day of 'YYYY-MM-DD HH:MM:SS' (0 when it has no time)."""
+    try:
+        h, m, s = stamp[11:19].split(":")
+        return int(h) * 3600 + int(m) * 60 + int(s)
+    except ValueError:
+        return 0
+
+
 def timeline(conn: sqlite3.Connection) -> dict[str, Any]:
     """How many photos each year and month holds, newest first, and how many have no date."""
     years: dict[str, dict[str, Any]] = {}
