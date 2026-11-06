@@ -145,28 +145,22 @@ def _filters(a: dict) -> dict:
 
 
 def preview_move(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return changes.prepare(state, conn, "move", {**_filters(a), "folder": a.get("folder", "")}, (ask or Ask()).turn), []
+    data, card = changes.prepare(state, conn, "move", {**_filters(a), "folder": a.get("folder", "")})
+    return data, [card]
 
 
 def preview_delete(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return changes.prepare(state, conn, "delete", _filters(a), (ask or Ask()).turn), []
+    data, card = changes.prepare(state, conn, "delete", _filters(a))
+    return data, [card]
 
 
-def apply_change(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    ask = ask or Ask()
-    return changes.apply(state, conn, str(a.get("change_id", "")), ask.text, ask.turn), []
-
-
-def undo_change(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return changes.undo(state, conn, str(a.get("undo_number", "")), (ask or Ask()).text), []
+def preview_export(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    data, card = changes.prepare(state, conn, "export", {**_filters(a), "folder": a.get("folder", "")})
+    return data, [card]
 
 
 def list_changes(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return {"changes": changes.recent(state, conn)}, []
-
-
-def export_pictures(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return changes.copy_out(state, {**_filters(a), "folder": a.get("folder", "")}), []
+    return changes.overview(conn), []
 
 
 def overview(state, conn, a: dict, ask: Ask | None = None) -> Result:
@@ -258,41 +252,29 @@ TOOLS = (
     ),
     Tool(
         "preview_move_pictures",
-        "Prepare moving pictures into a folder inside the photo folder: describes what would move and changes NOTHING. Same filters as find_pictures plus the folder name. "
-        "Afterwards tell the person exactly what would happen and ask them to confirm.",
+        "Prepare moving pictures into a folder inside the photo folder. This changes NOTHING: it opens a confirmation window for the person, who reviews the full list "
+        "and presses Confirm themselves. You cannot confirm. Same filters as find_pictures plus the folder name. Afterwards say briefly what it would do and that the "
+        "person must confirm in the window.",
         {**_PICTURE_FILTERS, "folder": _str("The folder to move them into, a plain name")},
         preview_move,
         ("folder",),
     ),
     Tool(
         "preview_delete_pictures",
-        "Prepare deleting pictures: describes what would be deleted and changes NOTHING. Deleting moves them to a trash folder, so it can be undone. Same filters as "
-        "find_pictures. Afterwards tell the person exactly what would be deleted and ask them to confirm.",
+        "Prepare deleting pictures. This changes NOTHING: it opens a confirmation window for the person, who reviews the full list and presses Confirm themselves. "
+        "Deleting moves them to a trash folder, so it can be undone. You cannot confirm. Same filters as find_pictures. Afterwards say briefly what it would delete "
+        "and that the person must confirm in the window.",
         _PICTURE_FILTERS,
         preview_delete,
     ),
     Tool(
-        "apply_change",
-        "Carry out a prepared move or delete. Only works in a LATER question than the one that prepared it, and only when the person's own words confirm it (yes, go ahead). "
-        "Use the change_id the preview returned.",
-        {"change_id": _str("The change_id from the preview")},
-        apply_change,
-        ("change_id",),
-    ),
-    Tool(
-        "undo_change",
-        "Put a carried-out move or delete back where it was. Only when the person asks to undo it. Use the undo_number that was given when it was done.",
-        {"undo_number": _str("The undo_number")},
-        undo_change,
-        ("undo_number",),
-    ),
-    Tool("list_changes", "The latest moves and deletes that were carried out, with the number that undoes each.", {}, list_changes),
-    Tool(
-        "export_pictures",
-        "Copy (never move) pictures into an export folder on the drive. Same filters as find_pictures plus a folder name.",
+        "preview_export_pictures",
+        "Prepare copying pictures into an export folder on the drive (the originals stay). This changes nothing until the person confirms in the window. Same filters "
+        "as find_pictures plus a folder name.",
         {**_PICTURE_FILTERS, "folder": _str("Name of the export folder")},
-        export_pictures,
+        preview_export,
     ),
+    Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),
     Tool("library_overview", "How many files, mails and pictures there are and of which kinds.", {}, overview),
 )
 BY_NAME = {t.name: t for t in TOOLS}

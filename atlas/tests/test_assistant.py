@@ -66,7 +66,9 @@ def test_one_answer_can_chain_tools_of_different_parts(running):
     ]
     status, reply = chat(running, "show me the photos of my India trip")
     assert reply["routed"] == ["money", "photos"] and reply["show"] == {"photos": True, "documents": False}
-    assert reply["parts"][0]["items"] == [{"kind": "photo", "thumb": "/_atlas/api/media/photos/api/photo/1/thumb", "link": "#/library"}]
+    assert reply["parts"][0]["items"] == [
+        {"kind": "photo", "thumb": "/_atlas/api/media/photos/api/photo/1/thumb", "link": "#/library", "module": "photos"}
+    ]  # each item says which part it came from
     second = loop_calls(photos)[1]["messages"]
     assert any(m["role"] == "tool" and "2026-01-12" in m["content"] for m in second)  # the result of the first tool reached the model before the second call
 
@@ -190,18 +192,20 @@ def test_a_tool_name_the_model_makes_up_when_choosing_is_ignored(running):
     assert offered(loop_calls(photos)[0]) == {"money__net_worth"}
 
 
-def test_a_tool_that_applies_or_undoes_a_change_is_offered_only_when_the_persons_own_words_call_for_it(running):
+def test_a_change_waiting_for_the_person_is_always_shown_as_a_card_from_the_part_that_prepared_it(running):
     money, photos = running.apps["money"], running.apps["photos"]
-    money.tools = [tool("preview_move_pictures"), tool("apply_change"), tool("undo_change")]
-    for words, expected in (
-        ("move my India photos to a folder", {"money__preview_move_pictures"}),
-        ("yes, go ahead", {"money__preview_move_pictures", "money__apply_change"}),
-        ("undo that please", {"money__preview_move_pictures", "money__undo_change"}),
-    ):
-        running.atlas.assistant._tools = None
-        photos.script = [text("ok")]
-        chat(running, words)
-        assert offered(loop_calls(photos)[-1]) == expected, words
+    money.tools = [tool("preview_move_pictures", folder=1)]
+    money.tool_results["preview_move_pictures"] = {
+        "ok": True,
+        "data": {"change_id": "abc", "status": "NOT DONE"},
+        "items": [{"kind": "confirm", "title": "Confirm: move 3 pictures", "subtitle": "Waiting for you.", "link": "#/changes?id=abc"}],
+    }
+    photos.script = [call("money__preview_move_pictures", folder="Goa"), text("It is ready: please review and confirm it.")]
+    _, reply = chat(running, "move the Goa photos to a folder")  # no show: a card that needs the person is never hidden
+    assert reply["parts"][0]["items"] == [
+        {"kind": "confirm", "title": "Confirm: move 3 pictures", "subtitle": "Waiting for you.", "link": "#/changes?id=abc", "module": "money"}
+    ]
+    assert reply["show"] == {"photos": False, "documents": False}
 
 
 def test_each_question_has_its_own_turn_id_that_reaches_the_part(running):

@@ -1,4 +1,4 @@
-"use strict";
+'use strict';
 /* The pictures side of the page: the library by date, trips, places and people. All text is added with textContent. */
 (() => {
     const $ = (s) => document.querySelector(s);
@@ -8,45 +8,24 @@
         if (text != null) e.textContent = text;
         return e;
     };
-    const getJson = async (path) =>
-        (await fetch(path, { headers: { Accept: "application/json" } })).json();
+    const getJson = async (path) => (await fetch(path, { headers: { Accept: 'application/json' } })).json();
     const browse = async (page, params = {}) =>
-        (
-            await getJson(
-                "/api/pictures/browse?" +
-                    new URLSearchParams({ page, ...params }),
-            )
-        ).page;
-    const MONTHS = [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec",
-    ];
+        (await getJson('/api/pictures/browse?' + new URLSearchParams({ page, ...params }))).page;
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthLabel = (ym) => MONTHS[+ym.slice(5, 7) - 1] || ym;
     const dateRange = (a, b) => (a === b ? a : `${a} → ${b}`);
-    const host = () => $("#page-pictures");
+    const host = () => $('#page-pictures');
     const go = (section, params) => {
         const qs = new URLSearchParams(
-            Object.fromEntries(
-                Object.entries(params || {}).filter(([, v]) => v),
-            ),
+            Object.fromEntries(Object.entries(params || {}).filter(([, v]) => v))
         ).toString();
-        location.hash = `#/${section}${qs ? "?" + qs : ""}`;
+        location.hash = `#/${section}${qs ? '?' + qs : ''}`;
     };
 
     // ---------------------------------------------------------------- one picture, large
-    const lb = $("#lightbox"),
-        lbImg = $("#lb-img"),
-        lbCap = $("#lb-cap");
+    const lb = $('#lightbox'),
+        lbImg = $('#lb-img'),
+        lbCap = $('#lb-cap');
     let lbIds = [],
         lbAt = 0;
     async function showLightbox() {
@@ -56,19 +35,12 @@
             lbImg.src = `/api/pictures/thumb/${id}`;
         };
         lbImg.src = `/api/pictures/preview/${id}`;
-        lbCap.textContent = "";
+        lbCap.textContent = '';
         try {
             const d = await getJson(`/api/pictures/item?id=${id}`);
             if (lbIds[lbAt] !== id) return;
-            const parts = [
-                d.taken && String(d.taken).slice(0, 10),
-                d.place,
-                d.camera,
-            ].filter(Boolean);
-            lbCap.replaceChildren(
-                el("b", "", d.name || ""),
-                parts.length ? "  ·  " + parts.join("  ·  ") : "",
-            );
+            const parts = [d.taken && String(d.taken).slice(0, 10), d.place, d.camera].filter(Boolean);
+            lbCap.replaceChildren(el('b', '', d.name || ''), parts.length ? '  ·  ' + parts.join('  ·  ') : '');
         } catch (_) {
             /* the caption is optional */
         }
@@ -77,83 +49,83 @@
         lbIds = ids;
         lbAt = at;
         lb.hidden = false;
-        document.body.style.overflow = "hidden";
+        document.body.style.overflow = 'hidden';
         showLightbox();
     }
     const lbClose = () => {
         lb.hidden = true;
-        document.body.style.overflow = "";
-        lbImg.removeAttribute("src");
+        document.body.style.overflow = '';
+        lbImg.removeAttribute('src');
     };
     const lbStep = (n) => {
         lbAt = (lbAt + n + lbIds.length) % lbIds.length;
         showLightbox();
     };
-    $("#lb-close").addEventListener("click", lbClose);
-    $("#lb-prev").addEventListener("click", () => lbStep(-1));
-    $("#lb-next").addEventListener("click", () => lbStep(1));
-    lb.addEventListener("click", (e) => {
+    $('#lb-close').addEventListener('click', lbClose);
+    $('#lb-prev').addEventListener('click', () => lbStep(-1));
+    $('#lb-next').addEventListener('click', () => lbStep(1));
+    lb.addEventListener('click', (e) => {
         if (e.target === lb) lbClose();
     });
-    document.addEventListener("keydown", (e) => {
+    document.addEventListener('keydown', (e) => {
         if (lb.hidden) return;
-        if (e.key === "Escape") lbClose();
-        else if (e.key === "ArrowLeft") lbStep(-1);
-        else if (e.key === "ArrowRight") lbStep(1);
+        if (e.key === 'Escape') lbClose();
+        else if (e.key === 'ArrowLeft') lbStep(-1);
+        else if (e.key === 'ArrowRight') lbStep(1);
     });
 
     // ---------------------------------------------------------------- pieces
     const head = (title, sub) => {
-        const box = el("div", "page-head");
-        box.append(el("h2", "", title));
-        if (sub) box.append(el("p", "muted", sub));
+        const box = el('div', 'page-head');
+        box.append(el('h2', '', title));
+        if (sub) box.append(el('p', 'muted', sub));
         return box;
     };
     const seg = (options, current, pick) => {
-        const box = el("div", "seg");
+        const box = el('div', 'seg');
         for (const [value, label] of options) {
-            const b = el("button", value === current ? "on" : "", label);
-            b.type = "button";
-            b.addEventListener("click", () => pick(value));
+            const b = el('button', value === current ? 'on' : '', label);
+            b.type = 'button';
+            b.addEventListener('click', () => pick(value));
             box.append(b);
         }
         return box;
     };
     const tag = (label, clear) => {
-        const b = el("button", "tag", label + " ×");
-        b.type = "button";
-        b.addEventListener("click", clear);
+        const b = el('button', 'tag', label + ' ×');
+        b.type = 'button';
+        b.addEventListener('click', clear);
         return b;
     };
     function cover(id, title, subtitle, count, onClick) {
-        const card = el("button", "cover");
-        card.type = "button";
+        const card = el('button', 'cover');
+        card.type = 'button';
         const img = new Image();
-        img.alt = "";
-        img.loading = "lazy";
+        img.alt = '';
+        img.loading = 'lazy';
         img.src = `/api/pictures/thumb/${id}`;
-        const label = el("div", "label");
-        label.append(el("b", "", title), el("span", "", subtitle));
+        const label = el('div', 'label');
+        label.append(el('b', '', title), el('span', '', subtitle));
         card.append(img, label);
         if (count != null) {
-            card.append(el("span", "badge", count.toLocaleString()));
+            card.append(el('span', 'badge', count.toLocaleString()));
         }
-        card.addEventListener("click", onClick);
+        card.addEventListener('click', onClick);
         return card;
     }
     function addTiles(g, ids) {
         for (const id of ids) {
-            const t = el("button", "tile");
-            t.type = "button";
-            t.setAttribute("aria-label", "Open picture");
+            const t = el('button', 'tile');
+            t.type = 'button';
+            t.setAttribute('aria-label', 'Open picture');
             const img = new Image();
-            img.alt = "";
-            img.loading = "lazy";
+            img.alt = '';
+            img.loading = 'lazy';
             img.src = `/api/pictures/thumb/${id}`;
             t.append(img);
             g.ids.push(id);
             const at = g.ids.length - 1;
-            t.addEventListener("click", () => openLightbox(g.ids, at));
+            t.addEventListener('click', () => openLightbox(g.ids, at));
             g.grid.append(t);
         }
     }
@@ -162,71 +134,58 @@
     let seq = 0;
     async function showLibrary(params) {
         const mine = ++seq;
-        host().replaceChildren(el("div", "empty", "Loading…"));
+        host().replaceChildren(el('div', 'empty', 'Loading…'));
         const [tl, people] = await Promise.all([
-            browse("timeline"),
-            params.person ? browse("people") : Promise.resolve([]),
+            browse('timeline'),
+            params.person ? browse('people') : Promise.resolve([]),
         ]);
         if (mine !== seq) return;
-        const filters = [
-            "year",
-            "month",
-            "place",
-            "person",
-            "from",
-            "to",
-        ].reduce((o, k) => (params[k] ? { ...o, [k]: params[k] } : o), {});
-        const change = (c) => go("library", { ...params, ...c });
-        const sub = el("p", "muted", ""),
-            grid = el("div", "pgrid"),
-            sentinel = el("div", "sentinel"),
-            moreBtn = el("button", "pill", "Show more");
-        moreBtn.type = "button";
-        const facets = el("div", "facets");
+        const filters = ['year', 'month', 'place', 'person', 'from', 'to'].reduce(
+            (o, k) => (params[k] ? { ...o, [k]: params[k] } : o),
+            {}
+        );
+        const change = (c) => go('library', { ...params, ...c });
+        const sub = el('p', 'muted', ''),
+            grid = el('div', 'pgrid'),
+            sentinel = el('div', 'sentinel'),
+            moreBtn = el('button', 'pill', 'Show more');
+        moreBtn.type = 'button';
+        const facets = el('div', 'facets');
         facets.append(
             seg(
                 [
-                    ["", `All · ${tl.total.toLocaleString()}`],
-                    ...tl.years.map((y) => [
-                        y.year,
-                        `${y.year} · ${y.total.toLocaleString()}`,
-                    ]),
+                    ['', `All · ${tl.total.toLocaleString()}`],
+                    ...tl.years.map((y) => [y.year, `${y.year} · ${y.total.toLocaleString()}`]),
                 ],
-                params.year || "",
-                (v) =>
-                    change({ year: v, month: "", from: "", to: "", trip: "" }),
-            ),
+                params.year || '',
+                (v) => change({ year: v, month: '', from: '', to: '', trip: '' })
+            )
         );
         const yr = tl.years.find((y) => y.year === params.year);
         if (yr) {
             facets.append(
                 seg(
                     [
-                        ["", "All months"],
+                        ['', 'All months'],
                         ...yr.months
                             .slice()
                             .reverse()
-                            .map((m) => [
-                                m.month,
-                                `${monthLabel(m.month)} · ${m.n}`,
-                            ]),
+                            .map((m) => [m.month, `${monthLabel(m.month)} · ${m.n}`]),
                     ],
-                    params.month || "",
-                    (v) => change({ month: v }),
-                ),
+                    params.month || '',
+                    (v) => change({ month: v })
+                )
             );
         }
-        const tags = el("div", "tagrow");
+        const tags = el('div', 'tagrow');
         if (params.place) {
-            tags.append(tag(params.place, () => change({ place: "" })));
+            tags.append(tag(params.place, () => change({ place: '' })));
         }
         if (params.person) {
             tags.append(
-                tag(
-                    (people.find((p) => String(p.id) === params.person) || {})
-                        .name || "Person",
-                    () => change({ person: "" }),
-                ),
+                tag((people.find((p) => String(p.id) === params.person) || {}).name || 'Person', () =>
+                    change({ person: '' })
+                )
             );
         }
         if (params.from || params.to) {
@@ -235,19 +194,11 @@
                     params.trip
                         ? `${params.trip} · ${dateRange(params.from, params.to)}`
                         : dateRange(params.from, params.to),
-                    () => change({ from: "", to: "", trip: "" }),
-                ),
+                    () => change({ from: '', to: '', trip: '' })
+                )
             );
         }
-        host().replaceChildren(
-            head("Library"),
-            sub,
-            facets,
-            tags,
-            grid,
-            sentinel,
-            moreBtn,
-        );
+        host().replaceChildren(head('Library'), sub, facets, tags, grid, sentinel, moreBtn);
         const g = { ids: [], grid };
         let total = 0,
             loading = false;
@@ -257,18 +208,16 @@
             }
             loading = true;
             try {
-                const d = await browse("library", {
+                const d = await browse('library', {
                     ...filters,
                     offset: String(g.ids.length),
                 });
                 if (mine !== seq) return;
                 total = d.total;
                 addTiles(g, d.ids);
-                sub.textContent = total
-                    ? `${total.toLocaleString()} picture${total === 1 ? "" : "s"}`
-                    : "";
+                sub.textContent = total ? `${total.toLocaleString()} picture${total === 1 ? '' : 's'}` : '';
                 if (!total) {
-                    grid.replaceWith(el("div", "empty", "No pictures match."));
+                    grid.replaceWith(el('div', 'empty', 'No pictures match.'));
                 }
             } catch (_) {
                 /* keep what is shown */
@@ -276,81 +225,59 @@
             loading = false;
             moreBtn.hidden = g.ids.length >= total;
         }
-        moreBtn.addEventListener("click", more);
-        new IntersectionObserver(
-            (entries) => entries.some((x) => x.isIntersecting) && more(),
-            { rootMargin: "600px" },
-        ).observe(sentinel);
+        moreBtn.addEventListener('click', more);
+        new IntersectionObserver((entries) => entries.some((x) => x.isIntersecting) && more(), {
+            rootMargin: '600px',
+        }).observe(sentinel);
         await more();
     }
     async function showTrips() {
-        host().replaceChildren(el("div", "empty", "Loading…"));
-        const trips = await browse("trips");
-        const cards = el("div", "cards");
-        let year = "";
+        host().replaceChildren(el('div', 'empty', 'Loading…'));
+        const trips = await browse('trips');
+        const cards = el('div', 'cards');
+        let year = '';
         for (const t of trips) {
             if (t.start.slice(0, 4) !== year) {
                 year = t.start.slice(0, 4);
-                cards.append(el("div", "band", year));
+                cards.append(el('div', 'band', year));
             }
             cards.append(
                 cover(t.cover, t.title, dateRange(t.start, t.stop), t.n, () =>
-                    go("library", { from: t.start, to: t.stop, trip: t.title }),
-                ),
+                    go('library', { from: t.start, to: t.stop, trip: t.title })
+                )
             );
         }
         host().replaceChildren(
-            head(
-                "Trips",
-                trips.length
-                    ? `${trips.length} trips and occasions, newest first`
-                    : "",
-            ),
-            trips.length
-                ? cards
-                : el(
-                      "div",
-                      "empty",
-                      "No trips yet. They appear once pictures have dates and places.",
-                  ),
+            head('Trips', trips.length ? `${trips.length} trips and occasions, newest first` : ''),
+            trips.length ? cards : el('div', 'empty', 'No trips yet. They appear once pictures have dates and places.')
         );
     }
     async function showPlaces() {
-        host().replaceChildren(el("div", "empty", "Loading…"));
-        const places = await browse("places");
-        const cards = el("div", "cards"),
-            filter = el("input", "field");
-        filter.type = "search";
-        filter.placeholder = "Find a place…";
+        host().replaceChildren(el('div', 'empty', 'Loading…'));
+        const places = await browse('places');
+        const cards = el('div', 'cards'),
+            filter = el('input', 'field');
+        filter.type = 'search';
+        filter.placeholder = 'Find a place…';
         const fill = () => {
             const f = filter.value.trim().toLowerCase();
             cards.replaceChildren(
                 ...places
                     .filter((p) => !f || p.place.toLowerCase().includes(f))
                     .map((p) =>
-                        cover(
-                            p.cover,
-                            p.place.split(",")[0],
-                            p.country || p.place,
-                            p.n,
-                            () => go("library", { place: p.place }),
-                        ),
-                    ),
+                        cover(p.cover, p.place.split(',')[0], p.country || p.place, p.n, () =>
+                            go('library', { place: p.place })
+                        )
+                    )
             );
         };
-        filter.addEventListener("input", fill);
+        filter.addEventListener('input', fill);
         fill();
         host().replaceChildren(
-            head("Places", places.length ? `${places.length} places` : ""),
+            head('Places', places.length ? `${places.length} places` : ''),
             ...(places.length
                 ? [filter, cards]
-                : [
-                      el(
-                          "div",
-                          "empty",
-                          "No places yet. Pictures with a location appear here.",
-                      ),
-                  ]),
+                : [el('div', 'empty', 'No places yet. Pictures with a location appear here.')])
         );
     }
     function faceStyle(node, id, box) {
@@ -358,52 +285,34 @@
         const [x1, y1, x2, y2] = box,
             w = Math.max(x2 - x1, y2 - y1) * 1.7;
         if (!(w < 0.98)) {
-            node.style.backgroundSize = "cover";
-            node.style.backgroundPosition = "center";
+            node.style.backgroundSize = 'cover';
+            node.style.backgroundPosition = 'center';
             return;
         }
-        const pos = (c) =>
-            Math.min(100, Math.max(0, ((c - w / 2) / (1 - w)) * 100));
+        const pos = (c) => Math.min(100, Math.max(0, ((c - w / 2) / (1 - w)) * 100));
         node.style.backgroundSize = `${100 / w}% ${100 / w}%`;
         node.style.backgroundPosition = `${pos((x1 + x2) / 2)}% ${pos((y1 + y2) / 2)}%`;
     }
     async function showPeople() {
-        host().replaceChildren(el("div", "empty", "Loading…"));
-        const people = await browse("people"),
-            grid = el("div", "people");
+        host().replaceChildren(el('div', 'empty', 'Loading…'));
+        const people = await browse('people'),
+            grid = el('div', 'people');
         people.forEach((p, i) => {
-            const b = el("button", "person"),
-                face = el("div", "face");
-            b.type = "button";
+            const b = el('button', 'person'),
+                face = el('div', 'face');
+            b.type = 'button';
             faceStyle(face, p.cover, p.box);
             b.append(
                 face,
-                el("b", "", p.name || `Person ${i + 1}`),
-                el(
-                    "span",
-                    "",
-                    `${p.n.toLocaleString()} picture${p.n === 1 ? "" : "s"}`,
-                ),
+                el('b', '', p.name || `Person ${i + 1}`),
+                el('span', '', `${p.n.toLocaleString()} picture${p.n === 1 ? '' : 's'}`)
             );
-            b.addEventListener("click", () =>
-                go("library", { person: String(p.id) }),
-            );
+            b.addEventListener('click', () => go('library', { person: String(p.id) }));
             grid.append(b);
         });
         host().replaceChildren(
-            head(
-                "People",
-                people.length
-                    ? `${people.length} people found in your pictures`
-                    : "",
-            ),
-            people.length
-                ? grid
-                : el(
-                      "div",
-                      "empty",
-                      "No people yet. Faces are grouped while your pictures are read.",
-                  ),
+            head('People', people.length ? `${people.length} people found in your pictures` : ''),
+            people.length ? grid : el('div', 'empty', 'No people yet. Faces are grouped while your pictures are read.')
         );
     }
 
@@ -418,13 +327,7 @@
             try {
                 await this.pages[page](params);
             } catch (e) {
-                host().replaceChildren(
-                    el(
-                        "div",
-                        "empty",
-                        `Could not load this page: ${e.message}`,
-                    ),
-                );
+                host().replaceChildren(el('div', 'empty', `Could not load this page: ${e.message}`));
             }
         },
     };

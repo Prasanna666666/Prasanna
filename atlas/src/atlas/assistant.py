@@ -194,13 +194,9 @@ class Assistant:
 
     @staticmethod
     def _allowed(tool: Tool, text: str) -> bool:
-        """A tool that deletes, applies a change or undoes one is offered only when the person's own words call for it."""
+        """A tool that deletes is offered only when the person's own words call for it (a change to their pictures is never made by a tool: the person confirms it in a window)."""
         if tool.name.startswith("delete_"):
             return consent.says(consent.DELETE, text)
-        if tool.name == "apply_change":
-            return consent.says(consent.AFFIRM, text)
-        if tool.name == "undo_change":
-            return consent.says(consent.UNDO, text)
         return True
 
     def choose(self, text: str, history: list[list[str]], tools: list[Tool]) -> list[Tool] | None:
@@ -266,8 +262,10 @@ class Assistant:
             if tool.module.id not in turn.used:
                 turn.used.append(tool.module.id)
             turn.notes.extend(n for n in result.get("notes") or [] if n not in turn.notes)
-            if args.get("show") is True:  # pictures and files are shown only when the model says the person asked to see them
-                turn.items.extend(result.get("items") or [])
+            for item in result.get("items") or []:
+                # a change waiting for the person is always shown (it needs them); pictures and files only when the model says the person asked to see them
+                if item["kind"] == "confirm" or args.get("show") is True:
+                    turn.items.append({**item, "module": tool.module.id})
         body = json.dumps({"error": result["error"]} if not result.get("ok") else result.get("data"), default=str)[:TOOL_RESULT_CHARS]
         turn.outputs.append(body)
         turn.messages.append({"role": "tool", "tool_name": name, "content": body})
@@ -294,7 +292,10 @@ class Assistant:
     @staticmethod
     def _reply(ok: bool, text: str, turn: Turn) -> dict[str, Any]:
         used, items = turn.used, turn.items
-        show = {"photos": any(i["kind"] == "photo" for i in items), "documents": any(i["kind"] == "document" for i in items)}
+        show = {
+            "photos": any(i["kind"] == "photo" for i in items),
+            "documents": any(i["kind"] == "document" for i in items),
+        }
         part: dict[str, Any] = {"module": "atlas", "name": "Atlas", "ok": ok, "show": show}
         part.update({"text": text, "items": items, "notes": turn.notes[:3]} if ok else {"error": text})
         return {"how": "agent" if ok else "down", "routed": used, "show": show, "parts": [part]}

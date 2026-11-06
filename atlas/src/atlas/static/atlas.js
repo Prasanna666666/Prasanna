@@ -498,6 +498,27 @@
         }
         return wrap;
     };
+    // a change waiting for you: one card that opens that part's confirmation window (nothing is changed until you press Confirm there)
+    const confirmCard = (module, item) => {
+        const card = el('div', 'part-confirm');
+        const text = el('div');
+        text.append(el('b', '', item.title), el('span', '', item.subtitle));
+        const open = el('a', 'part-review', 'Review and confirm');
+        open.href = address(module, item.link.replace(/^#\/?/, ''));
+        card.append(text, open);
+        return card;
+    };
+    // the pictures and files an answer brought, each shown through the part it came from
+    const appendAnswerItems = (box, part) => {
+        const modules = [...new Set((part.items || []).map((i) => i.module))];
+        modules.forEach((id) => {
+            const module = byId(id);
+            if (!module) return;
+            const own = (part.items || []).filter((i) => i.module === id);
+            own.filter((i) => i.kind === 'confirm').forEach((i) => box.append(confirmCard(module, i)));
+            appendItems(box, { ...part, items: own.filter((i) => i.kind !== 'confirm'), total: 0 }, module);
+        });
+    };
     const appendItems = (box, part, module) => {
         const items = part.items || [];
         const photos = items.filter((i) => i.kind === 'photo');
@@ -538,7 +559,7 @@
             body.append(p);
         });
         box.append(body);
-        if (module) appendItems(box, part, module);
+        appendAnswerItems(box, part);
         (part.notes || []).forEach((note) => box.append(el('div', 'part-note', note)));
         return box;
     };

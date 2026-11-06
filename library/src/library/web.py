@@ -18,7 +18,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import pictures, store, tools
+from . import changes, pictures, store, tools
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -175,6 +175,35 @@ def _get_item(state: State, conn, query: dict[str, str]) -> dict:
     return found
 
 
+def _guarded(call):
+    """A change's own refusals come back as plain errors, never as crashes."""
+    try:
+        return call()
+    except changes.Refused as why:
+        raise Fail(400, str(why)) from why
+
+
+def _get_changes(state: State, conn, query: dict[str, str]) -> dict:
+    return changes.overview(conn)
+
+
+def _get_change(state: State, conn, query: dict[str, str]) -> dict:
+    return _guarded(lambda: changes.details(conn, state, query.get("id", "")[:20]))
+
+
+def _post_confirm(state: State, conn, body: dict) -> dict:
+    """The person pressed Confirm in the window. This is the only way a change is carried out; no tool does it."""
+    return _guarded(lambda: changes.confirm(state, conn, str(body.get("id", ""))[:20], str(body.get("nonce", ""))[:64]))
+
+
+def _post_cancel(state: State, conn, body: dict) -> dict:
+    return changes.cancel(conn, str(body.get("id", ""))[:20])
+
+
+def _post_undo(state: State, conn, body: dict) -> dict:
+    return _guarded(lambda: changes.undo(state, conn, str(body.get("batch", ""))[:20]))
+
+
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**store.counts(conn), "kinds": store.by_kind(conn)}
 
@@ -203,6 +232,8 @@ GET_ROUTES = {
     "/api/status": _get_status,
     "/api/tools": _get_tools,
     "/api/pictures/browse": _get_browse,
+    "/api/changes": _get_changes,
+    "/api/change": _get_change,
     "/api/pictures/item": _get_item,
     "/api/pictures": _get_pictures,
     "/api/pictures/status": _get_pictures_status,
@@ -210,6 +241,9 @@ GET_ROUTES = {
 }
 POST_ROUTES = {
     "/api/tool": _post_tool,
+    "/api/change/confirm": _post_confirm,
+    "/api/change/cancel": _post_cancel,
+    "/api/change/undo": _post_undo,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
 }
 

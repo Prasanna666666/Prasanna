@@ -45,13 +45,24 @@ MIGRATIONS = (
     """
     CREATE TABLE pending_changes (
         id TEXT PRIMARY KEY,
-        kind TEXT NOT NULL,                      -- move | delete
+        kind TEXT NOT NULL,                      -- move | delete | export
         label TEXT NOT NULL,
         dest TEXT NOT NULL,
-        entries TEXT NOT NULL,                   -- [[item id, from, to], ...] as JSON: what would happen, nothing has yet
-        turn TEXT NOT NULL,                      -- the question it was prepared in: it can only be confirmed in a later one
+        entries TEXT NOT NULL,                   -- [[item id, from, to, size, modified]], what would happen and what each file looked like when it was prepared
+        nonce TEXT NOT NULL,                     -- given only to the confirmation window when it is opened
         created REAL NOT NULL,
-        applied_batch TEXT                       -- set once it has been done: the number to undo it with
+        viewed REAL,                             -- when the window was opened: nothing is confirmed without having been looked at
+        status TEXT NOT NULL DEFAULT 'pending',  -- pending | done | cancelled | failed
+        decided REAL,
+        batch TEXT,                              -- the journal number a done move can be undone with
+        result TEXT NOT NULL DEFAULT ''
+    );
+    CREATE TABLE write_audit (
+        id INTEGER PRIMARY KEY,
+        at REAL NOT NULL,
+        change_id TEXT NOT NULL,
+        action TEXT NOT NULL,                    -- prepared | opened | confirmed | refused | cancelled | undone
+        detail TEXT NOT NULL DEFAULT ''
     );
     """,
 )

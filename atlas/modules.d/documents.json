@@ -37,6 +37,11 @@
       "id": "people",
       "label": "People",
       "icon": "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2A6 6 0 0 1 21 20"
+    },
+    {
+      "id": "changes",
+      "label": "Changes",
+      "icon": "M4 12l5 5L20 6"
     }
   ],
   "scan": "/api/scan",

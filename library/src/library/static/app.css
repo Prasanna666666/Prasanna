@@ -7,7 +7,7 @@
     --accent: #6366f1;
     color-scheme: light;
 }
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
     --bg: #0f1020;
     --card: #181a2e;
     --ink: #ececf6;
@@ -64,7 +64,7 @@ h1 {
     border-radius: 999px;
     cursor: pointer;
 }
-#kinds button[aria-pressed="true"] {
+#kinds button[aria-pressed='true'] {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
@@ -124,7 +124,7 @@ h1 {
     border-radius: 999px;
     cursor: pointer;
 }
-#tabs button[aria-pressed="true"] {
+#tabs button[aria-pressed='true'] {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
@@ -323,4 +323,106 @@ h1 {
 
 .pill[hidden] {
     display: none;
+}
+
+/* ---------- the confirmation window and the Changes page ---------- */
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.6);
+}
+.overlay[hidden] {
+    display: none;
+}
+.dialog {
+    width: min(720px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 20px 22px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+}
+.dialog h2 {
+    margin: 0 0 8px;
+}
+.dialog-list {
+    max-height: 38vh;
+    overflow: auto;
+    margin: 12px 0;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+}
+.dialog-row {
+    display: grid;
+    gap: 2px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--line);
+    word-break: break-all;
+}
+.dialog-row:last-child {
+    border-bottom: 0;
+}
+.dialog-problems p {
+    margin: 4px 0;
+    color: #ef4444;
+}
+.dialog-result.good {
+    color: #22c55e;
+}
+.dialog-result.bad {
+    color: #ef4444;
+}
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+}
+.btn {
+    font: inherit;
+    padding: 8px 18px;
+    color: inherit;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    cursor: pointer;
+}
+.btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+.btn.danger {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+}
+.btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.changes h2 {
+    font-size: 1.1rem;
+    margin: 20px 0 8px;
+}
+.change {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+.change b,
+.change span {
+    display: block;
 }

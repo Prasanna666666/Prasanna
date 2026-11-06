@@ -216,6 +216,8 @@ class Upstreams:
             return None
         kind = str(item.get("kind", ""))[:20]
         link = str(item.get("link", ""))[:300]
+        if kind == "confirm" and item.get("title"):  # a change waiting for the person: a card that opens the part's confirmation window
+            return {"kind": kind, "title": str(item["title"])[:200], "subtitle": str(item.get("subtitle", ""))[:200], "link": link}
         if kind == "document" and item.get("title"):
             return {
                 "kind": kind,

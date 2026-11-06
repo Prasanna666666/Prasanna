@@ -31,8 +31,14 @@ Open `http://documents.localhost:8502`, or Atlas (`atlas/modules.d/documents.jso
 ## Security
 Sources read-only; the reader has no network; the service has no internet; the database is encrypted; no readable copy is left on disk (only empty marker files); only this computer's own host names are answered and changes need the service's own header. Other programs on this computer can still reach the port (no login, by decision); the data itself stays encrypted.
 
-## Changing your pictures (move, delete, export)
-Through the assistant, in two steps. `preview_move_pictures` / `preview_delete_pictures` describe what would happen and change **nothing**; `apply_change` carries it out only in a **later** question whose own words confirm it ("yes, go ahead"), never in the question that prepared it, and not while the indexer runs. Every move is journaled in the index and `undo_change` puts it back (only when you ask to undo). A delete is a move into `Aperture - deleted/<date>` inside the photo folder, so it can be undone too; nothing erases a file for good. `export_pictures` only copies. This is the one place the photo folder is writable (the service container; the indexer's mount stays read-only), and moves stay inside the photo folder.
+## Writing to your files: one gate, one window
+Documents is the one place that reads **and** writes your pictures. Every write (move into a folder, delete, copy out, undo) goes through `changes.py`, the same way every time:
+1. **Prepared.** The assistant (`preview_move_pictures`, `preview_delete_pictures`, `preview_export_pictures`) can only describe what would happen. Nothing on disk changes, and it has no tool to go further.
+2. **Shown.** A card in the chat opens the **Changes** page and a confirmation window: the full list (from, to), size, destination, and what is wrong with it right now. Opening the window is recorded.
+3. **Confirmed by you.** Only the button in the window carries it out (`POST /api/change/confirm`); no tool, sentence or model can. Delete is red and says it goes to a trash folder; Cancel forgets it.
+4. **Checked again at that moment.** The window was opened (and for a moment) with the key it was given; the change is under an hour old and not already done; no picture changed, vanished or would land on an existing file since it was prepared; everything is inside the photo folder (never the program's own folders); the pictures are not being read; at most 1,000 files; one change at a time; room to copy.
+5. **Done with a journal, verified, audited.** Each move is journaled before the file is touched, checked afterwards, and recorded in the audit trail (`write_audit`). **Undo** (a button in the same page, also confirmed) puts every file back. A delete is a move into `Aperture - deleted/<date>` inside the photo folder; nothing is erased for good.
+This is the only place the photo folder is writable (the service container; the indexer's mount stays read-only); statements and mail stay read-only.
 
 ## One reader per kind of file
 `parser.PARSERS` maps each kind of file (text, csv, pdf, image, sheet, doc, html, email, json; archives and mailboxes are opened first) to its own reader. A new kind of file is a new function and its extensions, nothing else. Formats that can be recognised exactly need no model (`recognise.py`: bank standards, the ECB rate file).
