@@ -136,7 +136,7 @@ def unreachable(base_url: str) -> str:
         conn.request("GET", "/", headers={"Host": parts.netloc})
         status = conn.getresponse().status
     except (OSError, http.client.HTTPException) as exc:
-        return f"nothing answers on 127.0.0.1:{parts.port or 8000} ({exc.__class__.__name__}). Is the app running? Start it with ./scripts/up.sh"
+        return f"nothing answers on 127.0.0.1:{parts.port or 8000} ({exc.__class__.__name__}). Is the app running? Start the apps: orbit/scripts/up.sh, library/scripts/up.sh, then atlas/up.sh"
     finally:
         conn.close()
     return "" if status < 500 else f"Atlas answered with an error (HTTP {status}). Look at its log: docker compose logs"
