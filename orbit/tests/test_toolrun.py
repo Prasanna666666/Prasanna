@@ -24,3 +24,11 @@ def test_a_tool_outside_the_allowed_set_is_refused(conn):
 
 def test_no_assistant_may_delete_an_imported_payment():
     assert "delete_transaction" in toolrun.NEVER_BY_AI
+
+
+def test_the_weekly_summary_reports_only_what_the_books_hold(conn):
+    money.add_transaction(conn, {"amount": 12.5, "category": "food"})
+    out = money.weekly_summary(conn, {"days": 7})
+    assert out["changed"]["new_payments"] == 1 and out["changed"]["spent"] == 12.5
+    assert out["needs_a_check"]["files"] == [] and "due_next_14_days" in out
+    assert not toolrun.run_tool(conn, "weekly_summary", {"days": "3"})[1]

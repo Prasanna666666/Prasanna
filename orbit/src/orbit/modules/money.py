@@ -720,6 +720,27 @@ def files_to_check(conn, a=None):
     return rows(conn.execute("SELECT name AS file, status, issues FROM statement_files WHERE status IN ('needs_check','unverified') ORDER BY status, name"))
 
 
+def weekly_summary(conn, a=None):
+    """What changed in the last days, what is due next, and what needs a check. Every figure is read from the books; nothing is estimated."""
+    days = max(1, min(int((a or {}).get("days", 7)), 31))
+    since = (clock.today() - timedelta(days=days)).isoformat()
+    added = conn.execute(
+        "SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN kind='expense' THEN amount_minor END),0) AS spent, "
+        "COALESCE(SUM(CASE WHEN kind='income' THEN amount_minor END),0) AS income FROM transactions WHERE substr(created,1,10)>=?",
+        (since,),
+    ).fetchone()
+    files = rows(conn.execute("SELECT name, status FROM statement_files WHERE substr(at,1,10)>=? ORDER BY at DESC LIMIT 20", (since,)))
+    due = planning.bills_due(conn, {"days": 14})
+    check = rows(conn.execute("SELECT name AS file, status, issues FROM statement_files WHERE status IN ('needs_check','unverified') ORDER BY name LIMIT 20"))
+    problems = [p for p in verification_report(conn)["problems"] if p["level"] == "fail"][:10]
+    return {
+        "since": since,
+        "changed": {"new_payments": added["n"], "spent": added["spent"] / 100, "income": added["income"] / 100, "files_read": files},
+        "due_next_14_days": due,
+        "needs_a_check": {"files": check, "failed_checks": problems},
+    }
+
+
 def statement_report(conn, a=None):
     """For each finance file: what Finance made of it, with no content shown. Use it to see which files could not be read."""
     out = []
@@ -1010,6 +1031,12 @@ MODULE = Module(
             "What each verifier agent checked (balances, totals, second reading, payslip vs bank, invoice vs bank, continuity): counts, warnings and failures.",
             {},
             verification_report,
+        ),
+        Tool(
+            "weekly_summary",
+            "The weekly summary of money: new payments and files in the last days, bills and regular payments due in the next two weeks, and what needs a check.",
+            {"days": INT("How many days back, default 7")},
+            weekly_summary,
         ),
         Tool("files_to_check", "Bank statements that could not be proven correct (not imported) or could not be checked, with the reason.", {}, files_to_check),
         Tool(

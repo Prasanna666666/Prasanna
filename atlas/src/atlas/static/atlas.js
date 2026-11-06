@@ -451,7 +451,12 @@
 
     // ---------------------------------------------------------------- the one chat: ask anything; Atlas decides which app answers
     const chat = { conv: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), history: [], busy: false };
-    const IDEAS = ['How much did I spend last month?', 'Show my photos from the last trip', 'What is my net worth?'];
+    const IDEAS = [
+        'Give me my weekly summary',
+        'How much did I spend last month?',
+        'Show my photos from the last trip',
+        'What is my net worth?',
+    ];
     const bold = (parent, text) => {
         text.split(/(\*\*[^*]+\*\*)/).forEach((piece) => {
             if (piece.startsWith('**') && piece.endsWith('**') && piece.length > 4)

@@ -173,3 +173,11 @@ def test_the_window_routes_serve_the_page_and_are_the_only_way_to_confirm(world)
     with pytest.raises(web.Fail):
         web._get_change(world.state, world.conn, {"id": "nonsense"})
     assert os.path.isfile(world.photos / "Receipts" / "receipt.jpg")
+
+
+def test_whats_new_counts_new_documents_and_waiting_changes(world):
+    out = tools.run(world.state, world.conn, "whats_new", {"days": "7"})
+    assert out["ok"] and out["data"]["waiting_for_confirmation"] == []
+    prepare(world)
+    out = tools.run(world.state, world.conn, "whats_new", {})
+    assert len(out["data"]["waiting_for_confirmation"]) == 1

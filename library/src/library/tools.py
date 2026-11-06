@@ -5,9 +5,10 @@ that can return files or pictures does so only when called with `show` true, whi
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from . import changes, pictures, store
@@ -168,6 +169,19 @@ def overview(state, conn, a: dict, ask: Ask | None = None) -> Result:
     return {**store.counts(conn), "kinds": store.by_kind(conn), "pictures": pictures.counts(engine) if engine is not None else None}, []
 
 
+def whats_new(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    """New documents of the last days by kind, how many wait to be read, and what waits for the person's confirmation."""
+    days = max(1, min(int(a.get("days", 7)), 31))
+    since = (datetime.now().astimezone().date() - timedelta(days=days)).isoformat()
+    new = conn.execute("SELECT name, facts FROM documents WHERE substr(created,1,10)>=? ORDER BY id DESC LIMIT 200", (since,)).fetchall()
+    kinds: dict[str, int] = {}
+    for d in new:
+        kind = json.loads(d["facts"]).get("kind", "other") if d["facts"] else "not yet read"
+        kinds[kind] = kinds.get(kind, 0) + 1
+    waiting = changes.overview(conn)["waiting"]
+    return {"since": since, "new_documents": len(new), "by_kind": kinds, **store.counts(conn), "waiting_for_confirmation": waiting}, []
+
+
 @dataclass(frozen=True)
 class Tool:
     name: str
@@ -275,6 +289,12 @@ TOOLS = (
         preview_export,
     ),
     Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),
+    Tool(
+        "whats_new",
+        "What arrived in the last days: new files, mail and pictures by kind, and changes waiting for confirmation. Part of the weekly summary.",
+        {"days": _str("How many days back, default 7")},
+        whats_new,
+    ),
     Tool("library_overview", "How many files, mails and pictures there are and of which kinds.", {}, overview),
 )
 BY_NAME = {t.name: t for t in TOOLS}
