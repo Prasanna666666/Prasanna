@@ -102,9 +102,10 @@ def wait_for_scan(engine: Engine, progress: Progress, poll: float = 2.0, appear:
 
 
 # ---- asking ----------------------------------------------------------------------------------------------------------------------
-def find(engine: Engine, args: dict[str, Any], limit: int = 24) -> list[dict[str, Any]]:
-    """Pictures that fit everything asked, best first: what they show or say (`query`), a place, a person, and the days they were taken (`from`, `to`,
-    or a `year`/`month`). The picture engine's own search does the matching: words in the text and names, the places, the people and what the picture looks like."""
+def find_ids(engine: Engine, args: dict[str, Any]) -> list[int]:
+    """Every picture that fits everything asked, best first (not cut to a page): what they show or say (`query`), a place, a person, and the days they were
+    taken (`from`, `to`, or a `year`/`month`). The picture engine's own search does the matching: words in the text and names, the places, the people and
+    what the picture looks like. Nothing asked for means nothing returned, never everything."""
     clauses = []
     if str(args.get("query", "")).strip():
         clauses.append(Clause(("visual", "text", "path"), str(args["query"]).strip()[:200]))
@@ -124,12 +125,17 @@ def find(engine: Engine, args: dict[str, Any], limit: int = 24) -> list[dict[str
         return []
     conn = engine.question_db()
     try:
-        ids = [
-            int(i)
-            for i in Executor(conn, engine.embedding_index, engine.search_embedder, engine.settings.visual_strictness, geo_provider=engine.ready_geo)
-            .run(plan)
-            .ids[: min(limit, MAX_RESULTS)]
-        ]
+        executor = Executor(conn, engine.embedding_index, engine.search_embedder, engine.settings.visual_strictness, geo_provider=engine.ready_geo)
+        return [int(i) for i in executor.run(plan).ids]
+    finally:
+        conn.close()
+
+
+def find(engine: Engine, args: dict[str, Any], limit: int = 24) -> list[dict[str, Any]]:
+    """The first pictures that fit (see find_ids), with what to show about each."""
+    ids = find_ids(engine, args)[: min(limit, MAX_RESULTS)]
+    conn = engine.db.connect()
+    try:
         found = items_by_ids(conn, ids)
     finally:
         conn.close()

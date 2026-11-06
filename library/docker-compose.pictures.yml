@@ -46,6 +46,9 @@ services:
       - library-parsed:/parsed
       - library-pictures:/Volumes/Expansion/Aperture/data
       - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture/models:/Volumes/Expansion/Aperture/models:ro
+      # the ONLY place your photos are writable: the service moves, deletes (to a trash folder) and exports pictures when you ask and confirm, always undoable
+      - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos:/Volumes/Expansion/Photos
+      - ${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Aperture_Exports:/Volumes/Expansion/Aperture_Exports
     environment:
       <<: *pictures
       OLLAMA_HOST: http://ollama.internal:11434

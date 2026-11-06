@@ -13,7 +13,6 @@ import json
 import logging
 import mimetypes
 import os
-import re
 import threading
 import time
 import urllib.parse
@@ -22,7 +21,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
-from kit import llm, log, netguard
+from kit import consent, llm, log, netguard
 from kit.http import Fail, JsonHandler, host_ok
 
 from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
@@ -202,16 +201,13 @@ GET_ROUTES = {
 }
 
 
-DELETE_WORDS = re.compile(r"\b(delete|remove|erase|clear|get rid)\b")
-
-
 def _post_tool(state: State, conn, body: dict) -> dict:
     """Run one tool for the one assistant. A delete runs only if the person's own words asked for it (text inside a document can never make it happen),
     and a report is checked against the raw ledger first: if it does not tie, it is not given."""
     name = str(body.get("name", ""))
     if name not in registry(ALL) or name in toolrun.NEVER_BY_AI:
         raise Fail(400, f"unknown tool {name!r}")
-    if name.startswith("delete_") and not DELETE_WORDS.search(str(body.get("user_text", "")).lower()):
+    if name.startswith("delete_") and not consent.says(consent.DELETE, str(body.get("user_text", ""))):
         return {"ok": False, "data": None, "error": "refused: deleting needs you to ask for it in your own words"}
     args = body.get("args") or {}
     out, error = toolrun.run_tool(conn, name, args)

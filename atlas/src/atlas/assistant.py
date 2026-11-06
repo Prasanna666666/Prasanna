@@ -9,14 +9,15 @@ from __future__ import annotations
 
 import http.client
 import json
-import re
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 from urllib.parse import urlsplit
 
+from kit import consent
 from kit.audit import unproven_figures
 
 from .registry import Module
@@ -35,7 +36,6 @@ HISTORY_CHARS = 600
 TOOLS_CACHED_SECONDS = 60.0
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
 SEPARATOR = "__"
-DELETE_WORDS = re.compile(r"\b(delete|remove|erase|clear|get rid)\b")
 
 
 def clean_history(raw: Any) -> list[list[str]]:
@@ -127,6 +127,7 @@ class Turn:
 
     text: str
     by_name: dict[str, Tool]
+    id: str = field(default_factory=lambda: uuid.uuid4().hex)  # names this question: a change prepared in it can only be confirmed in a later one
     messages: list[dict[str, Any]] = field(default_factory=list)
     used: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
@@ -191,6 +192,17 @@ class Assistant:
                 self._tools = (time.monotonic(), found)
         return found
 
+    @staticmethod
+    def _allowed(tool: Tool, text: str) -> bool:
+        """A tool that deletes, applies a change or undoes one is offered only when the person's own words call for it."""
+        if tool.name.startswith("delete_"):
+            return consent.says(consent.DELETE, text)
+        if tool.name == "apply_change":
+            return consent.says(consent.AFFIRM, text)
+        if tool.name == "undo_change":
+            return consent.says(consent.UNDO, text)
+        return True
+
     def choose(self, text: str, history: list[list[str]], tools: list[Tool]) -> list[Tool] | None:
         """Which tools this message may need (at most MAX_PICKED), chosen by the model from a one-line index of all of them; none for plain conversation.
         None if the model is not running. Only the chosen tools are described in full afterwards, so any number of tools fits the small window."""
@@ -218,7 +230,7 @@ class Assistant:
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """One question: the model uses whichever tools of whichever parts it needs, then answers. Returns the answer as one labelled part."""
         text = text.strip()[:MAX_TEXT]
-        tools = [t for t in self.tools() if not t.name.startswith("delete_") or DELETE_WORDS.search(text.lower())]  # only the person's own words can delete
+        tools = [t for t in self.tools() if self._allowed(t, text)]
         chosen = self.choose(text, history, tools)
         if chosen is None:
             return self._reply(False, "The AI model is not running. Start Ollama and ask again.", Turn(text, {}))
@@ -250,7 +262,7 @@ class Assistant:
         if tool is None:
             result: dict[str, Any] = {"ok": False, "error": f"tool {name!r} is not available"}
         else:
-            result = self.upstreams.call_tool(tool.module, tool.name, args, turn.text)
+            result = self.upstreams.call_tool(tool.module, tool.name, args, turn.text, turn.id)
             if tool.module.id not in turn.used:
                 turn.used.append(tool.module.id)
             turn.notes.extend(n for n in result.get("notes") or [] if n not in turn.notes)

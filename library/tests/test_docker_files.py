@@ -42,3 +42,12 @@ def test_the_picture_indexer_has_no_network_and_reads_the_photos_read_only():
     assert any(v.endswith("/Photos:/Volumes/Expansion/Photos:ro") for v in i["volumes"]) and any(v.endswith("/models:ro") for v in i["volumes"])
     assert pictures["volumes"]["library-pictures"]["name"] == "library-pictures"  # a fixed name, so Photos can open the same index
     assert "ORBIT_DB_KEY" in pictures["services"]["app"]["environment"]
+
+
+def test_only_the_service_can_write_to_the_photos_and_only_for_changes_you_confirm():
+    pictures = yaml.safe_load((ROOT / "docker-compose.pictures.yml").read_text())["services"]
+    assert all(v.endswith(":ro") for v in pictures["indexer"]["volumes"] if "/Photos" in v or "OrbitInbox" in v)  # the reader of pictures can never change them
+    writable = [
+        v for v in pictures["app"]["volumes"] if v.endswith(("/Photos:/Volumes/Expansion/Photos", "/Aperture_Exports:/Volumes/Expansion/Aperture_Exports"))
+    ]
+    assert len(writable) == 2  # the service: moves and exports, after a confirmation (library/changes.py)

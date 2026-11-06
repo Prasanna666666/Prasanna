@@ -191,7 +191,8 @@ def _get_tools(state: State, conn, query: dict[str, str]) -> dict:
 def _post_tool(state: State, conn, body: dict) -> dict:
     """Run one tool for the one assistant."""
     args = body.get("args")
-    return tools.run(state, conn, str(body.get("name", "")), args if isinstance(args, dict) else {})
+    ask = tools.Ask(str(body.get("user_text", ""))[:2000], str(body.get("turn", ""))[:64])
+    return tools.run(state, conn, str(body.get("name", "")), args if isinstance(args, dict) else {}, ask)
 
 
 GET_ROUTES = {

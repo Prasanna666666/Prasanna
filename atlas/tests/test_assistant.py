@@ -188,3 +188,27 @@ def test_a_tool_name_the_model_makes_up_when_choosing_is_ignored(running):
     photos.script = [text("ok")]
     chat(running, "hello")
     assert offered(loop_calls(photos)[0]) == {"money__net_worth"}
+
+
+def test_a_tool_that_applies_or_undoes_a_change_is_offered_only_when_the_persons_own_words_call_for_it(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("preview_move_pictures"), tool("apply_change"), tool("undo_change")]
+    for words, expected in (
+        ("move my India photos to a folder", {"money__preview_move_pictures"}),
+        ("yes, go ahead", {"money__preview_move_pictures", "money__apply_change"}),
+        ("undo that please", {"money__preview_move_pictures", "money__undo_change"}),
+    ):
+        running.atlas.assistant._tools = None
+        photos.script = [text("ok")]
+        chat(running, words)
+        assert offered(loop_calls(photos)[-1]) == expected, words
+
+
+def test_each_question_has_its_own_turn_id_that_reaches_the_part(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("find_things")]
+    for _ in range(2):
+        photos.script = [call("money__find_things"), text("ok")]
+        chat(running, "find things")
+    first, second = money.asked[-2], money.asked[-1]
+    assert first["turn"] and second["turn"] and first["turn"] != second["turn"]

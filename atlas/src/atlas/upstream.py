@@ -192,9 +192,9 @@ class Upstreams:
             if isinstance(t, dict) and re.fullmatch(r"[a-z][a-z0-9_]{0,60}", str(t.get("name", ""))) and isinstance(t.get("parameters"), dict)
         ]
 
-    def call_tool(self, module: Module, name: str, args: dict[str, Any], user_text: str) -> dict[str, Any]:
-        """Run one tool of one part. `user_text` lets the part apply its own rules (a delete needs the person's own words). Never raises."""
-        payload = json.dumps({"name": name, "args": args, "user_text": user_text}).encode()
+    def call_tool(self, module: Module, name: str, args: dict[str, Any], user_text: str, turn: str = "") -> dict[str, Any]:
+        """Run one tool of one part. `user_text` lets the part apply its own rules (a delete needs the person's own words); `turn` names this one question, so a change prepared in one turn cannot be confirmed in the same one. Never raises."""
+        payload = json.dumps({"name": name, "args": args, "user_text": user_text, "turn": turn}).encode()
         try:
             status, body, _ = self._authed_full(module, "POST", module.tool, ASK_SECONDS, payload)
             raw = json.loads(body)

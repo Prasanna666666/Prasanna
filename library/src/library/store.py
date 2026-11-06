@@ -42,6 +42,18 @@ MIGRATIONS = (
     );
     CREATE INDEX documents_ready ON documents (ready);
     """,
+    """
+    CREATE TABLE pending_changes (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,                      -- move | delete
+        label TEXT NOT NULL,
+        dest TEXT NOT NULL,
+        entries TEXT NOT NULL,                   -- [[item id, from, to], ...] as JSON: what would happen, nothing has yet
+        turn TEXT NOT NULL,                      -- the question it was prepared in: it can only be confirmed in a later one
+        created REAL NOT NULL,
+        applied_batch TEXT                       -- set once it has been done: the number to undo it with
+    );
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}

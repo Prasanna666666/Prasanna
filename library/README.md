@@ -31,6 +31,9 @@ Open `http://documents.localhost:8502`, or Atlas (`atlas/modules.d/documents.jso
 ## Security
 Sources read-only; the reader has no network; the service has no internet; the database is encrypted; no readable copy is left on disk (only empty marker files); only this computer's own host names are answered and changes need the service's own header. Other programs on this computer can still reach the port (no login, by decision); the data itself stays encrypted.
 
+## Changing your pictures (move, delete, export)
+Through the assistant, in two steps. `preview_move_pictures` / `preview_delete_pictures` describe what would happen and change **nothing**; `apply_change` carries it out only in a **later** question whose own words confirm it ("yes, go ahead"), never in the question that prepared it, and not while the indexer runs. Every move is journaled in the index and `undo_change` puts it back (only when you ask to undo). A delete is a move into `Aperture - deleted/<date>` inside the photo folder, so it can be undone too; nothing erases a file for good. `export_pictures` only copies. This is the one place the photo folder is writable (the service container; the indexer's mount stays read-only), and moves stay inside the photo folder.
+
 ## One reader per kind of file
 `parser.PARSERS` maps each kind of file (text, csv, pdf, image, sheet, doc, html, email, json; archives and mailboxes are opened first) to its own reader. A new kind of file is a new function and its extensions, nothing else. Formats that can be recognised exactly need no model (`recognise.py`: bank standards, the ECB rate file).
 
