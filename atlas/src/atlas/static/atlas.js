@@ -408,6 +408,13 @@
         row.append(el('i'), text);
         return row;
     };
+    const partLine = (part, busy, warn = false) => {
+        const row = el('div', 'scan-row' + (warn ? ' warn' : busy ? ' busy' : ''));
+        const text = el('div', 'scan-text');
+        text.append(el('b', '', part.name), el('span', '', part.detail));
+        row.append(el('i'), text);
+        return row;
+    };
     const showScan = (report) => {
         const panel = $('#scan');
         const close = el('button', 'scan-close', '×');
@@ -418,10 +425,16 @@
         });
         const head = el('div', 'scan-head');
         head.append(el('b', '', report.running ? 'Updating…' : 'Update finished'), close);
-        panel.replaceChildren(
-            head,
-            ...state.modules.filter((m) => report.modules[m.id]).map((m) => scanLine(m, report.modules[m.id]))
-        );
+        const rows = [];
+        for (const m of state.modules) {
+            const info = report.modules[m.id];
+            if (!info) continue;
+            if (info.parts && info.parts.length) {
+                info.parts.forEach((p) => rows.push(partLine(p, info.running)));
+                info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
+            } else if (info.problems.length || info.needs_check) rows.push(scanLine(m, info)); // an app without rows speaks only when something is wrong
+        }
+        panel.replaceChildren(head, ...rows);
         panel.hidden = false;
         $('#update').classList.toggle('busy', report.running);
         $('#update span').textContent = report.running ? 'Updating…' : 'Update';

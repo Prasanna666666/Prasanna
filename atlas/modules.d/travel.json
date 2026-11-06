@@ -1,0 +1,18 @@
+{
+  "upstream": "http://host.docker.internal:8502",
+  "health": "/api/health",
+  "headers": {
+    "X-Library": "1"
+  },
+  "id": "travel",
+  "name": "Travel",
+  "app": "Travel",
+  "tagline": "Trips from your tickets, bookings and photos",
+  "icon": "M2 14l20-8-8 20-3-9-9-3Z",
+  "accent": [
+    "#f59e0b",
+    "#ec4899"
+  ],
+  "home": "#/trips",
+  "pages": []
+}

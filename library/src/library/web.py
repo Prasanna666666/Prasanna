@@ -6,6 +6,7 @@ addresses are accepted, and anything that changes something needs this service's
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import threading
 import time
@@ -233,9 +234,48 @@ def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**store.counts(conn), "kinds": store.by_kind(conn)}
 
 
+def _found() -> dict[str, int]:
+    """The full number of files and mails the reader found in its folders (it counts at the start of every round)."""
+    try:
+        data = json.loads((parsed_dir() / ".found").read_text())
+        return {"documents": int(data["documents"]), "mails": int(data["mails"])}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
+def _row(name: str, stored: int, total: int | None, noun: str, running: str = "") -> dict[str, str]:
+    detail = f"{stored:,} of {total:,} {noun}" if total is not None and total > stored else f"{max(stored, total or 0):,} {noun}"
+    return {"name": name, "detail": detail + (f" · {running}" if running else "")}
+
+
+def _parts(state: State, conn) -> list[dict[str, str]]:
+    """What the Update shows: Documents, Pictures and Mails, each with its full number."""
+    found = _found()
+    kinds = conn.execute("SELECT SUM(area NOT IN ('mail','pictures')) AS files, SUM(area='mail') AS mails FROM documents").fetchone()
+    busy = state.scan["progress"] if state.scan["running"] else ""
+    rows = [
+        _row("Documents", int(kinds["files"] or 0), found.get("documents"), "files", busy),
+        _row("Mails", int(kinds["mails"] or 0), found.get("mails"), "mails"),
+    ]
+    engine = state.engine()
+    if engine is None:
+        rows.insert(1, {"name": "Pictures", "detail": "not connected: the photo drive was not found when Documents started"})
+    else:
+        c = pictures.counts(engine)
+        rows.insert(1, _row("Pictures", c["indexed"], c["pictures"], "pictures"))
+    return rows
+
+
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     s = state.scan
-    return {"running": s["running"], "progress": s["progress"], "summary": s["summary"], "problems": s["problems"], "needs_check": []}
+    return {
+        "running": s["running"],
+        "progress": s["progress"],
+        "summary": s["summary"],
+        "problems": s["problems"],
+        "needs_check": [],
+        "parts": _parts(state, conn),
+    }
 
 
 def _get_tools(state: State, conn, query: dict[str, str]) -> dict:

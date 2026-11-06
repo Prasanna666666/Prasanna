@@ -1,0 +1,39 @@
+{
+  "upstream": "http://host.docker.internal:8502",
+  "health": "/api/health",
+  "headers": {
+    "X-Library": "1"
+  },
+  "id": "pictures",
+  "name": "Pictures",
+  "app": "Pictures",
+  "tagline": "Photos by place, person, trip and what is in them",
+  "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01",
+  "accent": [
+    "#22c55e",
+    "#06b6d4"
+  ],
+  "home": "#/library",
+  "pages": [
+    {
+      "id": "library",
+      "label": "Pictures",
+      "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01"
+    },
+    {
+      "id": "places",
+      "label": "Places",
+      "icon": "M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Zm0-8.5A2.5 2.5 0 1 0 12 7.500a2.5 2.5 0 0 0 0 5Z"
+    },
+    {
+      "id": "people",
+      "label": "People",
+      "icon": "M16 11a4 4 0 1 0-8 0m-3 9a7 7 0 0 1 14 0"
+    },
+    {
+      "id": "changes",
+      "label": "Changes",
+      "icon": "M5 12h14m-5-5 5 5-5 5"
+    }
+  ]
+}

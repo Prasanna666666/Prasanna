@@ -1,58 +1,22 @@
 {
+  "upstream": "http://host.docker.internal:8502",
+  "health": "/api/health",
+  "headers": {
+    "X-Library": "1"
+  },
   "id": "documents",
   "name": "Documents",
   "app": "Documents",
-  "tagline": "Everything in your files, mail and pictures: tickets, letters, reports, invoices, photos",
+  "tagline": "Letters, invoices, reports, contracts, tickets",
   "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5",
   "accent": [
     "#06b6d4",
     "#f59e0b"
   ],
-  "upstream": "http://host.docker.internal:8502",
-  "health": "/api/health",
-  "search": "/api/search",
   "home": "#/home",
-  "pages": [
-    {
-      "id": "home",
-      "label": "Documents",
-      "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5"
-    },
-    {
-      "id": "mail",
-      "label": "Emails",
-      "icon": "M3 6h18v12H3V6Zm0 0 9 7 9-7"
-    },
-    {
-      "id": "library",
-      "label": "Pictures",
-      "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01"
-    },
-    {
-      "id": "trips",
-      "label": "Trips",
-      "icon": "M2 14l20-8-8 20-3-9-9-3Z"
-    },
-    {
-      "id": "places",
-      "label": "Places",
-      "icon": "M12 21s-7-5.3-7-11a7 7 0 0 1 14 0c0 5.7-7 11-7 11ZM12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
-    },
-    {
-      "id": "people",
-      "label": "People",
-      "icon": "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2A6 6 0 0 1 21 20"
-    },
-    {
-      "id": "changes",
-      "label": "Changes",
-      "icon": "M4 12l5 5L20 6"
-    }
-  ],
+  "pages": [],
+  "search": "/api/search",
   "scan": "/api/scan",
-  "headers": {
-    "X-Library": "1"
-  },
   "media": "/api/pictures/thumb/",
   "tools": "/api/tools",
   "tool": "/api/tool"

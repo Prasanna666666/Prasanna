@@ -383,8 +383,41 @@ def collections(specs: list[str]) -> list[tuple[str, Path]]:
     return found
 
 
+def _supported(root: Path, skip: frozenset[str] = frozenset(), only_emlx: bool = False) -> int:
+    """How many files under root the reader would take (by name only: fast), so the person is shown the full number, not a guess."""
+    total = 0
+    for f in root.resolve().rglob("*"):
+        if f.name.startswith(".") or f.is_symlink() or not f.is_file() or f.name.lower() in SKIP_NAMES:
+            continue
+        relative = f.relative_to(root.resolve())
+        if relative.parts[0] in skip or (only_emlx and (f.suffix.lower() != ".emlx" or _in_skipped_mailbox(relative))):
+            continue
+        total += f.suffix.lower() in KINDS
+    return total
+
+
+FOUND_FILE = ".found"
+
+
+def write_found(a: argparse.Namespace) -> None:
+    """Count what is there before reading it: files in the inbox and collections, and mail. The app shows these as the totals."""
+    documents = _supported(Path(a.inbox), skip=frozenset({"mail"}))
+    for _name, folder in collections(a.collection):
+        if folder.is_dir():
+            documents += _supported(folder)
+    mails = _supported(Path(a.inbox) / "mail") if (Path(a.inbox) / "mail").is_dir() else 0
+    if a.mail and Path(a.mail).is_dir():
+        mails += _supported(Path(a.mail), only_emlx=True)
+    out = Path(a.out)
+    out.mkdir(parents=True, exist_ok=True)
+    tmp = out / f"{FOUND_FILE}.tmp"
+    tmp.write_text(json.dumps({"documents": documents, "mails": mails}))
+    os.replace(tmp, out / FOUND_FILE)
+
+
 def read_everything(a: argparse.Namespace) -> dict[str, int]:
     """One round: the inbox, every collection folder, mail exports in the inbox, and Apple Mail's own folder."""
+    write_found(a)
     res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))
     extra = []
     for name, folder in collections(a.collection):

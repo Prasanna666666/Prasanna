@@ -132,7 +132,7 @@ class Upstreams:
 
     # ---- one Update button: read everything new, in every app that can -----------------------------------------------
     def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
-        down = {"up": False, "running": False, "progress": "", "summary": "", "problems": [f"{module.name} is not running"], "needs_check": 0}
+        down = {"up": False, "running": False, "progress": "", "summary": "", "problems": [f"{module.name} is not running"], "needs_check": 0, "parts": []}
         try:
             if start:
                 self._authed(module, "POST", module.scan, SCAN_SECONDS)
@@ -149,7 +149,15 @@ class Upstreams:
             "summary": str(raw.get("summary", ""))[:200],
             "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
             "needs_check": int(raw.get("needs_check") or 0),
+            "parts": self._parts(raw.get("parts")),
         }
+
+    @staticmethod
+    def _parts(raw: Any) -> list[dict[str, str]]:
+        """The rows an app wants the Update to show (Documents, Pictures, Mails), checked: a name and a short line each."""
+        if not isinstance(raw, list):
+            return []
+        return [{"name": str(p["name"])[:30], "detail": str(p.get("detail", ""))[:200]} for p in raw[:6] if isinstance(p, dict) and p.get("name")]
 
     def scan(self, start: bool = False) -> dict[str, Any]:
         """Start (or just read) the update of every app that supports it; one app being down never stops the others."""

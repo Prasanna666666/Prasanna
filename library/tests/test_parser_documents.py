@@ -144,3 +144,20 @@ def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_win
     assert [t["place"] for t in store.trips(conn)] == ["India", "France"]  # most documents first
     titles = [d["facts"]["title"] for d in store.documents_between(conn, india["start"], india["end"])]
     assert titles == ["Flight out", "Hotel Delhi", "Taxi Delhi", "Flight back"]  # the taxi has no trip tag, but its date is inside the window
+
+
+def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_path):
+    import argparse
+    import json
+
+    from library import parser
+
+    inbox = tmp_path / "inbox"
+    (inbox / "mail").mkdir(parents=True)
+    (inbox / "a.txt").write_text("x")
+    (inbox / "b.pdf").write_bytes(b"%PDF")
+    (inbox / "skip.xyz").write_text("x")
+    (inbox / "mail" / "m.eml").write_text("Subject: hi\n\nbody")
+    ns = argparse.Namespace(inbox=str(inbox), out=str(tmp_path / "out"), collection=[], mail="")
+    parser.write_found(ns)
+    assert json.loads((tmp_path / "out" / ".found").read_text()) == {"documents": 2, "mails": 1}

@@ -127,6 +127,20 @@
         const source = tab === 'mail' ? 'mail' : 'files';
         state.source = source;
         tabs(tab);
+        if (known && path !== 'mail' && !withPictures) {
+            $('#page-documents').hidden = false;
+            $('#page-pictures').hidden = true;
+            $('#page-changes').hidden = true;
+            $('#doc').hidden = true;
+            $('#list').replaceChildren(
+                el(
+                    'p',
+                    { className: 'muted' },
+                    'Pictures are not connected. The photo drive was not found when Documents started. Connect it, then start Documents again.'
+                )
+            );
+            return;
+        }
         $('#page-documents').hidden = section !== 'documents';
         $('#page-pictures').hidden = section === 'documents' || section === 'changes';
         $('#page-changes').hidden = section !== 'changes';

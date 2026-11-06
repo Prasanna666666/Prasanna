@@ -109,3 +109,10 @@ def test_the_model_address_must_be_on_this_computer_or_its_private_network(monke
         build(tmp_path)
     monkeypatch.setenv("ATLAS_MODEL_URL", "http://host.docker.internal:11434")
     assert build(tmp_path).model_url == "http://host.docker.internal:11434"
+
+
+def test_the_rows_an_app_wants_the_update_to_show_come_through_checked(running):
+    start_update(running)
+    running.apps["money"].scanning = running.apps["photos"].scanning = False
+    done = running.json("/_atlas/api/scan")
+    assert done["modules"]["photos"]["parts"] == [{"name": "Documents", "detail": "5 of 9 files"}]  # the malformed ones are dropped

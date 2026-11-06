@@ -104,8 +104,9 @@ h1 {
     max-height: 60vh;
     overflow: auto;
 }
-.embedded header {
-    display: none;
+.embedded header,
+.embedded #tabs {
+    display: none; /* inside Atlas its own menu does this */
 }
 
 /* ---------- pictures: tabs, the library grid, covers, people, the large view ---------- */

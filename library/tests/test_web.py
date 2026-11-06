@@ -115,3 +115,20 @@ def test_with_the_platform_key_set_an_unsigned_request_is_refused_and_a_signed_o
 
 def test_the_albums_route_only_prepares_and_says_plainly_when_there_is_nothing_to_sort():
     assert "/api/change/albums" in web.POST_ROUTES
+
+
+def test_the_update_shows_documents_pictures_and_mails_each_with_its_full_number(tmp_path, monkeypatch):
+    parsed = tmp_path / "parsed"
+    parsed.mkdir()
+    (parsed / ".found").write_text(json.dumps({"documents": 480, "mails": 12}))
+    monkeypatch.setenv("ORBIT_PARSED", str(parsed))
+    conn = db.connect(tmp_path / "library.db")
+    db.migrate(conn, [store.MODULE])
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES ('a','a.pdf','pdf','t','')")
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES ('b','m.eml','email','t','mail')")
+    state = web.State()
+    state._engine = None
+    rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
+    assert rows["Documents"] == "1 of 480 files" and rows["Mails"] == "1 of 12 mails" and "not connected" in rows["Pictures"]
+    (parsed / ".found").write_text(json.dumps({"documents": 1, "mails": 1}))
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "1 files"

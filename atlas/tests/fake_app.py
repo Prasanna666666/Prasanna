@@ -70,6 +70,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "summary": "" if self.app.scanning else "3 files read",
                     "problems": ["one needs a look"] if not self.app.scanning else [],
                     "needs_check": 1,
+                    "parts": [{"name": "Documents", "detail": "5 of 9 files"}, {"nope": 1}, "bad"],
                 }
                 self._reply(200, json.dumps(done).encode())
         elif path == "/api/stream":
