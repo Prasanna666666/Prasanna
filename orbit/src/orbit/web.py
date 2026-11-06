@@ -16,6 +16,7 @@ import os
 import threading
 import time
 import urllib.parse
+from datetime import date
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -253,6 +254,17 @@ def _document_items(conn, text: str, history: list, search: list[str] | None = N
     return items[:8]
 
 
+def _window(raw: Any) -> dict[str, str] | None:
+    """The trip window Atlas resolved for a question ({place, start, end}), or None; the dates must be real dates."""
+    if not isinstance(raw, dict):
+        return None
+    try:
+        start, end = date.fromisoformat(str(raw.get("start"))), date.fromisoformat(str(raw.get("end")))
+    except ValueError:
+        return None
+    return {"place": str(raw.get("place", ""))[:80], "start": start.isoformat(), "end": max(start, end).isoformat()}
+
+
 def _post_ask(state: State, conn, body: dict) -> dict:
     """The contract's one-shot question, for Atlas's single chat: the same answer as the chat, in the shape every module returns it.
     Documents come back only when the user asked to see them (`show.documents`); finding files is a lookup over the described documents."""
@@ -265,6 +277,12 @@ def _post_ask(state: State, conn, body: dict) -> dict:
         if items:
             n = len(items)
             return {"ok": True, "text": f"I found {n} file{'s' if n != 1 else ''} about that.", "items": items, "agent": "files"}
+    window = _window(body.get("window"))
+    if window:  # the trip Atlas resolved: the question is about exactly these days
+        body = {
+            **body,
+            "text": f"{body.get('text', '')}\n\n(This is about the trip to {window['place']}, from {window['start']} to {window['end']}. Use only that period.)",
+        }
     out = _post_chat(state, conn, body)
     return {"ok": True, "text": out["reply"], "items": [], "agent": out["agent"]}
 

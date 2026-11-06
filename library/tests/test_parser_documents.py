@@ -116,3 +116,31 @@ def test_every_kind_of_file_has_one_reader_in_the_registry():
         "mbox",
         "zip",
     }  # archives and mailboxes are opened first, then each file inside is read by its own reader
+
+
+def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_window_belongs_to_it(conn, tmp_path):
+    texts = {
+        "flight-out.eml": (
+            "c" * 64,
+            "ticket",
+            {"kind": "ticket", "title": "Flight out", "place": "India", "start_date": "2026-01-12", "end_date": "2026-01-12"},
+        ),
+        "hotel.eml": ("d" * 64, "booking", {"kind": "booking", "title": "Hotel Delhi", "place": "India", "start_date": "2026-01-12", "end_date": "2026-01-28"}),
+        "flight-back.eml": (
+            "e" * 64,
+            "ticket",
+            {"kind": "ticket", "title": "Flight back", "place": "India", "start_date": "2026-01-30", "end_date": "2026-01-30"},
+        ),
+        "paris.eml": ("f" * 64, "booking", {"kind": "booking", "title": "Paris", "place": "France", "start_date": "2025-06-01", "end_date": "2025-06-03"}),
+        "taxi.eml": ("1" * 64, "receipt", {"kind": "receipt", "title": "Taxi Delhi", "date": "2026-01-14"}),
+    }
+    for name, (sha, kind, _facts) in texts.items():
+        _put(tmp_path, _doc(name=name, kind="email", text=f"{kind} {name}", sha256=sha))
+    store.ingest_dir(conn, tmp_path)
+    for sha, _kind, facts in texts.values():
+        store._mark_ready(conn, sha, 1, facts)
+    [india] = store.trips(conn, "india", "2026")
+    assert india == {"place": "India", "start": "2026-01-12", "end": "2026-01-30", "documents": 3}
+    assert [t["place"] for t in store.trips(conn)] == ["India", "France"]  # most documents first
+    titles = [d["facts"]["title"] for d in store.documents_between(conn, india["start"], india["end"])]
+    assert titles == ["Flight out", "Hotel Delhi", "Taxi Delhi", "Flight back"]  # the taxi has no trip tag, but its date is inside the window

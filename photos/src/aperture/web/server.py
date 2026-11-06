@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 from collections import OrderedDict
+from datetime import date
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -328,6 +329,18 @@ class Web:
         return path if data in path.parents and path.is_file() else None
 
 
+def _within_trip(message: str, window: Any) -> str:
+    """When Atlas has resolved a trip, the question is about the pictures taken on exactly those days."""
+    if not isinstance(window, dict):
+        return message
+    try:
+        start, end = date.fromisoformat(str(window.get("start"))), date.fromisoformat(str(window.get("end")))
+    except ValueError:
+        return message
+    place = str(window.get("place", ""))[:80]
+    return f"{message} (taken between {start.isoformat()} and {max(start, end).isoformat()}, on the trip to {place})"
+
+
 def _clean_history(raw: Any) -> list[tuple[str, str]]:
     turns: list[tuple[str, str]] = []
     for entry in raw if isinstance(raw, list) else []:
@@ -578,7 +591,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._deny(HTTPStatus.BAD_REQUEST, "empty message")
         if path == "/api/ask":
             return self._json(
-                self.web.ask_once(message, str(body.get("conv", ""))[:64] or "atlas", _clean_history(body.get("history")))
+                self.web.ask_once(
+                    _within_trip(message, body.get("window")),
+                    str(body.get("conv", ""))[:64] or "atlas",
+                    _clean_history(body.get("history")),
+                )
             )
         self._chat(message, str(body.get("conv", ""))[:64] or "default", _clean_history(body.get("history")))
 

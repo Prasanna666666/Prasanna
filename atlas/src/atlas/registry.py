@@ -47,6 +47,7 @@ class Module:
     health: str = "/api/health"
     search: str = ""
     scan: str = ""  # optional: a path that reads everything new (GET = status, POST = start)
+    trips: str = ""  # optional: a path that lists the journeys found in the person's documents (GET ?place=&year=)
     ask: str = ""  # optional: a path that answers one question for the single chat (POST {text, conv, history})
     media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
@@ -127,6 +128,7 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         search=str(raw.get("search", "")),
         scan=str(raw.get("scan", "")),
         ask=str(raw.get("ask", "")),
+        trips=str(raw.get("trips", "")),
         media=str(raw.get("media", "")),
         headers=tuple((str(k), str(v)) for k, v in (raw.get("headers") or {}).items()),
         home=str(raw.get("home", "")),

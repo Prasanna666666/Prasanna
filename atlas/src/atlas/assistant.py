@@ -94,6 +94,7 @@ class Plan:
     show: dict[str, bool]
     how: str
     search: tuple[str, ...] = ()  # how the model would look for it in files and emails: the user's words, synonyms, and the Dutch or English equivalents
+    trip: tuple[str, str] | None = None  # (place, year) when the message is about one particular journey: everything in the answer then belongs to that trip
 
 
 class Assistant:
@@ -126,6 +127,8 @@ class Assistant:
             'Reply with JSON only, in this shape: {"apps": [names of the parts the message is about, or an empty list], '
             '"chat": true if it is a greeting or general conversation about none of the parts, '
             '"show": {"photos": true only if the user asks to SEE pictures, "documents": true only if the user asks to SEE files, documents or emails}, '
+            '"trip": {"place": the destination, "year": the year or ""} only when the message is about one particular journey or trip (its tickets, costs, '
+            "photos, documents), otherwise null, "
             '"search": up to 4 short phrases to look for in files and emails about this request: the user\'s own words, synonyms, and the same words in Dutch or English}. '
             "Questions, counts and summaries are not requests to see anything, so show stays false for them. "
             'A follow-up such as "show me those" refers to the conversation so far.'
@@ -154,7 +157,11 @@ class Assistant:
         show = {"photos": shown.get("photos") is True, "documents": shown.get("documents") is True}
         raw_search = data.get("search")
         search = tuple(x.strip()[:80] for x in raw_search if isinstance(x, str) and x.strip())[:4] if isinstance(raw_search, list) else ()
-        return Plan(chosen, data.get("chat") is True or not chosen, show, "model", search)
+        raw_trip = data.get("trip")
+        place = str(raw_trip.get("place", "")).strip()[:80] if isinstance(raw_trip, dict) else ""
+        year = str(raw_trip.get("year", "")).strip()[:4] if isinstance(raw_trip, dict) else ""
+        trip = (place, year if year.isdigit() else "") if place else None
+        return Plan(chosen, data.get("chat") is True or not chosen, show, "model", search, trip)
 
     # ---- 2. the answer -----------------------------------------------------------------------------------------------
     def _chat_only(self, text: str, history: list[list[str]]) -> dict[str, Any]:
@@ -178,7 +185,20 @@ class Assistant:
             return {"how": plan.how, "routed": [], "show": plan.show, "parts": [{"module": "atlas", "name": "Atlas", "ok": False, "error": msg}]}
         if not plan.apps:
             return {"how": plan.how, "routed": [], "show": plan.show, "parts": [self._chat_only(text, history)]}
+        trip = self.find_trip(plan.trip)
+        window = {"place": trip["place"], "start": trip["start"], "end": trip["end"]} if trip else None
         with ThreadPoolExecutor(max_workers=len(plan.apps)) as pool:
-            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, show=plan.show, search=list(plan.search)), plan.apps))
+            results = list(pool.map(lambda m: self.upstreams.ask(m, text, conv, history, show=plan.show, search=list(plan.search), window=window), plan.apps))
         parts = [{"module": m.id, "name": m.name, "show": plan.show, **r} for m, r in zip(plan.apps, results, strict=True)]
-        return {"how": plan.how, "routed": [m.id for m in plan.apps], "show": plan.show, "parts": parts}
+        return {"how": plan.how, "routed": [m.id for m in plan.apps], "show": plan.show, "parts": parts, "trip": trip}
+
+    def find_trip(self, wanted: tuple[str, str] | None) -> dict[str, Any] | None:
+        """The journey a message is about, from the tickets and bookings that were read (the one with the most documents), or None. Every app is then
+        asked about the same dates, so the costs, the pictures and the papers all belong to the same trip."""
+        if wanted is None:
+            return None
+        for module in self.modules.values():
+            found = self.upstreams.trips(module, *wanted)
+            if found:
+                return found[0]
+        return None

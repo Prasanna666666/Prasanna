@@ -65,3 +65,20 @@ def test_tool_names_unique():
     names = [t.name for m in ALL for t in m.tools]
     assert len(names) == len(set(names))
     assert set(tools()) == set(names)
+
+
+def test_spending_between_two_days_is_exact_and_leaves_transfers_out(conn):
+    from orbit.modules import money
+    from tests.test_tally import tx
+
+    tx(conn, "2026-01-11", 1000, cat="groceries")  # before the trip
+    tx(conn, "2026-01-12", 25000, cat="travel", note="Flight")
+    tx(conn, "2026-01-30", 4000, cat="food", note="Dinner")
+    tx(conn, "2026-01-20", 50000, cat="transfers", note="to savings")
+    tx(conn, "2026-01-31", 1000, cat="groceries")  # after
+    got = money.spending_between(conn, {"from": "2026-01-12", "to": "2026-01-30"})
+    assert got["spent"] == 290.0 and got["payments"] == 2 and [c["category"] for c in got["by_category"]] == ["travel", "food"]
+    import pytest
+
+    with pytest.raises(ValueError):
+        money.spending_between(conn, {"from": "2026-01-12"})

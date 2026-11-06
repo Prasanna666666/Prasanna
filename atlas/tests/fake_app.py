@@ -41,6 +41,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._reply(200, f"<!doctype html>{meta}<title>fake</title>".encode(), "text/html")
         elif path == "/api/health":
             self._reply(200, b'{"ok": true}')
+        elif path == "/api/trips":
+            self._reply(200, json.dumps({"trips": self.app.trips}).encode())
         elif path == "/api/search":
             if self.app.token and self.headers.get("X-App-Token") != self.app.token:
                 self._reply(403, b'{"error": "token"}')
@@ -134,6 +136,7 @@ class FakeApp:
         self.seen: list[dict[str, str]] = []
         self.scanning = False
         self.asked: list[dict[str, object]] = []
+        self.trips: list[dict[str, object]] = []
         self.model_reply = "fake model reply"
         self.plan_reply: str | None = None  # what the model answers when asked for JSON (the planner)
         self.model_calls: list[dict[str, object]] = []

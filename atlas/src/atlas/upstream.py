@@ -176,11 +176,33 @@ class Upstreams:
         return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}
 
     # ---- the single chat: one question to one app, and a picture from an app ------------------------------------------
+    def trips(self, module: Module, place: str, year: str) -> list[dict[str, Any]]:
+        """The journeys the app found in the person's documents for this place and year ([] if none, or the app is not running)."""
+        if not module.trips:
+            return []
+        try:
+            status, body = self._authed_get(module, f"{module.trips}?place={quote(place[:80])}&year={quote(year[:4])}", ASK_SECONDS)
+            raw = json.loads(body)
+        except (OSError, http.client.HTTPException, ValueError):
+            return []
+        found = raw.get("trips") if status == 200 and isinstance(raw, dict) else None
+        return [t for t in (found or []) if isinstance(t, dict) and all(isinstance(t.get(k), str) for k in ("place", "start", "end"))][:5]
+
     def ask(
-        self, module: Module, text: str, conv: str, history: list[list[str]], *, show: dict[str, bool] | None = None, search: list[str] | None = None
+        self,
+        module: Module,
+        text: str,
+        conv: str,
+        history: list[list[str]],
+        *,
+        show: dict[str, bool] | None = None,
+        search: list[str] | None = None,
+        window: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """One app's answer to one question, in the contract's shape. Never raises: a failure comes back as an error to show."""
-        payload = json.dumps({"text": text, "message": text, "conv": conv, "history": history, "show": show or {}, "search": search or []}).encode()
+        payload = json.dumps(
+            {"text": text, "message": text, "conv": conv, "history": history, "show": show or {}, "search": search or [], "window": window}
+        ).encode()
         try:
             status, body, _ = self._authed_full(module, "POST", module.ask, ASK_SECONDS, payload)
             raw = json.loads(body)

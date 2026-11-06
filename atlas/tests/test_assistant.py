@@ -134,3 +134,18 @@ def test_the_model_supplies_search_phrasings_in_both_languages_and_they_reach_th
     _, reply = chat(running, "show me the email about my flight")
     assert running.apps["money"].asked[-1]["search"] == ["flight", "vlucht", "reservering", "ticket"]  # strings only, trimmed, at most four
     assert reply["parts"][0]["show"]["documents"] is True
+
+
+def test_a_question_about_a_trip_gives_every_app_the_same_dates(running):
+    running.apps["money"].trips = [{"place": "India", "start": "2026-01-12", "end": "2026-01-30", "documents": 3}]
+    running.apps["photos"].plan_reply = '{"apps": ["money", "photos"], "chat": false, "show": {}, "trip": {"place": "India", "year": "2026"}}'
+    status, reply = chat(running, "what did my India trip cost and what are the photos?")
+    window = {"place": "India", "start": "2026-01-12", "end": "2026-01-30"}
+    assert reply["trip"]["place"] == "India" and reply["routed"] == ["money", "photos"]
+    assert running.apps["money"].asked[-1]["window"] == window and running.apps["photos"].asked[-1]["window"] == window  # one trip, the same dates for all
+
+
+def test_a_trip_that_was_never_found_is_not_invented(running):
+    running.apps["photos"].plan_reply = '{"apps": ["money"], "chat": false, "show": {}, "trip": {"place": "Mars", "year": ""}}'
+    status, reply = chat(running, "what did my Mars trip cost?")
+    assert reply["trip"] is None and running.apps["money"].asked[-1]["window"] is None

@@ -143,3 +143,30 @@ def text_sources(engine: Engine) -> Callable[[Any], Iterator[tuple[str, str, str
             conn.close()
 
     return sources
+
+
+def in_window(engine: Engine, start: str, end: str, limit: int = 24) -> list[dict[str, Any]]:
+    """Pictures taken within the window (inclusive), oldest first."""
+    conn = engine.db.connect()
+    try:
+        ids = [
+            int(r[0])
+            for r in conn.execute(
+                "SELECT id FROM items WHERE missing=0 AND kind='image' AND substr(taken_at,1,10) BETWEEN ? AND ? ORDER BY taken_at, id LIMIT ?",
+                (start, end, min(limit, MAX_RESULTS)),
+            )
+        ]
+        found = items_by_ids(conn, ids)
+    finally:
+        conn.close()
+    return [
+        {
+            "id": i,
+            "name": Path(found[i].rel_path or found[i].path).name,
+            "taken": found[i].taken_at,
+            "place": found[i].place,
+            "thumb": f"/api/pictures/thumb/{i}",
+        }
+        for i in ids
+        if i in found
+    ]

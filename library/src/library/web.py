@@ -10,6 +10,7 @@ import os
 import threading
 import time
 import urllib.parse
+from datetime import date
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -159,6 +160,11 @@ def _get_pictures_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**pictures.counts(engine), **pictures.scan_state(engine)}
 
 
+def _get_trips(state: State, conn, query: dict[str, str]) -> dict:
+    """Journeys found in the tickets and bookings: /api/trips?place=India&year=2026 -> where, from which day to which day."""
+    return {"trips": store.trips(conn, query.get("place", "")[:80], query.get("year", "")[:4])}
+
+
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     return {**store.counts(conn), "kinds": store.by_kind(conn)}
 
@@ -186,12 +192,65 @@ def _picture_items(state: State, text: str, search: list[str]) -> list[dict]:
     ]
 
 
+def _window(body: dict) -> dict[str, str] | None:
+    """The trip window Atlas resolved for this question ({place, start, end}), or None. Dates must be real dates."""
+    raw = body.get("window")
+    if not isinstance(raw, dict):
+        return None
+    try:
+        start, end = date.fromisoformat(str(raw.get("start"))), date.fromisoformat(str(raw.get("end")))
+    except ValueError:
+        return None
+    return {"place": str(raw.get("place", ""))[:80], "start": start.isoformat(), "end": max(start, end).isoformat()}
+
+
+def _photo_item(p: dict) -> dict:
+    return {
+        "kind": "photo",
+        "title": p["name"],
+        "subtitle": " · ".join(x for x in (p["place"], (p["taken"] or "")[:10]) if x),
+        "thumb": p["thumb"],
+        "link": "#/home",
+    }
+
+
+def _window_items(state: State, conn, window: dict[str, str], show: dict) -> list[dict]:
+    """Everything that belongs to the trip, when the person asked to see it: the documents dated in the window and the pictures taken in it."""
+    items: list[dict] = []
+    if show.get("documents"):
+        for d in store.documents_between(conn, window["start"], window["end"]):
+            f = d["facts"]
+            items.append(
+                {
+                    "kind": "document",
+                    "title": f.get("title") or d["name"],
+                    "subtitle": " · ".join(str(x) for x in (d["kind"].replace("_", " "), f.get("party"), f.get("start_date") or f.get("date")) if x),
+                    "text": "",
+                    "link": f"#/doc/{d['id']}",
+                }
+            )
+    engine = state.engine()
+    if show.get("photos") and engine is not None:
+        items += [_photo_item(p) for p in pictures.in_window(engine, window["start"], window["end"], 12)]
+    return items
+
+
 def _post_ask(state: State, conn, body: dict) -> dict:
     """The one chat's question: files about it when the user asked to see them, otherwise an answer in words from what the files say."""
     text = str(body.get("text", ""))[:2000]
     search = [str(x) for x in (body.get("search") or []) if isinstance(x, str)][:4]
     raw_show = body.get("show")
     show: dict = raw_show if isinstance(raw_show, dict) else {}
+    window = _window(body)
+    if window and (show.get("documents") or show.get("photos")):
+        items = _window_items(state, conn, window, show)[:16]
+        if items:
+            return {
+                "ok": True,
+                "text": f"{len(items)} things from your {window['place']} trip ({window['start']} to {window['end']}).",
+                "items": items,
+                "agent": "trip",
+            }
     if show.get("documents") or show.get("photos"):  # what was asked to be seen; nothing else is shown
         history = [h for h in (body.get("history") or []) if isinstance(h, list) and len(h) == 2]
         questions = [text, *[t for role, t in reversed(history) if role == "user" and isinstance(t, str)][:2]]
@@ -204,7 +263,8 @@ def _post_ask(state: State, conn, body: dict) -> dict:
             return {"ok": True, "text": f"I found {n} file{'s' if n != 1 else ''} about that.", "items": items, "agent": "files"}
     try:
         client, model = model_client()
-        reply = ask.answer(conn, client, model, text, search, state.picture_text())
+        about = f" (about the trip to {window['place']}, {window['start']} to {window['end']})" if window else ""
+        reply = ask.answer(conn, client, model, text + about, search, state.picture_text())
     except RuntimeError:
         reply = "The local model is not running, so I cannot answer from your files yet."
     return {"ok": True, "text": reply, "items": [], "agent": "files"}
@@ -216,6 +276,7 @@ GET_ROUTES = {
     "/api/documents": _get_documents,
     "/api/document": _get_document,
     "/api/status": _get_status,
+    "/api/trips": _get_trips,
     "/api/pictures": _get_pictures,
     "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,

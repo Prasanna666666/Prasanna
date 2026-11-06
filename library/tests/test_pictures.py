@@ -97,3 +97,15 @@ def test_the_service_serves_the_pictures_api_and_update_waits_for_the_indexer(dr
         assert call(port, "GET", "/api/pictures/thumb/abc")[0] == 404 and json.dumps(1)
     finally:
         httpd.shutdown()
+
+
+def test_pictures_taken_within_a_window_are_found_by_date(drive):
+    engine = engine_with_fake_models()
+    indexer.run_once(engine)
+    conn = engine.db.connect()
+    conn.execute("UPDATE items SET taken_at='2026-01-14T10:00:00' WHERE rel_path LIKE '%receipt%'")
+    conn.execute("UPDATE items SET taken_at='2026-03-02T10:00:00' WHERE rel_path LIKE '%beach%'")
+    conn.commit()
+    conn.close()
+    assert [p["name"] for p in pictures.in_window(engine, "2026-01-12", "2026-01-30")] == ["receipt.jpg"]
+    assert pictures.in_window(engine, "2025-01-01", "2025-12-31") == []

@@ -15,6 +15,7 @@ import os
 import re
 from collections import Counter
 from collections.abc import Callable, Iterator
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -250,3 +251,51 @@ def by_kind(conn) -> list[dict]:
     for r in conn.execute("SELECT facts FROM documents WHERE judged=1 AND facts<>''"):
         tally[json.loads(r["facts"]).get("kind", "other")] += 1
     return [{"kind": k, "count": n} for k, n in tally.most_common()]
+
+
+# ---- trips: derived from the tickets and bookings that were read -----------------------------------------------------------------
+def trips(conn, place: str = "", year: str = "") -> list[dict]:
+    """Journeys found in the tickets and bookings: where, from which day to which day (as the documents themselves write them), and how many
+    documents show it. Documents for the same place whose dates are within 60 days of each other are one trip. Most documents first."""
+    found: dict[str, list[dict]] = {}
+    for doc in list_documents(conn, ["ticket", "booking"], limit=500):
+        facts = doc["facts"]
+        start, name = str(facts.get("start_date") or ""), str(facts.get("place") or "").strip()
+        if not start or not name:
+            continue
+        if place and place.lower() not in name.lower():
+            continue
+        found.setdefault(name.casefold(), []).append({"place": name, "start": start, "end": str(facts.get("end_date") or start)})
+    out: list[dict] = []
+    for group in found.values():
+        group.sort(key=lambda d: d["start"])
+        current: list[dict] = []
+        for d in group:
+            if current and (date.fromisoformat(d["start"]) - date.fromisoformat(max(c["end"] for c in current))).days > TRIP_GAP_DAYS:
+                out.append(_trip(current))
+                current = []
+            current.append(d)
+        out.append(_trip(current))
+    if year:
+        out = [t for t in out if t["start"].startswith(year) or t["end"].startswith(year)]
+    return sorted(out, key=lambda t: (-t["documents"], t["start"]))
+
+
+TRIP_GAP_DAYS = 60
+
+
+def _trip(docs: list[dict]) -> dict:
+    return {"place": docs[0]["place"], "start": min(d["start"] for d in docs), "end": max(d["end"] for d in docs), "documents": len(docs)}
+
+
+def documents_between(conn, start: str, end: str, limit: int = 100) -> list[dict]:
+    """Every recognised document dated within the window (its own date, or the dates of a ticket or booking), oldest first."""
+    out: list[dict] = []
+    for doc in list_documents(conn, limit=500):
+        facts = doc["facts"]
+        day = str(facts.get("start_date") or facts.get("date") or "")
+        if day and start <= day <= end:
+            out.append(doc)
+        if len(out) >= limit:
+            break
+    return sorted(out, key=lambda d: str(d["facts"].get("start_date") or d["facts"].get("date")))

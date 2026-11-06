@@ -348,3 +348,15 @@ def test_with_the_documents_service_configured_photos_does_not_index_itself(tmp_
         web.pause_indexing_for_chat()  # nothing to pause here: the indexer is another container
     finally:
         server.shutdown()
+
+
+def test_a_trip_window_from_atlas_becomes_part_of_the_question():
+    from aperture.web.server import _within_trip
+
+    window = {"place": "India", "start": "2026-01-12", "end": "2026-01-30"}
+    assert (
+        _within_trip("show the photos", window)
+        == "show the photos (taken between 2026-01-12 and 2026-01-30, on the trip to India)"
+    )
+    assert _within_trip("show the photos", {"start": "not a date", "end": "2026-01-30"}) == "show the photos"
+    assert _within_trip("show the photos", None) == "show the photos"

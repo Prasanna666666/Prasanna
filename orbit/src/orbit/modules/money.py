@@ -8,7 +8,7 @@ import re
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 
 from kit import extract
 from kit.module import INT, Module, N, S, Tool
@@ -170,6 +170,32 @@ def list_transactions(conn, a):
     )
     sql += " WHERE " + " AND ".join(where) if where else ""
     return rows(conn.execute(sql + " ORDER BY t.day DESC, t.id DESC LIMIT ?", [*args, int(a.get("limit", 50))]))
+
+
+def spending_between(conn, a):
+    """What was spent in a window of days (inclusive), such as a trip: the total, per category, and the biggest payments. Transfers between your
+    own accounts are left out. The window is never guessed: both dates are required."""
+    try:
+        start, end = date.fromisoformat(str(a["from"])), date.fromisoformat(str(a["to"]))
+    except (KeyError, ValueError) as exc:
+        raise ValueError("both 'from' and 'to' are needed, as YYYY-MM-DD") from exc
+    first, last = start.isoformat(), (end + timedelta(days=1)).isoformat()
+    where = "kind='expense' AND category<>'transfers' AND day>=? AND day<?"
+    by_cat = rows(
+        conn.execute(f"SELECT category, SUM(amount_minor)/100.0 AS spent FROM ledger WHERE {where} GROUP BY category ORDER BY spent DESC", (first, last))
+    )
+    biggest = rows(
+        conn.execute(f"SELECT day, note, amount_minor/100.0 AS amount, category FROM ledger WHERE {where} ORDER BY amount_minor DESC LIMIT 8", (first, last))
+    )
+    return {
+        "from": start.isoformat(),
+        "to": end.isoformat(),
+        "currency": currency(conn),
+        "spent": sum(r["spent"] for r in by_cat),
+        "payments": conn.execute(f"SELECT COUNT(*) FROM ledger WHERE {where}", (first, last)).fetchone()[0],
+        "by_category": by_cat,
+        "biggest": biggest,
+    }
 
 
 def summary(conn, a):
@@ -778,6 +804,13 @@ MODULE = Module(
                 "limit": N("Max rows"),
             },
             list_transactions,
+        ),
+        Tool(
+            "spending_between",
+            "What was spent between two dates (inclusive), for example during a trip: total, per category and the biggest payments. Use it whenever a period other than a whole month is asked about.",
+            {"from": S("First day, YYYY-MM-DD"), "to": S("Last day, YYYY-MM-DD")},
+            spending_between,
+            ("from", "to"),
         ),
         Tool(
             "spending_summary",

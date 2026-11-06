@@ -30,6 +30,7 @@ AGENTS: tuple[AgentSpec, ...] = (
                 "add_transaction",
                 "list_transactions",
                 "spending_summary",
+                "spending_between",
                 "set_budget",
                 "import_statements",
                 "list_events",
