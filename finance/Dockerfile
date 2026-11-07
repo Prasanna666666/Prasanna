@@ -3,16 +3,17 @@ FROM python:3.12-slim AS base
 RUN useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin finance \
  && mkdir /data && chown 10001 /data
 WORKDIR /app
-COPY kit /app/kit
-COPY finance /app/finance
 ENV HOME=/tmp PYTHONDONTWRITEBYTECODE=1 ATLAS_HOME=/data
 
 FROM base AS app
 # The secure (encrypted) database: sqlcipher3-binary has no prebuilt version for Linux on Apple chips, so build the library against the
 # system SQLCipher, then remove the compilers again (the runtime library, installed as a dependency, stays: no auto-remove).
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libsqlcipher-dev
-RUN MAKEFLAGS=-j1 pip install --no-cache-dir sqlcipher3
-RUN pip install --no-cache-dir ./kit ./finance
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache MAKEFLAGS=-j1 pip install sqlcipher3
+# the code comes after the slow part, so a code change rebuilds only what follows (pip's download cache is kept between builds)
+COPY kit /app/kit
+COPY finance /app/finance
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install ./kit ./finance
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
 ENV ATLAS_REQUIRE_ENCRYPTION=1 ATLAS_REQUIRE_SIGNATURE=1

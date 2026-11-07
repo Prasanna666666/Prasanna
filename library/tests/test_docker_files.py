@@ -62,3 +62,18 @@ def test_atlas_starts_by_itself_at_login_and_everything_restarts_with_docker():
     for compose in ("finance", "library", "atlas"):
         assert "restart: unless-stopped" in (root / compose / "docker-compose.yml").read_text()
     assert "./up.sh" in (root / "scripts" / "start-at-login.sh").read_text()
+
+
+def test_the_slow_installs_come_before_the_code_so_a_code_change_does_not_rebuild_them():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    for name, slow in (("library/Dockerfile", ("sqlcipher3", "torch")), ("finance/Dockerfile", ("sqlcipher3",))):
+        text = (root / name).read_text()
+        copy_at = text.index("COPY kit")
+        assert all(
+            text.index(f"pip install {word}") < copy_at
+            for word in slow
+            if f"pip install {word}" in text or f"pip install {word}" in text.replace("PIP_CACHE_DIR=/pipcache ", "")
+        )
+        assert "--no-cache-dir" not in text  # downloads are kept between builds in a build cache, not in the image
