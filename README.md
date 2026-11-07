@@ -20,4 +20,4 @@ Needs Docker Desktop and Ollama on the Mac. Without Apple Mail: `ATLAS_NO_MAIL=1
 | `images/` | Everything that understands a picture, in one place; `library/` runs it. See `images/README.md` |
 | `kit/` | What every part shares: encrypted database, local model client, no-network guard, retrieval |
 
-Decisions and architecture: `docs/decisions.md`, `docs/architecture.md`. Work happens on the `orbit` branch.
+Decisions and architecture: `docs/decisions.md`, `docs/architecture.md`. Work happens on the `atlas` branch.
