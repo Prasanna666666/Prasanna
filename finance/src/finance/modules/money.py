@@ -1005,6 +1005,12 @@ MODULE = Module(
         ),
         Tool("family_money", "Money between you and each person on your People list, where their name is printed on the payment.", {}, planning.family_money),
         Tool("income_breakdown", "Money in by month and year: salary, bonus and other.", {}, planning.income_breakdown),
+        Tool(
+            "check_totals",
+            "A check of the money-in and money-out figures: months without a statement per account, what each category adds up to, what was left out as transfers or refunds, and warnings.",
+            {},
+            planning.totals_check,
+        ),
         Tool("savings_overview", "What was saved (money in minus spent) and the savings rate, by month and year.", {}, planning.savings_overview),
         Tool("investments_overview", "Investments: what was paid in, the current value you entered, and the gain or loss.", {}, wealth.investments_overview),
         Tool("yearly_overview", "Per year: salary, money in, spent, saved, savings rate, interest, invested, insurance paid.", {}, planning.yearly_overview),

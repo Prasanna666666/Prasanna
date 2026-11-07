@@ -51,7 +51,9 @@ def test_savings_are_income_minus_spending_with_the_exact_rate(conn):
     r = planning.savings_overview(conn)
     jan, feb = r["months"]
     assert (jan["saved"], jan["rate"]) == (600.0, 20.0) and (feb["saved"], feb["rate"]) == (-300.0, -10.0)
-    assert r["years"] == [{"year": "2026", "income": 6000.0, "spent": 5700.0, "saved": 300.0, "savings_rate": 5.0, "months": 2}]
+    assert r["years"] == [
+        {"year": "2026", "income": 6000.0, "spent": 5700.0, "invested": 0.0, "saved": 300.0, "kept_in_accounts": 300.0, "savings_rate": 5.0, "months": 2}
+    ]
     assert r["last12"] == {"months": 2, "income": 6000.0, "spent": 5700.0, "saved": 300.0, "rate": 5.0}
     assert r["best"]["month"] == "2026-01" and r["worst"]["month"] == "2026-02"
 

@@ -26,9 +26,9 @@ def test_a_year_adds_up_and_the_savings_rate_is_exact(year):
     y = planning.yearly_overview(year)["years"][0]
     assert y["year"] == "2026" and y["months"] == 12
     assert y["salary"] == 3000 * 6 + 3300 * 6 and y["interest"] == 70.0
-    assert y["income"] == 37800.0 + 70.0 and y["spent"] == 12 * (1000 + 300 + 120 + 200)
+    assert y["income"] == 37800.0 + 70.0 and y["spent"] == 12 * (1000 + 300 + 120)  # the ETF money is saved, not spent
     assert y["saved"] == y["income"] - y["spent"] and y["savings_rate"] == round(y["saved"] / y["income"] * 100, 1)
-    assert y["invested"] == 2400.0 and y["insurance"] == 1440.0
+    assert y["invested"] == 2400.0 and y["insurance"] == 1440.0 and y["kept_in_accounts"] == y["saved"] - 2400.0
 
 
 def test_interest_rate_is_an_estimate_from_balances_and_says_so(year):
@@ -128,3 +128,41 @@ def test_family_money_counts_a_payment_only_when_the_name_is_printed_on_it(conn)
     assert f["Amma"]["payments"] == 3 and f["Amma"]["sent"] == 400.0 and f["Amma"]["received"] == 50.0 and f["Amma"]["last"] == "2026-05-01"
     assert f["Ann"]["payments"] == 1 and f["Ann"]["sent"] == 30.0  # a whole word only
     assert f["Amma"]["by_year"] == [{"year": "2026", "sent": 400.0, "received": 50.0}]
+
+
+def test_money_put_into_investments_is_saved_and_a_reimbursed_trip_is_not_spending(conn, monkeypatch):
+    monkeypatch.setattr(clock, "today", lambda: date(2026, 3, 15))
+    tx(conn, "2026-01-25", 300000, kind="income", cat="salary", account="NL1", note="Acme salary")
+    tx(conn, "2026-01-02", 100000, cat="rent", account="NL1", note="Huur")
+    tx(conn, "2026-01-15", 50000, cat="investments", account="NL1", note="Degiro")
+    tx(conn, "2026-01-20", 80000, cat="travel", account="NL1", note="Flights")
+    flights = conn.execute("SELECT id FROM transactions WHERE note='Flights'").fetchone()[0]
+    refund = tx(conn, "2026-01-28", 80000, kind="income", cat="other", account="NL1", note="Employer reimbursement")
+    events.assign(conn, {"event": "Work trip", "main": "trips", "sub": "flights", "transaction_ids": [flights, refund]})
+    jan = planning.savings_overview(conn)["months"][0]
+    assert (jan["income"], jan["spent"], jan["invested"], jan["refunded"]) == (
+        3000.0,
+        1000.0,
+        500.0,
+        800.0,
+    )  # rent only: flights were reimbursed, the ETF is saved
+    assert (jan["saved"], jan["rate"], jan["kept_in_accounts"]) == (2000.0, 66.7, 1500.0)
+
+
+def test_the_totals_check_shows_gaps_left_out_money_and_warns_in_words(conn, monkeypatch):
+    monkeypatch.setattr(clock, "today", lambda: date(2026, 6, 15))
+    tx(conn, "2026-01-25", 300000, kind="income", cat="transfers", account="NL1", note="Overschrijving")  # salary sorted as a transfer
+    tx(conn, "2026-01-10", 50000, cat="groceries", account="NL1", note="Albert Heijn")
+    tx(conn, "2026-02-10", 1000, cat="other", account="NL1", note="Unknown")
+    for start, end in (("2026-01-01", "2026-01-31"), ("2026-04-01", "2026-04-30")):
+        conn.execute(
+            "INSERT INTO statement_files (sha256,name,found,added,status,account,period_start,period_end) VALUES (?,?,?,?,?,?,?,?)",
+            (start, start, 1, 1, "verified", "NL01BANK0001234", start, end),
+        )
+    conn.commit()
+    r = planning.totals_check(conn)
+    assert r["accounts"][0]["account"] == "…1234" and r["accounts"][0]["months_without_a_statement"] == ["2026-02", "2026-03"]
+    assert r["left_out_of_income_and_spending"]["transfers_in"] == {"payments": 1, "total": 3000.0}
+    assert r["left_out_of_income_and_spending"]["uncategorised"]["payments"] == 1
+    text = " ".join(r["warnings"])
+    assert "no statement for 2 month" in text and "mis-sorted" in text and "no category" in text

@@ -22,12 +22,16 @@ def _currency(conn) -> str:
 
 
 def _months(conn) -> list[dict]:
-    """Every month with data: money in, money spent, in currency units, from the ledger (transfers between your own accounts left out)."""
+    """Every month with data, in currency units, from the ledger (transfers between your own accounts left out): money in, money out (a refund or reimbursement
+    linked to a trip or occasion comes off it), and how much of that went into investments."""
     return [
-        {"month": r["m"], "income": r["i"] / 100, "spent": r["s"] / 100}
+        {"month": r["m"], "income": r["i"] / 100, "spent": (r["s"] - r["ref"]) / 100, "invested": r["inv"] / 100, "refunded": r["ref"] / 100}
         for r in conn.execute(
-            "SELECT substr(day,1,7) AS m, SUM(CASE WHEN kind='income' AND NOT (event_id IS NOT NULL) THEN amount_minor ELSE 0 END) AS i, "
-            "SUM(CASE WHEN kind='expense' THEN amount_minor ELSE 0 END) AS s FROM ledger WHERE category<>'transfers' GROUP BY m ORDER BY m"
+            "SELECT substr(day,1,7) AS m, SUM(CASE WHEN kind='income' AND event_id IS NULL THEN amount_minor ELSE 0 END) AS i, "
+            "SUM(CASE WHEN kind='expense' THEN amount_minor ELSE 0 END) AS s, "
+            "SUM(CASE WHEN kind='expense' AND category='investments' THEN amount_minor ELSE 0 END) AS inv, "
+            "SUM(CASE WHEN kind='income' AND event_id IS NOT NULL THEN amount_minor ELSE 0 END) AS ref "
+            "FROM ledger WHERE category<>'transfers' GROUP BY m ORDER BY m"
         )
     ]
 
@@ -37,30 +41,39 @@ def yearly_overview(conn, a=None):
     """Per year: salary, money in, spent, saved, savings rate, interest earned, invested, insurance paid, and how many months the year is made of."""
     out: dict[str, dict] = {}
     for r in conn.execute(
-        "SELECT substr(day,1,4) AS y, kind, category, SUM(amount_minor) AS t, COUNT(DISTINCT substr(day,1,7)) AS months FROM ledger "
-        "WHERE category<>'transfers' AND NOT (kind='income' AND event_id IS NOT NULL) GROUP BY y, kind, category"
+        "SELECT substr(day,1,4) AS y, kind, category, (event_id IS NOT NULL) AS linked, SUM(amount_minor) AS t, COUNT(DISTINCT substr(day,1,7)) AS months FROM ledger "
+        "WHERE category<>'transfers' GROUP BY y, kind, category, linked"
     ):
         y = out.setdefault(
-            r["y"], {"year": r["y"], "salary": 0.0, "income": 0.0, "spent": 0.0, "interest": 0.0, "invested": 0.0, "insurance": 0.0, "months": 0}
+            r["y"],
+            {"year": r["y"], "salary": 0.0, "income": 0.0, "spent": 0.0, "interest": 0.0, "invested": 0.0, "refunded": 0.0, "insurance": 0.0, "months": 0},
         )
         amount = r["t"] / 100
         y["months"] = max(y["months"], r["months"])
-        if r["kind"] == "income":
+        if r["kind"] == "income" and r["linked"]:
+            y["refunded"] += amount  # a refund or reimbursement linked to a trip or occasion: it comes off what was spent, it is not income
+        elif r["kind"] == "income":
             y["income"] += amount
             if r["category"] == "salary":
                 y["salary"] += amount
             if r["category"] == "interest":
                 y["interest"] += amount
         else:
-            y["spent"] += amount
             if r["category"] == "investments":
-                y["invested"] += amount
+                y["invested"] += amount  # money put into investments is saved, not spent
+            else:
+                y["spent"] += amount
             if r["category"] == "insurance":
                 y["insurance"] += amount
     result = []
     for y in sorted(out.values(), key=lambda x: x["year"]):
+        y["spent"] -= y["refunded"]
         saved = y["income"] - y["spent"]
-        y.update(saved=round(saved, 2), savings_rate=round(saved / y["income"] * 100, 1) if y["income"] > 0 else None)
+        y.update(
+            saved=round(saved, 2),
+            kept_in_accounts=round(saved - y["invested"], 2),
+            savings_rate=round(saved / y["income"] * 100, 1) if y["income"] > 0 else None,
+        )
         result.append({k: (round(v, 2) if isinstance(v, float) else v) for k, v in y.items()})
     return {"currency": _currency(conn), "years": result}
 
@@ -271,7 +284,7 @@ def suggestions(conn, a=None):
     months = _months(conn)
     last12 = months[-12:]
     if len(last12) >= 6:
-        income, spent = sum(m["income"] for m in last12), sum(m["spent"] for m in last12)
+        income, spent = sum(m["income"] for m in last12), sum(m["spent"] - m["invested"] for m in last12)  # money put into investments is saved, not spent
         if income > 0:
             rate = (income - spent) / income * 100
             if rate < 0:
@@ -528,21 +541,120 @@ def income_breakdown(conn, a=None):
     return {"currency": _currency(conn), "months": rows[-24:], "years": year_rows, "latest_year": year_rows[-1] if year_rows else None}
 
 
+def _months_between(start: str, end: str) -> list[str]:
+    """Every month from start to end, as YYYY-MM."""
+    y, m = int(start[:4]), int(start[5:7])
+    out = []
+    while f"{y:04d}-{m:02d}" <= end[:7]:
+        out.append(f"{y:04d}-{m:02d}")
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return out
+
+
+def totals_check(conn, a=None):
+    """Where money in and money out could be missing or wrongly counted: which months each account has statements for, what every category adds up to
+    (including what was left out as transfers or as refunds linked to a trip), how many payments are uncategorised, and what the savings figures are made of."""
+    accounts = []
+    for r in conn.execute(
+        "SELECT account, COUNT(*) AS n, SUM(status='verified') AS verified, SUM(status IN ('needs_check','unverified')) AS unproven, MIN(period_start) AS first, MAX(period_end) AS last "
+        "FROM statement_files WHERE account<>'' AND period_start IS NOT NULL GROUP BY account ORDER BY account"
+    ):
+        covered = {
+            m
+            for p in conn.execute(
+                "SELECT period_start, period_end FROM statement_files WHERE account=? AND period_start IS NOT NULL AND period_end IS NOT NULL", (r["account"],)
+            )
+            for m in _months_between(p["period_start"], p["period_end"])
+        }
+        gaps = [m for m in _months_between(r["first"], r["last"]) if m not in covered]
+        accounts.append(
+            {
+                "account": "…" + r["account"][-4:],
+                "statements": r["n"],
+                "verified": r["verified"] or 0,
+                "not_proven": r["unproven"] or 0,
+                "from": r["first"],
+                "to": r["last"],
+                "months_without_a_statement": gaps,
+            }
+        )
+    categories = {
+        kind: [
+            {"category": r["category"] or "(none)", "payments": r["n"], "total": round(r["t"] / 100, 2)}
+            for r in conn.execute(
+                "SELECT category, COUNT(*) AS n, SUM(amount_minor) AS t FROM ledger WHERE kind=? GROUP BY category ORDER BY SUM(amount_minor) DESC LIMIT 15",
+                (kind,),
+            )
+        ]
+        for kind in ("income", "expense")
+    }
+    left_out = {
+        name: {"payments": n or 0, "total": round((t or 0) / 100, 2)}
+        for name, (n, t) in {
+            "transfers_in": tuple(conn.execute("SELECT COUNT(*), SUM(amount_minor) FROM ledger WHERE kind='income' AND category='transfers'").fetchone()),
+            "transfers_out": tuple(conn.execute("SELECT COUNT(*), SUM(amount_minor) FROM ledger WHERE kind='expense' AND category='transfers'").fetchone()),
+            "refunds_linked_to_trips": tuple(
+                conn.execute("SELECT COUNT(*), SUM(amount_minor) FROM ledger WHERE kind='income' AND category<>'transfers' AND event_id IS NOT NULL").fetchone()
+            ),
+            "uncategorised": tuple(
+                conn.execute("SELECT COUNT(*), SUM(amount_minor) FROM ledger WHERE category IN ('other','') OR category IS NULL").fetchone()
+            ),
+        }.items()
+    }
+    months = _months(conn)[-12:]
+    income, spent, invested = sum(m["income"] for m in months), sum(m["spent"] for m in months), sum(m["invested"] for m in months)
+    warnings = []
+    for acct in accounts:
+        if acct["months_without_a_statement"]:
+            warnings.append(
+                f"Account {acct['account']} has no statement for {len(acct['months_without_a_statement'])} month(s) between {acct['from'][:7]} and {acct['to'][:7]}."
+            )
+        if acct["not_proven"]:
+            warnings.append(f"Account {acct['account']}: {acct['not_proven']} statement(s) could not be proven and are not counted.")
+    money_in = sum(c["total"] for c in categories["income"])
+    if money_in and left_out["transfers_in"]["total"] > 0.3 * money_in:
+        warnings.append(
+            "More than 30% of all money in was set aside as transfers between your own accounts, so it is not counted as income. If that includes your salary, it is mis-sorted."
+        )
+    if left_out["uncategorised"]["payments"]:
+        warnings.append(f"{left_out['uncategorised']['payments']} payment(s) have no category yet.")
+    return {
+        "currency": _currency(conn),
+        "accounts": accounts,
+        "by_category": categories,
+        "left_out_of_income_and_spending": left_out,
+        "last_12_months": {
+            "months_with_data": len(months),
+            "income_counted": round(income, 2),
+            "spent_counted": round(spent - invested, 2),
+            "invested": round(invested, 2),
+        },
+        "warnings": warnings,
+    }
+
+
 def savings_overview(conn, a=None):
     """What was saved (money in minus spent) and the savings rate (saved / money in), by month and by year. A negative number means more went out than came in."""
     months: list[dict[str, Any]] = []
     for m in _months(conn):
-        saved = m["income"] - m["spent"]
+        living = m["spent"] - m["invested"]  # what was really spent: money put into investments is saved, not spent
+        saved = m["income"] - living
         months.append(
             {
                 "month": m["month"],
                 "income": round(m["income"], 2),
-                "spent": round(m["spent"], 2),
+                "spent": round(living, 2),
+                "invested": round(m["invested"], 2),
+                "refunded": round(m["refunded"], 2),
+                "kept_in_accounts": round(m["income"] - m["spent"], 2),
                 "saved": round(saved, 2),
                 "rate": round(saved / m["income"] * 100, 1) if m["income"] > 0 else None,
             }
         )
-    years = [{k: y[k] for k in ("year", "income", "spent", "saved", "savings_rate", "months")} for y in yearly_overview(conn)["years"]]
+    years = [
+        {k: y[k] for k in ("year", "income", "spent", "invested", "saved", "kept_in_accounts", "savings_rate", "months")}
+        for y in yearly_overview(conn)["years"]
+    ]
     last12 = months[-12:]
     income, spent = sum(m["income"] for m in last12), sum(m["spent"] for m in last12)
     rated = [m for m in last12 if m["rate"] is not None]
