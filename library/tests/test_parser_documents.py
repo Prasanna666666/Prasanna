@@ -161,3 +161,19 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
     ns = argparse.Namespace(inbox=str(inbox), out=str(tmp_path / "out"), collection=[], mail="")
     parser.write_found(ns)
     assert json.loads((tmp_path / "out" / ".found").read_text()) == {"documents": 2, "mails": 1, "mail_connected": False, "by_folder": {"inbox": 2}}
+
+
+def test_reading_several_files_at_once_gives_the_same_result_as_one_at_a_time(tmp_path, monkeypatch):
+    inbox = tmp_path / "in"
+    inbox.mkdir()
+    for i in range(12):
+        (inbox / f"m{i}.eml").write_text(f"Subject: hello {i}\nFrom: a@b.c\n\nBody of mail {i} about invoice number {i}\n")
+    (inbox / "twin1.txt").write_text("same words")
+    (inbox / "twin2.txt").write_text("same words")  # the same content twice: read once, even when read at the same moment
+    results = {}
+    for workers in (1, 4):
+        monkeypatch.setattr(parser, "WORKERS", workers)
+        out = tmp_path / f"out{workers}"
+        counts = parser.process_inbox(inbox, out, isolated=False)
+        results[workers] = (counts, sorted(p.stem for p in out.glob("*.json")))
+    assert results[1] == results[4] and results[4][0]["parsed"] == 13

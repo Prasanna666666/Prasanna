@@ -20,8 +20,10 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -164,9 +166,7 @@ def _limits() -> None:  # runs in the child before exec (Linux/macOS)
 
 
 def extract_isolated(path: Path, timeout: int = TIMEOUT_S) -> dict:
-    r = subprocess.run(
-        [sys.executable, "-I", "-m", "library.parser", "--extract-one", str(path)], capture_output=True, timeout=timeout, preexec_fn=_limits, check=False
-    )
+    r = subprocess.run([sys.executable, "-I", "-m", "library.parser", "--extract-one", str(path)], capture_output=True, timeout=timeout, check=False)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.decode("utf-8", "replace")[-300:] or f"parser exited {r.returncode}")
     return json.loads(r.stdout)
@@ -202,6 +202,10 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) 
     os.replace(tmp, out / f"{digest}.json")  # atomic: the app never sees a half-written file
 
 
+_CLAIMED: set[str] = set()
+_CLAIM_LOCK = threading.Lock()
+
+
 def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0) -> None:
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
     import tempfile
@@ -215,6 +219,10 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         digest = hashlib.sha256((area + digest).encode()).hexdigest()  # the same file in two folders is two documents
     if _done(out, digest):
         return
+    with _CLAIM_LOCK:  # files read at the same moment with the same content: only the first one reads it
+        if digest in _CLAIMED:
+            return
+        _CLAIMED.add(digest)
     try:
         if suffix == ".mbox" and depth == 0:
             _process_mailbox(f, label, out, area, isolated, counts, digest)
@@ -275,17 +283,41 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
     seen.touch()  # empty: a mail's name can be its subject, and nothing readable is kept here
 
 
+WORKERS = max(1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", "2")), 8))  # files read at the same time, each in its own sealed child process
+BATCH = 200
+
+
+def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool) -> dict[str, int]:
+    """Read these files at the same time (each in its own child process); the totals of what happened."""
+    total = {"parsed": 0, "skipped": 0, "failed": 0}
+    with _CLAIM_LOCK:
+        _CLAIMED.clear()  # claims only matter within one batch; a file that failed is tried again next round
+
+    def one(f: Path) -> dict[str, int]:
+        counts = {"parsed": 0, "skipped": 0, "failed": 0}
+        _process(f, label_of(f), out, area, isolated, counts)
+        return counts
+
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        for counts in pool.map(one, files):
+            for k, v in counts.items():
+                total[k] += v
+    return total
+
+
 def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "", skip_folders: frozenset[str] = frozenset()) -> dict[str, int]:
     """Parse every new supported file under inbox into out/<sha256>.json. Same content is never parsed twice. `skip_folders` are top-level folders handled elsewhere."""
     out.mkdir(parents=True, exist_ok=True)
     root = inbox.resolve()
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
-    for f in sorted(root.rglob("*")):
-        if not f.is_file() or f.is_symlink() or root not in f.resolve().parents:
-            continue
-        if f.relative_to(root).parts[0] in skip_folders:
-            continue
-        _process(f, f.name, out, area, isolated, counts)
+    files = [
+        f
+        for f in sorted(root.rglob("*"))
+        if f.is_file() and not f.is_symlink() and root in f.resolve().parents and f.relative_to(root).parts[0] not in skip_folders
+    ]
+    for i in range(0, len(files), BATCH):
+        for k, v in _read_batch(files[i : i + BATCH], lambda f: f.name, out, area, isolated).items():
+            counts[k] += v
     return counts
 
 
@@ -313,6 +345,7 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
     except (OSError, ValueError):
         seen = {}
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
+    todo: list[tuple[Path, str, str]] = []
     for f in sorted(root.rglob("*.emlx")):
         if f.is_symlink() or root not in f.resolve().parents:
             continue
@@ -321,12 +354,17 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
             continue
         stat = f.stat()
         stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
-        if seen.get(str(relative)) == stamp:
-            continue
-        _process(f, f.name, out, "mail", isolated, counts)
-        seen[str(relative)] = stamp
-        if counts["parsed"] % MAIL_SAVE_EVERY == 0:
-            _save_seen(cache_file, seen)
+        if seen.get(str(relative)) != stamp:
+            todo.append((f, str(relative), stamp))
+    for i in range(
+        0, len(todo), BATCH
+    ):  # a batch at a time, several messages at once; what is done is remembered after each batch, so an interrupted first read carries on
+        batch = todo[i : i + BATCH]
+        for k, v in _read_batch([f for f, _, _ in batch], lambda f: f.name, out, "mail", isolated).items():
+            counts[k] += v
+        for _f, relative, stamp in batch:
+            seen[relative] = stamp
+        _save_seen(cache_file, seen)
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(json.dumps(seen))
     return counts
@@ -348,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)
     a = ap.parse_args(argv)
     if a.extract_one:
+        _limits()  # the child limits itself before it opens the file (a limit set by the parent needs preexec_fn, which is unsafe with threads)
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
         return 0
     out = Path(a.out)
