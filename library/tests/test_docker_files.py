@@ -71,9 +71,5 @@ def test_the_slow_installs_come_before_the_code_so_a_code_change_does_not_rebuil
     for name, slow in (("library/Dockerfile", ("sqlcipher3", "torch")), ("finance/Dockerfile", ("sqlcipher3",))):
         text = (root / name).read_text()
         copy_at = text.index("COPY kit")
-        assert all(
-            text.index(f"pip install {word}") < copy_at
-            for word in slow
-            if f"pip install {word}" in text or f"pip install {word}" in text.replace("PIP_CACHE_DIR=/pipcache ", "")
-        )
+        assert all(text.index(f"pip install {word}") < copy_at for word in slow)
         assert "--no-cache-dir" not in text  # downloads are kept between builds in a build cache, not in the image
