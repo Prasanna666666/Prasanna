@@ -309,7 +309,10 @@
             );
         const actions = (q) =>
             !q || 'update scan read new files photos'.includes(q) || q.includes('update') || q.includes('scan')
-                ? [{ head: 'Do' }, { label: 'Update everything', sub: 'Read all new files and photos', run: startScan }]
+                ? [
+                      { head: 'Do' },
+                      { label: 'Read new files', sub: 'Read all new files, mail and photos', run: startScan },
+                  ]
                 : [];
         const build = async () => {
             const raw = box.value.trim();
@@ -404,6 +407,23 @@
         row.append(el('i'), text);
         return row;
     };
+    const controlButton = (label, action) => {
+        const b = el('button', 'scan-control', label);
+        b.type = 'button';
+        b.addEventListener('click', async () => {
+            b.disabled = true;
+            try {
+                const reply = await fetch(`/_atlas/api/scan/${action}`, {
+                    method: 'POST',
+                    headers: { 'X-Atlas': '1' },
+                });
+                if (reply.ok) showScan(await reply.json());
+            } catch (_) {
+                /* the next refresh shows where it stands */
+            }
+        });
+        return b;
+    };
     const showScan = (report) => {
         const panel = $('#scan');
         const close = el('button', 'scan-close', '×');
@@ -413,7 +433,22 @@
             panel.hidden = true;
         });
         const head = el('div', 'scan-head');
-        head.append(el('b', '', report.running ? 'Updating…' : 'Update finished'), close);
+        const title = report.running
+            ? Object.values(report.modules).some((m) => m.paused)
+                ? 'Paused'
+                : Object.values(report.modules).some((m) => m.stopping)
+                  ? 'Stopping…'
+                  : 'Reading your files, mail and photos…'
+            : 'Finished reading';
+        head.append(el('b', '', title));
+        if (report.running) {
+            const paused = Object.values(report.modules).some((m) => m.paused);
+            head.append(
+                controlButton(paused ? 'Resume' : 'Pause', paused ? 'resume' : 'pause'),
+                controlButton('Stop', 'stop')
+            );
+        }
+        head.append(close);
         const rows = [];
         for (const m of state.modules) {
             const info = report.modules[m.id];
@@ -425,7 +460,7 @@
         panel.replaceChildren(head, ...rows);
         panel.hidden = false;
         $('#update').classList.toggle('busy', report.running);
-        $('#update span').textContent = report.running ? 'Updating…' : 'Update';
+        $('#update span').textContent = report.running ? 'Reading…' : 'Read new files';
     };
     const followScan = async () => {
         clearTimeout(scan.timer);

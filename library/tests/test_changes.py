@@ -325,3 +325,38 @@ def test_a_question_asked_while_the_index_is_being_built_does_not_wait_for_it(in
         assert store.passages(inbox.conn, "invoice") == []  # uses what is there and does not start a second build
     finally:
         store._INDEXING.release()
+
+
+def test_a_paused_update_waits_and_a_stopped_one_ends_without_losing_what_was_read(inbox, monkeypatch):
+    inbox.conn.execute("UPDATE documents SET judged=0, facts='', ready=NULL")
+    inbox.conn.commit()
+    answers = iter(["pause", "pause", "run", "stop"])
+    seen = []
+
+    def control():
+        seen.append(next(answers, "stop"))
+        return seen[-1]
+
+    monkeypatch.setattr(store.time, "sleep", lambda _s: None)  # no real waiting in the test
+    out = store.judge_pending(inbox.conn, None, "", None, control)
+    assert out["stopped"] is True and seen[:2] == ["pause", "pause"]  # it waited while paused, then ended when stopped
+    assert inbox.conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0] >= 1  # what was not read yet is still waiting
+
+
+def test_the_reader_waits_while_paused_and_ends_the_round_when_stopped(tmp_path, monkeypatch):
+    from library import parser
+
+    monkeypatch.setattr(parser, "GENTLE_SECONDS", 0)
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / parser.PAUSE).touch()
+    sleeps = []
+
+    def sleep(_s):
+        sleeps.append(1)
+        (out / parser.PAUSE).unlink(missing_ok=True)  # the person presses Resume while it waits
+
+    monkeypatch.setattr(parser.time, "sleep", sleep)
+    assert parser.checkpoint(out) is False and sleeps  # it waited, then carried on
+    (out / parser.STOP).touch()
+    assert parser.checkpoint(out) is True  # stopped: the round ends at the next safe point

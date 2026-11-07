@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import json
 import re
@@ -133,7 +134,17 @@ class Upstreams:
 
     # ---- one Update button: read everything new, in every app that can -----------------------------------------------
     def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
-        down = {"up": False, "running": False, "progress": "", "summary": "", "problems": [f"{module.name} is not running"], "needs_check": 0, "parts": []}
+        down = {
+            "up": False,
+            "running": False,
+            "progress": "",
+            "summary": "",
+            "problems": [f"{module.name} is not running"],
+            "needs_check": 0,
+            "parts": [],
+            "paused": False,
+            "stopping": False,
+        }
         try:
             if start:
                 self._authed(module, "POST", module.scan, SCAN_SECONDS)
@@ -151,6 +162,8 @@ class Upstreams:
             "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
             "needs_check": int(raw.get("needs_check") or 0),
             "parts": self._parts(raw.get("parts")),
+            "paused": raw.get("paused") is True,
+            "stopping": raw.get("stopping") is True,
         }
 
     @staticmethod
@@ -159,6 +172,15 @@ class Upstreams:
         if not isinstance(raw, list):
             return []
         return [{"name": str(p["name"])[:30], "detail": str(p.get("detail", ""))[:200]} for p in raw[:6] if isinstance(p, dict) and p.get("name")]
+
+    def control(self, action: str) -> dict[str, Any]:
+        """Pause, resume or stop the reading that is running, in every app that supports it (an app that does not simply ignores it)."""
+        if action not in ("pause", "resume", "stop"):
+            return self.scan()
+        for module in (m for m in self.modules.values() if m.scan):
+            with contextlib.suppress(OSError, http.client.HTTPException, ValueError):
+                self._authed(module, "POST", f"{module.scan}/{action}", SCAN_SECONDS)
+        return self.scan()
 
     def scan(self, start: bool = False) -> dict[str, Any]:
         """Start (or just read) the update of every app that supports it; one app being down never stops the others."""

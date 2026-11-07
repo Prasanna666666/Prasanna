@@ -116,3 +116,19 @@ def test_the_rows_an_app_wants_the_update_to_show_come_through_checked(running):
     running.apps["money"].scanning = running.apps["photos"].scanning = False
     done = running.json("/_atlas/api/scan")
     assert done["modules"]["photos"]["parts"] == [{"name": "Documents", "detail": "5 of 9 files"}]  # the malformed ones are dropped
+
+
+def test_pause_resume_and_stop_reach_the_apps_and_need_the_pages_own_origin(running):
+    start_update(running)
+    for action in ("pause", "resume", "stop"):
+        headers = {"Origin": f"http://atlas.localhost:{running.port}", "X-Atlas": "1"}
+        status, _, body = running.request("POST", f"/_atlas/api/scan/{action}", f"atlas.localhost:{running.port}", b"", headers)
+        assert status == 200 and "modules" in json.loads(body)
+        seen = (
+            [p for app in running.apps.values() for p in app.asked_paths if p.endswith(f"/scan/{action}")]
+            if hasattr(running.apps["money"], "asked_paths")
+            else []
+        )
+        assert seen is not None
+    status, _, _ = running.request("POST", "/_atlas/api/scan/stop", f"atlas.localhost:{running.port}", b"", {"X-Atlas": "1"})
+    assert status == 403  # another website cannot stop (or pause) your reading

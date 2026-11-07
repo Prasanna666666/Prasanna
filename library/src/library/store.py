@@ -181,12 +181,19 @@ def _exact_facts(d) -> dict | None:
     return None
 
 
-def judge_pending(conn, client, model, progress: Progress | None = None) -> dict[str, Any]:
+def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None) -> dict[str, Any]:
     """Judge every document not yet judged. Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
     pending = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents WHERE judged=0 ORDER BY id").fetchall()
-    out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "problem": ""}
+    out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "problem": "", "stopped": False}
     for index, d in enumerate(pending, 1):
+        while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
+            conn.commit()
+            time.sleep(0.5)
+        if control is not None and control() == "stop":
+            out["stopped"] = True
+            out["waiting"] = len(pending) - index + 1
+            break
         exact = _exact_facts(d)
         if exact is not None:
             _mark_ready(conn, d["sha256"], 1, exact)
@@ -208,6 +215,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None) -> dict
                 out["problem"] = str(exc)
                 break
             _mark_ready(conn, d["sha256"], 1, facts)
+            time.sleep(GENTLE_SECONDS)  # a short rest after each model call: the computer stays responsive while many documents are read
         out["read"] += 1
         if index % 20 == 0:
             conn.commit()
@@ -216,6 +224,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None) -> dict
 
 
 # ---- asking: what any app can take -------------------------------------------------------------------------------------------
+GENTLE_SECONDS = float(os.environ.get("LIBRARY_GENTLE_SECONDS", "0.5"))
 LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready"
 
 

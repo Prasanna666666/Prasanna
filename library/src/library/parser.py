@@ -12,6 +12,7 @@ characters; the app still treats it as untrusted data.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import hashlib
 import json
@@ -284,7 +285,15 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
 
 
 WORKERS = max(1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", "2")), 8))  # files read at the same time, each in its own sealed child process
-BATCH = 200
+BATCH = 50  # files per batch: a pause or stop takes effect within one batch
+
+
+def checkpoint(out: Path) -> bool:
+    """Between batches: wait while paused, rest a moment, and say whether the round should end now (stopped)."""
+    while (out / PAUSE).exists() and not (out / STOP).exists():
+        time.sleep(1)
+    time.sleep(GENTLE_SECONDS)
+    return (out / STOP).exists()
 
 
 def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool) -> dict[str, int]:
@@ -318,6 +327,8 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "",
     for i in range(0, len(files), BATCH):
         for k, v in _read_batch(files[i : i + BATCH], lambda f: f.name, out, area, isolated).items():
             counts[k] += v
+        if checkpoint(out):
+            break
     return counts
 
 
@@ -365,6 +376,8 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
         for _f, relative, stamp in batch:
             seen[relative] = stamp
         _save_seen(cache_file, seen)
+        if checkpoint(out):
+            break
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(json.dumps(seen))
     return counts
@@ -390,8 +403,13 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
         return 0
     out = Path(a.out)
+    with contextlib.suppress(OSError):
+        os.nice(10)  # reading is never more important than what the person is doing; the children inherit this
     while True:
         out.mkdir(parents=True, exist_ok=True)
+        if a.watch:
+            _wait_for_next_round(out)  # nothing is read until the person asks (so starting the computer never starts a big read)
+        (out / STOP).unlink(missing_ok=True)
         (out / BUSY).touch()  # tells the Documents service that more may still be coming
         try:
             res = read_everything(a)
@@ -401,12 +419,16 @@ def main(argv: list[str] | None = None) -> int:
             print(res, flush=True)
         if not a.watch:
             return 0
-        _wait_for_next_round(out)
 
 
+PAUSE = ".pause"  # while it exists the reader waits where it is; remove it and it carries on
+STOP = ".stop"  # while it exists the round in progress ends at the next safe point
+GENTLE_SECONDS = float(
+    os.environ.get("LIBRARY_GENTLE_SECONDS", "0.2")
+)  # a short rest after every batch, so the computer stays responsive while a big mailbox is read
 BUSY = ".busy"  # exists while a round is running
 WAKE = ".wake"  # the Documents service touches it when you press Update: start a round now
-ROUND_SECONDS = 30
+ROUND_SECONDS = int(os.environ.get("ATLAS_AUTO_ROUND_SECONDS", "0"))  # 0: reading starts only when asked
 
 
 COLLECTION_NAME = re.compile(r"^[a-z]{2,20}$")
@@ -472,11 +494,16 @@ def read_everything(a: argparse.Namespace) -> dict[str, int]:
 
 
 def _wait_for_next_round(out: Path) -> None:
-    for _ in range(ROUND_SECONDS):
+    """Wait until the person asks for the next round (the Documents service touches `.wake`). With ATLAS_AUTO_ROUND_SECONDS set, a round also starts by itself that often."""
+    waited = 0
+    while True:
         if (out / WAKE).exists():
             (out / WAKE).unlink(missing_ok=True)
             return
+        if ROUND_SECONDS and waited >= ROUND_SECONDS:
+            return
         time.sleep(1)
+        waited += 1
 
 
 if __name__ == "__main__":

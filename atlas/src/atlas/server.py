@@ -149,6 +149,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
         self._send(200, data, ctype, {"Cache-Control": "private, max-age=3600"})
 
+    def _control_scan(self, action: str) -> None:
+        if not _scan_allowed(self, self.atlas):
+            return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
+        self._json(self.atlas.upstreams.control(action))
+
     def _start_scan(self) -> None:
         if not _scan_allowed(self, self.atlas):
             return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
@@ -181,7 +186,13 @@ class _Handler(BaseHTTPRequestHandler):
         route(parse_qs(url.query))
 
     def _post(self, path: str) -> None:
-        routes = {"/_atlas/api/chat": self._chat, "/_atlas/api/scan": self._start_scan}
+        routes = {
+            "/_atlas/api/chat": self._chat,
+            "/_atlas/api/scan": self._start_scan,
+            "/_atlas/api/scan/pause": lambda: self._control_scan("pause"),
+            "/_atlas/api/scan/resume": lambda: self._control_scan("resume"),
+            "/_atlas/api/scan/stop": lambda: self._control_scan("stop"),
+        }
         route = routes.get(path)
         if route is None:
             return self._send(HTTPStatus.METHOD_NOT_ALLOWED, b"read only", "text/plain; charset=utf-8")

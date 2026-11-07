@@ -40,6 +40,7 @@ class State:
 
     def __init__(self) -> None:
         self.scan: dict[str, Any] = {"running": False, "progress": "", "summary": "", "problems": []}
+        self.control = "run"  # run | pause | stop: what the person asked of the Update that is running
         self.lock = threading.Lock()
         self._engine: Any = None
 
@@ -59,7 +60,7 @@ class State:
 
 def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
     ingested = store.ingest_dir(conn, parsed_dir()) if parsed_dir().is_dir() else {"new": 0}
-    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m))
+    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
     if ingested["new"] or judged["read"]:
         store.warm_search(conn, state.picture_text())  # the new documents are searchable as soon as they are read, not at the first question
     return ingested["new"], judged["read"] + judged["skipped"], judged
@@ -104,14 +105,17 @@ def _read_all(state: State) -> None:
             totals["skipped"] += judged["skipped"]
             problem = judged["problem"] or problem
             busy = (parsed_dir() / ".busy").exists()
-            if not busy and not new and not judged_count:
+            if state.control == "stop" or (not busy and not new and not judged_count):
                 break
             state.scan["progress"] = f"Reading… {totals['new']} new files so far" if busy else state.scan["progress"]
             if busy:
                 time.sleep(SETTLE_SECONDS)
         counts = store.counts(conn)
         state.scan["summary"] = f"{totals['new']} new file{'s' if totals['new'] != 1 else ''}, {counts['documents']} in all"
-        _read_pictures(state, conn, client, model)
+        if state.control == "stop":
+            state.scan["summary"] = "Stopped. " + state.scan["summary"] + ". Reading carries on from here next time."
+        else:
+            _read_pictures(state, conn, client, model)
         store.warm_search(conn, state.picture_text())
         state.scan["problems"] = [problem] if problem else []
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
@@ -128,6 +132,9 @@ def start_scan(state: State) -> bool:
         if state.scan["running"]:
             return False
         state.scan.update(running=True, progress="Starting…", summary="", problems=[])
+        state.control = "run"
+        for flag in (".pause", ".stop"):
+            (parsed_dir() / flag).unlink(missing_ok=True)
     threading.Thread(target=_read_all, args=(state,), name="update", daemon=True).start()
     return True
 
@@ -329,6 +336,23 @@ def _parts_now(state: State, conn) -> list[dict[str, str]]:
     return rows
 
 
+def _control(state: State, action: str) -> dict:
+    """Pause, resume or stop the Update that is running: the reader and the model both wait or end at their next safe point; nothing already read is lost."""
+    if not state.scan["running"]:
+        return {"ok": False, "error": "nothing is being read right now"}
+    parsed_dir().mkdir(parents=True, exist_ok=True)
+    pause, stop = parsed_dir() / ".pause", parsed_dir() / ".stop"
+    if action == "pause":
+        pause.touch()
+    elif action == "resume":
+        pause.unlink(missing_ok=True)
+    else:
+        stop.touch()
+        pause.unlink(missing_ok=True)
+    state.control = {"pause": "pause", "resume": "run", "stop": "stop"}[action]
+    return {"ok": True, "control": state.control}
+
+
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     s = state.scan
     return {
@@ -338,6 +362,8 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "problems": s["problems"],
         "needs_check": [],
         "parts": _parts(state, conn),
+        "paused": bool(s["running"] and state.control == "pause"),
+        "stopping": bool(s["running"] and state.control == "stop"),
     }
 
 
@@ -377,6 +403,9 @@ POST_ROUTES = {
     "/api/medical/unlock": _post_medical_unlock,
     "/api/medical/lock": _post_medical_lock,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
+    "/api/scan/pause": lambda state, conn, body: _control(state, "pause"),
+    "/api/scan/resume": lambda state, conn, body: _control(state, "resume"),
+    "/api/scan/stop": lambda state, conn, body: _control(state, "stop"),
 }
 
 
