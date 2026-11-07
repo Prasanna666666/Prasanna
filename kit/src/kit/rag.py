@@ -132,10 +132,9 @@ def reindex(conn, sources, fingerprint: str = "") -> int:
         if before:  # changed: its old passages go; a new item has none, so nothing is searched for
             _forget(conn, ref, before[1], before[2])
         rows = [(source, ref, title, c) for c in chunks(body)] or [(source, ref, title, "")]
-        first = last = None
-        for row in rows:
-            last = conn.execute("INSERT INTO search_index (source, ref, title, body) VALUES (?,?,?,?)", row).lastrowid
-            first = first if first is not None else last
+        conn.executemany("INSERT INTO search_index (source, ref, title, body) VALUES (?,?,?,?)", rows)
+        last = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        first = last - len(rows) + 1  # one writer at a time and inserted one after the other: the item's passages are the last `len(rows)` rows
         conn.execute("INSERT OR REPLACE INTO search_seen (ref, digest, first_row, last_row) VALUES (?,?,?,?)", (ref, digest, first, last))
         done += 1
     for gone, (_digest, first, last) in seen.items():  # a deleted document or note leaves the index too
@@ -193,7 +192,7 @@ def _ranked(conn, words: list[str], k: int) -> list[dict] | None:
     return [{"rid": r["rid"], "source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
 
 
-def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None, *, sources, fingerprint: str = "") -> list[dict]:
+def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None, *, sources, fingerprint: str = "", refresh: bool = True) -> list[dict]:
     """The best passages for a question, each with where it came from: [{source, title, text, score}].
 
     The assistant may pass other ways of asking the same thing (synonyms, the other language: "dekking" for "cover"). Each phrasing is searched and the
@@ -203,7 +202,8 @@ def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = N
     if not searches:
         return []
     if _fts(conn):
-        reindex(conn, sources, fingerprint)
+        if refresh:
+            reindex(conn, sources, fingerprint)
         fused: dict[int, dict] = {}
         for words in searches:
             ranked = _ranked(conn, words, k)

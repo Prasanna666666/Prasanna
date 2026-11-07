@@ -60,7 +60,28 @@ class State:
 def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
     ingested = store.ingest_dir(conn, parsed_dir()) if parsed_dir().is_dir() else {"new": 0}
     judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m))
+    if ingested["new"] or judged["read"]:
+        store.warm_search(conn, state.picture_text())  # the new documents are searchable as soon as they are read, not at the first question
     return ingested["new"], judged["read"] + judged["skipped"], judged
+
+
+def _read_pictures(state: State, conn, client, model) -> None:
+    """The picture part of an Update: wait for the picture reader, then read photographed receipts and letters like any other document."""
+    engine = state.engine()
+    if engine is None:
+        return
+    state.scan["progress"] = "Reading pictures…"
+    done = pictures.wait_for_scan(engine, lambda m: state.scan.update(progress=m))
+    state.scan["summary"] += f"; {done}" if done else ""
+    index = engine.db.connect()
+    try:
+        found = store.ingest_pictures(conn, index)  # photographed receipts and letters are read like any other document
+    finally:
+        index.close()
+    if found:
+        state.scan["progress"] = f"Reading {found} pictures of documents…"
+        store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m))
+        state.scan["summary"] += f"; {found} pictures of documents"
 
 
 def _read_all(state: State) -> None:
@@ -90,20 +111,8 @@ def _read_all(state: State) -> None:
                 time.sleep(SETTLE_SECONDS)
         counts = store.counts(conn)
         state.scan["summary"] = f"{totals['new']} new file{'s' if totals['new'] != 1 else ''}, {counts['documents']} in all"
-        engine = state.engine()
-        if engine is not None:
-            state.scan["progress"] = "Reading pictures…"
-            done = pictures.wait_for_scan(engine, lambda m: state.scan.update(progress=m))
-            state.scan["summary"] += f"; {done}" if done else ""
-            index = engine.db.connect()
-            try:
-                found = store.ingest_pictures(conn, index)  # photographed receipts and letters are read like any other document
-            finally:
-                index.close()
-            if found:
-                state.scan["progress"] = f"Reading {found} pictures of documents…"
-                store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m))
-                state.scan["summary"] += f"; {found} pictures of documents"
+        _read_pictures(state, conn, client, model)
+        store.warm_search(conn, state.picture_text())
         state.scan["problems"] = [problem] if problem else []
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)
@@ -446,6 +455,16 @@ def make_handler(state: State) -> type[_Handler]:
     return type("Handler", (_Handler,), {"state": state})
 
 
+def _warm_at_start(state: State) -> None:
+    conn = state.connect()
+    try:
+        store.warm_search(conn, state.picture_text())
+    except Exception as exc:  # noqa: BLE001 - a failed warm-up only means the first question builds the index
+        log.failed("search index warm-up failed", exc)
+    finally:
+        conn.close()
+
+
 def serve(host: str = "127.0.0.1", port: int = 8502) -> int:
     netguard.install()
     if sign.required() and sign.key() is None:
@@ -454,6 +473,7 @@ def serve(host: str = "127.0.0.1", port: int = 8502) -> int:
     conn = state.connect()
     db.migrate(conn, [store.MODULE])
     conn.close()
+    threading.Thread(target=_warm_at_start, args=(state,), name="search-index", daemon=True).start()  # ready before the first question, not at it
     httpd = ThreadingHTTPServer((host, port), make_handler(state))
     print(f"Documents is running on http://{host}:{port}", flush=True)
     with contextlib.suppress(KeyboardInterrupt):

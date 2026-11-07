@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 from collections.abc import Callable, Iterator
 from datetime import date
@@ -327,15 +328,38 @@ def _fingerprint(conn, more_sources=None) -> str:
     return f"{tuple(r)}|{health_unlocked()}|{more() if more else ''}"
 
 
-def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None = None, more_sources=None) -> list[dict]:
-    """The best passages for a question across every document, each with where it came from. `more_sources` adds more sources (the text found in pictures)."""
+_INDEXING = threading.Lock()
 
+
+def warm_search(conn, more_sources=None) -> int:
+    """Bring the search index up to date now, in the background of whatever else is going on, so no question ever waits for it. Returns how many items were indexed."""
+    if not _INDEXING.acquire(blocking=False):
+        return 0  # already being done
+    try:
+        return rag.reindex(conn, _all_sources(more_sources), _fingerprint(conn, more_sources))
+    finally:
+        _INDEXING.release()
+
+
+def _all_sources(more_sources=None):
     def sources(c):
         yield from _sources(c)
         if more_sources is not None:
             yield from more_sources(c)
 
-    return rag.retrieve(conn, question, limit, alternatives, sources=sources, fingerprint=_fingerprint(conn, more_sources))
+    return sources
+
+
+def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None = None, more_sources=None) -> list[dict]:
+    """The best passages for a question across every document, each with where it came from. `more_sources` adds more sources (the text found in pictures).
+    The index is normally already up to date (it is kept so in the background); if it is being brought up to date right now, the question uses what is there."""
+    sources, fingerprint = _all_sources(more_sources), _fingerprint(conn, more_sources)
+    if _INDEXING.acquire(blocking=False):
+        try:
+            return rag.retrieve(conn, question, limit, alternatives, sources=sources, fingerprint=fingerprint)
+        finally:
+            _INDEXING.release()
+    return rag.retrieve(conn, question, limit, alternatives, sources=sources, fingerprint=fingerprint, refresh=False)
 
 
 def counts(conn) -> dict[str, Any]:

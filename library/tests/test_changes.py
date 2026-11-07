@@ -307,3 +307,21 @@ def test_unlocked_health_closes_again_by_itself(monkeypatch):
     monkeypatch.undo()
     store.set_health_unlocked(False)
     assert not store.health_unlocked()
+
+
+def test_the_update_builds_the_search_index_so_the_first_question_does_not_wait(inbox):
+    inbox.conn.execute("UPDATE documents SET judged=1, ready=1")
+    inbox.conn.commit()
+    assert store.warm_search(inbox.conn) >= 1  # the Update indexed what was read
+    before = inbox.conn.execute("SELECT COUNT(*) FROM search_seen").fetchone()[0]
+    assert before >= 1 and store.warm_search(inbox.conn) == 0  # nothing changed: nothing is read again
+    store.passages(inbox.conn, "invoice")
+    assert inbox.conn.execute("SELECT COUNT(*) FROM search_seen").fetchone()[0] == before  # the question found the index already built
+
+
+def test_a_question_asked_while_the_index_is_being_built_does_not_wait_for_it(inbox):
+    assert store._INDEXING.acquire(blocking=False)
+    try:
+        assert store.passages(inbox.conn, "invoice") == []  # uses what is there and does not start a second build
+    finally:
+        store._INDEXING.release()
