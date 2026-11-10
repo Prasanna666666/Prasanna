@@ -247,26 +247,72 @@
             'Everything here is copied from your documents exactly as printed. Atlas does not interpret it or give medical advice.'
         );
         if (sub === 'values') {
-            const page = [head('Lab values', `${data.tests.length} measurements`), lockButton(again), note];
-            if (!data.tests.length) page.push(el('p', 'muted', 'No values found yet. Press Read new files.'));
-            for (const t of data.tests) {
-                const block = el('div', 'valueblock');
-                block.append(el('h3', '', t.unit ? `${t.test} (${t.unit})` : t.test));
-                const nums = t.readings.map((r) => r.number).filter((n) => n != null);
-                if (nums.length > 1) block.append(sparkline(nums));
+            const FLAG = {
+                above_range: ['Above printed range', 'flag-high'],
+                below_range: ['Below printed range', 'flag-low'],
+            };
+            const page = [head('Lab values', `${data.tests.length} measurements`), lockButton(again)];
+            // the summary: anything outside the range printed on the report, or a plain "nothing"
+            const summary = el('div', 'healthsummary' + (data.attention.length ? ' attention' : ''));
+            summary.append(
+                el(
+                    'b',
+                    '',
+                    data.attention.length
+                        ? `${data.attention.length} ${data.attention.length === 1 ? 'result is' : 'results are'} outside the printed range`
+                        : data.tests.length
+                          ? 'Nothing is outside the printed ranges'
+                          : 'No values found yet. Press Read new files.'
+                )
+            );
+            data.attention.forEach((g) => {
+                const line = el(
+                    'span',
+                    '',
+                    `${g.test}: ${g.latest.value}${g.unit ? ' ' + g.unit : ''} (range ${g.latest.range}) on ${g.latest.date}`
+                );
+                summary.append(line);
+            });
+            page.push(summary, el('p', 'muted', data.note));
+            const row = (g) => {
+                const d = el('details', 'testrow');
+                const top = el('summary');
+                top.append(el('b', '', g.test), el('span', 'latest', `${g.latest.value}${g.unit ? ' ' + g.unit : ''}`));
+                if (FLAG[g.flag]) top.append(el('span', `flagchip ${FLAG[g.flag][1]}`, FLAG[g.flag][0]));
+                else if (g.flag === 'in_range') top.append(el('span', 'flagchip flag-ok', 'In printed range'));
+                if (g.change && g.change.direction !== 'same') {
+                    const sign = g.change.absolute > 0 ? '+' : '';
+                    top.append(
+                        el(
+                            'span',
+                            'muted',
+                            `${g.change.direction === 'up' ? '▲' : '▼'} ${sign}${g.change.absolute}${
+                                g.change.percent != null ? ` (${sign}${g.change.percent}%)` : ''
+                            } since ${g.change.since}`
+                        )
+                    );
+                }
+                d.append(top);
+                const nums = g.readings.map((r) => r.number).filter((n) => n != null);
+                if (nums.length > 1) d.append(sparkline(nums));
                 const table = el('table', 'tbl');
-                for (const r of t.readings) {
-                    const row = el('tr');
+                for (const r of g.readings) {
+                    const tr = el('tr');
                     const doc = el('a', '', r.date || r.document);
                     doc.href = `#/doc/${r.id}`;
                     const first = el('td');
                     first.append(doc);
-                    row.append(first, el('td', '', r.value), el('td', 'muted', r.range ? `range ${r.range}` : ''));
-                    table.append(row);
+                    tr.append(first, el('td', '', r.value), el('td', 'muted', r.range ? `range ${r.range}` : ''));
+                    table.append(tr);
                 }
-                block.append(table);
-                page.push(block);
-            }
+                d.append(table);
+                return d;
+            };
+            if (data.attention.length) page.push(section('Outside the printed range'), ...data.attention.map(row));
+            const rest = (list) =>
+                list.filter((g) => !data.attention.includes(g) && !data.attention.some((a) => a.test === g.test));
+            if (rest(data.common).length) page.push(section('Common tests'), ...rest(data.common).map(row));
+            if (rest(data.other).length) page.push(section('Other measurements'), ...rest(data.other).map(row));
             return host().replaceChildren(...page);
         }
         if (sub === 'medicines') {

@@ -142,7 +142,26 @@ def _health(data: dict) -> Result:
 
 def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
     """Measurements from the person's medical documents over time, exactly as printed (result, unit, reference range if printed). Never interpreted."""
-    return _health(store.health_values(conn, str(a.get("test", ""))[:60]))
+    data = store.health_values(conn, str(a.get("test", ""))[:60])
+    if data.get("locked"):
+        return _health(data)
+
+    def brief(g: dict, readings: int) -> dict:
+        return {
+            "test": g["test"],
+            "unit": g["unit"],
+            "latest": {k: g["latest"][k] for k in ("date", "value", "range", "flag")},
+            "change_since_previous": g["change"],
+            "readings": [{"date": r["date"], "value": r["value"], "flag": r["flag"]} for r in g["readings"][-readings:]],
+        }
+
+    narrowed = bool(a.get("test"))
+    return {
+        "locked": False,
+        "outside_printed_range": [brief(g, 1) for g in data["attention"]],
+        "tests": [brief(g, 8 if narrowed else 3) for g in data["common"] + data["other"]][:30],
+        "note": data["note"] + " Say only that a result is inside or outside the printed range; never what it means for health.",
+    }, []
 
 
 def health_medicines(state, conn, a: dict, ask: Ask | None = None) -> Result:

@@ -53,7 +53,7 @@ def test_unlocked_health_shows_each_measurement_over_time_exactly_as_printed(lib
     _blood(lib)
     store.set_health_unlocked(True)
     tests = store.health_values(lib.conn)["tests"]
-    assert len(tests) == 1 and tests[0]["test"] == "Hemoglobine" and tests[0]["unit"] == "mmol/L"
+    assert len(tests) == 1 and tests[0]["test"] == "Hemoglobin" and tests[0]["unit"] == "mmol/L"
     assert [(r["date"], r["value"], r["range"]) for r in tests[0]["readings"]] == [("2026-03-01", "8,4", "7,5 - 10,0"), ("2026-06-02", "9,0", "7,5 - 10,0")]
     assert store.health_values(lib.conn, "cholesterol")["tests"] == []
     assert [m["name"] for m in store.health_medicines(lib.conn)["medicines"]] == ["Metformine"]
@@ -157,3 +157,67 @@ def test_the_packing_routes_exist_and_refuse_a_trip_without_days(lib):
     assert "/api/travel/packing" in web.GET_ROUTES and "/api/travel/packing" in web.POST_ROUTES
     with pytest.raises(web.Fail):
         web._post_packing(lib.state, lib.conn, {"place": "Goa", "start": "x", "end": "y", "action": "seed"})
+
+
+def test_a_result_is_flagged_only_against_the_range_the_report_itself_prints():
+    flag = store.range_flag
+    assert [flag(8.4, "7,5 - 10,0"), flag(7.4, "7,5 - 10,0"), flag(10.1, "7.5-10.0"), flag(7.5, "7,5 - 10,0"), flag(10.0, "7,5 - 10,0")] == [
+        "in_range",
+        "below_range",
+        "above_range",
+        "in_range",
+        "in_range",
+    ]
+    assert [flag(4.9, "< 5,0"), flag(5.0, "< 5,0"), flag(5.0, "<= 5,0"), flag(3.1, "> 3"), flag(3.0, "> 3"), flag(3.0, ">= 3")] == [
+        "in_range",
+        "above_range",
+        "in_range",
+        "in_range",
+        "below_range",
+        "in_range",
+    ]
+    assert (
+        flag(None, "7,5 - 10,0") == "no_range" and flag(8.0, "") == "no_range" and flag(8.0, "normal") == "no_range"
+    )  # no number, no range, or a range that cannot be read
+
+
+def test_lab_values_are_grouped_by_common_test_with_the_latest_flag_and_the_change_since_the_reading_before(lib):
+    def rec(name, date, *values):
+        lib.add(
+            name,
+            "medical",
+            title="Lab",
+            date=date,
+            party="Kliniek",
+            health={"values": [dict(zip(("test", "value", "number", "unit", "range"), v, strict=True)) for v in values], "medicines": [], "follow_up": None},
+        )
+
+    rec(
+        "a.pdf",
+        "2026-01-10",
+        ("Cholesterol totaal", "5,0", 5.0, "mmol/L", "< 5,0"),
+        ("Hemoglobine", "8,4", 8.4, "mmol/L", "7,5 - 10,0"),
+        ("Zink", "12", 12.0, "umol/L", ""),
+    )
+    rec(
+        "b.pdf",
+        "2026-06-10",
+        ("Total cholesterol", "5,6", 5.6, "mmol/L", "< 5,0"),
+        ("Hb", "9,0", 9.0, "mmol/L", "7,5 - 10,0"),
+        ("Zink", "11", 11.0, "umol/L", ""),
+    )
+    store.set_health_unlocked(True)
+    r = store.health_values(lib.conn)
+    chol = next(g for g in r["common"] if g["test"] == "Cholesterol (total)")
+    assert [x["value"] for x in chol["readings"]] == ["5,0", "5,6"] and chol["flag"] == "above_range"  # two spellings, one test
+    assert chol["change"] == {"since": "2026-01-10", "absolute": 0.6, "percent": 12.0, "direction": "up"}
+    hb = next(g for g in r["common"] if g["test"] == "Hemoglobin")
+    assert hb["flag"] == "in_range" and [g["test"] for g in r["attention"]] == ["Cholesterol (total)"] and [g["test"] for g in r["other"]] == ["Zink"]
+    assert [g["test"] for g in r["common"]] == ["Hemoglobin", "Cholesterol (total)"]  # common tests in a fixed, familiar order
+    assert next(g for g in r["other"])["flag"] == "no_range" and "not a diagnosis" in r["note"]
+    out = tools.run(lib.state, lib.conn, "health_values", {"test": "cholesterol"})
+    assert out["ok"] and [g["test"] for g in out["data"]["tests"]] == ["Cholesterol (total)"]  # narrowed to the test asked about
+    assert [g["test"] for g in out["data"]["outside_printed_range"]] == ["Cholesterol (total)"] and out["data"]["outside_printed_range"][0]["latest"][
+        "flag"
+    ] == "above_range"
+    assert "never what it means for health" in out["data"]["note"]

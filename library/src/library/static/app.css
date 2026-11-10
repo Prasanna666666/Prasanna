@@ -505,3 +505,47 @@ h1 {
 .packadd input {
     flex: 1;
 }
+
+.healthsummary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    margin: 10px 0;
+    border: 1px solid rgba(120, 130, 180, 0.35);
+    border-radius: 12px;
+}
+.healthsummary.attention {
+    border-color: #e0a030;
+    background: rgba(224, 160, 48, 0.1);
+}
+.testrow {
+    margin: 6px 0;
+    padding: 8px 12px;
+    border: 1px solid rgba(120, 130, 180, 0.25);
+    border-radius: 10px;
+}
+.testrow summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 10px;
+    cursor: pointer;
+}
+.testrow .latest {
+    font-size: 18px;
+    font-weight: 600;
+}
+.flagchip {
+    font-size: 12px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+}
+.flag-high,
+.flag-low {
+    color: #e0a030;
+}
+.flag-ok {
+    color: #5bb98c;
+}
