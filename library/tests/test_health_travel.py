@@ -105,3 +105,55 @@ def test_the_travel_and_health_routes_exist_and_a_trip_needs_real_days(lib):
         assert route in web.GET_ROUTES
     with pytest.raises(web.Fail):
         web._get_travel_trip(lib.state, lib.conn, {"place": "x", "start": "not", "end": "2026-01-01"})
+
+
+def _packing(lib, action, **extra):
+    return travel.packing_action(lib.conn, {"place": "Goa", "start": "2099-01-10", "end": "2099-01-14", "action": action, **extra})
+
+
+def test_a_packing_list_starts_from_a_standard_list_whose_quantities_follow_from_the_days(lib):
+    r = _packing(lib, "seed")  # five days
+    texts = [i["text"] for i in r["items"]]
+    assert "Tops: 5" in texts and "Underwear and socks: 6" in texts and "Trousers or skirts: 3" in texts and "Passport or ID" in texts
+    assert r["packed"] == 0 and r["total"] == len(r["items"]) and r["items"][0]["section"] == "Documents"
+    assert [
+        i["text"]
+        for i in travel.packing_action(lib.conn, {"place": "X", "start": "2099-01-01", "end": "2099-03-01", "action": "seed"})["items"]
+        if i["text"].startswith(("Tops", "Underwear", "Trousers"))
+    ] == [
+        "Tops: 7",
+        "Underwear and socks: 8",
+        "Trousers or skirts: 4",
+    ]  # a long trip: you wash, so the numbers stop growing
+    with pytest.raises(ValueError, match="already has a list"):
+        _packing(lib, "seed")
+
+
+def test_items_can_be_added_ticked_and_removed_and_each_trip_has_its_own_list(lib):
+    _packing(lib, "seed")
+    added = _packing(lib, "add", text="  Camera   and lens ", section="Electronics")
+    item = next(i for i in added["items"] if i["text"] == "Camera and lens")
+    assert item["section"] == "Electronics" and item["done"] == 0
+    assert _packing(lib, "toggle", id=item["id"])["packed"] == 1 and _packing(lib, "toggle", id=item["id"])["packed"] == 0
+    assert all(i["id"] != item["id"] for i in _packing(lib, "delete", id=item["id"])["items"])
+    assert travel.packing(lib.conn, "Lisbon", "2099-01-10")["total"] == 0  # another trip: nothing
+    other = travel.packing_action(lib.conn, {"place": "Lisbon", "start": "2099-01-10", "end": "2099-01-12", "action": "add", "text": "Guidebook"})
+    assert _packing(lib, "toggle", id=other["items"][0]["id"])["packed"] == 0  # an item of another trip cannot be changed from this one
+    for bad in ({"action": "add", "text": "  "}, {"action": "nonsense"}):
+        with pytest.raises(ValueError):
+            _packing(lib, bad["action"], **{k: v for k, v in bad.items() if k != "action"})
+
+
+def test_the_assistant_can_say_what_is_left_to_pack(lib):
+    lib.add("flight.pdf", "ticket", title="KLM", start_date="2099-01-10", end_date="2099-01-14", place="Goa")
+    _packing(lib, "seed")
+    first = travel.packing(lib.conn, "Goa", "2099-01-10")["items"][0]
+    _packing(lib, "toggle", id=first["id"])
+    out = tools.run(lib.state, lib.conn, "packing_list", {"place": "goa"})["data"]["lists"][0]
+    assert out["packed"] == 1 and first["text"] not in out["still_to_pack"] and len(out["still_to_pack"]) == out["total"] - 1
+
+
+def test_the_packing_routes_exist_and_refuse_a_trip_without_days(lib):
+    assert "/api/travel/packing" in web.GET_ROUTES and "/api/travel/packing" in web.POST_ROUTES
+    with pytest.raises(web.Fail):
+        web._post_packing(lib.state, lib.conn, {"place": "Goa", "start": "x", "end": "y", "action": "seed"})

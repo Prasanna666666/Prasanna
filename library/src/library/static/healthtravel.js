@@ -76,6 +76,64 @@
         host().replaceChildren(...page);
     }
 
+    // the packing list: the person's own checklist for one trip
+    async function packingBlock(t) {
+        const box = el('div', 'packing');
+        const body = { place: t.place, start: t.start, end: t.end };
+        const act = async (action, extra) => {
+            const r = await (
+                await fetch('/api/travel/packing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Library': '1' },
+                    body: JSON.stringify({ ...body, action, ...extra }),
+                })
+            ).json();
+            if (r.ok === false) box.prepend(el('p', 'muted', r.error || 'That did not work.'));
+            else draw(r);
+        };
+        const draw = (p) => {
+            const parts = [section(`Packing list${p.total ? ` (${p.packed} of ${p.total} packed)` : ''}`)];
+            if (!p.total) parts.push(button('Start with a standard list', () => act('seed')));
+            let current = '';
+            for (const item of p.items) {
+                if (item.section !== current) {
+                    current = item.section;
+                    parts.push(el('h4', 'packsection', current));
+                }
+                const row = el('label', 'packitem');
+                const box1 = el('input');
+                box1.type = 'checkbox';
+                box1.checked = !!item.done;
+                box1.addEventListener('change', () => act('toggle', { id: item.id }));
+                const text = el('span', item.done ? 'packed' : '', item.text);
+                const del = el('button', 'packdel', '×');
+                del.type = 'button';
+                del.setAttribute('aria-label', `Remove ${item.text}`);
+                del.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    act('delete', { id: item.id });
+                });
+                row.append(box1, text, del);
+                parts.push(row);
+            }
+            const form = el('form', 'packadd');
+            const input = el('input', 'field');
+            input.placeholder = 'Add something to pack';
+            input.maxLength = 120;
+            const add = el('button', 'pill', 'Add');
+            add.type = 'submit';
+            form.append(input, add);
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                if (input.value.trim()) act('add', { text: input.value.trim() });
+            });
+            parts.push(form);
+            box.replaceChildren(...parts);
+        };
+        draw(await getJson(`/api/travel/packing?${new URLSearchParams({ place: t.place, start: t.start })}`));
+        return box;
+    }
+
     async function trip(params) {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
         const q = new URLSearchParams({ place: params.place || '', start: params.start || '', end: params.end || '' });
@@ -116,6 +174,7 @@
             page.push(section('Other documents from these days'));
             t.other_documents.forEach((d) => page.push(card(d.title, `${d.kind} · ${d.date}`, () => openDoc(d.id))));
         }
+        page.push(await packingBlock(t));
         if (t.photos.total) {
             page.push(section(`Photos (${t.photos.total.toLocaleString()} from these days)`));
             const strip = el('div', 'photostrip');

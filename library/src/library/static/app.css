@@ -470,3 +470,38 @@ h1 {
 .tbl td {
     padding: 2px 16px 2px 0;
 }
+
+.packsection {
+    margin: 12px 0 2px;
+    color: var(--muted, #9094b4);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.packitem {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 0;
+}
+.packitem .packed {
+    text-decoration: line-through;
+    opacity: 0.6;
+}
+.packdel {
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+    font-size: 18px;
+}
+.packadd {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.packadd input {
+    flex: 1;
+}

@@ -90,6 +90,17 @@ MIGRATIONS = (
         UPDATE documents SET fact_kind=CASE WHEN NEW.facts<>'' THEN json_extract(NEW.facts,'$.kind') END WHERE id=NEW.id;
     END;
     """,
+    """
+    CREATE TABLE trip_items (
+        id INTEGER PRIMARY KEY,
+        trip TEXT NOT NULL,                      -- which trip (a short key from its place and first day)
+        section TEXT NOT NULL DEFAULT '',        -- Documents, Money, Clothes ...
+        text TEXT NOT NULL,
+        done INTEGER NOT NULL DEFAULT 0,         -- 1 = packed
+        pos INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX trip_items_trip ON trip_items (trip);
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}

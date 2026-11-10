@@ -173,6 +173,32 @@ def trip_details(state, conn, a: dict, ask: Ask | None = None) -> Result:
     return {"trips": out}, []
 
 
+def packing_list(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    """What is packed and what is still to pack for a trip (the person's own checklist)."""
+    today = datetime.now().astimezone().date().isoformat()
+    wanted = [
+        t
+        for t in travel.trips(conn, state.engine(), today)
+        if str(a.get("place", "")).casefold() in t["place"].casefold() and str(a.get("year", ""))[:4] in t["start"]
+    ]
+    if not wanted:
+        return {"lists": [], "note": "no trip matches"}, []
+    out = []
+    for t in wanted[:3]:
+        p = travel.packing(conn, t["place"], t["start"])
+        out.append(
+            {
+                "place": t["place"],
+                "start": t["start"],
+                "end": t["end"],
+                "packed": p["packed"],
+                "total": p["total"],
+                "still_to_pack": [x["text"] for x in p["items"] if not x["done"]],
+            }
+        )
+    return {"lists": out}, []
+
+
 def upcoming_trips(state, conn, a: dict, ask: Ask | None = None) -> Result:
     today = datetime.now().astimezone().date().isoformat()
     return {"trips": [t for t in travel.trips(conn, state.engine(), today) if t["status"] != "past"]}, []
@@ -392,6 +418,12 @@ TOOLS = (
         "One trip in detail: tickets and bookings with the dates, references and amounts they print, other documents of those days and the number of photos. Costs of the whole trip come from the money tools.",
         {"place": _str("Destination, for example India"), "year": _str("Year")},
         trip_details,
+    ),
+    Tool(
+        "packing_list",
+        "The person's own packing checklist for a trip: how much is packed and what is still to pack. Use it for questions like what is left to pack for a trip.",
+        {"place": _str("Destination, for example India"), "year": _str("Year")},
+        packing_list,
     ),
     Tool("upcoming_trips", "Trips that have not ended yet, soonest first, from the tickets and bookings.", {}, upcoming_trips),
     Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),

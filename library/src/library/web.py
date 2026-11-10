@@ -254,6 +254,17 @@ def _get_travel_trip(state: State, conn, query: dict[str, str]) -> dict:
     return travel.detail(conn, state.engine(), query.get("place", "")[:80], start, end)
 
 
+def _get_packing(state: State, conn, query: dict[str, str]) -> dict:
+    return travel.packing(conn, query.get("place", "")[:80], query.get("start", "")[:10])
+
+
+def _post_packing(state: State, conn, body: dict) -> dict:
+    try:
+        return travel.packing_action(conn, body)
+    except (ValueError, TypeError) as why:
+        raise Fail(400, str(why)) from why
+
+
 def _get_medical_part(part):
     def route(state: State, conn, query: dict[str, str]) -> dict:
         if part == "timeline":
@@ -430,6 +441,7 @@ GET_ROUTES = {
     "/api/medical/followups": _get_medical_part("followups"),
     "/api/travel/trips": _get_travel_trips,
     "/api/travel/trip": _get_travel_trip,
+    "/api/travel/packing": _get_packing,
     "/api/change": _get_change,
     "/api/pictures/item": _get_item,
     "/api/pictures": _get_pictures,
@@ -442,6 +454,7 @@ POST_ROUTES = {
     "/api/change/cancel": _post_cancel,
     "/api/change/undo": _post_undo,
     "/api/change/albums": _post_albums,
+    "/api/travel/packing": _post_packing,
     "/api/medical/unlock": _post_medical_unlock,
     "/api/medical/lock": _post_medical_lock,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
