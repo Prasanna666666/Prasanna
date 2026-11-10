@@ -37,3 +37,37 @@ def test_a_deployed_service_without_the_platform_key_refuses_everything(monkeypa
     monkeypatch.setenv("PLATFORM_KEY", "k")
     header = sign.sign("GET", "/api/x")["X-Platform-Sig"]
     assert sign.valid("GET", "/api/x", header) is True and sign.valid("POST", "/api/x", header) is False
+
+
+class _Said:
+    def __init__(self, data):
+        self.data = data
+
+    def chat(self, model, messages, schema=None, **kw):
+        import json
+
+        return {"content": json.dumps(self.data)}
+
+
+def test_health_details_keep_only_what_the_document_prints():
+    from kit import extract
+
+    text = "Uitslag bloedonderzoek 1 maart 2026. Hemoglobine 8,4 mmol/L (7,5 - 10,0). Cholesterol totaal 5,1 mmol/L. Metformine 500 mg 2 maal daags. Controle op 2026-06-01."
+    said = {
+        "values": [
+            {"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L", "range": "7,5 - 10,0"},
+            {"test": "Cholesterol totaal", "value": "6,2", "unit": "mmol/L"},  # the model got the number wrong: not in the document
+            {"test": "Ferritine", "value": "55", "unit": "ug/L"},  # a test the document does not mention
+            {"test": "Cholesterol totaal", "value": "5,1", "unit": "mg/dL", "range": "3 - 5"},  # unit and range invented: dropped, value kept
+        ],
+        "medicines": [{"name": "Metformine", "dose": "500 mg", "duration": "6 maanden"}, {"name": "Aspirine", "dose": "100 mg"}],
+        "follow_up": "2026-06-01",
+    }
+    out = extract.medical_details(_Said(said), "m", "bloed.pdf", text)
+    assert [(v["test"], v["value"], v["number"], v["unit"], v["range"]) for v in out["values"]] == [
+        ("Hemoglobine", "8,4", 8.4, "mmol/L", "7,5 - 10,0"),
+        ("Cholesterol totaal", "5,1", 5.1, "", ""),
+    ]
+    assert out["medicines"] == [{"name": "Metformine", "dose": "500 mg", "duration": ""}]  # Aspirine is not in the document; the duration was invented
+    assert out["follow_up"] == "2026-06-01"
+    assert extract.medical_details(_Said({"follow_up": "2030-01-01"}), "m", "x", text)["follow_up"] is None  # a date the document does not write

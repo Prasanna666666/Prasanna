@@ -7,12 +7,25 @@
   "id": "health",
   "name": "Health",
   "app": "Health",
-  "tagline": "Reports, results and prescriptions. Locked until you unlock it, every time Atlas starts",
+  "tagline": "Reports, lab values and medicines from your own documents. Locked until you unlock it.",
   "icon": "M12 21s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9Z",
-  "accent": [
-    "#ef4444",
-    "#ec4899"
-  ],
+  "accent": ["#ef4444", "#ec4899"],
   "home": "#/health",
-  "pages": []
+  "pages": [
+    {
+      "id": "health",
+      "label": "Timeline",
+      "icon": "M12 8v4l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+    },
+    {
+      "id": "health-values",
+      "label": "Lab values",
+      "icon": "M3 17l5-6 4 3 6-8M14 6h4v4M3 21h18"
+    },
+    {
+      "id": "health-medicines",
+      "label": "Medicines",
+      "icon": "M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7l-7 7ZM8.5 8.5l7 7"
+    }
+  ]
 }

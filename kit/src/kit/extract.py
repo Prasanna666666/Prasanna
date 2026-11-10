@@ -136,3 +136,88 @@ def classify(client, model: str, name: str, text: str) -> dict:
     if data.get("kind") not in KINDS:
         return {"kind": "other"}
     return verify_trip_fields(verify_amounts(data, text[:3500]), text[:3500])
+
+
+# ---- health: lab values and medicines, only what the document itself prints -------------------------------------------------------------------
+HEALTH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "values": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "test": {"type": "string"},  # the name of the measurement, as printed (Hemoglobine, Cholesterol totaal ...)
+                    "value": {"type": "string"},  # the result exactly as printed, e.g. "8,4"
+                    "unit": {"type": "string"},  # as printed, e.g. "mmol/L"
+                    "range": {"type": "string"},  # the reference range, only if the document prints one, e.g. "7,5 - 10,0"
+                },
+                "required": ["test", "value"],
+            },
+        },
+        "medicines": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "dose": {"type": "string"}, "duration": {"type": "string"}},
+                "required": ["name"],
+            },
+        },
+        "follow_up": {"type": "string"},  # a follow-up or next appointment date, YYYY-MM-DD, only if the document states one
+    },
+}
+HEALTH_PROMPT = (
+    "You read a medical document (a lab result, report, prescription or appointment letter), in Dutch or English. List every measured value in it: test = the "
+    'name as printed, value = the result EXACTLY as printed (character for character, for example "8,4"), unit as printed, range = the reference range ONLY if the '
+    "document prints one. List every prescribed medicine: name as printed, dose and duration as printed. If the document states a follow-up or next appointment date, "
+    "give it as YYYY-MM-DD. Copy only what is written. Never interpret, diagnose, estimate, convert or invent anything; leave out what is not there."
+)
+MAX_VALUES, MAX_MEDICINES = 60, 30
+_NUMBER = re.compile(r"^-?\d+(?:[.,]\d+)?$")
+
+
+def _printed(text_lower: str, squashed_lower: str, quoted: str) -> bool:
+    quoted = quoted.strip().lower()
+    return bool(quoted) and (quoted in text_lower or _squash(quoted) in squashed_lower)
+
+
+def medical_details(client, model: str, name: str, text: str) -> dict:
+    """Lab values and medicines of a medical document. The model quotes; code keeps a value only when its test name, its result, its unit and its range are
+    printed in the document, a date only when it is written there, and reads the number from the printed result itself. Nothing is interpreted."""
+    body = text[:6000]
+    data = _ask(client, model, HEALTH_PROMPT, f"File name: {name}\n\n{body}", HEALTH_SCHEMA)
+    lower, squashed = body.lower(), _squash(body.lower())
+    values = []
+    for v in (data.get("values") or [])[:MAX_VALUES]:
+        if not isinstance(v, dict):
+            continue
+        test, result = str(v.get("test") or "").strip(), str(v.get("value") or "").strip()
+        if not _printed(lower, squashed, test) or not _printed(lower, squashed, result):
+            continue  # not in the document: dropped
+        unit, rng = str(v.get("unit") or "").strip(), str(v.get("range") or "").strip()
+        values.append(
+            {
+                "test": test[:80],
+                "value": result[:40],
+                "number": float(result.replace(",", ".")) if _NUMBER.match(result) else None,
+                "unit": unit[:30] if _printed(lower, squashed, unit) else "",
+                "range": rng[:40] if _printed(lower, squashed, rng) else "",
+            }
+        )
+    medicines = []
+    for m in (data.get("medicines") or [])[:MAX_MEDICINES]:
+        if not isinstance(m, dict):
+            continue
+        med = str(m.get("name") or "").strip()
+        if not _printed(lower, squashed, med):
+            continue
+        dose, duration = str(m.get("dose") or "").strip(), str(m.get("duration") or "").strip()
+        medicines.append(
+            {
+                "name": med[:80],
+                "dose": dose[:60] if _printed(lower, squashed, dose) else "",
+                "duration": duration[:60] if _printed(lower, squashed, duration) else "",
+            }
+        )
+    follow_up = str(data.get("follow_up") or "")
+    return {"values": values, "medicines": medicines, "follow_up": follow_up if follow_up in dates_in(body) else None}

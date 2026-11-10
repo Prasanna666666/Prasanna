@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from . import changes, pictures, store
+from . import changes, pictures, store, travel
 
 Result = tuple[Any, list[dict]]  # (data for the model, items to show)
 
@@ -129,6 +129,53 @@ def read_document(state, conn, a: dict, ask: Ask | None = None) -> Result:
 def trips(state, conn, a: dict, ask: Ask | None = None) -> Result:
     """Journeys found in the tickets and bookings: where, from which day to which day, and how many documents show it."""
     return {"trips": store.trips(conn, str(a.get("place", ""))[:80], str(a.get("year", ""))[:4])}, []
+
+
+_LOCKED_NOTE = "Health is locked: nothing was read from it. Tell the person to open Health in Atlas and unlock it, then ask again."
+
+
+def _health(data: dict) -> Result:
+    if data.get("locked"):
+        data = {**data, "note": _LOCKED_NOTE}
+    return data, []
+
+
+def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    """Measurements from the person's medical documents over time, exactly as printed (result, unit, reference range if printed). Never interpreted."""
+    return _health(store.health_values(conn, str(a.get("test", ""))[:60]))
+
+
+def health_medicines(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    return _health(store.health_medicines(conn))
+
+
+def health_timeline(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    return _health(store.health_timeline(conn))
+
+
+def health_followups(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    return _health(store.health_followups(conn, datetime.now().astimezone().date().isoformat()))
+
+
+def trip_details(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    """One trip: tickets and bookings with the dates, references and amounts they print, other documents of those days, and how many photos."""
+    today = datetime.now().astimezone().date().isoformat()
+    wanted = [
+        t
+        for t in travel.trips(conn, state.engine(), today)
+        if str(a.get("place", "")).casefold() in t["place"].casefold() and str(a.get("year", ""))[:4] in t["start"]
+    ]
+    if not wanted:
+        return {"trips": [], "note": "no trip matches"}, []
+    out = [travel.detail(conn, state.engine(), t["place"], t["start"], t["end"]) for t in wanted[:3]]
+    for trip in out:
+        trip["photos"] = {"total": trip["photos"]["total"]}  # the pictures themselves are shown only by find_pictures
+    return {"trips": out}, []
+
+
+def upcoming_trips(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    today = datetime.now().astimezone().date().isoformat()
+    return {"trips": [t for t in travel.trips(conn, state.engine(), today) if t["status"] != "past"]}, []
 
 
 def find_pictures(state, conn, a: dict, ask: Ask | None = None) -> Result:
@@ -321,6 +368,32 @@ TOOLS = (
         preview_filing,
         ("folder",),
     ),
+    Tool(
+        "health_values",
+        "The person's own medical measurements over time (blood tests and so on) exactly as the documents print them: result, unit and the reference range if printed. Never interpret or judge them. Locked unless the person unlocked Health.",
+        {"test": _str("Part of a test name, for example cholesterol")},
+        health_values,
+    ),
+    Tool(
+        "health_medicines",
+        "Medicines prescribed in the person's medical documents, with dose and duration as printed. Locked unless Health is unlocked.",
+        {},
+        health_medicines,
+    ),
+    Tool("health_timeline", "The person's medical documents in date order. Locked unless Health is unlocked.", {}, health_timeline),
+    Tool(
+        "health_followups",
+        "Follow-up or next-appointment dates stated in the person's medical documents, from today on. Locked unless Health is unlocked.",
+        {},
+        health_followups,
+    ),
+    Tool(
+        "trip_details",
+        "One trip in detail: tickets and bookings with the dates, references and amounts they print, other documents of those days and the number of photos. Costs of the whole trip come from the money tools.",
+        {"place": _str("Destination, for example India"), "year": _str("Year")},
+        trip_details,
+    ),
+    Tool("upcoming_trips", "Trips that have not ended yet, soonest first, from the tickets and bookings.", {}, upcoming_trips),
     Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),
     Tool(
         "whats_new",

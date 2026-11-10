@@ -427,3 +427,46 @@ h1 {
 .change span {
     display: block;
 }
+
+/* ---------- Travel and Health ---------- */
+#page-apps .apphead h2 {
+    margin: 0 0 4px;
+}
+#page-apps .card {
+    display: block;
+    width: 100%;
+    margin: 6px 0;
+}
+#page-apps .pill {
+    margin: 4px 8px 4px 0;
+    display: inline-block;
+}
+.bigfigure {
+    font-size: 24px;
+    font-weight: 600;
+    margin: 4px 0;
+}
+.photostrip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.photostrip img {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+.valueblock {
+    margin: 14px 0;
+}
+.valueblock h3 {
+    margin: 0 0 4px;
+}
+.tbl {
+    border-collapse: collapse;
+    margin-top: 6px;
+}
+.tbl td {
+    padding: 2px 16px 2px 0;
+}

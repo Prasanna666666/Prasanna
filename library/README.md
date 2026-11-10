@@ -61,3 +61,7 @@ Not run on a real Mac or with the real model: the Docker images have not been bu
 - `preview_trip_albums` (tool) and the **Sort into trip albums** button on the Trips page: one change that sorts every trip's pictures into `Trips/<year> <place>`.
 - `whats_new` (tool): new documents of the last days by kind and what waits for confirmation (part of the weekly summary).
 - **Highlights** on the Photos home: the best few pictures, picked from measurements (resolution, detail, people, a place), at most two a day and three a place, never a screenshot or a document and never the same moment twice. Nothing is guessed by a model.
+
+## Health and Travel
+- **Health** (`#/health`, locked until unlocked, closes after 15 idle minutes): timeline with follow-up dates the documents state, lab values over time, medicines. Tools for the assistant: `health_values`, `health_medicines`, `health_timeline`, `health_followups` (all say "locked" until Health is unlocked).
+- **Travel** (`#/travel`): upcoming and past trips, a page per trip (`/api/travel/trip`), `/api/travel/calendar.ics`. Tools: `trip_details`, `upcoming_trips`.

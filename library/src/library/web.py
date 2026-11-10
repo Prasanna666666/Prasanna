@@ -11,6 +11,7 @@ import os
 import threading
 import time
 import urllib.parse
+from datetime import date, datetime
 from http import HTTPStatus
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -19,7 +20,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, pictures, store, tools
+from . import changes, pictures, store, tools, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -235,6 +236,41 @@ def _post_cancel(state: State, conn, body: dict) -> dict:
     return changes.cancel(conn, str(body.get("id", ""))[:20])
 
 
+def _today() -> str:
+    return datetime.now().astimezone().date().isoformat()
+
+
+def _get_travel_trips(state: State, conn, query: dict[str, str]) -> dict:
+    return {"trips": travel.trips(conn, state.engine(), _today())}
+
+
+def _get_travel_trip(state: State, conn, query: dict[str, str]) -> dict:
+    start, end = query.get("start", "")[:10], query.get("end", "")[:10]
+    try:
+        date.fromisoformat(start)
+        date.fromisoformat(end)
+    except ValueError as why:
+        raise Fail(400, "a trip needs a start and an end day") from why
+    return travel.detail(conn, state.engine(), query.get("place", "")[:80], start, end)
+
+
+def _get_medical_part(part):
+    def route(state: State, conn, query: dict[str, str]) -> dict:
+        if part == "timeline":
+            store.touch_health()
+            return store.health_timeline(conn)
+        if part == "values":
+            store.touch_health()
+            return store.health_values(conn, query.get("test", "")[:60])
+        if part == "medicines":
+            store.touch_health()
+            return store.health_medicines(conn)
+        store.touch_health()
+        return store.health_followups(conn, _today())
+
+    return route
+
+
 def _get_medical(state: State, conn, query: dict[str, str]) -> dict:
     """Health: locked until the person unlocks it; locked again every time the service starts."""
     if not store.health_unlocked():
@@ -388,6 +424,12 @@ GET_ROUTES = {
     "/api/pictures/browse": _get_browse,
     "/api/changes": _get_changes,
     "/api/medical": _get_medical,
+    "/api/medical/timeline": _get_medical_part("timeline"),
+    "/api/medical/values": _get_medical_part("values"),
+    "/api/medical/medicines": _get_medical_part("medicines"),
+    "/api/medical/followups": _get_medical_part("followups"),
+    "/api/travel/trips": _get_travel_trips,
+    "/api/travel/trip": _get_travel_trip,
     "/api/change": _get_change,
     "/api/pictures/item": _get_item,
     "/api/pictures": _get_pictures,
@@ -450,6 +492,13 @@ class _Handler(JsonHandler):
             return self._file("index.html")
         if path.startswith("/static/"):
             return self._file(path.removeprefix("/static/"))
+        if path == "/api/travel/calendar.ics":
+            conn = self.state.connect()
+            try:
+                text = travel.calendar(travel.trips(conn, self.state.engine(), _today()))
+            finally:
+                conn.close()
+            return self._send(200, text.encode(), "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="trips.ics"'})
         if path.startswith("/api/pictures/thumb/"):
             return self._thumb(path.removeprefix("/api/pictures/thumb/"), preview=False)
         if path.startswith("/api/pictures/preview/"):

@@ -4,10 +4,7 @@
   "app": "Finance",
   "tagline": "Income, expenses, savings, investments and net worth",
   "icon": "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 3h18M7 15h3",
-  "accent": [
-    "#6366f1",
-    "#ec4899"
-  ],
+  "accent": ["#6366f1", "#ec4899"],
   "upstream": "http://host.docker.internal:8501",
   "health": "/api/health",
   "search": "/api/search",

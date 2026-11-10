@@ -210,6 +210,8 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                 progress(f"{index} read so far")  # the total is not known: more files may still be arriving
             try:
                 facts = extract.classify(client, model, d["name"], d["text"])
+                if facts.get("kind") in HEALTH_KINDS:
+                    facts["health"] = extract.medical_details(client, model, d["name"], d["text"])  # lab values and medicines, only what the document prints
             except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
                 out["waiting"] = len(pending) - index + 1
                 out["problem"] = str(exc)
@@ -220,7 +222,118 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
         if index % 20 == 0:
             conn.commit()
     conn.commit()
+    if client is not None and model and not out["stopped"]:
+        out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
+
+
+def fill_health_details(conn, client, model, control: Callable[[], str] | None = None) -> int:
+    """Medical documents judged before lab values and medicines were read get them now (one model call each); returns how many."""
+    marks = ",".join("?" for _ in HEALTH_KINDS)
+    rows = conn.execute(
+        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND fact_kind IN ({marks}) AND facts NOT LIKE '%\"health\"%'",
+        sorted(HEALTH_KINDS),
+    ).fetchall()
+    done = 0
+    for r in rows:
+        if control is not None and control() != "run":
+            break
+        try:
+            details = extract.medical_details(client, model, r["name"], r["text"])
+        except RuntimeError:
+            break  # the model could not be reached: the next round tries again
+        conn.execute("UPDATE documents SET facts=? WHERE sha256=?", (json.dumps({**json.loads(r["facts"]), "health": details}), r["sha256"]))
+        done += 1
+    conn.commit()
+    return done
+
+
+# ---- Health: the person's own medical documents, only when unlocked; values and medicines exactly as the documents print them --------------------
+def _medical_documents(conn) -> list[dict]:
+    marks = ",".join("?" for _ in HEALTH_KINDS)
+    out = []
+    for r in conn.execute(f"SELECT id, name, facts FROM documents WHERE judged=1 AND fact_kind IN ({marks})", sorted(HEALTH_KINDS)):
+        facts = json.loads(r["facts"])
+        out.append(
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "title": facts.get("title") or r["name"],
+                "date": facts.get("date") or "",
+                "party": facts.get("party") or "",
+                "health": facts.get("health") or {},
+            }
+        )
+    return sorted(out, key=lambda d: (d["date"], d["id"]))
+
+
+def _locked(conn) -> dict[str, Any]:
+    return {"locked": True, "held_back": hidden_health_count(conn)}
+
+
+def health_timeline(conn) -> dict[str, Any]:
+    """Every medical document in date order, newest first: what it is, who it is from, how many values and medicines it holds, and any follow-up it states."""
+    if not health_unlocked():
+        return _locked(conn)
+    docs = [
+        {
+            "id": d["id"],
+            "name": d["name"],
+            "title": d["title"],
+            "date": d["date"],
+            "party": d["party"],
+            "values": len(d["health"].get("values") or []),
+            "medicines": len(d["health"].get("medicines") or []),
+            "follow_up": d["health"].get("follow_up"),
+        }
+        for d in reversed(_medical_documents(conn))
+    ]
+    return {"locked": False, "documents": docs}
+
+
+def health_values(conn, test: str = "") -> dict[str, Any]:
+    """Each measurement over time, exactly as the documents print it: the result, its unit and the reference range if the document gave one. Never interpreted."""
+    if not health_unlocked():
+        return _locked(conn)
+    tests: dict[str, dict[str, Any]] = {}
+    for d in _medical_documents(conn):
+        for v in d["health"].get("values") or []:
+            key = " ".join(v["test"].lower().split())
+            if test and test.lower() not in key:
+                continue
+            group = tests.setdefault(key, {"test": v["test"], "unit": v.get("unit") or "", "readings": []})
+            group["unit"] = group["unit"] or v.get("unit") or ""
+            group["readings"].append(
+                {"date": d["date"], "value": v["value"], "number": v.get("number"), "range": v.get("range") or "", "document": d["name"], "id": d["id"]}
+            )
+    return {"locked": False, "tests": sorted(tests.values(), key=lambda t: t["test"].lower())}
+
+
+def health_medicines(conn) -> dict[str, Any]:
+    """Every medicine a document prescribes, newest first, with the dose and duration as printed."""
+    if not health_unlocked():
+        return _locked(conn)
+    meds = [
+        {"name": m["name"], "dose": m.get("dose") or "", "duration": m.get("duration") or "", "date": d["date"], "document": d["name"], "id": d["id"]}
+        for d in reversed(_medical_documents(conn))
+        for m in d["health"].get("medicines") or []
+    ]
+    return {"locked": False, "medicines": meds}
+
+
+def health_followups(conn, today: str) -> dict[str, Any]:
+    """Follow-up or next-appointment dates the documents state, from today on."""
+    if not health_unlocked():
+        return _locked(conn)
+    ups = sorted(
+        (
+            {"date": d["health"]["follow_up"], "document": d["name"], "title": d["title"], "id": d["id"]}
+            for d in _medical_documents(conn)
+            if d["health"].get("follow_up", "") and d["health"]["follow_up"] >= today
+        ),
+        key=lambda x: x["date"],
+    )
+    return {"locked": False, "follow_ups": ups}
 
 
 # ---- asking: what any app can take -------------------------------------------------------------------------------------------
@@ -236,6 +349,12 @@ _health: dict[str, Any] = {"until": 0.0}
 
 def health_unlocked() -> bool:
     return time.monotonic() < _health["until"]
+
+
+def touch_health() -> None:
+    """Using Health keeps it open: it closes by itself only after a quarter of an hour without use."""
+    if health_unlocked():
+        set_health_unlocked(True)
 
 
 def set_health_unlocked(value: bool) -> None:
