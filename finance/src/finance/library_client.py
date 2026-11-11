@@ -35,7 +35,7 @@ def _http(method: str, path: str) -> dict[str, Any]:
         method,
         path,
         "X-Library",
-        "The Documents service is not running, so new files and mail cannot be read yet. Start it and press Update again.",
+        "The Documents service is not running, so new files and mail cannot be read yet. Start it and press Read new files again.",
     )
 
 

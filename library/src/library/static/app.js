@@ -23,7 +23,7 @@
         list.replaceChildren();
         $('#doc').hidden = true;
         if (!docs.length) {
-            list.append(el('p', { className: 'muted' }, 'Nothing here yet. Press Update.'));
+            list.append(el('p', { className: 'muted' }, 'Nothing here yet. Press Read new files.'));
         }
         for (const d of docs) {
             const card = el(

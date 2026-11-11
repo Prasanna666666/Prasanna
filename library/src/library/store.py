@@ -215,7 +215,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
         else:
             if client is None or not model:
                 out["waiting"] += 1
-                out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Update again."
+                out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
                 continue
             if progress and index % 5 == 1:
                 progress(f"{index} read so far")  # the total is not known: more files may still be arriving

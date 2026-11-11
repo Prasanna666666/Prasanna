@@ -427,7 +427,7 @@ GENTLE_SECONDS = float(
     os.environ.get("LIBRARY_GENTLE_SECONDS", "0.2")
 )  # a short rest after every batch, so the computer stays responsive while a big mailbox is read
 BUSY = ".busy"  # exists while a round is running
-WAKE = ".wake"  # the Documents service touches it when you press Update: start a round now
+WAKE = ".wake"  # the Documents service touches it when you press Read new files: start a round now
 ROUND_SECONDS = int(os.environ.get("ATLAS_AUTO_ROUND_SECONDS", "0"))  # 0: reading starts only when asked
 
 

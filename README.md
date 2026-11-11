@@ -3,7 +3,7 @@
 One private, offline app for everything personal: **Documents, Mails, Pictures, Travel and Finance** (Health next), with one chat and one Update button. Nothing in it talks to a cloud service while it runs; everything stays on this computer, encrypted.
 
 ```
-./up.sh      # start everything, then open http://atlas.localhost:8000 and press Update
+./up.sh      # start everything, then open http://atlas.localhost:8000 and press Read new files
 ./down.sh    # stop (nothing is deleted)
 ```
 
