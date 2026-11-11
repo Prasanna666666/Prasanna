@@ -9,4 +9,4 @@ finance/scripts/up.sh
 library/scripts/up.sh
 atlas/up.sh
 echo
-echo "Atlas is ready: http://atlas.localhost:8000   (press Update there once; stop everything with ./down.sh)"
+echo "Atlas is ready: http://atlas.localhost:8000   (press Read new files there once; stop everything with ./down.sh)"
