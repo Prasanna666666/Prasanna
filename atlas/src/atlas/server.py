@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, urlsplit
 
+from kit.llm import WARM_AT_START
+
 from . import proxy
 from .assistant import Assistant, clean_history
 from .registry import ManifestError, Module, load, upstream_is_private
@@ -235,7 +237,8 @@ def build(modules_dir: Path | None = None, domain: str | None = None, port: int 
 def serve(atlas: Atlas, host: str, port: int) -> int:
     server = ThreadingHTTPServer((host, port), make_handler(atlas))
     server.daemon_threads = True
-    threading.Thread(target=atlas.assistant.model.warm, daemon=True).start()  # best effort: the first question should not pay for loading the model
+    if WARM_AT_START:  # off by default: starting the computer must not load a 3 GB model
+        threading.Thread(target=atlas.assistant.model.warm, daemon=True).start()
     print(f"Atlas is running: open {atlas.shell_origin}  (modules: {', '.join(atlas.modules) or 'none'})", flush=True)
     try:
         server.serve_forever()

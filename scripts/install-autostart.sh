@@ -22,6 +22,8 @@ cat > "$PLIST" <<PLISTEOF
     <key>LIBRARY_INBOX_MODE</key><string>${LIBRARY_INBOX_MODE:-ro}</string>
   </dict>
   <key>RunAtLoad</key><true/>
+  <key>Nice</key><integer>10</integer>
+  <key>LowPriorityIO</key><true/>
   <key>StandardOutPath</key><string>$LOG</string>
   <key>StandardErrorPath</key><string>$LOG</string>
 </dict></plist>

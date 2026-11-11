@@ -44,5 +44,5 @@ if ! docker volume inspect "$NEW" >/dev/null 2>&1; then
     fi
   done
 fi
-docker compose up -d --build
+docker compose up -d $([ "${ATLAS_NO_BUILD:-}" = 1 ] || echo --build)   # ATLAS_NO_BUILD=1: start what is already built
 echo "Finance: http://finance.localhost:8501   (no password; files and mail are read by Documents: ../library/scripts/up.sh)"

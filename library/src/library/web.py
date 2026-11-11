@@ -546,7 +546,11 @@ def make_handler(state: State) -> type[_Handler]:
     return type("Handler", (_Handler,), {"state": state})
 
 
+WARM_DELAY_SECONDS = 120
+
+
 def _warm_at_start(state: State) -> None:
+    time.sleep(WARM_DELAY_SECONDS)  # not while the computer is still starting up
     conn = state.connect()
     try:
         store.warm_search(conn, state.picture_text())

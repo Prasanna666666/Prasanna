@@ -413,7 +413,8 @@ def serve(host: str = "127.0.0.1", port: int = 8501) -> int:
     conn.close()
     state = State()
     httpd = ThreadingHTTPServer((host, port), make_handler(state))
-    threading.Thread(target=_warm, daemon=True).start()
+    if llm.WARM_AT_START:  # off by default: starting the computer must not load a 3 GB model
+        threading.Thread(target=_warm, daemon=True).start()
     threading.Thread(target=_self_check, daemon=True).start()
     print(f"Finance is running on http://{host}:{port}", flush=True)
     with contextlib.suppress(KeyboardInterrupt):

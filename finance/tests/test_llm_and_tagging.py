@@ -49,7 +49,7 @@ def test_same_context_and_keepalive_in_every_part_so_one_loaded_model_is_shared(
     seen = {}
     monkeypatch.setattr(llm.OllamaClient, "_call", lambda self, path, body=None, timeout=300: seen.update(body=body) or {"message": {}})
     llm.OllamaClient("http://127.0.0.1:11434").chat("ministral-3:3b", [], None)
-    assert seen["body"]["options"]["num_ctx"] == 4096 and seen["body"]["keep_alive"] == llm.KEEP == "10m"
+    assert seen["body"]["options"]["num_ctx"] == 4096 and seen["body"]["keep_alive"] == llm.KEEP == "2m"
 
 
 def test_the_client_refuses_to_start_a_call_after_the_deadline(monkeypatch):

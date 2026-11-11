@@ -61,7 +61,8 @@ def test_atlas_starts_by_itself_at_login_and_everything_restarts_with_docker():
     assert "RunAtLoad" in installer and "local.atlas.start" in installer and "osacompile" in installer
     for compose in ("finance", "library", "atlas"):
         assert "restart: unless-stopped" in (root / compose / "docker-compose.yml").read_text()
-    assert "./up.sh" in (root / "scripts" / "start-at-login.sh").read_text()
+    login = (root / "scripts" / "start-at-login.sh").read_text()
+    assert "ATLAS_NO_BUILD=1 ./up.sh" in login and "sleep" in login  # waits for the computer to start, and never rebuilds at login
 
 
 def test_the_slow_installs_come_before_the_code_so_a_code_change_does_not_rebuild_them():

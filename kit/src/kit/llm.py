@@ -34,7 +34,10 @@ def host() -> str:
     return os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
 
 
-KEEP = "10m"  # one loaded model shared by every part: long enough that a question after a short pause does not wait for it to load again
+KEEP = os.environ.get(
+    "ATLAS_MODEL_KEEP", "2m"
+)  # how long the model stays in memory after a question: short by default, because on an 8 GB Mac it holds about 3 GB; ATLAS_MODEL_KEEP=10m on a bigger one
+WARM_AT_START = os.environ.get("ATLAS_WARM_MODEL") == "1"  # off: nothing loads the model when the computer or the apps start; the first question does
 
 
 class Slow(RuntimeError):

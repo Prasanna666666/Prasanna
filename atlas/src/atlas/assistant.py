@@ -19,6 +19,7 @@ from urllib.parse import urlsplit
 
 from kit import consent
 from kit.audit import unproven_figures
+from kit.llm import KEEP
 
 from .registry import Module
 from .upstream import Upstreams
@@ -34,7 +35,7 @@ TOOL_RESULT_CHARS = 2500  # the model's window is 4096 tokens: a long result wou
 HISTORY_TURNS = 6
 HISTORY_CHARS = 600
 TOOLS_CACHED_SECONDS = 60.0
-KEEP_LOADED = "10m"  # the same value every app sends: the model stays loaded between questions
+KEEP_LOADED = KEEP  # the same value every app sends, so the model server never reloads the model because two parts disagree
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
 SEPARATOR = "__"
 

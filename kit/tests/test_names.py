@@ -71,3 +71,20 @@ def test_health_details_keep_only_what_the_document_prints():
     assert out["medicines"] == [{"name": "Metformine", "dose": "500 mg", "duration": ""}]  # Aspirine is not in the document; the duration was invented
     assert out["follow_up"] == "2026-06-01"
     assert extract.medical_details(_Said({"follow_up": "2030-01-01"}), "m", "x", text)["follow_up"] is None  # a date the document does not write
+
+
+def test_nothing_loads_the_model_at_start_and_it_leaves_memory_after_two_minutes_unless_told_otherwise(monkeypatch):
+    import importlib
+
+    from kit import llm
+
+    monkeypatch.delenv("ATLAS_WARM_MODEL", raising=False)
+    monkeypatch.delenv("ATLAS_MODEL_KEEP", raising=False)
+    importlib.reload(llm)
+    assert llm.WARM_AT_START is False and llm.KEEP == "2m"
+    monkeypatch.setenv("ATLAS_MODEL_KEEP", "10m")
+    monkeypatch.setenv("ATLAS_WARM_MODEL", "1")
+    importlib.reload(llm)
+    assert llm.WARM_AT_START is True and llm.KEEP == "10m"
+    monkeypatch.undo()
+    importlib.reload(llm)
