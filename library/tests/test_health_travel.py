@@ -250,9 +250,10 @@ def test_the_folders_script_gives_the_reader_category_folders_and_listed_ones_re
     icloud = tmp_path / "iCloud Drive" / "Health"
     icloud.mkdir(parents=True)
     (tmp_path / "plain").mkdir()
+    (tmp_path / "pl:ain").mkdir()  # a folder whose name has a colon: compose cannot mount it, so it is refused
     lst = tmp_path / "folders.txt"
     lst.write_text(
-        f"# a comment\nhealth={icloud}\ntravel={tmp_path / 'plain'}\nmail={tmp_path / 'plain'}\nBAD NAME={tmp_path / 'plain'}\nhealth={tmp_path / 'missing'}\nhealth={tmp_path}/pl:ain\n"
+        f"# a comment\nhealth={icloud}\ntravel={tmp_path / 'plain'}\nmail={tmp_path / 'plain'}\nBAD NAME={tmp_path / 'plain'}\nhealth={tmp_path / 'missing'}\nhealth={tmp_path / 'pl:ain'}\n"
     )
     out = tmp_path / "out.yml"
     done = subprocess.run(
