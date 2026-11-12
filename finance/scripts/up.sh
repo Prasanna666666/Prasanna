@@ -30,19 +30,23 @@ export ATLAS_TOKEN=""
 mkdir -p "$HOME/AtlasInbox/notes"
 export ATLAS_DB_KEY="$KEY"
 source ../scripts/platform-key.sh
-# Stop the containers of the earlier names (they hold the same port). No volume is removed.
-for old in orbit finance; do docker compose -p "$old" down --remove-orphans >/dev/null 2>&1 || true; done
-# The database lives in a volume that went by other names: it is COPIED into the one called atlas_finance-data (the old one is kept until you delete it yourself).
-NEW=atlas_finance-data
-if ! docker volume inspect "$NEW" >/dev/null 2>&1; then
-  for old in finance_finance-data orbit_orbit-data; do
-    if docker volume inspect "$old" >/dev/null 2>&1; then
-      docker volume create "$NEW" >/dev/null
-      docker run --rm --entrypoint sh -v "$old":/from:ro -v "$NEW":/to alpine/socat:1.8.0.0 -c 'cp -a /from/. /to/ && ls /to'
-      echo "Copied your Finance data from $old to $NEW. The old volume is untouched: delete it with 'docker volume rm $old' once all is well."
-      break
-    fi
-  done
+MIGRATED="$HOME/.atlas-migrated"
+if [ ! -f "$MIGRATED" ]; then   # the clean-up of the old Orbit names, once
+  # Stop the containers of the earlier names (they hold the same port). No volume is removed.
+  for old in orbit finance; do docker compose -p "$old" down --remove-orphans >/dev/null 2>&1 || true; done
+  # The database lives in a volume that went by other names: it is COPIED into the one called atlas_finance-data (the old one is kept until you delete it yourself).
+  NEW=atlas_finance-data
+  if ! docker volume inspect "$NEW" >/dev/null 2>&1; then
+    for old in finance_finance-data orbit_orbit-data; do
+      if docker volume inspect "$old" >/dev/null 2>&1; then
+        docker volume create "$NEW" >/dev/null
+        docker run --rm --entrypoint sh -v "$old":/from:ro -v "$NEW":/to alpine/socat:1.8.0.0 -c 'cp -a /from/. /to/ && ls /to'
+        echo "Copied your Finance data from $old to $NEW. The old volume is untouched: delete it with 'docker volume rm $old' once all is well."
+        break
+      fi
+    done
+  fi
+  touch "$MIGRATED"
 fi
 docker compose up -d $([ "${ATLAS_NO_BUILD:-}" = 1 ] || echo --build)   # ATLAS_NO_BUILD=1: start what is already built
 echo "Finance: http://finance.localhost:8501   (no password; files and mail are read by Documents: ../library/scripts/up.sh)"

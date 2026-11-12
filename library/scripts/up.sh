@@ -23,6 +23,9 @@ source ../scripts/platform-key.sh
 FILES=(-f docker-compose.yml -f docker-compose.folders.yml)
 [ -d "${ATLAS_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ATLAS_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ATLAS_NO_MAIL=1 to turn off)
 [ -d "${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos" ] && FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected
-docker compose -p library down --remove-orphans >/dev/null 2>&1 || true   # containers of the earlier name hold the same port; the volumes stay
+if [ ! -f "$HOME/.atlas-migrated-documents" ]; then   # containers of the earlier name hold the same port; the volumes stay (once)
+  docker compose -p library down --remove-orphans >/dev/null 2>&1 || true
+  touch "$HOME/.atlas-migrated-documents"
+fi
 docker compose "${FILES[@]}" up -d $([ "${ATLAS_NO_BUILD:-}" = 1 ] || echo --build)   # ATLAS_NO_BUILD=1: start what is already built
 echo "Folders read (read-only): ~/AtlasInbox, $ATLAS_FINANCE_DIR, ~/AtlasHealth, ~/AtlasTravel and the ones listed in ~/AtlasFolders.txt. Mail is read from Apple Mail, read-only."

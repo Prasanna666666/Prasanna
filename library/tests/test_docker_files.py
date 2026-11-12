@@ -85,3 +85,14 @@ def test_the_reader_gets_category_folders_and_listed_folders_only_read_only():
     script = (root / "scripts" / "folders-compose.sh").read_text()
     assert ":ro" in script and "AtlasFolders.txt" in script
     assert "docker-compose.folders.yml" in (root / ".gitignore").read_text()
+
+
+def test_one_command_starts_and_updates_and_a_start_without_changes_does_not_rebuild():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    up = (root / "up.sh").read_text()
+    assert "git rev-parse HEAD" in up and "ATLAS_NO_BUILD=1" in up and "ATLAS_REBUILD" in up
+    update = (root / "update.sh").read_text()
+    assert "git fetch origin" in update and "git checkout -B atlas origin/atlas" in update and "./up.sh" in update
+    assert "atlas-migrated" in (root / "finance" / "scripts" / "up.sh").read_text()  # the one-time clean-up of the old names runs once

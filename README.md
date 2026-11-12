@@ -3,9 +3,11 @@
 One private, offline app for everything personal: **Documents, Mails, Pictures, Travel and Finance** (Health next), with one chat and one Update button. Nothing in it talks to a cloud service while it runs; everything stays on this computer, encrypted.
 
 ```
-./up.sh      # start everything, then open http://atlas.localhost:8000 and press Read new files
-./down.sh    # stop (nothing is deleted)
+./up.sh        # start everything (rebuilds only if the code changed)
+./update.sh    # get the newest version and start it: one command
+./down.sh      # stop (nothing is deleted)
 ```
+Then open http://atlas.localhost:8000 and press Read new files.
 
 **Start by itself at every login** (once): `./scripts/install-autostart.sh`. It starts Docker, Ollama and Atlas when you log in, and puts an **Atlas** app in `~/Applications` that opens http://atlas.localhost:8000 (drag it to the Dock). Undo with `./scripts/uninstall-autostart.sh`.
 
