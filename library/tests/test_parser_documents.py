@@ -177,3 +177,28 @@ def test_reading_several_files_at_once_gives_the_same_result_as_one_at_a_time(tm
         counts = parser.process_inbox(inbox, out, isolated=False)
         results[workers] = (counts, sorted(p.stem for p in out.glob("*.json")))
     assert results[1] == results[4] and results[4][0]["parsed"] == 13
+
+
+def test_stop_and_pause_are_heard_while_the_reader_is_still_looking_through_the_folders(tmp_path, monkeypatch):
+    import argparse
+
+    from library import parser
+
+    monkeypatch.setattr(parser, "CHECK_EVERY", 5)
+    monkeypatch.setattr(parser, "GENTLE_SECONDS", 0)
+    inbox, mail, out = tmp_path / "in", tmp_path / "mail", tmp_path / "out"
+    for folder in (inbox, mail / "box"):
+        folder.mkdir(parents=True)
+    for i in range(40):
+        (inbox / f"f{i}.txt").write_text(f"note {i}")
+        (mail / "box" / f"{i}.emlx").write_text(f"Subject: {i}\n\nbody {i}")
+    ns = argparse.Namespace(inbox=str(inbox), out=str(out), collection=[], mail=str(mail))
+    out.mkdir()
+    (out / parser.STOP).touch()  # the person pressed Stop
+    parser.write_found(ns)
+    assert not (out / parser.FOUND_FILE).exists()  # it stopped counting instead of walking everything
+    assert parser.process_mail_store(mail, out, isolated=False) == {"parsed": 0, "skipped": 0, "failed": 0}  # and did not read the mail
+    assert parser.read_everything(ns) == {"parsed": 0, "skipped": 0, "failed": 0} and not list(out.glob("*.json"))
+    (out / parser.STOP).unlink()
+    parser.write_found(ns)
+    assert json.loads((out / parser.FOUND_FILE).read_text())["documents"] == 40  # without Stop it counts as before
