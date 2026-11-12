@@ -329,3 +329,31 @@ def test_folders_named_after_the_categories_in_icloud_drive_are_found_without_ad
     assert "as health" in done.stderr and "as others" in done.stderr
     names = next(line for line in text.splitlines() if "LIBRARY_COLLECTIONS" in line)
     assert "health=/collections/health-" in names and "personal=/collections/personal-" in names and "others=/collections/others-" in names
+
+
+def test_category_folders_are_also_found_inside_documents_and_on_the_desktop_each_taken_once(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    icloud = tmp_path / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    (icloud / "Documents" / "Health").mkdir(parents=True)
+    (tmp_path / "Documents" / "Finance").mkdir(parents=True)
+    (tmp_path / "Desktop" / "Travel").mkdir(parents=True)
+    (tmp_path / "Desktop" / "Random").mkdir()
+    (tmp_path / "Documents" / "Others").mkdir()
+    (tmp_path / "Documents" / "Personal").symlink_to(icloud / "Documents" / "Health")  # the same folder reached a second way
+    out = tmp_path / "out.yml"
+    done = subprocess.run(
+        ["bash", str(root / "scripts" / "folders-compose.sh"), str(out)],
+        env={"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(tmp_path / "none.txt"), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    text = out.read_text()
+    assert (
+        f'"{icloud / "Documents" / "Health"}:' in text and f'"{tmp_path / "Documents" / "Finance"}:' in text and f'"{tmp_path / "Desktop" / "Travel"}:' in text
+    )
+    assert f'"{tmp_path / "Documents" / "Others"}:' in text and "Random" not in text
+    assert done.stderr.count("as health") == 1 and "as personal" not in done.stderr  # reached twice, read once

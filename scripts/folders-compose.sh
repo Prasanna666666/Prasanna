@@ -19,9 +19,11 @@ fi
 names=("finance=/collections/finance" "health=/collections/health" "travel=/collections/travel")
 mounts=("$HOME/AtlasHealth:/collections/health:ro" "$HOME/AtlasTravel:/collections/travel:ro")
 n=0
-# Folders found by their names: finance, health, travel, personal or others, at the top of iCloud Drive or inside a folder called Atlas there (nothing to add by hand).
+# Folders found by their names: finance, health, travel, personal or others, at the top of iCloud Drive, inside its Atlas or Documents folder, in ~/Documents (or its Atlas
+# folder) and on the Desktop (nothing to add by hand).
 ICLOUD="${ATLAS_ICLOUD_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
-for parent in "$ICLOUD" "$ICLOUD/Atlas"; do
+seen_dirs=()
+for parent in "$ICLOUD" "$ICLOUD/Atlas" "$ICLOUD/Documents" "$HOME/Documents" "$HOME/Documents/Atlas" "$HOME/Desktop"; do
   [ -d "$parent" ] || continue
   for dir in "$parent"/*/; do
     [ -d "$dir" ] || continue
@@ -29,6 +31,9 @@ for parent in "$ICLOUD" "$ICLOUD/Atlas"; do
     label="$(basename "$dir" | tr '[:upper:]' '[:lower:]')"
     case "$label" in finance|health|travel|personal|others) ;; *) continue ;; esac
     if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "iCloud: skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
+    real="$(cd "$dir" && pwd -P)"   # the same folder reached two ways (iCloud syncs Documents) is taken once
+    if [[ " ${seen_dirs[*]:-} " == *" $real "* ]]; then continue; fi
+    seen_dirs+=("$real")
     n=$((n + 1))
     names+=("$label=/collections/$label-$n")
     mounts+=("$dir:/collections/$label-$n:ro")
