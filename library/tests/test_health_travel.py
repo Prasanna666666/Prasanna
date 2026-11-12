@@ -300,3 +300,32 @@ def test_add_folder_writes_the_choice_to_the_list_only_and_refuses_bad_ones(tmp_
         r = add(*bad)
         assert r.returncode == 1 and "Not added" in r.stderr
     assert [line for line in lst.read_text().splitlines() if line and not line.startswith("#")] == [f"health={folder}"]  # nothing bad was written
+
+
+def test_folders_named_after_the_categories_in_icloud_drive_are_found_without_adding_anything(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    icloud = tmp_path / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    for name in ("Health", "Finance", "Personal", "Holiday photos"):
+        (icloud / name).mkdir(parents=True)
+    (icloud / "Atlas" / "Travel").mkdir(parents=True)
+    (icloud / "Atlas" / "Others").mkdir(parents=True)
+    (icloud / "Recipes").mkdir()
+    out = tmp_path / "out.yml"
+    done = subprocess.run(
+        ["bash", str(root / "scripts" / "folders-compose.sh"), str(out)],
+        env={"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(tmp_path / "none.txt"), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    text = out.read_text()
+    for name in ("Health", "Finance", "Personal"):
+        assert f'"{icloud / name}:' in text
+    assert f'"{icloud / "Atlas" / "Travel"}:' in text and f'"{icloud / "Atlas" / "Others"}:' in text
+    assert "Recipes" not in text and "Holiday photos" not in text and all(line.endswith(':ro"') for line in text.splitlines() if line.startswith("      - "))
+    assert "as health" in done.stderr and "as others" in done.stderr
+    names = next(line for line in text.splitlines() if "LIBRARY_COLLECTIONS" in line)
+    assert "health=/collections/health-" in names and "personal=/collections/personal-" in names and "others=/collections/others-" in names

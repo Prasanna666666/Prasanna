@@ -19,6 +19,22 @@ fi
 names=("finance=/collections/finance" "health=/collections/health" "travel=/collections/travel")
 mounts=("$HOME/AtlasHealth:/collections/health:ro" "$HOME/AtlasTravel:/collections/travel:ro")
 n=0
+# Folders found by their names: finance, health, travel, personal or others, at the top of iCloud Drive or inside a folder called Atlas there (nothing to add by hand).
+ICLOUD="${ATLAS_ICLOUD_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
+for parent in "$ICLOUD" "$ICLOUD/Atlas"; do
+  [ -d "$parent" ] || continue
+  for dir in "$parent"/*/; do
+    [ -d "$dir" ] || continue
+    dir="${dir%/}"
+    label="$(basename "$dir" | tr '[:upper:]' '[:lower:]')"
+    case "$label" in finance|health|travel|personal|others) ;; *) continue ;; esac
+    if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "iCloud: skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
+    n=$((n + 1))
+    names+=("$label=/collections/$label-$n")
+    mounts+=("$dir:/collections/$label-$n:ro")
+    echo "Atlas will read (read-only): $dir as $label" >&2
+  done
+done
 while IFS= read -r line || [ -n "$line" ]; do
   line="${line#"${line%%[![:space:]]*}"}"
   case "$line" in ""|\#*) continue ;; esac
