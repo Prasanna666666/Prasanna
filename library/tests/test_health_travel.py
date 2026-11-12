@@ -221,3 +221,56 @@ def test_lab_values_are_grouped_by_common_test_with_the_latest_flag_and_the_chan
         "flag"
     ] == "above_range"
     assert "never what it means for health" in out["data"]["note"]
+
+
+def test_a_document_in_the_health_folder_is_a_health_document_whatever_the_model_said(lib):
+    lib.conn.execute(
+        "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready) VALUES (?,?,?,?,?,?,1,50)",
+        ("e" * 64, "scan.pdf", "pdf", "haemoglobine 8,4", "health", json.dumps({"kind": "other", "title": "Scan", "date": "2026-02-02"})),
+    )
+    lib.conn.execute(
+        "INSERT INTO documents (sha256, name, kind, text, area, facts, judged) VALUES (?,?,?,?,?,?,0)",
+        ("f" * 64, "new.pdf", "pdf", "unread secret", "health", ""),
+    )
+    lib.conn.commit()
+    assert store.list_documents(lib.conn, ["other"]) == [] and store.get_document(lib.conn, "e" * 64) is None
+    assert not any(
+        "unread secret" in p["text"] or "haemoglobine" in p["text"] for p in store.passages(lib.conn, "haemoglobine secret")
+    )  # not searchable while locked, judged or not
+    assert store.hidden_health_count(lib.conn) == 2 and {"kind": "other", "count": 1} not in store.by_kind(lib.conn)
+    store.set_health_unlocked(True)
+    assert [d["name"] for d in store.health_timeline(lib.conn)["documents"]] == ["scan.pdf"] and store.get_document(lib.conn, "e" * 64)
+
+
+def test_the_folders_script_gives_the_reader_category_folders_and_listed_ones_read_only_and_skips_bad_lines(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    icloud = tmp_path / "iCloud Drive" / "Health"
+    icloud.mkdir(parents=True)
+    (tmp_path / "plain").mkdir()
+    lst = tmp_path / "folders.txt"
+    lst.write_text(
+        f"# a comment\nhealth={icloud}\ntravel={tmp_path / 'plain'}\nmail={tmp_path / 'plain'}\nBAD NAME={tmp_path / 'plain'}\nhealth={tmp_path / 'missing'}\nhealth={tmp_path}/pl:ain\n"
+    )
+    out = tmp_path / "out.yml"
+    done = subprocess.run(
+        ["bash", str(root / "scripts" / "folders-compose.sh"), str(out)],
+        env={"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(lst), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    text = out.read_text()
+    assert (
+        'LIBRARY_COLLECTIONS: "finance=/collections/finance,health=/collections/health,travel=/collections/travel,health=/collections/health-1,travel=/collections/travel-2"'
+        in text
+    )
+    assert (
+        f'"{icloud}:/collections/health-1:ro"' in text
+        and f'"{tmp_path}/AtlasHealth:/collections/health:ro"' in text
+        and all(line.endswith(':ro"') for line in text.splitlines() if line.startswith("      - "))
+    )
+    assert "not 'mail'" in done.stderr and "no such folder" in done.stderr and "colon" in done.stderr  # bad lines are named, not silently dropped
+    assert (tmp_path / "AtlasHealth").is_dir() and (tmp_path / "AtlasTravel").is_dir()

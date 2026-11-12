@@ -221,7 +221,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                 progress(f"{index} read so far")  # the total is not known: more files may still be arriving
             try:
                 facts = extract.classify(client, model, d["name"], d["text"])
-                if facts.get("kind") in HEALTH_KINDS:
+                if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
                     facts["health"] = extract.medical_details(client, model, d["name"], d["text"])  # lab values and medicines, only what the document prints
             except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
                 out["waiting"] = len(pending) - index + 1
@@ -242,7 +242,7 @@ def fill_health_details(conn, client, model, control: Callable[[], str] | None =
     """Medical documents judged before lab values and medicines were read get them now (one model call each); returns how many."""
     marks = ",".join("?" for _ in HEALTH_KINDS)
     rows = conn.execute(
-        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND fact_kind IN ({marks}) AND facts NOT LIKE '%\"health\"%'",
+        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND (fact_kind IN ({marks}) OR area='health') AND facts<>'' AND facts NOT LIKE '%\"health\"%'",
         sorted(HEALTH_KINDS),
     ).fetchall()
     done = 0
@@ -263,7 +263,9 @@ def fill_health_details(conn, client, model, control: Callable[[], str] | None =
 def _medical_documents(conn) -> list[dict]:
     marks = ",".join("?" for _ in HEALTH_KINDS)
     out = []
-    for r in conn.execute(f"SELECT id, name, facts FROM documents WHERE judged=1 AND fact_kind IN ({marks})", sorted(HEALTH_KINDS)):
+    for r in conn.execute(
+        f"SELECT id, name, facts FROM documents WHERE judged=1 AND facts<>'' AND (fact_kind IN ({marks}) OR area='health')", sorted(HEALTH_KINDS)
+    ):
         facts = json.loads(r["facts"])
         out.append(
             {
@@ -467,8 +469,9 @@ def set_health_unlocked(value: bool) -> None:
     _health["until"] = time.monotonic() + HEALTH_OPEN_SECONDS if value else 0.0
 
 
-def _is_health(facts_json: str) -> bool:
-    return bool(facts_json) and json.loads(facts_json).get("kind") in HEALTH_KINDS
+def _is_health(facts_json: str, area: str = "") -> bool:
+    """A medical document: the model said so, or it lies in the person's health folder (whatever the model said)."""
+    return area == "health" or (bool(facts_json) and json.loads(facts_json).get("kind") in HEALTH_KINDS)
 
 
 def hidden_health_count(conn) -> int:
@@ -476,7 +479,7 @@ def hidden_health_count(conn) -> int:
     if health_unlocked():
         return 0
     marks = ",".join("?" for _ in HEALTH_KINDS)
-    return conn.execute(f"SELECT COUNT(*) FROM documents WHERE judged=1 AND fact_kind IN ({marks})", sorted(HEALTH_KINDS)).fetchone()[0]
+    return conn.execute(f"SELECT COUNT(*) FROM documents WHERE area='health' OR (judged=1 AND fact_kind IN ({marks}))", sorted(HEALTH_KINDS)).fetchone()[0]
 
 
 def _as_document(r) -> dict[str, Any]:
@@ -515,7 +518,7 @@ def list_documents(
         args += sorted(wanted)
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE {where} ORDER BY ready", args):
         doc = _as_document(r)
-        if not health_unlocked() and doc["kind"] in HEALTH_KINDS:
+        if not health_unlocked() and (doc["kind"] in HEALTH_KINDS or doc["area"] == "health"):
             continue
         if source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
             continue
@@ -541,14 +544,14 @@ def list_documents(
 
 def get_document(conn, sha: str) -> dict | None:
     r = conn.execute("SELECT * FROM documents WHERE sha256=? OR id=?", (sha, sha if sha.isdigit() else -1)).fetchone()
-    if r is None or (not health_unlocked() and _is_health(r["facts"])):
+    if r is None or (not health_unlocked() and _is_health(r["facts"], r["area"])):
         return None
     return {**_as_document(r), "text": r["text"], "data": r["data"]}
 
 
 def _sources(conn) -> Iterator[tuple[str, str, str, str]]:
-    for r in conn.execute("SELECT id, name, text, facts FROM documents"):
-        if not health_unlocked() and _is_health(r["facts"]):
+    for r in conn.execute("SELECT id, name, text, facts, area FROM documents"):
+        if not health_unlocked() and _is_health(r["facts"], r["area"]):
             continue
         facts = json.loads(r["facts"]) if r["facts"] else {}
         summary = " ".join(str(facts.get(k) or "") for k in ("title", "summary", "party", "reference", "place")).strip()
@@ -605,7 +608,10 @@ def by_kind(conn) -> list[dict]:
     """How many documents of each recognised kind there are."""
     out = [
         {"kind": r[0] or "other", "count": r[1]}
-        for r in conn.execute("SELECT fact_kind, COUNT(*) FROM documents WHERE judged=1 AND fact_kind IS NOT NULL GROUP BY fact_kind ORDER BY COUNT(*) DESC")
+        for r in conn.execute(
+            "SELECT fact_kind, COUNT(*) FROM documents WHERE judged=1 AND fact_kind IS NOT NULL AND (?1 OR area<>'health') GROUP BY fact_kind ORDER BY COUNT(*) DESC",
+            (int(health_unlocked()),),
+        )
     ]
     return [x for x in out if health_unlocked() or x["kind"] not in HEALTH_KINDS]
 

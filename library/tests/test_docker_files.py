@@ -74,3 +74,14 @@ def test_the_slow_installs_come_before_the_code_so_a_code_change_does_not_rebuil
         copy_at = text.index("COPY kit")
         assert all(text.index(f"pip install {word}") < copy_at for word in slow)
         assert "--no-cache-dir" not in text  # downloads are kept between builds in a build cache, not in the image
+
+
+def test_the_reader_gets_category_folders_and_listed_folders_only_read_only():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    up = (root / "library" / "scripts" / "up.sh").read_text()
+    assert "folders-compose.sh docker-compose.folders.yml" in up and "-f docker-compose.folders.yml" in up
+    script = (root / "scripts" / "folders-compose.sh").read_text()
+    assert ":ro" in script and "AtlasFolders.txt" in script
+    assert "docker-compose.folders.yml" in (root / ".gitignore").read_text()

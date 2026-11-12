@@ -10,3 +10,4 @@ dist/
 .DS_Store
 .coverage
 sbom.json
+library/docker-compose.folders.yml

@@ -19,9 +19,10 @@ export ATLAS_FINANCE_DIR="${ATLAS_FINANCE_DIR:-$HOME/AtlasFinance}"   # keep you
 mkdir -p "$ATLAS_FINANCE_DIR"
 export ATLAS_DB_KEY="$KEY"
 source ../scripts/platform-key.sh
-FILES=(-f docker-compose.yml)
+../scripts/folders-compose.sh docker-compose.folders.yml   # your category folders and any extra folders listed in ~/AtlasFolders.txt, read-only
+FILES=(-f docker-compose.yml -f docker-compose.folders.yml)
 [ -d "${ATLAS_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ATLAS_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ATLAS_NO_MAIL=1 to turn off)
 [ -d "${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos" ] && FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected
 docker compose -p library down --remove-orphans >/dev/null 2>&1 || true   # containers of the earlier name hold the same port; the volumes stay
 docker compose "${FILES[@]}" up -d $([ "${ATLAS_NO_BUILD:-}" = 1 ] || echo --build)   # ATLAS_NO_BUILD=1: start what is already built
-echo "Documents: http://documents.localhost:8502   (drop files into ~/AtlasInbox; finance files go in $ATLAS_FINANCE_DIR; mail is read from Apple Mail, read-only)"
+echo "Folders read (read-only): ~/AtlasInbox, $ATLAS_FINANCE_DIR, ~/AtlasHealth, ~/AtlasTravel and the ones listed in ~/AtlasFolders.txt. Mail is read from Apple Mail, read-only."
