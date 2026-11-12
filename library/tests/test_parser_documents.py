@@ -56,8 +56,8 @@ def test_ingest_validates_strictly(conn, tmp_path):
     _put(tmp_path, _doc(sha256="d" * 64, text=["not", "a", "string"]))  # wrong type
     _put(tmp_path, _doc(sha256="e" * 64), stem="f" * 64)  # name/hash mismatch
     (tmp_path / "junk.json").write_text("{not json")
-    assert store.ingest_dir(conn, tmp_path) == {"new": 1, "known": 0, "rejected": 5}
-    assert store.ingest_dir(conn, tmp_path) == {"new": 0, "known": 0, "rejected": 5}  # the stored one was deleted; nothing is stored twice
+    assert store.ingest_dir(conn, tmp_path) == {"new": 1, "known": 0, "rejected": 5, "replaced": 0}
+    assert store.ingest_dir(conn, tmp_path) == {"new": 0, "known": 0, "rejected": 5, "replaced": 0}  # the stored one was deleted; nothing is stored twice
 
 
 def test_search_and_read_documents(conn, tmp_path):
@@ -202,3 +202,35 @@ def test_stop_and_pause_are_heard_while_the_reader_is_still_looking_through_the_
     (out / parser.STOP).unlink()
     parser.write_found(ns)
     assert json.loads((out / parser.FOUND_FILE).read_text())["documents"] == 40  # without Stop it counts as before
+
+
+def test_a_changed_file_replaces_its_older_version_and_going_back_reads_it_again(tmp_path):
+    from kit import db
+
+    from library import store
+
+    folder, out = tmp_path / "icloud", tmp_path / "parsed"
+    folder.mkdir()
+    conn = db.connect(tmp_path / "library.db")
+    db.migrate(conn, [store.MODULE])
+    note = folder / "plan.txt"
+
+    def read(text):
+        note.write_text(text)
+        parser.process_inbox(folder, out, isolated=False, area="health")
+        return store.ingest_dir(conn, out)
+
+    def texts():
+        return [r[0] for r in conn.execute("SELECT text FROM documents ORDER BY id")]
+
+    assert read("version one")["new"] == 1 and texts() == ["version one"]
+    assert read("version two")["replaced"] == 1 and texts() == ["version two"]  # one file, one document: the latest
+    other = folder / "other.txt"
+    other.write_text("a different file")
+    parser.process_inbox(folder, out, isolated=False, area="health")
+    store.ingest_dir(conn, out)
+    assert sorted(texts()) == ["a different file", "version two"]  # a different file is not a version of this one
+    assert (
+        read("version one")["replaced"] == 1 and "version one" in texts() and "version two" not in texts()
+    )  # back to the earlier content: read again, not skipped as known
+    assert read("version one")["new"] == 0  # unchanged: nothing happens

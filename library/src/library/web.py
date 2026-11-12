@@ -62,6 +62,7 @@ class State:
 def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
     ingested = store.ingest_dir(conn, parsed_dir()) if parsed_dir().is_dir() else {"new": 0}
     judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
+    judged["replaced"] = ingested.get("replaced", 0)
     if ingested["new"] or judged["read"]:
         store.warm_search(conn, state.picture_text())  # the new documents are searchable as soon as they are read, not at the first question
     return ingested["new"], judged["read"] + judged["skipped"], judged
@@ -89,7 +90,7 @@ def _read_pictures(state: State, conn, client, model) -> None:
 def _read_all(state: State) -> None:
     """Update: wake the reader, then take in and judge what it produces until it is idle and nothing new arrives. One press reads everything."""
     conn = state.connect()
-    totals = {"new": 0, "read": 0, "skipped": 0}
+    totals = {"new": 0, "read": 0, "skipped": 0, "replaced": 0}
     problem = ""
     try:
         try:
@@ -104,6 +105,7 @@ def _read_all(state: State) -> None:
             totals["new"] += new
             totals["read"] += judged["read"]
             totals["skipped"] += judged["skipped"]
+            totals["replaced"] += judged["replaced"]
             problem = judged["problem"] or problem
             busy = (parsed_dir() / ".busy").exists()
             if state.control == "stop" or (not busy and not new and not judged_count):
@@ -113,6 +115,8 @@ def _read_all(state: State) -> None:
                 time.sleep(SETTLE_SECONDS)
         counts = store.counts(conn)
         state.scan["summary"] = f"{totals['new']} new file{'s' if totals['new'] != 1 else ''}, {counts['documents']} in all"
+        if totals["replaced"]:
+            state.scan["summary"] += f"; {totals['replaced']} changed file{'s' if totals['replaced'] != 1 else ''} replaced their older version"
         if state.control == "stop":
             state.scan["summary"] = "Stopped. " + state.scan["summary"] + ". Reading carries on from here next time."
         else:

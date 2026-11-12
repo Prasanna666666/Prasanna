@@ -10,6 +10,7 @@ number, so an app that asks "what is new since number N?" never misses a documen
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -101,6 +102,10 @@ MIGRATIONS = (
     );
     CREATE INDEX trip_items_trip ON trip_items (trip);
     """,
+    """
+    ALTER TABLE documents ADD COLUMN source TEXT NOT NULL DEFAULT '';   -- where the file lay (folder and path), so a newer version of the same file replaces the older one
+    CREATE INDEX documents_source ON documents (source) WHERE source <> '';
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}
@@ -123,6 +128,7 @@ def _valid(d: Any, stem: str) -> bool:
         and 0 < len(d["name"]) <= 255
         and isinstance(d.get("text"), str)
         and len(d["text"]) <= MAX_TEXT
+        and (d.get("source") is None or (isinstance(d["source"], str) and len(d["source"]) <= 600))
     )
 
 
@@ -137,9 +143,20 @@ def _structured(d: dict) -> str:
     return json.dumps(keep) if keep else ""
 
 
+def _replace_older_versions(conn, directory: Path, source: str, sha: str) -> int:
+    """The same file, changed: the older versions go (what they said is no longer what the file says), and the reader forgets it has read them, so going back to
+    that content later reads it again. The original file is not touched; this is only the stored text."""
+    old = [r[0] for r in conn.execute("SELECT sha256 FROM documents WHERE source=? AND sha256<>?", (source, sha))]
+    for digest in old:
+        conn.execute("DELETE FROM documents WHERE sha256=?", (digest,))
+        with contextlib.suppress(OSError):
+            (directory / ".done" / digest).unlink(missing_ok=True)
+    return len(old)
+
+
 def ingest_dir(conn, directory: Path) -> dict[str, int]:
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
-    new = known = rejected = 0
+    new = known = rejected = replaced = 0
     stored: list[Path] = []
     for f in sorted(directory.resolve().glob("*.json")):
         try:
@@ -152,10 +169,13 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
             rejected += 1
             continue
         area = d["area"] if isinstance(d.get("area"), str) and (d["area"] == "mail" or _COLLECTION.match(d["area"])) else ""
+        source = d.get("source") or ""
         cur = conn.execute(
-            "INSERT OR IGNORE INTO documents (sha256, name, kind, text, area, data, parsed_at) VALUES (?,?,?,?,?,?,?)",
-            (d["sha256"], d["name"], d["kind"], d["text"], area, _structured(d), str(d.get("parsed_at", ""))[:25]),
+            "INSERT OR IGNORE INTO documents (sha256, name, kind, text, area, data, parsed_at, source) VALUES (?,?,?,?,?,?,?,?)",
+            (d["sha256"], d["name"], d["kind"], d["text"], area, _structured(d), str(d.get("parsed_at", ""))[:25], source),
         )
+        if cur.rowcount and source:
+            replaced += _replace_older_versions(conn, directory, source, d["sha256"])
         new += cur.rowcount
         known += 1 - cur.rowcount
         stored.append(f)
@@ -163,7 +183,7 @@ def ingest_dir(conn, directory: Path) -> dict[str, int]:
     if os.access(directory, os.W_OK):
         for f in stored:  # the text now lives only in the encrypted database
             f.unlink(missing_ok=True)
-    return {"new": new, "known": known, "rejected": rejected}
+    return {"new": new, "known": known, "rejected": rejected, "replaced": replaced}
 
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------

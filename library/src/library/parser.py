@@ -186,7 +186,7 @@ def _done(out: Path, digest: str) -> bool:
     return (out / ".done" / digest).exists() or (out / f"{digest}.json").exists()
 
 
-def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) -> None:
+def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, source: str = "") -> None:
     doc = {
         "schema": SCHEMA,
         "sha256": digest,
@@ -194,6 +194,7 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str) 
         "bytes": size,
         "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         **({"area": area} if area else {}),
+        **({"source": source[:600]} if source else {}),  # where the file lies, so a newer version of the same file replaces the older one
         **res,
     }
     tmp = out / f".{digest}.tmp"
@@ -207,7 +208,7 @@ _CLAIMED: set[str] = set()
 _CLAIM_LOCK = threading.Lock()
 
 
-def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0) -> None:
+def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0, source: str = "") -> None:
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
     import tempfile
 
@@ -237,7 +238,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
             return
         res = extract_isolated(f) if isolated else extract(f)
-        _write(out, digest, label, f.stat().st_size, res, area)
+        _write(out, digest, label, f.stat().st_size, res, area, source if depth == 0 else "")
         counts["parsed"] += 1
         if depth and area == "mail" and res["kind"] == "image":
             keep_picture(f)
@@ -296,7 +297,7 @@ def checkpoint(out: Path) -> bool:
     return (out / STOP).exists()
 
 
-def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool) -> dict[str, int]:
+def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool, source_of=None) -> dict[str, int]:
     """Read these files at the same time (each in its own child process); the totals of what happened."""
     total = {"parsed": 0, "skipped": 0, "failed": 0}
     with _CLAIM_LOCK:
@@ -304,7 +305,7 @@ def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: boo
 
     def one(f: Path) -> dict[str, int]:
         counts = {"parsed": 0, "skipped": 0, "failed": 0}
-        _process(f, label_of(f), out, area, isolated, counts)
+        _process(f, label_of(f), out, area, isolated, counts, 0, source_of(f) if source_of else "")
         return counts
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -325,7 +326,7 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "",
         if f.is_file() and not f.is_symlink() and root in f.resolve().parents and f.relative_to(root).parts[0] not in skip_folders
     ]
     for i in range(0, len(files), BATCH):
-        for k, v in _read_batch(files[i : i + BATCH], lambda f: f.name, out, area, isolated).items():
+        for k, v in _read_batch(files[i : i + BATCH], lambda f: f.name, out, area, isolated, lambda f: f"{root}|{f.relative_to(root)}").items():
             counts[k] += v
         if checkpoint(out):
             break
