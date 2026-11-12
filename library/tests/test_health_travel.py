@@ -275,3 +275,28 @@ def test_the_folders_script_gives_the_reader_category_folders_and_listed_ones_re
     )
     assert "not 'mail'" in done.stderr and "no such folder" in done.stderr and "colon" in done.stderr  # bad lines are named, not silently dropped
     assert (tmp_path / "AtlasHealth").is_dir() and (tmp_path / "AtlasTravel").is_dir()
+
+
+def test_add_folder_writes_the_choice_to_the_list_only_and_refuses_bad_ones(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    folder = tmp_path / "iCloud Drive" / "Health"
+    folder.mkdir(parents=True)
+    (folder / "report.pdf").write_text("x")
+    (folder / ".old.pdf.icloud").write_text("")  # a file that is only in the cloud
+    lst = tmp_path / "list.txt"
+    env = {"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(lst), "ATLAS_SKIP_APPLY": "1", "PATH": "/usr/bin:/bin"}
+
+    def add(*args):
+        return subprocess.run(["bash", str(root / "scripts" / "add-folder.sh"), *args], env=env, capture_output=True, text=True, check=False)
+
+    first = add("health", str(folder))
+    assert first.returncode == 0 and f"health={folder}" in lst.read_text().splitlines()
+    assert "Found 1 files" in first.stdout and "1 more are only in iCloud" in first.stdout and "Download Now" in first.stdout
+    assert "Already added" in add("health", str(folder)).stdout and lst.read_text().count(f"health={folder}") == 1
+    for bad in (("mail", str(folder)), ("Health", str(folder)), ("health", str(tmp_path / "nope"))):
+        r = add(*bad)
+        assert r.returncode == 1 and "Not added" in r.stderr
+    assert [line for line in lst.read_text().splitlines() if line and not line.startswith("#")] == [f"health={folder}"]  # nothing bad was written
