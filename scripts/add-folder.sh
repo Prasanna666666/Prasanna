@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 LIST="${ATLAS_FOLDERS_FILE:-$HOME/AtlasFolders.txt}"
 category="${1:-}"; folder="${2:-}"
 if [ -z "$category" ]; then
-  category="$(osascript -e 'choose from list {"finance","health","travel","documents"} with prompt "What kind of documents are in the folder?" default items {"documents"}' 2>/dev/null || true)"
+  category="$(osascript -e 'choose from list {"finance","health","travel","personal","others","documents"} with prompt "What kind of documents are in the folder?" default items {"personal"}' 2>/dev/null || true)"
   [ -n "$category" ] && [ "$category" != "false" ] || { echo "Cancelled."; exit 1; }
 fi
 if [ -z "$folder" ]; then
@@ -17,7 +17,7 @@ if [ -z "$folder" ]; then
 fi
 folder="${folder%/}"
 fail() { echo "Not added: $*" >&2; exit 1; }
-[[ "$category" =~ ^[a-z]{2,20}$ ]] && [ "$category" != "mail" ] || fail "the kind must be one lowercase word (finance, health, travel, documents ...), not 'mail'"
+[[ "$category" =~ ^[a-z]{2,20}$ ]] && [ "$category" != "mail" ] || fail "the kind must be one lowercase word (finance, health, travel, personal, others ...), not 'mail'"
 [ -d "$folder" ] || fail "that folder does not exist: $folder"
 [[ "$folder" == *\"* || "$folder" == *:* || "$folder" == *\\* ]] && fail "the folder path may not contain a colon, quote or backslash"
 [ -f "$LIST" ] || scripts/folders-compose.sh /dev/null   # creates the list with its explanation
