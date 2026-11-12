@@ -453,7 +453,15 @@
         for (const m of state.modules) {
             const info = report.modules[m.id];
             if (!info) continue;
-            if (!info.parts || !info.parts.length) continue; // an app without rows (Finance) is not listed here: if it is down, its dot at the top says so
+            if (!info.parts || !info.parts.length) {
+                // an app without rows (Finance) is not listed here: if it is down, its dot at the top says so. The reader of the files (hidden from the menu) always explains itself.
+                if (m.hidden) {
+                    const detail = info.progress || info.summary || (info.up ? 'working…' : '');
+                    if (detail) rows.push(partLine({ name: m.name, detail }, info.running));
+                    info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
+                }
+                continue;
+            }
             info.parts.forEach((p) => rows.push(partLine(p, info.running)));
             info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
         }
