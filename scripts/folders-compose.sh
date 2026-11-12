@@ -19,27 +19,10 @@ fi
 names=("finance=/collections/finance" "health=/collections/health" "travel=/collections/travel")
 mounts=("$HOME/AtlasHealth:/collections/health:ro" "$HOME/AtlasTravel:/collections/travel:ro")
 n=0
-# Folders found by their names: finance, health, travel, personal or others, at the top of iCloud Drive, inside its Atlas or Documents folder, in ~/Documents (or its Atlas
-# folder) and on the Desktop (nothing to add by hand).
-ICLOUD="${ATLAS_ICLOUD_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
 seen_dirs=()
-for parent in "$ICLOUD" "$ICLOUD/Atlas" "$ICLOUD/Documents" "$HOME/Documents" "$HOME/Documents/Atlas" "$HOME/Desktop"; do
-  [ -d "$parent" ] || continue
-  for dir in "$parent"/*/; do
-    [ -d "$dir" ] || continue
-    dir="${dir%/}"
-    label="$(basename "$dir" | tr '[:upper:]' '[:lower:]')"
-    case "$label" in finance|health|travel|personal|others) ;; *) continue ;; esac
-    if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "iCloud: skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
-    real="$(cd "$dir" && pwd -P)"   # the same folder reached two ways (iCloud syncs Documents) is taken once
-    if [[ " ${seen_dirs[*]:-} " == *" $real "* ]]; then continue; fi
-    seen_dirs+=("$real")
-    n=$((n + 1))
-    names+=("$label=/collections/$label-$n")
-    mounts+=("$dir:/collections/$label-$n:ro")
-    echo "Atlas will read (read-only): $dir as $label" >&2
-  done
-done
+real_of() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
+taken() { [[ " ${seen_dirs[*]:-} " == *" $1 "* ]]; }   # the same folder reached two ways is read once
+seen_dirs+=("$(real_of "$HOME/AtlasHealth")" "$(real_of "$HOME/AtlasTravel")")
 while IFS= read -r line || [ -n "$line" ]; do
   line="${line#"${line%%[![:space:]]*}"}"
   case "$line" in ""|\#*) continue ;; esac
@@ -50,10 +33,34 @@ while IFS= read -r line || [ -n "$line" ]; do
   if ! [[ "$name" =~ ^[a-z]{2,20}$ ]] || [ "$name" = "mail" ]; then echo "AtlasFolders.txt: skipped '$line' (the category must be one lowercase word, not 'mail')" >&2; continue; fi
   if [ ! -d "$path" ]; then echo "AtlasFolders.txt: skipped '$name': no such folder: $path" >&2; continue; fi
   if [[ "$path" == *\"* || "$path" == *:* || "$path" == *\\* || "$path" == *$'\t'* ]]; then echo "AtlasFolders.txt: skipped '$name': the path may not contain a colon, quote or backslash" >&2; continue; fi
+  real="$(real_of "$path")"
+  if taken "$real"; then echo "AtlasFolders.txt: $path is already read: taken once" >&2; continue; fi
+  seen_dirs+=("$real")
   n=$((n + 1))
   names+=("$name=/collections/$name-$n")
   mounts+=("$path:/collections/$name-$n:ro")
 done < "$LIST"
+# Folders found by their names: finance, health, travel, personal or others, at the top of iCloud Drive, inside its Atlas or Documents folder, in ~/Documents (or its Atlas
+# folder) and on the Desktop (nothing to add by hand).
+ICLOUD="${ATLAS_ICLOUD_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
+for parent in "$ICLOUD" "$ICLOUD/Atlas" "$ICLOUD/Documents" "$HOME/Documents" "$HOME/Documents/Atlas" "$HOME/Desktop"; do
+  [ -d "$parent" ] || continue
+  for dir in "$parent"/*/; do
+    [ -d "$dir" ] || continue
+    dir="${dir%/}"
+    label="$(basename "$dir" | tr '[:upper:]' '[:lower:]')"
+    case "$label" in finance|health|travel|personal|others) ;; *) continue ;; esac
+    if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "iCloud: skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
+    real="$(real_of "$dir")"
+    if taken "$real"; then continue; fi
+    seen_dirs+=("$real")
+    n=$((n + 1))
+    names+=("$label=/collections/$label-$n")
+    mounts+=("$dir:/collections/$label-$n:ro")
+    echo "Atlas will read (read-only): $dir as $label" >&2
+  done
+done
+
 {
   echo "# Written by scripts/folders-compose.sh: do not edit (edit ~/AtlasFolders.txt instead)."
   echo "services:"

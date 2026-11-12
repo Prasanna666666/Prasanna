@@ -357,3 +357,38 @@ def test_category_folders_are_also_found_inside_documents_and_on_the_desktop_eac
     )
     assert f'"{tmp_path / "Documents" / "Others"}:' in text and "Random" not in text
     assert done.stderr.count("as health") == 1 and "as personal" not in done.stderr  # reached twice, read once
+
+
+def test_the_same_folder_is_read_once_however_it_is_reached(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    icloud = tmp_path / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    (icloud / "Health").mkdir(parents=True)
+    (tmp_path / "linked").symlink_to(icloud / "Health")
+    lst = tmp_path / "list.txt"
+    lst.write_text(
+        f"health={icloud / 'Health'}\nhealth={tmp_path / 'linked'}\nhealth={icloud / 'Health'}/\ntravel={tmp_path / 'AtlasHealth'}\n"
+    )  # four lines, one folder (and one more that is a default)
+    out = tmp_path / "out.yml"
+    done = subprocess.run(
+        ["bash", str(root / "scripts" / "folders-compose.sh"), str(out)],
+        env={"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(lst), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    text = out.read_text()
+    assert text.count(str(icloud / "Health")) == 1 and done.stderr.count("is already read") >= 3  # the folder is mounted once; the repeats are named
+    assert text.count("/collections/health-") == 2  # one in the variable, one mount
+    assert (
+        str(tmp_path / "AtlasHealth") + ":/collections/health:ro" in text and ":/collections/travel-" not in text
+    )  # a default folder is not mounted a second time
+    folder = tmp_path / "Real"
+    folder.mkdir()
+    (tmp_path / "alias").symlink_to(folder)
+    env = {"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(tmp_path / "l2.txt"), "ATLAS_SKIP_APPLY": "1", "PATH": "/usr/bin:/bin"}
+    for path in (folder, tmp_path / "alias", f"{folder}/"):
+        subprocess.run(["bash", str(root / "scripts" / "add-folder.sh"), "personal", str(path)], env=env, capture_output=True, text=True, check=False)
+    assert len([ln for ln in (tmp_path / "l2.txt").read_text().splitlines() if ln and not ln.startswith("#")]) == 1  # added once, not three times

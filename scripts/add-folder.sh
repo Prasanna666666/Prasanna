@@ -21,7 +21,14 @@ fail() { echo "Not added: $*" >&2; exit 1; }
 [ -d "$folder" ] || fail "that folder does not exist: $folder"
 [[ "$folder" == *\"* || "$folder" == *:* || "$folder" == *\\* ]] && fail "the folder path may not contain a colon, quote or backslash"
 [ -f "$LIST" ] || scripts/folders-compose.sh /dev/null   # creates the list with its explanation
-if grep -qxF "$category=$folder" "$LIST" 2>/dev/null; then echo "Already added: $category = $folder"; else echo "$category=$folder" >> "$LIST"; echo "Added: $category = $folder"; fi
+real="$(cd "$folder" && pwd -P)"
+already=0
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in ""|\#*) continue ;; esac
+  path="${line#*=}"; path="${path/#\~/$HOME}"; path="${path%/}"
+  if [ -d "$path" ] && [ "$(cd "$path" && pwd -P)" = "$real" ]; then already=1; fi
+done < "$LIST"
+if [ "$already" = 1 ]; then echo "Already added: $folder"; else echo "$category=$folder" >> "$LIST"; echo "Added: $category = $folder"; fi
 files="$(find "$folder" -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
 cloud="$(find "$folder" -type f -name '.*.icloud' 2>/dev/null | wc -l | tr -d ' ')"
 echo "Found $files files you can read now."

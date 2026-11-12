@@ -487,7 +487,7 @@ def write_found(a: argparse.Namespace) -> None:
     try:
         by_folder = {"inbox": _supported(Path(a.inbox), skip=frozenset({"mail"}), out=out)}
         for name, folder in collections(a.collection):
-            by_folder[name] = _supported(folder, out=out) if folder.is_dir() else 0
+            by_folder[name] = by_folder.get(name, 0) + (_supported(folder, out=out) if folder.is_dir() else 0)  # several folders of one category add up
         documents = sum(by_folder.values())
         mails = _supported(Path(a.inbox) / "mail", out=out) if (Path(a.inbox) / "mail").is_dir() else 0
         if a.mail and Path(a.mail).is_dir():
