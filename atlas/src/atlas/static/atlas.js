@@ -417,7 +417,10 @@
                     method: 'POST',
                     headers: { 'X-Atlas': '1' },
                 });
-                if (reply.ok) showScan(await reply.json());
+                if (reply.ok) {
+                    showScan(await reply.json());
+                    followScan(); // keeps showing where it stands until it has really stopped, paused or finished
+                }
             } catch (_) {
                 /* the next refresh shows where it stands */
             }
@@ -759,5 +762,12 @@
         render();
         refreshHealth();
         setInterval(refreshHealth, 15000);
+        // a read that is already running (the page was reloaded, or opened later): bring its panel and its Pause and Stop buttons back
+        try {
+            const report = await (await fetch('/_atlas/api/scan')).json();
+            if (report.running) followScan();
+        } catch (_) {
+            /* nothing is running, or the apps are down: no panel */
+        }
     })();
 })();

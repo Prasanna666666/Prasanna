@@ -188,3 +188,71 @@ def test_the_documents_line_names_each_category_and_leaves_out_empty_folders(tmp
     web._CACHE.clear()
     (parsed / ".found").write_text(json.dumps({"documents": 5, "mails": 0, "mail_connected": True, "by_folder": {"inbox": 5}}))
     assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "0 of 5 files"  # one folder only: nothing to break down
+
+
+def test_pause_really_waits_resume_carries_on_and_stop_really_ends_a_running_read(tmp_path, monkeypatch):
+    """The whole path over HTTP, with a model that takes a moment per document: the buttons change what the reader does, not only what the page says."""
+    monkeypatch.setenv("ATLAS_ALLOW_PLAIN", "1")
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
+    monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
+    monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
+    (tmp_path / "home").mkdir()
+    (tmp_path / "parsed").mkdir()
+    asked = []
+
+    class Slow:
+        def chat(self, model, messages, schema=None, **kw):
+            asked.append(1)
+            time.sleep(0.05)
+            return {"content": json.dumps({"kind": "other", "title": "x"})}
+
+    monkeypatch.setattr(web, "model_client", lambda: (Slow(), "fake"))
+    state = web.State()
+    c = state.connect()
+    db.migrate(c, [store.MODULE])
+    for i in range(400):  # a folder of its own (a category folder): every file goes to the model
+        c.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES (?,?,?,?,?)", (f"{i:064x}", f"f{i}.txt", "text", f"note {i}", "personal"))
+    c.commit()
+    c.close()
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), web.make_handler(state))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    port = httpd.server_address[1]
+
+    def status():
+        return call(port, "GET", "/api/scan")[1]
+
+    def waiting():
+        conn = state.connect()
+        try:
+            return conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
+        finally:
+            conn.close()
+
+    assert post(port, "/api/scan", {})[1]["started"] is True
+    deadline = time.monotonic() + 10
+    while len(asked) < 5 and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert len(asked) >= 5 and status()["running"] is True
+    assert post(port, "/api/scan/pause", {})[1] == {"ok": True, "control": "pause"}
+    time.sleep(0.4)  # whatever was in flight finishes
+    frozen = len(asked)
+    time.sleep(1.0)
+    assert len(asked) == frozen and status()["paused"] is True and status()["running"] is True  # paused: no more documents are read, the read is still there
+    assert post(port, "/api/scan/resume", {})[1]["control"] == "run"
+    time.sleep(0.6)
+    assert len(asked) > frozen + 3 and status()["paused"] is False  # carried on
+    before_stop = waiting()
+    assert post(port, "/api/scan/stop", {})[1] == {"ok": True, "control": "stop"}
+    deadline = time.monotonic() + 5
+    while status()["running"] and time.monotonic() < deadline:
+        time.sleep(0.05)
+    done = status()
+    assert done["running"] is False and done["summary"].startswith("Stopped")  # it really ended, within a moment, and says so
+    after = waiting()
+    assert 0 < after <= before_stop  # the rest is still waiting for the next read; nothing was lost
+    reads = len(asked)
+    time.sleep(0.5)
+    assert len(asked) == reads  # and nothing keeps working in the background
+    assert post(port, "/api/scan/stop", {})[1]["ok"] is False  # nothing is running now: it says so instead of pretending
+    httpd.shutdown()

@@ -68,13 +68,26 @@ def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
     return ingested["new"], judged["read"] + judged["skipped"], judged
 
 
+class _StopRequested(Exception):
+    """The person pressed Stop while the pictures were being read."""
+
+
 def _read_pictures(state: State, conn, client, model) -> None:
     """The picture part of an Update: wait for the picture reader, then read photographed receipts and letters like any other document."""
     engine = state.engine()
     if engine is None:
         return
     state.scan["progress"] = "Reading pictures…"
-    done = pictures.wait_for_scan(engine, lambda m: state.scan.update(progress=m))
+
+    def progress(message: str) -> None:
+        state.scan.update(progress=message)
+        if state.control == "stop":
+            raise _StopRequested
+
+    try:
+        done = pictures.wait_for_scan(engine, progress)
+    except _StopRequested:
+        return  # stopped while the pictures were being read: the picture reader carries on by itself, nothing more is started here
     state.scan["summary"] += f"; {done}" if done else ""
     index = engine.db.connect()
     try:
@@ -83,7 +96,7 @@ def _read_pictures(state: State, conn, client, model) -> None:
         index.close()
     if found:
         state.scan["progress"] = f"Reading {found} pictures of documents…"
-        store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m))
+        store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
