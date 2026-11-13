@@ -335,7 +335,7 @@ def _post_undo(state: State, conn, body: dict) -> dict:
 
 
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
-    return _cached("status", lambda: {**store.counts(conn), "kinds": store.by_kind(conn)})
+    return _cached("status", lambda c: {**store.counts(c), "kinds": store.by_kind(c)}, state, conn)
 
 
 def _found() -> dict[str, Any]:
@@ -367,20 +367,43 @@ _CACHE: dict[str, tuple[float, Any]] = {}
 STATUS_TTL = 3.0  # the page asks every second or so while an Update runs; counting a big library more often than this is wasted work
 
 
-def _cached(key: str, make):
-    """The answer of `make`, reused for a few seconds."""
+_REFRESHING: set[str] = set()
+_REFRESH_LOCK = threading.Lock()
+
+
+def _cached(key: str, make, state: State | None = None, conn=None):
+    """The answer of `make(conn)`, reused for a few seconds. When the answer is older than that it is still given at once, and brought up to date in the background
+    (on its own connection): a status question never waits for the database, however busy a big read keeps it. Only the very first time is it worked out on the spot."""
     now = time.monotonic()
     hit = _CACHE.get(key)
     if hit and now - hit[0] < STATUS_TTL:
         return hit[1]
-    value = make()
+    if hit and state is not None:
+        with _REFRESH_LOCK:
+            if key not in _REFRESHING:
+                _REFRESHING.add(key)
+                threading.Thread(target=_refresh, args=(key, make, state), name=f"refresh-{key}", daemon=True).start()
+        return hit[1]
+    value = make(conn)
     _CACHE[key] = (now, value)
     return value
 
 
+def _refresh(key: str, make, state: State) -> None:
+    conn = state.connect()
+    try:
+        _CACHE[key] = (time.monotonic(), make(conn))
+    except Exception as exc:  # noqa: BLE001 - the old answer stays; it is tried again at the next question
+        log.failed("status refresh failed", exc, key=key)
+    finally:
+        conn.close()
+        with _REFRESH_LOCK:
+            _REFRESHING.discard(key)
+
+
 def _parts(state: State, conn) -> list[dict[str, str]]:
     """What the Update shows: Documents, Photos and Mails, each as a number of files the person can check."""
-    return _cached("parts", lambda: _parts_now(state, conn))
+    return _cached("parts", lambda c: _parts_now(state, c), state, conn)
 
 
 def _parts_now(state: State, conn) -> list[dict[str, str]]:

@@ -256,3 +256,38 @@ def test_pause_really_waits_resume_carries_on_and_stop_really_ends_a_running_rea
     assert len(asked) == reads  # and nothing keeps working in the background
     assert post(port, "/api/scan/stop", {})[1]["ok"] is False  # nothing is running now: it says so instead of pretending
     httpd.shutdown()
+
+
+def test_a_status_question_is_answered_at_once_from_the_last_answer_and_refreshed_in_the_background(tmp_path, monkeypatch):
+    monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.setenv("ATLAS_ALLOW_PLAIN", "1")
+    (tmp_path / "parsed").mkdir()
+    state = web.State()
+    conn = state.connect()
+    db.migrate(conn, [store.MODULE])
+    web._CACHE.clear()
+    gate = threading.Event()
+    calls = []
+
+    def make(c):
+        calls.append(1)
+        if len(calls) > 1:
+            gate.wait(5)  # the second look is slow, as when a big read keeps the database busy
+        return {"n": len(calls)}
+
+    assert web._cached("k", make, state, conn) == {"n": 1}  # the first time: worked out on the spot
+    monkeypatch.setattr(web, "STATUS_TTL", 0.0)  # now every answer is "old"
+    started = time.monotonic()
+    assert web._cached("k", make, state, conn) == {"n": 1} and time.monotonic() - started < 0.5  # given at once, not after the slow look
+    deadline = time.monotonic() + 5
+    while len(calls) < 2 and time.monotonic() < deadline:
+        time.sleep(0.02)  # the background look has started
+    assert web._cached("k", make, state, conn) == {"n": 1} and web._cached("k", make, state, conn) == {"n": 1}
+    assert len(calls) == 2  # one refresh at a time, however often it is asked
+    gate.set()
+    deadline = time.monotonic() + 5
+    while web._CACHE["k"][1] != {"n": 2} and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert web._CACHE["k"][1] == {"n": 2}  # and the background look brought it up to date
+    conn.close()
