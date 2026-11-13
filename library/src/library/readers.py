@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import zipfile
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -35,6 +36,7 @@ MAX_ROWS = 50_000
 MAX_CELL = 300
 OCR_DPI = 250
 MAX_OCR_PAGES = 60
+OCR_BUDGET_S = 120  # reading a scan takes as long as it takes, but one file never holds up the rest for more than this: the pages reached so far are kept
 ZIP_MAX_ENTRIES = 200
 ZIP_MAX_TOTAL = 200 * 1024 * 1024
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -130,12 +132,14 @@ def read_pdf(path: Path, passwords: list[str] | None = None) -> dict:
                 raise ValueError("this PDF is password-protected: put its password in passwords.txt in your finance folder (one per line)")
             meta["unlocked"] = True
         meta["pages"] = doc.page_count
-        ocr_pages, confs = 0, []
+        ocr_pages, confs, began, cut_short = 0, [], time.monotonic(), False
         for i in range(min(doc.page_count, 500)):
             page = doc[i]
             words = page.get_text("words")
             text = page.get_text()
-            if len(words) < 3 and ocr_pages < MAX_OCR_PAGES:  # no text layer: a scan. Read it.
+            if len(words) < 3 and ocr_pages < MAX_OCR_PAGES and time.monotonic() - began > OCR_BUDGET_S:
+                cut_short = True  # out of time for this file: the pages not yet read stay unread, and it says so
+            elif len(words) < 3 and ocr_pages < MAX_OCR_PAGES:  # no text layer: a scan. Read it.
                 pix = page.get_pixmap(dpi=OCR_DPI)
                 words, conf = ocr_words(pix.tobytes("png"), OCR_DPI / 72)
                 text = "\n".join(visual_lines(words))
@@ -146,6 +150,9 @@ def read_pdf(path: Path, passwords: list[str] | None = None) -> dict:
             table += table_lines(words)
         if ocr_pages:
             meta["ocr_pages"] = ocr_pages
+            if cut_short:
+                meta["partial"] = True
+                meta["ocr_cut_short"] = True
             meta["ocr_confidence"] = round(sum(confs) / len(confs), 1) if confs else 0.0
     data = {"lines": [clean(x, 600) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}
     if not meta.get("ocr_pages"):  # a real text layer: read it with other, independent engines too, so the readings can be compared

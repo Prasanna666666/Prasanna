@@ -73,3 +73,6 @@ If something here is wrong, the owner says so once and it is changed here.
 ## No file type is turned away; counting never blocks reading
 - What a file is gets judged from its contents (`sniff.py`), not from a list of extensions. Unknown formats keep their readable words, or just their name. The reading panel and the `unread_files` tool say what was not read and why (iCloud-only, alias, too large).
 - Counting all files (big mailbox, iCloud) runs alongside reading, so reading starts at once and totals appear when ready. Before, the panel sat at the start until the count finished.
+
+## One scanned PDF never holds up the reading
+- Scans are read with OCR; a file that needs more than 2 minutes keeps the pages read so far (`ocr_cut_short`) instead of being dropped after 5. Seen on a real run: several scanned PDFs each timed out at 300 s with two readers, so the count sat still.
