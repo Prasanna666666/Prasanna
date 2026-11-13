@@ -43,6 +43,12 @@ class JsonHandler(BaseHTTPRequestHandler):
         return
 
     def _send(self, status: int, body: bytes, ctype: str = "application/json; charset=utf-8", extra: dict[str, str] | None = None) -> None:
+        try:
+            self._write(status, body, ctype, extra)
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True  # the page or app that asked has already gone (it gave up waiting): nothing to answer, and no error to print
+
+    def _write(self, status: int, body: bytes, ctype: str, extra: dict[str, str] | None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))

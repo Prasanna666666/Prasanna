@@ -111,3 +111,23 @@ def test_building_the_search_index_can_be_stopped_midway_without_losing_or_forge
     rest = rag.reindex(conn, sources, "v1")
     assert first + rest == 200 and conn.execute("SELECT COUNT(*) FROM search_seen").fetchone()[0] == 200  # the next time carries on where it stopped
     assert rag.reindex(conn, sources, "v1") == 0  # and then there is nothing left to do
+
+
+def test_a_client_that_hung_up_before_the_answer_is_not_an_error():
+    import io
+
+    from kit.http import JsonHandler
+
+    class Gone(io.RawIOBase):
+        def write(self, _data):
+            raise BrokenPipeError
+
+    handler = JsonHandler.__new__(JsonHandler)
+    handler.wfile = Gone()
+    handler.request_version = "HTTP/1.1"
+    handler.requestline = "GET / HTTP/1.1"
+    handler.command = "GET"
+    handler.client_address = ("127.0.0.1", 1)
+    handler.close_connection = False
+    handler._send(200, b"{}")  # no exception, no traceback in the log
+    assert handler.close_connection is True
