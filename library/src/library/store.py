@@ -154,11 +154,13 @@ def _replace_older_versions(conn, directory: Path, source: str, sha: str) -> int
     return len(old)
 
 
-def ingest_dir(conn, directory: Path) -> dict[str, int]:
+def ingest_dir(conn, directory: Path, stop=None) -> dict[str, int]:
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
     new = known = rejected = replaced = 0
     stored: list[Path] = []
-    for f in sorted(directory.resolve().glob("*.json")):
+    for looked, f in enumerate(sorted(directory.resolve().glob("*.json")), 1):
+        if stop is not None and looked % 100 == 0 and stop():
+            break  # Stop: what is taken in so far stays, the rest waits for the next read
         try:
             if f.is_symlink() or f.stat().st_size > MAX_JSON:
                 raise ValueError("symlink or too large")
@@ -588,12 +590,12 @@ def _fingerprint(conn, more_sources=None) -> str:
 _INDEXING = threading.Lock()
 
 
-def warm_search(conn, more_sources=None) -> int:
+def warm_search(conn, more_sources=None, stop=None) -> int:
     """Bring the search index up to date now, in the background of whatever else is going on, so no question ever waits for it. Returns how many items were indexed."""
     if not _INDEXING.acquire(blocking=False):
         return 0  # already being done
     try:
-        return rag.reindex(conn, _all_sources(more_sources), _fingerprint(conn, more_sources))
+        return rag.reindex(conn, _all_sources(more_sources), _fingerprint(conn, more_sources), stop)
     finally:
         _INDEXING.release()
 

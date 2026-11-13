@@ -265,16 +265,14 @@ def test_the_folders_script_gives_the_reader_category_folders_and_listed_ones_re
     )
     text = out.read_text()
     assert (
-        'LIBRARY_COLLECTIONS: "finance=/collections/finance,health=/collections/health,travel=/collections/travel,health=/collections/health-1,travel=/collections/travel-2"'
-        in text
-    )
-    assert (
-        f'"{icloud}:/collections/health-1:ro"' in text
-        and f'"{tmp_path}/AtlasHealth:/collections/health:ro"' in text
-        and all(line.endswith(':ro"') for line in text.splitlines() if line.startswith("      - "))
-    )
+        'LIBRARY_COLLECTIONS: "finance=/collections/finance,health=/collections/health-1,travel=/collections/travel-2"' in text
+    )  # the person has a folder for each: no empty default beside it
+    assert "AtlasHealth" not in text and "AtlasTravel" not in text
+    assert f'"{icloud}:/collections/health-1:ro"' in text and all(line.endswith(':ro"') for line in text.splitlines() if line.startswith("      - "))
     assert "not 'mail'" in done.stderr and "no such folder" in done.stderr and "colon" in done.stderr  # bad lines are named, not silently dropped
-    assert (tmp_path / "AtlasHealth").is_dir() and (tmp_path / "AtlasTravel").is_dir()
+    assert (
+        not (tmp_path / "AtlasHealth").exists() and not (tmp_path / "AtlasTravel").exists()
+    )  # no empty folders are made in the home folder when the person has their own
 
 
 def test_add_folder_writes_the_choice_to_the_list_only_and_refuses_bad_ones(tmp_path):
@@ -380,11 +378,11 @@ def test_the_same_folder_is_read_once_however_it_is_reached(tmp_path):
         check=True,
     )
     text = out.read_text()
-    assert text.count(str(icloud / "Health")) == 1 and done.stderr.count("is already read") >= 3  # the folder is mounted once; the repeats are named
+    assert text.count(str(icloud / "Health")) == 1 and done.stderr.count("is already read") >= 2  # the folder is mounted once; the repeats are named
     assert text.count("/collections/health-") == 2  # one in the variable, one mount
     assert (
-        str(tmp_path / "AtlasHealth") + ":/collections/health:ro" in text and ":/collections/travel-" not in text
-    )  # a default folder is not mounted a second time
+        ":/collections/travel:ro" in text and ":/collections/health:ro" not in text
+    )  # no travel folder of theirs: the default is made; health they have: no default
     folder = tmp_path / "Real"
     folder.mkdir()
     (tmp_path / "alias").symlink_to(folder)
@@ -410,3 +408,25 @@ def test_a_folder_called_other_counts_as_others(tmp_path):
         check=True,
     )
     assert "others=/collections/others-1" in out.read_text()
+
+
+def test_the_empty_default_folders_are_made_only_when_there_is_no_folder_of_that_kind_or_files_in_them(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    out = tmp_path / "out.yml"
+    env = {"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(tmp_path / "none.txt"), "PATH": "/usr/bin:/bin"}
+
+    def run():
+        subprocess.run(["bash", str(root / "scripts" / "folders-compose.sh"), str(out)], env=env, capture_output=True, text=True, check=True)
+        return out.read_text()
+
+    text = run()  # nothing of the person's own: the default folders are made and read, so there is a place to drop files
+    assert (tmp_path / "AtlasHealth").is_dir() and ":/collections/health:ro" in text and ":/collections/travel:ro" in text
+    (tmp_path / "Library" / "Mobile Documents" / "com~apple~CloudDocs" / "Health").mkdir(parents=True)
+    text = run()
+    assert ":/collections/health:ro" not in text and "/collections/health-1" in text  # their own folder found: the empty default is not listed beside it
+    (tmp_path / "AtlasHealth" / "note.txt").write_text("x")
+    text = run()
+    assert ":/collections/health:ro" in text and "/collections/health-1" in text  # files dropped in the default folder are still read

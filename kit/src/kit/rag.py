@@ -113,7 +113,7 @@ def _forget(conn, ref: str, first: int | None, last: int | None) -> None:
         conn.execute("DELETE FROM search_index WHERE ref=?", (ref,))
 
 
-def reindex(conn, sources, fingerprint: str = "") -> int:
+def reindex(conn, sources, fingerprint: str = "", stop=None) -> int:
     """Bring the index up to date. Returns how many items were (re)indexed. With a `fingerprint` that has not changed since the last time, nothing is read at all."""
     if not _fts(conn):
         return 0
@@ -123,7 +123,10 @@ def reindex(conn, sources, fingerprint: str = "") -> int:
             return 0
     seen = {r["ref"]: (r["digest"], r["first_row"], r["last_row"]) for r in conn.execute("SELECT ref, digest, first_row, last_row FROM search_seen")}
     done, live = 0, set()
-    for ref, source, title, body in sources(conn):
+    for looked, (ref, source, title, body) in enumerate(sources(conn), 1):
+        if stop is not None and looked % 50 == 0 and stop():
+            conn.commit()  # what is indexed so far stays; nothing is forgotten and the fingerprint is not saved, so the next time carries on
+            return done
         live.add(ref)
         digest = hashlib.sha256((title + "\0" + body).encode()).hexdigest()[:16]
         before = seen.get(ref)

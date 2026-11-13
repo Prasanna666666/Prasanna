@@ -88,3 +88,26 @@ def test_nothing_loads_the_model_at_start_and_it_leaves_memory_after_two_minutes
     assert llm.WARM_AT_START is True and llm.KEEP == "10m"
     monkeypatch.undo()
     importlib.reload(llm)
+
+
+def test_building_the_search_index_can_be_stopped_midway_without_losing_or_forgetting_anything(tmp_path):
+    from kit import db, rag
+
+    conn = db.connect(tmp_path / "x.db")
+    docs = [(f"d{i}", "document", f"name {i}", f"text about topic {i}") for i in range(200)]
+    flag = {"stop": False, "calls": 0}
+
+    def sources(_c):
+        yield from docs
+
+    def stop():
+        flag["calls"] += 1
+        return flag["calls"] > 2  # stop after the third look
+
+    first = rag.reindex(conn, sources, "v1", stop)
+    seen = conn.execute("SELECT COUNT(*) FROM search_seen").fetchone()[0]
+    assert 0 < first < 200 and seen == first  # a part is indexed, and nothing indexed was forgotten
+    assert conn.execute("SELECT COUNT(*) FROM search_state WHERE key='fingerprint'").fetchone()[0] == 0  # not marked as finished
+    rest = rag.reindex(conn, sources, "v1")
+    assert first + rest == 200 and conn.execute("SELECT COUNT(*) FROM search_seen").fetchone()[0] == 200  # the next time carries on where it stopped
+    assert rag.reindex(conn, sources, "v1") == 0  # and then there is nothing left to do

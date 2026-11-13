@@ -60,11 +60,13 @@ class State:
 
 
 def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
-    ingested = store.ingest_dir(conn, parsed_dir()) if parsed_dir().is_dir() else {"new": 0}
+    ingested = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
     judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
     judged["replaced"] = ingested.get("replaced", 0)
-    if ingested["new"] or judged["read"]:
-        store.warm_search(conn, state.picture_text())  # the new documents are searchable as soon as they are read, not at the first question
+    if (ingested["new"] or judged["read"]) and state.control != "stop":
+        store.warm_search(
+            conn, state.picture_text(), lambda: state.control == "stop"
+        )  # the new documents are searchable as soon as they are read, not at the first question
     return ingested["new"], judged["read"] + judged["skipped"], judged
 
 
@@ -134,7 +136,8 @@ def _read_all(state: State) -> None:
             state.scan["summary"] = "Stopped. " + state.scan["summary"] + ". Reading carries on from here next time."
         else:
             _read_pictures(state, conn, client, model)
-        store.warm_search(conn, state.picture_text())
+        if state.control != "stop":
+            store.warm_search(conn, state.picture_text(), lambda: state.control == "stop")
         state.scan["problems"] = [problem] if problem else []
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)

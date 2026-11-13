@@ -4,7 +4,6 @@
 set -euo pipefail
 OUT="$1"
 LIST="${ATLAS_FOLDERS_FILE:-$HOME/AtlasFolders.txt}"
-mkdir -p "$HOME/AtlasHealth" "$HOME/AtlasTravel"
 if [ ! -f "$LIST" ]; then
   cat > "$LIST" <<'TXT'
 # Extra folders Atlas reads. Read-only: your originals are never changed or moved.
@@ -16,13 +15,15 @@ if [ ! -f "$LIST" ]; then
 # Files that iCloud has only in the cloud (not downloaded to this Mac) cannot be read until you download them (right click, Download Now).
 TXT
 fi
-names=("finance=/collections/finance" "health=/collections/health" "travel=/collections/travel")
-mounts=("$HOME/AtlasHealth:/collections/health:ro" "$HOME/AtlasTravel:/collections/travel:ro")
+names=("finance=/collections/finance")
+mounts=()
 n=0
 seen_dirs=()
+have=" "   # the categories the person has a folder for
 real_of() { (cd "$1" 2>/dev/null && pwd -P) || echo "$1"; }
 taken() { [[ " ${seen_dirs[*]:-} " == *" $1 "* ]]; }   # the same folder reached two ways is read once
-seen_dirs+=("$(real_of "$HOME/AtlasHealth")" "$(real_of "$HOME/AtlasTravel")")
+[ -d "$HOME/AtlasHealth" ] && seen_dirs+=("$(real_of "$HOME/AtlasHealth")")
+[ -d "$HOME/AtlasTravel" ] && seen_dirs+=("$(real_of "$HOME/AtlasTravel")")
 while IFS= read -r line || [ -n "$line" ]; do
   line="${line#"${line%%[![:space:]]*}"}"
   case "$line" in ""|\#*) continue ;; esac
@@ -37,6 +38,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   if taken "$real"; then echo "AtlasFolders.txt: $path is already read: taken once" >&2; continue; fi
   seen_dirs+=("$real")
   n=$((n + 1))
+  have="$have$name "
   names+=("$name=/collections/$name-$n")
   mounts+=("$path:/collections/$name-$n:ro")
 done < "$LIST"
@@ -55,12 +57,22 @@ for parent in "$ICLOUD" "$ICLOUD/Atlas" "$ICLOUD/Documents" "$HOME/Documents" "$
     if taken "$real"; then continue; fi
     seen_dirs+=("$real")
     n=$((n + 1))
+    have="$have$label "
     names+=("$label=/collections/$label-$n")
     mounts+=("$dir:/collections/$label-$n:ro")
     echo "Atlas will read (read-only): $dir as $label" >&2
   done
 done
 
+# The default folders in the home folder (~/AtlasHealth, ~/AtlasTravel): used only when the person has no folder of that kind, or has put files in them
+for kind in health travel; do
+  default="$HOME/Atlas$(echo "${kind:0:1}" | tr '[:lower:]' '[:upper:]')${kind:1}"
+  if [[ "$have" != *" $kind "* ]]; then mkdir -p "$default"; fi
+  if [ -d "$default" ] && { [[ "$have" != *" $kind "* ]] || [ -n "$(ls -A "$default" 2>/dev/null)" ]; }; then
+    names+=("$kind=/collections/$kind")
+    mounts+=("$default:/collections/$kind:ro")
+  fi
+done
 {
   echo "# Written by scripts/folders-compose.sh: do not edit (edit ~/AtlasFolders.txt instead)."
   echo "services:"
