@@ -58,7 +58,7 @@ def test_atlas_starts_by_itself_at_login_and_everything_restarts_with_docker():
 
     root = Path(__file__).resolve().parents[2]
     installer = (root / "scripts" / "install-autostart.sh").read_text()
-    assert "RunAtLoad" in installer and "local.atlas.start" in installer and "osacompile" in installer
+    assert "RunAtLoad" in installer and "local.atlas.start" in installer and "make-apps.sh" in installer
     for compose in ("finance", "library", "atlas"):
         assert "restart: unless-stopped" in (root / compose / "docker-compose.yml").read_text()
     login = (root / "scripts" / "start-at-login.sh").read_text()
