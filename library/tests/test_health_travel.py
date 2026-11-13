@@ -430,3 +430,42 @@ def test_the_empty_default_folders_are_made_only_when_there_is_no_folder_of_that
     (tmp_path / "AtlasHealth" / "note.txt").write_text("x")
     text = run()
     assert ":/collections/health:ro" in text and "/collections/health-1" in text  # files dropped in the default folder are still read
+
+
+def _found(tmp_path, *folders):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    icloud = tmp_path / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    for folder in folders:
+        (icloud / folder).mkdir(parents=True)
+    out = tmp_path / "out.yml"
+    done = subprocess.run(
+        ["bash", str(root / "scripts" / "folders-compose.sh"), str(out)],
+        env={"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(tmp_path / "none.txt"), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return icloud, out.read_text(), done.stderr
+
+
+def test_category_folders_are_found_three_levels_deep_and_by_their_dutch_names(tmp_path):
+    icloud, text, said = _found(tmp_path, "Docs/Archive/Others", "Papieren/Gezondheid", "Overig", "Reizen", "Persoonlijk", "Financiën", "Deep/One/Two/Health")
+    for folder, label in (
+        ("Docs/Archive/Others", "others"),
+        ("Papieren/Gezondheid", "health"),
+        ("Reizen", "travel"),
+        ("Persoonlijk", "personal"),
+        ("Financiën", "finance"),
+    ):
+        assert f"{icloud / folder} as {label}" in said, folder
+    assert f"{icloud / 'Overig'} as others" in said  # a second others folder is a second folder, read as well
+    assert "Deep/One/Two/Health" not in text  # four levels down: not looked for
+
+
+def test_a_folder_inside_one_already_read_is_not_read_twice(tmp_path):
+    icloud, text, said = _found(tmp_path, "Personal/Health", "Personal/Travel", "Finance/Others")
+    assert said.count("Atlas will read") == 2 and f"{icloud / 'Personal'} as personal" in said and f"{icloud / 'Finance'} as finance" in said
+    assert "Personal/Health" not in text and "Finance/Others" not in text  # the parent already covers them: the same files are not read under two kinds

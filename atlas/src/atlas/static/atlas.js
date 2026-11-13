@@ -436,15 +436,21 @@
             panel.hidden = true;
         });
         const head = el('div', 'scan-head');
-        const title = report.running
-            ? Object.values(report.modules).some((m) => m.paused)
-                ? 'Paused'
-                : Object.values(report.modules).some((m) => m.stopping)
-                  ? 'Stopping…'
-                  : 'Reading your files, mail and photos…'
-            : 'Finished reading';
+        // the part of Atlas that reads the files (hidden from the menu) decides what the panel says: when it is switched off there is nothing to pause or stop
+        const reader = state.modules.filter((m) => m.hidden && report.modules[m.id]).map((m) => report.modules[m.id]);
+        const readerOff = reader.some((r) => r.up === false);
+        const running = !readerOff && report.running;
+        const title = readerOff
+            ? 'Reading is switched off'
+            : running
+              ? Object.values(report.modules).some((m) => m.paused)
+                  ? 'Paused'
+                  : Object.values(report.modules).some((m) => m.stopping)
+                    ? 'Stopping…'
+                    : 'Reading your files, mail and photos…'
+              : 'Finished reading';
         head.append(el('b', '', title));
-        if (report.running) {
+        if (running) {
             const paused = Object.values(report.modules).some((m) => m.paused);
             head.append(
                 controlButton(paused ? 'Resume' : 'Pause', paused ? 'resume' : 'pause'),
@@ -453,6 +459,18 @@
         }
         head.append(close);
         const rows = [];
+        if (readerOff) {
+            rows.push(
+                partLine(
+                    {
+                        name: 'Switched off',
+                        detail: 'The part of Atlas that reads your files is not running. Double-click the Atlas app in your Applications folder to switch it back on. Nothing is lost.',
+                    },
+                    false,
+                    true
+                )
+            );
+        }
         for (const m of state.modules) {
             const info = report.modules[m.id];
             if (!info) continue;
@@ -461,7 +479,8 @@
                 if (m.hidden) {
                     const detail = info.progress || info.summary || (info.up ? 'working…' : '');
                     if (detail) rows.push(partLine({ name: m.name, detail }, info.running));
-                    info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
+                    if (!readerOff)
+                        info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
                 }
                 continue;
             }
@@ -470,8 +489,8 @@
         }
         panel.replaceChildren(head, ...rows);
         panel.hidden = false;
-        $('#update').classList.toggle('busy', report.running);
-        $('#update span').textContent = report.running ? 'Reading…' : 'Read new files';
+        $('#update').classList.toggle('busy', running);
+        $('#update span').textContent = running ? 'Reading…' : 'Read new files';
     };
     const followScan = async () => {
         clearTimeout(scan.timer);

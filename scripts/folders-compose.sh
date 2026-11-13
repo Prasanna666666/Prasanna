@@ -42,26 +42,47 @@ while IFS= read -r line || [ -n "$line" ]; do
   names+=("$name=/collections/$name-$n")
   mounts+=("$path:/collections/$name-$n:ro")
 done < "$LIST"
-# Folders found by their names: finance, health, travel, personal or others, at the top of iCloud Drive, inside its Atlas or Documents folder, in ~/Documents (or its Atlas
-# folder) and on the Desktop (nothing to add by hand).
+# Folders found by their names, nothing to add by hand: finance, health, travel, personal and others (Dutch names too: financien, gezondheid, reizen, persoonlijk,
+# overig, diversen ...), up to three levels deep in iCloud Drive, in ~/Documents and on the Desktop. A folder inside one already taken is not taken again.
+canon() {
+  case "$(echo "$1" | tr '[:upper:]' '[:lower:]')" in
+    finance|finances|financien|financiën|financieel|financial) echo finance ;;
+    health|gezondheid|medisch|medical) echo health ;;
+    travel|travels|trips|reizen|reis) echo travel ;;
+    personal|persoonlijk|prive|privé|private) echo personal ;;
+    others|other|overig|overige|diversen|misc|miscellaneous|various) echo others ;;
+    *) echo "" ;;
+  esac
+}
 ICLOUD="${ATLAS_ICLOUD_DIR:-$HOME/Library/Mobile Documents/com~apple~CloudDocs}"
-for parent in "$ICLOUD" "$ICLOUD/Atlas" "$ICLOUD/Documents" "$HOME/Documents" "$HOME/Documents/Atlas" "$HOME/Desktop"; do
-  [ -d "$parent" ] || continue
-  for dir in "$parent"/*/; do
-    [ -d "$dir" ] || continue
-    dir="${dir%/}"
-    label="$(basename "$dir" | tr '[:upper:]' '[:lower:]')"
-    case "$label" in finance|health|travel|personal|others) ;; other) label=others ;; *) continue ;; esac
-    if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "iCloud: skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
-    real="$(real_of "$dir")"
-    if taken "$real"; then continue; fi
-    seen_dirs+=("$real")
-    n=$((n + 1))
-    have="$have$label "
-    names+=("$label=/collections/$label-$n")
-    mounts+=("$dir:/collections/$label-$n:ro")
-    echo "Atlas will read (read-only): $dir as $label" >&2
-  done
+candidates=()
+for root in "$ICLOUD" "$HOME/Documents" "$HOME/Desktop"; do
+  [ -d "$root" ] || continue
+  while IFS= read -r dir; do
+    [ -n "$(canon "$(basename "$dir")")" ] && candidates+=("$dir")
+  done < <(find "$root" -maxdepth 3 \( -name '.*' -o -name Library -o -name node_modules \) -prune -o -type d -print 2>/dev/null)
+done
+# the shallowest first, so a parent wins over what lies inside it
+sorted=()
+while IFS= read -r line; do sorted+=("${line#*|}"); done < <(for c in "${candidates[@]:-}"; do [ -n "$c" ] && echo "$(echo "$c" | tr -cd '/' | wc -c | tr -d ' ')|$c"; done | sort -t'|' -k1,1n -k2)
+found=0
+for dir in "${sorted[@]:-}"; do
+  [ -n "$dir" ] || continue
+  label="$(canon "$(basename "$dir")")"
+  if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "Skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
+  real="$(real_of "$dir")"
+  taken "$real" && continue
+  inside=0
+  for t in "${seen_dirs[@]:-}"; do [ -n "$t" ] && [[ "$real/" == "$t/"* ]] && inside=1; done
+  [ "$inside" = 1 ] && continue   # lies inside a folder already read
+  [ "$found" -ge 20 ] && { echo "More than 20 category folders found: the rest are left out (list them in ~/AtlasFolders.txt to choose)" >&2; break; }
+  found=$((found + 1))
+  seen_dirs+=("$real")
+  n=$((n + 1))
+  have="$have$label "
+  names+=("$label=/collections/$label-$n")
+  mounts+=("$dir:/collections/$label-$n:ro")
+  echo "Atlas will read (read-only): $dir as $label" >&2
 done
 
 # The default folders in the home folder (~/AtlasHealth, ~/AtlasTravel): used only when the person has no folder of that kind, or has put files in them

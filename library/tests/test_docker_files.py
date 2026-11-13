@@ -105,3 +105,13 @@ def test_there_is_a_double_clickable_app_that_stops_everything_without_a_termina
     apps = (root / "scripts" / "make-apps.sh").read_text()
     assert "Stop Atlas.app" in apps and "down.sh" in apps and "osacompile" in apps and "docker" in apps.lower()  # the Docker tools are on its path
     assert "scripts/make-apps.sh" in (root / "up.sh").read_text() and "scripts/make-apps.sh" in (root / "scripts" / "install-autostart.sh").read_text()
+
+
+def test_the_atlas_app_switches_atlas_on_when_it_is_off_and_the_panel_says_so_plainly():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    apps = (root / "scripts" / "make-apps.sh").read_text()
+    assert "start-at-login.sh" in apps and "atlas-documents-app-1" in apps and "atlas-apps-version" in apps
+    page = (root / "atlas" / "src" / "atlas" / "static" / "atlas.js").read_text()
+    assert "Reading is switched off" in page and "Double-click the Atlas app" in page
