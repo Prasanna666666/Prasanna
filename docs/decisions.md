@@ -81,3 +81,6 @@ If something here is wrong, the owner says so once and it is changed here.
 
 ## Health is not locked (owner's call: "No point locking health")
 - `store.health_unlocked()` is always true; the lock stays in the code behind `ATLAS_HEALTH_LOCK=1`. Everything runs on this one Mac, offline, behind the same disk encryption as the other apps, so the lock added clicks and no protection the others lack.
+
+## Each app is a dashboard plus the one chat (owner's call)
+- Finance's menu is Dashboard, Documents and Settings. The other pages (income, expenses, net worth, savings, investments, plan, tasks, notes, people, files) are no longer in the menu; the dashboard's cards still open them, and questions go to the chat. Documents stay in one place per app.

@@ -133,7 +133,7 @@
 
     // ------------------------------------------------------------------ shell
     const PAGES = [
-        ['home', 'Home'],
+        ['home', 'Dashboard'],
         ['income', 'Income'],
         ['expenses', 'Expenses'],
         ['savings', 'Savings'],
@@ -147,11 +147,7 @@
         ['files', 'Files'],
         ['settings', 'Settings'],
     ];
-    const MENU = [
-        ['home', 'income', 'expenses', 'savings', 'investments', 'networth', 'plan', 'documents'],
-        ['tasks', 'notes', 'people'],
-        ['settings'],
-    ]; // 'files' is reached from Documents
+    const MENU = [['home', 'documents'], ['settings']]; // a dashboard, the documents, Settings. Everything else is asked in the chat; the dashboard's cards still open the detail pages
     const ALIAS = { money: 'expenses', spending: 'expenses', wealth: 'networth', tax: 'plan' }; // old addresses still work
     function buildNav() {
         const label = Object.fromEntries(PAGES);
