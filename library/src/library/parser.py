@@ -27,8 +27,9 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-from . import readers
+from . import readers, sniff
 
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
@@ -39,33 +40,6 @@ MAX_CSV_ROWS = 200_000
 MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
 MAX_CELL = 300
 TIMEOUT_S = 300  # scanned PDFs are read with OCR, which takes a while
-KINDS = {
-    ".txt": "text",
-    ".md": "text",
-    ".csv": "csv",
-    ".tsv": "csv",
-    ".pdf": "pdf",
-    ".mt940": "text",
-    ".sta": "text",
-    ".xml": "text",
-    ".png": "image",
-    ".jpg": "image",
-    ".jpeg": "image",
-    ".tif": "image",
-    ".tiff": "image",
-    ".bmp": "image",
-    ".webp": "image",
-    ".xlsx": "sheet",
-    ".xlsm": "sheet",
-    ".docx": "doc",
-    ".html": "html",
-    ".htm": "html",
-    ".eml": "email",
-    ".emlx": "email",
-    ".mbox": "mbox",
-    ".json": "json",
-    ".zip": "zip",
-}
 SKIP_NAMES = {"passwords.txt", ".passwords"}  # the passwords for protected PDFs live here: never read as a document
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
@@ -75,7 +49,7 @@ def clean(text: str) -> str:
 
 
 def _read_text(path: Path) -> dict:
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = sniff.decode_text(path.read_bytes()[: 20 * 1024 * 1024]) or path.read_text(encoding="utf-8", errors="replace")
     data: dict = {"lines": [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]}
     rows = _delimited_rows(text)  # a plain tab- or semicolon-separated export (some banks give these with no header row)
     if rows:
@@ -100,11 +74,16 @@ def _read_csv(path: Path) -> dict:
     return {"kind": "csv", "text": clean(text), "meta": meta, "data": {"rows": [[clean(c)[:MAX_CELL] for c in r][:60] for r in rows[:MAX_DATA_ROWS]]}}
 
 
+def _is_emlx(path: Path) -> bool:
+    return path.suffix.lower() == ".emlx" or sniff.is_emlx(sniff.head_of(path))
+
+
 def _read_email(path: Path) -> dict:
-    return (readers.read_emlx(path) if path.suffix.lower() == ".emlx" else readers.read_eml(path))[0]
+    return (readers.read_emlx(path) if _is_emlx(path) else readers.read_eml(path))[0]
 
 
-# One reader per kind of file. A new kind of file is a new function here and its extensions in KINDS: nothing else changes. Each returns the same shape
+# One reader per kind of content (see sniff.py: what a file is is judged from its contents, never from a list of allowed endings; a file no reader fits gives the words it
+# holds). A new kind of content is a new function here: nothing else changes. Each returns the same shape
 # ({kind, text, meta, data}); a picture comes back with the text OCR found in it, which is how the service later tells a photographed receipt from a holiday photo.
 PARSERS: dict[str, Callable[[Path], dict]] = {
     "text": _read_text,
@@ -112,19 +91,18 @@ PARSERS: dict[str, Callable[[Path], dict]] = {
     "pdf": lambda path: readers.read_pdf(path, load_passwords()),
     "image": readers.read_image,
     "sheet": readers.read_sheet,
-    "doc": readers.read_docx,
+    "doc": readers.read_document,
     "html": readers.read_html,
     "email": _read_email,
     "json": readers.read_json,
+    "binary": readers.read_binary,
+    "zip": readers.read_binary,  # a package met deeper than the reader opens packages: the words in it
 }
 
 
 def extract(path: Path) -> dict:
     """In-process extraction with the reader for this kind of file. Called only inside the limited subprocess (or by tests)."""
-    reader = PARSERS.get(KINDS.get(path.suffix.lower(), ""))
-    if reader is None:
-        raise ValueError(f"unsupported file type: {path.suffix}")
-    return reader(path)
+    return PARSERS[sniff.kind_of(path)](path)
 
 
 _table_lines = readers.table_lines
@@ -205,6 +183,8 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, 
 
 
 _CLAIMED: set[str] = set()
+_FAILED: list[str] = []  # files that could not be read in this round, with the reason
+MAX_FAILED = 200
 _CLAIM_LOCK = threading.Lock()
 
 
@@ -212,8 +192,15 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
     import tempfile
 
-    suffix = f.suffix.lower()
-    if f.name.lower() in SKIP_NAMES or suffix not in KINDS or f.stat().st_size > (MBOX_MAX_BYTES if suffix == ".mbox" else MAX_BYTES):
+    size = f.stat().st_size
+    if f.name.lower() in SKIP_NAMES or size == 0 or size > MBOX_MAX_BYTES:
+        counts["skipped"] += 1
+        return
+    try:
+        kind = sniff.kind_of(f)
+    except (OSError, ValueError):
+        kind = "binary"
+    if size > (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES):
         counts["skipped"] += 1
         return
     digest = sha256(f)
@@ -226,10 +213,10 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
             return
         _CLAIMED.add(digest)
     try:
-        if suffix == ".mbox" and depth == 0:
+        if kind == "mbox" and depth == 0:
             _process_mailbox(f, label, out, area, isolated, counts, digest)
             return
-        if suffix == ".zip" and depth == 0:
+        if kind == "zip" and depth < 2:  # a package (an archive, an e-book, an Apple Pages or Keynote file): its members are read one by one
             members = readers.zip_members(f)
             with tempfile.TemporaryDirectory() as tmp:
                 for name, content in members:
@@ -242,15 +229,18 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         counts["parsed"] += 1
         if depth and area == "mail" and res["kind"] == "image":
             keep_picture(f)
-        if suffix in (".eml", ".emlx") and depth < 2:
+        if kind == "email" and depth < 2:
             with tempfile.TemporaryDirectory() as tmp:
-                for name, content in (readers.read_emlx(f) if suffix == ".emlx" else readers.read_eml(f))[1][:20]:
+                for name, content in (readers.read_emlx(f) if _is_emlx(f) else readers.read_eml(f))[1][:20]:
                     inner = Path(tmp) / Path(name).name
                     inner.write_bytes(content)
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
     except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
+        with _CLAIM_LOCK:
+            if len(_FAILED) < MAX_FAILED:
+                _FAILED.append(f"{label[:120]}: {str(e).strip().splitlines()[-1][:100] if str(e).strip() else 'unreadable'}")
 
 
 PICTURES_IN = "LIBRARY_PICTURES_IN"  # where a picture that arrived as a mail attachment is kept, for the picture engine to index like any other
@@ -419,6 +409,8 @@ def main(argv: list[str] | None = None) -> int:
             res = read_everything(a)
         finally:
             (out / BUSY).unlink(missing_ok=True)
+        (out / FAILED_FILE).write_text(json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read this round, for the report
+        _FAILED.clear()
         if res["parsed"] or res["failed"]:
             print(res, flush=True)
         if not a.watch:
@@ -463,7 +455,8 @@ def halted(out: Path) -> bool:
 
 
 def _supported(root: Path, skip: frozenset[str] = frozenset(), only_emlx: bool = False, out: Path | None = None) -> int:
-    """How many files under root the reader would take (by name only: fast), so the person is shown the full number, not a guess."""
+    """How many files under root the reader will take: every ordinary file with something in it that is not larger than it reads, whatever its type, so the person is shown
+    the full number, not a guess."""
     total = 0
     for seen, f in enumerate(root.resolve().rglob("*"), 1):
         if out is not None and seen % CHECK_EVERY == 0 and halted(out):
@@ -473,11 +466,48 @@ def _supported(root: Path, skip: frozenset[str] = frozenset(), only_emlx: bool =
         relative = f.relative_to(root.resolve())
         if relative.parts[0] in skip or (only_emlx and (f.suffix.lower() != ".emlx" or _in_skipped_mailbox(relative))):
             continue
-        total += f.suffix.lower() in KINDS
+        size = f.stat().st_size
+        total += 0 < size <= (MBOX_MAX_BYTES if f.suffix.lower() == ".mbox" else MAX_BYTES)
     return total
 
 
 FOUND_FILE = ".found"
+FAILED_FILE = ".failed.json"
+
+
+UNREAD_EXAMPLES = 30
+
+
+def unread_report(roots: list[tuple[str, Path]], out: Path) -> dict[str, Any]:
+    """Every file in the folders that will NOT be read, and why: in iCloud but not downloaded, a shortcut or alias, or too large. Every other type of file is read, by what
+    is inside it. Hidden system files are not mentioned. Examples are named so the person can look for them."""
+    counts: dict[str, int] = {}
+    examples: dict[str, list[str]] = {}
+
+    def note(reason: str, label: str, rel: Path) -> None:
+        counts[reason] = counts.get(reason, 0) + 1
+        if len(examples.setdefault(reason, [])) < UNREAD_EXAMPLES:
+            examples[reason].append(f"{label}: {rel}")
+
+    for label, root in roots:
+        top = root.resolve()
+        for seen, f in enumerate(top.rglob("*"), 1):
+            if seen % CHECK_EVERY == 0 and halted(out):
+                raise Halted
+            name = f.name
+            rel = f.relative_to(top)
+            if name.startswith("."):
+                if name.endswith(".icloud"):
+                    note("only_in_icloud", label, rel.with_name(name[1 : -len(".icloud")]))
+                continue
+            if f.is_symlink():
+                note("alias_or_link", label, rel)
+                continue
+            if not f.is_file() or name.lower() in SKIP_NAMES:
+                continue
+            if f.stat().st_size > (MBOX_MAX_BYTES if f.suffix.lower() == ".mbox" else MAX_BYTES):
+                note("too_large", label, rel)
+    return {"counts": counts, "examples": examples}
 
 
 def write_found(a: argparse.Namespace) -> None:
@@ -492,16 +522,30 @@ def write_found(a: argparse.Namespace) -> None:
         mails = _supported(Path(a.inbox) / "mail", out=out) if (Path(a.inbox) / "mail").is_dir() else 0
         if a.mail and Path(a.mail).is_dir():
             mails += _supported(Path(a.mail), only_emlx=True, out=out)
+        roots = [("inbox", Path(a.inbox))] + [(name, folder) for name, folder in collections(a.collection) if folder.is_dir()]
+        unread = unread_report([(n, r) for n, r in roots if r.is_dir()], out)
     except Halted:
         return  # stopped while counting: nothing is written, nothing is read
     tmp = out / f"{FOUND_FILE}.tmp"
-    tmp.write_text(json.dumps({"documents": documents, "mails": mails, "mail_connected": bool(a.mail and Path(a.mail).is_dir()), "by_folder": by_folder}))
+    tmp.write_text(
+        json.dumps({"documents": documents, "mails": mails, "mail_connected": bool(a.mail and Path(a.mail).is_dir()), "by_folder": by_folder, "unread": unread})
+    )
     os.replace(tmp, out / FOUND_FILE)
 
 
 def read_everything(a: argparse.Namespace) -> dict[str, int]:
     """One round: the inbox, every collection folder, mail exports in the inbox, and Apple Mail's own folder."""
-    write_found(a)
+    counting = threading.Thread(
+        target=write_found, args=(a,), daemon=True
+    )  # counting a big mailbox or iCloud takes minutes: reading starts at once and the totals appear when ready
+    counting.start()
+    try:
+        return _read_round(a)
+    finally:
+        counting.join()
+
+
+def _read_round(a: argparse.Namespace) -> dict[str, int]:
     if (Path(a.out) / STOP).exists():
         return {"parsed": 0, "skipped": 0, "failed": 0}
     res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))

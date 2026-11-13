@@ -29,7 +29,7 @@ CMD ["serve", "--host", "0.0.0.0", "--port", "8502"]
 FROM base AS parser
 # Tesseract (offline OCR, Dutch + English) reads scanned PDFs and photos of documents; everything else is read with Python libraries.
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld poppler-utils && rm -rf /var/lib/apt/lists/*
-RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install "pymupdf>=1.24" "pdfplumber>=0.11" "openpyxl>=3.1" "pillow>=10"
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install "pymupdf>=1.24" "pdfplumber>=0.11" "openpyxl>=3.1" "pillow>=10" "pillow-heif>=0.16"
 COPY library /app/library
 RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install --no-deps ./library
 USER 10001

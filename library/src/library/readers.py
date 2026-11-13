@@ -201,6 +201,10 @@ def other_engines(path: Path, passwords: list[str] | None, pages: int) -> dict[s
 def read_image(path: Path) -> dict:
     from PIL import Image, ImageOps
 
+    if path.suffix.lower() in (".heic", ".heif"):  # iPhone photos
+        import pillow_heif
+
+        pillow_heif.register_heif_opener()
     with Image.open(path) as im:
         im = ImageOps.exif_transpose(im).convert("RGB")
         buf = io.BytesIO()
@@ -274,6 +278,78 @@ def read_docx(path: Path) -> dict:
         "meta": {},
         "data": {"lines": [clean(p, 600) for p in text.splitlines()[:MAX_ROWS]], **({"rows": rows[:MAX_ROWS]} if rows else {})},
     }
+
+
+def _doc_result(text: str) -> dict:
+    return {"kind": "doc", "text": clean(text), "meta": {}, "data": {"lines": [clean(p, 600) for p in text.splitlines()[:MAX_ROWS]]}}
+
+
+def read_odt(path: Path) -> dict:
+    """OpenDocument text (LibreOffice, Pages exports): the paragraphs and headings of content.xml."""
+    with zipfile.ZipFile(path) as z:
+        if z.getinfo("content.xml").file_size > 20_000_000:
+            raise ValueError("document too large")
+        root = _safe_xml(z.read("content.xml"))
+    ns = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+    paras = ["".join(el.itertext()) for el in root.iter() if el.tag in (f"{ns}p", f"{ns}h")]
+    return _doc_result("\n".join(p for p in paras if p.strip()))
+
+
+def read_pptx(path: Path) -> dict:
+    """PowerPoint slides: the text of each slide, in order."""
+    a = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+    with zipfile.ZipFile(path) as z:
+        slides = sorted((n for n in z.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)), key=lambda n: int(re.findall(r"\d+", n)[0]))[:300]
+        out = []
+        for name in slides:
+            if z.getinfo(name).file_size > 5_000_000:
+                continue
+            out.append("\n".join(t.text or "" for t in _safe_xml(z.read(name)).iter(f"{a}t") if (t.text or "").strip()))
+    return _doc_result("\n\n".join(out))
+
+
+_RTF_ESCAPE = re.compile(rb"\\'([0-9a-fA-F]{2})")
+
+
+def read_rtf(path: Path) -> dict:
+    """Rich Text Format: the text without the formatting codes."""
+    raw = path.read_bytes()[:20_000_000]
+    raw = re.sub(rb"\{\\\*[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", b"", raw)  # ignorable destinations (fonts, styles ...)
+    raw = _RTF_ESCAPE.sub(lambda m: bytes([int(m.group(1), 16)]), raw)
+    raw = re.sub(rb"\\(?:par|line|tab)\b ?", b"\n", raw)
+    raw = re.sub(rb"\\[a-zA-Z]+-?\d* ?", b"", raw)
+    raw = re.sub(rb"\\([\\{}])", rb"\1", raw)
+    text = raw.replace(b"{", b"").replace(b"}", b"").decode("cp1252", "replace")
+    return _doc_result("\n".join(line.strip() for line in text.splitlines() if line.strip()))
+
+
+def read_document(path: Path) -> dict:
+    """Word, OpenDocument, PowerPoint or RTF, told apart by what is inside the file, not by its ending."""
+    with path.open("rb") as handle:
+        head = handle.read(16)
+    if head.lstrip()[:5] == b"{\\rtf":
+        return read_rtf(path)
+    with zipfile.ZipFile(path) as z:
+        names = z.namelist()
+    if "word/document.xml" in names:
+        return read_docx(path)
+    if any(n.startswith("ppt/slides/") for n in names):
+        return read_pptx(path)
+    return read_odt(path)
+
+
+_WORDS = re.compile(rb"[\x20-\x7e\xa0-\xff]{6,}")
+_WORDS16 = re.compile(rb"(?:[\x20-\x7e]\x00){6,}")
+
+
+def read_binary(path: Path) -> dict:
+    """Any file Atlas has no reader for (an old Word or Excel file, a program, a video): the readable words found inside it, if there are enough to mean something.
+    Nothing is interpreted. A file with no words keeps only its name."""
+    raw = path.read_bytes()[:20_000_000]
+    runs = [m.group().decode("latin-1") for m in _WORDS.finditer(raw)] + [m.group().decode("utf-16-le", "ignore") for m in _WORDS16.finditer(raw)]
+    wordy = [r.strip() for r in runs if sum(c.isalpha() or c == " " for c in r) / len(r) >= 0.7 and len(r.split()) >= 2]
+    text = "\n".join(dict.fromkeys(wordy))[:200_000]
+    return {"kind": "binary", "text": clean(text) if len(text) >= 40 else "", "meta": {"partial": True, "no_text": len(text) < 40}, "data": {}}
 
 
 class _Html(HTMLParser):

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from . import changes, pictures, store, travel
+from . import changes, pictures, readreport, store, travel
 
 Result = tuple[Any, list[dict]]  # (data for the model, items to show)
 
@@ -216,6 +216,11 @@ def packing_list(state, conn, a: dict, ask: Ask | None = None) -> Result:
             }
         )
     return {"lists": out}, []
+
+
+def unread_files(state, conn, a: dict, ask: Ask | None = None) -> Result:
+    """Which files were not read, and why: in iCloud but not downloaded, shortcuts, types Atlas cannot read (counted by ending), too large, unreadable, and documents set aside as not relevant."""
+    return readreport.summary(conn), []
 
 
 def upcoming_trips(state, conn, a: dict, ask: Ask | None = None) -> Result:
@@ -443,6 +448,12 @@ TOOLS = (
         "The person's own packing checklist for a trip: how much is packed and what is still to pack. Use it for questions like what is left to pack for a trip.",
         {"place": _str("Destination, for example India"), "year": _str("Year")},
         packing_list,
+    ),
+    Tool(
+        "unread_files",
+        "Which of the person's files were NOT read, and why, with examples. Use it for questions like why some files are missing or skipped.",
+        {},
+        unread_files,
     ),
     Tool("upcoming_trips", "Trips that have not ended yet, soonest first, from the tickets and bookings.", {}, upcoming_trips),
     Tool("list_changes", "What is waiting for the person's confirmation and what was done lately.", {}, list_changes),

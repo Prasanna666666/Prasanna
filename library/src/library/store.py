@@ -108,7 +108,7 @@ MIGRATIONS = (
     """,
 )
 MODULE = Module("library", MIGRATIONS)
-FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}
+FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
 MAX_JSON = 30_000_000
 MAX_TEXT = 2_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
@@ -243,7 +243,14 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
             exact = _exact_facts(d)
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
-            elif d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"]):
+            elif (
+                d["kind"] == "binary"
+                or not d["text"].strip()
+                or (
+                    d["area"] in ("", "mail", "pictures")
+                    and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"])
+                )
+            ):  # nothing readable to ask the model about: it stays, found by its name
                 _mark_ready(conn, d["sha256"], 2, None)
                 out["skipped"] += 1
                 continue

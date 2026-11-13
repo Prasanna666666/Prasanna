@@ -1,7 +1,5 @@
 import json
 
-import pytest
-
 from library import parser, store
 
 
@@ -11,8 +9,8 @@ def test_extract_text_csv_and_control_chars(tmp_path):
     assert parser.extract(tmp_path / "a.txt")["text"] == "hello world\nline2"
     c = parser.extract(tmp_path / "s.csv")
     assert c["meta"]["columns"] == ["date", "desc", "amount"] and "Rent | 1000" in c["text"]
-    with pytest.raises(ValueError):
-        parser.extract(tmp_path / "x.exe")
+    (tmp_path / "x.exe").write_bytes(b"MZ\x90\x00" + bytes(range(256)) * 4)
+    assert parser.extract(tmp_path / "x.exe")["kind"] == "binary"  # no list of allowed types: a file no reader fits is still taken, by the words it holds
 
 
 def test_process_inbox_isolated_dedupes_skips_and_survives_bad_files(tmp_path):
@@ -21,16 +19,19 @@ def test_process_inbox_isolated_dedupes_skips_and_survives_bad_files(tmp_path):
     (inbox / "note.md").write_text("Dad BP tablet after breakfast")
     (inbox / "copy.md").write_text("Dad BP tablet after breakfast")  # same content -> parsed once
     (inbox / "broken.pdf").write_bytes(b"%PDF-1.4 this is not a real pdf \x00\xff" * 50)
-    (inbox / "malware.exe").write_bytes(b"MZ")
+    (inbox / "malware.exe").write_bytes(b"MZ\x90\x00" + bytes(range(256)) * 2)
     (tmp_path / "secret.txt").write_text("outside the inbox")
     (inbox / "link.txt").symlink_to(tmp_path / "secret.txt")
     r = parser.process_inbox(inbox, out)  # real subprocess isolation
-    assert r["parsed"] == 1 and r["failed"] == 1 and r["skipped"] == 1
+    assert (
+        r["parsed"] == 2 and r["failed"] == 1 and r["skipped"] == 0
+    )  # the notes once, the program as a file with no readable text; only the damaged PDF fails
     files = list(out.glob("*.json"))
-    assert len(files) == 1 and not list(out.glob(".*.tmp"))
-    d = json.loads(files[0].read_text())
-    assert d["kind"] == "text" and d["name"] in ("note.md", "copy.md") and d["sha256"] == files[0].stem
-    assert parser.process_inbox(inbox, out) == {"parsed": 0, "skipped": 1, "failed": 1}  # nothing re-parsed
+    assert len(files) == 2 and not list(out.glob(".*.tmp"))
+    kinds = {json.loads(f.read_text())["name"]: json.loads(f.read_text())["kind"] for f in files}
+    assert kinds.get("malware.exe") == "binary" and "text" in (kinds.get("note.md"), kinds.get("copy.md"))
+    assert all(json.loads(f.read_text())["sha256"] == f.stem for f in files)
+    assert parser.process_inbox(inbox, out) == {"parsed": 0, "skipped": 0, "failed": 1}  # nothing re-parsed
 
 
 def _doc(**kw):
@@ -112,10 +113,11 @@ def test_a_picture_with_no_text_is_a_photo_and_one_with_text_is_a_document(conn,
 
 
 def test_every_kind_of_file_has_one_reader_in_the_registry():
-    assert set(parser.PARSERS) == set(parser.KINDS.values()) - {
-        "mbox",
-        "zip",
-    }  # archives and mailboxes are opened first, then each file inside is read by its own reader
+    from library import sniff
+
+    # every kind of content the sniffer can name has a reader, except mailboxes, which are opened first so that each message is read by the email reader
+    named = {"pdf", "image", "sheet", "doc", "html", "email", "json", "csv", "text", "zip", "binary"}
+    assert set(parser.PARSERS) == named and sniff.kind_of.__doc__ and all(k in sniff.kind_of.__doc__ for k in named | {"mbox"})
 
 
 def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_window_belongs_to_it(conn, tmp_path):
@@ -160,7 +162,13 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
     (inbox / "mail" / "m.eml").write_text("Subject: hi\n\nbody")
     ns = argparse.Namespace(inbox=str(inbox), out=str(tmp_path / "out"), collection=[], mail="")
     parser.write_found(ns)
-    assert json.loads((tmp_path / "out" / ".found").read_text()) == {"documents": 2, "mails": 1, "mail_connected": False, "by_folder": {"inbox": 2}}
+    assert json.loads((tmp_path / "out" / ".found").read_text()) == {
+        "documents": 3,  # skip.xyz is counted too: no file is turned away for its ending
+        "mails": 1,
+        "mail_connected": False,
+        "by_folder": {"inbox": 3},
+        "unread": {"counts": {}, "examples": {}},
+    }
 
 
 def test_reading_several_files_at_once_gives_the_same_result_as_one_at_a_time(tmp_path, monkeypatch):
@@ -234,3 +242,87 @@ def test_a_changed_file_replaces_its_older_version_and_going_back_reads_it_again
         read("version one")["replaced"] == 1 and "version one" in texts() and "version two" not in texts()
     )  # back to the earlier content: read again, not skipped as known
     assert read("version one")["new"] == 0  # unchanged: nothing happens
+
+
+def test_the_report_says_which_files_are_not_read_and_why(tmp_path, monkeypatch):
+    import argparse
+
+    from kit import db
+
+    from library import parser, readreport, store, tools
+
+    inbox, out = tmp_path / "in", tmp_path / "out"
+    cat = tmp_path / "personal"
+    for folder in (inbox, cat / "sub"):
+        folder.mkdir(parents=True)
+    (inbox / "ok.txt").write_text("fine")
+    (cat / "sub" / "deck.key").write_bytes(b"x")  # any ending is read: nothing is turned away for it
+    (cat / ".contract.pdf.icloud").write_bytes(b"")  # a file that is only in iCloud
+    (cat / "alias.pdf").symlink_to(inbox / "ok.txt")
+    (cat / ".hidden").write_text("x")  # hidden system files are not mentioned
+    (cat / ".DS_Store").write_text("x")
+    ns = argparse.Namespace(inbox=str(inbox), out=str(out), collection=[f"personal={cat}"], mail="")
+    monkeypatch.setenv("ATLAS_PARSED", str(out))
+    parser.write_found(ns)
+    conn = db.connect(tmp_path / "library.db")
+    db.migrate(conn, [store.MODULE])
+    report = readreport.summary(conn)
+    assert {r["reason"]: r["count"] for r in report["reasons"]} == {"only_in_icloud": 1, "alias_or_link": 1} and report["not_read"] == 2
+    assert json.loads((out / ".found").read_text())["documents"] == 2  # ok.txt and deck.key: both will be read
+    examples = {r["reason"]: r["examples"] for r in report["reasons"]}
+    assert examples["only_in_icloud"] == ["personal: contract.pdf"] and "Download Now" in next(
+        r["each_file"] for r in report["reasons"] if r["reason"] == "only_in_icloud"
+    )
+    (out / ".failed.json").write_text(json.dumps(["personal/bad.pdf: password protected"]))
+    assert readreport.summary(conn)["not_read"] == 3 and readreport.unread_counts()["unreadable"] == 1
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,2)", ("a" * 64, "news.eml", "email", "t", "mail"))
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,2)", ("b" * 64, "holiday.mov", "binary", "", "personal"))
+    conn.commit()
+    again = readreport.summary(conn)
+    assert (
+        again["set_aside_as_not_relevant"] == {"mail": 1, "personal": 1}
+        and again["kept_by_name_only"]["count"] == 1
+        and again["kept_by_name_only"]["examples"] == ["holiday.mov"]
+    )
+    assert tools.run(type("S", (), {"engine": lambda s: None, "picture_text": lambda s: None})(), conn, "unread_files", {})["data"]["not_read"] == 3
+
+
+def test_rtf_odt_and_pptx_files_are_read_and_heic_is_a_supported_picture_type(tmp_path):
+    import zipfile
+
+    from library import parser
+
+    rtf = tmp_path / "letter.rtf"
+    rtf.write_bytes(
+        rb"{\rtf1\ansi{\fonttbl\f0 Arial;}{\*\generator Word;}\f0\fs24 Dear Mr. Jansen,\par Your policy number is 12345.\par Caf\'e9 invoice: total 480,00 euro.\par}"
+    )
+    text = parser.extract(rtf)["text"]
+    assert (
+        "Dear Mr. Jansen," in text
+        and "policy number is 12345." in text
+        and "Café invoice: total 480,00 euro." in text
+        and "fonttbl" not in text
+        and "generator" not in text
+    )
+    odt = tmp_path / "plan.odt"
+    with zipfile.ZipFile(odt, "w") as z:
+        z.writestr("mimetype", "application/vnd.oasis.opendocument.text")
+        z.writestr(
+            "content.xml",
+            '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><text:h>Tenancy</text:h><text:p>Rent is <text:span>950</text:span> euro.</text:p></office:body></office:document-content>',
+        )
+    assert parser.extract(odt)["text"] == "Tenancy\nRent is 950 euro."
+    pptx = tmp_path / "talk.pptx"
+    slide = '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
+    with zipfile.ZipFile(pptx, "w") as z:
+        z.writestr("ppt/slides/slide10.xml", slide.format("Tenth"))
+        z.writestr("ppt/slides/slide2.xml", slide.format("Second"))
+        z.writestr("ppt/slides/slide1.xml", slide.format("First"))
+    assert parser.extract(pptx)["text"] == "First\n\nSecond\n\nTenth"  # in slide order, not name order
+    from library import sniff
+
+    heic = tmp_path / "scan.heic"
+    heic.write_bytes(b"\x00\x00\x00\x18ftypheic\x00\x00\x00\x00heicmif1")
+    assert (
+        sniff.kind_of(heic) == "image" and sniff.kind_of(rtf) == "doc" and sniff.kind_of(odt) == "doc" and sniff.kind_of(pptx) == "doc"
+    )  # found out by what is inside, not by the ending

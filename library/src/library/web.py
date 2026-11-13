@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, pictures, store, tools, travel
+from . import changes, pictures, readreport, store, tools, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -419,6 +419,9 @@ def _parts_now(state: State, conn) -> list[dict[str, str]]:
     ]  # where the number comes from; empty folders are left out
     if len(shares) > 1:
         docs_row["detail"] += " · " + " · ".join(shares)
+    not_read = sum(readreport.unread_counts().values())
+    if not_read:
+        docs_row["detail"] += f" · {not_read:,} not read (ask Atlas why)"
     rows = [docs_row, mail_row]
     engine = state.engine()
     if engine is None:
