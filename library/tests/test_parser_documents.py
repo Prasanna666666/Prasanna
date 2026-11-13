@@ -326,3 +326,17 @@ def test_rtf_odt_and_pptx_files_are_read_and_heic_is_a_supported_picture_type(tm
     assert (
         sniff.kind_of(heic) == "image" and sniff.kind_of(rtf) == "doc" and sniff.kind_of(odt) == "doc" and sniff.kind_of(pptx) == "doc"
     )  # found out by what is inside, not by the ending
+
+
+def test_judging_in_small_rounds_leaves_the_rest_for_the_next_round(conn, tmp_path):
+    for i in range(5):
+        _put(tmp_path, _doc(name=f"i{i}.txt", text=f"FACTUUR Ziggo totaal {i}0,50 EUR betaling", sha256=str(i) * 64))
+    store.ingest_dir(conn, tmp_path)
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": json.dumps({"kind": "invoice", "title": "x", "party": "Ziggo", "total": "1,00", "currency": "EUR"})}
+
+    assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
+    assert store.counts(conn)["waiting"] == 3  # the other three wait; new files can be taken in meanwhile
+    assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2

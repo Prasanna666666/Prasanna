@@ -59,9 +59,12 @@ class State:
         return db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
 
 
+JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
+
+
 def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
     ingested = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
-    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
+    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND)
     judged["replaced"] = ingested.get("replaced", 0)
     if (ingested["new"] or judged["read"]) and state.control != "stop":
         store.warm_search(

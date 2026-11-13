@@ -217,8 +217,8 @@ def _exact_facts(d) -> dict | None:
 JUDGE_CHUNK = 100  # documents held in memory at a time: tens of thousands of mails never sit in memory together
 
 
-def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None) -> dict[str, Any]:
-    """Judge every document not yet judged. Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
+def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0) -> dict[str, Any]:
+    """Judge every document not yet judged (or `limit` of them: the caller comes back for more, so new files keep being taken in meanwhile). Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "problem": "", "stopped": False}
@@ -230,6 +230,9 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
         if not chunk:
             break
         for d in chunk:
+            if limit and out["read"] + out["skipped"] >= limit:
+                conn.commit()
+                return out
             index += 1
             last = d["id"]
             while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
