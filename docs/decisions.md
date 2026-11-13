@@ -76,3 +76,4 @@ If something here is wrong, the owner says so once and it is changed here.
 
 ## One scanned PDF never holds up the reading
 - Scans are read with OCR; a file that needs more than 2 minutes keeps the pages read so far (`ocr_cut_short`) instead of being dropped after 5. Seen on a real run: several scanned PDFs each timed out at 300 s with two readers, so the count sat still.
+- Second-opinion PDF engines (pdfplumber, poppler) only run for PDFs up to 60 pages and for at most 60 s each. A real run showed a 300 s timeout on a long lecture-notes PDF with a normal text layer: the extra engines were the slow part, not OCR.

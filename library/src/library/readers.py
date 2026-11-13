@@ -36,7 +36,10 @@ MAX_ROWS = 50_000
 MAX_CELL = 300
 OCR_DPI = 250
 MAX_OCR_PAGES = 60
-OCR_BUDGET_S = 120  # reading a scan takes as long as it takes, but one file never holds up the rest for more than this: the pages reached so far are kept
+OCR_BUDGET_S = 120
+SECOND_OPINION_PAGES = 60  # a longer document (lecture notes, a book) is read once: a second and third reading of hundreds of pages only costs time
+SECOND_OPINION_S = 60  # an engine that takes longer than this is left out, never waited for
+# reading a scan takes as long as it takes, but one file never holds up the rest for more than this: the pages reached so far are kept
 ZIP_MAX_ENTRIES = 200
 ZIP_MAX_TOTAL = 200 * 1024 * 1024
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -155,7 +158,9 @@ def read_pdf(path: Path, passwords: list[str] | None = None) -> dict:
                 meta["ocr_cut_short"] = True
             meta["ocr_confidence"] = round(sum(confs) / len(confs), 1) if confs else 0.0
     data = {"lines": [clean(x, 600) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}
-    if not meta.get("ocr_pages"):  # a real text layer: read it with other, independent engines too, so the readings can be compared
+    if (
+        not meta.get("ocr_pages") and meta["pages"] <= SECOND_OPINION_PAGES
+    ):  # a real text layer: read it with other, independent engines too, so the readings can be compared
         for engine, alt in other_engines(path, passwords, min(meta["pages"], 500)).items():
             data[f"table_{engine}"] = alt[:MAX_ROWS]
             meta.setdefault("engines", []).append(engine)
@@ -168,7 +173,12 @@ def _pdfplumber_pages(path: Path, passwords: list[str], pages: int) -> list[list
     for pw in [*passwords, ""]:
         try:
             with pdfplumber.open(path, password=pw or None) as pdf:
-                return [[(w["x0"], w["top"], w["x1"], w["bottom"], w["text"]) for w in page.extract_words()] for page in pdf.pages[:pages]]
+                began, out = time.monotonic(), []
+                for page in pdf.pages[:pages]:
+                    if time.monotonic() - began > SECOND_OPINION_S:
+                        raise TimeoutError("too slow")
+                    out.append([(w["x0"], w["top"], w["x1"], w["bottom"], w["text"]) for w in page.extract_words()])
+                return out
         except Exception as exc:  # noqa: BLE001 - pdfplumber raises many kinds of error for a wrong password or a damaged file: try the next password
             last = exc
     raise last
@@ -184,7 +194,7 @@ def _poppler_pages(path: Path, passwords: list[str], pages: int) -> list[list[tu
         raise RuntimeError("poppler is not installed")
     for pw in [*passwords, ""]:
         cmd = [exe, "-bbox", "-l", str(pages), *(["-upw", pw] if pw else []), str(path), "-"]
-        done = subprocess.run(cmd, capture_output=True, timeout=120, check=False)
+        done = subprocess.run(cmd, capture_output=True, timeout=SECOND_OPINION_S, check=False)
         if done.returncode == 0:
             html = done.stdout.decode("utf-8", "replace")
             return [[(float(a), float(b), float(c), float(d), unescape(t)) for a, b, c, d, t in _BBOX_WORD.findall(page)] for page in _BBOX_PAGE.findall(html)]
