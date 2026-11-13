@@ -163,4 +163,28 @@ def test_the_documents_line_says_how_many_files_each_folder_holds(tmp_path, monk
     (parsed / ".found").write_text(json.dumps({"documents": 35, "mails": 0, "mail_connected": False, "by_folder": {"inbox": 0, "finance": 35}}))
     state = web.State()
     state._engine = None
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "0 of 35 files (inbox 0, finance 35)"
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "0 of 35 files"
+
+
+def test_the_documents_line_names_each_category_and_leaves_out_empty_folders(tmp_path, monkeypatch):
+    parsed = tmp_path / "parsed"
+    parsed.mkdir()
+    monkeypatch.setenv("ATLAS_PARSED", str(parsed))
+    conn = db.connect(tmp_path / "library.db")
+    db.migrate(conn, [store.MODULE])
+    (parsed / ".found").write_text(
+        json.dumps(
+            {
+                "documents": 339,
+                "mails": 0,
+                "mail_connected": True,
+                "by_folder": {"inbox": 0, "finance": 156, "health": 37, "travel": 42, "personal": 104, "others": 0},
+            }
+        )
+    )
+    state = web.State()
+    state._engine = None
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "0 of 339 files · Finance 156 · Health 37 · Travel 42 · Personal 104"
+    web._CACHE.clear()
+    (parsed / ".found").write_text(json.dumps({"documents": 5, "mails": 0, "mail_connected": True, "by_folder": {"inbox": 5}}))
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "0 of 5 files"  # one folder only: nothing to break down

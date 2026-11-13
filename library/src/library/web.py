@@ -375,8 +375,11 @@ def _parts_now(state: State, conn) -> list[dict[str, str]]:
     if found and not found.get("mail_connected") and not mails and not found.get("mails"):
         mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
     docs_row = _row("Documents", files, found.get("documents"), "files")
-    if found.get("by_folder"):  # where the number comes from, so a folder that is empty or missing is seen at once
-        docs_row["detail"] += " (" + ", ".join(f"{k} {v}" for k, v in found["by_folder"].items()) + ")"
+    shares = [
+        f"{'Other' if k == 'inbox' else k.capitalize()} {v:,}" for k, v in found.get("by_folder", {}).items() if v
+    ]  # where the number comes from; empty folders are left out
+    if len(shares) > 1:
+        docs_row["detail"] += " · " + " · ".join(shares)
     rows = [docs_row, mail_row]
     engine = state.engine()
     if engine is None:
