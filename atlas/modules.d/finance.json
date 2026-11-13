@@ -12,63 +12,13 @@
   "pages": [
     {
       "id": "home",
-      "label": "Home",
+      "label": "Dashboard",
       "icon": "M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9"
-    },
-    {
-      "id": "income",
-      "label": "Income",
-      "icon": "M12 19V5m0 0-5 5m5-5 5 5M5 21h14"
-    },
-    {
-      "id": "expenses",
-      "label": "Expenses",
-      "icon": "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 3h18M7 15h3"
-    },
-    {
-      "id": "savings",
-      "label": "Savings",
-      "icon": "M12 5c4.4 0 8 1.1 8 2.5S16.4 10 12 10 4 8.9 4 7.5 7.6 5 12 5Zm8 2.5v4c0 1.4-3.6 2.5-8 2.5s-8-1.1-8-2.5v-4m16 4v4c0 1.4-3.6 2.5-8 2.5s-8-1.1-8-2.5v-4"
-    },
-    {
-      "id": "investments",
-      "label": "Investments",
-      "icon": "M3 17l5-6 4 3 6-8M14 6h4v4M3 21h18"
-    },
-    {
-      "id": "networth",
-      "label": "Net worth",
-      "icon": "M4 20V10m6 10V4m6 16v-7m4 7H2"
-    },
-    {
-      "id": "plan",
-      "label": "Plan",
-      "icon": "M3 17l5-6 4 3 6-8M14 6h4v4"
     },
     {
       "id": "documents",
       "label": "Documents",
       "icon": "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-    },
-    {
-      "id": "tasks",
-      "label": "Tasks",
-      "icon": "M9 11l2 2 4-4M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
-    },
-    {
-      "id": "notes",
-      "label": "Notes",
-      "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5"
-    },
-    {
-      "id": "people",
-      "label": "People",
-      "icon": "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9a6 6 0 0 1 12 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.2A6 6 0 0 1 21 20"
-    },
-    {
-      "id": "settings",
-      "label": "Settings",
-      "icon": "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7.4-2a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-1.7-1L15 3h-4l-.4 3a7.5 7.5 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 1.7 1l.4 3h4l.4-3a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6Z"
     }
   ],
   "scan": "/api/scan",

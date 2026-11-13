@@ -14,18 +14,13 @@
   "pages": [
     {
       "id": "health",
-      "label": "Timeline",
-      "icon": "M12 8v4l3 2m6-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+      "label": "Dashboard",
+      "icon": "M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9"
     },
     {
-      "id": "health-values",
-      "label": "Lab values",
-      "icon": "M3 17l5-6 4 3 6-8M14 6h4v4M3 21h18"
-    },
-    {
-      "id": "health-medicines",
-      "label": "Medicines",
-      "icon": "M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7l-7 7ZM8.5 8.5l7 7"
+      "id": "health-docs",
+      "label": "Documents",
+      "icon": "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
     }
   ]
 }
