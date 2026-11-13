@@ -30,8 +30,8 @@ cat > "$PLIST" <<PLISTEOF
 PLISTEOF
 launchctl bootout "gui/$(id -u)/local.atlas.start" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-# an app that opens Atlas: put it in the Dock or on the Desktop
-osacompile -o "$HOME/Applications/Atlas.app" -e 'open location "http://atlas.localhost:8000"'
+# the apps: "Atlas" opens it, "Stop Atlas" stops everything (put them in the Dock)
+scripts/make-apps.sh
 echo "Done. Atlas now starts when you log in (log: $LOG)."
 echo "Open it with the Atlas app in ~/Applications (drag it to the Dock), or go to http://atlas.localhost:8000"
 echo "Also tick 'Start Docker Desktop when you sign in' in Docker's settings (General) so it comes up even before this runs."

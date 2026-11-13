@@ -16,5 +16,6 @@ finance/scripts/up.sh
 library/scripts/up.sh
 atlas/up.sh
 [ "${ATLAS_NO_BUILD:-}" = 1 ] || { [ "$HERE" = unknown ] || echo "$HERE" > "$BUILT"; }
+scripts/make-apps.sh || true   # the Atlas and Stop Atlas apps in ~/Applications (only what is missing)
 echo
-echo "Atlas is ready: http://atlas.localhost:8000   (press Read new files there once; stop everything with ./down.sh)"
+echo "Atlas is ready: http://atlas.localhost:8000   (press Read new files there once; stop everything with the Stop Atlas app in ~/Applications)"

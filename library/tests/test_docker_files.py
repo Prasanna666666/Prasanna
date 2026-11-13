@@ -96,3 +96,12 @@ def test_one_command_starts_and_updates_and_a_start_without_changes_does_not_reb
     update = (root / "update.sh").read_text()
     assert "git fetch origin" in update and "git checkout -B atlas origin/atlas" in update and "./up.sh" in update
     assert "atlas-migrated" in (root / "finance" / "scripts" / "up.sh").read_text()  # the one-time clean-up of the old names runs once
+
+
+def test_there_is_a_double_clickable_app_that_stops_everything_without_a_terminal():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    apps = (root / "scripts" / "make-apps.sh").read_text()
+    assert "Stop Atlas.app" in apps and "down.sh" in apps and "osacompile" in apps and "docker" in apps.lower()  # the Docker tools are on its path
+    assert "scripts/make-apps.sh" in (root / "up.sh").read_text() and "scripts/make-apps.sh" in (root / "scripts" / "install-autostart.sh").read_text()
