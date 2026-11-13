@@ -392,3 +392,21 @@ def test_the_same_folder_is_read_once_however_it_is_reached(tmp_path):
     for path in (folder, tmp_path / "alias", f"{folder}/"):
         subprocess.run(["bash", str(root / "scripts" / "add-folder.sh"), "personal", str(path)], env=env, capture_output=True, text=True, check=False)
     assert len([ln for ln in (tmp_path / "l2.txt").read_text().splitlines() if ln and not ln.startswith("#")]) == 1  # added once, not three times
+
+
+def test_a_folder_called_other_counts_as_others(tmp_path):
+    import subprocess
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    icloud = tmp_path / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    (icloud / "Other").mkdir(parents=True)
+    out = tmp_path / "out.yml"
+    subprocess.run(
+        ["bash", str(root / "scripts" / "folders-compose.sh"), str(out)],
+        env={"HOME": str(tmp_path), "ATLAS_FOLDERS_FILE": str(tmp_path / "none.txt"), "PATH": "/usr/bin:/bin"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "others=/collections/others-1" in out.read_text()

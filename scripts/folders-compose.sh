@@ -49,7 +49,7 @@ for parent in "$ICLOUD" "$ICLOUD/Atlas" "$ICLOUD/Documents" "$HOME/Documents" "$
     [ -d "$dir" ] || continue
     dir="${dir%/}"
     label="$(basename "$dir" | tr '[:upper:]' '[:lower:]')"
-    case "$label" in finance|health|travel|personal|others) ;; *) continue ;; esac
+    case "$label" in finance|health|travel|personal|others) ;; other) label=others ;; *) continue ;; esac
     if [[ "$dir" == *\"* || "$dir" == *:* || "$dir" == *\\* ]]; then echo "iCloud: skipped $dir (the path may not contain a colon, quote or backslash)" >&2; continue; fi
     real="$(real_of "$dir")"
     if taken "$real"; then continue; fi
