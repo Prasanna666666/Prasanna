@@ -214,48 +214,68 @@ def _exact_facts(d) -> dict | None:
     return None
 
 
+JUDGE_CHUNK = 100  # documents held in memory at a time: tens of thousands of mails never sit in memory together
+
+
 def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None) -> dict[str, Any]:
     """Judge every document not yet judged. Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
-    pending = conn.execute("SELECT sha256, name, kind, text, data, area FROM documents WHERE judged=0 ORDER BY id").fetchall()
+    total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "problem": "", "stopped": False}
-    for index, d in enumerate(pending, 1):
-        while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
-            conn.commit()
-            time.sleep(0.5)
-        if control is not None and control() == "stop":
-            out["stopped"] = True
-            out["waiting"] = len(pending) - index + 1
+    index, last = 0, 0
+    while True:
+        chunk = conn.execute(
+            "SELECT id, sha256, name, kind, text, data, area FROM documents WHERE judged=0 AND id>? ORDER BY id LIMIT ?", (last, JUDGE_CHUNK)
+        ).fetchall()
+        if not chunk:
             break
-        exact = _exact_facts(d)
-        if exact is not None:
-            _mark_ready(conn, d["sha256"], 1, exact)
-        elif d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"]):
-            _mark_ready(conn, d["sha256"], 2, None)
-            out["skipped"] += 1
-            continue
-        else:
-            if client is None or not model:
-                out["waiting"] += 1
-                out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
+        for d in chunk:
+            index += 1
+            last = d["id"]
+            while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
+                conn.commit()
+                time.sleep(0.5)
+            if control is not None and control() == "stop":
+                out["stopped"] = True
+                out["waiting"] = total - index + 1
+                conn.commit()
+                return out
+            exact = _exact_facts(d)
+            if exact is not None:
+                _mark_ready(conn, d["sha256"], 1, exact)
+            elif d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"]):
+                _mark_ready(conn, d["sha256"], 2, None)
+                out["skipped"] += 1
                 continue
-            if progress and index % 5 == 1:
-                progress(f"{index} read so far")  # the total is not known: more files may still be arriving
-            try:
-                facts = extract.classify(client, model, d["name"], d["text"])
-                if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
-                    facts["health"] = extract.medical_details(client, model, d["name"], d["text"])  # lab values and medicines, only what the document prints
-            except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
-                out["waiting"] = len(pending) - index + 1
-                out["problem"] = str(exc)
-                break
-            _mark_ready(conn, d["sha256"], 1, facts)
-            time.sleep(GENTLE_SECONDS)  # a short rest after each model call: the computer stays responsive while many documents are read
-        out["read"] += 1
-        if index % 20 == 0:
-            conn.commit()
-    conn.commit()
-    if client is not None and model and not out["stopped"]:
+            else:
+                if client is None or not model:
+                    out["waiting"] += 1
+                    out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
+                    continue
+                if progress and index % 5 == 1:
+                    progress(f"{index} read so far")  # the total is not known: more files may still be arriving
+                try:
+                    facts = extract.classify(client, model, d["name"], d["text"])
+                    if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
+                        facts["health"] = extract.medical_details(
+                            client, model, d["name"], d["text"]
+                        )  # lab values and medicines, only what the document prints
+                except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
+                    out["waiting"] = total - index + 1
+                    out["problem"] = str(exc)
+                    conn.commit()
+                    return _with_health(conn, client, model, control, out, skip=True)
+                _mark_ready(conn, d["sha256"], 1, facts)
+                time.sleep(GENTLE_SECONDS)  # a short rest after each model call: the computer stays responsive while many documents are read
+            out["read"] += 1
+            if index % 20 == 0:
+                conn.commit()
+        conn.commit()
+    return _with_health(conn, client, model, control, out)
+
+
+def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool = False) -> dict[str, Any]:
+    if not skip and client is not None and model and not out["stopped"]:
         out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
 

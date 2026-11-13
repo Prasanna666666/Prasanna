@@ -360,3 +360,40 @@ def test_the_reader_waits_while_paused_and_ends_the_round_when_stopped(tmp_path,
     assert parser.checkpoint(out) is False and sleeps  # it waited, then carried on
     (out / parser.STOP).touch()
     assert parser.checkpoint(out) is True  # stopped: the round ends at the next safe point
+
+
+def test_tens_of_thousands_of_documents_are_judged_a_chunk_at_a_time_never_all_in_memory(inbox, monkeypatch):
+    class Counting:
+        """A connection that records how many rows each query handed back."""
+
+        def __init__(self, conn):
+            self.conn, self.biggest = conn, 0
+
+        def execute(self, sql, *args):
+            cur = self.conn.execute(sql, *args)
+            if "FROM documents WHERE judged=0 AND id>?" in sql:
+                rows = cur.fetchall()
+                self.biggest = max(self.biggest, len(rows))
+                return type("R", (), {"fetchall": lambda _s: rows})()
+            return cur
+
+        def commit(self):
+            self.conn.commit()
+
+    monkeypatch.setattr(store, "JUDGE_CHUNK", 2)
+    monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
+    for i in range(7):
+        inbox.conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area) VALUES (?,?,?,?,?)", (f"{i + 100:064x}", f"m{i}.eml", "email", f"mail {i}", "mail")
+        )
+    inbox.conn.execute("UPDATE documents SET judged=0, facts='', ready=NULL")
+    inbox.conn.commit()
+    total = inbox.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
+    counting = Counting(inbox.conn)
+    out = store.judge_pending(counting, None, "")
+    assert counting.biggest <= 2 and out["read"] + out["skipped"] + out["waiting"] == total  # two at a time, every document accounted for
+    inbox.conn.execute("UPDATE documents SET judged=0, facts='', ready=NULL")
+    inbox.conn.commit()
+    seen = iter(["run", "run", "run", "stop"])
+    out = store.judge_pending(Counting(inbox.conn), None, "", None, lambda: next(seen, "stop"))
+    assert out["stopped"] is True and out["waiting"] >= 1

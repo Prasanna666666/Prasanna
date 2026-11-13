@@ -52,6 +52,7 @@ class Upstreams:
         self.modules = modules
         self._tokens: dict[str, str] = {}
         self._health: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._last_scan: dict[str, dict[str, Any]] = {}  # what each app last said about its reading
         self._lock = threading.Lock()
 
     # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
@@ -150,11 +151,15 @@ class Upstreams:
                 self._authed(module, "POST", module.scan, SCAN_SECONDS)
             status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
             raw = json.loads(body) if status == 200 else None
+        except TimeoutError:
+            # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
+            last = self._last_scan.get(module.id)
+            return {**last, "progress": "busy, still working…"} if last else {**down, "up": True, "problems": []}
         except (OSError, http.client.HTTPException, ValueError):
             return down
         if not isinstance(raw, dict):
             return down
-        return {
+        report = {
             "up": True,
             "running": bool(raw.get("running")),
             "progress": str(raw.get("progress", ""))[:200],
@@ -165,6 +170,8 @@ class Upstreams:
             "paused": raw.get("paused") is True,
             "stopping": raw.get("stopping") is True,
         }
+        self._last_scan[module.id] = report
+        return report
 
     @staticmethod
     def _parts(raw: Any) -> list[dict[str, str]]:

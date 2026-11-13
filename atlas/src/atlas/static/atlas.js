@@ -438,7 +438,9 @@
         const head = el('div', 'scan-head');
         // the part of Atlas that reads the files (hidden from the menu) decides what the panel says: when it is switched off there is nothing to pause or stop
         const reader = state.modules.filter((m) => m.hidden && report.modules[m.id]).map((m) => report.modules[m.id]);
-        const readerOff = reader.some((r) => r.up === false);
+        // one missed answer is not "switched off": it must stay missing for two looks in a row (a few seconds)
+        scan.misses = reader.some((r) => r.up === false) ? (scan.misses || 0) + 1 : 0;
+        const readerOff = scan.misses >= 2;
         const running = !readerOff && report.running;
         const title = readerOff
             ? 'Reading is switched off'

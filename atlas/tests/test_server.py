@@ -132,3 +132,21 @@ def test_pause_resume_and_stop_reach_the_apps_and_need_the_pages_own_origin(runn
         assert seen is not None
     status, _, _ = running.request("POST", "/_atlas/api/scan/stop", f"atlas.localhost:{running.port}", b"", {"X-Atlas": "1"})
     assert status == 403  # another website cannot stop (or pause) your reading
+
+
+def test_an_app_that_is_busy_is_not_reported_as_switched_off(running, monkeypatch):
+    start_update(running)
+    assert running.json("/_atlas/api/scan")["modules"]["photos"]["up"] is True
+    upstreams = running.atlas.upstreams
+    real = upstreams._authed
+
+    def slow(module, method, path, timeout=4.0):
+        if method == "GET" and path == module.scan:
+            raise TimeoutError("did not answer in time")  # busy with a big job, not off
+        return real(module, method, path, timeout)
+
+    monkeypatch.setattr(upstreams, "_authed", slow)
+    busy = running.json("/_atlas/api/scan")["modules"]["photos"]
+    assert busy["up"] is True and busy["problems"] == [] and busy["progress"] == "busy, still working…"  # the last thing it said is kept
+    monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (_ for _ in ()).throw(ConnectionRefusedError()))
+    assert running.json("/_atlas/api/scan")["modules"]["photos"]["up"] is False  # a refused connection really is off
