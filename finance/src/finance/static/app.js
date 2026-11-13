@@ -147,7 +147,7 @@
         ['files', 'Files'],
         ['settings', 'Settings'],
     ];
-    const MENU = [['home', 'documents'], ['settings']]; // a dashboard, the documents, Settings. Everything else is asked in the chat; the dashboard's cards still open the detail pages
+    const MENU = [['home', 'documents']]; // a dashboard, the documents, Settings. Everything else is asked in the chat; the dashboard's cards still open the detail pages
     const ALIAS = { money: 'expenses', spending: 'expenses', wealth: 'networth', tax: 'plan' }; // old addresses still work
     function buildNav() {
         const label = Object.fromEntries(PAGES);
@@ -269,14 +269,29 @@
         return svg;
     }
     /** One big number with a label: the building block of the overview rows. */
-    const stat = (label, value, sub, href, tone) =>
-        h(
-            href ? 'a' : 'div',
-            { class: 'stat', href },
+    const ASK_INSTEAD = {
+        '#/networth': 'Break down my net worth',
+        '#/savings': 'How much did I save this year, month by month?',
+        '#/investments': 'Show my investments, what I paid in and the gain or loss',
+        '#/plan': 'Which payments are due in the next three weeks?',
+        '#/income': 'Where does my income come from?',
+        '#/expenses': 'Where did my money go this month?',
+    }; // the dashboard has no detail pages: a card asks the chat
+    const stat = (label, value, sub, href, tone) => {
+        const question = ASK_INSTEAD[href];
+        const body = [
             h('div', { class: 'eyebrow' }, label),
             h('div', { class: 'stat-v num ' + (tone || '') }, value),
-            sub ? h('div', { class: 'stat-sub' }, sub) : null
-        );
+            sub ? h('div', { class: 'stat-sub' }, sub) : null,
+        ];
+        if (!question) return h(href ? 'a' : 'div', { class: 'stat', href }, ...body);
+        const card = h('a', { class: 'stat', href: '#/home', title: 'Ask the chat' }, ...body);
+        card.addEventListener('click', (e) => {
+            e.preventDefault();
+            askAssistant(question);
+        });
+        return card;
+    };
     const section = (title, ...body) =>
         h('section', { class: 'card' }, h('div', { class: 'card-head' }, h('h2', {}, title)), ...body);
 
@@ -1459,7 +1474,7 @@
             h('div', { class: 'orb big' }),
             h('h2', {}, 'Welcome to Finance'),
             h('p', { class: 'muted' }, 'Your money, private on this Mac. Add your statements to begin.'),
-            h('a', { class: 'btn primary', href: '#/expenses' }, 'Add my files')
+            h('a', { class: 'btn primary', href: '#/documents' }, 'Add my files')
         );
         return h(
             'div',
@@ -1482,7 +1497,18 @@
                               ? section(
                                     'Where it went',
                                     spendDonut(daily),
-                                    h('a', { class: 'more', href: '#/expenses' }, 'All spending →')
+                                    h(
+                                        'a',
+                                        {
+                                            class: 'more',
+                                            href: '#/home',
+                                            onclick: (e) => {
+                                                e.preventDefault();
+                                                askAssistant('Where did my money go this month?');
+                                            },
+                                        },
+                                        'Ask about spending →'
+                                    )
                                 )
                               : null
                       ),

@@ -84,3 +84,4 @@ If something here is wrong, the owner says so once and it is changed here.
 
 ## Each app is a dashboard plus the one chat (owner's call)
 - Finance's menu is Dashboard, Documents and Settings. The other pages (income, expenses, net worth, savings, investments, plan, tasks, notes, people, files) are no longer in the menu; the dashboard's cards still open them, and questions go to the chat. Documents stay in one place per app.
+- Finance is now only Dashboard and Documents (Settings is a small gear in the sidebar foot). Dashboard cards no longer open detail pages: a click sends the matching question to the chat.
