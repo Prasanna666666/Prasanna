@@ -501,13 +501,18 @@ GENTLE_SECONDS = float(os.environ.get("LIBRARY_GENTLE_SECONDS", "0.5"))
 LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready"
 
 
-# ---- Health is locked: medical documents stay out of every list, search and answer until the person unlocks them; it locks again whenever the service starts -------
+# ---- Health can be locked (ATLAS_HEALTH_LOCK=1; off by default): medical documents stay out of every list, search and answer until the person unlocks them; it locks again whenever the service starts -------
 HEALTH_KINDS = frozenset({"medical"})
 HEALTH_OPEN_SECONDS = 900  # unlocked Health closes again by itself after this long without being used
 _health: dict[str, Any] = {"until": 0.0}
 
 
+HEALTH_LOCK = os.environ.get("ATLAS_HEALTH_LOCK") == "1"  # off by default: Health is open like the other apps; set ATLAS_HEALTH_LOCK=1 to lock it again
+
+
 def health_unlocked() -> bool:
+    if not HEALTH_LOCK:
+        return True
     return time.monotonic() < _health["until"]
 
 

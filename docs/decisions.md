@@ -78,3 +78,6 @@ If something here is wrong, the owner says so once and it is changed here.
 - Scans are read with OCR; a file that needs more than 2 minutes keeps the pages read so far (`ocr_cut_short`) instead of being dropped after 5. Seen on a real run: several scanned PDFs each timed out at 300 s with two readers, so the count sat still.
 - Second-opinion PDF engines (pdfplumber, poppler) only run for PDFs up to 60 pages and for at most 60 s each. A real run showed a 300 s timeout on a long lecture-notes PDF with a normal text layer: the extra engines were the slow part, not OCR.
 - Reading and judging no longer take turns for hours: one Update round judges at most 20 documents (`JUDGE_PER_ROUND`), then takes in what the reader produced meanwhile. Before, the model worked through every waiting document (tens of thousands of mails) in one go, so the file count rose once per press and then stood still.
+
+## Health is not locked (owner's call: "No point locking health")
+- `store.health_unlocked()` is always true; the lock stays in the code behind `ATLAS_HEALTH_LOCK=1`. Everything runs on this one Mac, offline, behind the same disk encryption as the other apps, so the lock added clicks and no protection the others lack.

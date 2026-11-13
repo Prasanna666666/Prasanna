@@ -18,3 +18,10 @@ def _fresh_status_cache():
 
     web._CACHE.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _health_lock_on(request, monkeypatch):
+    """Health is open by default; the tests of the optional lock switch it on."""
+    if "open_health" not in request.keywords:
+        monkeypatch.setattr(store, "HEALTH_LOCK", True)

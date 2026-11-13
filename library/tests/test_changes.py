@@ -304,7 +304,7 @@ def test_unlocked_health_closes_again_by_itself(monkeypatch):
     now = store.time.monotonic()
     monkeypatch.setattr(store.time, "monotonic", lambda: now + store.HEALTH_OPEN_SECONDS + 1)
     assert not store.health_unlocked()  # left alone for a quarter of an hour
-    monkeypatch.undo()
+    monkeypatch.setattr(store.time, "monotonic", lambda: now)
     store.set_health_unlocked(False)
     assert not store.health_unlocked()
 

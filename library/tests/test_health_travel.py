@@ -469,3 +469,8 @@ def test_a_folder_inside_one_already_read_is_not_read_twice(tmp_path):
     icloud, text, said = _found(tmp_path, "Personal/Health", "Personal/Travel", "Finance/Others")
     assert said.count("Atlas will read") == 2 and f"{icloud / 'Personal'} as personal" in said and f"{icloud / 'Finance'} as finance" in said
     assert "Personal/Health" not in text and "Finance/Others" not in text  # the parent already covers them: the same files are not read under two kinds
+
+
+@pytest.mark.open_health
+def test_health_is_open_by_default(lib):
+    assert store.health_unlocked() and store.hidden_health_count(lib.conn) == 0
