@@ -31,8 +31,8 @@ def test_the_app_image_has_no_parsing_libraries_and_the_parser_image_has_no_shar
     d = (ROOT / "Dockerfile").read_text()
     app = d.split("AS app")[1].split("AS parser")[0]
     parser = d.split("AS parser")[1].split("AS indexer")[0]
-    assert "parse]" not in app and "USER 10001" in app and "USER 10001" in parser and "ATLAS_REQUIRE_ENCRYPTION=1" in app
-    assert "[parse]" in parser and "finance" not in parser  # the sealed reader carries only its own code
+    assert "pdfplumber" not in app and "openpyxl" not in app and "USER 10001" in app and "USER 10001" in parser and "ATLAS_REQUIRE_ENCRYPTION=1" in app
+    assert "pdfplumber" in parser and "openpyxl" in parser and "finance" not in parser  # the sealed reader carries the document readers and only its own code
 
 
 def test_the_picture_indexer_has_no_network_and_reads_the_photos_read_only():
@@ -115,3 +115,26 @@ def test_the_atlas_app_switches_atlas_on_when_it_is_off_and_the_panel_says_so_pl
     assert "start-at-login.sh" in apps and "atlas-documents-app-1" in apps and "atlas-apps-version" in apps
     page = (root / "atlas" / "src" / "atlas" / "static" / "atlas.js").read_text()
     assert "Reading is switched off" in page and "Double-click the Atlas app" in page
+
+
+def test_the_dependencies_are_installed_before_the_code_and_the_list_in_the_dockerfile_matches_the_project_files():
+    from pathlib import Path
+
+    import tomllib
+
+    root = Path(__file__).resolve().parents[2]
+    dockerfile = (root / "library" / "Dockerfile").read_text()
+
+    def project(name):
+        return tomllib.loads((root / name / "pyproject.toml").read_text())["project"]
+
+    needed = list(project("images")["dependencies"]) + [r for r in project("images")["optional-dependencies"]["ml"] if not r.startswith("torch")]
+    needed += list(project("library")["optional-dependencies"]["parse"])
+    for requirement in needed:
+        assert f'"{requirement}"' in dockerfile, f"{requirement} is a dependency of the project but is missing from library/Dockerfile"
+    assert project("kit")["dependencies"] == [] and project("library")["dependencies"] == []  # nothing else to install
+    assert "pip install --no-deps ./kit ./images ./library" in dockerfile and "pip install --no-deps ./library" in dockerfile
+    assert "pip install --no-deps ./kit ./finance" in (root / "finance" / "Dockerfile").read_text()
+    for stage in ("FROM base AS app", "FROM base AS indexer"):
+        part = dockerfile[dockerfile.index(stage) :]
+        assert part.index('"numpy>=1.24"') < part.index("COPY kit"), stage  # dependencies first, then the code

@@ -14,10 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache MAKEFLAGS=-j1 pip install sqlcipher3
 # the big, slow part (PyTorch) comes before the code, so a code change does not reinstall it; pip's download cache is kept between builds
 RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install torch --index-url https://download.pytorch.org/whl/cpu
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install "numpy>=1.24" "pillow>=10" "pillow-heif>=0.16" "pymupdf>=1.24" "open_clip_torch>=2.24" "onnxruntime>=1.17" "opencv-python-headless>=4.8"
+# the code comes last: a code change reinstalls only the packages themselves, not their dependencies
 COPY kit /app/kit
 COPY images /app/images
 COPY library /app/library
-RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install ./kit "./images[ml]" ./library
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install --no-deps ./kit ./images ./library
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
 ENV ATLAS_REQUIRE_ENCRYPTION=1 ATLAS_REQUIRE_SIGNATURE=1
@@ -27,8 +29,9 @@ CMD ["serve", "--host", "0.0.0.0", "--port", "8502"]
 FROM base AS parser
 # Tesseract (offline OCR, Dutch + English) reads scanned PDFs and photos of documents; everything else is read with Python libraries.
 RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nld poppler-utils && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install "pymupdf>=1.24" "pdfplumber>=0.11" "openpyxl>=3.1" "pillow>=10"
 COPY library /app/library
-RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install "./library[parse]"
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install --no-deps ./library
 USER 10001
 ENTRYPOINT ["library-parser"]
 CMD ["--watch"]
@@ -39,10 +42,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr t
  && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache MAKEFLAGS=-j1 pip install sqlcipher3 && apt-get purge -y build-essential
 RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install torch --index-url https://download.pytorch.org/whl/cpu
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install "numpy>=1.24" "pillow>=10" "pillow-heif>=0.16" "pymupdf>=1.24" "open_clip_torch>=2.24" "onnxruntime>=1.17" "opencv-python-headless>=4.8"
+# the code comes last: a code change reinstalls only the packages themselves, not their dependencies
 COPY kit /app/kit
 COPY images /app/images
 COPY library /app/library
-RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install ./kit "./images[ml]" ./library
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install --no-deps ./kit ./images ./library
 USER 10001
 ENV APERTURE_NEVER_ONLINE=1 APERTURE_SANDBOXED=1 ATLAS_REQUIRE_ENCRYPTION=1
 ENTRYPOINT ["library-indexer"]

@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache MAKEFLAGS=-j1 pi
 # the code comes after the slow part, so a code change rebuilds only what follows (pip's download cache is kept between builds)
 COPY kit /app/kit
 COPY finance /app/finance
-RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install ./kit ./finance
+RUN --mount=type=cache,target=/pipcache PIP_CACHE_DIR=/pipcache pip install --no-deps ./kit ./finance
 RUN apt-get purge -y build-essential libsqlcipher-dev && rm -rf /var/lib/apt/lists/*
 USER 10001
 ENV ATLAS_REQUIRE_ENCRYPTION=1 ATLAS_REQUIRE_SIGNATURE=1
