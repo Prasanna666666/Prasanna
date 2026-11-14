@@ -302,6 +302,8 @@ def _get_medical_part(part):
     def route(state: State, conn, query: dict[str, str]) -> dict:
         if part == "documents":
             return store.health_documents(conn)
+        if part == "status":
+            return store.health_funnel(conn)
         if part == "values":
             return store.health_values(conn, query.get("test", "")[:60])
         if part == "medicines":
@@ -529,6 +531,7 @@ GET_ROUTES = {
     "/api/pictures/browse": _get_browse,
     "/api/changes": _get_changes,
     "/api/medical/documents": _get_medical_part("documents"),
+    "/api/medical/status": _get_medical_part("status"),
     "/api/medical/values": _get_medical_part("values"),
     "/api/medical/medicines": _get_medical_part("medicines"),
     "/api/medical/followups": _get_medical_part("followups"),

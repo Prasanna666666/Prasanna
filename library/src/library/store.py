@@ -373,6 +373,26 @@ def _medical_documents(conn) -> list[dict]:
     return sorted(out, key=lambda d: (d["date"], d["id"]))
 
 
+def health_funnel(conn) -> dict[str, int]:
+    """Why Health may be empty, in counts: how many health documents there are, how many the model has understood, how many hold lab values, and where the rest is stuck."""
+    marks = ",".join("?" for _ in HEALTH_KINDS)
+    where = f"(area='health' OR fact_kind IN ({marks}))"
+    args = sorted(HEALTH_KINDS)
+
+    def count(extra: str = "") -> int:
+        return int(conn.execute(f"SELECT COUNT(*) FROM documents WHERE {where}{extra}", args).fetchone()[0])
+
+    docs = _medical_documents(conn)
+    return {
+        "found": count(),
+        "understood": len(docs),
+        "with_values": sum(1 for d in docs if d["health"].get("values")),
+        "waiting_for_the_model": count(" AND judged=0"),
+        "not_understood": count(" AND judged=3"),
+        "no_readable_text": count(" AND TRIM(text)='' AND kind<>'email'"),
+    }
+
+
 def health_documents(conn) -> dict[str, Any]:
     """Every medical document in date order, newest first: what it is, who it is from, how many values and medicines it holds, and any follow-up it states."""
     docs = [

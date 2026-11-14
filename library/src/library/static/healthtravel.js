@@ -720,6 +720,36 @@
         return c;
     };
 
+    // why there are no values yet, in counts: where the health documents are stuck
+    async function emptyHealth() {
+        const f = await getJson('/api/medical/status');
+        const box = el('div', 'funnel');
+        const rows = [
+            ['Health documents found', f.found],
+            ['Understood by the model', f.understood],
+            ['With lab values', f.with_values],
+            ['Waiting for the model', f.waiting_for_the_model],
+            ['Not understood yet', f.not_understood],
+            ['No readable text (scans)', f.no_readable_text],
+        ];
+        for (const [label, value] of rows) {
+            const row = el('div', 'funnel-row');
+            row.append(el('span', '', label), el('b', '', String(value)));
+            box.append(row);
+        }
+        const why = !f.found
+            ? 'No health documents were found. Put them in your Health folder and press Read new files.'
+            : f.waiting_for_the_model
+              ? 'The model has not reached these yet. Keep Atlas and the model running; reading continues by itself.'
+              : f.no_readable_text
+                ? 'Some are scans with no readable text. They are kept by name only.'
+                : f.understood && !f.with_values
+                  ? 'They were understood, but no lab values are printed in their text.'
+                  : 'Press Read new files.';
+        box.append(el('p', 'foot', why));
+        return box;
+    }
+
     async function health(sub) {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
         if (sub === 'documents') {
@@ -793,7 +823,7 @@
             ...values.other.filter((g) => !flagged(g)),
         ];
         if (!total) {
-            page.push(el('div', 'empty', 'Lab values appear here once a report is read. Press Read new files.'));
+            page.push(await emptyHealth());
         } else {
             const chart = el('div', 'focus-slot');
             const pick = (g) => {
