@@ -419,17 +419,13 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
 
 
 def _understood(conn, where: str) -> str:
-    """What was read is not yet identified: the model identifies each document after it is read, and then each is put together with the files that belong with it. This says how far each step has got, so 80% read is never mistaken for 80% done."""
+    """How far each step has got after reading (identified, not identified, in matters), so 80% read is never mistaken for 80% done."""
     done = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
     waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=0").fetchone()[0]
     if not done and not waiting:
         return ""
     joined = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND case_id IS NOT NULL").fetchone()[0]
-    return (
-        f" · {done:,} identified by the model (what it is, who, when, how much)"
-        + (f" · {waiting:,} not identified yet, waiting for the model" if waiting else "")
-        + f" · {joined:,} put together with the files that belong with them"
-    )
+    return f" · {done:,} identified" + (f" · {waiting:,} not identified" if waiting else "") + f" · {joined:,} in matters"
 
 
 def _parts_now(state: State, conn) -> list[dict[str, str]]:

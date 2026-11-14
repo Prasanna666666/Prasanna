@@ -136,18 +136,13 @@ def test_the_update_counts_files_the_way_the_person_does_even_when_one_file_hold
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
     assert (
-        rows["Documents"]
-        == "2 of 36 files · 0 identified by the model (what it is, who, when, how much) · 2 not identified yet, waiting for the model · 0 put together with the files that belong with them"
-        and rows["Mails"]
-        == "1 of 12 mails · 0 identified by the model (what it is, who, when, how much) · 1 not identified yet, waiting for the model · 0 put together with the files that belong with them"
+        rows["Documents"] == "2 of 36 files · 0 identified · 2 not identified · 0 in matters"
+        and rows["Mails"] == "1 of 12 mails · 0 identified · 1 not identified · 0 in matters"
         and "not connected" in rows["Photos"]
     )
     web._CACHE.clear()  # the numbers are reused for a few seconds
     (parsed / ".found").write_text(json.dumps({"documents": 2, "mails": 1}))
-    assert (
-        {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"]
-        == "2 files · 0 identified by the model (what it is, who, when, how much) · 2 not identified yet, waiting for the model · 0 put together with the files that belong with them"
-    )
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 identified · 2 not identified · 0 in matters"
 
 
 def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monkeypatch):
