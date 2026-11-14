@@ -377,3 +377,23 @@ def test_documents_are_named_by_what_they_say_and_a_whole_email_is_never_listed(
     listed = store.list_documents(conn, ["invoice"], source="documents")
     assert [d["title"] for d in listed] == ["Internet bill · Ziggo"]  # the document inside the mail, by its title; the mail itself is not a document
     assert len(store.list_documents(conn, ["invoice"])) == 2  # the data feed (trips, Finance) still sees what the mail says
+
+
+def test_a_round_that_started_by_itself_stops_at_its_limit_and_says_so(tmp_path):
+    from library import flags
+
+    inbox, out = tmp_path / "in", tmp_path / "out"
+    inbox.mkdir()
+    out.mkdir()
+    for i in range(6):
+        (inbox / f"n{i}.txt").write_text(f"note number {i} with enough words to be read properly")
+    (out / flags.AUTO_LIMIT).write_text("2")
+    parser._start_budget(out)
+    parser.BATCH, old = 2, parser.BATCH
+    try:
+        res = parser.process_inbox(inbox, out, isolated=False)
+    finally:
+        parser.BATCH = old
+    assert res["parsed"] == 2 and (out / flags.AUTO_CAPPED).exists() and not (out / flags.AUTO_LIMIT).exists()
+    parser._start_budget(out)  # the next round, started by the person: no limit
+    assert parser._BUDGET["left"] is None and not (out / flags.AUTO_CAPPED).exists()

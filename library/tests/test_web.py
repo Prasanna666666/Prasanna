@@ -291,3 +291,26 @@ def test_a_status_question_is_answered_at_once_from_the_last_answer_and_refreshe
         time.sleep(0.02)
     assert web._CACHE["k"][1] == {"n": 2}  # and the background look brought it up to date
     conn.close()
+
+
+def test_automatic_reading_only_starts_for_a_small_backlog_and_never_before_a_first_read(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+
+    from library import flags
+
+    parsed = tmp_path / "parsed"
+    monkeypatch.setattr(web, "parsed_dir", lambda: parsed)
+    started = []
+    monkeypatch.setattr(web, "_read_all", lambda state: started.append(1))
+    state = web.State()
+    conn = SimpleNamespace()
+    monkeypatch.setattr(web, "backlog", lambda c: 5)
+    monkeypatch.setattr(web, "_found", dict)
+    assert web._post_auto(state, conn, {})["started"] is False  # no first read yet: that one is the person's
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0})
+    monkeypatch.setattr(web, "backlog", lambda c: web.AUTO_LIMIT + 1)
+    out = web._post_auto(state, conn, {})
+    assert out["started"] is False and out["reason"] == "large" and "fewer than" in state.scan["summary"]
+    monkeypatch.setattr(web, "backlog", lambda c: 5)
+    out = web._post_auto(state, conn, {})
+    assert out["started"] is True and (parsed / flags.AUTO_LIMIT).read_text() == str(web.AUTO_LIMIT)

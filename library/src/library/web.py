@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, pictures, readreport, store, tools, travel
+from . import changes, flags, pictures, readreport, store, tools, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -59,6 +59,9 @@ class State:
         return db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
 
 
+AUTO_LIMIT = int(
+    os.environ.get("ATLAS_AUTO_LIMIT", "50")
+)  # files: automatic reading only when fewer than this are waiting (and a round that starts by itself stops after this many)
 JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
 
 
@@ -138,6 +141,8 @@ def _read_all(state: State) -> None:
             state.scan["summary"] += f"; {totals['replaced']} changed file{'s' if totals['replaced'] != 1 else ''} replaced their older version"
         if state.control == "stop":
             state.scan["summary"] = "Stopped. " + state.scan["summary"] + ". Reading carries on from here next time."
+        elif (parsed_dir() / flags.AUTO_CAPPED).exists():
+            state.scan["summary"] += f"; automatic reading stopped at its limit of {AUTO_LIMIT} files: press Read new files for the rest"
         else:
             _read_pictures(state, conn, client, model)
         if state.control != "stop":
@@ -152,14 +157,18 @@ def _read_all(state: State) -> None:
         conn.close()
 
 
-def start_scan(state: State) -> bool:
+def start_scan(state: State, auto: bool = False) -> bool:
+    """Start an Update. A round the person starts reads everything; an automatic one (`auto`) is limited to AUTO_LIMIT files and stops there."""
     with state.lock:
         if state.scan["running"]:
             return False
         state.scan.update(running=True, progress="Starting…", summary="", problems=[])
         state.control = "run"
-        for flag in (".pause", ".stop"):
+        parsed_dir().mkdir(parents=True, exist_ok=True)
+        for flag in (".pause", ".stop", flags.AUTO_LIMIT):
             (parsed_dir() / flag).unlink(missing_ok=True)
+        if auto:
+            (parsed_dir() / flags.AUTO_LIMIT).write_text(str(AUTO_LIMIT))
     threading.Thread(target=_read_all, args=(state,), name="update", daemon=True).start()
     return True
 
@@ -429,6 +438,32 @@ def _control(state: State, action: str) -> dict:
     return {"ok": True, "control": state.control}
 
 
+def backlog(conn) -> int:
+    """Files known to be waiting: documents read but not understood yet, plus what the last count found beyond what is already stored (0 when there has been no count)."""
+    found = _found()
+    stored = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
+    stored_mail = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area='mail'").fetchone()[0]
+    unread = max(0, found.get("documents", 0) - stored) + max(0, found.get("mails", 0) - stored_mail)
+    return unread + store.counts(conn)["waiting"]
+
+
+def _post_auto(state: State, conn, body: dict) -> dict:
+    """A request to read by itself (from the idle check on this computer). It reads only when a small amount is waiting: above the limit it does nothing and says so,
+    so a big read is always the person's own decision (the Read new files button)."""
+    if state.scan["running"]:
+        return {"started": False, "reason": "running"}
+    if not _found():
+        return {"started": False, "reason": "no first read yet: press Read new files once"}
+    waiting = backlog(conn)
+    if waiting >= AUTO_LIMIT:
+        note = (
+            f"Automatic reading is waiting for you: {waiting:,} files are unread; automatic reading is only for fewer than {AUTO_LIMIT}. Press Read new files."
+        )
+        state.scan["summary"] = note
+        return {"started": False, "reason": "large", "waiting": waiting, "limit": AUTO_LIMIT}
+    return {"started": start_scan(state, auto=True), "reason": "small", "waiting": waiting, "limit": AUTO_LIMIT}  # the round also stops at the limit
+
+
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     s = state.scan
     return {
@@ -484,6 +519,7 @@ POST_ROUTES = {
     "/api/change/albums": _post_albums,
     "/api/travel/packing": _post_packing,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
+    "/api/scan/auto": _post_auto,
     "/api/scan/pause": lambda state, conn, body: _control(state, "pause"),
     "/api/scan/resume": lambda state, conn, body: _control(state, "resume"),
     "/api/scan/stop": lambda state, conn, body: _control(state, "stop"),

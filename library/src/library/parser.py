@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import readers, sniff
+from . import flags, readers, sniff
 
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
@@ -233,6 +233,8 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         res = extract_isolated(f) if isolated else extract(f)
         _write(out, digest, label, f.stat().st_size, res, area, source if depth == 0 else "")
         counts["parsed"] += 1
+        if _BUDGET["left"] is not None:
+            _BUDGET["left"] -= 1
         if depth and area == "mail" and res["kind"] == "image":
             keep_picture(f)
         if kind == "email" and depth < 2:
@@ -285,11 +287,28 @@ WORKERS = max(1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", "2")), 8))  # f
 BATCH = 50  # files per batch: a pause or stop takes effect within one batch
 
 
+_BUDGET: dict[str, int | None] = {"left": None}  # files this round may still read; None: no limit (the person pressed the button)
+
+
+def _start_budget(out: Path) -> None:
+    """A round the person starts reads everything. A round that started by itself reads at most the number the service wrote, then stops and says so."""
+    _BUDGET["left"] = None
+    (out / flags.AUTO_CAPPED).unlink(missing_ok=True)
+    limit = out / flags.AUTO_LIMIT
+    with contextlib.suppress(OSError, ValueError):
+        _BUDGET["left"] = max(1, int(limit.read_text().strip()))
+    limit.unlink(missing_ok=True)
+
+
 def checkpoint(out: Path) -> bool:
-    """Between batches: wait while paused, rest a moment, and say whether the round should end now (stopped)."""
+    """Between batches: wait while paused, rest a moment, and say whether the round should end now (stopped, or an automatic round has used up its limit)."""
     while (out / PAUSE).exists() and not (out / STOP).exists():
         time.sleep(1)
     time.sleep(GENTLE_SECONDS)
+    left = _BUDGET["left"]
+    if left is not None and left <= 0:
+        (out / flags.AUTO_CAPPED).touch()
+        return True
     return (out / STOP).exists()
 
 
@@ -555,6 +574,7 @@ def write_found(a: argparse.Namespace) -> None:
 
 def read_everything(a: argparse.Namespace) -> dict[str, int]:
     """One round: the inbox, every collection folder, mail exports in the inbox, and Apple Mail's own folder."""
+    _start_budget(Path(a.out))
     counting = threading.Thread(
         target=write_found, args=(a,), daemon=True
     )  # counting a big mailbox or iCloud takes minutes: reading starts at once and the totals appear when ready
