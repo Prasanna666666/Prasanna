@@ -52,6 +52,7 @@ class Atlas:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "assistant", Assistant(self.modules, self.upstreams, self.model_url))
+        self.upstreams.settler.pick = self.assistant.model.pick
 
     @property
     def shell_origin(self) -> str:

@@ -16,7 +16,7 @@ from urllib.parse import quote, urlsplit
 
 from kit.sign import sign
 
-from . import dots
+from . import dots, settle
 from .registry import Module
 
 HEALTH_SECONDS = 1.5
@@ -66,6 +66,7 @@ class Upstreams:
         self._health: dict[str, tuple[float, dict[str, Any]]] = {}
         self._last_scan: dict[str, dict[str, Any]] = {}  # what each app last said about its reading
         self._lock = threading.Lock()
+        self.settler = settle.Settler()  # which bank payment settles which matter; its model is set by the Atlas
 
     # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
     def _token(self, module: Module, refresh: bool = False) -> str:
@@ -257,7 +258,10 @@ class Upstreams:
             return {"events": [], "left_out": {}}
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
             lists = list(pool.map(one, targets))
-        return dots.agenda([i for items in lists for i in items], datetime.now().astimezone().date().isoformat(), days)
+        items = [i for part in lists for i in part]
+        matters = [i for i in items if i.get("kind") == "matter"]
+        self.settler.start(matters, [i for i in items if i.get("kind") == "payment"])  # in the background; the calendar uses what is known now
+        return dots.agenda(items, datetime.now().astimezone().date().isoformat(), days, self.settler.known(matters))
 
     def home(self) -> dict[str, Any]:
         """The home page: each app's card, fetched at the same time; an app that is down or slow just has no card."""

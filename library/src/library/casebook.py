@@ -239,19 +239,22 @@ def _read_batch(client: Any, model: str, shown: list[dict[str, Any]]) -> dict[st
     return out
 
 
+def _health_lines(health: Any) -> str:
+    """What a medical document prints (each measurement with its unit and range, each medicine, the follow-up) as plain lines, so it is read with the rest of the matter."""
+    if not isinstance(health, dict):
+        return ""
+    rows = [" ".join(str(v.get(k) or "") for k in ("test", "value", "unit", "range")) for v in health.get("values") or [] if isinstance(v, dict)]
+    rows += [" ".join(str(m.get(k) or "") for k in ("name", "dose", "duration")) for m in health.get("medicines") or [] if isinstance(m, dict)]
+    return "\n".join(r.strip() for r in [*rows, str(health.get("follow_up") or "")] if r.strip())
+
+
 def pieces_of(conn) -> list[dict[str, Any]]:
-    """Everything read that can say something: the documents, the mails (what they say), the attachments."""
+    """Everything read that can say something: the documents, the mails (what they say), the attachments, the photos with their text, and what medical documents print."""
     out = []
     for r in conn.execute("SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND (TRIM(text)<>'' OR facts<>'')"):
         facts = json.loads(r["facts"]) if r["facts"] else {}
-        out.append(
-            {
-                "id": r["id"],
-                "name": r["name"],
-                "sha": r["sha256"],
-                "text": (r["text"] or "") + " " + " ".join(f"{k} {v}" for k, v in facts.items() if isinstance(v, str | int | float)),
-            }
-        )
+        said = " ".join(f"{k} {v}" for k, v in facts.items() if isinstance(v, str | int | float))
+        out.append({"id": r["id"], "name": r["name"], "sha": r["sha256"], "text": f"{r['text'] or ''} {said}\n{_health_lines(facts.get('health'))}".strip()})
     return out
 
 

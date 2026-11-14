@@ -45,40 +45,18 @@ def _event(kind: str, when: str, title: str, subtitle: str, doc: Any, *, end: st
     return {"type": kind, "date": when, "end": end or when, "title": title, "subtitle": subtitle, "doc": doc, "state": state, "sources": 1}
 
 
-def _num(value: Any) -> float | None:
-    """An amount as the matter states it ("1.234,50", "60,50 EUR", 12.5)."""
-    m = re.search(r"\d[\d.,]*", str(value))
-    if not m:
-        return None
-    s = m.group(0).rstrip(".,")
-    s = s.replace(".", "").replace(",", ".") if s.rfind(",") > s.rfind(".") else s.replace(",", "")
-    try:
-        return float(s)
-    except ValueError:
-        return None
-
-
-def _paid(matter: dict[str, Any], payments: list[dict[str, Any]]) -> bool:
-    """Was it paid? A bank payment of exactly one of its amounts to a payee the matter names."""
-    amounts = [n for a in matter.get("amounts", []) if (n := _num(a.get("value"))) is not None]
-    words = tokens(f"{matter.get('title', '')} {matter.get('what', '')}")
-    return any(
-        p.get("direction") == "expense" and any(_same_amount(p.get("amount"), a) for a in amounts) and words & tokens(str(p.get("text") or ""))
-        for p in payments
-    )
-
-
-def _matter_events(it: dict[str, Any], payments: list[dict[str, Any]], now: date, left_out: dict[str, int]) -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
-    """A matter read as a whole by the library: what happens next and when, in its own words, unless it is closed or the bank shows it paid."""
+def _matter_events(it: dict[str, Any], paid: dict[str, Any] | None, now: date, left_out: dict[str, int]) -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
+    """A matter read as a whole by the library: what happens next and when, in its own words, unless it is closed or the bank shows it paid (`paid`: the settlement judged by the model, checked exactly)."""
     if not it.get("open"):
         left_out["done"] += 1
         return []
-    if _paid(it, payments):
+    if paid and paid.get("relation") == "full":
         left_out["settled"] += 1
         return []
     if not _day(it.get("due")):
         return []
-    sub = " · ".join(x for x in (it.get("next"), it.get("status")) if x)
+    part = f"part paid {paid['amount']:,.2f} on {paid['date']}" if paid and paid.get("relation") == "part" else ""
+    sub = " · ".join(x for x in (it.get("next"), it.get("status"), part) if x)
     state = "overdue" if it["due"] < now.isoformat() else "open"
     return [(("matter", it["id"], it["due"]), _event("due", it["due"], it["title"], sub, it.get("id"), state=state))]
 
@@ -93,7 +71,7 @@ def _trip_events(it: dict[str, Any], payments: list[dict[str, Any]], now: date) 
     return [(("trip", it["date"], str(it["title"]).casefold()), _event("trip", it["date"], it["title"], " · ".join(note), None, end=it.get("end", "")))]
 
 
-def agenda(items: list[dict[str, Any]], today: str, days: int = 60) -> dict[str, Any]:
+def agenda(items: list[dict[str, Any]], today: str, days: int = 60, settled: dict[Any, dict[str, Any]] | None = None) -> dict[str, Any]:
     """The events worth showing: each matter's next step and each trip, once, in its true state."""
     docs = [i for i in items if i.get("src") == "documents"]
     payments = [i for i in items if i.get("kind") == "payment"]
@@ -105,7 +83,11 @@ def agenda(items: list[dict[str, Any]], today: str, days: int = 60) -> dict[str,
     left_out = {"settled": 0, "done": 0}
     for it in docs:
         made = (
-            _matter_events(it, payments, now, left_out) if it.get("kind") == "matter" else _trip_events(it, payments, now) if it.get("kind") == "trip" else []
+            _matter_events(it, (settled or {}).get(it.get("id")), now, left_out)
+            if it.get("kind") == "matter"
+            else _trip_events(it, payments, now)
+            if it.get("kind") == "trip"
+            else []
         )
         for key, e in made:
             when, end = _day(e["date"]), _day(e["end"])

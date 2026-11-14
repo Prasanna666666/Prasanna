@@ -29,12 +29,13 @@ def test_a_matter_gives_its_next_step_whatever_it_is():
     assert dots.agenda([matter(due="2026-11-08")], TODAY)["events"][0]["state"] == "overdue"
 
 
-def test_a_matter_the_bank_shows_paid_is_settled_and_an_unrelated_payment_does_not_settle_it():
-    m = matter(amounts=[{"label": "total", "value": "60,50", "quote": "x"}])
-    paid = dots.agenda([m, pay(60.5, "SEPA Ziggo Nederland klantnr 9")], TODAY)
-    assert paid["events"] == [] and paid["left_out"]["settled"] == 1
-    assert len(dots.agenda([m, pay(60.5, "Albert Heijn")], TODAY)["events"]) == 1
-    assert len(dots.agenda([m, pay(12.0, "Ziggo")], TODAY)["events"]) == 1
+def test_a_matter_the_bank_shows_paid_is_settled_and_a_part_payment_is_shown_as_such():
+    full = {1: {"relation": "full", "amount": 60.5, "date": "2026-11-10"}}
+    out = dots.agenda([matter()], TODAY, settled=full)
+    assert out["events"] == [] and out["left_out"]["settled"] == 1
+    part = dots.agenda([matter()], TODAY, settled={1: {"relation": "part", "amount": 20.0, "date": "2026-11-10"}})["events"]
+    assert "part paid 20.00 on 2026-11-10" in part[0]["subtitle"]
+    assert len(dots.agenda([matter()], TODAY, settled={1: {"relation": "none"}})["events"]) == 1
 
 
 def test_a_trip_shows_what_was_spent_while_it_lasted():
