@@ -426,12 +426,7 @@ h1 {
     object-fit: cover;
     border-radius: 8px;
 }
-.valueblock {
-    margin: 14px 0;
-}
-.valueblock h3 {
-    margin: 0 0 4px;
-}
+
 .tbl {
     border-collapse: collapse;
     margin-top: 6px;
@@ -475,50 +470,6 @@ h1 {
     flex: 1;
 }
 
-.healthsummary {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px 14px;
-    margin: 10px 0;
-    border: 1px solid rgba(120, 130, 180, 0.35);
-    border-radius: 12px;
-}
-.healthsummary.attention {
-    border-color: #e0a030;
-    background: rgba(224, 160, 48, 0.1);
-}
-.testrow {
-    margin: 6px 0;
-    padding: 8px 12px;
-    border: 1px solid rgba(120, 130, 180, 0.25);
-    border-radius: 10px;
-}
-.testrow summary {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 10px;
-    cursor: pointer;
-}
-.testrow .latest {
-    font-size: 18px;
-    font-weight: 600;
-}
-.flagchip {
-    font-size: 12px;
-    padding: 1px 8px;
-    border-radius: 999px;
-    border: 1px solid currentColor;
-}
-.flag-high,
-.flag-low {
-    color: #e0a030;
-}
-.flag-ok {
-    color: #5bb98c;
-}
-
 /* ---------- Dashboards (Health, Travel): few words, big numbers, small pictures ---------- */
 :root {
     --good: #2f9e6b;
@@ -536,7 +487,6 @@ h1 {
     margin: 0 0 18px;
 }
 .stat,
-.labtile,
 .tripcard,
 .hero,
 .chip {
@@ -549,14 +499,12 @@ h1 {
     padding: 14px 16px;
 }
 button.stat,
-.labtile,
 .tripcard,
 .hero,
 .chip {
     cursor: pointer;
 }
-.stat,
-.labtile {
+.stat {
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -585,44 +533,7 @@ button.stat,
 .stat.warn .stat-value {
     color: var(--warn);
 }
-.labgrid {
-    align-items: start;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-    gap: 12px;
-    margin-bottom: 18px;
-}
-.labtile .stat-value {
-    font-size: 22px;
-}
-.labtile svg {
-    color: var(--muted);
-    margin: 4px 0;
-    max-width: 100%;
-}
-.labtile .dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--line);
-    margin-right: 6px;
-}
-.labtile.ok .dot {
-    background: var(--good);
-}
-.labtile.high,
-.labtile.low {
-    border-color: var(--warn);
-}
-.labtile.high .dot,
-.labtile.low .dot {
-    background: var(--warn);
-}
-.labtile.high svg,
-.labtile.low svg {
-    color: var(--warn);
-}
+
 .chiprow {
     display: flex;
     flex-wrap: wrap;
@@ -745,27 +656,6 @@ button.stat,
     stroke: var(--good);
     stroke-linecap: round;
 }
-.rangebar {
-    width: 100%;
-    height: 10px;
-    margin: 6px 0 2px;
-}
-.rb-track {
-    fill: var(--line);
-}
-.rb-ok {
-    fill: var(--good);
-    opacity: 0.55;
-}
-.rb-dot {
-    fill: var(--ink);
-    stroke: var(--card);
-    stroke-width: 1.5;
-}
-.labtile.high .rb-dot,
-.labtile.low .rb-dot {
-    fill: var(--warn);
-}
 
 .apptabs {
     margin: 0 0 16px;
@@ -844,56 +734,7 @@ button.stat,
 .band.warn {
     color: var(--warn);
 }
-.labtile {
-    gap: 4px;
-    padding: 16px;
-    border-left: 4px solid var(--line);
-}
-.labtile.ok {
-    border-left-color: var(--good);
-}
-.labtile.high,
-.labtile.low {
-    border-left-color: var(--warn);
-    background: linear-gradient(135deg, rgba(240, 169, 58, 0.12), transparent 70%), var(--card);
-}
-.lab-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted);
-}
-.lab-value {
-    font-size: 28px;
-    line-height: 1.1;
-}
-.lab-value small {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--muted);
-}
-.lab-change {
-    font-size: 12px;
-    color: var(--muted);
-}
-.labtile svg.spark {
-    width: 100%;
-    height: 40px;
-    margin: 6px 0 0;
-}
-.spark-area {
-    fill: currentColor;
-    opacity: 0.12;
-}
-.labtile.high svg.spark,
-.labtile.low svg.spark {
-    color: var(--warn);
-}
-.labtile.ok svg.spark {
-    color: var(--good);
-}
-.labgrid {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-}
+
 .medgrid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));

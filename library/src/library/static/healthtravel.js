@@ -108,29 +108,6 @@
         m = (text || '').match(/[>≥]\s*(-?\d[\d.,]*)/);
         return m ? [num(m[1]), null] : null;
     };
-    const rangeBar = (g) => {
-        const bounds = parseRange(g.latest.range),
-            value = parseFloat(String(g.latest.value).replace(',', '.'));
-        if (!bounds || !Number.isFinite(value)) return null;
-        const [lo, hi] = bounds;
-        const span = lo != null && hi != null ? hi - lo : Math.abs(hi ?? lo) * 0.6;
-        const min = lo != null ? lo - span * 0.6 : Math.min(0, value),
-            max = hi != null ? hi + span * 0.6 : lo + span * 1.6;
-        const at = (v) => Math.min(100, Math.max(0, ((v - min) / (max - min || 1)) * 100));
-        const svg = svgEl('svg', {
-            viewBox: '0 0 100 10',
-            class: 'rangebar',
-            preserveAspectRatio: 'none',
-            'aria-hidden': 'true',
-        });
-        svg.append(svgEl('rect', { x: 0, y: 3, width: 100, height: 4, rx: 2, class: 'rb-track' }));
-        const from = lo != null ? at(lo) : 0,
-            to = hi != null ? at(hi) : 100;
-        svg.append(svgEl('rect', { x: from, y: 3, width: Math.max(1, to - from), height: 4, rx: 2, class: 'rb-ok' }));
-        svg.append(svgEl('circle', { cx: at(value), cy: 5, r: 3.4, class: 'rb-dot' }));
-        return svg;
-    };
-
     // the place that holds an app's documents: one tile per document, named by what it says, filtered by kind
     const DOC_ICON = 'M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5';
     const docTile = (title, lines, tag, onClick) => {
@@ -482,31 +459,6 @@
     }
 
     // ---------------------------------------------------------------- Health
-    function sparkline(numbers) {
-        const w = 160,
-            h = 36;
-        const lo = Math.min(...numbers),
-            hi = Math.max(...numbers);
-        const x = (i) => (numbers.length === 1 ? w / 2 : (i / (numbers.length - 1)) * (w - 8) + 4);
-        const y = (v) => (hi === lo ? h / 2 : h - 4 - ((v - lo) / (hi - lo)) * (h - 8));
-        const svg = document.createElementNS(NS, 'svg');
-        svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-        svg.setAttribute('preserveAspectRatio', 'none');
-        svg.setAttribute('class', 'spark');
-        svg.setAttribute('aria-hidden', 'true');
-        const line = document.createElementNS(NS, 'polyline');
-        line.setAttribute('points', numbers.map((v, i) => `${x(i)},${y(v)}`).join(' '));
-        line.setAttribute('fill', 'none');
-        line.setAttribute('stroke', 'currentColor');
-        line.setAttribute('stroke-width', '2');
-        const area = svgEl('polygon', {
-            points: `${x(0)},${h} ${numbers.map((v, i) => `${x(i)},${y(v)}`).join(' ')} ${x(numbers.length - 1)},${h}`,
-            class: 'spark-area',
-        });
-        svg.append(area, line);
-        return svg;
-    }
-
     const FLAG = { above_range: 'high', below_range: 'low', in_range: 'ok' };
     // one small card per test: the latest value, a flag dot, and the trend
     // one test over time as a real chart: the line, its points, and the range printed on the reports as a green band
@@ -562,13 +514,14 @@
             svgEl('path', { d: `${path} L${x(pts.length - 1)} ${H - B} L${x(0)} ${H - B} Z`, class: 'focus-area' })
         );
         svg.append(svgEl('path', { d: path, class: 'focus-line' }));
+        const step = Math.ceil(pts.length / 8);
         pts.forEach((r, i) => {
             svg.append(svgEl('circle', { cx: x(i), cy: y(r.number), r: 4.5, class: 'focus-dot' }));
+            if (i % step !== 0 || (i > 0 && pts[i - 1].date === r.date)) return;
             const d = svgEl('text', {
                 x: x(i),
                 y: H - 8,
-                'text-anchor':
-                    pts.length === 1 ? 'middle' : i === 0 ? 'start' : i === pts.length - 1 ? 'end' : 'middle',
+                'text-anchor': pts.length === 1 ? 'middle' : i === 0 ? 'start' : 'middle',
                 class: 'focus-axis',
             });
             d.textContent = r.date ? shortDate(r.date) : '';
@@ -581,36 +534,79 @@
         box.append(open);
         return box;
     };
-    const labGrid = (groups, onPick) => {
-        const grid = el('div', 'labgrid');
-        for (const g of groups) {
-            const c = el('button', `labtile ${FLAG[g.flag] || ''}`);
-            c.type = 'button';
-            c.addEventListener('click', () => onPick(g));
-            const top = el('span', 'lab-name', g.test);
-            top.prepend(el('i', 'dot'));
-            const value = el('b', 'lab-value', g.latest.value);
-            if (g.unit) value.append(el('small', '', ' ' + g.unit));
-            c.append(top, value);
-            const bar = rangeBar(g);
-            if (bar) c.append(bar);
-            if (g.latest.range) c.append(el('span', 'stat-sub', `range ${g.latest.range}`));
-            const nums = g.readings.map((r) => r.number).filter((n) => n != null);
-            if (nums.length > 1) c.append(sparkline(nums));
-            if (g.change && g.change.direction !== 'same') {
-                const pct = g.change.percent != null ? Math.abs(g.change.percent) + '%' : Math.abs(g.change.absolute);
-                c.append(
-                    el(
-                        'span',
-                        'lab-change',
-                        `${g.change.direction === 'up' ? '▲' : '▼'} ${pct} since ${shortDate(g.change.since)}`
-                    )
-                );
+    // the range a result is judged against, as the numbers the dial and the chart need
+    const domainOf = (bounds, value) => {
+        const [lo, hi] = bounds || [null, null];
+        const span = lo != null && hi != null ? hi - lo : Math.abs(hi ?? lo ?? value) * 0.6 || 1;
+        const min = lo != null ? lo - span * 0.6 : Math.min(0, value),
+            max = hi != null ? hi + span * 0.6 : (lo ?? value) + span * 1.6;
+        return { lo, hi, min: Math.min(min, value), max: Math.max(max, value) };
+    };
+
+    // a half-circle dial: the printed range in green, the rest in amber, and a needle at the latest result
+    const dial = (g) => {
+        const value = parseFloat(String(g.latest.value).replace(',', '.'));
+        const svg = svgEl('svg', { viewBox: '0 0 200 118', class: 'dial', 'aria-hidden': 'true' });
+        const at = (t, r) => [100 + r * Math.cos(Math.PI * (1 - t)), 102 - r * Math.sin(Math.PI * (1 - t))];
+        const arc = (t1, t2, cls) => {
+            const [x1, y1] = at(t1, 80),
+                [x2, y2] = at(t2, 80);
+            svg.append(svgEl('path', { d: `M${x1} ${y1} A80 80 0 0 1 ${x2} ${y2}`, class: cls }));
+        };
+        arc(0, 1, 'dial-track');
+        const bounds = parseRange(g.latest.range);
+        if (!bounds || !Number.isFinite(value)) return svg;
+        const dom = domainOf(bounds, value);
+        const t = (v) => Math.min(1, Math.max(0, (v - dom.min) / (dom.max - dom.min || 1)));
+        if (dom.lo != null) arc(0, t(dom.lo), 'dial-warn');
+        arc(dom.lo != null ? t(dom.lo) : 0, dom.hi != null ? t(dom.hi) : 1, 'dial-ok');
+        if (dom.hi != null) arc(t(dom.hi), 1, 'dial-warn');
+        const [nx, ny] = at(t(value), 62);
+        svg.append(
+            svgEl('line', { x1: 100, y1: 102, x2: nx, y2: ny, class: 'dial-needle' }),
+            svgEl('circle', { cx: 100, cy: 102, r: 6, class: 'dial-hub' })
+        );
+        return svg;
+    };
+
+    // one test as a dial with its latest result; clicking it puts its history in the chart
+    const gaugeCard = (g, onPick) => {
+        const c = el('button', `gauge ${FLAG[g.flag] || ''}`);
+        c.type = 'button';
+        c.addEventListener('click', () => onPick(g));
+        const value = el('b', 'gauge-value', g.latest.value);
+        if (g.unit) value.append(el('small', '', ' ' + g.unit));
+        c.append(dial(g), value, el('span', 'gauge-name', g.test));
+        if (g.latest.range) c.append(el('span', 'stat-sub', `range ${g.latest.range}`));
+        return c;
+    };
+
+    // every test against every report: the whole history in one picture, each result coloured by where it lies against its printed range
+    const labMatrix = (groups) => {
+        const dates = [...new Set(groups.flatMap((g) => g.readings.map((r) => r.date)))].sort().slice(-8);
+        const grid = el('div', 'matrix');
+        grid.style.setProperty('--cols', String(dates.length));
+        grid.append(el('span', 'mx-head'), ...dates.map((d) => el('span', 'mx-head', d ? shortDate(d) : '')));
+        for (const g of groups.slice(0, 16)) {
+            const name = el('span', 'mx-name', g.test);
+            if (g.unit) name.append(el('small', '', g.unit));
+            grid.append(name);
+            for (const d of dates) {
+                const r = g.readings.filter((x) => x.date === d).pop();
+                if (!r) {
+                    grid.append(el('span', 'mx-cell none', '·'));
+                    continue;
+                }
+                const cell = el('button', `mx-cell ${FLAG[r.flag] || 'none'}`, r.value);
+                cell.type = 'button';
+                cell.title = r.range ? `printed range ${r.range}` : g.test;
+                cell.addEventListener('click', () => openDoc(r.id));
+                grid.append(cell);
             }
-            grid.append(c);
         }
         return grid;
     };
+
     const PILL = 'M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7l-7 7ZM8.5 8.5l7 7';
     const sectionHead = (title, count, tone) => {
         const h = el('h3', `band ${tone || ''}`, title);
@@ -696,28 +692,24 @@
             hero.append(next);
         }
         const page = [appTabs('health', 'health'), hero];
+        const flagged = (g) => values.attention.some((a) => a.test === g.test);
         const ordered = [
             ...values.attention,
-            ...values.common.filter((g) => !values.attention.includes(g)),
-            ...values.other,
+            ...values.common.filter((g) => !flagged(g)),
+            ...values.other.filter((g) => !flagged(g)),
         ];
-        const chart = el('div', 'focus-slot');
-        const pick = (g) => {
-            chart.replaceChildren(focusChart(g));
-            chart.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        };
-        if (ordered.length) {
-            chart.append(focusChart(ordered[0]));
-            page.push(chart);
-        }
         if (!total) {
             page.push(el('div', 'empty', 'Lab values appear here once a report is read. Press Read new files.'));
-        }
-        const rest = (list) => list.filter((g) => !values.attention.some((a) => a.test === g.test));
-        if (out) page.push(sectionHead('Needs a look', out, 'warn'), labGrid(values.attention, pick));
-        const others = [...rest(values.common), ...rest(values.other)];
-        if (others.length) {
-            page.push(sectionHead(out ? 'In range or without a range' : 'Tests', others.length), labGrid(others, pick));
+        } else {
+            const chart = el('div', 'focus-slot');
+            const pick = (g) => {
+                chart.replaceChildren(focusChart(g));
+                chart.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            };
+            const dials = el('div', 'gauges');
+            dials.append(...ordered.slice(0, 4).map((g) => gaugeCard(g, pick)));
+            chart.append(focusChart(ordered[0]));
+            page.push(dials, chart, sectionHead('Every result, every report', ordered.length), labMatrix(ordered));
         }
         if (meds.medicines.length) {
             const grid = el('div', 'medgrid');
