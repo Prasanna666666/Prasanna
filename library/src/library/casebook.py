@@ -21,8 +21,8 @@ WORD = re.compile(r"[^\W\d_]{6,}")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
 LINK_AT = 3.0  # how much shared, distinctive evidence two pieces need before they are one matter
 WEIGHT: dict[str, float] = {"id": 3.0, "amount": 1.5, "word": 1.0, "mail": 3.0}
-PIECE_CHARS = 1500
-MAX_PIECES = 6
+OVERLAP = 300
+BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
 
 
 def _cents(text: str) -> str:
@@ -131,10 +131,60 @@ PROMPT = (
 )
 
 
+def _windows(text: str) -> list[str]:
+    """Windows that start and end on whitespace and overlap, so no number or sentence is cut in half between two calls."""
+    if len(text) <= BATCH_CHARS:
+        return [text]
+    out, start = [], 0
+    while start < len(text):
+        end = min(start + BATCH_CHARS, len(text))
+        if end < len(text):
+            end = text.rfind(" ", start + BATCH_CHARS // 2, end) + 1 or end
+        out.append(text[start:end])
+        if end >= len(text):
+            break
+        start = max(end - OVERLAP, start + 1)
+        start = text.find(" ", start) + 1 or start
+    return out
+
+
+def _batches(pieces: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Every character of every piece goes into exactly one batch: long pieces are split in windows, nothing is dropped."""
+    parts = [{"name": p["name"], "text": w} for p in pieces for w in _windows(p["text"])]
+    out: list[list[dict[str, Any]]] = [[]]
+    used = 0
+    for part in parts:
+        if out[-1] and used + len(part["text"]) > BATCH_CHARS:
+            out.append([])
+            used = 0
+        out[-1].append(part)
+        used += len(part["text"])
+    return out
+
+
 def synthesize(client: Any, model: str, pieces: list[dict[str, Any]]) -> dict[str, Any]:
-    """Read the pieces of one matter together. Everything returned has been checked against the pieces: a claim without a real quote is dropped."""
-    shown = sorted(pieces, key=lambda p: -len(p["text"]))[:MAX_PIECES]
-    body = "\n\n".join(f"[P{i + 1}] {p['name']}\n{p['text'][:PIECE_CHARS]}" for i, p in enumerate(shown))
+    """Read ALL of a matter, in as many calls as it takes, and merge. `coverage` is the share of its text that was read (1.0 only when every character was);
+    several different statuses are all kept, never one picked by guessing."""
+    reads = [_read_batch(client, model, b) for b in _batches(pieces)]
+    total = sum(len(p["text"]) for p in pieces) or 1
+    out: dict[str, Any] = {"title": reads[0]["title"], "what": reads[0]["what"], "verified": sum(r["verified"] for r in reads), "pieces": len(pieces)}
+    out["dates"] = [d for r in reads for d in r["dates"]]
+    out["amounts"] = [a for r in reads for a in r["amounts"]]
+    statuses = sorted({r["status"] for r in reads if r.get("status")})
+    if statuses:
+        out["status"] = statuses[0] if len(statuses) == 1 else " / ".join(statuses)
+        out["conflict"] = len(statuses) > 1
+        out["open"] = any(r.get("open") for r in reads if r.get("status"))
+    nexts = [r["next"] for r in reads if r.get("next")]
+    if nexts:
+        out["next"] = min(nexts, key=lambda n: n["date"])
+    out["coverage"] = min(1.0, sum(len(x["text"]) for b in _batches(pieces) for x in b) / total)
+    return out
+
+
+def _read_batch(client: Any, model: str, shown: list[dict[str, Any]]) -> dict[str, Any]:
+    """One model call over a batch. Everything returned has been checked against the batch: a claim without a real quote is dropped."""
+    body = "\n\n".join(f"[P{i + 1}] {p['name']}\n{p['text']}" for i, p in enumerate(shown))
     data = extract._ask(client, model, PROMPT, body, SCHEMA)
 
     def text_of(n: Any) -> str:

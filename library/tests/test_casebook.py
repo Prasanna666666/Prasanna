@@ -56,3 +56,19 @@ def test_a_matter_is_understood_once_and_read_again_only_when_it_changes(conn, m
     assert casebook.understand_pending(conn, None, "m") == 0
     assert len(calls) == 1
     assert conn.execute("SELECT COUNT(*) FROM documents WHERE case_id IS NOT NULL").fetchone()[0] == 2
+
+
+def test_a_long_matter_is_read_completely_in_several_calls_and_conflicting_statuses_are_kept(monkeypatch):
+    seen = []
+
+    def ask(client, model, system, body, schema):
+        seen.append(body)
+        return {"title": "Big", "what": "Big matter", "status": f"s{len(seen)}", "status_piece": 1, "status_quote": "word", "open": True}
+
+    monkeypatch.setattr(extract, "_ask", ask)
+    text = "x " + "word " * 5000
+    out = casebook.synthesize(None, "m", [{"id": 1, "name": "a", "text": text}, {"id": 2, "name": "b", "text": "tiny x"}])
+    assert len(seen) > 1
+    assert all(w in ("word", "x", "tiny") or not w for b in seen for w in b.replace("[P1] a", "").replace("[P2] b", "").split())  # no word was cut in half
+    assert text[-40:].strip() in " ".join(seen)  # the very end was read too
+    assert out["coverage"] == 1.0 and out["conflict"] is True and "s1" in out["status"] and "s2" in out["status"]
