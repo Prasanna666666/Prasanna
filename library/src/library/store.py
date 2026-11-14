@@ -376,7 +376,7 @@ def finish_matters(conn, client, model, control: Callable[[], str] | None = None
         forget_mail_bodies(conn)
         total += done
         if progress and (changed or done):
-            progress(f"Putting the pieces together… {total} matters understood")
+            progress(f"Reading related files together… {total} groups done")
         if not (changed or done):
             break
     conn.commit()
@@ -399,8 +399,8 @@ def audit(conn) -> dict[str, int]:
 LEFT = {
     "not_identified": "files the model has not looked at yet",
     "no_usable_answer": "files the model gave no usable answer for (tried again at the next read)",
-    "not_grouped": "identified files not yet grouped into a matter",
-    "matters_not_read": "matters whose combined reading is not done",
+    "not_grouped": "identified files not yet placed in a group of related files",
+    "matters_not_read": "groups of related files not yet read together",
 }
 
 
@@ -408,7 +408,7 @@ def audit_line(found: dict[str, int]) -> str:
     """What the audit found, with the numbers."""
     left = [f"{found[k]:,} {text}" for k, text in LEFT.items() if found[k]]
     if not left:
-        return f"Nothing is left: {found['files']:,} files identified, grouped into {found['matters']:,} matters, each matter read in full"
+        return f"Nothing is left: {found['files']:,} files identified, in {found['matters']:,} groups of related files, each group read together"
     return "Still left: " + "; ".join(left)
 
 

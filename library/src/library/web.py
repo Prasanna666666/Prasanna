@@ -419,13 +419,12 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
 
 
 def _understood(conn, where: str) -> str:
-    """How far each step has got after reading (identified, not identified, in matters), so 80% read is never mistaken for 80% done."""
+    """How far each step has got after reading (identified, not identified), so 80% read is never mistaken for 80% done."""
     done = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
     waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=0").fetchone()[0]
     if not done and not waiting:
         return ""
-    joined = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND case_id IS NOT NULL").fetchone()[0]
-    return f" · {done:,} identified" + (f" · {waiting:,} not identified" if waiting else "") + f" · {joined:,} in matters"
+    return f" · {done:,} identified" + (f" · {waiting:,} not identified" if waiting else "")
 
 
 def _parts_now(state: State, conn) -> list[dict[str, str]]:
