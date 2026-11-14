@@ -20,63 +20,45 @@ ID = re.compile(r"\b(?=[A-Za-z0-9/\-]*\d)[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b")
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 WORD = re.compile(r"[^\W\d_]{6,}")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
-CANDIDATE_AT = 1.0  # shared evidence that makes two pieces worth checking; whether they are one matter is decided by reading them, not by this number
 MAX_CONFIRMS = 20  # model checks per round, so the computer stays responsive; the rest wait for the next round
-WEIGHT: dict[str, float] = {"id": 3.0, "amount": 1.5, "word": 1.0, "mail": 3.0}
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
 
 
-def _cents(text: str) -> str:
-    digits = re.sub(r"[.,](?=\d{3}\b)", "", text)
-    return digits.replace(",", ".")
-
-
-def features(text: str) -> dict[str, set[str]]:
-    return {
-        "id": {m.lower() for m in ID.findall(text)},
-        "amount": {_cents(m) for m in AMOUNT.findall(text)},
-        "word": {m.lower() for m in WORD.findall(text)},
-    }
+def _rare_values(text: str) -> set[str]:
+    return {m.lower() for m in ID.findall(text)} | {m.lower() for m in AMOUNT.findall(text)} | {m.lower() for m in WORD.findall(text)}
 
 
 def _mail_of(name: str) -> str:
     return name.rsplit("/", 1)[0] if "/" in name else ""
 
 
-def _scores(pieces: list[dict[str, Any]]) -> dict[tuple[int, int], float]:
-    index: dict[tuple[str, str], list[int]] = defaultdict(list)
+def _shared(pieces: list[dict[str, Any]]) -> set[tuple[int, int]]:
+    """Pairs of pieces that share a value few other pieces have: the only job here is to pick which pieces the model is shown together."""
+    index: dict[str, list[int]] = defaultdict(list)
     for p in pieces:
-        for kind, values in features(f"{p['name']} {p['text']}").items():
-            for v in values:
-                index[(kind, v)].append(p["id"])
-    score: dict[tuple[int, int], float] = defaultdict(float)
-    for (kind, _), ids in index.items():
-        if 2 <= len(ids) <= RARE:
-            for i, a in enumerate(ids):
-                for b in ids[i + 1 :]:
-                    score[(a, b)] += WEIGHT[kind]
+        for v in _rare_values(f"{p['name']} {p['text']}"):
+            index[v].append(p["id"])
+    return {(a, b) for ids in index.values() if 2 <= len(ids) <= RARE for i, a in enumerate(ids) for b in ids[i + 1 :]}
+
+
+def candidates(pieces: list[dict[str, Any]]) -> list[tuple[int, int, bool]]:
+    """Pairs worth showing the model: (a, b, same_mail). Pieces of one mail belong together by fact; the rest are only candidates until the model has read them."""
+    names = {p["id"]: p["name"] for p in pieces}
+    out = []
+    for a, b in sorted(_shared(pieces)):
+        out.append((a, b, bool(_mail_of(names[a])) and _mail_of(names[a]) == _mail_of(names[b])))
+    for ids in _by_mail(pieces).values():
+        out.extend((a, b, True) for i, a in enumerate(ids) for b in ids[i + 1 :] if (a, b) not in _shared(pieces))
+    return out
+
+
+def _by_mail(pieces: list[dict[str, Any]]) -> dict[str, list[int]]:
     by_mail: dict[str, list[int]] = defaultdict(list)
     for p in pieces:
         if _mail_of(p["name"]):
             by_mail[_mail_of(p["name"])].append(p["id"])
-    for ids in by_mail.values():
-        for i, a in enumerate(ids):
-            for b in ids[i + 1 :]:
-                score[(a, b)] += WEIGHT["mail"]
-    return score
-
-
-def candidates(pieces: list[dict[str, Any]]) -> list[tuple[int, int, bool]]:
-    """Pairs of pieces with something in common, strongest first: (a, b, same_mail). Same-mail pairs are a fact (an attachment belongs to its mail);
-    every other pair is only a candidate until it has been confirmed against the texts."""
-    names = {p["id"]: p["name"] for p in pieces}
-    out = []
-    for (a, b), s in _scores(pieces).items():
-        same = bool(_mail_of(names[a])) and _mail_of(names[a]) == _mail_of(names[b])
-        if same or s >= CANDIDATE_AT:
-            out.append((s, a, b, same))
-    return [(a, b, same) for _, a, b, same in sorted(out, key=lambda x: -x[0])]
+    return by_mail
 
 
 def link(pieces: list[dict[str, Any]], verdict: Callable[[int, int], bool | None]) -> tuple[list[list[int]], set[int]]:
