@@ -585,14 +585,6 @@ body.chatting .fab {
     border-color: var(--a1);
     background: var(--soft);
 }
-.update.busy svg {
-    animation: spin 1s linear infinite;
-}
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
 .scan {
     position: fixed;
     top: 76px;
@@ -639,15 +631,9 @@ body.chatting .fab {
 }
 .scan-row.busy i {
     background: var(--a1);
-    animation: pulse 1s ease-in-out infinite;
 }
 .scan-row.warn i {
     background: var(--warn);
-}
-@keyframes pulse {
-    50% {
-        opacity: 0.25;
-    }
 }
 .scan-text {
     display: flex;
