@@ -148,6 +148,9 @@
         return page;
     };
 
+    // how old a date is, in whole months: an old report is said to be old, not shown as if it were current
+    const monthsOld = (iso) => Math.floor((Date.now() - new Date(iso + 'T00:00:00')) / (30.44 * 86400000));
+
     // ---------------------------------------------------------------- Calendar
     const EVENT_LABEL = { trip: 'Trip', due: 'Due', followup: 'Check-up', ends: 'Ends' };
     const isoDay = (d) =>
@@ -231,6 +234,24 @@
         ics.href = '/api/agenda/calendar.ics';
         ics.setAttribute('download', 'atlas.ics');
         const page = [bar, monthGrid(year, month, grid.events), sectionHead('Coming up', soon.events.length)];
+        if (soon.pending) {
+            page.push(
+                el(
+                    'p',
+                    'note',
+                    `${soon.pending.toLocaleString()} documents are still being understood: this list may change.`
+                )
+            );
+        }
+        if (soon.incomplete) {
+            page.push(
+                el(
+                    'p',
+                    'note',
+                    `${soon.incomplete} dated documents are not shown: who they are from or what they are for is not clear yet.`
+                )
+            );
+        }
         if (!soon.events.length) {
             page.push(el('div', 'empty', 'Nothing dated yet. Dates appear here once your documents are read.'));
         } else {
@@ -797,7 +818,8 @@
                     `${total} tests`,
                     `${meds.medicines.length} medicines`,
                     `${docs.documents.length} reports`,
-                    latest && `latest ${shortDate(latest)}`,
+                    latest &&
+                        `latest report ${shortDate(latest)}${monthsOld(latest) >= 12 ? ` (${monthsOld(latest)} months old)` : ''}`,
                 ]
                     .filter(Boolean)
                     .join(' · ')
@@ -815,7 +837,14 @@
             );
             hero.append(next);
         }
+        const status = await getJson('/api/medical/status');
+        const pending = status.waiting_for_the_model + status.not_understood;
         const page = [appTabs('health', 'health'), hero];
+        if (pending) {
+            page.push(
+                el('p', 'note', `${pending} health documents are still being understood: this page will change.`)
+            );
+        }
         const flagged = (g) => values.attention.some((a) => a.test === g.test);
         const ordered = [
             ...values.attention,

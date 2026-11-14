@@ -133,10 +133,14 @@ def test_the_update_counts_files_the_way_the_person_does_even_when_one_file_hold
     state = web.State()
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
-    assert rows["Documents"] == "2 of 36 files" and rows["Mails"] == "1 of 12 mails" and "not connected" in rows["Photos"]
+    assert (
+        rows["Documents"] == "2 of 36 files · 0 understood · 2 waiting for the model"
+        and rows["Mails"] == "1 of 12 mails · 0 understood · 1 waiting for the model"
+        and "not connected" in rows["Photos"]
+    )
     web._CACHE.clear()  # the numbers are reused for a few seconds
     (parsed / ".found").write_text(json.dumps({"documents": 2, "mails": 1}))
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files"
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 understood · 2 waiting for the model"
 
 
 def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monkeypatch):

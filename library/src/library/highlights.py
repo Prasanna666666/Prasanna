@@ -12,6 +12,13 @@ def _today() -> str:
     return datetime.now().astimezone().date().isoformat()
 
 
+def _pending_note(conn) -> str:
+    """Said on a card while documents are still being understood: what is shown covers only the rest, and will change."""
+    counts = store.counts(conn)
+    waiting = counts["waiting"] + counts["unclear"]
+    return f"{waiting:,} documents are still being understood: this may change." if waiting else ""
+
+
 def health(conn, state: Any) -> dict[str, Any]:
     values = store.health_values(conn)
     follow = store.health_followups(conn, _today())["follow_ups"]
@@ -25,6 +32,7 @@ def health(conn, state: Any) -> dict[str, Any]:
         "sub": f"{total} tests" if total else "",
         "tone": "warn" if flagged else "good",
         "items": items,
+        "note": _pending_note(conn),
         "link": "#/health",
     }
 

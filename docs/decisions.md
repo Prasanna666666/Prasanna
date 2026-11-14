@@ -142,3 +142,11 @@ Still true and still visible in the reading report (`unread_files` tool): mail j
 - **Dependencies:** `pip-audit` runs in CI; the images install the newest releases at every build.
 - Flaws fixed in the last pass: Finance filter chips (one clean border), the top search box (shorter text, ellipsis, never wraps), `pillow>=13` (tested with HEIC and every suite; the old floor allowed releases with known vulnerabilities), and a once-a-day macOS notification for what is overdue, due today or within 3 days (`scripts/remind.py`, run by the same low-priority launch agent; off: `touch ~/.atlas-remind-off`).
 - "Read" is not "understood": a file is read (text taken out) long before the model has judged it. An empty Health page now says why in counts (found, understood, with lab values, waiting for the model, not understood, no readable text) and which of those is the likely cause (`/api/medical/status`).
+
+## Present only what is understood, complete and current (owner's call)
+- **Stages are shown, not blurred:** the reading panel says "N of M files · X understood · Y waiting for the model"; 80% read is no longer mistaken for 80% done. The model now reaches the folders you named (health, finance, travel ...) first, then loose files, and the mail last, so the dashboards fill before the mailbox is done.
+- **Half-understood facts are not presented:** a reading that only got a kind and a title (`partial`) puts nothing on the calendar; a due date with no party and no amount is counted and left out ("N dated documents are not shown").
+- **One fact, many sources, shown once:** the same bill arriving as a mail and as its attachment is one calendar event (with how many sources it came from); a bill whose reference appears on a receipt is settled and not shown as open.
+- **Old is said to be old:** Health says "latest report ... (N months old)" past a year; overdue bills stay for 30 days, past trips and follow-ups are history.
+- **While documents are still being understood, every dashboard says so** (home cards, Calendar, Health): what is shown covers only the rest and may change.
+- Not done: matching an open bill against Finance's bank statements to know it was paid without a receipt. Finance and Documents are separate stores; this would be the next step.

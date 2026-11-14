@@ -32,31 +32,61 @@ def _event(kind: str, day: str, title: str, subtitle: str = "", end: str = "", d
     return {"type": kind, "date": day, "end": end or day, "title": title, "subtitle": subtitle, "doc": doc}
 
 
-def events(conn, since: str, until: str) -> list[dict[str, Any]]:
-    """Everything dated between the two days (inclusive), oldest first. One pass over the documents that carry any date fact."""
+def _collect(conn) -> tuple[list[dict[str, Any]], int]:
+    """Every dated thing the documents say, with the same fact seen in several places (the mail and its attachment, a reminder and the bill) kept once, what is already settled
+    (a receipt carries the bill's reference) left out, and anything half understood left out too: a date without who it is from or what it is for helps nobody.
+    Also returns how many were left out as incomplete."""
     found: dict[tuple, dict[str, Any]] = {}
+    paid: set[str] = set()
+    incomplete = 0
+    rows = [(r["id"], r["name"], json.loads(r["facts"])) for r in conn.execute("SELECT id, name, facts FROM documents WHERE judged=1 AND facts<>''")]
+    for _id, _name, facts in rows:
+        if facts.get("kind") == "receipt" and str(facts.get("reference") or "").strip():
+            paid.add(str(facts["reference"]).strip().casefold())
 
-    def keep(e: dict[str, Any]) -> None:
-        if e["date"] and since <= e["end"] and e["date"] <= until:
-            found.setdefault((e["type"], e["date"], e["title"].casefold()), e)
+    def keep(key: tuple, e: dict[str, Any]) -> None:
+        if key in found:
+            found[key]["sources"] += 1
+        else:
+            found[key] = {**e, "sources": 1}
 
     for trip in store.trips(conn):
-        keep(_event("trip", trip["start"], trip["place"], f"{trip['documents']} document{'' if trip['documents'] == 1 else 's'}", trip["end"]))
-    for r in conn.execute(
-        "SELECT id, name, kind, area, facts FROM documents WHERE judged=1 AND facts<>'' "
-        "AND (facts LIKE '%due_date%' OR facts LIKE '%end_date%' OR facts LIKE '%follow_up%')"
-    ):
-        facts = json.loads(r["facts"])
-        title = store.proper_name(facts, r["name"], facts.get("kind", ""))
+        keep(
+            ("trip", trip["start"], trip["place"].casefold()),
+            _event("trip", trip["start"], trip["place"], f"{trip['documents']} document{'' if trip['documents'] == 1 else 's'}", trip["end"]),
+        )
+    for doc_id, name, facts in rows:
+        if facts.get("partial"):
+            continue  # only the kind and a title were understood: not enough to put a date on a calendar
+        title = store.proper_name(facts, name, facts.get("kind", ""))
         kind = facts.get("kind", "other")
-        if kind in DUE_KINDS and iso_day(facts.get("due_date")):
-            keep(_event("due", iso_day(facts["due_date"]), title, _money(facts), doc=r["id"]))
+        reference = str(facts.get("reference") or "").strip().casefold()
+        due = iso_day(facts.get("due_date"))
+        if kind in DUE_KINDS and due:
+            if not (facts.get("party") or facts.get("total") is not None):
+                incomplete += 1  # a due date with no idea who it is for or how much
+            elif reference not in paid or not reference:
+                who = str(facts.get("party") or "").casefold()
+                keep(("due", due, who, reference or title.casefold(), facts.get("total")), _event("due", due, title, _money(facts), doc=doc_id))
         if kind in ("contract", "insurance") and iso_day(facts.get("end_date")):
-            keep(_event("ends", iso_day(facts["end_date"]), title, facts.get("party") or "", doc=r["id"]))
+            keep(
+                ("ends", iso_day(facts["end_date"]), title.casefold()), _event("ends", iso_day(facts["end_date"]), title, facts.get("party") or "", doc=doc_id)
+            )
         follow = iso_day((facts.get("health") or {}).get("follow_up"))
         if follow:
-            keep(_event("followup", follow, title, facts.get("party") or "", doc=r["id"]))
-    return sorted(found.values(), key=lambda e: (e["date"], e["type"], e["title"]))[:MAX_EVENTS]
+            keep(("followup", follow, title.casefold()), _event("followup", follow, title, facts.get("party") or "", doc=doc_id))
+    return sorted(found.values(), key=lambda e: (e["date"], e["type"], e["title"])), incomplete
+
+
+def events(conn, since: str, until: str) -> list[dict[str, Any]]:
+    """Everything dated between the two days (inclusive), oldest first."""
+    everything, _ = _collect(conn)
+    return [e for e in everything if since <= e["end"] and e["date"] <= until][:MAX_EVENTS]
+
+
+def incomplete(conn) -> int:
+    """How many dated documents were left out because they are only half understood."""
+    return _collect(conn)[1]
 
 
 def upcoming(conn, today: str, days: int = 60) -> list[dict[str, Any]]:

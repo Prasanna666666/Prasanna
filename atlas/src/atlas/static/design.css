@@ -1089,3 +1089,10 @@ main {
 .funnel-row b {
     font-variant-numeric: tabular-nums;
 }
+
+.hc-note,
+.note {
+    font-size: 12px;
+    color: var(--warn);
+    margin: 4px 0;
+}

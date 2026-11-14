@@ -205,6 +205,7 @@ class Upstreams:
         if not isinstance(raw, dict) or not raw.get("headline"):
             return None
         card: dict[str, Any] = {k: str(raw.get(k, ""))[:80] for k in ("headline", "sub", "tone")}
+        card["note"] = str(raw.get("note", ""))[:140]
         card["link"] = str(raw.get("link", ""))[:80] if str(raw.get("link", "")).startswith("#") else ""
         if isinstance(raw.get("figure"), int):
             card["figure"] = raw["figure"]

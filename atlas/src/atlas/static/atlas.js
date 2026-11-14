@@ -170,6 +170,7 @@
         if (card.figure != null && module.id === 'travel') headline.dataset.figure = String(card.figure);
         node.append(headline);
         if (card.sub) node.append(el('span', 'hc-sub', card.sub));
+        if (card.note) node.append(el('span', 'hc-note', card.note));
         if (card.items.length) node.append(cardRows(card.items));
         if (card.images.length && module.id !== 'travel') {
             const strip = el('div', 'hc-strip');

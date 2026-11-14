@@ -242,6 +242,24 @@ def _exact_facts(d) -> dict | None:
 JUDGE_CHUNK = 100  # documents held in memory at a time: tens of thousands of mails never sit in memory together
 
 
+# The model reaches the documents that fill the dashboards first: the folders you named (health, finance, travel ...), then loose files, and the mail last.
+PRIORITY = ("area NOT IN ('', 'mail', 'pictures')", "area=''", "area IN ('mail', 'pictures')")
+
+
+def _pending_chunks(conn):
+    """Documents not yet judged, a chunk at a time, folder documents first, then loose files, then mail."""
+    for tier in PRIORITY:
+        last = 0
+        while True:
+            rows = conn.execute(
+                f"SELECT id, sha256, name, kind, text, data, area FROM documents WHERE judged=0 AND id>? AND {tier} ORDER BY id LIMIT ?", (last, JUDGE_CHUNK)
+            ).fetchall()
+            if not rows:
+                break
+            last = rows[-1]["id"]
+            yield rows
+
+
 def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
     while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
         conn.commit()
@@ -262,19 +280,13 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
     forget_mail_bodies(conn)
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "unclear": 0, "problem": "", "stopped": False}
-    index, last = 0, 0
-    while True:
-        chunk = conn.execute(
-            "SELECT id, sha256, name, kind, text, data, area FROM documents WHERE judged=0 AND id>? ORDER BY id LIMIT ?", (last, JUDGE_CHUNK)
-        ).fetchall()
-        if not chunk:
-            break
+    index = 0
+    for chunk in _pending_chunks(conn):
         for d in chunk:
             if limit and out["read"] + out["skipped"] >= limit:
                 conn.commit()
                 return out
             index += 1
-            last = d["id"]
             _wait_while_paused(conn, control)
             if control is not None and control() == "stop":
                 out["stopped"] = True

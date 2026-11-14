@@ -41,7 +41,7 @@ def test_the_calendar_holds_trips_bills_endings_and_follow_ups_from_the_facts_on
 
 
 def test_a_bill_from_last_week_is_kept_but_a_trip_in_the_past_is_not(conn):
-    conn.add("old-bill.pdf", "invoice", title="Rent", due_date="2026-11-08")
+    conn.add("old-bill.pdf", "invoice", title="Rent", party="Landlord", total=1100.0, currency="EUR", due_date="2026-11-08")
     conn.add("old-trip.pdf", "ticket", title="Old", place="Paris", start_date="2026-10-01", end_date="2026-10-03")
     got = agenda.upcoming(conn.conn, "2026-11-14", 60)
     assert [e["type"] for e in got] == ["due"] and got[0]["days"] == -6
@@ -91,3 +91,20 @@ def test_an_empty_health_page_says_where_the_documents_are_stuck(conn):
     conn.conn.commit()
     f = store.health_funnel(conn.conn)
     assert f["found"] == 2 and f["understood"] == 1 and f["with_values"] == 1 and f["waiting_for_the_model"] == 1 and f["no_readable_text"] == 1
+
+
+def test_the_same_bill_from_a_mail_and_its_attachment_is_one_event_and_a_paid_one_is_gone(conn):
+    for name in ("mail.eml", "attachment.pdf"):
+        conn.add(name, "invoice", title="Internet bill", party="Ziggo", reference="INV-7", total=60.5, currency="EUR", due_date="2026-11-20")
+    conn.add("paid.pdf", "invoice", title="Electricity", party="Eneco", reference="E-1", total=100.0, currency="EUR", due_date="2026-11-18")
+    conn.add("receipt.pdf", "receipt", title="Payment received", party="Eneco", reference="E-1", total=100.0)
+    got = agenda.upcoming(conn.conn, "2026-11-14", 30)
+    assert [(e["title"], e["sources"]) for e in got] == [("Internet bill · Ziggo", 2)]  # once, from two sources; the paid one is not shown as open
+
+
+def test_half_understood_documents_are_not_shown_and_are_counted(conn):
+    conn.add("partial.pdf", "invoice", title="Something", due_date="2026-11-20", partial=True)
+    conn.add("nobody.pdf", "invoice", title="Unknown", due_date="2026-11-21")
+    assert (
+        agenda.upcoming(conn.conn, "2026-11-14", 30) == [] and agenda.incomplete(conn.conn) == 1
+    )  # the partial reading is skipped, the one with no party or amount is counted

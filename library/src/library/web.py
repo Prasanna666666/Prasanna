@@ -407,6 +407,15 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
     return _cached("parts", lambda c: _parts_now(state, c), state, conn)
 
 
+def _understood(conn, where: str) -> str:
+    """What was read is not yet what is understood: the model judges each document after it is read. This says how far that has got, so 80% read is never mistaken for 80% done."""
+    done = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
+    waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=0").fetchone()[0]
+    if not done and not waiting:
+        return ""
+    return f" · {done:,} understood" + (f" · {waiting:,} waiting for the model" if waiting else "")
+
+
 def _parts_now(state: State, conn) -> list[dict[str, str]]:
     found = _found()
     files = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
@@ -415,6 +424,8 @@ def _parts_now(state: State, conn) -> list[dict[str, str]]:
     if found and not found.get("mail_connected") and not mails and not found.get("mails"):
         mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
     docs_row = _row("Documents", files, found.get("documents"), "files")
+    docs_row["detail"] += _understood(conn, "area NOT IN ('mail','pictures')")
+    mail_row["detail"] += _understood(conn, "area='mail'") if mail_row.get("detail", "").find("not connected") < 0 else ""
     shares = [
         f"{'Other' if k == 'inbox' else k.capitalize()} {v:,}" for k, v in found.get("by_folder", {}).items() if v
     ]  # where the number comes from; empty folders are left out
@@ -518,7 +529,13 @@ def _get_agenda_events(state: State, conn, query: dict[str, str]) -> dict:
 
 
 def _get_agenda_upcoming(state: State, conn, query: dict[str, str]) -> dict:
-    return {"today": _today(), "events": agenda.upcoming(conn, _today(), 60)}
+    counts = store.counts(conn)
+    return {
+        "today": _today(),
+        "events": agenda.upcoming(conn, _today(), 60),
+        "incomplete": agenda.incomplete(conn),
+        "pending": counts["waiting"] + counts["unclear"],
+    }
 
 
 GET_ROUTES = {
