@@ -337,14 +337,44 @@
         if (people.length) page.push(el('div', 'band', 'People'), personFaces(people, 8));
         if (!status.pictures)
             page.push(el('div', 'empty', 'No pictures yet. They appear while your pictures are read.'));
+        page.push(changesButton());
         host().replaceChildren(...page);
     }
+
+    // the one change a person can ask for here: it is only prepared, the confirmation window does the rest
+    const albumsButton = () => {
+        const b = el('button', 'btn', 'Sort into trip albums…');
+        b.type = 'button';
+        b.addEventListener('click', async () => {
+            b.disabled = true;
+            const r = await (
+                await fetch('/api/change/albums', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Library': '1' },
+                    body: '{}',
+                })
+            ).json();
+            if (r.change_id) location.hash = `#/changes?id=${r.change_id}`;
+            else {
+                b.disabled = false;
+                b.textContent = r.error || 'Nothing to sort';
+            }
+        });
+        return b;
+    };
+    const changesButton = () => {
+        const b = el('button', 'btn', 'Changes');
+        b.type = 'button';
+        b.addEventListener('click', () => go('changes'));
+        return b;
+    };
 
     async function showFolders() {
         host().replaceChildren(tabs('folders'), el('div', 'empty', 'Loading…'));
         const [trips, places, people] = await loadAll();
         const page = [tabs('folders')];
-        if (trips.length) page.push(el('div', 'band', `Trips · ${trips.length}`), tripCovers(trips, trips.length));
+        if (trips.length)
+            page.push(el('div', 'band', `Trips · ${trips.length}`), albumsButton(), tripCovers(trips, trips.length));
         if (places.length)
             page.push(el('div', 'band', `Places · ${places.length}`), placeCovers(places, places.length));
         if (people.length)
