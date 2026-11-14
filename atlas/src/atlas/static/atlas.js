@@ -580,6 +580,15 @@
         });
         return b;
     };
+    // only the rows whose content changed are replaced: the buttons stay under the cursor and the scroll position stays (a full rebuild each second broke both)
+    const patchChildren = (parent, nodes) => {
+        nodes.forEach((node, i) => {
+            const old = parent.children[i];
+            if (!old) parent.append(node);
+            else if (old.outerHTML !== node.outerHTML) old.replaceWith(node);
+        });
+        while (parent.children.length > nodes.length) parent.lastElementChild.remove();
+    };
     // the panel is rebuilt only when what it says has changed (a rebuild at every poll made it flicker)
     const scanUnchanged = (report, panel) => {
         const sig = JSON.stringify(report);
@@ -652,7 +661,7 @@
             info.parts.forEach((p) => rows.push(partLine(p, info.running)));
             info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
         }
-        panel.replaceChildren(head, ...rows);
+        patchChildren(panel, [head, ...rows]);
         panel.hidden = false;
         $('#update').classList.toggle('busy', running);
         $('#update span').textContent = running ? 'Reading…' : 'Read new files';
