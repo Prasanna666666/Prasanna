@@ -192,7 +192,7 @@ def _ranked(conn, words: list[str], k: int) -> list[dict] | None:
     except sqlite3.Error as exc:  # a query FTS5 cannot parse: fall back to word counting
         log.failed("fts5 query failed", exc)
         return None
-    return [{"rid": r["rid"], "source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
+    return [{"rid": r["rid"], "ref": r["ref"], "source": r["source"], "title": r["title"], "text": r["text"], "score": round(-r["score"], 3)} for r in rows]
 
 
 def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = None, *, sources, fingerprint: str = "", refresh: bool = True) -> list[dict]:
@@ -217,13 +217,13 @@ def retrieve(conn, question: str, k: int = 6, alternatives: list[str] | None = N
                 got["score"] += 1.0 / (RRF_K + rank)
         else:
             best = sorted(fused.values(), key=lambda h: -h["score"])[:k]
-            return [{"source": h["source"], "title": h["title"], "text": h["text"], "score": round(h["score"] * RRF_K, 3)} for h in best]
+            return [{"ref": h["ref"], "source": h["source"], "title": h["title"], "text": h["text"], "score": round(h["score"] * RRF_K, 3)} for h in best]
     words = [w for group in searches for w in group]
     out = []  # no full-text search: count the words each item contains
-    for _ref, source, title, body in sources(conn):
+    for ref, source, title, body in sources(conn):
         hay = (title + " " + body).lower()
         score = sum(hay.count(w) for w in words)
         if score:
             i = max(hay.find(words[0]), 0)
-            out.append({"source": source, "title": title, "text": " ".join(body[max(0, i - 80) : i + 220].split()), "score": float(score)})
+            out.append({"ref": ref, "source": source, "title": title, "text": " ".join(body[max(0, i - 80) : i + 220].split()), "score": float(score)})
     return sorted(out, key=lambda r: -r["score"])[:k]

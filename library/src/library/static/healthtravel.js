@@ -44,21 +44,6 @@
     const openDoc = (id) => (location.hash = `#/doc/${id}`);
     const section = (title) => el('h3', 'band', title);
     // a headline number with a label under it: the building block of every dashboard
-    const tile = (label, value, tone, sub, onClick) => {
-        const t = el(onClick ? 'button' : 'div', `stat ${tone || ''}`);
-        if (onClick) {
-            t.type = 'button';
-            t.addEventListener('click', onClick);
-        }
-        t.append(el('span', 'stat-label', label), el('b', 'stat-value', value));
-        if (sub) t.append(el('span', 'stat-sub', sub));
-        return t;
-    };
-    const tiles = (...list) => {
-        const row = el('div', 'tiles');
-        row.append(...list.filter(Boolean));
-        return row;
-    };
     const days = (iso) => Math.round((new Date(iso + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
     const when = (n) =>
         n === 0
@@ -150,8 +135,8 @@
     async function travelDocs() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
         const [folder, booked] = await Promise.all([
-            getJson('/api/documents?area=travel&limit=200'),
-            getJson('/api/documents?kind=ticket,booking&limit=200'),
+            getJson('/api/documents?area=travel&source=documents&limit=200'),
+            getJson('/api/documents?kind=ticket,booking&source=documents&limit=200'),
         ]);
         const seen = new Set();
         const documents = [...folder.documents, ...booked.documents].filter((d) => !seen.has(d.id) && seen.add(d.id)); // the travel folder, plus tickets and bookings found anywhere
@@ -159,14 +144,54 @@
         if (!documents.length) page.push(el('p', 'muted', 'No travel documents yet. Press Read new files.'));
         for (const d of documents)
             page.push(
-                card(
-                    d.facts && d.facts.title ? d.facts.title : d.name,
-                    [d.kind, d.parsed_at && d.parsed_at.slice(0, 10)].filter(Boolean).join(' · '),
-                    () => openDoc(d.id)
+                card(d.title, [d.kind, d.parsed_at && d.parsed_at.slice(0, 10)].filter(Boolean).join(' · '), () =>
+                    openDoc(d.id)
                 )
             );
         host().replaceChildren(...page);
     }
+
+    // every place gets its own colours, the same each time
+    const hue = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
+    const banner = (place) =>
+        `linear-gradient(135deg, hsl(${hue(place)} 68% 46%), hsl(${(hue(place) + 50) % 360} 70% 32%))`;
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // twelve months at a glance: each trip a coloured bar where it falls
+    const yearStrip = (trips, open) => {
+        const now = new Date();
+        const first = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        const last = new Date(first.getFullYear(), first.getMonth() + 12, 1);
+        const span = last - first;
+        const at = (iso) => Math.min(1, Math.max(0, (new Date(iso + 'T00:00:00') - first) / span)) * 100;
+        const box = el('div', 'yearstrip');
+        const grid = el('div', 'ys-months');
+        for (let i = 0; i < 12; i++) {
+            const m = new Date(first.getFullYear(), first.getMonth() + i, 1);
+            const cell = el(
+                'span',
+                m.getMonth() === now.getMonth() && m.getFullYear() === now.getFullYear() ? 'now' : '',
+                MONTHS[m.getMonth()]
+            );
+            grid.append(cell);
+        }
+        box.append(grid);
+        const lane = el('div', 'ys-lane');
+        for (const t of trips) {
+            const left = at(t.start),
+                right = at(t.end);
+            if (right <= left && at(t.start) >= 100) continue;
+            const bar = el('button', 'ys-bar', t.place);
+            bar.type = 'button';
+            bar.style.left = `${left}%`;
+            bar.style.width = `${Math.max(4, right - left)}%`;
+            bar.style.background = banner(t.place);
+            bar.addEventListener('click', () => open(t));
+            lane.append(bar);
+        }
+        box.append(lane);
+        return box;
+    };
 
     async function travel() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
@@ -183,8 +208,9 @@
         const next = coming[0];
         if (next) {
             const n = days(next.start);
-            const hero = el('button', 'hero');
+            const hero = el('button', 'hero travelhero');
             hero.type = 'button';
+            hero.style.background = banner(next.place);
             hero.addEventListener('click', () => open(next));
             const nights = Math.max(1, days(next.end) - days(next.start));
             const text = el('div', 'hero-text');
@@ -204,6 +230,16 @@
             const detail = await getJson(
                 '/api/travel/trip?' + new URLSearchParams({ place: next.place, start: next.start, end: next.end })
             );
+            const facts = el('div', 'hero-facts');
+            const flights = (detail.tickets || []).filter((x) => x.kind === 'ticket').length;
+            const stays = (detail.tickets || []).filter((x) => x.kind === 'booking').length;
+            if (flights) facts.append(el('span', '', `✈ ${flights} ticket${flights === 1 ? '' : 's'}`));
+            if (stays) facts.append(el('span', '', `⌂ ${stays} booking${stays === 1 ? '' : 's'}`));
+            for (const [cur, amount] of Object.entries(detail.booked_totals || {}))
+                facts.append(
+                    el('span', '', `${cur} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} booked`)
+                );
+            if (facts.children.length) hero.append(facts);
             if (detail.photos && detail.photos.ids.length) {
                 const strip = el('div', 'hero-photos');
                 for (const id of detail.photos.ids.slice(0, 4)) {
@@ -217,34 +253,35 @@
             }
             page.push(hero);
         }
-        page.push(
-            tiles(
-                tile('Upcoming', coming.length, 'accent'),
-                tile('Past', past.length),
-                tile('Places', new Set(trips.map((t) => t.place)).size),
-                tile(
-                    'Documents',
-                    trips.reduce((x, t) => x + (t.documents || 0), 0)
-                )
-            )
-        );
+        page.push(sectionHead('The year', null), yearStrip(trips, open));
         const grid = el('div', 'tripgrid');
         for (const t of [...coming.slice(1), ...past]) {
             const c = el('button', 'tripcard' + (t.status === 'past' ? ' past' : ''));
             c.type = 'button';
             c.addEventListener('click', () => open(t));
+            const top = el('div', 'tc-banner');
+            top.style.background = banner(t.place);
+            const day = el('span', 'tc-date');
+            day.append(el('b', '', String(+t.start.slice(8, 10))), el('small', '', MONTHS[+t.start.slice(5, 7) - 1]));
+            top.append(day);
+            const nights = Math.max(1, days(t.end) - days(t.start));
             c.append(
+                top,
                 el('b', '', t.place),
-                el('span', 'stat-sub', `${shortDate(t.start)}${t.end !== t.start ? ' – ' + shortDate(t.end) : ''}`),
+                el(
+                    'span',
+                    'stat-sub',
+                    `${nights} night${nights === 1 ? '' : 's'}${t.end !== t.start ? ' · until ' + shortDate(t.end) : ''}`
+                ),
                 el(
                     'span',
                     'chips',
-                    `${t.documents ? '✈ ' + t.documents : ''}${t.documents && t.photos ? '   ' : ''}${t.photos ? '▣ ' + t.photos : ''}`
+                    [t.documents ? `✈ ${t.documents}` : '', t.photos ? `▣ ${t.photos}` : ''].filter(Boolean).join('   ')
                 )
             );
             grid.append(c);
         }
-        page.push(grid);
+        if (grid.children.length) page.push(sectionHead('Trips', grid.children.length), grid);
         const cal = el('a', 'pill', 'Add trips to Calendar');
         cal.href = '/api/travel/calendar.ics';
         cal.setAttribute('download', 'trips.ics');

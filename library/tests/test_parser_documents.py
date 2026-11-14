@@ -137,7 +137,7 @@ def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_win
         "taxi.eml": ("1" * 64, "receipt", {"kind": "receipt", "title": "Taxi Delhi", "date": "2026-01-14"}),
     }
     for name, (sha, kind, _facts) in texts.items():
-        _put(tmp_path, _doc(name=name, kind="email", text=f"{kind} {name}", sha256=sha))
+        _put(tmp_path, _doc(name=name.replace(".eml", ".pdf"), kind="pdf", text=f"{kind} {name}", sha256=sha))
     store.ingest_dir(conn, tmp_path)
     for sha, _kind, facts in texts.values():
         store._mark_ready(conn, sha, 1, facts)
@@ -358,3 +358,22 @@ def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stay
     mail = conn.execute("SELECT text, data FROM documents WHERE name='order.eml'").fetchone()
     assert "Dear customer" not in mail["text"] and "Hotel booking" in mail["text"] and mail["data"] == ""
     assert "FACTUUR" in conn.execute("SELECT text FROM documents WHERE name='order.pdf'").fetchone()["text"]  # a document inside a mail stays whole
+
+
+def test_documents_are_named_by_what_they_say_and_a_whole_email_is_never_listed(conn, tmp_path):
+    assert store.proper_name({"title": "Internet bill October", "party": "Ziggo"}, "scan0042.pdf", "invoice") == "Internet bill October · Ziggo"
+    assert store.proper_name({"title": "Ziggo invoice", "party": "Ziggo"}, "x.pdf", "invoice") == "Ziggo invoice"
+    assert store.proper_name({"party": "Ziggo"}, "scan0042.pdf", "invoice") == "Invoice · Ziggo"
+    assert store.proper_name({}, "scan0042.pdf", "other") == "scan0042.pdf"  # a file name only as a last resort
+    _put(tmp_path, _doc(name="mail.eml", kind="email", text="Hotel booking confirmed. Total paid EUR 480,00 for the hotel stay.", sha256="a" * 64, area="mail"))
+    _put(tmp_path, _doc(name="scan0042.pdf", kind="pdf", text="FACTUUR Ziggo totaal 60,50 EUR betaling " * 3, sha256="b" * 64, area="mail"))
+    store.ingest_dir(conn, tmp_path)
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": json.dumps({"kind": "invoice", "title": "Internet bill", "party": "Ziggo", "total": "60,50", "currency": "EUR"})}
+
+    store.judge_pending(conn, Model(), "fake")
+    listed = store.list_documents(conn, ["invoice"], source="documents")
+    assert [d["title"] for d in listed] == ["Internet bill · Ziggo"]  # the document inside the mail, by its title; the mail itself is not a document
+    assert len(store.list_documents(conn, ["invoice"])) == 2  # the data feed (trips, Finance) still sees what the mail says

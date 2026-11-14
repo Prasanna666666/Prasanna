@@ -182,7 +182,7 @@ def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
         since,
         limit,
         full,
-        query.get("source", "")[:5],
+        query.get("source", "")[:9],
     )
     return {"documents": found}
 

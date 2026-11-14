@@ -951,6 +951,11 @@
         toParent({ type: 'ask', text });
     }
 
+    // what a document is called: its own title with who it is from; the file name only as a last resort
+    const properName = (d) =>
+        d.title && d.party && !d.title.toLowerCase().includes(d.party.toLowerCase())
+            ? `${d.title} · ${d.party}`
+            : d.title || d.party || d.name.replace(/\.[^.]+$/, '');
     async function documentsPage() {
         cur = (await api('/api/settings')).currency;
         const wrap = h('div', { class: 'stack' });
@@ -1000,7 +1005,7 @@
         async function draw() {
             const [slips, docs, docTotals, checks, ver, cc] = await Promise.all([
                 tool('list_payslips', { limit: 12 }),
-                tool('finance_documents', { limit: 200 }),
+                tool('finance_documents', { limit: 200, documents_only: true }),
                 tool('finance_document_totals', { by: 'kind' }),
                 tool('files_to_check'),
                 tool('verification_report'),
@@ -1098,7 +1103,7 @@
                                             h(
                                                 'td',
                                                 {},
-                                                h('div', { style: { fontWeight: 600 } }, d.party || d.title || d.name),
+                                                h('div', { style: { fontWeight: 600 } }, properName(d)),
                                                 d.summary
                                                     ? h(
                                                           'div',

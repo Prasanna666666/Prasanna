@@ -382,6 +382,8 @@ def finance_documents(conn, a=None):
     if a.get("party"):
         where.append("(party LIKE ? OR title LIKE ? OR name LIKE ?)")
         args += [f"%{a['party']}%"] * 3
+    if a.get("documents_only"):  # the documents in folders and attached to emails, not the emails themselves
+        where.append("sha256 NOT IN (SELECT sha256 FROM documents WHERE kind='email')")
     for key, op in (("since", ">="), ("until", "<=")):
         if a.get(key):
             where.append(f"doc_date {op} ?")
@@ -903,6 +905,7 @@ MODULE = Module(
                 "since": S("YYYY-MM-DD"),
                 "until": S("YYYY-MM-DD"),
                 "limit": N("Max rows"),
+                "documents_only": {"type": "boolean", "description": "true: leave out the emails themselves"},
             },
             finance_documents,
         ),

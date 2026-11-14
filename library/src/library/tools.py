@@ -6,6 +6,7 @@ that can return files or pictures does so only when called with `show` true, whi
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -40,7 +41,7 @@ def _doc_item(d: dict) -> dict:
     f = d["facts"]
     return {
         "kind": "document",
-        "title": str(f.get("title") or d["name"]),
+        "title": d["title"],
         "subtitle": " · ".join(str(x) for x in (d["kind"].replace("_", " "), f.get("party"), f.get("start_date") or f.get("date")) if x),
         "text": "",
         "link": f"#/doc/{d['id']}",
@@ -50,7 +51,7 @@ def _doc_item(d: dict) -> dict:
 def _doc_row(d: dict) -> dict:
     f = d["facts"]
     keys = ("title", "party", "date", "due_date", "start_date", "end_date", "place", "reference", "total", "currency", "summary")
-    return {"id": d["id"], "name": d["name"], "kind": d["kind"], **{k: f[k] for k in keys if f.get(k) not in (None, "")}}
+    return {**{k: f[k] for k in keys if f.get(k) not in (None, "")}, "id": d["id"], "name": d["name"], "kind": d["kind"], "title": d["title"]}
 
 
 def _photo_item(p: dict) -> dict:
@@ -78,14 +79,16 @@ def search_files(state, conn, a: dict, ask: Ask | None = None) -> Result:
     items: list[dict] = []
     if a.get("show") is True:
         for h in hits:
-            row = conn.execute("SELECT id FROM documents WHERE name=?", (h["title"],)).fetchone()
+            doc_id = (
+                h["ref"][1:] if re.fullmatch(r"d\d+", str(h.get("ref"))) else ""
+            )  # the hit says which document it is: the title is a proper name, not a key
             items.append(
                 {
                     "kind": "document",
                     "title": h["title"],
                     "subtitle": "from your files",
                     "text": h["text"].replace("[", "").replace("]", "")[:300],
-                    "link": f"#/doc/{row['id']}" if row else "#/home",
+                    "link": f"#/doc/{doc_id}" if doc_id else "#/home",
                 }
             )
     return {
@@ -101,7 +104,7 @@ def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
     if window:
         found = [d for d in store.documents_between(conn, *window, limit=200) if not kinds or d["kind"] in kinds]
     else:
-        found = store.list_documents(conn, kinds, place=str(a.get("place", ""))[:80], year=str(a.get("year", ""))[:4], limit=200)
+        found = store.list_documents(conn, kinds, place=str(a.get("place", ""))[:80], year=str(a.get("year", ""))[:4], limit=200, source="documents")
     if window and a.get("place"):
         found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or d["kind"] not in ("ticket", "booking")]
     data = {"count": len(found), "documents": [_doc_row(d) for d in found[:40]]}

@@ -44,7 +44,7 @@ def _ticket(doc: dict) -> dict[str, Any]:
         "id": doc["id"],
         "name": doc["name"],
         "kind": doc["kind"],
-        "title": f.get("title") or doc["name"],
+        "title": doc["title"],
         "party": f.get("party") or "",
         "start_date": f.get("start_date") or "",
         "end_date": f.get("end_date") or "",
@@ -70,7 +70,7 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
             "id": d["id"],
             "name": d["name"],
             "kind": d["kind"],
-            "title": d["facts"].get("title") or d["name"],
+            "title": d["title"],
             "date": str(d["facts"].get("date") or d["facts"].get("start_date") or ""),
         }
         for d in store.documents_between(conn, window_start, window_end, limit=60)

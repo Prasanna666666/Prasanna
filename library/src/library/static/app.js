@@ -40,7 +40,7 @@
             const card = el(
                 'button',
                 { className: 'card', type: 'button' },
-                el('b', {}, d.facts.title || d.name),
+                el('b', {}, d.title),
                 el('span', {}, subtitle(d) || d.name)
             );
             card.addEventListener('click', () => (location.hash = `#/doc/${d.id}`));
@@ -69,7 +69,7 @@
             return;
         }
         const r = await api(
-            `/api/documents?limit=200&source=files${state.kind ? `&kind=${encodeURIComponent(state.kind)}` : ''}`
+            `/api/documents?limit=200&source=documents${state.kind ? `&kind=${encodeURIComponent(state.kind)}` : ''}`
         );
         showList(r.documents.reverse());
     }

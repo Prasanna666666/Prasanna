@@ -88,7 +88,7 @@ def test_one_update_reads_judges_and_serves_everything(server):
     assert {"search_files", "find_documents", "read_document", "trips", "find_pictures", "library_overview"} <= specs
     found = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice", "show": True}})[1]
     assert found["ok"] and found["data"]["count"] == 1 and found["data"]["documents"][0]["party"] == "Hotel Delhi"
-    assert found["items"][0]["title"] == "Hotel" and found["items"][0]["link"] == f"#/doc/{doc['id']}"
+    assert found["items"][0]["title"] == "Hotel · Hotel Delhi" and found["items"][0]["link"] == f"#/doc/{doc['id']}"
     quiet = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice"}})[1]
     assert quiet["items"] == []  # nothing is shown unless the person asked to see it
     dated = post(port, "/api/tool", {"name": "find_documents", "args": {"from": "2026-01-01", "to": "2026-01-31"}})[1]

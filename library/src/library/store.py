@@ -342,14 +342,15 @@ def _medical_documents(conn) -> list[dict]:
     marks = ",".join("?" for _ in HEALTH_KINDS)
     out = []
     for r in conn.execute(
-        f"SELECT id, name, facts FROM documents WHERE judged=1 AND facts<>'' AND (fact_kind IN ({marks}) OR area='health')", sorted(HEALTH_KINDS)
+        f"SELECT id, name, kind, facts FROM documents WHERE judged=1 AND facts<>'' AND (fact_kind IN ({marks}) OR area='health')", sorted(HEALTH_KINDS)
     ):
         facts = json.loads(r["facts"])
         out.append(
             {
                 "id": r["id"],
                 "name": r["name"],
-                "title": facts.get("title") or r["name"],
+                "file_kind": r["kind"],
+                "title": proper_name(facts, r["name"], facts.get("kind", "")),
                 "date": facts.get("date") or "",
                 "party": facts.get("party") or "",
                 "health": facts.get("health") or {},
@@ -372,6 +373,7 @@ def health_documents(conn) -> dict[str, Any]:
             "follow_up": d["health"].get("follow_up"),
         }
         for d in reversed(_medical_documents(conn))
+        if d["file_kind"] != "email"  # the documents, never a whole email
     ]
     return {"documents": docs}
 
@@ -523,12 +525,23 @@ def _is_health(facts_json: str, area: str = "") -> bool:
     return area == "health" or (bool(facts_json) and json.loads(facts_json).get("kind") in HEALTH_KINDS)
 
 
+def proper_name(facts: dict, file_name: str, kind: str = "") -> str:
+    """What a document is called on screen: its own title with who it is from, taken from what it says, never the file name it happens to have. A file name is the last resort."""
+    title = str(facts.get("title") or "").strip()
+    party = str(facts.get("party") or "").strip()
+    what = kind.replace("_", " ").capitalize() if kind and kind != "other" else ""
+    if title and party and party.casefold() not in title.casefold():
+        return f"{title} · {party}"
+    return title or " · ".join(x for x in (what, party) if x) or file_name
+
+
 def _as_document(r) -> dict[str, Any]:
     facts = json.loads(r["facts"]) if r["facts"] else {}
     doc: dict[str, Any] = {
         "id": r["id"],
         "sha256": r["sha256"],
         "name": r["name"],
+        "title": proper_name(facts, r["name"], facts.get("kind", "")),
         "file_kind": r["kind"],
         "area": r["area"],
         "kind": facts.get("kind", "other"),
@@ -561,7 +574,10 @@ def list_documents(
         doc = _as_document(r)
         if (doc["kind"] in HEALTH_KINDS or doc["area"] == "health") and "medical" not in wanted and area != "health":
             continue  # medical documents go to whoever asks for them by name, never to another app that asks for its own kinds or for everything
-        if source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
+        if source == "documents":  # documents from folders and the documents inside emails, never a whole email
+            if doc["file_kind"] == "email":
+                continue
+        elif source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
             continue
         if wanted or area:
             if doc["kind"] not in wanted and not (area and doc["area"] == area):
@@ -594,7 +610,7 @@ def _sources(conn) -> Iterator[tuple[str, str, str, str]]:
     for r in conn.execute("SELECT id, name, text, facts, area FROM documents"):
         facts = json.loads(r["facts"]) if r["facts"] else {}
         summary = " ".join(str(facts.get(k) or "") for k in ("title", "summary", "party", "reference", "place")).strip()
-        yield f"d{r['id']}", "document", r["name"], (summary + " " + r["text"]).strip()
+        yield f"d{r['id']}", "document", proper_name(facts, r["name"], facts.get("kind", "")), (summary + " " + r["text"]).strip()
 
 
 def _fingerprint(conn, more_sources=None) -> str:
@@ -690,7 +706,7 @@ def _trip(docs: list[dict]) -> dict:
 def documents_between(conn, start: str, end: str, limit: int = 100) -> list[dict]:
     """Every recognised document dated within the window (its own date, or the dates of a ticket or booking), oldest first."""
     out: list[dict] = []
-    for doc in list_documents(conn, limit=500):
+    for doc in list_documents(conn, limit=500, source="documents"):  # documents, never a whole email
         facts = doc["facts"]
         day = str(facts.get("start_date") or facts.get("date") or "")
         if day and start <= day <= end:

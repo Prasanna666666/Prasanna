@@ -95,3 +95,4 @@ If something here is wrong, the owner says so once and it is changed here.
 
 ## A whole email is never kept; documents are (owner's call)
 - Once an email is judged, Atlas keeps only what it says (title, who, date, due date, reference, place; at most 600 characters), never its body. Emails judged before this rule are cut down the next time the model step runs. Attachments are documents of their own and stay whole. The Documents screen has no Emails tab.
+- Every list of documents (the apps' Documents tabs, the chat's lists, trip pages, search results) shows a proper name made from what the document says (title and who it is from; the file name only as a last resort) and never lists a whole email: only documents in folders and the documents attached to emails. What an email says (its kept facts) still feeds trips, Finance and the calendar. The search index carries each hit's document key (`ref`), so a hit opens the right document whatever it is called.
