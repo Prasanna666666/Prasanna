@@ -272,8 +272,7 @@ h3 {
 .btn,
 .pill,
 .apptab,
-.apptabs button,
-#tabs button {
+.apptabs button {
     background: var(--card);
     color: var(--ink);
     border: 1px solid var(--line-strong);
@@ -284,7 +283,6 @@ h3 {
 .btn.primary,
 .apptab.active,
 .apptabs button[aria-pressed="true"],
-#tabs button[aria-pressed="true"],
 .item.active,
 .fab,
 .launch {

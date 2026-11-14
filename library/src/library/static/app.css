@@ -39,36 +39,6 @@ h1 {
     color: var(--muted);
     margin: 0.2rem 0 0;
 }
-#q {
-    width: 100%;
-    margin: 16px 0 8px;
-    padding: 12px 16px;
-    font: inherit;
-    color: inherit;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-}
-#kinds {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 8px 0 16px;
-}
-#kinds button {
-    font: inherit;
-    padding: 6px 14px;
-    color: inherit;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    cursor: pointer;
-}
-#kinds button[aria-pressed='true'] {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-}
 .card {
     display: block;
     width: 100%;
@@ -104,20 +74,16 @@ h1 {
     max-height: 60vh;
     overflow: auto;
 }
-.embedded header,
-.embedded #tabs {
-    display: none; /* inside Atlas its own menu does this */
-}
 
 /* ---------- pictures: tabs, the library grid, covers, people, the large view ---------- */
-#tabs,
+
 .apptabs {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin: 16px 0 4px;
 }
-#tabs button,
+
 .apptabs button {
     font: inherit;
     padding: 6px 16px;
@@ -127,7 +93,7 @@ h1 {
     border-radius: 999px;
     cursor: pointer;
 }
-#tabs button[aria-pressed='true'],
+
 .apptabs button[aria-pressed='true'] {
     background: var(--accent);
     border-color: var(--accent);

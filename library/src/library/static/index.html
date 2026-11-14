@@ -11,28 +11,16 @@
     </head>
     <body>
         <main>
-            <header>
-                <h1>Documents</h1>
-                <p id="count" class="muted"></p>
-            </header>
-            <nav id="tabs" aria-label="Sections"></nav>
-            <section id="page-documents">
-                <form id="find" role="search">
-                    <input
-                        id="q"
-                        type="search"
-                        placeholder="Search your files and mail"
-                        autocomplete="off"
-                        aria-label="Search"
-                    />
-                </form>
-                <nav id="kinds" aria-label="Kinds"></nav>
-                <section id="list" aria-live="polite"></section>
-                <article id="doc" hidden></article>
-            </section>
+            <article id="doc" hidden></article>
             <section id="page-pictures" hidden></section>
             <section id="page-changes" hidden></section>
             <section id="page-apps" hidden></section>
+            <section id="standalone" hidden>
+                <h1>Atlas</h1>
+                <p class="muted">
+                    These pages belong inside Atlas. <a href="http://atlas.localhost:8000">Open Atlas</a>
+                </p>
+            </section>
         </main>
         <div id="window" class="overlay" role="dialog" aria-modal="true" aria-labelledby="window-title" hidden></div>
         <div id="lightbox" hidden>

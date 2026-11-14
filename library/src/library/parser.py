@@ -397,7 +397,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)
+    ap.add_argument(
+        "--check",
+        nargs="?",
+        const=0,
+        type=int,
+        metavar="N",
+        help="read every file (or an even sample of N) without storing anything and print what came out, by kind of file",
+    )
     a = ap.parse_args(argv)
+    if a.check is not None:
+        from . import selfcheck
+
+        roots = [("inbox", Path(a.inbox)), *collections(a.collection)]
+        print(selfcheck.render(selfcheck.check(roots, a.check)))
+        return 0
     if a.extract_one:
         _limits()  # the child limits itself before it opens the file (a limit set by the parent needs preexec_fn, which is unsafe with threads)
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
