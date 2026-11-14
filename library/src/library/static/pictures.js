@@ -199,7 +199,7 @@
             );
         }
         const best = el('div', 'best');
-        host().replaceChildren(head('Photos'), best, sub, facets, tags, grid, sentinel, moreBtn);
+        host().replaceChildren(tabs('library'), head('Photos'), best, sub, facets, tags, grid, sentinel, moreBtn);
         if (!Object.keys(filters).length) {
             // the best few on display, only on the Photos home (not when narrowed to a year, place or person)
             browse('highlights').then((h) => {
@@ -242,73 +242,6 @@
         }).observe(sentinel);
         await more();
     }
-    async function showTrips() {
-        host().replaceChildren(el('div', 'empty', 'Loading…'));
-        const trips = await browse('trips');
-        const cards = el('div', 'cards');
-        let year = '';
-        for (const t of trips) {
-            if (t.start.slice(0, 4) !== year) {
-                year = t.start.slice(0, 4);
-                cards.append(el('div', 'band', year));
-            }
-            cards.append(
-                cover(t.cover, t.title, dateRange(t.start, t.stop), t.n, () =>
-                    go('library', { from: t.start, to: t.stop, trip: t.title })
-                )
-            );
-        }
-        const albums = el('button', 'btn', 'Sort into trip albums…');
-        albums.type = 'button';
-        albums.addEventListener('click', async () => {
-            albums.disabled = true;
-            const r = await (
-                await fetch('/api/change/albums', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-Library': '1' },
-                    body: '{}',
-                })
-            ).json();
-            if (r.change_id) location.hash = `#/changes?id=${r.change_id}`;
-            else {
-                albums.disabled = false;
-                albums.textContent = r.error || 'Nothing to sort';
-            }
-        });
-        host().replaceChildren(
-            head('Trips', trips.length ? `${trips.length} trips and occasions, newest first` : ''),
-            ...(trips.length ? [albums] : []),
-            trips.length ? cards : el('div', 'empty', 'No trips yet. They appear once pictures have dates and places.')
-        );
-    }
-    async function showPlaces() {
-        host().replaceChildren(el('div', 'empty', 'Loading…'));
-        const places = await browse('places');
-        const cards = el('div', 'cards'),
-            filter = el('input', 'field');
-        filter.type = 'search';
-        filter.placeholder = 'Find a place…';
-        const fill = () => {
-            const f = filter.value.trim().toLowerCase();
-            cards.replaceChildren(
-                ...places
-                    .filter((p) => !f || p.place.toLowerCase().includes(f))
-                    .map((p) =>
-                        cover(p.cover, p.place.split(',')[0], p.country || p.place, p.n, () =>
-                            go('library', { place: p.place })
-                        )
-                    )
-            );
-        };
-        filter.addEventListener('input', fill);
-        fill();
-        host().replaceChildren(
-            head('Places', places.length ? `${places.length} places` : ''),
-            ...(places.length
-                ? [filter, cards]
-                : [el('div', 'empty', 'No places yet. Photos with a location appear here.')])
-        );
-    }
     function faceStyle(node, id, box) {
         node.style.backgroundImage = `url("/api/pictures/thumb/${id}")`;
         const [x1, y1, x2, y2] = box,
@@ -322,35 +255,112 @@
         node.style.backgroundSize = `${100 / w}% ${100 / w}%`;
         node.style.backgroundPosition = `${pos((x1 + x2) / 2)}% ${pos((y1 + y2) / 2)}%`;
     }
-    async function showPeople() {
-        host().replaceChildren(el('div', 'empty', 'Loading…'));
-        const people = await browse('people'),
-            grid = el('div', 'people');
-        people.forEach((p, i) => {
+    // ---------------------------------------------------------------- the picture folders: trips, places and people, each a row of covers
+    const stat = (label, value, onClick) => {
+        const t = el(onClick ? 'button' : 'div', 'stat');
+        if (onClick) {
+            t.type = 'button';
+            t.addEventListener('click', onClick);
+        }
+        t.append(el('span', 'stat-label', label), el('b', 'stat-value', value.toLocaleString()));
+        return t;
+    };
+    const tripCovers = (trips, limit) => {
+        const cards = el('div', 'cards');
+        for (const t of trips.slice(0, limit)) {
+            cards.append(
+                cover(t.cover, t.title, dateRange(t.start, t.stop), t.n, () =>
+                    go('library', { from: t.start, to: t.stop, trip: t.title })
+                )
+            );
+        }
+        return cards;
+    };
+    const placeCovers = (places, limit) => {
+        const cards = el('div', 'cards');
+        for (const p of places.slice(0, limit)) {
+            cards.append(
+                cover(p.cover, p.place.split(',')[0], p.country || p.place, p.n, () =>
+                    go('library', { place: p.place })
+                )
+            );
+        }
+        return cards;
+    };
+    const personFaces = (people, limit) => {
+        const grid = el('div', 'people');
+        people.slice(0, limit).forEach((p, i) => {
             const b = el('button', 'person'),
                 face = el('div', 'face');
             b.type = 'button';
             faceStyle(face, p.cover, p.box);
-            b.append(
-                face,
-                el('b', '', p.name || `Person ${i + 1}`),
-                el('span', '', `${p.n.toLocaleString()} picture${p.n === 1 ? '' : 's'}`)
-            );
+            b.append(face, el('b', '', p.name || `Person ${i + 1}`), el('span', '', p.n.toLocaleString()));
             b.addEventListener('click', () => go('library', { person: String(p.id) }));
             grid.append(b);
         });
-        host().replaceChildren(
-            head('People', people.length ? `${people.length} people found in your pictures` : ''),
-            people.length ? grid : el('div', 'empty', 'No people yet. Faces are grouped while your pictures are read.')
+        return grid;
+    };
+    const tabs = (current) =>
+        window.AppTabs(
+            [
+                ['photos', 'Dashboard'],
+                ['folders', 'Folders'],
+            ],
+            current
         );
+    const loadAll = () =>
+        Promise.all([
+            browse('trips'),
+            browse('places'),
+            browse('people'),
+            browse('highlights'),
+            getJson('/api/pictures/status'),
+        ]);
+
+    async function showPhotosHome() {
+        host().replaceChildren(tabs('photos'), el('div', 'empty', 'Loading…'));
+        const [trips, places, people, best, status] = await loadAll();
+        const page = [tabs('photos'), el('div', 'tiles')];
+        page[1].append(
+            stat('Photos', status.pictures || 0, () => go('library')),
+            stat('Trips', trips.length, () => go('folders')),
+            stat('Places', places.length, () => go('folders')),
+            stat('People', people.length, () => go('folders'))
+        );
+        if (best.ids && best.ids.length) {
+            const mosaic = el('div', 'mosaic');
+            addTiles({ ids: [], grid: mosaic }, best.ids.slice(0, 8));
+            page.push(el('div', 'band', 'Highlights'), mosaic);
+        }
+        if (trips.length) page.push(el('div', 'band', 'Recent trips'), tripCovers(trips, 4));
+        if (places.length) page.push(el('div', 'band', 'Places'), placeCovers(places, 4));
+        if (people.length) page.push(el('div', 'band', 'People'), personFaces(people, 8));
+        if (!status.pictures)
+            page.push(el('div', 'empty', 'No pictures yet. They appear while your pictures are read.'));
+        host().replaceChildren(...page);
+    }
+
+    async function showFolders() {
+        host().replaceChildren(tabs('folders'), el('div', 'empty', 'Loading…'));
+        const [trips, places, people] = await loadAll();
+        const page = [tabs('folders')];
+        if (trips.length) page.push(el('div', 'band', `Trips · ${trips.length}`), tripCovers(trips, trips.length));
+        if (places.length)
+            page.push(el('div', 'band', `Places · ${places.length}`), placeCovers(places, places.length));
+        if (people.length)
+            page.push(el('div', 'band', `People · ${people.length}`), personFaces(people, people.length));
+        if (page.length === 1)
+            page.push(
+                el('div', 'empty', 'No folders yet. Trips, places and people appear while your pictures are read.')
+            );
+        host().replaceChildren(...page);
     }
 
     window.PicturesUI = {
         pages: {
+            photos: showPhotosHome,
+            folders: showFolders,
             library: showLibrary,
-            trips: showTrips,
-            places: showPlaces,
-            people: showPeople,
         },
         async show(page, params) {
             try {

@@ -10,6 +10,17 @@
         n.append(...kids);
         return n;
     };
+    // the tab bar at the top of an app's page: [[page, label], ...]; the Atlas menu lists the apps, the tabs are inside each one
+    window.AppTabs = (items, current) => {
+        const nav = el('nav', { className: 'apptabs' });
+        for (const [id, label] of items) {
+            const b = el('button', { type: 'button' }, label);
+            b.setAttribute('aria-pressed', String(id === current));
+            b.addEventListener('click', () => (location.hash = `#/${id}`));
+            nav.append(b);
+        }
+        return nav;
+    };
     const toParent = (m) =>
         window.parent.postMessage({ atlas: 1, ...m }, (location.ancestorOrigins && location.ancestorOrigins[0]) || '*');
 
@@ -99,19 +110,19 @@
     const SECTIONS = [
         ['documents', 'Documents'],
         ['mail', 'Emails'],
-        ['library', 'Photos'],
-        ['trips', 'Trips'],
-        ['places', 'Places'],
-        ['people', 'People'],
+        ['photos', 'Photos'],
+        ['folders', 'Folders'],
+        ['library', 'Library'],
         ['changes', 'Changes'],
     ];
+    const NOT_A_TAB = ['folders', 'library', 'changes']; // reached from the Photos dashboard and its own tabs, not from this bar
     let withPictures = false;
 
     function tabs(current) {
         const box = $('#tabs');
         box.replaceChildren();
         for (const [id, label] of SECTIONS) {
-            if (!withPictures && !['documents', 'mail'].includes(id)) continue;
+            if (NOT_A_TAB.includes(id) || (!withPictures && !['documents', 'mail'].includes(id))) continue;
             const b = el('button', { type: 'button' }, label);
             b.setAttribute('aria-pressed', String(id === current));
             b.addEventListener('click', () => (location.hash = id === 'documents' ? '#/home' : `#/${id}`));

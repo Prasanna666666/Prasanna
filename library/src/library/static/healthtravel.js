@@ -77,6 +77,72 @@
     const shortDate = (iso) =>
         new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
+    const appTabs = (app, current) =>
+        window.AppTabs(
+            [
+                [app, 'Dashboard'],
+                [`${app}-docs`, 'Documents'],
+            ],
+            current
+        );
+    const NS = 'http://www.w3.org/2000/svg';
+    const svgEl = (tag, attrs) => {
+        const n = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+        return n;
+    };
+    // a ring: the share of `good` out of good + `bad`, with the count of `bad` in the middle
+    const ring = (good, bad) => {
+        const total = Math.max(1, good + bad),
+            r = 34,
+            c = 2 * Math.PI * r;
+        const svg = svgEl('svg', { viewBox: '0 0 84 84', class: 'ring', 'aria-hidden': 'true' });
+        svg.append(svgEl('circle', { cx: 42, cy: 42, r, class: 'ring-bad' }));
+        svg.append(
+            svgEl('circle', {
+                cx: 42,
+                cy: 42,
+                r,
+                class: 'ring-good',
+                'stroke-dasharray': `${(good / total) * c} ${c}`,
+                transform: 'rotate(-90 42 42)',
+            })
+        );
+        return svg;
+    };
+    // where the latest value sits against the range printed on the report
+    const parseRange = (text) => {
+        const num = (x) => parseFloat(x.replace(',', '.'));
+        let m = (text || '').match(/(-?\d[\d.,]*)\s*[-–]\s*(-?\d[\d.,]*)/);
+        if (m) return [num(m[1]), num(m[2])];
+        m = (text || '').match(/[<≤]\s*(-?\d[\d.,]*)/);
+        if (m) return [null, num(m[1])];
+        m = (text || '').match(/[>≥]\s*(-?\d[\d.,]*)/);
+        return m ? [num(m[1]), null] : null;
+    };
+    const rangeBar = (g) => {
+        const bounds = parseRange(g.latest.range),
+            value = parseFloat(String(g.latest.value).replace(',', '.'));
+        if (!bounds || !Number.isFinite(value)) return null;
+        const [lo, hi] = bounds;
+        const span = lo != null && hi != null ? hi - lo : Math.abs(hi ?? lo) * 0.6;
+        const min = lo != null ? lo - span * 0.6 : Math.min(0, value),
+            max = hi != null ? hi + span * 0.6 : lo + span * 1.6;
+        const at = (v) => Math.min(100, Math.max(0, ((v - min) / (max - min || 1)) * 100));
+        const svg = svgEl('svg', {
+            viewBox: '0 0 100 10',
+            class: 'rangebar',
+            preserveAspectRatio: 'none',
+            'aria-hidden': 'true',
+        });
+        svg.append(svgEl('rect', { x: 0, y: 3, width: 100, height: 4, rx: 2, class: 'rb-track' }));
+        const from = lo != null ? at(lo) : 0,
+            to = hi != null ? at(hi) : 100;
+        svg.append(svgEl('rect', { x: from, y: 3, width: Math.max(1, to - from), height: 4, rx: 2, class: 'rb-ok' }));
+        svg.append(svgEl('circle', { cx: at(value), cy: 5, r: 3.4, class: 'rb-dot' }));
+        return svg;
+    };
+
     // ---------------------------------------------------------------- Travel
     async function travelDocs() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
@@ -86,7 +152,7 @@
         ]);
         const seen = new Set();
         const documents = [...folder.documents, ...booked.documents].filter((d) => !seen.has(d.id) && seen.add(d.id)); // the travel folder, plus tickets and bookings found anywhere
-        const page = [head('Documents', `${documents.length} travel documents`)];
+        const page = [appTabs('travel', 'travel-docs')];
         if (!documents.length) page.push(el('p', 'muted', 'No travel documents yet. Press Read new files.'));
         for (const d of documents)
             page.push(
@@ -104,12 +170,13 @@
         const { trips } = await getJson('/api/travel/trips');
         if (!trips.length)
             return host().replaceChildren(
+                appTabs('travel', 'travel'),
                 el('div', 'empty', 'No trips yet. Tickets and bookings are found when you press Read new files.')
             );
         const coming = trips.filter((t) => t.status !== 'past').sort((x, y) => x.start.localeCompare(y.start));
         const past = trips.filter((t) => t.status === 'past');
         const open = (t) => go('trip', { place: t.place, start: t.start, end: t.end });
-        const page = [];
+        const page = [appTabs('travel', 'travel')];
         const next = coming[0];
         if (next) {
             const n = days(next.start);
@@ -117,12 +184,20 @@
             hero.type = 'button';
             hero.addEventListener('click', () => open(next));
             const nights = Math.max(1, days(next.end) - days(next.start));
-            hero.append(
-                el('span', 'stat-label', next.status === 'now' ? 'Now' : 'Next trip'),
+            const text = el('div', 'hero-text');
+            text.append(
+                el('span', 'stat-label', next.status === 'now' ? 'On now' : 'Next trip'),
                 el('b', 'hero-place', next.place),
-                el('span', 'hero-count', next.status === 'now' ? 'on now' : when(n)),
                 el('span', 'stat-sub', `${shortDate(next.start)} – ${shortDate(next.end)} · ${nights} nights`)
             );
+            const count = el('div', 'hero-count');
+            if (next.status === 'now' || n < 0) count.append(el('b', '', 'Now'));
+            else if (n < 366)
+                count.append(el('b', '', String(n)), el('span', '', n === 1 ? 'day to go' : 'days to go'));
+            else count.append(el('b', '', when(n).replace('in ', '')));
+            const top = el('div', 'hero-top');
+            top.append(text, count);
+            hero.append(top);
             const detail = await getJson(
                 '/api/travel/trip?' + new URLSearchParams({ place: next.place, start: next.start, end: next.end })
             );
@@ -237,7 +312,7 @@
         const q = new URLSearchParams({ place: params.place || '', start: params.start || '', end: params.end || '' });
         const t = await getJson('/api/travel/trip?' + q);
         if (t.ok === false) return host().replaceChildren(el('div', 'empty', t.error || 'That trip was not found.'));
-        const page = [head(t.place, range(t.start, t.end))];
+        const page = [appTabs('travel', ''), head(t.place, range(t.start, t.end))];
         page.push(button('← All trips', () => go('travel')));
         page.push(
             button('How much did this trip cost?', () =>
@@ -339,6 +414,8 @@
             const top = el('span', 'stat-label', g.test);
             top.prepend(el('i', 'dot'));
             c.append(top, el('b', 'stat-value', `${g.latest.value}${g.unit ? ' ' + g.unit : ''}`));
+            const bar = rangeBar(g);
+            if (bar) c.append(bar);
             const nums = g.readings.map((r) => r.number).filter((n) => n != null);
             if (nums.length > 1) c.append(sparkline(nums));
             if (g.change && g.change.direction !== 'same')
@@ -361,7 +438,7 @@
         if (state.locked) return host().replaceChildren(...lockedView(state, again));
         const data = state; // the documents; the dashboard asks for values, medicines and follow-ups itself
         if (sub === 'documents') {
-            const page = [head('Documents', `${data.documents.length} health documents`)];
+            const page = [appTabs('health', 'health-docs')];
             if (!data.documents.length) page.push(el('p', 'muted', 'No health documents yet. Press Read new files.'));
             for (const d of data.documents)
                 page.push(
@@ -383,9 +460,15 @@
         ]);
         const nextUp = (coming.follow_ups || [])[0];
         const out = values.attention.length;
+        const inside = values.tests.length - out;
+        const status = el('div', 'stat statusring');
+        const label = el('div', 'ring-label');
+        label.append(el('b', 'stat-value', String(out)), el('span', 'stat-label', 'outside range'));
+        status.append(ring(inside, out), label);
         const page = [
+            appTabs('health', 'health'),
             tiles(
-                tile('Outside range', out, out ? 'warn' : 'good', out ? 'printed on the report' : 'all within range'),
+                status,
                 nextUp
                     ? tile(
                           'Next check',

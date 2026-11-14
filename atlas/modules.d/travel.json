@@ -11,16 +11,5 @@
   "icon": "M2 14l20-8-8 20-3-9-9-3Z",
   "accent": ["#f59e0b", "#ec4899"],
   "home": "#/travel",
-  "pages": [
-    {
-      "id": "travel",
-      "label": "Dashboard",
-      "icon": "M3 11.5 12 4l9 7.5M5.5 10v9a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1v-9"
-    },
-    {
-      "id": "travel-docs",
-      "label": "Documents",
-      "icon": "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-    }
-  ]
+  "pages": []
 }

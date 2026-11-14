@@ -110,13 +110,15 @@ h1 {
 }
 
 /* ---------- pictures: tabs, the library grid, covers, people, the large view ---------- */
-#tabs {
+#tabs,
+.apptabs {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
     margin: 16px 0 4px;
 }
-#tabs button {
+#tabs button,
+.apptabs button {
     font: inherit;
     padding: 6px 16px;
     color: inherit;
@@ -125,7 +127,8 @@ h1 {
     border-radius: 999px;
     cursor: pointer;
 }
-#tabs button[aria-pressed='true'] {
+#tabs button[aria-pressed='true'],
+.apptabs button[aria-pressed='true'] {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
@@ -682,17 +685,41 @@ button.stat,
     gap: 4px;
     width: 100%;
     margin-bottom: 14px;
-    padding: 22px 22px 18px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(236, 72, 153, 0.16)), var(--card);
+    padding: 24px;
+    background:
+        radial-gradient(120% 140% at 100% 0%, rgba(236, 72, 153, 0.35), transparent 60%),
+        linear-gradient(135deg, rgba(99, 102, 241, 0.45), rgba(99, 102, 241, 0.08)), var(--card);
+}
+.hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+.hero-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 .hero-place {
     font-size: 34px;
     line-height: 1.1;
 }
 .hero-count {
-    font-size: 20px;
-    font-weight: 600;
-    color: var(--accent);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+.hero-count b {
+    font-size: 64px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+}
+.hero-count span {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
 }
 .hero-photos {
     display: grid;
@@ -728,4 +755,69 @@ button.stat,
     font-size: 13px;
     color: var(--muted);
     white-space: pre;
+}
+
+.mosaic {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 18px;
+}
+.mosaic .tile:first-child {
+    grid-column: span 2;
+    grid-row: span 2;
+}
+
+.statusring {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+}
+.ring {
+    width: 64px;
+    height: 64px;
+    flex: none;
+}
+.ring circle {
+    fill: none;
+    stroke-width: 9;
+}
+.ring-bad {
+    stroke: var(--warn);
+}
+.ring-good {
+    stroke: var(--good);
+    stroke-linecap: round;
+}
+.ring-label {
+    display: flex;
+    flex-direction: column;
+}
+.rangebar {
+    width: 100%;
+    height: 10px;
+    margin: 6px 0 2px;
+}
+.rb-track {
+    fill: var(--line);
+}
+.rb-ok {
+    fill: var(--good);
+    opacity: 0.55;
+}
+.rb-dot {
+    fill: var(--ink);
+    stroke: var(--card);
+    stroke-width: 1.5;
+}
+.labtile.high .rb-dot,
+.labtile.low .rb-dot {
+    fill: var(--warn);
+}
+
+.apptabs {
+    margin: 0 0 16px;
+}
+#page-apps a.pill {
+    text-decoration: none;
 }
