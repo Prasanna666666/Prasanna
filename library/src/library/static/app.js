@@ -2,7 +2,7 @@
 (() => {
     const $ = (s) => document.querySelector(s);
     const EMBEDDED = window.parent !== window;
-    const state = { kind: '', q: '', source: 'files' };
+    const state = { kind: '', q: '' };
 
     const api = (path) => fetch(path, { headers: { Accept: 'application/json' } }).then((r) => r.json());
     const el = (tag, props, ...kids) => {
@@ -69,14 +69,14 @@
             return;
         }
         const r = await api(
-            `/api/documents?limit=200&source=${state.source}${state.kind ? `&kind=${encodeURIComponent(state.kind)}` : ''}`
+            `/api/documents?limit=200&source=files${state.kind ? `&kind=${encodeURIComponent(state.kind)}` : ''}`
         );
         showList(r.documents.reverse());
     }
 
     async function loadKinds() {
         const s = await api('/api/status');
-        $('#count').textContent = `${s.documents} files and mails`;
+        $('#count').textContent = `${s.documents} files`;
         const box = $('#kinds');
         box.replaceChildren();
         for (const k of [{ kind: '', count: s.read }, ...s.kinds.filter((x) => x.kind !== 'other')]) {
@@ -109,7 +109,6 @@
     // ---------------------------------------------------------------- sections: documents, and (when pictures are set up) the picture library
     const SECTIONS = [
         ['documents', 'Documents'],
-        ['mail', 'Emails'],
         ['photos', 'Photos'],
         ['folders', 'Folders'],
         ['library', 'Library'],
@@ -122,7 +121,7 @@
         const box = $('#tabs');
         box.replaceChildren();
         for (const [id, label] of SECTIONS) {
-            if (NOT_A_TAB.includes(id) || (!withPictures && !['documents', 'mail'].includes(id))) continue;
+            if (NOT_A_TAB.includes(id) || (!withPictures && id !== 'documents')) continue;
             const b = el('button', { type: 'button' }, label);
             b.setAttribute('aria-pressed', String(id === current));
             b.addEventListener('click', () => (location.hash = id === 'documents' ? '#/home' : `#/${id}`));
@@ -140,12 +139,10 @@
         }
         $('#page-apps').hidden = true;
         const known = SECTIONS.some(([id]) => id === path) && path !== 'documents';
-        const tab = known && (withPictures || path === 'mail') ? path : 'documents';
-        const section = tab === 'mail' ? 'documents' : tab; // emails are the document list, filtered to mail
-        const source = tab === 'mail' ? 'mail' : 'files';
-        state.source = source;
+        const tab = known && withPictures ? path : 'documents';
+        const section = tab;
         tabs(tab);
-        if (known && path !== 'mail' && !withPictures) {
+        if (known && !withPictures) {
             $('#page-documents').hidden = false;
             $('#page-pictures').hidden = true;
             $('#page-changes').hidden = true;

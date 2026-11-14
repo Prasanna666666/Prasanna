@@ -92,3 +92,6 @@ If something here is wrong, the owner says so once and it is changed here.
 - The Atlas menu lists the apps only (`pages: []` in `atlas/modules.d`). Inside each app a tab bar: Finance, Health, Travel have Dashboard and Documents; Photos has Dashboard (totals, highlights, recent trips, places, people) and Folders (trips, places, people as covers). The old per-page menus are gone.
 - Medical documents (kind `medical` or the health folder) are returned only to a request that asks for them by name, so another app asking for its own kinds, or for everything, never receives them. This replaces what the lock did for that purpose.
 - Finance's detail pages (income, expenses, savings, investments, net worth, plan, tasks, notes, people, files) and everything only they used were deleted (3,700 to 1,360 lines of JavaScript); the dashboard's cards and the search palette send their question to the chat. Dashboard-only pieces in the library app: ring, range bar, countdown hero, covers.
+
+## A whole email is never kept; documents are (owner's call)
+- Once an email is judged, Atlas keeps only what it says (title, who, date, due date, reference, place; at most 600 characters), never its body. Emails judged before this rule are cut down the next time the model step runs. Attachments are documents of their own and stay whole. The Documents screen has no Emails tab.

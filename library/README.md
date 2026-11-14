@@ -19,6 +19,8 @@ The **one reader and store for everything that arrives**: files in your inbox, f
 - **Collections**: `LIBRARY_COLLECTIONS=finance=/collections/finance,health=/collections/health` names folders you keep for one purpose. A document carries its collection's name as its `area`; apps can ask for it.
 
 ## Mail
+Apple Mail keeps your Gmail on this Mac. Whole emails are never kept: only what each one says (title, who, date, reference), plus its attachments as documents.
+
 Apple Mail keeps your Gmail on this Mac; the service reads Apple Mail's own folder (`~/Library/Mail`) **read-only**, every mailbox except Junk, Trash and Drafts, only new messages each time, with no date limit. To allow it: System Settings → Privacy & Security → **Full Disk Access** → switch on **Docker**, quit and reopen Docker Desktop, then run `./up.sh` again (without `ATLAS_NO_MAIL`). Until then the Update shows Mails as "not connected"; `ATLAS_NO_MAIL=1 ./scripts/up.sh` turns it off. Nothing connects to a mail server. `library export-mail` copies mail into the inbox as `.eml` files if you prefer. Mail text is data, never instructions.
 
 ## Run

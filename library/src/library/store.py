@@ -189,11 +189,36 @@ def ingest_dir(conn, directory: Path, stop=None) -> dict[str, int]:
 
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
+MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never what it is
+
+
+def _mail_summary(facts: dict | None) -> str:
+    parts = (str((facts or {}).get(k) or "") for k in ("title", "summary", "party", "date", "due_date", "reference", "place"))
+    return " ".join(parts).strip()[:MAIL_KEPT_CHARS]
+
+
 def _mark_ready(conn, sha: str, judged: int, facts: dict | None) -> None:
     conn.execute(
         "UPDATE documents SET judged=?, facts=?, ready=(SELECT COALESCE(MAX(ready),0)+1 FROM documents) WHERE sha256=?",
         (judged, json.dumps(facts) if facts else "", sha),
     )
+    # A whole email is never kept: once it is judged only what it says (title, who, when, reference) stays. Its attachments are documents of their own.
+    conn.execute("UPDATE documents SET text=?, data='' WHERE sha256=? AND area='mail' AND kind='email'", (_mail_summary(facts), sha))
+
+
+def forget_mail_bodies(conn) -> int:
+    """Emails judged before this rule keep only what they say too; returns how many were cut down."""
+    done = 0
+    while True:
+        rows = conn.execute(
+            "SELECT id, facts FROM documents WHERE area='mail' AND kind='email' AND judged>0 AND length(text)>? LIMIT 500", (MAIL_KEPT_CHARS,)
+        ).fetchall()
+        if not rows:
+            return done
+        for r in rows:
+            conn.execute("UPDATE documents SET text=?, data='' WHERE id=?", (_mail_summary(json.loads(r["facts"]) if r["facts"] else None), r["id"]))
+        conn.commit()
+        done += len(rows)
 
 
 def _data(d) -> dict:
@@ -220,6 +245,7 @@ JUDGE_CHUNK = 100  # documents held in memory at a time: tens of thousands of ma
 def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0) -> dict[str, Any]:
     """Judge every document not yet judged (or `limit` of them: the caller comes back for more, so new files keep being taken in meanwhile). Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
+    forget_mail_bodies(conn)
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "problem": "", "stopped": False}
     index, last = 0, 0

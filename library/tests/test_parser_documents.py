@@ -340,3 +340,21 @@ def test_judging_in_small_rounds_leaves_the_rest_for_the_next_round(conn, tmp_pa
     assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
     assert store.counts(conn)["waiting"] == 3  # the other three wait; new files can be taken in meanwhile
     assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
+
+
+def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stays_a_document(conn, tmp_path):
+    body = "Dear customer, thanks for your order. " * 40
+    _put(tmp_path, _doc(name="order.eml", kind="email", text=body + " Booking confirmed total 480,00 EUR", sha256="a" * 64, area="mail"))
+    _put(tmp_path, _doc(name="order.pdf", kind="pdf", text="FACTUUR Hotel totaal 480,00 EUR betaling " * 3, sha256="b" * 64, area="mail"))
+    store.ingest_dir(conn, tmp_path)
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {
+                "content": json.dumps({"kind": "booking", "title": "Hotel booking", "party": "Taj", "date": "2026-05-01", "total": "480,00", "currency": "EUR"})
+            }
+
+    store.judge_pending(conn, Model(), "fake")
+    mail = conn.execute("SELECT text, data FROM documents WHERE name='order.eml'").fetchone()
+    assert "Dear customer" not in mail["text"] and "Hotel booking" in mail["text"] and mail["data"] == ""
+    assert "FACTUUR" in conn.execute("SELECT text FROM documents WHERE name='order.pdf'").fetchone()["text"]  # a document inside a mail stays whole
