@@ -265,8 +265,8 @@ def _hash(group: list[int], pieces: dict[int, dict[str, Any]]) -> str:
     return h.hexdigest()[:20]
 
 
-def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]]) -> Callable[[int, int], bool | None]:
-    """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round."""
+def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]], answered: list[int]) -> Callable[[int, int], bool | None]:
+    """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round. `answered` counts the new answers."""
     budget = [MAX_CONFIRMS if client is not None else 0]
 
     def verdict(a: int, b: int) -> bool | None:
@@ -282,16 +282,18 @@ def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]]) -
         except extract.Unclear:
             return None
         conn.execute("INSERT OR REPLACE INTO links (sha_a, sha_b, same) VALUES (?,?,?)", (*key, int(same)))
+        answered[0] += 1
         return same
 
     return verdict
 
 
 def rebuild(conn, client: Any = None, model: str = "") -> int:
-    """Group the pieces into matters. A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
+    """Group the pieces into matters (returns how much changed). A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
     pieces = pieces_of(conn)
     by_id = {p["id"]: p for p in pieces}
-    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id))[0]}
+    answered = [0]
+    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered))[0]}
     known = {r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")}
     for h in known - set(now):
         conn.execute("DELETE FROM cases WHERE input_hash=?", (h,))
@@ -305,7 +307,7 @@ def rebuild(conn, client: Any = None, model: str = "") -> int:
         for pid in json.loads(r["members"]):
             conn.execute("UPDATE documents SET case_id=? WHERE id=?", (r["id"], pid))
     conn.commit()
-    return new
+    return new + answered[0]  # how much changed: new matters and new answers about which pieces belong together
 
 
 def understand_pending(conn, client: Any, model: str, limit: int = 5) -> int:

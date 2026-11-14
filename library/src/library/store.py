@@ -208,6 +208,7 @@ def ingest_dir(conn, directory: Path, stop=None) -> dict[str, int]:
 
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
+MAX_FINISH_ROUNDS = 500  # a safety net, never reached in practice: each round must change something or the work is done
 MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never what it is
 
 
@@ -360,6 +361,26 @@ def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool =
         forget_mail_bodies(conn)  # a mail read in full as part of its matter is now reduced to what it says
         out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
+
+
+def finish_matters(conn, client, model, control: Callable[[], str] | None = None, progress: Progress | None = None) -> int:
+    """Everything read is put together and understood: round after round until nothing more can be (the Read button does all of it). Respects Pause and Stop;
+    a matter the model cannot make sense of is tried up to three times, then listed with its reason. Returns how many matters were understood."""
+    total = 0
+    for _ in range(MAX_FINISH_ROUNDS):
+        _wait_while_paused(conn, control)
+        if control is not None and control() == "stop":
+            break
+        changed = casebook.rebuild(conn, client, model)
+        done = casebook.understand_pending(conn, client, model)
+        forget_mail_bodies(conn)
+        total += done
+        if progress and (changed or done):
+            progress(f"Putting the pieces together… {total} matters understood")
+        if not (changed or done):
+            break
+    conn.commit()
+    return total
 
 
 def fill_health_details(conn, client, model, control: Callable[[], str] | None = None) -> int:

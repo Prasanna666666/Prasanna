@@ -580,8 +580,17 @@
         });
         return b;
     };
+    // the panel is rebuilt only when what it says has changed (a rebuild at every poll made it flicker)
+    const scanUnchanged = (report, panel) => {
+        const sig = JSON.stringify(report);
+        const missing = Object.values(report.modules || {}).some((r) => r && r.up === false);
+        const same = !missing && sig === scan.sig && !panel.hidden;
+        scan.sig = sig;
+        return same;
+    };
     const showScan = (report) => {
         const panel = $('#scan');
+        if (scanUnchanged(report, panel)) return;
         const close = el('button', 'scan-close', '×');
         close.type = 'button';
         close.setAttribute('aria-label', 'Close');
@@ -657,15 +666,15 @@
             return;
         }
         showScan(report);
-        if (report.running) scan.timer = setTimeout(followScan, 1200);
-        else refreshHealth();
+        if (report.running) scan.timer = setTimeout(followScan, 2000);
+        else refreshHealth().then(render); // the read is finished: everything is shown in its final form
     };
     const startScan = async () => {
         try {
             const reply = await fetch('/_atlas/api/scan', { method: 'POST', headers: { 'X-Atlas': '1' } });
             if (!reply.ok) return;
             showScan(await reply.json());
-            scan.timer = setTimeout(followScan, 1200);
+            scan.timer = setTimeout(followScan, 2000);
         } catch (_) {
             /* the page keeps working; the button can be pressed again */
         }

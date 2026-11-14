@@ -57,7 +57,7 @@ def test_a_matter_is_understood_once_and_read_again_only_when_it_changes(conn, m
         return {"title": "Invoice", "what": "An invoice"}
 
     monkeypatch.setattr(extract, "_ask", ask)
-    assert casebook.rebuild(conn, object(), "m") == 1
+    assert casebook.rebuild(conn, object(), "m") == 2  # one new matter and one answer about which pieces belong together
     assert casebook.understand_pending(conn, None, "m") == 1
     assert casebook.rebuild(conn, object(), "m") == 0
     assert casebook.understand_pending(conn, None, "m") == 0
@@ -98,3 +98,15 @@ def test_the_model_must_quote_both_pieces_to_confirm(monkeypatch):
     assert casebook.confirm(None, "m", a, b) is True
     monkeypatch.setattr(extract, "_ask", lambda *x, **k: {"same": True, "quote_a": "INV-20931", "quote_b": "made up"})
     assert casebook.confirm(None, "m", a, b) is False
+
+
+def test_the_read_button_finishes_every_matter_in_rounds_and_stops_when_nothing_more_changes(conn, monkeypatch):
+    from library import store
+
+    for i in range(8):  # more matters than one round handles
+        _doc(conn, f"f{i}", f"Letter about subject{i} reference REF-{i}0000")
+    monkeypatch.setattr(extract, "_ask", lambda *a, **k: {"title": "Letter", "what": "A letter"})
+    assert store.finish_matters(conn, object(), "m") == 8
+    assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary=''").fetchone()[0] == 0
+    stop = store.finish_matters(conn, object(), "m", lambda: "stop")
+    assert stop == 0

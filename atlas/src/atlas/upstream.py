@@ -66,6 +66,7 @@ class Upstreams:
         self._health: dict[str, tuple[float, dict[str, Any]]] = {}
         self._last_scan: dict[str, dict[str, Any]] = {}  # what each app last said about its reading
         self._lock = threading.Lock()
+        self._settle_after_read = False
         self.settler = settle.Settler()  # which bank payment settles which matter; its model is set by the Atlas
 
     # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
@@ -303,6 +304,15 @@ class Upstreams:
             return {"running": False, "modules": {}}
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
             results = list(pool.map(lambda m: self._scan_one(m, start), targets))
+        if start:
+            self._settle_after_read = True
+        if self._settle_after_read and not any(r["running"] for r in results):
+            self._settle_after_read = False
+            self.agenda(400)  # the read is done: the payments are matched to what they pay, in the background, before the read counts as finished
+        if self.settler.working() and not any(r["running"] for r in results):
+            first = next((r for r in results if r.get("up")), None)
+            if first is not None:
+                first.update(running=True, progress="Matching payments to what they pay…")
         modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
         return {"running": any(r["running"] for r in results), "modules": modules}
 

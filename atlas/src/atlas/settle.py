@@ -13,7 +13,6 @@ from datetime import date, timedelta
 from typing import Any
 
 WINDOW_BEFORE, WINDOW_AFTER, MAX_PAYMENTS = 60, 90, 25
-PER_ROUND = 4  # matters asked per round: the model is shared with the rest of the app
 CENT = 0.005
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -100,8 +99,12 @@ class Settler:
     def known(self, matters: list[dict[str, Any]]) -> dict[Any, dict[str, Any]]:
         return {m["id"]: self._known[key_of(m)] for m in matters if m.get("open") and key_of(m) in self._known}
 
+    def working(self) -> bool:
+        return self._busy.locked()
+
     def start(self, matters: list[dict[str, Any]], payments: list[dict[str, Any]]) -> None:
-        todo = [m for m in matters if m.get("open") and key_of(m) not in self._known][:PER_ROUND]
+        """Every open matter without an answer is judged in the background, one at a time (the model is shared); what failed is asked again the next time."""
+        todo = [m for m in matters if m.get("open") and key_of(m) not in self._known]
         if todo and self.pick is not None and self._busy.acquire(blocking=False):
             threading.Thread(target=self._run, args=(todo, payments), daemon=True).start()
 
