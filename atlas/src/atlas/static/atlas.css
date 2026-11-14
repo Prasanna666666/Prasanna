@@ -259,6 +259,10 @@ nav {
 }
 .searchbar span {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 .searchbar svg {
     width: 18px;

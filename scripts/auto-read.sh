@@ -3,6 +3,15 @@
 # are waiting and never before you have pressed Read new files once; a big read is always your own decision. Costs almost nothing when it does not run:
 # a few cheap checks. Turn it off with:  touch ~/.atlas-auto-off   (on again: rm ~/.atlas-auto-off)
 set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# A reminder, once a day, for what is overdue, due today or within 3 days (you are at the Mac for this one, so it does not wait for idle). Off: touch ~/.atlas-remind-off
+STAMP="$HOME/.atlas-reminded-$(date +%Y-%m-%d)"
+if [ ! -e "$HOME/.atlas-remind-off" ] && [ ! -e "$STAMP" ]; then
+  TEXT="$(curl -s -m 10 --resolve atlas.localhost:8000:127.0.0.1 "http://atlas.localhost:8000/_atlas/api/home" | python3 "$HERE/remind.py" 2>/dev/null)"
+  if [ -n "${TEXT:-}" ]; then
+    osascript -e 'on run {t, m}' -e 'display notification m with title t' -e 'end run' "Atlas: coming up" "$TEXT" >/dev/null 2>&1 && touch "$STAMP"
+  fi
+fi
 [ -e "$HOME/.atlas-auto-off" ] && exit 0
 IDLE_SECONDS="${ATLAS_AUTO_IDLE:-300}"
 idle=$(ioreg -c IOHIDSystem 2>/dev/null | awk '/HIDIdleTime/ {print int($NF/1000000000); exit}')

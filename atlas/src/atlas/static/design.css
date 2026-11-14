@@ -646,6 +646,17 @@ main {
     background: var(--surface-2);
     color: var(--muted);
 }
+.chiprow .chip {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 5px 14px;
+    cursor: pointer;
+}
 .chip.on {
     background: var(--accent) !important;
     color: #fff !important;

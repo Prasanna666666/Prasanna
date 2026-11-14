@@ -181,3 +181,26 @@ def test_a_card_for_the_home_page_is_trimmed_and_cannot_carry_markup_or_a_foreig
     )
     assert len(card["headline"]) == 80 and card["link"] == "" and len(card["items"]) == 6 and card["images"] == [1, 3] and card["figure"] == 4
     assert Upstreams._card({"headline": ""}) is None and Upstreams._card("x") is None
+
+
+def test_the_daily_reminder_names_only_what_is_overdue_today_or_within_three_days():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("remind", Path(__file__).resolve().parents[2] / "scripts" / "remind.py")
+    remind = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(remind)
+    home = {
+        "cards": {
+            "calendar": {
+                "items": [
+                    {"label": "Rent", "value": "overdue"},
+                    {"label": "Bill", "value": "in 2 d"},
+                    {"label": "Trip", "value": "in 12 d"},
+                    {"label": "Tax", "value": "today"},
+                ]
+            }
+        }
+    }
+    assert remind.due_soon(home) == ["Rent (overdue)", "Bill (in 2 d)", "Tax (today)"]
+    assert remind.due_soon({}) == [] and remind.due_soon({"cards": {"calendar": None}}) == []
