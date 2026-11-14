@@ -624,6 +624,9 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
             continue
         try:
             out = _read_document(conn, d, data, client, model, _with_failures(progress, run), (index, len(docs)))
+        except extract.Unclear:  # the model could not make sense of this one: it is not marked as read, and is tried again next time
+            run.problems.append(f"{d['name']}: the model could not make sense of it this time; it will be tried again")
+            continue
         except RuntimeError as exc:  # the model could not be reached: stop, nothing is marked as done
             run.problems.append(str(exc))
             break

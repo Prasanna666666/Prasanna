@@ -116,6 +116,7 @@ def _read_all(state: State) -> None:
         except RuntimeError:
             client, model = None, ""
         parsed_dir().mkdir(parents=True, exist_ok=True)
+        store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
         while True:

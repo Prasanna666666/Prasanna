@@ -110,3 +110,11 @@ If something here is wrong, the owner says so once and it is changed here.
 
 ## How to know the reader works on your files: a check you can run
 - `library-parser --check [N]` reads every file in the inbox and the category folders (or an even sample of N) the way the reader reads them, stores nothing, and prints counts by what each file is (PDF, text, sheet, image, binary ...) and how reading went (text, text with a table, scan, no text, failed with the reason), with three file names per problem class so you can look at them. Run it in the parser container: `docker exec atlas-documents-parser-1 library-parser --check`. A guarantee for every file style cannot be given; this makes the gaps visible on your own files, and every failure class found becomes a test.
+
+## Where read information was lost, and what changed (owner: "how is it being lost?")
+Found in the code, fixed:
+1. A broken or empty answer from the model was turned into the kind `other` and the document was marked as read for good: empty facts, never retried. Now the model is asked twice; if it still gives nothing usable the document is marked "not understood" (state 3), reported, and tried again every time Read new files is pressed. Nothing is ever called `other` because the model failed.
+2. The model was shown only the first 3,500 characters, so totals, due dates and signatures at the end of a document were never seen. It now sees the beginning and the end (3,000 + 1,500 characters), and every amount, date and place is checked against the WHOLE text.
+3. Lab values and medicines were read from the first 6,000 characters only; a longer report lost everything after that. A document is now read in overlapping windows of 5,500 characters (up to 12), rows seen twice kept once, each value verified against the window it came from.
+4. A party (who a document is from) is kept only when the document contains that name; before, an invented name could stand.
+Still true and still visible in the reading report (`unread_files` tool): mail judged not relevant is set aside without the model, and a whole email keeps only its facts.

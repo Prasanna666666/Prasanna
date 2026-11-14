@@ -60,6 +60,11 @@ def summary(conn) -> dict[str, Any]:
             "each_file": "has no readable text (a video, a recording, a program or an unknown format): only its name is kept, so it can be found by name",
             "examples": no_text,
         },
+        "model_could_not_understand": {
+            "count": conn.execute("SELECT COUNT(*) FROM documents WHERE judged=3").fetchone()[0],
+            "each_file": "was read, but the model gave no usable answer about it (twice); it is not marked as anything and is tried again each time you press Read new files",
+        },
+        "waiting_for_the_model": conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0],
         "set_aside_as_not_relevant": set_aside,
         "note": "Set aside means the document was read and stored but not sent to the model, because it did not look relevant (mostly mail such as newsletters). Files in your category folders are always sent to the model.",
         "as_of": "the last full read" if found else "no full read has run yet",

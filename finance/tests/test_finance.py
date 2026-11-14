@@ -313,7 +313,8 @@ def test_nonsense_from_the_model_never_crashes_the_import(bad):
         def chat(self, *a, **k):
             return {"content": bad}
 
-    assert extract.classify(Odd(), "m", "x.pdf", "text")["kind"] == "other"
+    with pytest.raises(extract.Unclear):  # an answer that is not usable is never turned into "other": the file is tried again, not lost
+        extract.classify(Odd(), "m", "x.pdf", "text")
     assert tables.infer_layout(Odd(), "m", [[tables.Cell(0, 1, "a")]]) is None
 
 

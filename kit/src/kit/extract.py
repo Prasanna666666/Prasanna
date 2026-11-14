@@ -47,13 +47,20 @@ KIND_PROMPT = (
 )
 
 
+class Unclear(Exception):
+    """The model answered, but not with anything usable (twice). The document is not 'other': it is not understood yet and is tried again later."""
+
+
 def _ask(client, model: str, system: str, text: str, schema: dict) -> dict:
-    msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema)
-    try:
-        data = json.loads(msg.get("content") or "{}")
-    except ValueError:
-        return {}
-    return data if isinstance(data, dict) else {}
+    for _ in range(2):
+        msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema)
+        try:
+            data = json.loads(msg.get("content") or "")
+        except ValueError:
+            continue  # once more: a small model sometimes returns a broken answer the first time
+        if isinstance(data, dict) and data:
+            return data
+    raise Unclear("the model gave no usable answer")
 
 
 def _squash(s: str) -> str:
@@ -130,12 +137,27 @@ def verify_trip_fields(info: dict, text: str) -> dict:
     return checked
 
 
+HEAD_CHARS, TAIL_CHARS = 3000, 1500
+
+
+def sample_of(text: str) -> str:
+    """What the model is shown of a long document: its beginning (who, what, when) and its end (totals, signatures, due dates), not only the first pages."""
+    if len(text) <= HEAD_CHARS + TAIL_CHARS:
+        return text
+    return text[:HEAD_CHARS] + "\n[...]\n" + text[-TAIL_CHARS:]
+
+
 def classify(client, model: str, name: str, text: str) -> dict:
-    """What the file is and its key facts. Only the first part of the text goes to the (local) model; every amount is verified against the text."""
-    data = _ask(client, model, KIND_PROMPT, f"File name: {name}\n\n{text[:3500]}", KIND_SCHEMA)
+    """What the file is and its key facts. The model is shown the beginning and the end; every amount, date and party is then checked against the WHOLE text and dropped if the
+    document does not say it. An answer the model cannot give raises Unclear: it is never turned into 'other'."""
+    data = _ask(client, model, KIND_PROMPT, f"File name: {name}\n\n{sample_of(text)}", KIND_SCHEMA)
     if data.get("kind") not in KINDS:
-        return {"kind": "other"}
-    return verify_trip_fields(verify_amounts(data, text[:3500]), text[:3500])
+        raise Unclear("the model named a kind that does not exist")
+    checked = verify_trip_fields(verify_amounts(data, text), text)
+    party = str(checked.get("party") or "").strip()
+    if party and _squash(party.lower()) not in _squash(text.lower()):
+        checked["party"] = ""  # a name the document does not contain is the model's invention
+    return checked
 
 
 # ---- health: lab values and medicines, only what the document itself prints -------------------------------------------------------------------
@@ -181,10 +203,18 @@ def _printed(text_lower: str, squashed_lower: str, quoted: str) -> bool:
     return bool(quoted) and (quoted in text_lower or _squash(quoted) in squashed_lower)
 
 
-def medical_details(client, model: str, name: str, text: str) -> dict:
-    """Lab values and medicines of a medical document. The model quotes; code keeps a value only when its test name, its result, its unit and its range are
-    printed in the document, a date only when it is written there, and reads the number from the printed result itself. Nothing is interpreted."""
-    body = text[:6000]
+WINDOW, OVERLAP, MAX_WINDOWS = 5500, 500, 12
+
+
+def _windows(text: str) -> list[str]:
+    """The whole document in pieces the model can hold, each overlapping the one before so a row is never cut in two."""
+    if len(text) <= WINDOW:
+        return [text]
+    step = WINDOW - OVERLAP
+    return [text[i : i + WINDOW] for i in range(0, min(len(text), step * MAX_WINDOWS), step)]
+
+
+def _health_window(client, model: str, name: str, body: str) -> dict:
     data = _ask(client, model, HEALTH_PROMPT, f"File name: {name}\n\n{body}", HEALTH_SCHEMA)
     lower, squashed = body.lower(), _squash(body.lower())
     values = []
@@ -221,3 +251,22 @@ def medical_details(client, model: str, name: str, text: str) -> dict:
         )
     follow_up = str(data.get("follow_up") or "")
     return {"values": values, "medicines": medicines, "follow_up": follow_up if follow_up in dates_in(body) else None}
+
+
+def medical_details(client, model: str, name: str, text: str) -> dict:
+    """Lab values and medicines of a medical document, read over the WHOLE document (a long report is read in overlapping pieces, not cut off after the first pages).
+    The model quotes; code keeps a value only when its test name, its result, its unit and its range are printed in the piece it came from, a date only when it is written
+    there, and reads the number from the printed result itself. Nothing is interpreted. The same row seen in two pieces is kept once."""
+    values: list[dict] = []
+    medicines: list[dict] = []
+    follow_up = None
+    for body in _windows(text):
+        got = _health_window(client, model, name, body)
+        for v in got["values"]:
+            if not any((v["test"].lower(), v["value"], v["unit"]) == (o["test"].lower(), o["value"], o["unit"]) for o in values):
+                values.append(v)
+        for m in got["medicines"]:
+            if not any(m["name"].lower() == o["name"].lower() for o in medicines):
+                medicines.append(m)
+        follow_up = follow_up or got["follow_up"]
+    return {"values": values[: MAX_VALUES * 4], "medicines": medicines[: MAX_MEDICINES * 2], "follow_up": follow_up}

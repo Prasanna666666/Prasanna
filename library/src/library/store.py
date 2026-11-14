@@ -242,12 +242,26 @@ def _exact_facts(d) -> dict | None:
 JUDGE_CHUNK = 100  # documents held in memory at a time: tens of thousands of mails never sit in memory together
 
 
+def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
+    while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
+        conn.commit()
+        time.sleep(0.5)
+
+
+def _understand(client, model: str, d) -> dict:
+    """What the model makes of one document: what it is and its key facts, and for a medical document the lab values and medicines the document itself prints."""
+    facts = extract.classify(client, model, d["name"], d["text"])
+    if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
+        facts["health"] = extract.medical_details(client, model, d["name"], d["text"])
+    return facts
+
+
 def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0) -> dict[str, Any]:
     """Judge every document not yet judged (or `limit` of them: the caller comes back for more, so new files keep being taken in meanwhile). Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
     forget_mail_bodies(conn)
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
-    out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "problem": "", "stopped": False}
+    out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "unclear": 0, "problem": "", "stopped": False}
     index, last = 0, 0
     while True:
         chunk = conn.execute(
@@ -261,9 +275,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                 return out
             index += 1
             last = d["id"]
-            while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
-                conn.commit()
-                time.sleep(0.5)
+            _wait_while_paused(conn, control)
             if control is not None and control() == "stop":
                 out["stopped"] = True
                 out["waiting"] = total - index + 1
@@ -291,11 +303,11 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                 if progress and index % 5 == 1:
                     progress(f"{index} read so far")  # the total is not known: more files may still be arriving
                 try:
-                    facts = extract.classify(client, model, d["name"], d["text"])
-                    if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
-                        facts["health"] = extract.medical_details(
-                            client, model, d["name"], d["text"]
-                        )  # lab values and medicines, only what the document prints
+                    facts = _understand(client, model, d)
+                except extract.Unclear:  # the model answered but could not make sense of it: not 'other', not lost: counted and tried again at the next Read
+                    conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
+                    out["unclear"] += 1
+                    continue
                 except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
                     out["waiting"] = total - index + 1
                     out["problem"] = str(exc)
@@ -329,6 +341,8 @@ def fill_health_details(conn, client, model, control: Callable[[], str] | None =
             break
         try:
             details = extract.medical_details(client, model, r["name"], r["text"])
+        except extract.Unclear:
+            continue  # no usable answer for this one: it keeps what it has and is tried again next time
         except RuntimeError:
             break  # the model could not be reached: the next round tries again
         conn.execute("UPDATE documents SET facts=? WHERE sha256=?", (json.dumps({**json.loads(r["facts"]), "health": details}), r["sha256"]))
@@ -655,8 +669,17 @@ def passages(conn, question: str, limit: int = 6, alternatives: list[str] | None
 
 
 def counts(conn) -> dict[str, Any]:
-    r = conn.execute("SELECT COUNT(*) AS n, SUM(judged=0) AS waiting, SUM(judged=1) AS read, SUM(judged=2) AS skipped FROM documents").fetchone()
-    return {"documents": r["n"], "waiting": r["waiting"] or 0, "read": r["read"] or 0, "skipped": r["skipped"] or 0}
+    r = conn.execute(
+        "SELECT COUNT(*) AS n, SUM(judged=0) AS waiting, SUM(judged=1) AS read, SUM(judged=2) AS skipped, SUM(judged=3) AS unclear FROM documents"
+    ).fetchone()
+    return {"documents": r["n"], "waiting": r["waiting"] or 0, "read": r["read"] or 0, "skipped": r["skipped"] or 0, "unclear": r["unclear"] or 0}
+
+
+def retry_unclear(conn) -> int:
+    """Documents the model could not make sense of get another try (called when the person presses Read new files)."""
+    n = conn.execute("UPDATE documents SET judged=0 WHERE judged=3").rowcount
+    conn.commit()
+    return n
 
 
 def by_kind(conn) -> list[dict]:
