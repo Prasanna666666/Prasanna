@@ -110,3 +110,15 @@ def test_the_read_button_finishes_every_matter_in_rounds_and_stops_when_nothing_
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary=''").fetchone()[0] == 0
     stop = store.finish_matters(conn, object(), "m", lambda: "stop")
     assert stop == 0
+
+
+def test_the_audit_says_final_only_when_nothing_is_left(conn, monkeypatch):
+    from library import store
+
+    _doc(conn, "a", "Letter about subject reference REF-10000")
+    assert store.audit(conn)["not_grouped"] == 1 and store.audit_line(store.audit(conn)).startswith(
+        "Still left: 1 identified files not yet grouped into a matter"
+    )
+    monkeypatch.setattr(extract, "_ask", lambda *a, **k: {"title": "Letter", "what": "A letter"})
+    store.finish_matters(conn, object(), "m")
+    assert store.audit_line(store.audit(conn)).startswith("Nothing is left: 1 files identified, grouped into 1 matters")

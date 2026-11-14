@@ -108,6 +108,15 @@ def _read_pictures(state: State, conn, client, model) -> None:
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
+def _finish(state: State, conn, client, model) -> None:
+    """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
+    if client is None or not model or state.control == "stop":
+        return
+    store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m))
+    if state.control != "stop":
+        state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
+
+
 def _read_all(state: State) -> None:
     """Update: wake the reader, then take in and judge what it produces until it is idle and nothing new arrives. One press reads everything."""
     conn = state.connect()
@@ -145,8 +154,7 @@ def _read_all(state: State) -> None:
             state.scan["summary"] += f"; automatic reading stopped at its limit of {AUTO_LIMIT} files: press Read new files for the rest"
         else:
             _read_pictures(state, conn, client, model)
-            if client is not None and model and state.control != "stop":
-                store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m))
+            _finish(state, conn, client, model)
         if state.control != "stop":
             store.warm_search(conn, state.picture_text(), lambda: state.control == "stop")
         state.scan["problems"] = [problem] if problem else []

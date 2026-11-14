@@ -383,6 +383,35 @@ def finish_matters(conn, client, model, control: Callable[[], str] | None = None
     return total
 
 
+def audit(conn) -> dict[str, int]:
+    """The check at the end of a read, as plain counts. The first four are what is left (all zero means nothing is left); the last two are the totals."""
+    one = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
+    return {
+        "not_identified": one("SELECT COUNT(*) FROM documents WHERE judged=0 AND TRIM(text)<>''"),
+        "no_usable_answer": one("SELECT COUNT(*) FROM documents WHERE judged=3"),
+        "not_grouped": one("SELECT COUNT(*) FROM documents WHERE judged=1 AND case_id IS NULL"),
+        "matters_not_read": one("SELECT COUNT(*) FROM cases WHERE summary=''"),
+        "files": one("SELECT COUNT(*) FROM documents WHERE judged IN (1, 2)"),
+        "matters": one("SELECT COUNT(*) FROM cases WHERE summary<>''"),
+    }
+
+
+LEFT = {
+    "not_identified": "files the model has not looked at yet",
+    "no_usable_answer": "files the model gave no usable answer for (tried again at the next read)",
+    "not_grouped": "identified files not yet grouped into a matter",
+    "matters_not_read": "matters whose combined reading is not done",
+}
+
+
+def audit_line(found: dict[str, int]) -> str:
+    """What the audit found, with the numbers."""
+    left = [f"{found[k]:,} {text}" for k, text in LEFT.items() if found[k]]
+    if not left:
+        return f"Nothing is left: {found['files']:,} files identified, grouped into {found['matters']:,} matters, each matter read in full"
+    return "Still left: " + "; ".join(left)
+
+
 def fill_health_details(conn, client, model, control: Callable[[], str] | None = None) -> int:
     """Medical documents judged before lab values and medicines were read get them now (one model call each); returns how many."""
     marks = ",".join("?" for _ in HEALTH_KINDS)
