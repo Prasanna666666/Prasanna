@@ -51,3 +51,19 @@ def test_a_trip_carries_what_it_cost_and_half_understood_bills_are_counted_not_s
     out = dots.agenda([trip, pay(80.0, "2026-11-12", "Cafe"), pay(120.0, "2026-11-13", "Hotel"), pay(5.0, "2026-12-01", "Later")], TODAY)
     assert out["events"][0]["subtitle"] == "3 documents · spent 200.00 · 12 photos"
     assert dots.agenda([doc("invoice", id=1, due="2026-11-20")], TODAY)["left_out"]["incomplete"] == 1
+
+
+def test_a_matter_read_as_a_whole_gives_its_next_step_whatever_it_is():
+    item = {
+        "src": "documents",
+        "kind": "matter",
+        "id": 4,
+        "title": "Roof repair",
+        "open": True,
+        "due": "2026-11-20",
+        "next": "Pay the second instalment",
+        "status": "half paid",
+    }
+    out = dots.agenda([item], "2026-11-14")["events"]
+    assert [(e["title"], e["date"], e["subtitle"]) for e in out] == [("Roof repair", "2026-11-20", "Pay the second instalment · half paid")]
+    assert dots.agenda([{**item, "open": False}], "2026-11-14")["events"] == []

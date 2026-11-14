@@ -24,7 +24,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import complete, recognise, relevance, understood
+from . import casebook, recognise, relevance, understood
 
 MIGRATIONS = (
     """
@@ -105,6 +105,17 @@ MIGRATIONS = (
     """
     ALTER TABLE documents ADD COLUMN source TEXT NOT NULL DEFAULT '';   -- where the file lay (folder and path), so a newer version of the same file replaces the older one
     CREATE INDEX documents_source ON documents (source) WHERE source <> '';
+    """,
+    """
+    CREATE TABLE cases (
+        id INTEGER PRIMARY KEY,
+        input_hash TEXT NOT NULL UNIQUE,         -- which pieces, as they were when it was read: a changed matter is read again
+        members TEXT NOT NULL,                   -- the ids of its pieces
+        summary TEXT NOT NULL DEFAULT '',        -- what was understood of it as a whole, every claim with a quote ('' = not yet)
+        tries INTEGER NOT NULL DEFAULT 0
+    );
+    ALTER TABLE documents ADD COLUMN case_id INTEGER;
+    CREATE INDEX documents_case ON documents (case_id);
     """,
 )
 MODULE = Module("library", MIGRATIONS)
@@ -336,7 +347,8 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
 
 def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool = False) -> dict[str, Any]:
     if not skip and client is not None and model and not out["stopped"]:
-        out["completed"] = complete.complete_pending(conn, client, model)  # what the documents left open is looked for in everything that belongs with them
+        out["matters"] = casebook.rebuild(conn)  # the pieces of one matter, wherever they are, are found and put together
+        out["understood_matters"] = casebook.understand_pending(conn, client, model)  # a few at a time, each read as a whole
         out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
 

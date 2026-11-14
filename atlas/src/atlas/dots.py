@@ -97,12 +97,26 @@ def _event(kind: str, when: str, title: str, subtitle: str, doc: Any, *, end: st
     return {"type": kind, "date": when, "end": end or when, "title": title, "subtitle": subtitle, "doc": doc, "state": state, "sources": 1}
 
 
+def _matter_events(it: dict[str, Any], now: date, left_out: dict[str, int]) -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
+    """A matter read as a whole by the library: what happens next and when, in its own words; nothing here knows what sort of matter it is."""
+    if not it.get("open"):
+        left_out["done"] += 1
+        return []
+    if not _day(it.get("due")):
+        return []
+    sub = " · ".join(x for x in (it.get("next"), it.get("status")) if x)
+    state = "overdue" if it["due"] < now.isoformat() else "open"
+    return [(("matter", it["id"], it["due"]), _event("due", it["due"], it["title"], sub, it.get("id"), state=state))]
+
+
 def _item_events(
     it: dict[str, Any], docs: list[dict[str, Any]], payments: list[dict[str, Any]], now: date, left_out: dict[str, int]
 ) -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
     """The events one item gives rise to (a trip, a bill, an ending, a follow-up), each with its key, in its true state; what is settled, done or superseded is counted, not returned."""
     kind = it.get("kind")
     out: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    if kind == "matter":
+        return _matter_events(it, now, left_out)
     if kind == "trip":
         cost = _cost(it, payments, now)
         note = (
