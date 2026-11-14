@@ -356,9 +356,6 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
 
 def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool = False) -> dict[str, Any]:
     if not skip and client is not None and model and not out["stopped"]:
-        out["matters"] = casebook.rebuild(conn, client, model)  # the pieces of one matter, wherever they are, are found and put together
-        out["understood_matters"] = casebook.understand_pending(conn, client, model)  # a few at a time, each read as a whole
-        forget_mail_bodies(conn)  # a mail read in full as part of its matter is now reduced to what it says
         out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
 

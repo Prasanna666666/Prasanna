@@ -368,6 +368,7 @@ def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stay
             }
 
     store.judge_pending(conn, Model(), "fake")
+    store.finish_matters(conn, Model(), "fake")  # the grouping runs once at the end of a read, not after every few files
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary<>''").fetchone()[0] == 2  # each read whole (the stub model says they are not one matter)
     mail = conn.execute("SELECT text, data FROM documents WHERE name='order.eml'").fetchone()
     assert "Dear customer" not in mail["text"] and "Hotel booking" in mail["text"] and mail["data"] == ""
@@ -392,6 +393,7 @@ def test_documents_are_named_by_what_they_say_and_a_whole_email_is_never_listed(
             }
 
     store.judge_pending(conn, Model(), "fake")
+    store.finish_matters(conn, Model(), "fake")  # shown once read together with what belongs with it, at the end of a read
     listed = store.list_documents(conn, ["invoice"], source="documents")
     assert [d["title"] for d in listed] == ["Internet bill · Ziggo"]  # the document inside the mail, by its title; the mail itself is not a document
     assert len(store.list_documents(conn, ["invoice"])) == 2  # the data feed (trips, Finance) still sees what the mail says

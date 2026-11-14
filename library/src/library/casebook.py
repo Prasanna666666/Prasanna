@@ -18,15 +18,14 @@ from kit import extract
 
 ID = re.compile(r"\b(?=[A-Za-z0-9/\-]*\d)[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b")
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
-WORD = re.compile(r"[^\W\d_]{6,}")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
-MAX_CONFIRMS = 20  # model checks per round, so the computer stays responsive; the rest wait for the next round
+MAX_CONFIRMS = 200  # model checks per round of the final step; the rest wait for the next round
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
 
 
 def _rare_values(text: str) -> set[str]:
-    return {m.lower() for m in ID.findall(text)} | {m.lower() for m in AMOUNT.findall(text)} | {m.lower() for m in WORD.findall(text)}
+    return {m.lower() for m in ID.findall(text)} | {m.lower() for m in AMOUNT.findall(text)}
 
 
 def _mail_of(name: str) -> str:
