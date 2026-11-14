@@ -1316,7 +1316,7 @@
             stat(
                 'Net worth',
                 nw.net_worth == null ? '–' : money(nw.net_worth),
-                nw.net_worth == null ? 'Comes from your statements' : `Cash ${money(nw.accounts || 0)}`,
+                nw.net_worth == null ? 'no data yet' : `Cash ${money(nw.accounts || 0)}`,
                 '#/networth'
             ),
             stat(
@@ -1346,12 +1346,14 @@
                 .slice(0, 2)
                 .map((x) => ({
                     k: 'bill',
-                    t: `${x.what} · ${money(x.amount, 2)} · ${x.in_days <= 0 ? 'now' : `in ${x.in_days} days`}`,
+                    t: `${x.what} · ${money(x.amount, 0)} · ${x.in_days <= 0 ? 'now' : `${x.in_days}d`}`,
                 })),
             ...(checks.length
-                ? [{ k: 'check', t: `${checks.length} file${checks.length === 1 ? '' : 's'} need a look` }]
+                ? [{ k: 'check', t: `${checks.length} file${checks.length === 1 ? '' : 's'} to check` }]
                 : []),
-            ...det.items.slice(0, 3).map((x) => ({ k: x.kind, t: x.text })),
+            ...(det.items.length
+                ? [{ k: 'review', t: `${det.items.length} payment${det.items.length === 1 ? '' : 's'} to review` }]
+                : []),
         ].slice(0, 4);
         const attentionCard = attention.length
             ? section(
@@ -1434,40 +1436,6 @@
                   )
                 : h('div', { class: 'empty' }, 'Nothing today.')
         );
-        const go = (label, sub, ic, color, act) =>
-            h(
-                'button',
-                { class: 'short', onclick: act },
-                h('span', {
-                    class: 'cat-badge',
-                    style: `--c:${color};width:44px;height:44px`,
-                    html: `<svg viewBox="0 0 24 24"><path d="${ICONS[ic] || CATS[ic][1]}"/></svg>`,
-                }),
-                h('span', { class: 'short-t' }, label),
-                h('span', { class: 'faint small' }, sub)
-            );
-        const shortcuts = h(
-            'div',
-            { class: 'shorts' },
-            go('Income', 'Salary, bonus, other', 'income', '#10b981', () => {
-                location.hash = '#/income';
-            }),
-            go('Expenses', 'Monthly, recurring, one-offs', 'expenses', '#f43f5e', () => {
-                location.hash = '#/expenses';
-            }),
-            go('Savings', 'Saved and savings rate', 'savings', '#14b8a6', () => {
-                location.hash = '#/savings';
-            }),
-            go('Investments', 'Paid in, value, gain', 'investments', '#8b5cf6', () => {
-                location.hash = '#/investments';
-            }),
-            go('Net worth', 'Cash, investments, debts', 'networth', '#0ea5e9', () => {
-                location.hash = '#/networth';
-            }),
-            go('Plan', 'Goals, budgets, tax', 'plan', '#f59e0b', () => {
-                location.hash = '#/plan';
-            })
-        );
         const welcome = h(
             'div',
             { class: 'card welcome-card' },
@@ -1488,7 +1456,6 @@
                 ? [
                       hero,
                       stats,
-                      shortcuts,
                       h(
                           'div',
                           { class: 'grid g2' },

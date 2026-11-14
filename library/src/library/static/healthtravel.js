@@ -45,6 +45,37 @@
     };
     const openDoc = (id) => (location.hash = `#/doc/${id}`);
     const section = (title) => el('h3', 'band', title);
+    // a headline number with a label under it: the building block of every dashboard
+    const tile = (label, value, tone, sub, onClick) => {
+        const t = el(onClick ? 'button' : 'div', `stat ${tone || ''}`);
+        if (onClick) {
+            t.type = 'button';
+            t.addEventListener('click', onClick);
+        }
+        t.append(el('span', 'stat-label', label), el('b', 'stat-value', value));
+        if (sub) t.append(el('span', 'stat-sub', sub));
+        return t;
+    };
+    const tiles = (...list) => {
+        const row = el('div', 'tiles');
+        row.append(...list.filter(Boolean));
+        return row;
+    };
+    const days = (iso) => Math.round((new Date(iso + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+    const when = (n) =>
+        n === 0
+            ? 'today'
+            : n === 1
+              ? 'tomorrow'
+              : n < 0
+                ? `${-n} days ago`
+                : n < 60
+                  ? `in ${n} days`
+                  : n < 730
+                    ? `in ${Math.round(n / 30)} months`
+                    : `in ${Math.round(n / 365)} years`;
+    const shortDate = (iso) =>
+        new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
     // ---------------------------------------------------------------- Travel
     async function travelDocs() {
@@ -71,29 +102,75 @@
     async function travel() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
         const { trips } = await getJson('/api/travel/trips');
-        const page = [head('Travel', trips.length ? `${trips.length} trips` : '')];
-        if (trips.length) {
-            const cal = el('a', 'pill', 'Add trips to Calendar');
-            cal.href = '/api/travel/calendar.ics';
-            cal.setAttribute('download', 'trips.ics');
-            page.push(cal);
-        }
-        const tripCard = (t) =>
-            card(
-                t.place,
-                `${range(t.start, t.end)} · ${t.documents ? `${t.documents} documents` : `${t.photos} photos`}${
-                    t.source === 'photos' ? ' (from photos)' : ''
-                }`,
-                () => go('trip', { place: t.place, start: t.start, end: t.end })
-            );
-        const coming = trips.filter((t) => t.status !== 'past');
-        const past = trips.filter((t) => t.status === 'past');
-        if (coming.length) page.push(section('Upcoming'), ...coming.map(tripCard));
-        if (past.length) page.push(section('Past'), ...past.map(tripCard));
         if (!trips.length)
-            page.push(
+            return host().replaceChildren(
                 el('div', 'empty', 'No trips yet. Tickets and bookings are found when you press Read new files.')
             );
+        const coming = trips.filter((t) => t.status !== 'past').sort((x, y) => x.start.localeCompare(y.start));
+        const past = trips.filter((t) => t.status === 'past');
+        const open = (t) => go('trip', { place: t.place, start: t.start, end: t.end });
+        const page = [];
+        const next = coming[0];
+        if (next) {
+            const n = days(next.start);
+            const hero = el('button', 'hero');
+            hero.type = 'button';
+            hero.addEventListener('click', () => open(next));
+            const nights = Math.max(1, days(next.end) - days(next.start));
+            hero.append(
+                el('span', 'stat-label', next.status === 'now' ? 'Now' : 'Next trip'),
+                el('b', 'hero-place', next.place),
+                el('span', 'hero-count', next.status === 'now' ? 'on now' : when(n)),
+                el('span', 'stat-sub', `${shortDate(next.start)} – ${shortDate(next.end)} · ${nights} nights`)
+            );
+            const detail = await getJson(
+                '/api/travel/trip?' + new URLSearchParams({ place: next.place, start: next.start, end: next.end })
+            );
+            if (detail.photos && detail.photos.ids.length) {
+                const strip = el('div', 'hero-photos');
+                for (const id of detail.photos.ids.slice(0, 4)) {
+                    const img = new Image();
+                    img.alt = '';
+                    img.loading = 'lazy';
+                    img.src = `/api/pictures/thumb/${id}`;
+                    strip.append(img);
+                }
+                hero.append(strip);
+            }
+            page.push(hero);
+        }
+        page.push(
+            tiles(
+                tile('Upcoming', coming.length, 'accent'),
+                tile('Past', past.length),
+                tile('Places', new Set(trips.map((t) => t.place)).size),
+                tile(
+                    'Documents',
+                    trips.reduce((x, t) => x + (t.documents || 0), 0)
+                )
+            )
+        );
+        const grid = el('div', 'tripgrid');
+        for (const t of [...coming.slice(1), ...past]) {
+            const c = el('button', 'tripcard' + (t.status === 'past' ? ' past' : ''));
+            c.type = 'button';
+            c.addEventListener('click', () => open(t));
+            c.append(
+                el('b', '', t.place),
+                el('span', 'stat-sub', `${shortDate(t.start)}${t.end !== t.start ? ' – ' + shortDate(t.end) : ''}`),
+                el(
+                    'span',
+                    'chips',
+                    `${t.documents ? '✈ ' + t.documents : ''}${t.documents && t.photos ? '   ' : ''}${t.photos ? '▣ ' + t.photos : ''}`
+                )
+            );
+            grid.append(c);
+        }
+        page.push(grid);
+        const cal = el('a', 'pill', 'Add trips to Calendar');
+        cal.href = '/api/travel/calendar.ics';
+        cal.setAttribute('download', 'trips.ics');
+        page.push(cal);
         host().replaceChildren(...page);
     }
 
@@ -250,74 +327,31 @@
         return svg;
     }
 
-    const valuesView = (data) => {
-        const FLAG = {
-            above_range: ['Above printed range', 'flag-high'],
-            below_range: ['Below printed range', 'flag-low'],
-        };
-        const page = [head('Lab values', `${data.tests.length} measurements`)];
-        // the summary: anything outside the range printed on the report, or a plain "nothing"
-        const summary = el('div', 'healthsummary' + (data.attention.length ? ' attention' : ''));
-        summary.append(
-            el(
-                'b',
-                '',
-                data.attention.length
-                    ? `${data.attention.length} ${data.attention.length === 1 ? 'result is' : 'results are'} outside the printed range`
-                    : data.tests.length
-                      ? 'Nothing is outside the printed ranges'
-                      : 'No values found yet. Press Read new files.'
-            )
-        );
-        data.attention.forEach((g) => {
-            const line = el(
-                'span',
-                '',
-                `${g.test}: ${g.latest.value}${g.unit ? ' ' + g.unit : ''} (range ${g.latest.range}) on ${g.latest.date}`
-            );
-            summary.append(line);
-        });
-        page.push(summary, el('p', 'muted', data.note));
-        const row = (g) => {
-            const d = el('details', 'testrow');
-            const top = el('summary');
-            top.append(el('b', '', g.test), el('span', 'latest', `${g.latest.value}${g.unit ? ' ' + g.unit : ''}`));
-            if (FLAG[g.flag]) top.append(el('span', `flagchip ${FLAG[g.flag][1]}`, FLAG[g.flag][0]));
-            else if (g.flag === 'in_range') top.append(el('span', 'flagchip flag-ok', 'In printed range'));
-            if (g.change && g.change.direction !== 'same') {
-                const sign = g.change.absolute > 0 ? '+' : '';
-                top.append(
+    const FLAG = { above_range: 'high', below_range: 'low', in_range: 'ok' };
+    // one small card per test: the latest value, a flag dot, and the trend
+    const labGrid = (groups) => {
+        const grid = el('div', 'labgrid');
+        for (const g of groups) {
+            const c = el('button', `labtile ${FLAG[g.flag] || ''}`);
+            c.type = 'button';
+            c.title = g.latest.range ? `printed range ${g.latest.range}` : g.test;
+            c.addEventListener('click', () => openDoc(g.latest.id || g.readings[g.readings.length - 1].id));
+            const top = el('span', 'stat-label', g.test);
+            top.prepend(el('i', 'dot'));
+            c.append(top, el('b', 'stat-value', `${g.latest.value}${g.unit ? ' ' + g.unit : ''}`));
+            const nums = g.readings.map((r) => r.number).filter((n) => n != null);
+            if (nums.length > 1) c.append(sparkline(nums));
+            if (g.change && g.change.direction !== 'same')
+                c.append(
                     el(
                         'span',
-                        'muted',
-                        `${g.change.direction === 'up' ? '▲' : '▼'} ${sign}${g.change.absolute}${
-                            g.change.percent != null ? ` (${sign}${g.change.percent}%)` : ''
-                        } since ${g.change.since}`
+                        'stat-sub',
+                        `${g.change.direction === 'up' ? '▲' : '▼'} ${g.change.percent != null ? Math.abs(g.change.percent) + '%' : Math.abs(g.change.absolute)}`
                     )
                 );
-            }
-            d.append(top);
-            const nums = g.readings.map((r) => r.number).filter((n) => n != null);
-            if (nums.length > 1) d.append(sparkline(nums));
-            const table = el('table', 'tbl');
-            for (const r of g.readings) {
-                const tr = el('tr');
-                const doc = el('a', '', r.date || r.document);
-                doc.href = `#/doc/${r.id}`;
-                const first = el('td');
-                first.append(doc);
-                tr.append(first, el('td', '', r.value), el('td', 'muted', r.range ? `range ${r.range}` : ''));
-                table.append(tr);
-            }
-            d.append(table);
-            return d;
-        };
-        if (data.attention.length) page.push(section('Outside the printed range'), ...data.attention.map(row));
-        const rest = (list) =>
-            list.filter((g) => !data.attention.includes(g) && !data.attention.some((a) => a.test === g.test));
-        if (rest(data.common).length) page.push(section('Common tests'), ...rest(data.common).map(row));
-        if (rest(data.other).length) page.push(section('Other measurements'), ...rest(data.other).map(row));
-        return page;
+            grid.append(c);
+        }
+        return grid;
     };
 
     async function health(sub) {
@@ -326,11 +360,6 @@
         const state = await getJson('/api/medical');
         if (state.locked) return host().replaceChildren(...lockedView(state, again));
         const data = state; // the documents; the dashboard asks for values, medicines and follow-ups itself
-        const note = el(
-            'p',
-            'muted',
-            'Everything here is copied from your documents exactly as printed. Atlas does not interpret it or give medical advice.'
-        );
         if (sub === 'documents') {
             const page = [head('Documents', `${data.documents.length} health documents`)];
             if (!data.documents.length) page.push(el('p', 'muted', 'No health documents yet. Press Read new files.'));
@@ -346,22 +375,52 @@
                 );
             return host().replaceChildren(...page);
         }
-        // the dashboard: what is coming up, lab values and medicines, on one page
+        // the dashboard: four headline tiles, the tests as small cards, the medicines as chips
         const [values, meds, coming] = await Promise.all([
             getJson('/api/medical/values'),
             getJson('/api/medical/medicines'),
             getJson('/api/medical/followups'),
         ]);
-        const page = [head('Health', `${data.documents.length} documents`), note];
-        if (coming.follow_ups && coming.follow_ups.length) {
-            page.push(section('Coming up (stated in your documents)'));
-            coming.follow_ups.forEach((f) => page.push(card(f.date, f.title, () => openDoc(f.id))));
+        const nextUp = (coming.follow_ups || [])[0];
+        const out = values.attention.length;
+        const page = [
+            tiles(
+                tile('Outside range', out, out ? 'warn' : 'good', out ? 'printed on the report' : 'all within range'),
+                nextUp
+                    ? tile(
+                          'Next check',
+                          shortDate(nextUp.date),
+                          'accent',
+                          `${nextUp.title} · ${when(days(nextUp.date))}`,
+                          () => openDoc(nextUp.id)
+                      )
+                    : null,
+                tile('Tests', values.tests.length),
+                tile('Medicines', meds.medicines.length)
+            ),
+        ];
+        if (!values.tests.length) page.push(el('div', 'empty', 'No values yet. Press Read new files.'));
+        const rest = (list) => list.filter((g) => !values.attention.some((a) => a.test === g.test));
+        const ordered = [...values.attention, ...rest(values.common), ...rest(values.other)];
+        if (ordered.length) page.push(labGrid(ordered));
+        if (meds.medicines.length) {
+            const row = el('div', 'chiprow');
+            for (const m of meds.medicines) {
+                const c = el('button', 'chip');
+                c.type = 'button';
+                c.append(el('b', '', m.name), el('span', '', m.dose || ''));
+                c.addEventListener('click', () => openDoc(m.id));
+                row.append(c);
+            }
+            page.push(row);
         }
-        page.push(section('Lab values'), ...valuesView(values).slice(1));
-        page.push(section('Medicines'));
-        if (!meds.medicines.length) page.push(el('p', 'muted', 'No medicines found yet.'));
-        for (const m of meds.medicines)
-            page.push(card(m.name, [m.dose, m.duration, m.date].filter(Boolean).join(' · '), () => openDoc(m.id)));
+        page.push(
+            el(
+                'p',
+                'foot',
+                'Copied exactly as printed in your documents. A flag only compares with the range printed on the report.'
+            )
+        );
         host().replaceChildren(...page);
     }
 

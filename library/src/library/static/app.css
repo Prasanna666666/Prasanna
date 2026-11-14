@@ -549,3 +549,183 @@ h1 {
 .flag-ok {
     color: #5bb98c;
 }
+
+/* ---------- Dashboards (Health, Travel): few words, big numbers, small pictures ---------- */
+:root {
+    --good: #2f9e6b;
+    --warn: #d98a12;
+}
+:root[data-theme='dark'] {
+    --good: #4cc38a;
+    --warn: #f0a93a;
+}
+.tiles {
+    align-items: start;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin: 0 0 18px;
+}
+.stat,
+.labtile,
+.tripcard,
+.hero,
+.chip {
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px 16px;
+}
+button.stat,
+.labtile,
+.tripcard,
+.hero,
+.chip {
+    cursor: pointer;
+}
+.stat,
+.labtile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.stat-label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.stat-value {
+    font-size: 30px;
+    line-height: 1.15;
+    font-weight: 650;
+}
+.stat-sub {
+    font-size: 13px;
+    color: var(--muted);
+}
+.stat.accent .stat-value {
+    color: var(--accent);
+}
+.stat.good .stat-value {
+    color: var(--good);
+}
+.stat.warn .stat-value {
+    color: var(--warn);
+}
+.labgrid {
+    align-items: start;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.labtile .stat-value {
+    font-size: 22px;
+}
+.labtile svg {
+    color: var(--muted);
+    margin: 4px 0;
+    max-width: 100%;
+}
+.labtile .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--line);
+    margin-right: 6px;
+}
+.labtile.ok .dot {
+    background: var(--good);
+}
+.labtile.high,
+.labtile.low {
+    border-color: var(--warn);
+}
+.labtile.high .dot,
+.labtile.low .dot {
+    background: var(--warn);
+}
+.labtile.high svg,
+.labtile.low svg {
+    color: var(--warn);
+}
+.chiprow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.chip {
+    padding: 8px 14px;
+    border-radius: 999px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: baseline;
+}
+.chip span {
+    color: var(--muted);
+    font-size: 13px;
+}
+.foot {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 8px 0 0;
+}
+.hero {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 22px 22px 18px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(236, 72, 153, 0.16)), var(--card);
+}
+.hero-place {
+    font-size: 34px;
+    line-height: 1.1;
+}
+.hero-count {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent);
+}
+.hero-photos {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 12px;
+}
+.hero-photos img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 10px;
+}
+.tripgrid {
+    align-items: start;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.tripcard {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.tripcard b {
+    font-size: 18px;
+}
+.tripcard.past {
+    opacity: 0.75;
+}
+.chips {
+    font-size: 13px;
+    color: var(--muted);
+    white-space: pre;
+}
