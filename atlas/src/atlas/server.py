@@ -223,6 +223,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/_atlas/api/modules": lambda _q: self._json({"modules": [m.public() for m in atlas.modules.values()]}),
             "/_atlas/api/health": lambda _q: self._json(atlas.upstreams.health()),
             "/_atlas/api/scan": lambda _q: self._json(atlas.upstreams.scan()),
+            "/_atlas/api/home": lambda _q: self._json(atlas.upstreams.home()),
             "/_atlas/api/ai": lambda _q: self._json(atlas.upstreams.ai(atlas.model_url)),
             "/_atlas/api/search": lambda q: self._json({"results": atlas.upstreams.search((q.get("q") or [""])[0][:200])}),
         }

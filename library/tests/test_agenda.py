@@ -50,3 +50,22 @@ def test_a_bill_from_last_week_is_kept_but_a_trip_in_the_past_is_not(conn):
 def test_a_calendar_file_is_whole_days_and_safe_text(conn):
     text = agenda.ics([{"type": "trip", "date": "2026-12-01", "end": "2026-12-05", "title": "Goa, India;x", "subtitle": "", "doc": None}])
     assert "DTSTART;VALUE=DATE:20261201" in text and "DTEND;VALUE=DATE:20261206" in text and "SUMMARY:Goa Indiax" in text and text.startswith("BEGIN:VCALENDAR")
+
+
+def test_the_home_cards_are_short_facts_from_the_same_data(conn):
+    from types import SimpleNamespace
+
+    from library import highlights
+
+    conn.add(
+        "b.pdf",
+        "medical",
+        title="Blood test",
+        date="2026-03-01",
+        health={"values": [{"test": "Glucose", "value": "6,4", "number": 6.4, "unit": "mmol/L", "range": "4,0 - 6,0"}], "medicines": [], "follow_up": None},
+    )
+    state = SimpleNamespace(engine=lambda: None)
+    card = highlights.card("health", conn.conn, state)
+    assert card["headline"] == "1 to look at" and card["tone"] == "warn" and card["items"][0] == {"label": "Glucose", "value": "6,4 mmol/L"}
+    assert highlights.card("photos", conn.conn, state)["headline"] == "Not connected"
+    assert highlights.card("nonsense", conn.conn, state) is None

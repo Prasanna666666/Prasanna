@@ -14,5 +14,6 @@
     "#4f46e5"
   ],
   "home": "#/calendar",
-  "pages": []
+  "pages": [],
+  "highlights": "/api/highlights?app=calendar"
 }

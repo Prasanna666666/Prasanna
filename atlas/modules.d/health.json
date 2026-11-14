@@ -9,7 +9,11 @@
   "app": "Health",
   "tagline": "Reports, lab values and medicines from your own documents.",
   "icon": "M12 21s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9Z",
-  "accent": ["#ef4444", "#ec4899"],
+  "accent": [
+    "#ef4444",
+    "#ec4899"
+  ],
   "home": "#/health",
-  "pages": []
+  "pages": [],
+  "highlights": "/api/highlights?app=health"
 }

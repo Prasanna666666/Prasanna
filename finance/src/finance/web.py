@@ -136,6 +136,17 @@ def _get_home(state: State, conn, query: dict[str, str]) -> dict:
     }
 
 
+def _get_highlights(state: State, conn, query: dict[str, str]) -> dict:
+    """The Finance card for the Atlas home page: this month in a few numbers, and what is due soon. Counts only: nothing here asks the model."""
+    month = clock.today().isoformat()[:7]
+    month_sum = money.summary(conn, {"month": month})
+    cur = db.display_currency(conn)
+    due = insight.upcoming_payments(conn, {"days": 21})
+    items = [{"label": "Money in", "value": f"{cur} {month_sum.get('income', 0):,.0f}"}]
+    items += [{"label": str(d.get("merchant", ""))[:30], "value": f"in {d.get('in_days', 0)} d"} for d in due[:3]]
+    return {"headline": f"{cur} {month_sum.get('spent', 0):,.0f}", "sub": "spent this month", "items": items, "link": "#/home"}
+
+
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     try:
         client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
@@ -193,6 +204,7 @@ GET_ROUTES = {
     "/api/health": lambda state, conn, query: {"ok": True},
     "/api/search": _get_search,
     "/api/home": _get_home,
+    "/api/highlights": _get_highlights,
     "/api/status": _get_status,
     "/api/tools": _get_tools,
     "/api/settings": _get_settings,

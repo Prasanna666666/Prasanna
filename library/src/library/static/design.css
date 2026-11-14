@@ -900,3 +900,132 @@ main {
     color: var(--bad);
     font-weight: 600;
 }
+
+/* The home page: one card per part of your life */
+.board {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 22px;
+}
+.hc {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px 20px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
+}
+.hc:hover {
+    border-color: var(--accent);
+}
+.hc-calendar {
+    grid-column: span 4;
+}
+.hc-photos {
+    grid-column: span 6;
+}
+.hc-photos .hc-strip {
+    grid-template-columns: repeat(6, 1fr);
+}
+.hc-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+}
+.hc-top svg {
+    width: 16px;
+    height: 16px;
+}
+.hc-head {
+    font-size: 30px;
+    line-height: 1.15;
+}
+.hc.warn .hc-head {
+    color: var(--warn);
+}
+.hc.good .hc-head {
+    color: var(--good);
+}
+.hc-sub {
+    font-size: 13px;
+    color: var(--muted);
+}
+.hc-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-top: 8px;
+}
+.hc-row {
+    display: grid;
+    grid-template-columns: 10px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+.hc-row i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+.hc-row.due i {
+    background: var(--warn);
+}
+.hc-row.followup i {
+    background: #0e9aa7;
+}
+.hc-row.ends i {
+    background: #6b7280;
+}
+.hc-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.hc-row b {
+    font-weight: 600;
+    color: var(--muted);
+}
+.hc.has-cover {
+    min-height: 200px;
+    justify-content: flex-end;
+    color: #fff;
+    background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.72)),
+        var(--cover) center / cover;
+}
+.hc.has-cover .hc-top,
+.hc.has-cover .hc-sub {
+    color: rgba(255, 255, 255, 0.85);
+}
+.hc-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 8px;
+}
+.hc-strip img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 6px;
+}
+@media (max-width: 900px) {
+    .hc,
+    .hc-calendar {
+        grid-column: span 6;
+    }
+}

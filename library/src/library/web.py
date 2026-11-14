@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import agenda, changes, flags, pictures, readreport, store, tools, travel
+from . import agenda, changes, flags, highlights, pictures, readreport, store, tools, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -489,6 +489,14 @@ def _post_tool(state: State, conn, body: dict) -> dict:
     return tools.run(state, conn, str(body.get("name", "")), args if isinstance(args, dict) else {}, ask)
 
 
+def _get_highlights(state: State, conn, query: dict[str, str]) -> dict:
+    """/api/highlights?app=health|travel|calendar|photos|documents: the card of one app for the Atlas home page."""
+    found = highlights.card(query.get("app", "")[:20], conn, state)
+    if found is None:
+        raise Fail(404, "no such card")
+    return found
+
+
 def _get_agenda_events(state: State, conn, query: dict[str, str]) -> dict:
     """/api/agenda/events?from=YYYY-MM-DD&to=YYYY-MM-DD: every dated thing the documents say, for the calendar page."""
     since, until = agenda.iso_day(query.get("from")), agenda.iso_day(query.get("to"))
@@ -522,6 +530,7 @@ GET_ROUTES = {
     "/api/pictures": _get_pictures,
     "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,
+    "/api/highlights": _get_highlights,
     "/api/agenda/events": _get_agenda_events,
     "/api/agenda/upcoming": _get_agenda_upcoming,
 }

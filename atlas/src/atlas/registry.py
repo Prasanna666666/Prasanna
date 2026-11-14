@@ -51,6 +51,7 @@ class Module:
     tool: str = ""  # optional: where the assistant runs one of them (POST {name, args, user_text} -> {ok, data, error, items})
     media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
+    highlights: str = ""  # optional: where the app gives its card for the home page (GET -> {headline, sub, items, ...})
     hidden: bool = False  # works for the chat, the search and the Update, but is not an app of its own in the menu
     auth: Auth | None = None
     headers: tuple[tuple[str, str], ...] = ()  # fixed headers on Atlas's own calls (an app's change-protection header, for example)
@@ -129,6 +130,7 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         health=str(raw.get("health", "/api/health")),
         search=str(raw.get("search", "")),
         scan=str(raw.get("scan", "")),
+        highlights=str(raw.get("highlights", "")),
         tools=str(raw.get("tools", "")),
         tool=str(raw.get("tool", "")),
         media=str(raw.get("media", "")),

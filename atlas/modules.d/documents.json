@@ -9,7 +9,10 @@
   "app": "Documents",
   "tagline": "Letters, invoices, reports, contracts, tickets",
   "icon": "M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5",
-  "accent": ["#06b6d4", "#f59e0b"],
+  "accent": [
+    "#06b6d4",
+    "#f59e0b"
+  ],
   "home": "#/home",
   "pages": [],
   "search": "/api/search",
@@ -17,5 +20,6 @@
   "media": "/api/pictures/thumb/",
   "tools": "/api/tools",
   "tool": "/api/tool",
-  "hidden": true
+  "hidden": true,
+  "highlights": "/api/highlights?app=documents"
 }

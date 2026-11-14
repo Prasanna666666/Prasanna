@@ -189,6 +189,40 @@ class Upstreams:
                 self._authed(module, "POST", f"{module.scan}/{action}", SCAN_SECONDS)
         return self.scan()
 
+    @staticmethod
+    def _card(raw: Any) -> dict[str, Any] | None:
+        """One app's card for the home page, checked and trimmed: short strings, a few rows, picture numbers, and a link inside the app."""
+        if not isinstance(raw, dict) or not raw.get("headline"):
+            return None
+        card: dict[str, Any] = {k: str(raw.get(k, ""))[:80] for k in ("headline", "sub", "tone")}
+        card["link"] = str(raw.get("link", ""))[:80] if str(raw.get("link", "")).startswith("#") else ""
+        if isinstance(raw.get("figure"), int):
+            card["figure"] = raw["figure"]
+        card["items"] = [
+            {"label": str(i.get("label", ""))[:60], "value": str(i.get("value", ""))[:40], "kind": str(i.get("kind", ""))[:20]}
+            for i in (raw.get("items") or [])[:6]
+            if isinstance(i, dict)
+        ]
+        card["images"] = [i for i in (raw.get("images") or [])[:6] if isinstance(i, int)]
+        return card
+
+    def home(self) -> dict[str, Any]:
+        """The home page: each app's card, fetched at the same time; an app that is down or slow just has no card."""
+        targets = [m for m in self.modules.values() if m.highlights]
+
+        def one(module: Module) -> dict[str, Any] | None:
+            try:
+                status, body = self._authed(module, "GET", module.highlights, HEALTH_SECONDS * 2)
+                return self._card(json.loads(body)) if status == 200 else None
+            except (OSError, http.client.HTTPException, ValueError):
+                return None
+
+        if not targets:
+            return {"cards": {}}
+        with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+            cards = list(pool.map(one, targets))
+        return {"cards": {m.id: c for m, c in zip(targets, cards, strict=True) if c is not None}}
+
     def auto(self) -> dict[str, Any]:
         """The idle check on this computer asks every app that can read by itself to do so. Each app decides for itself whether the amount waiting is small enough
         (the Documents service reads automatically only when fewer than 50 files are waiting); one that cannot, or is down, is simply left out."""

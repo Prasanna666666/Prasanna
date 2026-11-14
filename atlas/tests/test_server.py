@@ -164,3 +164,20 @@ def test_the_idle_check_asks_each_app_and_only_the_apps_own_answer_comes_back(ru
     }  # nothing else the app said is passed on
     assert not running.apps["money"].scanning  # asking is not starting: the app decided it was too much
     assert running.request("POST", "/_atlas/api/auto", f"atlas.localhost:{running.port}", b"", {"Origin": "http://evil.example", "X-Atlas": "1"})[0] == 403
+
+
+def test_a_card_for_the_home_page_is_trimmed_and_cannot_carry_markup_or_a_foreign_link():
+    from atlas.upstream import Upstreams
+
+    card = Upstreams._card(
+        {
+            "headline": "<b>x</b>" + "y" * 200,
+            "sub": "s",
+            "link": "https://evil.example",
+            "items": [{"label": "a", "value": "1"}] * 9 + ["not a row"],
+            "images": [1, "2", 3],
+            "figure": 4,
+        }
+    )
+    assert len(card["headline"]) == 80 and card["link"] == "" and len(card["items"]) == 6 and card["images"] == [1, 3] and card["figure"] == 4
+    assert Upstreams._card({"headline": ""}) is None and Upstreams._card("x") is None

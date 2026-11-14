@@ -139,41 +139,73 @@
     };
 
     // ---------------------------------------------------------------- the stage: the overview, or one app
+    // ---------------------------------------------------------------- the home page: the few things that matter in each part of your life
+    const HOME_ORDER = ['calendar', 'documents', 'finance', 'health', 'travel', 'photos'];
+    const mediaUrl = (id) => `/_atlas/api/media/documents/api/pictures/thumb/${id}`;
+
+    // the rows of a card: a small label and its value, coloured by what kind of thing it is
+    const cardRows = (items) => {
+        const list = el('div', 'hc-rows');
+        for (const item of items) {
+            const row = el('div', 'hc-row ' + (item.kind || ''));
+            row.append(el('i'), el('span', '', item.label), el('b', '', item.value));
+            list.append(row);
+        }
+        return list;
+    };
+
+    // one card of the home page: the app, its main figure, a few rows, and pictures when it has them
+    const homeCard = (module, card) => {
+        const node = el('a', `hc hc-${module.id} ${card.tone || ''}`);
+        node.href = card.link ? address(module, card.link.replace(/^#\/?/, '')) : address(module, '');
+        tint(node, module);
+        const top = el('div', 'hc-top');
+        top.append(icon(module.icon), el('span', '', module.name));
+        node.append(top);
+        if (card.images.length && module.id === 'travel') {
+            node.style.setProperty('--cover', `url("${mediaUrl(card.images[0])}")`);
+            node.classList.add('has-cover');
+        }
+        const headline = el('b', 'hc-head', card.headline);
+        if (card.figure != null && module.id === 'travel') headline.dataset.figure = String(card.figure);
+        node.append(headline);
+        if (card.sub) node.append(el('span', 'hc-sub', card.sub));
+        if (card.items.length) node.append(cardRows(card.items));
+        if (card.images.length && module.id !== 'travel') {
+            const strip = el('div', 'hc-strip');
+            for (const id of card.images) {
+                const img = new Image();
+                img.alt = '';
+                img.loading = 'lazy';
+                img.src = mediaUrl(id);
+                strip.append(img);
+            }
+            node.append(strip);
+        }
+        return node;
+    };
+
     const renderDashboard = () => {
         const wrap = el('div', 'dash');
+        const hour = new Date().getHours();
         wrap.append(
-            el('h1', '', 'Welcome to Atlas'),
-            el('div', 'sub', 'Everything private, in one place. Nothing here leaves this computer.')
+            el('h1', '', hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.'),
+            el(
+                'div',
+                'sub',
+                new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
+            )
         );
-        const cards = el('div', 'cards');
-        for (const module of state.modules.filter((m) => !m.hidden)) {
-            const card = el('div', 'card');
-            tint(card, module);
-            const badge = el('div', 'badge');
-            badge.append(icon(module.icon));
-            const title = el('div');
-            title.append(el('h2', '', module.name), el('div', 'tag', module.tagline));
-            const health = state.health[module.id];
-            const status = el(
-                'span',
-                'state ' + statusClass(module),
-                health ? (health.up ? 'Running' : 'Not running') : 'Checking'
-            );
-            status.prepend(el('i'));
-            const head = el('div', 'head');
-            head.append(badge, title, status);
-            const links = el('div', 'links');
-            for (const page of module.pages.slice(0, 6)) {
-                const link = el('a', '', page.label);
-                link.href = address(module, page.id);
-                links.append(link);
-            }
-            const open = el('a', 'launch', 'Open ' + module.name);
-            open.href = address(module, '');
-            card.append(head, links, open);
-            cards.append(card);
-        }
-        wrap.append(cards);
+        const board = el('div', 'board');
+        wrap.append(board);
+        fetch('/_atlas/api/home')
+            .then((r) => r.json())
+            .then(({ cards }) => {
+                const shown = HOME_ORDER.filter((id) => cards[id]).map((id) => state.modules.find((m) => m.id === id));
+                board.replaceChildren(...shown.filter(Boolean).map((m) => homeCard(m, cards[m.id])));
+                if (!shown.length) board.append(el('div', 'empty', 'Nothing to show yet. Press Read new files.'));
+            })
+            .catch(() => board.append(el('div', 'empty', 'The home page could not be loaded.')));
         return wrap;
     };
     const render = () => {

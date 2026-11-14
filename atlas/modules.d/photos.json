@@ -9,7 +9,11 @@
   "app": "Photos",
   "tagline": "Photos by place, person, trip and what is in them",
   "icon": "M4 5h16v14H4V5Zm0 10 4-4 4 4 3-3 5 5M9 9h.01",
-  "accent": ["#22c55e", "#06b6d4"],
+  "accent": [
+    "#22c55e",
+    "#06b6d4"
+  ],
   "home": "#/photos",
-  "pages": []
+  "pages": [],
+  "highlights": "/api/highlights?app=photos"
 }
