@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from . import pictures, readreport, store, travel
+from . import casebook, pictures, readreport, store, travel
 
 
 def _today() -> str:
@@ -63,7 +63,7 @@ def photos(conn, state: Any) -> dict[str, Any]:
 def documents(conn, state: Any) -> dict[str, Any]:
     counts = store.counts(conn)
     not_read = sum(readreport.unread_counts().values())
-    items = []
+    items = [{"label": m["title"], "value": m["next"].get("date") or m["status"]} for m in casebook.open_matters(conn)[:3]]
     if counts["waiting"]:
         items.append({"label": "Waiting for the model", "value": f"{counts['waiting']:,}"})
     if counts["unclear"]:

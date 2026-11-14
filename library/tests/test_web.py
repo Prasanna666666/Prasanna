@@ -16,7 +16,9 @@ class Model:
     def chat(self, model, messages, schema=None, **kw):
         if schema:
             return {
-                "content": json.dumps({"kind": "invoice", "title": "Hotel", "party": "Hotel Delhi", "date": "2026-01-12", "total": "480,00", "currency": "EUR"})
+                "content": json.dumps(
+                    {"kind": "invoice", "title": "Hotel", "what": "A hotel", "party": "Hotel Delhi", "date": "2026-01-12", "total": "480,00", "currency": "EUR"}
+                )
             }
         return {"content": "You paid 480 euros for the hotel."}
 

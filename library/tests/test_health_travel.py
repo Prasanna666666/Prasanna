@@ -20,7 +20,7 @@ def lib(tmp_path):
     def add(name, kind, text="t", **facts):
         n[0] += 1
         conn.execute(
-            "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready) VALUES (?,?,?,?,?,?,1,?)",
+            "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready, case_id) VALUES (?,?,?,?,?,?,1,?,1)",
             (f"{n[0]:064x}", name, "pdf", text, "", json.dumps({"kind": kind, **facts}), n[0]),
         )
         conn.commit()

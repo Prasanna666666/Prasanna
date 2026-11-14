@@ -242,7 +242,7 @@ def _read_batch(client: Any, model: str, shown: list[dict[str, Any]]) -> dict[st
 def pieces_of(conn) -> list[dict[str, Any]]:
     """Everything read that can say something: the documents, the mails (what they say), the attachments."""
     out = []
-    for r in conn.execute("SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND kind<>'image' AND (TRIM(text)<>'' OR facts<>'')"):
+    for r in conn.execute("SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND (TRIM(text)<>'' OR facts<>'')"):
         facts = json.loads(r["facts"]) if r["facts"] else {}
         out.append(
             {
@@ -326,3 +326,13 @@ def understand_pending(conn, client: Any, model: str, limit: int = 5) -> int:
             break
     conn.commit()
     return done
+
+
+def open_matters(conn) -> list[dict[str, Any]]:
+    """The matters still open, the ones with a date first (soonest), each as the model understood it."""
+    out = []
+    for r in conn.execute("SELECT id, summary FROM cases WHERE summary<>''"):
+        s = json.loads(r["summary"])
+        if s.get("open"):
+            out.append({"id": r["id"], "title": s["title"], "status": s.get("status", ""), "next": s.get("next") or {}})
+    return sorted(out, key=lambda m: (not m["next"], m["next"].get("date", "")))

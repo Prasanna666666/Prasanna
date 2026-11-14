@@ -24,7 +24,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import casebook, recognise, relevance, understood
+from . import casebook, recognise, relevance
 
 MIGRATIONS = (
     """
@@ -581,7 +581,7 @@ def health_followups(conn, today: str) -> dict[str, Any]:
 
 # ---- asking: what any app can take -------------------------------------------------------------------------------------------
 GENTLE_SECONDS = float(os.environ.get("LIBRARY_GENTLE_SECONDS", "0.5"))
-LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready"
+LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready, case_id"
 
 
 # ---- Health: medical documents are recognised by kind or by the health folder
@@ -616,16 +616,16 @@ def _as_document(r) -> dict[str, Any]:
         "facts": facts,
         "ready": r["ready"],
     }
-    doc["understood"], doc["missing"] = understood.check(facts)
+    doc["understood"] = r["case_id"] is not None  # read together with everything that belongs with it (see casebook)
     return doc
 
 
 def held_back(conn, area: str = "", kinds: list[str] | None = None, limit: int = 50) -> list[dict[str, Any]]:
-    """The documents that are not shown yet, each with the plain reason: waiting for the model, not understood after two tries, or what is missing from what was understood."""
+    """The documents that are not shown yet, each with the plain reason: waiting for the model, not understood after two tries, or still being read together with what belongs with it."""
     wanted = set(kinds or [])
     out: list[dict[str, Any]] = []
     for r in conn.execute(
-        "SELECT id, name, kind, area, facts, judged FROM documents WHERE judged IN (0, 1, 3) AND kind<>'email' AND TRIM(text)<>'' ORDER BY id DESC"
+        "SELECT id, name, kind, area, facts, judged, case_id FROM documents WHERE judged IN (0, 1, 3) AND kind<>'email' AND TRIM(text)<>'' ORDER BY id DESC"
     ):
         facts = json.loads(r["facts"]) if r["facts"] else {}
         if area and r["area"] != area and facts.get("kind") not in wanted:
@@ -634,11 +634,10 @@ def held_back(conn, area: str = "", kinds: list[str] | None = None, limit: int =
             why = "waiting for the model"
         elif r["judged"] == 3:
             why = "the model could not make sense of it yet"
+        elif r["case_id"] is None:
+            why = "being read together with everything that belongs with it"
         else:
-            ok, missing = understood.check(facts)
-            if ok or facts.get("kind") in (None, "other", "photo"):
-                continue
-            why = "missing " + ", ".join(missing)
+            continue
         out.append({"id": r["id"], "title": proper_name(facts, r["name"], facts.get("kind", "")), "why": why})
         if len(out) >= limit:
             break

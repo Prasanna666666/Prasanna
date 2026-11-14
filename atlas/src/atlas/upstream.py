@@ -223,14 +223,13 @@ class Upstreams:
         """The calendar card of the home page, from the joined agenda (not from one app's own list)."""
         joined = self.agenda(60)
         soon = [e for e in joined["events"] if e["days"] <= 30][:5]
-        left = joined["left_out"].get("incomplete", 0)
         label = {"overdue": "overdue", "open": ""}
         return {
             "headline": f"{len(soon)} coming up" if soon else "Nothing dated yet",
             "sub": "next 30 days",
             "tone": "",
             "link": "#/calendar",
-            "note": f"{left} dated documents are not shown: who they are from or what they are for is not clear yet." if left else "",
+            "note": "",
             "items": [
                 {
                     "label": e["title"],
