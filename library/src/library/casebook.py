@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from typing import Any
 
 from kit import extract
@@ -19,7 +20,8 @@ ID = re.compile(r"\b(?=[A-Za-z0-9/\-]*\d)[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b")
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 WORD = re.compile(r"[^\W\d_]{6,}")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
-LINK_AT = 3.0  # how much shared, distinctive evidence two pieces need before they are one matter
+CANDIDATE_AT = 1.0  # shared evidence that makes two pieces worth checking; whether they are one matter is decided by reading them, not by this number
+MAX_CONFIRMS = 20  # model checks per round, so the computer stays responsive; the rest wait for the next round
 WEIGHT: dict[str, float] = {"id": 3.0, "amount": 1.5, "word": 1.0, "mail": 3.0}
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
@@ -65,8 +67,21 @@ def _scores(pieces: list[dict[str, Any]]) -> dict[tuple[int, int], float]:
     return score
 
 
-def link(pieces: list[dict[str, Any]]) -> list[list[int]]:
-    """Groups of piece ids that belong together. Pure: shared distinctive values and shared mail, nothing about kinds of documents."""
+def candidates(pieces: list[dict[str, Any]]) -> list[tuple[int, int, bool]]:
+    """Pairs of pieces with something in common, strongest first: (a, b, same_mail). Same-mail pairs are a fact (an attachment belongs to its mail);
+    every other pair is only a candidate until it has been confirmed against the texts."""
+    names = {p["id"]: p["name"] for p in pieces}
+    out = []
+    for (a, b), s in _scores(pieces).items():
+        same = bool(_mail_of(names[a])) and _mail_of(names[a]) == _mail_of(names[b])
+        if same or s >= CANDIDATE_AT:
+            out.append((s, a, b, same))
+    return [(a, b, same) for _, a, b, same in sorted(out, key=lambda x: -x[0])]
+
+
+def link(pieces: list[dict[str, Any]], verdict: Callable[[int, int], bool | None]) -> tuple[list[list[int]], set[int]]:
+    """Groups of pieces that belong together, and the pieces whose links are still undecided. Two pieces are joined only if they are of the same mail or
+    `verdict` confirms them (True), never on a guess; None means not yet decided, and those pieces are held back rather than shown on a guess."""
     parent = {p["id"]: p["id"] for p in pieces}
 
     def find(x: int) -> int:
@@ -75,13 +90,38 @@ def link(pieces: list[dict[str, Any]]) -> list[list[int]]:
             x = parent[x]
         return x
 
-    for (a, b), s in _scores(pieces).items():
-        if s >= LINK_AT:
+    undecided: set[int] = set()
+    for a, b, same in candidates(pieces):
+        if find(a) == find(b):
+            continue
+        said = True if same else verdict(a, b)
+        if said is None:
+            undecided.update((a, b))
+        elif said:
             parent[find(a)] = find(b)
     groups: dict[int, list[int]] = defaultdict(list)
     for p in pieces:
         groups[find(p["id"])].append(p["id"])
-    return [sorted(g) for g in groups.values()]
+    return [sorted(g) for g in groups.values() if not undecided.intersection(g)], undecided
+
+
+SAME_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {"same": {"type": "boolean"}, "quote_a": {"type": "string"}, "quote_b": {"type": "string"}},
+    "required": ["same"],
+}
+SAME_PROMPT = (
+    "Are these two pieces of someone's papers about the SAME single matter (the same bill, trip, appointment, contract, purchase...), "
+    "not just similar or from the same sender? If yes, copy from each piece the exact words that show it is the same matter (a shared reference, "
+    "the same item, the same event). If you cannot, answer false."
+)
+
+
+def confirm(client: Any, model: str, a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Same matter? Only if the model says so AND both quotes are really in their pieces. Raises Unclear when the model cannot answer."""
+    body = f"[A] {a['name']}\n{a['text'][:BATCH_CHARS]}\n\n[B] {b['name']}\n{b['text'][:BATCH_CHARS]}"
+    data = extract._ask(client, model, SAME_PROMPT, body, SAME_SCHEMA)
+    return bool(data.get("same")) and _quoted(data.get("quote_a"), a["text"] + a["name"]) and _quoted(data.get("quote_b"), b["text"] + b["name"])
 
 
 def _norm(text: str) -> str:
@@ -220,12 +260,13 @@ def _read_batch(client: Any, model: str, shown: list[dict[str, Any]]) -> dict[st
 def pieces_of(conn) -> list[dict[str, Any]]:
     """Everything read that can say something: the documents, the mails (what they say), the attachments."""
     out = []
-    for r in conn.execute("SELECT id, name, text, facts FROM documents WHERE judged=1 AND kind<>'image' AND (TRIM(text)<>'' OR facts<>'')"):
+    for r in conn.execute("SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND kind<>'image' AND (TRIM(text)<>'' OR facts<>'')"):
         facts = json.loads(r["facts"]) if r["facts"] else {}
         out.append(
             {
                 "id": r["id"],
                 "name": r["name"],
+                "sha": r["sha256"],
                 "text": (r["text"] or "") + " " + " ".join(f"{k} {v}" for k, v in facts.items() if isinstance(v, str | int | float)),
             }
         )
@@ -235,15 +276,37 @@ def pieces_of(conn) -> list[dict[str, Any]]:
 def _hash(group: list[int], pieces: dict[int, dict[str, Any]]) -> str:
     h = hashlib.sha256()
     for pid in group:
-        h.update(f"{pid}:{len(pieces[pid]['text'])}".encode())
+        h.update(f"{pid}:{pieces[pid]['sha']}".encode())  # the content, not its current length: reducing a mail afterwards must not make the matter new
     return h.hexdigest()[:20]
 
 
-def rebuild(conn) -> int:
+def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]]) -> Callable[[int, int], bool | None]:
+    """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round."""
+    budget = [MAX_CONFIRMS if client is not None else 0]
+
+    def verdict(a: int, b: int) -> bool | None:
+        key = sorted((by_id[a]["sha"], by_id[b]["sha"]))
+        row = conn.execute("SELECT same FROM links WHERE sha_a=? AND sha_b=?", key).fetchone()
+        if row is not None:
+            return bool(row["same"])
+        if budget[0] <= 0:
+            return None
+        budget[0] -= 1
+        try:
+            same = confirm(client, model, by_id[a], by_id[b])
+        except extract.Unclear:
+            return None
+        conn.execute("INSERT OR REPLACE INTO links (sha_a, sha_b, same) VALUES (?,?,?)", (*key, int(same)))
+        return same
+
+    return verdict
+
+
+def rebuild(conn, client: Any = None, model: str = "") -> int:
     """Group the pieces into matters. A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
     pieces = pieces_of(conn)
     by_id = {p["id"]: p for p in pieces}
-    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces)}
+    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id))[0]}
     known = {r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")}
     for h in known - set(now):
         conn.execute("DELETE FROM cases WHERE input_hash=?", (h,))

@@ -351,10 +351,21 @@ def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stay
     class Model:
         def chat(self, model, messages, **kw):
             return {
-                "content": json.dumps({"kind": "booking", "title": "Hotel booking", "party": "Taj", "date": "2026-05-01", "total": "480,00", "currency": "EUR"})
+                "content": json.dumps(
+                    {
+                        "kind": "booking",
+                        "title": "Hotel booking",
+                        "what": "A hotel booking",
+                        "party": "Taj",
+                        "date": "2026-05-01",
+                        "total": "480,00",
+                        "currency": "EUR",
+                    }
+                )
             }
 
     store.judge_pending(conn, Model(), "fake")
+    assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary<>''").fetchone()[0] == 2  # each read whole (the stub model says they are not one matter)
     mail = conn.execute("SELECT text, data FROM documents WHERE name='order.eml'").fetchone()
     assert "Dear customer" not in mail["text"] and "Hotel booking" in mail["text"] and mail["data"] == ""
     assert "FACTUUR" in conn.execute("SELECT text FROM documents WHERE name='order.pdf'").fetchone()["text"]  # a document inside a mail stays whole

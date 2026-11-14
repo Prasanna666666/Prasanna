@@ -117,6 +117,14 @@ MIGRATIONS = (
     ALTER TABLE documents ADD COLUMN case_id INTEGER;
     CREATE INDEX documents_case ON documents (case_id);
     """,
+    """
+    CREATE TABLE links (
+        sha_a TEXT NOT NULL,                     -- two pieces (by content) and whether reading them showed they are one matter
+        sha_b TEXT NOT NULL,
+        same INTEGER NOT NULL,
+        PRIMARY KEY (sha_a, sha_b)
+    );
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
@@ -213,16 +221,16 @@ def _mark_ready(conn, sha: str, judged: int, facts: dict | None) -> None:
         "UPDATE documents SET judged=?, facts=?, ready=(SELECT COALESCE(MAX(ready),0)+1 FROM documents) WHERE sha256=?",
         (judged, json.dumps(facts) if facts else "", sha),
     )
-    # A whole email is never kept: once it is judged only what it says (title, who, when, reference) stays. Its attachments are documents of their own.
-    conn.execute("UPDATE documents SET text=?, data='' WHERE sha256=? AND area='mail' AND kind='email'", (_mail_summary(facts), sha))
+    # A whole email is not kept for good: it is read in full together with everything that belongs with it, and only then reduced to what it says (see forget_mail_bodies).
 
 
 def forget_mail_bodies(conn) -> int:
-    """Emails judged before this rule keep only what they say too; returns how many were cut down."""
+    """Emails whose matter has been understood keep only what they say; returns how many were cut down. An email not yet read as part of its matter is kept whole."""
     done = 0
     while True:
         rows = conn.execute(
-            "SELECT id, facts FROM documents WHERE area='mail' AND kind='email' AND judged>0 AND length(text)>? LIMIT 500", (MAIL_KEPT_CHARS,)
+            "SELECT id, facts FROM documents WHERE area='mail' AND kind='email' AND judged>0 AND case_id IS NOT NULL AND length(text)>? LIMIT 500",
+            (MAIL_KEPT_CHARS,),
         ).fetchall()
         if not rows:
             return done
@@ -347,8 +355,9 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
 
 def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool = False) -> dict[str, Any]:
     if not skip and client is not None and model and not out["stopped"]:
-        out["matters"] = casebook.rebuild(conn)  # the pieces of one matter, wherever they are, are found and put together
+        out["matters"] = casebook.rebuild(conn, client, model)  # the pieces of one matter, wherever they are, are found and put together
         out["understood_matters"] = casebook.understand_pending(conn, client, model)  # a few at a time, each read as a whole
+        forget_mail_bodies(conn)  # a mail read in full as part of its matter is now reduced to what it says
         out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
 
