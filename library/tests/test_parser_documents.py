@@ -134,7 +134,7 @@ def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_win
             {"kind": "ticket", "title": "Flight back", "place": "India", "start_date": "2026-01-30", "end_date": "2026-01-30"},
         ),
         "paris.eml": ("f" * 64, "booking", {"kind": "booking", "title": "Paris", "place": "France", "start_date": "2025-06-01", "end_date": "2025-06-03"}),
-        "taxi.eml": ("1" * 64, "receipt", {"kind": "receipt", "title": "Taxi Delhi", "date": "2026-01-14"}),
+        "taxi.eml": ("1" * 64, "receipt", {"kind": "receipt", "title": "Taxi Delhi", "party": "Taxi", "total": 12.5, "date": "2026-01-14"}),
     }
     for name, (sha, kind, _facts) in texts.items():
         _put(tmp_path, _doc(name=name.replace(".eml", ".pdf"), kind="pdf", text=f"{kind} {name}", sha256=sha))

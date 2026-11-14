@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import agenda, changes, flags, highlights, pictures, readreport, store, tools, travel
+from . import changes, flags, highlights, items, pictures, readreport, store, tools, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -193,6 +193,7 @@ def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
         limit,
         full,
         query.get("source", "")[:9],
+        query.get("understood") == "1",
     )
     return {"documents": found}
 
@@ -512,30 +513,23 @@ def _post_tool(state: State, conn, body: dict) -> dict:
     return tools.run(state, conn, str(body.get("name", "")), args if isinstance(args, dict) else {}, ask)
 
 
+def _get_items(state: State, conn, query: dict[str, str]) -> dict:
+    """The checked facts as plain dated items, for Atlas to join with what other parts know."""
+    return {"items": items.items(conn, state, _today())}
+
+
+def _get_held_back(state: State, conn, query: dict[str, str]) -> dict:
+    """/api/held-back?area=health: what is not shown yet and why (waiting, not understood, or what is missing)."""
+    kinds = [k for k in query.get("kind", "").replace(" ", "").split(",") if k][:10]
+    return {"documents": store.held_back(conn, query.get("area", "")[:20], kinds)}
+
+
 def _get_highlights(state: State, conn, query: dict[str, str]) -> dict:
     """/api/highlights?app=health|travel|calendar|photos|documents: the card of one app for the Atlas home page."""
     found = highlights.card(query.get("app", "")[:20], conn, state)
     if found is None:
         raise Fail(404, "no such card")
     return found
-
-
-def _get_agenda_events(state: State, conn, query: dict[str, str]) -> dict:
-    """/api/agenda/events?from=YYYY-MM-DD&to=YYYY-MM-DD: every dated thing the documents say, for the calendar page."""
-    since, until = agenda.iso_day(query.get("from")), agenda.iso_day(query.get("to"))
-    if not since or not until:
-        raise Fail(400, "from and to must be dates")
-    return {"events": agenda.events(conn, since, until)}
-
-
-def _get_agenda_upcoming(state: State, conn, query: dict[str, str]) -> dict:
-    counts = store.counts(conn)
-    return {
-        "today": _today(),
-        "events": agenda.upcoming(conn, _today(), 60),
-        "incomplete": agenda.incomplete(conn),
-        "pending": counts["waiting"] + counts["unclear"],
-    }
 
 
 GET_ROUTES = {
@@ -561,8 +555,8 @@ GET_ROUTES = {
     "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,
     "/api/highlights": _get_highlights,
-    "/api/agenda/events": _get_agenda_events,
-    "/api/agenda/upcoming": _get_agenda_upcoming,
+    "/api/held-back": _get_held_back,
+    "/api/items": _get_items,
 }
 POST_ROUTES = {
     "/api/tool": _post_tool,
@@ -628,13 +622,6 @@ class _Handler(JsonHandler):
             finally:
                 conn.close()
             return self._send(200, text.encode(), "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="trips.ics"'})
-        if path == "/api/agenda/calendar.ics":
-            conn = self.state.connect()
-            try:
-                text = agenda.ics(agenda.upcoming(conn, _today(), 365))
-            finally:
-                conn.close()
-            return self._send(200, text.encode(), "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="atlas.ics"'})
         if path.startswith("/api/pictures/thumb/"):
             return self._thumb(path.removeprefix("/api/pictures/thumb/"), preview=False)
         if path.startswith("/api/pictures/preview/"):

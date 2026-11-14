@@ -136,6 +136,11 @@ def _get_home(state: State, conn, query: dict[str, str]) -> dict:
     }
 
 
+def _get_items(state: State, conn, query: dict[str, str]) -> dict:
+    """The payments as dated items, for Atlas to join with what the documents say."""
+    return {"items": money.payment_items(conn)}
+
+
 def _get_highlights(state: State, conn, query: dict[str, str]) -> dict:
     """The Finance card for the Atlas home page: this month in a few numbers, and what is due soon. Counts only: nothing here asks the model."""
     month = clock.today().isoformat()[:7]
@@ -205,6 +210,7 @@ GET_ROUTES = {
     "/api/search": _get_search,
     "/api/home": _get_home,
     "/api/highlights": _get_highlights,
+    "/api/items": _get_items,
     "/api/status": _get_status,
     "/api/tools": _get_tools,
     "/api/settings": _get_settings,

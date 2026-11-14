@@ -19,5 +19,6 @@
   },
   "tools": "/api/tools",
   "tool": "/api/tool",
-  "highlights": "/api/highlights"
+  "highlights": "/api/highlights",
+  "items": "/api/items"
 }

@@ -172,6 +172,26 @@ def list_transactions(conn, a):
     return rows(conn.execute(sql + " ORDER BY t.day DESC, t.id DESC LIMIT ?", [*args, int(a.get("limit", 50))]))
 
 
+def payment_items(conn, days: int = 400):
+    """The payments of the last `days` days as plain dated items (when, how much, to whom), for Atlas to join with what the documents say: a bill and the payment that settled it,
+    a trip and what it cost. Only Atlas receives them, and it never passes the bank text on."""
+    since = (clock.today() - timedelta(days=days)).isoformat()
+    return [
+        {
+            "src": "finance",
+            "kind": "payment",
+            "date": r["day"],
+            "amount": r["amount_minor"] / 100,
+            "currency": r["currency"] or currency(conn),
+            "text": str(r["note"] or "")[:200],
+            "direction": r["kind"],
+        }
+        for r in conn.execute(
+            "SELECT day, note, amount_minor, kind, currency FROM transactions WHERE day>=? AND category<>'transfers' ORDER BY day DESC LIMIT 5000", (since,)
+        )
+    ]
+
+
 def spending_between(conn, a):
     """What was spent in a window of days (inclusive), such as a trip: the total, per category, and the biggest payments. Transfers between your
     own accounts are left out. The window is never guessed: both dates are required."""

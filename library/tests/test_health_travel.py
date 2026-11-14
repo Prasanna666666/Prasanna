@@ -70,7 +70,7 @@ def test_trips_come_from_tickets_and_bookings_with_exact_booked_totals(lib):
     )
     lib.add("hotel.pdf", "booking", title="Taj", start_date="2099-01-10", end_date="2099-01-20", place="Bengaluru", total=300.25, currency="EUR")
     lib.add("old.pdf", "ticket", title="Old", start_date="2020-05-01", end_date="2020-05-05", place="Lisbon")
-    lib.add("receipt.pdf", "receipt", title="Dinner", date="2099-01-12", total=45.0, currency="EUR")
+    lib.add("receipt.pdf", "receipt", title="Dinner", party="Restaurant", date="2099-01-12", total=45.0, currency="EUR")
     found = travel.trips(lib.conn, None, "2026-11-10")
     assert [(t["place"], t["status"]) for t in found] == [("Bengaluru", "upcoming"), ("Lisbon", "past")]  # not yet over first, then the past, newest first
     d = travel.detail(lib.conn, None, "Bengaluru", "2099-01-10", "2099-01-20")

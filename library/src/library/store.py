@@ -24,7 +24,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import recognise, relevance
+from . import complete, recognise, relevance, understood
 
 MIGRATIONS = (
     """
@@ -336,6 +336,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
 
 def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool = False) -> dict[str, Any]:
     if not skip and client is not None and model and not out["stopped"]:
+        out["completed"] = complete.complete_pending(conn, client, model)  # what the documents left open is looked for in everything that belongs with them
         out["health_filled"] = fill_health_details(conn, client, model, control)
     return out
 
@@ -594,7 +595,49 @@ def _as_document(r) -> dict[str, Any]:
         "facts": facts,
         "ready": r["ready"],
     }
+    doc["understood"], doc["missing"] = understood.check(facts)
     return doc
+
+
+def held_back(conn, area: str = "", kinds: list[str] | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    """The documents that are not shown yet, each with the plain reason: waiting for the model, not understood after two tries, or what is missing from what was understood."""
+    wanted = set(kinds or [])
+    out: list[dict[str, Any]] = []
+    for r in conn.execute(
+        "SELECT id, name, kind, area, facts, judged FROM documents WHERE judged IN (0, 1, 3) AND kind<>'email' AND TRIM(text)<>'' ORDER BY id DESC"
+    ):
+        facts = json.loads(r["facts"]) if r["facts"] else {}
+        if area and r["area"] != area and facts.get("kind") not in wanted:
+            continue
+        if r["judged"] == 0:
+            why = "waiting for the model"
+        elif r["judged"] == 3:
+            why = "the model could not make sense of it yet"
+        else:
+            ok, missing = understood.check(facts)
+            if ok or facts.get("kind") in (None, "other", "photo"):
+                continue
+            why = "missing " + ", ".join(missing)
+        out.append({"id": r["id"], "title": proper_name(facts, r["name"], facts.get("kind", "")), "why": why})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _fits(doc: dict[str, Any], wanted: set[str], area: str, source: str, only_understood: bool) -> bool:
+    """Does this document belong in the list that was asked for?"""
+    if (doc["kind"] in HEALTH_KINDS or doc["area"] == "health") and "medical" not in wanted and area != "health":
+        return False  # medical documents go to whoever asks for them by name, never to another app that asks for its own kinds or for everything
+    if (only_understood or source == "documents") and not doc["understood"]:
+        return False  # shown only when understood completely enough to help (the rest is listed by `held_back`, with the reason)
+    if source == "documents":
+        if doc["file_kind"] == "email":
+            return False  # documents from folders and the documents inside emails, never a whole email
+    elif source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
+        return False
+    if wanted or area:
+        return doc["kind"] in wanted or bool(area and doc["area"] == area)
+    return doc["kind"] != "other"
 
 
 def list_documents(
@@ -607,6 +650,7 @@ def list_documents(
     limit: int = 100,
     full: bool = False,
     source: str = "",
+    only_understood: bool = False,
 ) -> list[dict]:
     """Ready documents, oldest first. `kinds` are classified kinds (invoice, ticket, medical ...); a document is returned when its kind is listed or, with `area`, when it came from that area.
     Without either, everything the model recognised (not "other") is returned. With `full`, the text and structured data come too."""
@@ -619,17 +663,7 @@ def list_documents(
         args += sorted(wanted)
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE {where} ORDER BY ready", args):
         doc = _as_document(r)
-        if (doc["kind"] in HEALTH_KINDS or doc["area"] == "health") and "medical" not in wanted and area != "health":
-            continue  # medical documents go to whoever asks for them by name, never to another app that asks for its own kinds or for everything
-        if source == "documents":  # documents from folders and the documents inside emails, never a whole email
-            if doc["file_kind"] == "email":
-                continue
-        elif source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
-            continue
-        if wanted or area:
-            if doc["kind"] not in wanted and not (area and doc["area"] == area):
-                continue
-        elif doc["kind"] == "other":
+        if not _fits(doc, wanted, area, source, only_understood):
             continue
         facts = doc["facts"]
         if place and place.lower() not in str(facts.get("place", "")).lower():

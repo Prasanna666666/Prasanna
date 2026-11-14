@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from kit.llm import WARM_AT_START
 
-from . import proxy
+from . import dots, proxy
 from .assistant import Assistant, clean_history
 from .registry import ManifestError, Module, load, upstream_is_private
 from .upstream import Upstreams
@@ -190,6 +190,9 @@ class _Handler(BaseHTTPRequestHandler):
         name = url.path.rsplit("/", 1)[-1]
         if url.path.startswith("/_atlas/api/media/"):
             return self._media(url.path[len("/_atlas/api/media/") :])
+        if url.path == "/_atlas/api/agenda.ics":
+            body = dots.ics(self.atlas.upstreams.agenda()["events"]).encode()
+            return self._send(200, body, "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="atlas.ics"'})
         if url.path.startswith("/_atlas/static/") and name in STATIC_TYPES:
             return self._send(200, (STATIC / name).read_bytes(), STATIC_TYPES[name])
         route = self._get_routes().get(url.path)
@@ -224,6 +227,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/_atlas/api/health": lambda _q: self._json(atlas.upstreams.health()),
             "/_atlas/api/scan": lambda _q: self._json(atlas.upstreams.scan()),
             "/_atlas/api/home": lambda _q: self._json(atlas.upstreams.home()),
+            "/_atlas/api/agenda": lambda _q: self._json(atlas.upstreams.agenda()),
             "/_atlas/api/ai": lambda _q: self._json(atlas.upstreams.ai(atlas.model_url)),
             "/_atlas/api/search": lambda q: self._json({"results": atlas.upstreams.search((q.get("q") or [""])[0][:200])}),
         }

@@ -57,7 +57,7 @@ def pull(conn, fetch: Fetch = _http) -> dict[str, int]:
     kinds = urllib.parse.quote(",".join(FINANCE_KINDS))
     new = known = 0
     while True:
-        page = fetch("GET", f"/api/documents?kind={kinds}&area=finance&since={cursor}&limit={PAGE}&full=1")["documents"]
+        page = fetch("GET", f"/api/documents?kind={kinds}&area=finance&since={cursor}&limit={PAGE}&full=1&understood=1")["documents"]
         if not page:
             break
         for doc in page:

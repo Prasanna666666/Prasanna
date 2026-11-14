@@ -355,3 +355,9 @@ def test_a_statement_with_no_recorded_positions_is_still_laid_out_from_its_print
     assert [[c.text for c in line] for line in table][1] == ["01-10-2026", "Albert Heijn", "23,45", "1.976,55"]
     assert len(table) == 2  # a line that is not in columns is left out, not guessed at
     assert tables.table_from_data({"table": [], "lines": []}) == []
+
+
+def test_payments_are_given_to_atlas_as_plain_dated_items(conn):
+    money.add_transaction(conn, {"amount": 60.50, "kind": "expense", "date": "2026-10-14", "note": "SEPA Ziggo klantnr 123", "category": "utilities"})
+    [item] = money.payment_items(conn, days=36500)
+    assert item["kind"] == "payment" and item["amount"] == 60.5 and item["date"] == "2026-10-14" and "Ziggo" in item["text"] and item["direction"] == "expense"

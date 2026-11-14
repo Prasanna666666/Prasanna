@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from . import agenda, pictures, readreport, store, travel
+from . import pictures, readreport, store, travel
 
 
 def _today() -> str:
@@ -51,19 +51,6 @@ def trip(conn, state: Any) -> dict[str, Any]:
     return card
 
 
-def calendar(conn, state: Any) -> dict[str, Any]:
-    soon = agenda.upcoming(conn, _today(), 30)[:5]
-    return {
-        "headline": f"{len(soon)} coming up" if soon else "Nothing dated yet",
-        "sub": "next 30 days",
-        "items": [
-            {"label": e["title"], "value": ("overdue" if e["days"] < 0 else "today" if e["days"] == 0 else f"in {e['days']} d"), "kind": e["type"]}
-            for e in soon
-        ],
-        "link": "#/calendar",
-    }
-
-
 def photos(conn, state: Any) -> dict[str, Any]:
     engine = state.engine()
     if engine is None:
@@ -92,7 +79,7 @@ def documents(conn, state: Any) -> dict[str, Any]:
     }
 
 
-CARDS = {"health": health, "travel": trip, "calendar": calendar, "photos": photos, "documents": documents}
+CARDS = {"health": health, "travel": trip, "photos": photos, "documents": documents}
 
 
 def card(app: str, conn, state: Any) -> dict[str, Any] | None:

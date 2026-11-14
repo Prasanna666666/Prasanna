@@ -10,11 +10,13 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import Any
 from urllib.parse import quote, urlsplit
 
 from kit.sign import sign
 
+from . import dots
 from .registry import Module
 
 HEALTH_SECONDS = 1.5
@@ -217,6 +219,47 @@ class Upstreams:
         card["images"] = [i for i in (raw.get("images") or [])[:6] if isinstance(i, int)]
         return card
 
+    def _calendar_card(self) -> dict[str, Any]:
+        """The calendar card of the home page, from the joined agenda (not from one app's own list)."""
+        joined = self.agenda(60)
+        soon = [e for e in joined["events"] if e["days"] <= 30][:5]
+        left = joined["left_out"].get("incomplete", 0)
+        label = {"overdue": "overdue", "open": ""}
+        return {
+            "headline": f"{len(soon)} coming up" if soon else "Nothing dated yet",
+            "sub": "next 30 days",
+            "tone": "",
+            "link": "#/calendar",
+            "note": f"{left} dated documents are not shown: who they are from or what they are for is not clear yet." if left else "",
+            "items": [
+                {
+                    "label": e["title"],
+                    "value": label.get(e["state"]) or ("today" if e["days"] == 0 else f"in {e['days']} d" if e["days"] > 0 else "past"),
+                    "kind": e["type"],
+                }
+                for e in soon
+            ],
+            "images": [],
+        }
+
+    def agenda(self, days: int = 400) -> dict[str, Any]:
+        """The calendar, joined across every app: what the documents say, what the bank shows, what was already settled or done. Each app only hands over plain dated items."""
+        targets = [m for m in self.modules.values() if m.items]
+
+        def one(module: Module) -> list[dict[str, Any]]:
+            try:
+                status, body = self._authed(module, "GET", module.items, HEALTH_SECONDS * 4)
+                raw = json.loads(body).get("items", []) if status == 200 else []
+            except (OSError, http.client.HTTPException, ValueError, AttributeError):
+                return []
+            return [i for i in raw if isinstance(i, dict)][:6000]
+
+        if not targets:
+            return {"events": [], "left_out": {}}
+        with ThreadPoolExecutor(max_workers=len(targets)) as pool:
+            lists = list(pool.map(one, targets))
+        return dots.agenda([i for items in lists for i in items], datetime.now().astimezone().date().isoformat(), days)
+
     def home(self) -> dict[str, Any]:
         """The home page: each app's card, fetched at the same time; an app that is down or slow just has no card."""
         targets = [m for m in self.modules.values() if m.highlights]
@@ -234,7 +277,10 @@ class Upstreams:
             cards = list(pool.map(one, targets))
         health = self.health()
         builds = {"atlas": os.environ.get("ATLAS_BUILD", "unknown")[:12], **{m: h["build"] for m, h in health.items() if h.get("build")}}
-        return {"cards": {m.id: c for m, c in zip(targets, cards, strict=True) if c is not None}, "builds": builds}
+        found = {m.id: c for m, c in zip(targets, cards, strict=True) if c is not None}
+        if "calendar" in self.modules:
+            found["calendar"] = self._calendar_card()
+        return {"cards": found, "builds": builds}
 
     def auto(self) -> dict[str, Any]:
         """The idle check on this computer asks every app that can read by itself to do so. Each app decides for itself whether the amount waiting is small enough

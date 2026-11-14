@@ -15,5 +15,5 @@
   ],
   "home": "#/calendar",
   "pages": [],
-  "highlights": "/api/highlights?app=calendar"
+  "native": true
 }

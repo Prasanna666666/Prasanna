@@ -51,6 +51,8 @@ class Module:
     tool: str = ""  # optional: where the assistant runs one of them (POST {name, args, user_text} -> {ok, data, error, items})
     media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
+    items: str = ""  # optional: where the app hands over its facts as plain dated items, for Atlas to join across apps (GET -> {items: [...]})
+    native: bool = False  # Atlas draws this app's page itself (it needs what several apps know)
     highlights: str = ""  # optional: where the app gives its card for the home page (GET -> {headline, sub, items, ...})
     hidden: bool = False  # works for the chat, the search and the Update, but is not an app of its own in the menu
     auth: Auth | None = None
@@ -79,6 +81,7 @@ class Module:
             "accent": list(self.accent),
             "home": self.home,
             "hidden": self.hidden,
+            "native": self.native,
             "searchable": bool(self.search),
             "scannable": bool(self.scan),
             "askable": bool(self.tool),
@@ -131,6 +134,8 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         search=str(raw.get("search", "")),
         scan=str(raw.get("scan", "")),
         highlights=str(raw.get("highlights", "")),
+        items=str(raw.get("items", "")),
+        native=raw.get("native") is True,
         tools=str(raw.get("tools", "")),
         tool=str(raw.get("tool", "")),
         media=str(raw.get("media", "")),

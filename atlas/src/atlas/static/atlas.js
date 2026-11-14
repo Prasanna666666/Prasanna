@@ -139,6 +139,102 @@
     };
 
     // ---------------------------------------------------------------- the stage: the overview, or one app
+    // ---------------------------------------------------------------- the calendar: Atlas draws it itself, from what every app knows, joined
+    const EVENT_LABEL = { trip: 'Trip', due: 'Due', followup: 'Check-up', ends: 'Ends' };
+    const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const isoDay = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const whenDays = (n) =>
+        n === 0 ? 'today' : n > 0 ? `in ${n} day${n === 1 ? '' : 's'}` : `${-n} day${n === -1 ? '' : 's'} ago`;
+
+    // one event: where it opens (the document it came from), and what state it is in
+    const openEvent = (e) => {
+        const documents = state.modules.find((m) => m.id === 'documents');
+        if (e.doc && documents) location.href = address(documents, `doc/${e.doc}`);
+    };
+
+    const agendaRow = (e) => {
+        const row = el('button', `agenda-row ${e.type}`);
+        row.type = 'button';
+        const date = el('span', 'agenda-date');
+        date.append(el('b', '', String(+e.date.slice(8, 10))), el('small', '', MONTH_NAMES[+e.date.slice(5, 7) - 1]));
+        const text = el('span', 'agenda-text');
+        const sub = [EVENT_LABEL[e.type], e.subtitle, e.sources > 1 ? `${e.sources} sources` : '']
+            .filter(Boolean)
+            .join(' · ');
+        text.append(el('b', '', e.title), el('span', '', sub));
+        row.append(date, text, el('em', `agenda-when ${e.state === 'overdue' ? 'late' : ''}`, whenDays(e.days)));
+        row.addEventListener('click', () => openEvent(e));
+        return row;
+    };
+
+    const monthGrid = (year, month, events) => {
+        const grid = el('div', 'monthgrid');
+        for (const name of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) grid.append(el('span', 'mg-head', name));
+        for (let i = 0; i < (new Date(year, month, 1).getDay() + 6) % 7; i++) grid.append(el('span', 'mg-empty'));
+        const today = isoDay(new Date());
+        for (let day = 1; day <= new Date(year, month + 1, 0).getDate(); day++) {
+            const key = isoDay(new Date(year, month, day));
+            const cell = el('div', 'mg-day' + (key === today ? ' today' : ''));
+            cell.append(el('b', '', String(day)));
+            for (const e of events.filter((x) => x.date <= key && key <= x.end).slice(0, 3)) {
+                const chip = el('button', `mg-chip ${e.type}`, e.title);
+                chip.type = 'button';
+                chip.title = `${EVENT_LABEL[e.type]}: ${e.title}`;
+                chip.addEventListener('click', () => openEvent(e));
+                cell.append(chip);
+            }
+            grid.append(cell);
+        }
+        return grid;
+    };
+
+    const renderCalendar = () => {
+        const wrap = el('div', 'dash calendar');
+        const body = el('div');
+        wrap.append(el('h1', '', 'Calendar'), body);
+        const draw = (joined, shown) => {
+            const [year, month] = [shown.getFullYear(), shown.getMonth()];
+            const bar = el('div', 'monthbar');
+            const step = (n) => draw(joined, new Date(year, month + n, 1));
+            const prev = el('button', 'pill', '‹'),
+                next = el('button', 'pill', '›');
+            prev.addEventListener('click', () => step(-1));
+            next.addEventListener('click', () => step(1));
+            bar.append(
+                prev,
+                el('b', '', shown.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })),
+                next
+            );
+            const soon = joined.events.filter((e) => e.days <= 60);
+            const list = el('div', 'agenda');
+            list.append(...soon.map(agendaRow));
+            const out = joined.left_out || {};
+            const notes = [
+                out.incomplete
+                    ? `${out.incomplete} dated documents are not shown: who they are from or what they are for is not clear yet.`
+                    : '',
+                out.settled || out.done || out.renewed
+                    ? `Left out because already dealt with: ${out.settled || 0} settled bills, ${out.done || 0} follow-ups done, ${out.renewed || 0} renewed.`
+                    : '',
+            ].filter(Boolean);
+            body.replaceChildren(
+                bar,
+                monthGrid(year, month, joined.events),
+                el('h3', 'band', 'Coming up'),
+                soon.length
+                    ? list
+                    : el('div', 'empty', 'Nothing dated yet. Dates appear here once your documents are read.'),
+                ...notes.map((n) => el('p', 'note', n))
+            );
+        };
+        fetch('/_atlas/api/agenda')
+            .then((r) => r.json())
+            .then((joined) => draw(joined, new Date()))
+            .catch(() => body.append(el('div', 'empty', 'The calendar could not be loaded.')));
+        return wrap;
+    };
+
     // ---------------------------------------------------------------- the home page: the few things that matter in each part of your life
     const HOME_ORDER = ['calendar', 'documents', 'finance', 'health', 'travel', 'photos'];
     const mediaUrl = (id) => `/_atlas/api/media/documents/api/pictures/thumb/${id}`;
@@ -240,9 +336,10 @@
         const { module, route } = parse();
         stage.querySelector('.dash')?.remove();
         state.frames.forEach((frame, id) => {
-            frame.hidden = !module || module.id !== id;
+            frame.hidden = !module || module.id !== id || module.native;
         });
-        if (module) frameFor(module, route);
+        if (module && module.native) stage.prepend(renderCalendar());
+        else if (module) frameFor(module, route);
         else stage.prepend(renderDashboard());
         markActive();
     };
