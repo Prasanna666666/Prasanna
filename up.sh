@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 BUILT="$HOME/.atlas-built"
 HERE="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+export ATLAS_BUILD="${HERE:0:7}"   # shown on the home page, so a part that was not updated can be seen
 if [ "${ATLAS_REBUILD:-}" != 1 ] && [ "${ATLAS_NO_BUILD:-}" != 1 ] && [ "$HERE" != unknown ] && [ "$(cat "$BUILT" 2>/dev/null || true)" = "$HERE" ]; then
   export ATLAS_NO_BUILD=1   # the images are already built from this version: starting takes seconds
   echo "Nothing changed since the last build: starting without rebuilding."

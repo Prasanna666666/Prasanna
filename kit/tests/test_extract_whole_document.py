@@ -56,3 +56,20 @@ def test_lab_values_far_into_a_long_report_are_read_too_and_a_row_seen_twice_is_
     model = Model({"values": [hb]}, {"values": [glucose, hb]})
     got = extract.medical_details(model, "m", "b.pdf", text)
     assert sorted(v["test"] for v in got["values"]) == ["Glucose", "Hemoglobine"]  # the second piece's value is not lost, the repeated one is not doubled
+
+
+def test_a_document_the_full_question_failed_on_gets_a_second_look_with_a_smaller_question():
+    class TwoStep:
+        def __init__(self):
+            self.calls = []
+
+        def chat(self, model, messages, schema=None, **kw):
+            self.calls.append("kind-only" if schema and "party" not in schema["properties"] else "full")
+            if "kind-only" in self.calls[-1]:
+                return {"content": json.dumps({"kind": "contract", "title": "Lease"})}
+            return {"content": "{broken"}
+
+    model = TwoStep()
+    got = extract.classify(model, "m", "f.pdf", "HUUROVEREENKOMST tussen partijen " * 20)
+    assert got == {"kind": "contract", "title": "Lease", "partial": True}
+    assert model.calls.count("full") == 2 and model.calls[-1] == "kind-only"  # two tries of the full question, then the smaller one

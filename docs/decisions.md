@@ -128,3 +128,15 @@ Still true and still visible in the reading report (`unread_files` tool): mail j
 - **Idle check** (`scripts/auto-read.sh`, a launch agent installed by `up.sh`, every 15 minutes, lowest priority): asks Atlas to read only when the Mac has been idle 5 minutes, is on power, and the model is up; otherwise it exits after a few cheap checks. Off: `touch ~/.atlas-auto-off`. Atlas asks each app (`POST /_atlas/api/auto`); the Documents service reads by itself only when **fewer than 50** files are waiting (`ATLAS_AUTO_LIMIT`), never before the person's first read, and an automatic round stops after 50 files. Pressing Read new files has no limit.
 - **Calendar** (`agenda.py`, app "Calendar"): bills (due dates), trips (tickets and bookings), contract and policy endings, medical follow-ups, only from facts that passed the checks. No model is asked: one query, so it adds no load. `/api/agenda/calendar.ics` gives a file for Apple Calendar.
 - Not built yet: a daily brief on each dashboard, prepared filing, and the second-look loop for documents the model could not understand.
+
+## Loose ends closed (owner: "nothing pending the next time I ask")
+- **Home page:** one card per part of life (coming up, files read, money, health, travel, photos), each given by the app itself (`highlights` in its manifest; Atlas trims it), plus questions to ask. Below it the version of every part, in amber when they differ: a part that was not updated can no longer hide.
+- **Forget a document:** a button on every document; Atlas drops what it read, the file is never touched and is not read again unless it changes.
+- **Second look:** a document the full question got no usable answer for is asked about once more with a much smaller question (kind and title only, marked partial); only then is it "not understood" and retried at the next press.
+- **Filing:** prepared by asking ("File my invoices"); the confirmation window does the rest.
+- **Finance Documents:** one tile per file, kind filters, totals by kind.
+- **Photos drive:** found by itself (first connected drive with a Photos folder and Aperture/models; or `APERTURE_HOST_DRIVE`); a one-line message says when none is found.
+- **Mail gate:** the cheap word gate stays (it keeps newsletters away from a small model); `ATLAS_MAIL_GATE=off` sends everything.
+- **Bigger model machine:** nothing to decide in code: set `ATLAS_MODEL_URL` (Atlas) and `OLLAMA_HOST` (apps) to that machine's address.
+- **Dropped, on purpose:** a separate Health encryption key (Health is not locked, by your call) and family members (not asked for).
+- **Dependencies:** `pip-audit` runs in CI; the images install the newest releases at every build.

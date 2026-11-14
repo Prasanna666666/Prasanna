@@ -185,6 +185,18 @@
         return node;
     };
 
+    // which version of the code each part is running: a part that was not updated shows up here
+    const versionLine = (builds) => {
+        const values = Object.values(builds);
+        const line = el('p', 'versions' + (new Set(values).size > 1 ? ' differ' : ''));
+        line.textContent =
+            'Version ' +
+            Object.entries(builds)
+                .map(([name, build]) => `${name} ${build}`)
+                .join(' · ');
+        return line;
+    };
+
     const renderDashboard = () => {
         const wrap = el('div', 'dash');
         const hour = new Date().getHours();
@@ -196,14 +208,28 @@
                 new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
             )
         );
+        // things to ask: Atlas prepares, you confirm; nothing is changed by asking
+        const asks = el('div', 'asks');
+        for (const text of [
+            'What is due this month?',
+            'Which results are out of range?',
+            'File my invoices',
+            'What did I spend most on?',
+        ]) {
+            const chip = el('button', 'ask-chip', text);
+            chip.type = 'button';
+            chip.addEventListener('click', () => askAtlas(text));
+            asks.append(chip);
+        }
         const board = el('div', 'board');
-        wrap.append(board);
+        wrap.append(asks, board);
         fetch('/_atlas/api/home')
             .then((r) => r.json())
-            .then(({ cards }) => {
+            .then(({ cards, builds }) => {
                 const shown = HOME_ORDER.filter((id) => cards[id]).map((id) => state.modules.find((m) => m.id === id));
                 board.replaceChildren(...shown.filter(Boolean).map((m) => homeCard(m, cards[m.id])));
                 if (!shown.length) board.append(el('div', 'empty', 'Nothing to show yet. Press Read new files.'));
+                wrap.append(versionLine(builds || {}));
             })
             .catch(() => board.append(el('div', 'empty', 'The home page could not be loaded.')));
         return wrap;

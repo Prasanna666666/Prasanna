@@ -1029,3 +1029,35 @@ main {
         grid-column: span 6;
     }
 }
+
+.versions {
+    margin: 22px 0 0;
+    font-size: 11px;
+    color: var(--faint);
+}
+.versions.differ {
+    color: var(--warn);
+}
+.docicon-box {
+    flex: none;
+    width: 14px;
+    height: 44px;
+    border-radius: 6px;
+}
+
+.asks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 18px;
+}
+.ask-chip {
+    font: inherit;
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 0;
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+}

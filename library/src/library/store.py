@@ -676,6 +676,17 @@ def counts(conn) -> dict[str, Any]:
     return {"documents": r["n"], "waiting": r["waiting"] or 0, "read": r["read"] or 0, "skipped": r["skipped"] or 0, "unclear": r["unclear"] or 0}
 
 
+def forget(conn, doc_id: int) -> str | None:
+    """Atlas stops keeping what it read from one document (the original file is never touched). The reader remembers it has read that content, so it is not read again
+    unless the file itself changes. Returns the document's name, or None when there is no such document."""
+    row = conn.execute("SELECT name FROM documents WHERE id=?", (doc_id,)).fetchone()
+    if row is None:
+        return None
+    conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+    conn.commit()
+    return str(row["name"])
+
+
 def retry_unclear(conn) -> int:
     """Documents the model could not make sense of get another try (called when the person presses Read new files)."""
     n = conn.execute("UPDATE documents SET judged=0 WHERE judged=3").rowcount

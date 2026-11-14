@@ -22,7 +22,18 @@ source ../scripts/platform-key.sh
 ../scripts/folders-compose.sh docker-compose.folders.yml   # your category folders and any extra folders listed in ~/AtlasFolders.txt, read-only
 FILES=(-f docker-compose.yml -f docker-compose.folders.yml)
 [ -d "${ATLAS_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ATLAS_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ATLAS_NO_MAIL=1 to turn off)
-[ -d "${APERTURE_HOST_DRIVE:-/Volumes/Expansion}/Photos" ] && FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected
+DRIVE="${APERTURE_HOST_DRIVE:-}"   # the drive that holds the photos: named by you, or the first connected drive that has a Photos folder and the picture models (Aperture/models)
+if [ -z "$DRIVE" ]; then
+  for volume in /Volumes/*/; do
+    [ -d "${volume}Photos" ] && [ -d "${volume}Aperture/models" ] && DRIVE="${volume%/}" && break
+  done
+fi
+if [ -n "$DRIVE" ] && [ -d "$DRIVE/Photos" ]; then
+  export APERTURE_HOST_DRIVE="$DRIVE"
+  FILES+=(-f docker-compose.pictures.yml)   # pictures too, when the photo drive is connected
+else
+  echo "Photos: no connected drive with a Photos folder and Aperture/models was found. Plug it in and run ./up.sh again (or set APERTURE_HOST_DRIVE=/Volumes/<name>)."
+fi
 if [ ! -f "$HOME/.atlas-migrated-documents" ]; then   # containers of the earlier name hold the same port; the volumes stay (once)
   docker compose -p library down --remove-orphans >/dev/null 2>&1 || true
   touch "$HOME/.atlas-migrated-documents"

@@ -147,9 +147,11 @@ def sample_of(text: str) -> str:
     return text[:HEAD_CHARS] + "\n[...]\n" + text[-TAIL_CHARS:]
 
 
-def classify(client, model: str, name: str, text: str) -> dict:
-    """What the file is and its key facts. The model is shown the beginning and the end; every amount, date and party is then checked against the WHOLE text and dropped if the
-    document does not say it. An answer the model cannot give raises Unclear: it is never turned into 'other'."""
+KIND_ONLY_SCHEMA = {"type": "object", "properties": {"kind": {"type": "string", "enum": list(KINDS)}, "title": {"type": "string"}}, "required": ["kind"]}
+KIND_ONLY_PROMPT = "Say what kind of document this is (one of the allowed kinds) and give it a short title. Nothing else."
+
+
+def _classify_fully(client, model: str, name: str, text: str) -> dict:
     data = _ask(client, model, KIND_PROMPT, f"File name: {name}\n\n{sample_of(text)}", KIND_SCHEMA)
     if data.get("kind") not in KINDS:
         raise Unclear("the model named a kind that does not exist")
@@ -158,6 +160,28 @@ def classify(client, model: str, name: str, text: str) -> dict:
     if party and _squash(party.lower()) not in _squash(text.lower()):
         checked["party"] = ""  # a name the document does not contain is the model's invention
     return checked
+
+
+def _classify_briefly(client, model: str, name: str, text: str) -> dict:
+    """The second look: a much smaller question (only the kind and a title, about a shorter piece), for a document the full question got no usable answer for."""
+    data = _ask(client, model, KIND_ONLY_PROMPT, f"File name: {name}\n\n{text[:1200]}\n[...]\n{text[-400:] if len(text) > 1600 else ''}", KIND_ONLY_SCHEMA)
+    if data.get("kind") not in KINDS:
+        raise Unclear("the model named a kind that does not exist")
+    return {
+        "kind": data["kind"],
+        "title": str(data.get("title") or "")[:120],
+        "partial": True,
+    }  # a partial reading: no amounts or dates are kept without the full one
+
+
+def classify(client, model: str, name: str, text: str) -> dict:
+    """What the file is and its key facts. The model is shown the beginning and the end; every amount, date and party is then checked against the WHOLE text and dropped if the
+    document does not say it. When the full question gets no usable answer, a smaller one is asked about a shorter piece. If that fails too, Unclear is raised: the
+    document is never turned into 'other' because the model failed."""
+    try:
+        return _classify_fully(client, model, name, text)
+    except Unclear:
+        return _classify_briefly(client, model, name, text)
 
 
 # ---- health: lab values and medicines, only what the document itself prints -------------------------------------------------------------------

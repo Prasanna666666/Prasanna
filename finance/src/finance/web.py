@@ -201,7 +201,7 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
 
 GET_ROUTES = {
     "/api/scan": _scan_status,
-    "/api/health": lambda state, conn, query: {"ok": True},
+    "/api/health": lambda state, conn, query: {"ok": True, "build": os.environ.get("ATLAS_BUILD", "unknown")[:12]},
     "/api/search": _get_search,
     "/api/home": _get_home,
     "/api/highlights": _get_highlights,

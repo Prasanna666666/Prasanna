@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import http.client
 import json
+import os
 import re
 import threading
 import time
@@ -45,6 +46,15 @@ def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict
 def _get(module: Module, path: str, timeout: float, extra: dict[str, str] | None = None) -> tuple[int, bytes]:
     status, body, _ = _call(module, "GET", path, timeout, extra=extra)
     return status, body
+
+
+def _build_of(body: bytes) -> str:
+    """Which version of the app answered (its own words, trimmed): so a part that was not updated can be seen."""
+    try:
+        raw = json.loads(body).get("build", "")
+    except (ValueError, AttributeError):
+        return ""
+    return str(raw)[:12] if isinstance(raw, str) else ""
 
 
 class Upstreams:
@@ -88,11 +98,11 @@ class Upstreams:
     def _check(self, module: Module) -> dict[str, Any]:
         started = time.perf_counter()
         try:
-            status, _ = _get(module, module.health, HEALTH_SECONDS)
+            status, body = _get(module, module.health, HEALTH_SECONDS)
             up = 200 <= status < 300
         except (OSError, http.client.HTTPException):
-            up = False
-        return {"up": up, "ms": round((time.perf_counter() - started) * 1000)}
+            up, body = False, b""
+        return {"up": up, "ms": round((time.perf_counter() - started) * 1000), "build": _build_of(body)}
 
     def health(self) -> dict[str, dict[str, Any]]:
         now = time.monotonic()
@@ -218,10 +228,12 @@ class Upstreams:
                 return None
 
         if not targets:
-            return {"cards": {}}
+            return {"cards": {}, "builds": {}}
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
             cards = list(pool.map(one, targets))
-        return {"cards": {m.id: c for m, c in zip(targets, cards, strict=True) if c is not None}}
+        health = self.health()
+        builds = {"atlas": os.environ.get("ATLAS_BUILD", "unknown")[:12], **{m: h["build"] for m, h in health.items() if h.get("build")}}
+        return {"cards": {m.id: c for m, c in zip(targets, cards, strict=True) if c is not None}, "builds": builds}
 
     def auto(self) -> dict[str, Any]:
         """The idle check on this computer asks every app that can read by itself to do so. Each app decides for itself whether the amount waiting is small enough

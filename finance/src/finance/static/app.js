@@ -1046,85 +1046,68 @@
         d.title && d.party && !d.title.toLowerCase().includes(d.party.toLowerCase())
             ? `${d.title} · ${d.party}`
             : d.title || d.party || d.name.replace(/\.[^.]+$/, '');
+    /** The documents place of Finance: one tile per file, named by what it says, with the kinds as filters and what each kind adds up to. */
     function buildDocCard(docs, docTotals, other, KIND) {
-        return docs.length
-            ? h(
-                  'div',
-                  { class: 'card' },
-                  h(
-                      'div',
-                      { class: 'card-head' },
-                      h('h2', {}, 'Other files'),
-                      h(
-                          'div',
-                          { class: 'row' },
-                          docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`))
-                      )
-                  ),
-                  other.length
-                      ? h(
-                            'table',
-                            { class: 'table' },
+        if (!docs.length) return null;
+        const grid = h('div', { class: 'docgrid' });
+        const draw = (kind) =>
+            grid.replaceChildren(
+                ...other
+                    .filter((d) => !kind || d.kind === kind)
+                    .map((d) =>
+                        h(
+                            'div',
+                            { class: 'doctile' },
+                            h('span', { class: 'docicon-box', style: { background: KIND[d.kind] || '#999' } }),
                             h(
-                                'thead',
-                                {},
+                                'span',
+                                { class: 'doctext' },
+                                h('b', {}, properName(d)),
                                 h(
-                                    'tr',
+                                    'span',
                                     {},
-                                    ['', 'From', 'Date', 'Due', 'Total'].map((x, i) =>
-                                        h('th', { class: i === 4 ? 'r' : '' }, x)
-                                    )
+                                    [d.date, d.due_date && `due ${d.due_date}`, d.total != null && money(d.total, 2)]
+                                        .filter(Boolean)
+                                        .join(' · ')
                                 )
                             ),
-                            h(
-                                'tbody',
-                                {},
-                                other.slice(0, 30).map((d) =>
-                                    h(
-                                        'tr',
-                                        {},
-                                        h(
-                                            'td',
-                                            {},
-                                            h(
-                                                'span',
-                                                {
-                                                    class: 'chip',
-                                                    style: {
-                                                        background: 'transparent',
-                                                        border: '1px solid var(--line-strong)',
-                                                        color: KIND[d.kind] || 'var(--muted)',
-                                                    },
-                                                },
-                                                h('span', {
-                                                    class: 'sw',
-                                                    style: { background: KIND[d.kind] || '#999' },
-                                                }),
-                                                d.kind
-                                            )
-                                        ),
-                                        h(
-                                            'td',
-                                            {},
-                                            h('div', { style: { fontWeight: 600 } }, properName(d)),
-                                            d.summary
-                                                ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary)
-                                                : null
-                                        ),
-                                        h('td', { class: 'num' }, d.date || '-'),
-                                        h('td', { class: 'num' }, d.due_date || '-'),
-                                        h(
-                                            'td',
-                                            { class: 'r num', style: { fontWeight: 650 } },
-                                            d.total != null ? money(d.total, 2) : '-'
-                                        )
-                                    )
-                                )
-                            )
+                            h('em', { class: 'doctag' }, d.kind.replace('_', ' '))
                         )
-                      : h('div', { class: 'empty' }, 'Nothing else yet.')
-              )
-            : null;
+                    )
+            );
+        const kinds = [...new Set(other.map((d) => d.kind))];
+        const chips = h(
+            'div',
+            { class: 'chiprow' },
+            ['', ...kinds].map((k) =>
+                h(
+                    'button',
+                    {
+                        class: 'chip' + (k ? '' : ' on'),
+                        type: 'button',
+                        onclick: (e) => {
+                            chips
+                                .querySelectorAll('.chip')
+                                .forEach((x) => x.classList.toggle('on', x === e.currentTarget));
+                            draw(k);
+                        },
+                    },
+                    k ? k.replace('_', ' ') : 'All'
+                )
+            )
+        );
+        draw('');
+        return h(
+            'div',
+            { class: 'stack' },
+            h(
+                'div',
+                { class: 'row' },
+                ...docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`))
+            ),
+            kinds.length > 1 ? chips : null,
+            grid
+        );
     }
 
     function buildStatusCard(ver, LEVEL) {

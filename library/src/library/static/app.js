@@ -25,13 +25,30 @@
     const toParent = (m) =>
         window.parent.postMessage({ atlas: 1, ...m }, (location.ancestorOrigins && location.ancestorOrigins[0]) || '*');
 
+    // Atlas stops keeping what it read from one document; the file itself is never touched
+    async function forgetDoc(id) {
+        const sure = window.confirm(
+            'Atlas will forget what it read from this document. The file itself is not touched, and it is not read again unless it changes.'
+        );
+        if (!sure) return;
+        await fetch('/api/forget', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Library': '1' },
+            body: JSON.stringify({ id: Number(id) }),
+        });
+        history.back();
+    }
+
     // one document: what it says, named by what it says
     async function openDoc(id) {
         const d = await api(`/api/document?id=${encodeURIComponent(id)}`);
+        const forget = el('button', { className: 'pill', type: 'button' }, 'Forget this document');
+        forget.addEventListener('click', () => forgetDoc(id));
         $('#doc').replaceChildren(
             el('h2', {}, d.title || d.facts?.title || d.name || 'Document'),
             el('p', { className: 'muted' }, d.name ? `${d.name} · ${d.kind}` : ''),
-            el('pre', {}, (d.text || '').slice(0, 20000))
+            el('pre', {}, (d.text || '').slice(0, 20000)),
+            forget
         );
     }
 

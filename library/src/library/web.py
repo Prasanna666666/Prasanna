@@ -311,6 +311,16 @@ def _get_medical_part(part):
     return route
 
 
+def _post_forget(state: State, conn, body: dict) -> dict:
+    """The person asked Atlas to forget one document: what was read from it is removed; the file itself stays where it is."""
+    doc_id = body.get("id")
+    name = store.forget(conn, int(doc_id)) if isinstance(doc_id, int) and not isinstance(doc_id, bool) else None
+    if name is None:
+        raise Fail(404, "no such document")
+    _CACHE.clear()
+    return {"ok": True, "name": name}
+
+
 def _post_albums(state: State, conn, body: dict) -> dict:
     """The Trips page asks for the trip albums: only prepared, the confirmation window does the rest."""
     try:
@@ -510,7 +520,7 @@ def _get_agenda_upcoming(state: State, conn, query: dict[str, str]) -> dict:
 
 
 GET_ROUTES = {
-    "/api/health": lambda state, conn, query: {"ok": True},
+    "/api/health": lambda state, conn, query: {"ok": True, "build": os.environ.get("ATLAS_BUILD", "unknown")[:12]},
     "/api/search": _get_search,
     "/api/documents": _get_documents,
     "/api/document": _get_document,
@@ -543,6 +553,7 @@ POST_ROUTES = {
     "/api/travel/packing": _post_packing,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
     "/api/scan/auto": _post_auto,
+    "/api/forget": _post_forget,
     "/api/scan/pause": lambda state, conn, body: _control(state, "pause"),
     "/api/scan/resume": lambda state, conn, body: _control(state, "resume"),
     "/api/scan/stop": lambda state, conn, body: _control(state, "stop"),

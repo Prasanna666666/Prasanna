@@ -256,7 +256,8 @@ def test_guessing_the_password_on_the_form_is_slowed_down():
 
 
 def test_the_front_door_can_check_health_and_search_finance(server):
-    assert json.loads(call(server, "GET", "/api/health")[1]) == {"ok": True}
+    health = json.loads(call(server, "GET", "/api/health")[1])
+    assert health["ok"] is True and "build" in health  # the version of the code, so a part that was not updated can be seen
     post(server, "/api/tool", {"name": "add_task", "args": {"title": "Pay the Ziggo invoice"}})
     found = json.loads(call(server, "GET", "/api/search?q=ziggo")[1])["results"]
     assert {"title": "Pay the Ziggo invoice", "subtitle": "", "kind": "task", "link": "#/tasks"} in found

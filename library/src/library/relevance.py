@@ -8,6 +8,7 @@ remembered as read, so each is looked at once.
 
 from __future__ import annotations
 
+import os
 import re
 
 MIN_TEXT = 40  # an attachment with no readable text (an empty scan, a banner) has nothing to say
@@ -74,7 +75,9 @@ TERMS = frozenset(
 
 
 def worth_reading(name: str, kind: str, text: str) -> bool:
-    """Is this document worth asking the model about?"""
+    """Is this document worth asking the model about? (A cheap gate that keeps thousands of newsletters away from a small model. ATLAS_MAIL_GATE=off sends everything: slower.)"""
+    if os.environ.get("ATLAS_MAIL_GATE", "on").lower() == "off":
+        return len(text.strip()) >= MIN_TEXT
     if kind in ATTACHMENT_KINDS:  # a PDF, scan, sheet or Word file: worth reading when it has text (mail attachments and loose files alike)
         return len(text.strip()) >= MIN_TEXT
     if not AMOUNT.search(text):

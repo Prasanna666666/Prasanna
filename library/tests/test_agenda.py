@@ -69,3 +69,11 @@ def test_the_home_cards_are_short_facts_from_the_same_data(conn):
     assert card["headline"] == "1 to look at" and card["tone"] == "warn" and card["items"][0] == {"label": "Glucose", "value": "6,4 mmol/L"}
     assert highlights.card("photos", conn.conn, state)["headline"] == "Not connected"
     assert highlights.card("nonsense", conn.conn, state) is None
+
+
+def test_forgetting_a_document_removes_what_was_read_and_nothing_else(conn):
+    conn.add("a.pdf", "invoice", title="Keep")
+    conn.add("b.pdf", "invoice", title="Forget")
+    gone = conn.conn.execute("SELECT id FROM documents WHERE name='b.pdf'").fetchone()["id"]
+    assert store.forget(conn.conn, gone) == "b.pdf" and store.forget(conn.conn, gone) is None
+    assert [r["name"] for r in conn.conn.execute("SELECT name FROM documents")] == ["a.pdf"]
