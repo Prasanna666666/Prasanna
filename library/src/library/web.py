@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, flags, pictures, readreport, store, tools, travel
+from . import agenda, changes, flags, pictures, readreport, store, tools, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -489,6 +489,18 @@ def _post_tool(state: State, conn, body: dict) -> dict:
     return tools.run(state, conn, str(body.get("name", "")), args if isinstance(args, dict) else {}, ask)
 
 
+def _get_agenda_events(state: State, conn, query: dict[str, str]) -> dict:
+    """/api/agenda/events?from=YYYY-MM-DD&to=YYYY-MM-DD: every dated thing the documents say, for the calendar page."""
+    since, until = agenda.iso_day(query.get("from")), agenda.iso_day(query.get("to"))
+    if not since or not until:
+        raise Fail(400, "from and to must be dates")
+    return {"events": agenda.events(conn, since, until)}
+
+
+def _get_agenda_upcoming(state: State, conn, query: dict[str, str]) -> dict:
+    return {"today": _today(), "events": agenda.upcoming(conn, _today(), 60)}
+
+
 GET_ROUTES = {
     "/api/health": lambda state, conn, query: {"ok": True},
     "/api/search": _get_search,
@@ -510,6 +522,8 @@ GET_ROUTES = {
     "/api/pictures": _get_pictures,
     "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,
+    "/api/agenda/events": _get_agenda_events,
+    "/api/agenda/upcoming": _get_agenda_upcoming,
 }
 POST_ROUTES = {
     "/api/tool": _post_tool,
@@ -574,6 +588,13 @@ class _Handler(JsonHandler):
             finally:
                 conn.close()
             return self._send(200, text.encode(), "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="trips.ics"'})
+        if path == "/api/agenda/calendar.ics":
+            conn = self.state.connect()
+            try:
+                text = agenda.ics(agenda.upcoming(conn, _today(), 365))
+            finally:
+                conn.close()
+            return self._send(200, text.encode(), "text/calendar; charset=utf-8", {"Content-Disposition": 'attachment; filename="atlas.ics"'})
         if path.startswith("/api/pictures/thumb/"):
             return self._thumb(path.removeprefix("/api/pictures/thumb/"), preview=False)
         if path.startswith("/api/pictures/preview/"):

@@ -1,0 +1,18 @@
+{
+  "upstream": "http://host.docker.internal:8502",
+  "health": "/api/health",
+  "headers": {
+    "X-Library": "1"
+  },
+  "id": "calendar",
+  "name": "Calendar",
+  "app": "Calendar",
+  "tagline": "Bills, trips, follow-ups and endings from your documents and mail",
+  "icon": "M7 3v3M17 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm3 8h2m4 0h2m-8 4h2",
+  "accent": [
+    "#4f46e5",
+    "#4f46e5"
+  ],
+  "home": "#/calendar",
+  "pages": []
+}

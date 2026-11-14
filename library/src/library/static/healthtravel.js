@@ -148,6 +148,100 @@
         return page;
     };
 
+    // ---------------------------------------------------------------- Calendar
+    const EVENT_LABEL = { trip: 'Trip', due: 'Due', followup: 'Check-up', ends: 'Ends' };
+    const isoDay = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // when something is: today, in N days, N days ago
+    const whenDays = (n) =>
+        n === 0 ? 'today' : n > 0 ? `in ${n} day${n === 1 ? '' : 's'}` : `${-n} day${n === -1 ? '' : 's'} ago`;
+
+    // one line of the list of what is coming
+    const agendaRow = (e) => {
+        const row = el('button', `agenda-row ${e.type}`);
+        row.type = 'button';
+        const date = el('span', 'agenda-date');
+        date.append(el('b', '', String(+e.date.slice(8, 10))), el('small', '', MONTHS[+e.date.slice(5, 7) - 1]));
+        const text = el('span', 'agenda-text');
+        text.append(
+            el('b', '', e.title),
+            el('span', '', [EVENT_LABEL[e.type], e.subtitle].filter(Boolean).join(' · '))
+        );
+        row.append(date, text, el('em', `agenda-when ${e.days < 0 ? 'late' : ''}`, whenDays(e.days)));
+        if (e.doc) row.addEventListener('click', () => openDoc(e.doc));
+        return row;
+    };
+
+    // the month as a grid: each day shows what falls on it
+    const monthGrid = (year, month, items) => {
+        const grid = el('div', 'monthgrid');
+        for (const name of ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']) grid.append(el('span', 'mg-head', name));
+        const first = new Date(year, month, 1);
+        for (let i = 0; i < (first.getDay() + 6) % 7; i++) grid.append(el('span', 'mg-empty'));
+        const last = new Date(year, month + 1, 0).getDate();
+        const today = isoDay(new Date());
+        for (let day = 1; day <= last; day++) {
+            const key = isoDay(new Date(year, month, day));
+            const cell = el('div', 'mg-day' + (key === today ? ' today' : ''));
+            cell.append(el('b', '', String(day)));
+            for (const e of items.filter((x) => x.date <= key && key <= x.end).slice(0, 3)) {
+                const chip = el('button', `mg-chip ${e.type}`, e.title);
+                chip.type = 'button';
+                chip.title = `${EVENT_LABEL[e.type]}: ${e.title}`;
+                if (e.doc) chip.addEventListener('click', () => openDoc(e.doc));
+                cell.append(chip);
+            }
+            grid.append(cell);
+        }
+        return grid;
+    };
+
+    async function calendarPage(params) {
+        host().replaceChildren(el('div', 'empty', 'Loading…'));
+        const now = new Date();
+        const shown =
+            params && /^\d{4}-\d{2}$/.test(params.m || '')
+                ? params.m
+                : `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const [year, month] = [+shown.slice(0, 4), +shown.slice(5, 7) - 1];
+        const from = isoDay(new Date(year, month, 1)),
+            to = isoDay(new Date(year, month + 1, 0));
+        const [grid, soon] = await Promise.all([
+            getJson(`/api/agenda/events?from=${from}&to=${to}`),
+            getJson('/api/agenda/upcoming'),
+        ]);
+        const step = (n) => {
+            const d = new Date(year, month + n, 1);
+            go('calendar', { m: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` });
+        };
+        const bar = el('div', 'monthbar');
+        const prev = button('‹', () => step(-1)),
+            next = button('›', () => step(1));
+        bar.append(
+            prev,
+            el(
+                'b',
+                '',
+                `${new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}`
+            ),
+            next
+        );
+        const ics = el('a', 'pill', 'Add to Calendar');
+        ics.href = '/api/agenda/calendar.ics';
+        ics.setAttribute('download', 'atlas.ics');
+        const page = [bar, monthGrid(year, month, grid.events), sectionHead('Coming up', soon.events.length)];
+        if (!soon.events.length) {
+            page.push(el('div', 'empty', 'Nothing dated yet. Dates appear here once your documents are read.'));
+        } else {
+            const list = el('div', 'agenda');
+            list.append(...soon.events.map(agendaRow));
+            page.push(list);
+        }
+        page.push(ics);
+        host().replaceChildren(...page);
+    }
+
     // ---------------------------------------------------------------- Travel
     async function travelDocs() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
@@ -727,6 +821,7 @@
     }
 
     const PAGES = {
+        calendar: (params) => calendarPage(params),
         travel: () => travel(),
         trip: (p) => trip(p),
         health: () => health('dashboard'),
