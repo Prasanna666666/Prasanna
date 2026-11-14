@@ -8,7 +8,7 @@ import pymupdf
 import pytest
 from PIL import Image
 
-from library import parser, readers
+from library import parser, readers, sniff
 
 HEAD = ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
 ROWS = [
@@ -175,3 +175,14 @@ def test_zip_archives_are_opened_file_by_file_and_stay_bounded(tmp_path):
     parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     names = sorted(json.loads(p.read_text())["name"] for p in (tmp_path / "out").glob("*.json"))
     assert names == ["statements.zip/escape.txt", "statements.zip/oct.txt"] and not (tmp_path / "escape.txt").exists()
+
+
+def test_a_pdf_with_stray_bytes_before_its_header_is_still_read_as_a_pdf_with_its_table(tmp_path):
+    """Many bank statements start with a newline or a byte-order mark before %PDF-. Sniffing by the first four bytes took them for text and lost their table."""
+    plain = tmp_path / "plain.pdf"
+    text_pdf(plain)
+    odd = tmp_path / "2025-02.pdf"
+    odd.write_bytes(b"\xef\xbb\xbf\r\n" + plain.read_bytes())
+    assert sniff.kind_of(odd) == "pdf"
+    got = parser.extract(odd)
+    assert got["kind"] == "pdf" and got["data"]["table"] and "Albert Heijn" in got["text"]

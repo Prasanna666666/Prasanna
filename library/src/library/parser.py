@@ -188,6 +188,14 @@ MAX_FAILED = 200
 _CLAIM_LOCK = threading.Lock()
 
 
+def _identity(f: Path, kind: str, area: str) -> str:
+    """What makes a file the same file: its content, and the folder kind it lies in (the same file in two folders is two documents)."""
+    digest = sha256(f)
+    if kind == "pdf" and not sniff.head_of(f).startswith(b"%PDF"):
+        digest = hashlib.sha256((digest + "pdf-after-stray-bytes").encode()).hexdigest()  # read wrongly before: read again, the older version is replaced
+    return hashlib.sha256((area + digest).encode()).hexdigest() if area else digest
+
+
 def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0, source: str = "") -> None:
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
     import tempfile
@@ -203,9 +211,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     if size > (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES):
         counts["skipped"] += 1
         return
-    digest = sha256(f)
-    if area:
-        digest = hashlib.sha256((area + digest).encode()).hexdigest()  # the same file in two folders is two documents
+    digest = _identity(f, kind, area)
     if _done(out, digest):
         return
     with _CLAIM_LOCK:  # files read at the same moment with the same content: only the first one reads it

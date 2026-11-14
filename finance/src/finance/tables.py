@@ -90,9 +90,20 @@ class Parsed:
 
 
 # ---------------------------------------------------------------------------------------------------------------------------
+def table_from_text(lines: list[str]) -> list[list[Cell]]:
+    """No positions were recorded (a scan, or a layout the reader could not place): split each printed line where the gaps are wide, and let the columns stand in for positions.
+    The same layout questions and the same proofs (running balances, opening + payments = closing) then decide whether any figure is trusted."""
+    out = []
+    for line in lines:
+        parts = [part.strip() for part in re.split(r"\t|\s{2,}", line) if part.strip()]
+        if len(parts) >= 2:
+            out.append([Cell(i * 100.0, i * 100.0 + 99, part) for i, part in enumerate(parts)])
+    return out
+
+
 def table_from_data(data: dict) -> list[list[Cell]]:
-    """The cells of every line, from a parsed PDF (with positions) or a CSV (columns stand in for positions)."""
-    if isinstance(data.get("table"), list):
+    """The cells of every line, from a parsed PDF (with positions), a CSV (columns stand in for positions), or, failing both, the printed lines themselves."""
+    if isinstance(data.get("table"), list) and data["table"]:
         out = []
         for line in data["table"]:
             cells = [Cell(float(c[0]), float(c[1]), str(c[2])) for c in line if isinstance(c, list) and len(c) == 3]
@@ -104,6 +115,8 @@ def table_from_data(data: dict) -> list[list[Cell]]:
         return [
             [Cell(i * 100.0, i * 100.0 + 99, str(c)) for i, c in enumerate(r)] for r in data["rows"] if isinstance(r, list) and any(str(c).strip() for c in r)
         ]
+    if isinstance(data.get("lines"), list):
+        return table_from_text([str(x) for x in data["lines"]])
     return []
 
 

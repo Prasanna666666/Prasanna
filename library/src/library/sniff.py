@@ -105,7 +105,7 @@ def _text_kind(text: str, path: Path, head: bytes) -> str:
 def kind_of(path: Path) -> str:
     """pdf, image, sheet, doc, html, email, json, csv, text, mbox, zip (a package of other files), or binary (anything else)."""
     head = head_of(path)
-    if head.startswith(b"%PDF"):
+    if b"%PDF-" in head[:1024]:  # the header may follow a few stray bytes (a newline, a byte-order mark): many bank statements are like that
         return "pdf"
     if head[:2] == b"PK":
         return _zip_kind(path)

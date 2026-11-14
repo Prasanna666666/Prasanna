@@ -118,12 +118,24 @@ def engine_agreement(name: str, data: dict, layout: tables.Layout, first: tables
     return out
 
 
+def _why_no_table(data: dict, text: str) -> str:
+    """What the reader recorded about a file with no table: so the screen says what to do, not only that it failed."""
+    meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+    if meta.get("ocr_pages"):
+        return f"a scan, read by character recognition ({meta['ocr_pages']} pages, confidence {meta.get('ocr_confidence', '?')}): the figures could not be placed in columns"
+    if not text.strip():
+        return "no text was read from it: a scan the reader could not recognise, or a protected file"
+    return "text was read but no columns of figures: the statement may be laid out as plain paragraphs"
+
+
 def read_table_statement(client, model: str, name: str, data: dict, text: str) -> Read:
     """A PDF or CSV statement: layout by the model, figures by code, then every agent has its say."""
     r = Read()
     table = tables.table_from_data(data)
     layout, why = tables.infer_layout_why(client, model, table)
     if layout is None:
+        if not table:
+            why += f" ({_why_no_table(data, text)})"
         r.issues = [f"the layout of this file could not be understood: {why}"]
         r.findings.append(Finding("layout reader", "fail", name, r.issues[0]))
         return r

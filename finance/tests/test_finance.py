@@ -345,3 +345,12 @@ def test_files_left_out_are_tried_again_once_after_the_reading_improves(conn, tm
     assert run(conn)["files"] == 0  # same version: not read again on every press
     db.set_setting(conn, "reader_version", "older")
     assert run(conn)["files"] == 1 and conn.execute("SELECT status FROM statement_files").fetchone()["status"] != "needs_check"
+
+
+def test_a_statement_with_no_recorded_positions_is_still_laid_out_from_its_printed_lines():
+    """The reader does not insist on a positioned table: when there is none, the printed lines are split where the gaps are wide and the same proofs decide."""
+    data = {"lines": ["Datum    Omschrijving    Af    Bij    Saldo", "01-10-2026    Albert Heijn    23,45        1.976,55", "no columns here"]}
+    table = tables.table_from_data(data)
+    assert [[c.text for c in line] for line in table][1] == ["01-10-2026", "Albert Heijn", "23,45", "1.976,55"]
+    assert len(table) == 2  # a line that is not in columns is left out, not guessed at
+    assert tables.table_from_data({"table": [], "lines": []}) == []
