@@ -189,6 +189,17 @@ class Upstreams:
                 self._authed(module, "POST", f"{module.scan}/{action}", SCAN_SECONDS)
         return self.scan()
 
+    def auto(self) -> dict[str, Any]:
+        """The idle check on this computer asks every app that can read by itself to do so. Each app decides for itself whether the amount waiting is small enough
+        (the Documents service reads automatically only when fewer than 50 files are waiting); one that cannot, or is down, is simply left out."""
+        answers: dict[str, Any] = {}
+        for module in (m for m in self.modules.values() if m.scan):
+            with contextlib.suppress(OSError, http.client.HTTPException, ValueError):
+                status, body = self._authed(module, "POST", f"{module.scan}/auto", SCAN_SECONDS)
+                if status == 200 and isinstance(reply := json.loads(body), dict):
+                    answers[module.id] = {k: reply[k] for k in ("started", "reason", "waiting", "limit") if k in reply}
+        return {"modules": answers}
+
     def scan(self, start: bool = False) -> dict[str, Any]:
         """Start (or just read) the update of every app that supports it; one app being down never stops the others."""
         targets = [m for m in self.modules.values() if m.scan]

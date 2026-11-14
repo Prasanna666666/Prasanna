@@ -17,5 +17,6 @@ library/scripts/up.sh
 atlas/up.sh
 [ "${ATLAS_NO_BUILD:-}" = 1 ] || { [ "$HERE" = unknown ] || echo "$HERE" > "$BUILT"; }
 scripts/make-apps.sh || true   # the Atlas and Stop Atlas apps in ~/Applications (only what is missing)
+scripts/install-auto-read.sh || true   # the idle check that reads new files by itself when the Mac is idle and plugged in (fewer than 50 files; off: touch ~/.atlas-auto-off)
 echo
 echo "Atlas is ready: http://atlas.localhost:8000   (press Read new files there once; stop everything with the Stop Atlas app in ~/Applications)"

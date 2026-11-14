@@ -111,6 +111,9 @@ class _Handler(BaseHTTPRequestHandler):
             return self._post_tool()
         if self.path == "/api/chat":
             return self._post_model_chat()
+        if self.path == "/api/scan/auto":
+            self._reply(200, b'{"started": false, "reason": "large", "waiting": 70, "limit": 50, "private": "x"}')
+            return
         if self.path == "/api/scan":
             if self.app.require_header and self.headers.get(self.app.require_header) != "1":
                 self._reply(403, b'{"error": "header"}')

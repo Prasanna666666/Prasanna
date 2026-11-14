@@ -150,3 +150,17 @@ def test_an_app_that_is_busy_is_not_reported_as_switched_off(running, monkeypatc
     assert busy["up"] is True and busy["problems"] == [] and busy["progress"] == "busy, still working…"  # the last thing it said is kept
     monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (_ for _ in ()).throw(ConnectionRefusedError()))
     assert running.json("/_atlas/api/scan")["modules"]["photos"]["up"] is False  # a refused connection really is off
+
+
+def test_the_idle_check_asks_each_app_and_only_the_apps_own_answer_comes_back(running):
+    headers = {"Origin": f"http://atlas.localhost:{running.port}", "X-Atlas": "1"}
+    status, _, body = running.request("POST", "/_atlas/api/auto", f"atlas.localhost:{running.port}", b"", headers)
+    answer = json.loads(body)
+    assert status == 200 and answer["modules"]["money"] == {
+        "started": False,
+        "reason": "large",
+        "waiting": 70,
+        "limit": 50,
+    }  # nothing else the app said is passed on
+    assert not running.apps["money"].scanning  # asking is not starting: the app decided it was too much
+    assert running.request("POST", "/_atlas/api/auto", f"atlas.localhost:{running.port}", b"", {"Origin": "http://evil.example", "X-Atlas": "1"})[0] == 403

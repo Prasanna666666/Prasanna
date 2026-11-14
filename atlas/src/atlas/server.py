@@ -161,6 +161,11 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
         self._json(self.atlas.upstreams.control(action))
 
+    def _auto_read(self) -> None:
+        if not _scan_allowed(self, self.atlas):
+            return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
+        self._json(self.atlas.upstreams.auto())
+
     def _start_scan(self) -> None:
         if not _scan_allowed(self, self.atlas):
             return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
@@ -196,6 +201,7 @@ class _Handler(BaseHTTPRequestHandler):
         routes: dict[str, Callable[[], None]] = {
             "/_atlas/api/chat": self._chat,
             "/_atlas/api/scan": self._start_scan,
+            "/_atlas/api/auto": self._auto_read,
             "/_atlas/api/scan/pause": lambda: self._control_scan("pause"),
             "/_atlas/api/scan/resume": lambda: self._control_scan("resume"),
             "/_atlas/api/scan/stop": lambda: self._control_scan("stop"),
