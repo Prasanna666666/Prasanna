@@ -21,7 +21,12 @@ from .registry import ManifestError, Module, load, upstream_is_private
 from .upstream import Upstreams
 
 STATIC = Path(__file__).with_name("static")
-STATIC_TYPES = {"atlas.css": "text/css; charset=utf-8", "atlas.js": "text/javascript; charset=utf-8", "icon.svg": "image/svg+xml"}
+STATIC_TYPES = {
+    "atlas.css": "text/css; charset=utf-8",
+    "design.css": "text/css; charset=utf-8",
+    "atlas.js": "text/javascript; charset=utf-8",
+    "icon.svg": "image/svg+xml",
+}
 MAX_CHAT_BODY = 32_000
 LOCAL_ALIASES = frozenset({"localhost", "127.0.0.1", "[::1]"})
 

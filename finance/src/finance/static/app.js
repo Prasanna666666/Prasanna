@@ -152,9 +152,9 @@
         }
     }
     function setupTheme() {
-        let mode = 'dark';
+        let mode = 'light';
         try {
-            mode = localStorage.getItem('finance.theme') || 'dark';
+            mode = localStorage.getItem('finance.theme') || 'light';
         } catch (_) {
             /* private window */
         }

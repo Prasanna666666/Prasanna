@@ -32,7 +32,7 @@
         refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
     };
 
-    const state = { modules: [], health: {}, ai: null, frames: new Map(), mode: 'dark' };
+    const state = { modules: [], health: {}, ai: null, frames: new Map(), mode: 'light' };
     const byId = (id) => state.modules.find((m) => m.id === id);
     const origin = (module) => `${location.protocol}//${module.id}.${location.host}`;
 
@@ -173,15 +173,6 @@
             card.append(head, links, open);
             cards.append(card);
         }
-        const add = el('div', 'card add');
-        add.append(
-            el(
-                'div',
-                '',
-                'Health, documents, anything next: add a small file to modules.d and it appears here, in the menu and in search.'
-            )
-        );
-        cards.append(add);
         wrap.append(cards);
         return wrap;
     };
@@ -738,9 +729,9 @@
     };
     const setupTheme = () => {
         try {
-            state.mode = localStorage.getItem('atlas.theme') || 'dark';
+            state.mode = localStorage.getItem('atlas.theme') || 'light';
         } catch (_) {
-            state.mode = 'dark';
+            state.mode = 'light';
         }
         $('#theme').addEventListener('click', () => {
             state.mode = state.mode === 'auto' ? 'dark' : state.mode === 'dark' ? 'light' : 'auto';

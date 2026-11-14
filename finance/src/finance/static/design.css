@@ -1,0 +1,313 @@
+/* One look for every app, loaded last so it wins: a quiet, light page, white cards with a thin border, one accent colour, no gradients, no glass.
+   The same file is copied into Atlas, Finance and Documents by scripts/sync-design.sh (a test fails when a copy differs). */
+:root {
+    --bg: #f6f7f9;
+    --fg: #12151c;
+    --ink: #12151c;
+    --muted: #5d6572;
+    --faint: #8a929e;
+    --line: #e5e7eb;
+    --line-strong: #d4d8de;
+    --card: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f1f3f5;
+    --rail: #ffffff;
+    --glass: #ffffff;
+    --soft: #eef0ff;
+    --accent-soft: #eef0ff;
+    --accent: #4f46e5;
+    --accent-2: #4f46e5;
+    --accent-3: #4f46e5;
+    --a1: #4f46e5;
+    --a2: #4f46e5;
+    --grad: #4f46e5;
+    --good: #15803d;
+    --bad: #b91c1c;
+    --warn: #b45309;
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.12);
+    --edge: none;
+    --mesh: none;
+    --radius: 14px;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
+    color-scheme: light;
+}
+:root[data-theme='dark'] {
+    --bg: #0e1013;
+    --fg: #e8eaee;
+    --ink: #e8eaee;
+    --muted: #9aa1ad;
+    --faint: #6b7280;
+    --line: #23272e;
+    --line-strong: #323841;
+    --card: #15181d;
+    --surface: #15181d;
+    --surface-2: #1b1f26;
+    --rail: #12151a;
+    --glass: #15181d;
+    --soft: #1e2140;
+    --accent-soft: #1e2140;
+    --accent: #818cf8;
+    --accent-2: #818cf8;
+    --accent-3: #818cf8;
+    --a1: #818cf8;
+    --a2: #818cf8;
+    --grad: #818cf8;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --shadow: none;
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']):not([data-theme='dark']) {
+        --bg: #0e1013;
+        --fg: #e8eaee;
+        --ink: #e8eaee;
+        --muted: #9aa1ad;
+        --faint: #6b7280;
+        --line: #23272e;
+        --line-strong: #323841;
+        --card: #15181d;
+        --surface: #15181d;
+        --surface-2: #1b1f26;
+        --rail: #12151a;
+        --glass: #15181d;
+        --soft: #1e2140;
+        --accent-soft: #1e2140;
+        --accent: #818cf8;
+        --a1: #818cf8;
+        --a2: #818cf8;
+        --good: #4ade80;
+        --bad: #f87171;
+        --warn: #fbbf24;
+        --shadow: none;
+        color-scheme: dark;
+    }
+}
+
+body {
+    background: var(--bg) !important;
+    background-image: none !important;
+    color: var(--ink);
+    font-family: var(--font);
+    -webkit-font-smoothing: antialiased;
+}
+* {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+h1,
+h2,
+h3 {
+    letter-spacing: -0.01em;
+    font-weight: 650;
+}
+
+/* surfaces: white, thin border, almost no shadow */
+.card,
+.stat,
+.labtile,
+.medcard,
+.tripcard,
+.yearstrip,
+.hero,
+.healthhero,
+.travelhero,
+.hero-next,
+.panel,
+.drawer,
+.palette,
+.popover {
+    background: var(--card) !important;
+    background-image: none !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow) !important;
+    color: var(--ink);
+}
+.card::before,
+.card::after,
+.hero::before,
+.hero::after {
+    display: none !important;
+}
+.overlay {
+    background: rgba(16, 24, 40, 0.4) !important;
+}
+
+/* hero cards were coloured: now they are plain cards with a big number */
+.hero,
+.healthhero,
+.travelhero {
+    color: var(--ink) !important;
+    box-shadow: var(--shadow) !important;
+}
+.hero .eyebrow,
+.hero .k,
+.hero .stat-label,
+.hero .stat-sub,
+.hero .hero-count span,
+.travelhero .stat-label,
+.travelhero .stat-sub,
+.travelhero .hero-count span {
+    color: var(--muted) !important;
+}
+.hero .big,
+.hero .v {
+    color: var(--ink) !important;
+}
+.hero .spark path[fill='none'] {
+    stroke: var(--accent) !important;
+}
+.hero .spark path:not([fill='none']) {
+    stroke: none !important;
+}
+.stat::before,
+.stat::after {
+    display: none !important;
+}
+.hero .spark stop {
+    stop-color: var(--accent) !important;
+}
+.hero-facts span {
+    background: var(--surface-2) !important;
+    color: var(--ink);
+}
+.travelhero .hero-place {
+    font-size: 40px;
+}
+.travelhero .hero-count b {
+    color: var(--accent);
+    font-size: 72px;
+}
+
+/* buttons and tabs */
+.btn,
+.pill,
+.apptab,
+.apptabs button,
+#tabs button {
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+    box-shadow: none;
+    border-radius: 999px;
+    font-weight: 600;
+}
+.btn.primary,
+.apptab.active,
+.apptabs button[aria-pressed='true'],
+#tabs button[aria-pressed='true'],
+.item.active,
+.fab,
+.launch {
+    background: var(--accent) !important;
+    background-image: none !important;
+    border-color: var(--accent) !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+.btn:hover,
+.pill:hover,
+.apptab:hover {
+    border-color: var(--accent);
+}
+
+/* Atlas frame */
+.rail,
+.top,
+.side {
+    background: var(--rail) !important;
+    border-color: var(--line) !important;
+}
+.logo,
+.badge,
+.orb,
+.brand .orb {
+    background: var(--accent) !important;
+    background-image: none !important;
+    box-shadow: none !important;
+}
+.item .dotc,
+.pitem .dotc,
+.scan,
+.achat,
+.am-user,
+.achat-foot button,
+.part-tag i,
+.cover .label {
+    background-image: none !important;
+}
+.item.active svg,
+.item.active span {
+    color: #fff !important;
+}
+
+/* charts and bars */
+.scol i.pos {
+    background: var(--good) !important;
+}
+.scol i.neg {
+    background: var(--bad) !important;
+}
+.ys-bar,
+.tc-banner {
+    background: var(--accent) !important;
+    background-image: none !important;
+}
+.tc-banner {
+    height: 8px;
+    padding: 0;
+    margin-bottom: 12px;
+}
+.tc-date {
+    display: none;
+}
+.tripcard.past {
+    opacity: 1 !important;
+}
+.tripcard.past .tc-banner {
+    background: var(--line-strong) !important;
+}
+.healthhero.warn,
+.healthhero {
+    border-left: 4px solid var(--good) !important;
+}
+.healthhero.warn {
+    border-left-color: var(--warn) !important;
+}
+.labtile.high,
+.labtile.low {
+    background: var(--card) !important;
+    border-color: var(--line) !important;
+    border-left: 4px solid var(--warn) !important;
+}
+.labtile {
+    border-left: 4px solid var(--line) !important;
+}
+.labtile.ok {
+    border-left-color: var(--good) !important;
+}
+.ring-good {
+    stroke: var(--good);
+}
+.ring-bad {
+    stroke: var(--warn);
+}
+.medicon {
+    background: var(--accent-soft);
+}
+
+/* one page width and rhythm for every app */
+main {
+    max-width: 1010px;
+    padding: 20px 28px 64px;
+}
+.hero {
+    padding: 22px 26px;
+}
+.hero .big {
+    font-size: 52px;
+}
