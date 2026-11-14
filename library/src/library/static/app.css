@@ -768,16 +768,6 @@ button.stat,
     grid-row: span 2;
 }
 
-.statusring {
-    flex-direction: row;
-    align-items: center;
-    gap: 14px;
-}
-.ring {
-    width: 64px;
-    height: 64px;
-    flex: none;
-}
 .ring circle {
     fill: none;
     stroke-width: 9;
@@ -788,10 +778,6 @@ button.stat,
 .ring-good {
     stroke: var(--good);
     stroke-linecap: round;
-}
-.ring-label {
-    display: flex;
-    flex-direction: column;
 }
 .rangebar {
     width: 100%;
@@ -820,4 +806,168 @@ button.stat,
 }
 #page-apps a.pill {
     text-decoration: none;
+}
+
+/* ---------- Health dashboard ---------- */
+.healthhero {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 22px;
+    flex-wrap: wrap;
+    cursor: default;
+    background:
+        radial-gradient(110% 160% at 0% 0%, rgba(76, 195, 138, 0.38), transparent 60%),
+        linear-gradient(135deg, rgba(20, 184, 166, 0.28), rgba(99, 102, 241, 0.12)), var(--card);
+}
+.healthhero.warn {
+    background:
+        radial-gradient(110% 160% at 0% 0%, rgba(240, 169, 58, 0.4), transparent 60%),
+        linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(99, 102, 241, 0.1)), var(--card);
+}
+.healthhero .ring {
+    width: 112px;
+    height: 112px;
+}
+.healthhero .hero-text {
+    flex: 1;
+    min-width: 200px;
+}
+.hero-next {
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    cursor: pointer;
+}
+.hero-next b {
+    font-size: 26px;
+}
+.ring {
+    width: 64px;
+    height: 64px;
+    flex: none;
+}
+.ring-track {
+    stroke: var(--line);
+}
+.ring-text {
+    fill: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+}
+.band {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.band .count {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: var(--line);
+    color: var(--muted);
+}
+.band.warn {
+    color: var(--warn);
+}
+.labtile {
+    gap: 4px;
+    padding: 16px;
+    border-left: 4px solid var(--line);
+}
+.labtile.ok {
+    border-left-color: var(--good);
+}
+.labtile.high,
+.labtile.low {
+    border-left-color: var(--warn);
+    background: linear-gradient(135deg, rgba(240, 169, 58, 0.12), transparent 70%), var(--card);
+}
+.lab-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+.lab-value {
+    font-size: 28px;
+    line-height: 1.1;
+}
+.lab-value small {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--muted);
+}
+.lab-change {
+    font-size: 12px;
+    color: var(--muted);
+}
+.labtile svg.spark {
+    width: 100%;
+    height: 40px;
+    margin: 6px 0 0;
+}
+.spark-area {
+    fill: currentColor;
+    opacity: 0.12;
+}
+.labtile.high svg.spark,
+.labtile.low svg.spark {
+    color: var(--warn);
+}
+.labtile.ok svg.spark {
+    color: var(--good);
+}
+.labgrid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.medgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 12px;
+    margin-bottom: 18px;
+}
+.medcard {
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 2px 12px;
+    cursor: pointer;
+}
+.medicon {
+    grid-row: span 2;
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+    border-radius: 12px;
+    background: rgba(99, 102, 241, 0.16);
+    stroke: var(--accent);
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.medtext {
+    display: flex;
+    flex-direction: column;
+}
+.medtext span {
+    font-size: 13px;
+    color: var(--muted);
+}
+.medcard .stat-sub {
+    grid-column: 2;
 }

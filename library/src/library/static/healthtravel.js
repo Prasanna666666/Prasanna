@@ -90,22 +90,27 @@
         return n;
     };
     // a ring: the share of `good` out of good + `bad`, with the count of `bad` in the middle
-    const ring = (good, bad) => {
+    const ring = (good, bad, label) => {
         const total = Math.max(1, good + bad),
-            r = 34,
+            r = 38,
             c = 2 * Math.PI * r;
-        const svg = svgEl('svg', { viewBox: '0 0 84 84', class: 'ring', 'aria-hidden': 'true' });
-        svg.append(svgEl('circle', { cx: 42, cy: 42, r, class: 'ring-bad' }));
+        const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'ring', 'aria-hidden': 'true' });
+        svg.append(svgEl('circle', { cx: 50, cy: 50, r, class: bad ? 'ring-bad' : 'ring-track' }));
         svg.append(
             svgEl('circle', {
-                cx: 42,
-                cy: 42,
+                cx: 50,
+                cy: 50,
                 r,
                 class: 'ring-good',
                 'stroke-dasharray': `${(good / total) * c} ${c}`,
-                transform: 'rotate(-90 42 42)',
+                transform: 'rotate(-90 50 50)',
             })
         );
+        if (label) {
+            const t = svgEl('text', { x: 50, y: 56, 'text-anchor': 'middle', class: 'ring-text' });
+            t.textContent = label;
+            svg.append(t);
+        }
         return svg;
     };
     // where the latest value sits against the range printed on the report
@@ -372,15 +377,19 @@
         const NS = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(NS, 'svg');
         svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-        svg.setAttribute('width', w);
-        svg.setAttribute('height', h);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('class', 'spark');
         svg.setAttribute('aria-hidden', 'true');
         const line = document.createElementNS(NS, 'polyline');
         line.setAttribute('points', numbers.map((v, i) => `${x(i)},${y(v)}`).join(' '));
         line.setAttribute('fill', 'none');
         line.setAttribute('stroke', 'currentColor');
         line.setAttribute('stroke-width', '2');
-        svg.append(line);
+        const area = svgEl('polygon', {
+            points: `${x(0)},${h} ${numbers.map((v, i) => `${x(i)},${y(v)}`).join(' ')} ${x(numbers.length - 1)},${h}`,
+            class: 'spark-area',
+        });
+        svg.append(area, line);
         return svg;
     }
 
@@ -391,26 +400,48 @@
         for (const g of groups) {
             const c = el('button', `labtile ${FLAG[g.flag] || ''}`);
             c.type = 'button';
-            c.title = g.latest.range ? `printed range ${g.latest.range}` : g.test;
             c.addEventListener('click', () => openDoc(g.latest.id || g.readings[g.readings.length - 1].id));
-            const top = el('span', 'stat-label', g.test);
+            const top = el('span', 'lab-name', g.test);
             top.prepend(el('i', 'dot'));
-            c.append(top, el('b', 'stat-value', `${g.latest.value}${g.unit ? ' ' + g.unit : ''}`));
+            const value = el('b', 'lab-value', g.latest.value);
+            if (g.unit) value.append(el('small', '', ' ' + g.unit));
+            c.append(top, value);
             const bar = rangeBar(g);
             if (bar) c.append(bar);
+            if (g.latest.range) c.append(el('span', 'stat-sub', `range ${g.latest.range}`));
             const nums = g.readings.map((r) => r.number).filter((n) => n != null);
             if (nums.length > 1) c.append(sparkline(nums));
-            if (g.change && g.change.direction !== 'same')
+            if (g.change && g.change.direction !== 'same') {
+                const pct = g.change.percent != null ? Math.abs(g.change.percent) + '%' : Math.abs(g.change.absolute);
                 c.append(
                     el(
                         'span',
-                        'stat-sub',
-                        `${g.change.direction === 'up' ? '▲' : '▼'} ${g.change.percent != null ? Math.abs(g.change.percent) + '%' : Math.abs(g.change.absolute)}`
+                        'lab-change',
+                        `${g.change.direction === 'up' ? '▲' : '▼'} ${pct} since ${shortDate(g.change.since)}`
                     )
                 );
+            }
             grid.append(c);
         }
         return grid;
+    };
+    const PILL = 'M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7l-7 7ZM8.5 8.5l7 7';
+    const sectionHead = (title, count, tone) => {
+        const h = el('h3', `band ${tone || ''}`, title);
+        if (count != null) h.append(el('span', 'count', String(count)));
+        return h;
+    };
+    const medCard = (m) => {
+        const c = el('button', 'medcard');
+        c.type = 'button';
+        const icon = svgEl('svg', { viewBox: '0 0 24 24', class: 'medicon', 'aria-hidden': 'true' });
+        icon.append(svgEl('path', { d: PILL }));
+        const text = el('span', 'medtext');
+        text.append(el('b', '', m.name), el('span', '', [m.dose, m.duration].filter(Boolean).join(' · ')));
+        c.append(icon, text);
+        if (m.date) c.append(el('span', 'stat-sub', shortDate(m.date)));
+        c.addEventListener('click', () => openDoc(m.id));
+        return c;
     };
 
     async function health(sub) {
@@ -431,50 +462,62 @@
                 );
             return host().replaceChildren(...page);
         }
-        // the dashboard: four headline tiles, the tests as small cards, the medicines as chips
-        const [values, meds, coming] = await Promise.all([
+        // the dashboard: one summary card, then what needs a look, the tests, the medicines
+        const [values, meds, coming, docs] = await Promise.all([
             getJson('/api/medical/values'),
             getJson('/api/medical/medicines'),
             getJson('/api/medical/followups'),
+            getJson('/api/medical/documents'),
         ]);
         const nextUp = (coming.follow_ups || [])[0];
         const out = values.attention.length;
-        const inside = values.tests.length - out;
-        const status = el('div', 'stat statusring');
-        const label = el('div', 'ring-label');
-        label.append(el('b', 'stat-value', String(out)), el('span', 'stat-label', 'outside range'));
-        status.append(ring(inside, out), label);
-        const page = [
-            appTabs('health', 'health'),
-            tiles(
-                status,
-                nextUp
-                    ? tile(
-                          'Next check',
-                          shortDate(nextUp.date),
-                          'accent',
-                          `${nextUp.title} · ${when(days(nextUp.date))}`,
-                          () => openDoc(nextUp.id)
-                      )
-                    : null,
-                tile('Tests', values.tests.length),
-                tile('Medicines', meds.medicines.length)
-            ),
-        ];
-        if (!values.tests.length) page.push(el('div', 'empty', 'No values yet. Press Read new files.'));
+        const total = values.tests.length;
+        const latest = values.tests
+            .map((g) => g.latest.date)
+            .sort()
+            .pop();
+        const hero = el('div', `hero healthhero ${out ? 'warn' : 'good'}`);
+        const summary = el('div', 'hero-text');
+        summary.append(
+            el('span', 'stat-label', 'Health summary'),
+            el('b', 'hero-place', !total ? 'No values yet' : out ? `${out} to look at` : 'All within range'),
+            el(
+                'span',
+                'stat-sub',
+                [
+                    `${total} tests`,
+                    `${meds.medicines.length} medicines`,
+                    `${docs.documents.length} reports`,
+                    latest && `latest ${shortDate(latest)}`,
+                ]
+                    .filter(Boolean)
+                    .join(' · ')
+            )
+        );
+        hero.append(ring(total - out, out, total ? `${total - out}/${total}` : ''), summary);
+        if (nextUp) {
+            const next = el('button', 'hero-next');
+            next.type = 'button';
+            next.addEventListener('click', () => openDoc(nextUp.id));
+            next.append(
+                el('span', 'stat-label', 'Next check'),
+                el('b', '', shortDate(nextUp.date)),
+                el('span', 'stat-sub', `${nextUp.title} · ${when(days(nextUp.date))}`)
+            );
+            hero.append(next);
+        }
+        const page = [appTabs('health', 'health'), hero];
+        if (!total)
+            page.push(el('div', 'empty', 'Lab values appear here once a report is read. Press Read new files.'));
         const rest = (list) => list.filter((g) => !values.attention.some((a) => a.test === g.test));
-        const ordered = [...values.attention, ...rest(values.common), ...rest(values.other)];
-        if (ordered.length) page.push(labGrid(ordered));
+        if (out) page.push(sectionHead('Needs a look', out, 'warn'), labGrid(values.attention));
+        const others = [...rest(values.common), ...rest(values.other)];
+        if (others.length)
+            page.push(sectionHead(out ? 'In range or without a range' : 'Tests', others.length), labGrid(others));
         if (meds.medicines.length) {
-            const row = el('div', 'chiprow');
-            for (const m of meds.medicines) {
-                const c = el('button', 'chip');
-                c.type = 'button';
-                c.append(el('b', '', m.name), el('span', '', m.dose || ''));
-                c.addEventListener('click', () => openDoc(m.id));
-                row.append(c);
-            }
-            page.push(row);
+            const grid = el('div', 'medgrid');
+            grid.append(...meds.medicines.map(medCard));
+            page.push(sectionHead('Medicines', meds.medicines.length), grid);
         }
         page.push(
             el(
