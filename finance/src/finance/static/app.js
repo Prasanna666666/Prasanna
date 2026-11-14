@@ -704,6 +704,47 @@
     // ------------------------------------------------------------------ pages
     const pages = {};
 
+    /** The month as a calendar: every day coloured by what was spent, so the expensive days stand out. */
+    function spendCalendar(month, payments) {
+        const perDay = {};
+        for (const t of payments) if (t.kind !== 'income') perDay[t.day] = (perDay[t.day] || 0) + t.amount;
+        const first = new Date(month + '-01T12:00:00'),
+            last = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+        const top = Math.max(1, ...Object.values(perDay));
+        const grid = h('div', { class: 'heat' });
+        for (const name of ['M', 'T', 'W', 'T', 'F', 'S', 'S']) grid.append(h('span', { class: 'heat-head' }, name));
+        for (let i = 0; i < (first.getDay() + 6) % 7; i++) grid.append(h('span', {}));
+        for (let day = 1; day <= last; day++) {
+            const key = `${month}-${String(day).padStart(2, '0')}`,
+                value = perDay[key] || 0;
+            const cell = h(
+                'span',
+                { class: 'heat-cell', title: value ? `${key}: ${money(value, 2)}` : key },
+                String(day)
+            );
+            cell.style.setProperty('--level', value ? (0.18 + 0.82 * (value / top)).toFixed(2) : '0');
+            grid.append(cell);
+        }
+        return grid;
+    }
+    /** The shops that took the most, as bars. */
+    function shopBars(list) {
+        const top = Math.max(1, ...list.map((x) => x.spent));
+        return h(
+            'div',
+            { class: 'shopbars' },
+            list.map((x) =>
+                h(
+                    'div',
+                    { class: 'shopbar' },
+                    h('span', { class: 'shop-name' }, x.merchant),
+                    h('span', { class: 'shop-track' }, h('i', { style: { width: `${(x.spent / top) * 100}%` } })),
+                    h('span', { class: 'shop-amount num' }, money(x.spent))
+                )
+            )
+        );
+    }
+
     pages.home = async () => {
         const d = await api('/api/home');
         cur = d.currency;
@@ -720,13 +761,15 @@
             tool('yearly_overview'),
             tool('investments_overview'),
         ]);
-        const [daily, byMain, sum] = has
+        const [daily, byMain, sum, txs, shops] = has
             ? await Promise.all([
                   tool('daily_spending', { month }),
                   tool('spending_by_main', { month }),
                   tool('spending_summary', { month }),
+                  tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }),
+                  tool('top_merchants', { month, limit: 6 }),
               ])
-            : [[], [], { income: 0 }];
+            : [[], [], { income: 0 }, [], []];
         const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net,
             oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0),
             spent = monthly + oneTime;
@@ -939,6 +982,12 @@
                                     )
                                 )
                               : null
+                      ),
+                      h(
+                          'div',
+                          { class: 'grid g2' },
+                          section('This month, day by day', spendCalendar(month, txs)),
+                          shops.length ? section('Where most went', shopBars(shops)) : null
                       ),
                   ]
                 : [welcome]),

@@ -131,6 +131,46 @@
         return svg;
     };
 
+    // the place that holds an app's documents: one tile per document, named by what it says, filtered by kind
+    const DOC_ICON = 'M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 0v5h5M8.5 13h7M8.5 17h5';
+    const docTile = (title, lines, tag, onClick) => {
+        const c = el('button', 'doctile');
+        c.type = 'button';
+        const icon = svgEl('svg', { viewBox: '0 0 24 24', class: 'docicon', 'aria-hidden': 'true' });
+        icon.append(svgEl('path', { d: DOC_ICON }));
+        const text = el('span', 'doctext');
+        text.append(el('b', '', title), el('span', '', lines.filter(Boolean).join(' · ')));
+        c.append(icon, text);
+        if (tag) c.append(el('em', 'doctag', tag));
+        c.addEventListener('click', onClick);
+        return c;
+    };
+    const documentsPlace = (tabsBar, heading, tiles, empty) => {
+        const page = [tabsBar, sectionHead(heading, tiles.length)];
+        if (!tiles.length) return [...page, el('div', 'empty', empty)];
+        const kinds = [...new Set(tiles.map((t) => t.kind))].filter(Boolean);
+        const grid = el('div', 'docgrid');
+        const draw = (kind) =>
+            grid.replaceChildren(...tiles.filter((t) => !kind || t.kind === kind).map((t) => t.node));
+        if (kinds.length > 1) {
+            const chips = el('div', 'chiprow');
+            for (const k of ['', ...kinds]) {
+                const b = el('button', 'chip', k ? k.replace('_', ' ') : 'All');
+                b.type = 'button';
+                b.addEventListener('click', () => {
+                    chips.querySelectorAll('.chip').forEach((x) => x.classList.toggle('on', x === b));
+                    draw(k);
+                });
+                if (!k) b.classList.add('on');
+                chips.append(b);
+            }
+            page.push(chips);
+        }
+        draw('');
+        page.push(grid);
+        return page;
+    };
+
     // ---------------------------------------------------------------- Travel
     async function travelDocs() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
@@ -140,14 +180,18 @@
         ]);
         const seen = new Set();
         const documents = [...folder.documents, ...booked.documents].filter((d) => !seen.has(d.id) && seen.add(d.id)); // the travel folder, plus tickets and bookings found anywhere
-        const page = [appTabs('travel', 'travel-docs')];
-        if (!documents.length) page.push(el('p', 'muted', 'No travel documents yet. Press Read new files.'));
-        for (const d of documents)
-            page.push(
-                card(d.title, [d.kind, d.parsed_at && d.parsed_at.slice(0, 10)].filter(Boolean).join(' · '), () =>
-                    openDoc(d.id)
-                )
-            );
+        const tiles = documents.map((d) => ({
+            kind: d.kind,
+            node: docTile(d.title, [d.facts.start_date || d.facts.date, d.facts.place], d.kind.replace('_', ' '), () =>
+                openDoc(d.id)
+            ),
+        }));
+        const page = documentsPlace(
+            appTabs('travel', 'travel-docs'),
+            'Travel documents',
+            tiles,
+            'No travel documents yet. Press Read new files.'
+        );
         host().replaceChildren(...page);
     }
 
@@ -193,6 +237,8 @@
         return box;
     };
 
+    const coverUrl = (id, size = 'thumb') => `/api/pictures/${size}/${id}`;
+
     async function travel() {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
         const { trips } = await getJson('/api/travel/trips');
@@ -205,22 +251,30 @@
         const past = trips.filter((t) => t.status === 'past');
         const open = (t) => go('trip', { place: t.place, start: t.start, end: t.end });
         const page = [appTabs('travel', 'travel')];
-        const next = coming[0];
-        if (next) {
-            const n = days(next.start);
-            const hero = el('button', 'hero travelhero');
+        const star = coming[0] || past[0];
+        if (star) {
+            const n = days(star.start);
+            const hero = el('button', 'hero travelhero withcover');
             hero.type = 'button';
-            hero.style.background = banner(next.place);
-            hero.addEventListener('click', () => open(next));
-            const nights = Math.max(1, days(next.end) - days(next.start));
+            // a picture from the trip when there is one, otherwise the place's own colours; both with text on top
+            hero.style.setProperty(
+                'background',
+                star.cover
+                    ? `linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.7)), url("${coverUrl(star.cover, 'preview')}") center / cover`
+                    : banner(star.place),
+                'important'
+            );
+            hero.addEventListener('click', () => open(star));
+            const nights = Math.max(1, days(star.end) - days(star.start));
             const text = el('div', 'hero-text');
             text.append(
-                el('span', 'stat-label', next.status === 'now' ? 'On now' : 'Next trip'),
-                el('b', 'hero-place', next.place),
-                el('span', 'stat-sub', `${shortDate(next.start)} – ${shortDate(next.end)} · ${nights} nights`)
+                el('span', 'stat-label', star.status === 'now' ? 'On now' : coming[0] ? 'Next trip' : 'Last trip'),
+                el('b', 'hero-place', star.place),
+                el('span', 'stat-sub', `${shortDate(star.start)} – ${shortDate(star.end)} · ${nights} nights`)
             );
             const count = el('div', 'hero-count');
-            if (next.status === 'now' || n < 0) count.append(el('b', '', 'Now'));
+            if (!coming[0]) count.append(el('b', '', String(nights)), el('span', '', 'nights'));
+            else if (star.status === 'now' || n < 0) count.append(el('b', '', 'Now'));
             else if (n < 366)
                 count.append(el('b', '', String(n)), el('span', '', n === 1 ? 'day to go' : 'days to go'));
             else count.append(el('b', '', when(n).replace('in ', '')));
@@ -228,7 +282,7 @@
             top.append(text, count);
             hero.append(top);
             const detail = await getJson(
-                '/api/travel/trip?' + new URLSearchParams({ place: next.place, start: next.start, end: next.end })
+                '/api/travel/trip?' + new URLSearchParams({ place: star.place, start: star.start, end: star.end })
             );
             const facts = el('div', 'hero-facts');
             const flights = (detail.tickets || []).filter((x) => x.kind === 'ticket').length;
@@ -239,46 +293,47 @@
                 facts.append(
                     el('span', '', `${cur} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} booked`)
                 );
+            if (detail.photos && detail.photos.total) facts.append(el('span', '', `▣ ${detail.photos.total} photos`));
             if (facts.children.length) hero.append(facts);
-            if (detail.photos && detail.photos.ids.length) {
-                const strip = el('div', 'hero-photos');
-                for (const id of detail.photos.ids.slice(0, 4)) {
-                    const img = new Image();
-                    img.alt = '';
-                    img.loading = 'lazy';
-                    img.src = `/api/pictures/thumb/${id}`;
-                    strip.append(img);
-                }
-                hero.append(strip);
-            }
             page.push(hero);
         }
-        page.push(sectionHead('The year', null), yearStrip(trips, open));
-        const grid = el('div', 'tripgrid');
-        for (const t of [...coming.slice(1), ...past]) {
+        // the year in three numbers
+        const thisYear = String(new Date().getFullYear());
+        const mine = trips.filter((t) => t.start.startsWith(thisYear));
+        const away = mine.reduce((x, t) => x + Math.max(1, days(t.end) - days(t.start)), 0);
+        const figures = el('div', 'figures');
+        for (const [label, value] of [
+            [`Trips in ${thisYear}`, mine.length],
+            ['Nights away', away],
+            ['Places', new Set(trips.map((t) => t.place)).size],
+        ]) {
+            const f = el('div', 'figure');
+            f.append(el('b', '', String(value)), el('span', '', label));
+            figures.append(f);
+        }
+        page.push(figures, yearStrip(trips, open));
+        const grid = el('div', 'tripgrid photos');
+        for (const t of [...coming.filter((x) => x !== star), ...past.filter((x) => x !== star)]) {
             const c = el('button', 'tripcard' + (t.status === 'past' ? ' past' : ''));
             c.type = 'button';
             c.addEventListener('click', () => open(t));
             const top = el('div', 'tc-banner');
-            top.style.background = banner(t.place);
-            const day = el('span', 'tc-date');
-            day.append(el('b', '', String(+t.start.slice(8, 10))), el('small', '', MONTHS[+t.start.slice(5, 7) - 1]));
-            top.append(day);
+            if (t.cover) {
+                top.style.backgroundImage = `url("${coverUrl(t.cover)}")`;
+                top.classList.add('has-photo');
+            } else top.style.background = banner(t.place);
             const nights = Math.max(1, days(t.end) - days(t.start));
-            c.append(
-                top,
+            const label = el('span', 'tc-label');
+            label.append(
                 el('b', '', t.place),
-                el(
-                    'span',
-                    'stat-sub',
-                    `${nights} night${nights === 1 ? '' : 's'}${t.end !== t.start ? ' · until ' + shortDate(t.end) : ''}`
-                ),
-                el(
-                    'span',
-                    'chips',
-                    [t.documents ? `✈ ${t.documents}` : '', t.photos ? `▣ ${t.photos}` : ''].filter(Boolean).join('   ')
-                )
+                el('small', '', `${shortDate(t.start)} · ${nights} night${nights === 1 ? '' : 's'}`)
             );
+            top.append(label);
+            c.append(top);
+            const chips = [t.documents ? `✈ ${t.documents}` : '', t.photos ? `▣ ${t.photos}` : '']
+                .filter(Boolean)
+                .join('   ');
+            if (chips) c.append(el('span', 'chips', chips));
             grid.append(c);
         }
         if (grid.children.length) page.push(sectionHead('Trips', grid.children.length), grid);
@@ -432,12 +487,84 @@
 
     const FLAG = { above_range: 'high', below_range: 'low', in_range: 'ok' };
     // one small card per test: the latest value, a flag dot, and the trend
-    const labGrid = (groups) => {
+    // one test over time as a real chart: the line, its points, and the range printed on the reports as a green band
+    const focusChart = (g) => {
+        const box = el('div', 'focus');
+        const head = el('div', 'focus-head');
+        const value = el('b', 'focus-value', g.latest.value);
+        if (g.unit) value.append(el('small', '', ' ' + g.unit));
+        const title = el('div', 'focus-title');
+        title.append(el('span', 'stat-label', 'Over time'), el('b', '', g.test));
+        head.append(title, value);
+        box.append(head);
+        const pts = g.readings.filter((r) => r.number != null);
+        if (!pts.length) return box;
+        const W = 640,
+            H = 210,
+            L = 40,
+            R = 14,
+            T = 14,
+            B = 28;
+        const bounds = parseRange(g.latest.range) || [null, null];
+        const nums = pts.map((r) => r.number);
+        let lo = Math.min(...nums, bounds[0] ?? Infinity),
+            hi = Math.max(...nums, bounds[1] ?? -Infinity);
+        const pad = (hi - lo || Math.abs(hi) || 1) * 0.2;
+        lo -= pad;
+        hi += pad;
+        const x = (i) => L + (pts.length === 1 ? (W - L - R) / 2 : (i / (pts.length - 1)) * (W - L - R));
+        const y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+        const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, class: 'focus-svg', 'aria-hidden': 'true' });
+        if (bounds[0] != null || bounds[1] != null) {
+            const top = y(bounds[1] ?? hi),
+                bottom = y(bounds[0] ?? lo);
+            svg.append(
+                svgEl('rect', {
+                    x: L,
+                    y: top,
+                    width: W - L - R,
+                    height: Math.max(2, bottom - top),
+                    class: 'focus-band',
+                })
+            );
+        }
+        for (let i = 0; i <= 3; i++) {
+            const v = lo + ((hi - lo) * i) / 3;
+            const line = svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'focus-grid' });
+            const label = svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'focus-axis' });
+            label.textContent = (Math.round(v * 10) / 10).toString();
+            svg.append(line, label);
+        }
+        const path = pts.map((r, i) => `${i ? 'L' : 'M'}${x(i)} ${y(r.number)}`).join(' ');
+        svg.append(
+            svgEl('path', { d: `${path} L${x(pts.length - 1)} ${H - B} L${x(0)} ${H - B} Z`, class: 'focus-area' })
+        );
+        svg.append(svgEl('path', { d: path, class: 'focus-line' }));
+        pts.forEach((r, i) => {
+            svg.append(svgEl('circle', { cx: x(i), cy: y(r.number), r: 4.5, class: 'focus-dot' }));
+            const d = svgEl('text', {
+                x: x(i),
+                y: H - 8,
+                'text-anchor':
+                    pts.length === 1 ? 'middle' : i === 0 ? 'start' : i === pts.length - 1 ? 'end' : 'middle',
+                class: 'focus-axis',
+            });
+            d.textContent = r.date ? shortDate(r.date) : '';
+            svg.append(d);
+        });
+        box.append(svg);
+        const open = el('button', 'pill', 'Open the latest report');
+        open.type = 'button';
+        open.addEventListener('click', () => openDoc(g.latest.id || g.readings[g.readings.length - 1].id));
+        box.append(open);
+        return box;
+    };
+    const labGrid = (groups, onPick) => {
         const grid = el('div', 'labgrid');
         for (const g of groups) {
             const c = el('button', `labtile ${FLAG[g.flag] || ''}`);
             c.type = 'button';
-            c.addEventListener('click', () => openDoc(g.latest.id || g.readings[g.readings.length - 1].id));
+            c.addEventListener('click', () => onPick(g));
             const top = el('span', 'lab-name', g.test);
             top.prepend(el('i', 'dot'));
             const value = el('b', 'lab-value', g.latest.value);
@@ -485,18 +612,21 @@
         host().replaceChildren(el('div', 'empty', 'Loading…'));
         if (sub === 'documents') {
             const data = await getJson('/api/medical/documents');
-            const page = [appTabs('health', 'health-docs')];
-            if (!data.documents.length) page.push(el('p', 'muted', 'No health documents yet. Press Read new files.'));
-            for (const d of data.documents)
-                page.push(
-                    card(
-                        d.title,
-                        [d.date, d.party, d.values && `${d.values} values`, d.medicines && `${d.medicines} medicines`]
-                            .filter(Boolean)
-                            .join(' · '),
-                        () => openDoc(d.id)
-                    )
-                );
+            const tiles = data.documents.map((d) => ({
+                kind: 'medical',
+                node: docTile(
+                    d.title,
+                    [d.date, d.values && `${d.values} values`, d.medicines && `${d.medicines} medicines`],
+                    d.follow_up ? 'follow-up' : '',
+                    () => openDoc(d.id)
+                ),
+            }));
+            const page = documentsPlace(
+                appTabs('health', 'health-docs'),
+                'Health documents',
+                tiles,
+                'No health documents yet. Press Read new files.'
+            );
             return host().replaceChildren(...page);
         }
         // the dashboard: one summary card, then what needs a look, the tests, the medicines
@@ -544,13 +674,27 @@
             hero.append(next);
         }
         const page = [appTabs('health', 'health'), hero];
+        const ordered = [
+            ...values.attention,
+            ...values.common.filter((g) => !values.attention.includes(g)),
+            ...values.other,
+        ];
+        const chart = el('div', 'focus-slot');
+        const pick = (g) => {
+            chart.replaceChildren(focusChart(g));
+            chart.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        };
+        if (ordered.length) {
+            chart.append(focusChart(ordered[0]));
+            page.push(chart);
+        }
         if (!total)
             page.push(el('div', 'empty', 'Lab values appear here once a report is read. Press Read new files.'));
         const rest = (list) => list.filter((g) => !values.attention.some((a) => a.test === g.test));
-        if (out) page.push(sectionHead('Needs a look', out, 'warn'), labGrid(values.attention));
+        if (out) page.push(sectionHead('Needs a look', out, 'warn'), labGrid(values.attention, pick));
         const others = [...rest(values.common), ...rest(values.other)];
         if (others.length)
-            page.push(sectionHead(out ? 'In range or without a range' : 'Tests', others.length), labGrid(others));
+            page.push(sectionHead(out ? 'In range or without a range' : 'Tests', others.length), labGrid(others, pick));
         if (meds.medicines.length) {
             const grid = el('div', 'medgrid');
             grid.append(...meds.medicines.map(medCard));

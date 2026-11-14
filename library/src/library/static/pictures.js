@@ -308,6 +308,7 @@
             ],
             current
         );
+    const coverUrl = (id, size = 'thumb') => `/api/pictures/${size}/${id}`;
     const loadAll = () =>
         Promise.all([
             browse('trips'),
@@ -315,23 +316,82 @@
             browse('people'),
             browse('highlights'),
             getJson('/api/pictures/status'),
+            browse('timeline'),
         ]);
+
+    // photos per month for the last two years, as bars
+    const monthBars = (timeline) => {
+        const counts = new Map();
+        for (const y of timeline.years || []) for (const m of y.months) counts.set(m.month, m.n);
+        const now = new Date(),
+            list = [];
+        for (let i = 23; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            list.push({ key, n: counts.get(key) || 0, label: MONTHS[d.getMonth()] });
+        }
+        const top = Math.max(1, ...list.map((x) => x.n));
+        const box = el('div', 'monthbars');
+        for (const x of list) {
+            const col = el('button', 'mb-col');
+            col.type = 'button';
+            col.title = `${x.label} ${x.key.slice(0, 4)}: ${x.n.toLocaleString()} photos`;
+            const bar = el('i', 'mb-bar');
+            bar.style.height = `${Math.max(x.n ? 4 : 0, (x.n / top) * 100)}%`;
+            col.append(bar, el('span', '', x.label[0]));
+            col.addEventListener('click', () => x.n && go('library', { month: x.key }));
+            box.append(col);
+        }
+        return box;
+    };
+
+    // the best pictures as one big collage with the numbers laid over it
+    const collage = (ids, figures) => {
+        const box = el('div', 'collage');
+        const grid = el('div', 'collage-grid');
+        ids.slice(0, 5).forEach((id, i) => {
+            const t = el('button', 'cg-tile' + (i === 0 ? ' big' : ''));
+            t.type = 'button';
+            const img = new Image();
+            img.alt = '';
+            img.src = coverUrl(id, i === 0 ? 'preview' : 'thumb');
+            t.append(img);
+            t.addEventListener('click', () => openLightbox(ids, i));
+            grid.append(t);
+        });
+        box.append(grid);
+        const bar = el('div', 'collage-bar');
+        for (const [label, value, to] of figures) {
+            const f = el('button', 'cg-figure');
+            f.type = 'button';
+            f.append(el('b', '', value.toLocaleString()), el('span', '', label));
+            f.addEventListener('click', () => go(to));
+            bar.append(f);
+        }
+        box.append(bar);
+        return box;
+    };
 
     async function showPhotosHome() {
         host().replaceChildren(tabs('photos'), el('div', 'empty', 'Loading…'));
-        const [trips, places, people, best, status] = await loadAll();
-        const page = [tabs('photos'), el('div', 'tiles')];
-        page[1].append(
-            stat('Photos', status.pictures || 0, () => go('library')),
-            stat('Trips', trips.length, () => go('folders')),
-            stat('Places', places.length, () => go('folders')),
-            stat('People', people.length, () => go('folders'))
-        );
-        if (best.ids && best.ids.length) {
-            const mosaic = el('div', 'mosaic');
-            addTiles({ ids: [], grid: mosaic }, best.ids.slice(0, 8));
-            page.push(el('div', 'band', 'Highlights'), mosaic);
+        const [trips, places, people, best, status, timeline] = await loadAll();
+        const page = [tabs('photos')];
+        const figures = [
+            ['Photos', status.pictures || 0, 'library'],
+            ['Trips', trips.length, 'folders'],
+            ['Places', places.length, 'folders'],
+            ['People', people.length, 'folders'],
+        ];
+        // the best pictures when there are some, otherwise the newest
+        const show =
+            best.ids && best.ids.length ? best.ids : status.pictures ? (await browse('library')).ids || [] : [];
+        if (show.length) page.push(collage(show, figures));
+        else {
+            const row = el('div', 'tiles');
+            for (const [label, value, to] of figures) row.append(stat(label, value, () => go(to)));
+            page.push(row);
         }
+        if (status.pictures) page.push(el('div', 'band', 'Photos per month'), monthBars(timeline));
         if (trips.length) page.push(el('div', 'band', 'Recent trips'), tripCovers(trips, 4));
         if (places.length) page.push(el('div', 'band', 'Places'), placeCovers(places, 4));
         if (people.length) page.push(el('div', 'band', 'People'), personFaces(people, 8));

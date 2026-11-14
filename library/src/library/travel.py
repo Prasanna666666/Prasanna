@@ -31,8 +31,21 @@ def trips(conn, engine, today: str) -> list[dict[str, Any]]:
             if not place or p["n"] < PHOTO_TRIP_MIN or any(_overlaps(start, stop, t["start"], t["end"]) for t in found):
                 continue
             found.append(
-                {"place": place, "start": start, "end": stop, "documents": 0, "photos": p["n"], "source": "photos", "status": _status(start, stop, today)}
+                {
+                    "place": place,
+                    "start": start,
+                    "end": stop,
+                    "documents": 0,
+                    "photos": p["n"],
+                    "source": "photos",
+                    "status": _status(start, stop, today),
+                    "cover": p.get("cover"),
+                }
             )
+        for t in found:  # a picture from those days to show the trip by
+            if t.get("cover") is None and t["start"] <= today:
+                ids = pictures.browse(engine, "library", {"from": t["start"], "to": t["end"]}).get("ids") or []
+                t["cover"] = ids[0] if ids else None
     upcoming = sorted((t for t in found if t["status"] != "past"), key=lambda t: t["start"])
     past = sorted((t for t in found if t["status"] == "past"), key=lambda t: t["start"], reverse=True)
     return upcoming + past
