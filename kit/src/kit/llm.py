@@ -54,7 +54,7 @@ class OllamaClient:
             raise ValueError(f"The model server must be on this computer or its private network, not {name or self.base!r}")
         netguard.allow_local(urllib.parse.urlparse(self.base).hostname or "localhost")
 
-    def _call(self, path: str, body: dict | None = None, timeout: float = 300) -> dict:
+    def _call(self, path: str, body: dict[str, Any] | None = None, timeout: float = 300) -> dict[str, Any]:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(f"{self.base}{path}", data, {"Content-Type": "application/json"})
         if self.deadline is not None:
@@ -64,7 +64,8 @@ class OllamaClient:
             timeout = min(timeout, left)
         try:
             with urllib.request.urlopen(req, timeout=timeout) as r:
-                return json.load(r)
+                result: dict[str, Any] = json.load(r)
+                return result
         except OSError as e:
             if (self.deadline is not None and isinstance(e, TimeoutError | socket.timeout)) or "timed out" in str(e):
                 raise Slow("out of time") from e
@@ -92,7 +93,13 @@ class OllamaClient:
             self._call("/api/generate", {"model": model, "prompt": "", "stream": False, "keep_alive": KEEP, "options": {"num_ctx": 4096}}, timeout=120)
 
     def chat(
-        self, model: str, messages: list[dict], tools: list[dict] | None = None, schema: dict | None = None, num_ctx: int = 4096, max_tokens: int | None = None
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+        schema: dict[str, Any] | None = None,
+        num_ctx: int = 4096,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """`schema` forces the answer to be JSON of that shape (Ollama's constrained output). `max_tokens` caps a short answer (a routing choice needs a handful)."""
         body: dict[str, Any] = {
@@ -106,4 +113,5 @@ class OllamaClient:
             body["format"] = schema
         if tools:
             body["tools"] = tools
-        return self._call("/api/chat", body)["message"]
+        message: dict[str, Any] = self._call("/api/chat", body)["message"]
+        return message

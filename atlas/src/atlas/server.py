@@ -193,7 +193,7 @@ class _Handler(BaseHTTPRequestHandler):
         route(parse_qs(url.query))
 
     def _post(self, path: str) -> None:
-        routes = {
+        routes: dict[str, Callable[[], None]] = {
             "/_atlas/api/chat": self._chat,
             "/_atlas/api/scan": self._start_scan,
             "/_atlas/api/scan/pause": lambda: self._control_scan("pause"),
@@ -207,7 +207,10 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _get_routes(self) -> dict[str, Callable[[dict[str, list[str]]], None]]:
         atlas = self.atlas
-        page = lambda _q: self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")  # noqa: E731
+
+        def page(_q: dict[str, list[str]]) -> None:
+            self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+
         return {
             "/": page,
             "/index.html": page,

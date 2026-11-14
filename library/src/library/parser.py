@@ -360,13 +360,13 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
             return counts  # stopped while looking through the mail folder
         if f.is_symlink() or root not in f.resolve().parents:
             continue
-        relative = f.relative_to(root)
-        if _in_skipped_mailbox(relative):
+        inside = f.relative_to(root)
+        if _in_skipped_mailbox(inside):
             continue
         stat = f.stat()
         stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
-        if seen.get(str(relative)) != stamp:
-            todo.append((f, str(relative), stamp))
+        if seen.get(str(inside)) != stamp:
+            todo.append((f, str(inside), stamp))
     for i in range(
         0, len(todo), BATCH
     ):  # a batch at a time, several messages at once; what is done is remembered after each batch, so an interrupted first read carries on

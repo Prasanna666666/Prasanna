@@ -47,12 +47,13 @@
     /** The window for one prepared change: everything it would do, what is wrong with it now, and Confirm / Cancel. */
     async function review(id) {
         const d = await getJson(`/api/change?id=${encodeURIComponent(id)}`);
-        if (d.ok === false)
+        if (d.ok === false) {
             return openWindow(
                 el('h2', '', 'Not available'),
                 el('p', 'muted', d.error),
                 buttons(button('Close', 'btn', closeWindow))
             );
+        }
         const title = el(
             'h2',
             '',
@@ -83,8 +84,9 @@
             row.append(el('b', '', f.name), el('span', 'muted', `${f.from}  →  ${f.to}`));
             list.append(row);
         }
-        if (d.files > d.list.length)
+        if (d.files > d.list.length) {
             list.append(el('div', 'muted', `and ${(d.files - d.list.length).toLocaleString()} more`));
+        }
         const problems = el('div', 'dialog-problems');
         (d.problems || []).forEach((p) => problems.append(el('p', '', p)));
         const result = el('p', 'dialog-result');

@@ -239,65 +239,67 @@
 
     const coverUrl = (id, size = 'thumb') => `/api/pictures/${size}/${id}`;
 
-    async function travel() {
-        host().replaceChildren(el('div', 'empty', 'Loading…'));
-        const { trips } = await getJson('/api/travel/trips');
-        if (!trips.length)
-            return host().replaceChildren(
-                appTabs('travel', 'travel'),
-                el('div', 'empty', 'No trips yet. Tickets and bookings are found when you press Read new files.')
+    // how long until a trip: the number and its unit, or a word
+    const countdown = (star, upcoming) => {
+        const n = days(star.start),
+            nights = Math.max(1, days(star.end) - days(star.start));
+        const count = el('div', 'hero-count');
+        if (!upcoming) count.append(el('b', '', String(nights)), el('span', '', 'nights'));
+        else if (star.status === 'now' || n < 0) count.append(el('b', '', 'Now'));
+        else if (n < 366) count.append(el('b', '', String(n)), el('span', '', n === 1 ? 'day to go' : 'days to go'));
+        else count.append(el('b', '', when(n).replace('in ', '')));
+        return count;
+    };
+
+    // what is booked for a trip, as small chips
+    const tripFacts = (detail) => {
+        const facts = el('div', 'hero-facts');
+        const tickets = detail.tickets || [];
+        const flights = tickets.filter((x) => x.kind === 'ticket').length;
+        const stays = tickets.filter((x) => x.kind === 'booking').length;
+        if (flights) facts.append(el('span', '', `✈ ${flights} ticket${flights === 1 ? '' : 's'}`));
+        if (stays) facts.append(el('span', '', `⌂ ${stays} booking${stays === 1 ? '' : 's'}`));
+        for (const [cur, amount] of Object.entries(detail.booked_totals || {})) {
+            facts.append(
+                el('span', '', `${cur} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} booked`)
             );
-        const coming = trips.filter((t) => t.status !== 'past').sort((x, y) => x.start.localeCompare(y.start));
-        const past = trips.filter((t) => t.status === 'past');
-        const open = (t) => go('trip', { place: t.place, start: t.start, end: t.end });
-        const page = [appTabs('travel', 'travel')];
-        const star = coming[0] || past[0];
-        if (star) {
-            const n = days(star.start);
-            const hero = el('button', 'hero travelhero withcover');
-            hero.type = 'button';
-            // a picture from the trip when there is one, otherwise the place's own colours; both with text on top
-            hero.style.setProperty(
-                'background',
-                star.cover
-                    ? `linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.7)), url("${coverUrl(star.cover, 'preview')}") center / cover`
-                    : banner(star.place),
-                'important'
-            );
-            hero.addEventListener('click', () => open(star));
-            const nights = Math.max(1, days(star.end) - days(star.start));
-            const text = el('div', 'hero-text');
-            text.append(
-                el('span', 'stat-label', star.status === 'now' ? 'On now' : coming[0] ? 'Next trip' : 'Last trip'),
-                el('b', 'hero-place', star.place),
-                el('span', 'stat-sub', `${shortDate(star.start)} – ${shortDate(star.end)} · ${nights} nights`)
-            );
-            const count = el('div', 'hero-count');
-            if (!coming[0]) count.append(el('b', '', String(nights)), el('span', '', 'nights'));
-            else if (star.status === 'now' || n < 0) count.append(el('b', '', 'Now'));
-            else if (n < 366)
-                count.append(el('b', '', String(n)), el('span', '', n === 1 ? 'day to go' : 'days to go'));
-            else count.append(el('b', '', when(n).replace('in ', '')));
-            const top = el('div', 'hero-top');
-            top.append(text, count);
-            hero.append(top);
-            const detail = await getJson(
-                '/api/travel/trip?' + new URLSearchParams({ place: star.place, start: star.start, end: star.end })
-            );
-            const facts = el('div', 'hero-facts');
-            const flights = (detail.tickets || []).filter((x) => x.kind === 'ticket').length;
-            const stays = (detail.tickets || []).filter((x) => x.kind === 'booking').length;
-            if (flights) facts.append(el('span', '', `✈ ${flights} ticket${flights === 1 ? '' : 's'}`));
-            if (stays) facts.append(el('span', '', `⌂ ${stays} booking${stays === 1 ? '' : 's'}`));
-            for (const [cur, amount] of Object.entries(detail.booked_totals || {}))
-                facts.append(
-                    el('span', '', `${cur} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} booked`)
-                );
-            if (detail.photos && detail.photos.total) facts.append(el('span', '', `▣ ${detail.photos.total} photos`));
-            if (facts.children.length) hero.append(facts);
-            page.push(hero);
         }
-        // the year in three numbers
+        if (detail.photos && detail.photos.total) facts.append(el('span', '', `▣ ${detail.photos.total} photos`));
+        return facts;
+    };
+
+    // the big card: a picture from the trip when there is one, otherwise the place's own colours; text on top
+    async function travelHero(star, upcoming, open) {
+        const hero = el('button', 'hero travelhero withcover');
+        hero.type = 'button';
+        hero.style.setProperty(
+            'background',
+            star.cover
+                ? `linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.7)), url("${coverUrl(star.cover, 'preview')}") center / cover`
+                : banner(star.place),
+            'important'
+        );
+        hero.addEventListener('click', () => open(star));
+        const nights = Math.max(1, days(star.end) - days(star.start));
+        const text = el('div', 'hero-text');
+        text.append(
+            el('span', 'stat-label', star.status === 'now' ? 'On now' : upcoming ? 'Next trip' : 'Last trip'),
+            el('b', 'hero-place', star.place),
+            el('span', 'stat-sub', `${shortDate(star.start)} – ${shortDate(star.end)} · ${nights} nights`)
+        );
+        const top = el('div', 'hero-top');
+        top.append(text, countdown(star, upcoming));
+        hero.append(top);
+        const detail = await getJson(
+            '/api/travel/trip?' + new URLSearchParams({ place: star.place, start: star.start, end: star.end })
+        );
+        const facts = tripFacts(detail);
+        if (facts.children.length) hero.append(facts);
+        return hero;
+    }
+
+    // the year in three numbers
+    const travelFigures = (trips) => {
         const thisYear = String(new Date().getFullYear());
         const mine = trips.filter((t) => t.start.startsWith(thisYear));
         const away = mine.reduce((x, t) => x + Math.max(1, days(t.end) - days(t.start)), 0);
@@ -311,31 +313,51 @@
             f.append(el('b', '', String(value)), el('span', '', label));
             figures.append(f);
         }
-        page.push(figures, yearStrip(trips, open));
-        const grid = el('div', 'tripgrid photos');
-        for (const t of [...coming.filter((x) => x !== star), ...past.filter((x) => x !== star)]) {
-            const c = el('button', 'tripcard' + (t.status === 'past' ? ' past' : ''));
-            c.type = 'button';
-            c.addEventListener('click', () => open(t));
-            const top = el('div', 'tc-banner');
-            if (t.cover) {
-                top.style.backgroundImage = `url("${coverUrl(t.cover)}")`;
-                top.classList.add('has-photo');
-            } else top.style.background = banner(t.place);
-            const nights = Math.max(1, days(t.end) - days(t.start));
-            const label = el('span', 'tc-label');
-            label.append(
-                el('b', '', t.place),
-                el('small', '', `${shortDate(t.start)} · ${nights} night${nights === 1 ? '' : 's'}`)
+        return figures;
+    };
+
+    // one trip as a card with its picture
+    const tripCard = (t, open) => {
+        const c = el('button', 'tripcard' + (t.status === 'past' ? ' past' : ''));
+        c.type = 'button';
+        c.addEventListener('click', () => open(t));
+        const top = el('div', 'tc-banner');
+        if (t.cover) {
+            top.style.backgroundImage = `url("${coverUrl(t.cover)}")`;
+            top.classList.add('has-photo');
+        } else top.style.background = banner(t.place);
+        const nights = Math.max(1, days(t.end) - days(t.start));
+        const label = el('span', 'tc-label');
+        label.append(
+            el('b', '', t.place),
+            el('small', '', `${shortDate(t.start)} · ${nights} night${nights === 1 ? '' : 's'}`)
+        );
+        top.append(label);
+        c.append(top);
+        const chips = [t.documents ? `✈ ${t.documents}` : '', t.photos ? `▣ ${t.photos}` : '']
+            .filter(Boolean)
+            .join('   ');
+        if (chips) c.append(el('span', 'chips', chips));
+        return c;
+    };
+
+    async function travel() {
+        host().replaceChildren(el('div', 'empty', 'Loading…'));
+        const { trips } = await getJson('/api/travel/trips');
+        if (!trips.length) {
+            return host().replaceChildren(
+                appTabs('travel', 'travel'),
+                el('div', 'empty', 'No trips yet. Tickets and bookings are found when you press Read new files.')
             );
-            top.append(label);
-            c.append(top);
-            const chips = [t.documents ? `✈ ${t.documents}` : '', t.photos ? `▣ ${t.photos}` : '']
-                .filter(Boolean)
-                .join('   ');
-            if (chips) c.append(el('span', 'chips', chips));
-            grid.append(c);
         }
+        const coming = trips.filter((t) => t.status !== 'past').sort((x, y) => x.start.localeCompare(y.start));
+        const past = trips.filter((t) => t.status === 'past');
+        const open = (t) => go('trip', { place: t.place, start: t.start, end: t.end });
+        const star = coming[0] || past[0];
+        const page = [appTabs('travel', 'travel'), await travelHero(star, Boolean(coming[0]), open)];
+        page.push(travelFigures(trips), yearStrip(trips, open));
+        const grid = el('div', 'tripgrid photos');
+        grid.append(...[...coming, ...past].filter((t) => t !== star).map((t) => tripCard(t, open)));
         if (grid.children.length) page.push(sectionHead('Trips', grid.children.length), grid);
         const cal = el('a', 'pill', 'Add trips to Calendar');
         cal.href = '/api/travel/calendar.ics';
@@ -423,7 +445,7 @@
         }
         page.push(section('Tickets and bookings'));
         if (!t.tickets.length) page.push(el('p', 'muted', 'None found for these days.'));
-        for (const x of t.tickets)
+        for (const x of t.tickets) {
             page.push(
                 card(
                     x.title,
@@ -438,6 +460,7 @@
                     () => openDoc(x.id)
                 )
             );
+        }
         if (t.other_documents.length) {
             page.push(section('Other documents from these days'));
             t.other_documents.forEach((d) => page.push(card(d.title, `${d.kind} · ${d.date}`, () => openDoc(d.id))));
@@ -466,7 +489,6 @@
             hi = Math.max(...numbers);
         const x = (i) => (numbers.length === 1 ? w / 2 : (i / (numbers.length - 1)) * (w - 8) + 4);
         const y = (v) => (hi === lo ? h / 2 : h - 4 - ((v - lo) / (hi - lo)) * (h - 8));
-        const NS = 'http://www.w3.org/2000/svg';
         const svg = document.createElementNS(NS, 'svg');
         svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
         svg.setAttribute('preserveAspectRatio', 'none');
@@ -490,13 +512,13 @@
     // one test over time as a real chart: the line, its points, and the range printed on the reports as a green band
     const focusChart = (g) => {
         const box = el('div', 'focus');
-        const head = el('div', 'focus-head');
+        const header = el('div', 'focus-head');
         const value = el('b', 'focus-value', g.latest.value);
         if (g.unit) value.append(el('small', '', ' ' + g.unit));
         const title = el('div', 'focus-title');
         title.append(el('span', 'stat-label', 'Over time'), el('b', '', g.test));
-        head.append(title, value);
-        box.append(head);
+        header.append(title, value);
+        box.append(header);
         const pts = g.readings.filter((r) => r.number != null);
         if (!pts.length) return box;
         const W = 640,
@@ -688,13 +710,15 @@
             chart.append(focusChart(ordered[0]));
             page.push(chart);
         }
-        if (!total)
+        if (!total) {
             page.push(el('div', 'empty', 'Lab values appear here once a report is read. Press Read new files.'));
+        }
         const rest = (list) => list.filter((g) => !values.attention.some((a) => a.test === g.test));
         if (out) page.push(sectionHead('Needs a look', out, 'warn'), labGrid(values.attention, pick));
         const others = [...rest(values.common), ...rest(values.other)];
-        if (others.length)
+        if (others.length) {
             page.push(sectionHead(out ? 'In range or without a range' : 'Tests', others.length), labGrid(others, pick));
+        }
         if (meds.medicines.length) {
             const grid = el('div', 'medgrid');
             grid.append(...meds.medicines.map(medCard));

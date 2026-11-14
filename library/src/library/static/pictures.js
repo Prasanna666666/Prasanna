@@ -395,8 +395,9 @@
         if (trips.length) page.push(el('div', 'band', 'Recent trips'), tripCovers(trips, 4));
         if (places.length) page.push(el('div', 'band', 'Places'), placeCovers(places, 4));
         if (people.length) page.push(el('div', 'band', 'People'), personFaces(people, 8));
-        if (!status.pictures)
+        if (!status.pictures) {
             page.push(el('div', 'empty', 'No pictures yet. They appear while your pictures are read.'));
+        }
         page.push(changesButton());
         host().replaceChildren(...page);
     }
@@ -433,16 +434,20 @@
         host().replaceChildren(tabs('folders'), el('div', 'empty', 'Loading…'));
         const [trips, places, people] = await loadAll();
         const page = [tabs('folders')];
-        if (trips.length)
+        if (trips.length) {
             page.push(el('div', 'band', `Trips · ${trips.length}`), albumsButton(), tripCovers(trips, trips.length));
-        if (places.length)
+        }
+        if (places.length) {
             page.push(el('div', 'band', `Places · ${places.length}`), placeCovers(places, places.length));
-        if (people.length)
+        }
+        if (people.length) {
             page.push(el('div', 'band', `People · ${people.length}`), personFaces(people, people.length));
-        if (page.length === 1)
+        }
+        if (page.length === 1) {
             page.push(
                 el('div', 'empty', 'No folders yet. Trips, places and people appear while your pictures are read.')
             );
+        }
         host().replaceChildren(...page);
     }
 

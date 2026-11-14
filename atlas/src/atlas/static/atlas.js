@@ -234,6 +234,46 @@
 
     // ---------------------------------------------------------------- one search box for everything
     let palette = null;
+    /** The pages of every app, narrowed by what was typed. */
+    const pageItems = (q) =>
+        state.modules.flatMap((m) =>
+            [{ id: '', label: m.name }, ...m.pages]
+                .filter((p) => !q || `${m.name} ${p.label}`.toLowerCase().includes(q))
+                .map((p) => ({
+                    module: m,
+                    label: p.id ? `${m.name} · ${p.label}` : m.name,
+                    sub: 'Go to',
+                    run: () => go(m, p.id),
+                }))
+        );
+
+    /** What the search list can do, when what is typed asks for it. */
+    const actions = (q) =>
+        !q || 'update scan read new files photos'.includes(q) || q.includes('update') || q.includes('scan')
+            ? [{ head: 'Do' }, { label: 'Read new files', sub: 'Read all new files, mail and photos', run: startScan }]
+            : [];
+
+    /** The rows of the search list: actions first, then pages, what was found, and the question put to the chat. */
+    function searchRows(acts, pages, found, asks) {
+        return [
+            ...acts,
+            ...(pages.length ? [{ head: 'Pages' }, ...pages.slice(0, 5)] : []),
+            ...(found.length
+                ? [
+                      { head: 'Found' },
+                      ...found.map((r) => ({
+                          module: byId(r.module),
+                          label: r.title,
+                          sub: [byId(r.module)?.name, r.subtitle].filter(Boolean).join(' · '),
+                          run: () => go(byId(r.module), r.link.replace(/^#\/?/, '')),
+                      })),
+                  ]
+                : []),
+            { head: 'Ask' },
+            ...asks,
+        ];
+    }
+
     function openPalette() {
         if (palette) return;
         const box = el('input');
@@ -287,24 +327,6 @@
                 items.findIndex((x) => !x.head)
             );
         };
-        const pageItems = (q) =>
-            state.modules.flatMap((m) =>
-                [{ id: '', label: m.name }, ...m.pages]
-                    .filter((p) => !q || `${m.name} ${p.label}`.toLowerCase().includes(q))
-                    .map((p) => ({
-                        module: m,
-                        label: p.id ? `${m.name} · ${p.label}` : m.name,
-                        sub: 'Go to',
-                        run: () => go(m, p.id),
-                    }))
-            );
-        const actions = (q) =>
-            !q || 'update scan read new files photos'.includes(q) || q.includes('update') || q.includes('scan')
-                ? [
-                      { head: 'Do' },
-                      { label: 'Read new files', sub: 'Read all new files, mail and photos', run: startScan },
-                  ]
-                : [];
         const build = async () => {
             const raw = box.value.trim();
             const q = raw.toLowerCase();
@@ -324,23 +346,7 @@
             }
             if (mine !== seq) return;
             const asks = [{ label: `Ask Atlas: “${raw}”`, sub: 'Chat', run: () => askAtlas(raw) }];
-            items = [
-                ...actions(q),
-                ...(pages.length ? [{ head: 'Pages' }, ...pages.slice(0, 5)] : []),
-                ...(found.length
-                    ? [
-                          { head: 'Found' },
-                          ...found.map((r) => ({
-                              module: byId(r.module),
-                              label: r.title,
-                              sub: [byId(r.module)?.name, r.subtitle].filter(Boolean).join(' · '),
-                              run: () => go(byId(r.module), r.link.replace(/^#\/?/, '')),
-                          })),
-                      ]
-                    : []),
-                { head: 'Ask' },
-                ...asks,
-            ];
+            items = searchRows(actions(q), pages, found, asks);
             firstReal();
             paint();
         };
@@ -472,8 +478,9 @@
                 if (m.hidden) {
                     const detail = info.progress || info.summary || (info.up ? 'working…' : '');
                     if (detail) rows.push(partLine({ name: m.name, detail }, info.running));
-                    if (!readerOff)
+                    if (!readerOff) {
                         info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
+                    }
                 }
                 continue;
             }
@@ -518,9 +525,9 @@
     ];
     const bold = (parent, text) => {
         text.split(/(\*\*[^*]+\*\*)/).forEach((piece) => {
-            if (piece.startsWith('**') && piece.endsWith('**') && piece.length > 4)
+            if (piece.startsWith('**') && piece.endsWith('**') && piece.length > 4) {
                 parent.append(el('strong', '', piece.slice(2, -2)));
-            else if (piece) parent.append(piece);
+            } else if (piece) parent.append(piece);
         });
     };
     // pictures and documents are shown when the user asked to see them; otherwise they stay folded behind one button
@@ -591,12 +598,13 @@
         if (photos.length) {
             const of = part.total > photos.length ? ` of ${part.total.toLocaleString()}` : '';
             box.append(foldable(`Show ${photos.length}${of} photos`, wanted.photos, () => photoGrid(module, photos)));
-            if (wanted.photos && part.total > photos.length)
+            if (wanted.photos && part.total > photos.length) {
                 box.append(
                     el('div', 'part-note', `${part.total.toLocaleString()} in all: open ${module.name} to see them all`)
                 );
+            }
         }
-        if (documents.length)
+        if (documents.length) {
             box.append(
                 foldable(
                     `Show ${documents.length} document${documents.length === 1 ? '' : 's'}`,
@@ -604,6 +612,7 @@
                     () => documentList(module, documents)
                 )
             );
+        }
     };
     const partNode = (part) => {
         const module = byId(part.module);

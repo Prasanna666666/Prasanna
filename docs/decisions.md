@@ -118,3 +118,8 @@ Found in the code, fixed:
 3. Lab values and medicines were read from the first 6,000 characters only; a longer report lost everything after that. A document is now read in overlapping windows of 5,500 characters (up to 12), rows seen twice kept once, each value verified against the window it came from.
 4. A party (who a document is from) is kept only when the document contains that name; before, an invented name could stand.
 Still true and still visible in the reading report (`unread_files` tool): mail judged not relevant is set aside without the model, and a whole email keeps only its facts.
+
+## Standards pass over everything (owner's call)
+- All gates are clean on every package: ruff (lint and format), mypy (kit, finance, library, atlas, images), bandit (project config), prettier and eslint over all web code with zero warnings (long functions split: the Finance Documents page, the dashboard cards, the search palettes, the Travel page), tests (kit 23, library 143, finance 575, atlas 61, images 95). CI now lints every web file, not just the main ones, and checks the shared design file.
+- Data: databases are encrypted and the service refuses to start without it; the readable copy of each file is deleted once stored; a whole email keeps only what it says; medical documents go only to requests that name them; the reader has no network and sees files read-only; the apps cannot reach the internet; pages set a strict content policy; every chart text built as markup is escaped; no secrets in the repository.
+- Known and accepted: unused-variable notes for `attrs` in two HTML parser hooks (the parser's own signature requires it).

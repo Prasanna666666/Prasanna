@@ -39,8 +39,9 @@
     let withPictures = false;
 
     function show(which) {
-        for (const id of ['doc', 'page-pictures', 'page-changes', 'page-apps', 'standalone'])
+        for (const id of ['doc', 'page-pictures', 'page-changes', 'page-apps', 'standalone']) {
             $(`#${id}`).hidden = id !== which;
+        }
     }
 
     function route() {

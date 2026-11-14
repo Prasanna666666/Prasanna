@@ -120,7 +120,8 @@ def engine_agreement(name: str, data: dict, layout: tables.Layout, first: tables
 
 def _why_no_table(data: dict, text: str) -> str:
     """What the reader recorded about a file with no table: so the screen says what to do, not only that it failed."""
-    meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+    found = data.get("meta")
+    meta: dict = found if isinstance(found, dict) else {}
     if meta.get("ocr_pages"):
         return f"a scan, read by character recognition ({meta['ocr_pages']} pages, confidence {meta.get('ocr_confidence', '?')}): the figures could not be placed in columns"
     if not text.strip():

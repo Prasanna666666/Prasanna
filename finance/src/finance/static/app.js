@@ -115,6 +115,13 @@
             }
         };
 
+    /** Text that goes into markup (the charts are built as SVG strings): nothing from the data is ever taken as markup. */
+    const esc = (value) =>
+        String(value).replace(
+            /[&<>"']/g,
+            (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+        );
+
     // ------------------------------------------------------------------ shell
     const PAGES = ['home', 'documents', 'settings'];
     const TABS = [
@@ -344,7 +351,7 @@
             rows
                 .map(
                     (t, i) =>
-                        `<circle cx="${x(i)}" cy="${y(t[k])}" r="4" fill="${c}" class="pt"><title>${monthName(t.month)} · ${k === 'spent' ? 'spent' : 'in'} ${money(t[k])}</title></circle>`
+                        `<circle cx="${x(i)}" cy="${y(t[k])}" r="4" fill="${c}" class="pt"><title>${esc(monthName(t.month))} · ${k === 'spent' ? 'spent' : 'in'} ${esc(money(t[k]))}</title></circle>`
                 )
                 .join('');
         svg.innerHTML =
@@ -475,14 +482,123 @@
     ];
 
     /** One search box for everything: pages, payments, shops, files, people, notes, tasks. Opens with Cmd/Ctrl+K or "/". */
-    function openPalette() {
-        if ($('.palette')) return;
-        const input = h('input', {
+    function buildOv(close, input, list) {
+        return h(
+            'div',
+            {
+                class: 'overlay top',
+                onclick: (e) => {
+                    if (e.target === e.currentTarget) close();
+                },
+            },
+            h(
+                'div',
+                { class: 'palette' },
+                h('div', { class: 'palette-bar' }, icon('search'), input, h('kbd', {}, 'esc')),
+                list
+            )
+        );
+    }
+
+    /** The rows of the search list: pages first, then what was found. */
+    function searchItems(r, pg, ask) {
+        return [
+            ...(pg.length ? [{ head: 'Pages' }, ...pg.slice(0, 4)] : []),
+            ...(r.merchants.length
+                ? [
+                      { head: 'Shops and payees' },
+                      ...r.merchants.map((m) => ({
+                          label: m.merchant,
+                          sub: `${m.payments} payments`,
+                          right: money(m.spent),
+                          cat: 'other',
+                          run: () => askAssistant(`Show my payments to ${m.merchant}`),
+                      })),
+                  ]
+                : []),
+            ...(r.payments.length
+                ? [
+                      { head: 'Payments' },
+                      ...r.payments.map((p) => ({
+                          label: p.note,
+                          sub: `${p.day} · ${p.category}`,
+                          right: (p.kind === 'income' ? '+' : '−') + money(p.amount, 2),
+                          cat: p.category,
+                          run: () => askAssistant(`Tell me about the payment ${p.note} on ${p.day}`),
+                      })),
+                  ]
+                : []),
+            ...(r.documents.length
+                ? [
+                      { head: 'Files' },
+                      ...r.documents.map((d) => ({
+                          label: d.party || d.name,
+                          sub: `${d.kind} · ${d.date || ''}`,
+                          right: d.total ? money(d.total, 2) : '',
+                          icon: 'documents',
+                          run: () => {
+                              location.hash = '#/documents';
+                          },
+                      })),
+                  ]
+                : []),
+            ...(r.people.length
+                ? [
+                      { head: 'People' },
+                      ...r.people.map((p) => ({
+                          label: p.name,
+                          sub: p.relation,
+                          icon: 'people',
+                          run: () => askAssistant(p.name),
+                      })),
+                  ]
+                : []),
+            ...(r.notes.length
+                ? [
+                      { head: 'Notes' },
+                      ...r.notes.map((n) => ({
+                          label: n.title,
+                          icon: 'notes',
+                          run: () => askAssistant(n.title),
+                      })),
+                  ]
+                : []),
+            ...(r.tasks.length
+                ? [
+                      { head: 'Tasks' },
+                      ...r.tasks.map((t) => ({
+                          label: t.title,
+                          sub: t.due || '',
+                          icon: 'tasks',
+                          run: () => askAssistant(t.title),
+                      })),
+                  ]
+                : []),
+            { head: 'Or ask' },
+            ask,
+        ];
+    }
+
+    /** The pages the search list can jump to, narrowed by what was typed. */
+    const pageLinks = (q) =>
+        PAGE_LINKS.filter(([n]) => !q || n.toLowerCase().includes(q)).map(([n, ico, go]) => ({
+            label: n,
+            sub: 'Go to',
+            icon: ico,
+            run: go,
+        }));
+
+    const paletteInput = () =>
+        h('input', {
             class: 'palette-input',
             placeholder: 'Search payments, shops, files, people… or jump to a page',
             autocomplete: 'off',
             spellcheck: 'false',
         });
+
+    function openPalette() {
+        if ($('.palette')) return;
+        const input = paletteInput();
         const list = h('div', { class: 'palette-list' });
         let items = [],
             active = 0,
@@ -534,13 +650,6 @@
         };
         const mark = () =>
             list.querySelectorAll('.palette-item').forEach((b) => b.classList.toggle('on', +b.dataset.i === active));
-        const pageItems = (q) =>
-            PAGE_LINKS.filter(([n]) => !q || n.toLowerCase().includes(q)).map(([n, ico, go]) => ({
-                label: n,
-                sub: 'Go to',
-                icon: ico,
-                run: go,
-            }));
         const firstReal = () => {
             active = Math.max(
                 0,
@@ -551,95 +660,21 @@
             const q = input.value.trim().toLowerCase(),
                 mine = ++seq;
             if (q.length < 2) {
-                items = [{ head: 'Jump to' }, ...pageItems(q)];
+                items = [{ head: 'Jump to' }, ...pageLinks(q)];
                 firstReal();
                 paint();
                 return;
             }
             const r = await tool('search_everything', { query: q });
             if (mine !== seq) return;
-            const pg = pageItems(q);
+            const pg = pageLinks(q);
             const ask = {
                 label: `Ask Finance: “${input.value.trim()}”`,
                 sub: 'Chat',
                 icon: 'chat',
                 run: () => askAssistant(input.value.trim()),
             };
-            items = [
-                ...(pg.length ? [{ head: 'Pages' }, ...pg.slice(0, 4)] : []),
-                ...(r.merchants.length
-                    ? [
-                          { head: 'Shops and payees' },
-                          ...r.merchants.map((m) => ({
-                              label: m.merchant,
-                              sub: `${m.payments} payments`,
-                              right: money(m.spent),
-                              cat: 'other',
-                              run: () => askAssistant(`Show my payments to ${m.merchant}`),
-                          })),
-                      ]
-                    : []),
-                ...(r.payments.length
-                    ? [
-                          { head: 'Payments' },
-                          ...r.payments.map((p) => ({
-                              label: p.note,
-                              sub: `${p.day} · ${p.category}`,
-                              right: (p.kind === 'income' ? '+' : '−') + money(p.amount, 2),
-                              cat: p.category,
-                              run: () => askAssistant(`Tell me about the payment ${p.note} on ${p.day}`),
-                          })),
-                      ]
-                    : []),
-                ...(r.documents.length
-                    ? [
-                          { head: 'Files' },
-                          ...r.documents.map((d) => ({
-                              label: d.party || d.name,
-                              sub: `${d.kind} · ${d.date || ''}`,
-                              right: d.total ? money(d.total, 2) : '',
-                              icon: 'documents',
-                              run: () => {
-                                  location.hash = '#/documents';
-                              },
-                          })),
-                      ]
-                    : []),
-                ...(r.people.length
-                    ? [
-                          { head: 'People' },
-                          ...r.people.map((p) => ({
-                              label: p.name,
-                              sub: p.relation,
-                              icon: 'people',
-                              run: () => askAssistant(p.name),
-                          })),
-                      ]
-                    : []),
-                ...(r.notes.length
-                    ? [
-                          { head: 'Notes' },
-                          ...r.notes.map((n) => ({
-                              label: n.title,
-                              icon: 'notes',
-                              run: () => askAssistant(n.title),
-                          })),
-                      ]
-                    : []),
-                ...(r.tasks.length
-                    ? [
-                          { head: 'Tasks' },
-                          ...r.tasks.map((t) => ({
-                              label: t.title,
-                              sub: t.due || '',
-                              icon: 'tasks',
-                              run: () => askAssistant(t.title),
-                          })),
-                      ]
-                    : []),
-                { head: 'Or ask' },
-                ask,
-            ];
+            items = searchItems(r, pg, ask);
             firstReal();
             paint();
         };
@@ -670,24 +705,10 @@
                 run(items[active]);
             }
         };
-        const ov = h(
-            'div',
-            {
-                class: 'overlay top',
-                onclick: (e) => {
-                    if (e.target === ov) close();
-                },
-            },
-            h(
-                'div',
-                { class: 'palette' },
-                h('div', { class: 'palette-bar' }, icon('search'), input, h('kbd', {}, 'esc')),
-                list
-            )
-        );
+        const ov = buildOv(close, input, list);
         document.body.append(ov);
         document.addEventListener('keydown', onKey, true);
-        items = [{ head: 'Jump to' }, ...pageItems('')];
+        items = [{ head: 'Jump to' }, ...pageLinks('')];
         firstReal();
         paint();
         input.focus();
@@ -745,151 +766,8 @@
         );
     }
 
-    pages.home = async () => {
-        const d = await api('/api/home');
-        cur = d.currency;
-        const b = d.briefing,
-            hour = new Date().getHours(),
-            month = startMonth(d.trend),
-            has = d.trend.length > 0;
-        const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
-        const [dueSoon, det, checks, nw, yo, inv] = await Promise.all([
-            tool('bills_due', { days: 21 }),
-            tool('money_detective'),
-            tool('files_to_check'),
-            tool('wealth_summary'),
-            tool('yearly_overview'),
-            tool('investments_overview'),
-        ]);
-        const [daily, byMain, sum, txs, shops] = has
-            ? await Promise.all([
-                  tool('daily_spending', { month }),
-                  tool('spending_by_main', { month }),
-                  tool('spending_summary', { month }),
-                  tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }),
-                  tool('top_merchants', { month, limit: 6 }),
-              ])
-            : [[], [], { income: 0 }, [], []];
-        const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net,
-            oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0),
-            spent = monthly + oneTime;
-        const before = daily.reduce((x, r) => x + r.before, 0),
-            delta = before > 0 ? ((monthly - before) / before) * 100 : null;
-        const ask = h('input', { class: 'field ask', placeholder: 'Ask anything about your money…' });
-        ask.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && ask.value.trim()) {
-                askAssistant(ask.value.trim());
-                ask.value = '';
-            }
-        });
-        const big = h('div', { class: 'big num' });
-        countUp(big, spent, (v) => money(v));
-        const hero = h(
-            'div',
-            { class: 'card hero' },
-            h(
-                'div',
-                { class: 'hero-top' },
-                h(
-                    'div',
-                    {},
-                    h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)),
-                    big,
-                    delta == null || Math.abs(delta) < 10
-                        ? null
-                        : h(
-                              'span',
-                              { class: 'delta' },
-                              `${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}% monthly vs before`
-                          )
-                ),
-                h('div', { class: 'hero-spark' }, sparkline(d.trend.slice(-8).map((t) => t.spent)))
-            ),
-            h(
-                'div',
-                { class: 'meta' },
-                h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(monthly))),
-                h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(oneTime, 0))),
-                h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))
-            )
-        );
-        const year = yo.years[yo.years.length - 1];
-        const stats = h(
-            'div',
-            { class: 'grid g4' },
-            stat(
-                'Net worth',
-                nw.net_worth == null ? '–' : money(nw.net_worth),
-                nw.net_worth == null ? 'no data yet' : `Cash ${money(nw.accounts || 0)}`,
-                '#/networth'
-            ),
-            stat(
-                year ? `Kept in ${year.year}` : 'Kept',
-                year && year.savings_rate != null ? year.savings_rate + '%' : '–',
-                year ? `${signed(year.saved, 0)} saved` : '',
-                '#/savings',
-                year && year.saved < 0 ? 'bad' : 'good'
-            ),
-            stat(
-                'Investments',
-                money(inv.value),
-                inv.gain == null ? `${money(inv.contributed_total)} paid in` : `${signed(inv.gain, 0)} gain / loss`,
-                '#/investments',
-                inv.gain == null ? '' : inv.gain >= 0 ? 'good' : 'bad'
-            ),
-            stat(
-                'Due in 3 weeks',
-                money(dueSoon.total),
-                `${dueSoon.items.length} payment${dueSoon.items.length === 1 ? '' : 's'}`,
-                '#/plan'
-            )
-        );
-        const attention = [
-            ...dueSoon.items
-                .filter((x) => x.kind === 'invoice')
-                .slice(0, 2)
-                .map((x) => ({
-                    k: 'bill',
-                    t: `${x.what} · ${money(x.amount, 0)} · ${x.in_days <= 0 ? 'now' : `${x.in_days}d`}`,
-                })),
-            ...(checks.length
-                ? [{ k: 'check', t: `${checks.length} file${checks.length === 1 ? '' : 's'} to check` }]
-                : []),
-            ...(det.items.length
-                ? [{ k: 'review', t: `${det.items.length} payment${det.items.length === 1 ? '' : 's'} to review` }]
-                : []),
-        ].slice(0, 4);
-        const attentionCard = attention.length
-            ? section(
-                  'Needs a look',
-                  h(
-                      'div',
-                      { class: 'list' },
-                      attention.map((x) =>
-                          h(
-                              'div',
-                              { class: 'item' },
-                              h('span', { class: 'chip' }, x.k),
-                              h('div', { class: 'grow', style: { fontSize: '14.5px' } }, x.t)
-                          )
-                      )
-                  )
-              )
-            : null;
-        const tasks = b.tasks_due.slice(0, 4);
-        const dates =
-            d.upcoming && d.upcoming.length
-                ? d.upcoming.slice(0, 3).map((u) => ({
-                      n: u.merchant,
-                      s: u.in_days <= 0 ? 'now' : `in ${u.in_days} days`,
-                      a: money(u.amount),
-                  }))
-                : b.upcoming_dates.slice(0, 3).map((u) => ({
-                      n: `${u.name} · ${u.label}`,
-                      s: u.in_days === 0 ? 'today' : `in ${u.in_days} days`,
-                      a: u.turning ? `turning ${u.turning}` : '',
-                  }));
-        const today = section(
+    function buildToday(tasks, dates) {
+        return section(
             'Today',
             tasks.length || dates.length
                 ? h(
@@ -940,6 +818,169 @@
                   )
                 : h('div', { class: 'empty' }, 'Nothing today.')
         );
+    }
+
+    function buildHero(month, big, delta, d, monthly, oneTime, sum) {
+        return h(
+            'div',
+            { class: 'card hero' },
+            h(
+                'div',
+                { class: 'hero-top' },
+                h(
+                    'div',
+                    {},
+                    h('div', { class: 'eyebrow' }, 'Spent · ' + monthName(month)),
+                    big,
+                    delta == null || Math.abs(delta) < 10
+                        ? null
+                        : h(
+                              'span',
+                              { class: 'delta' },
+                              `${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}% monthly vs before`
+                          )
+                ),
+                h('div', { class: 'hero-spark' }, sparkline(d.trend.slice(-8).map((t) => t.spent)))
+            ),
+            h(
+                'div',
+                { class: 'meta' },
+                h('div', {}, h('div', { class: 'k' }, 'Monthly'), h('div', { class: 'v num' }, money(monthly))),
+                h('div', {}, h('div', { class: 'k' }, 'One-time'), h('div', { class: 'v num' }, signed(oneTime, 0))),
+                h('div', {}, h('div', { class: 'k' }, 'Money in'), h('div', { class: 'v num' }, money(sum.income)))
+            )
+        );
+    }
+
+    function buildStats(nw, year, inv, dueSoon) {
+        return h(
+            'div',
+            { class: 'grid g4' },
+            stat(
+                'Net worth',
+                nw.net_worth == null ? '–' : money(nw.net_worth),
+                nw.net_worth == null ? 'no data yet' : `Cash ${money(nw.accounts || 0)}`,
+                '#/networth'
+            ),
+            stat(
+                year ? `Kept in ${year.year}` : 'Kept',
+                year && year.savings_rate != null ? year.savings_rate + '%' : '–',
+                year ? `${signed(year.saved, 0)} saved` : '',
+                '#/savings',
+                year && year.saved < 0 ? 'bad' : 'good'
+            ),
+            stat(
+                'Investments',
+                money(inv.value),
+                inv.gain == null ? `${money(inv.contributed_total)} paid in` : `${signed(inv.gain, 0)} gain / loss`,
+                '#/investments',
+                inv.gain == null ? '' : inv.gain >= 0 ? 'good' : 'bad'
+            ),
+            stat(
+                'Due in 3 weeks',
+                money(dueSoon.total),
+                `${dueSoon.items.length} payment${dueSoon.items.length === 1 ? '' : 's'}`,
+                '#/plan'
+            )
+        );
+    }
+
+    function buildAttention(dueSoon, checks, det) {
+        return [
+            ...dueSoon.items
+                .filter((x) => x.kind === 'invoice')
+                .slice(0, 2)
+                .map((x) => ({
+                    k: 'bill',
+                    t: `${x.what} · ${money(x.amount, 0)} · ${x.in_days <= 0 ? 'now' : `${x.in_days}d`}`,
+                })),
+            ...(checks.length
+                ? [{ k: 'check', t: `${checks.length} file${checks.length === 1 ? '' : 's'} to check` }]
+                : []),
+            ...(det.items.length
+                ? [{ k: 'review', t: `${det.items.length} payment${det.items.length === 1 ? '' : 's'} to review` }]
+                : []),
+        ].slice(0, 4);
+    }
+
+    function buildAttentionCard(attention) {
+        return attention.length
+            ? section(
+                  'Needs a look',
+                  h(
+                      'div',
+                      { class: 'list' },
+                      attention.map((x) =>
+                          h(
+                              'div',
+                              { class: 'item' },
+                              h('span', { class: 'chip' }, x.k),
+                              h('div', { class: 'grow', style: { fontSize: '14.5px' } }, x.t)
+                          )
+                      )
+                  )
+              )
+            : null;
+    }
+
+    pages.home = async () => {
+        const d = await api('/api/home');
+        cur = d.currency;
+        const b = d.briefing,
+            hour = new Date().getHours(),
+            month = startMonth(d.trend),
+            has = d.trend.length > 0;
+        const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+        const [dueSoon, det, checks, nw, yo, inv] = await Promise.all([
+            tool('bills_due', { days: 21 }),
+            tool('money_detective'),
+            tool('files_to_check'),
+            tool('wealth_summary'),
+            tool('yearly_overview'),
+            tool('investments_overview'),
+        ]);
+        const [daily, byMain, sum, txs, shops] = has
+            ? await Promise.all([
+                  tool('daily_spending', { month }),
+                  tool('spending_by_main', { month }),
+                  tool('spending_summary', { month }),
+                  tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }),
+                  tool('top_merchants', { month, limit: 6 }),
+              ])
+            : [[], [], { income: 0 }, [], []];
+        const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net,
+            oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0),
+            spent = monthly + oneTime;
+        const before = daily.reduce((x, r) => x + r.before, 0),
+            delta = before > 0 ? ((monthly - before) / before) * 100 : null;
+        const ask = h('input', { class: 'field ask', placeholder: 'Ask anything about your money…' });
+        ask.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && ask.value.trim()) {
+                askAssistant(ask.value.trim());
+                ask.value = '';
+            }
+        });
+        const big = h('div', { class: 'big num' });
+        countUp(big, spent, (v) => money(v));
+        const hero = buildHero(month, big, delta, d, monthly, oneTime, sum);
+        const year = yo.years[yo.years.length - 1];
+        const stats = buildStats(nw, year, inv, dueSoon);
+        const attention = buildAttention(dueSoon, checks, det);
+        const attentionCard = buildAttentionCard(attention);
+        const tasks = b.tasks_due.slice(0, 4);
+        const dates =
+            d.upcoming && d.upcoming.length
+                ? d.upcoming.slice(0, 3).map((u) => ({
+                      n: u.merchant,
+                      s: u.in_days <= 0 ? 'now' : `in ${u.in_days} days`,
+                      a: money(u.amount),
+                  }))
+                : b.upcoming_dates.slice(0, 3).map((u) => ({
+                      n: `${u.name} · ${u.label}`,
+                      s: u.in_days === 0 ? 'today' : `in ${u.in_days} days`,
+                      a: u.turning ? `turning ${u.turning}` : '',
+                  }));
+        const today = buildToday(tasks, dates);
         const welcome = h(
             'div',
             { class: 'card welcome-card' },
@@ -1005,6 +1046,217 @@
         d.title && d.party && !d.title.toLowerCase().includes(d.party.toLowerCase())
             ? `${d.title} · ${d.party}`
             : d.title || d.party || d.name.replace(/\.[^.]+$/, '');
+    function buildDocCard(docs, docTotals, other, KIND) {
+        return docs.length
+            ? h(
+                  'div',
+                  { class: 'card' },
+                  h(
+                      'div',
+                      { class: 'card-head' },
+                      h('h2', {}, 'Other files'),
+                      h(
+                          'div',
+                          { class: 'row' },
+                          docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`))
+                      )
+                  ),
+                  other.length
+                      ? h(
+                            'table',
+                            { class: 'table' },
+                            h(
+                                'thead',
+                                {},
+                                h(
+                                    'tr',
+                                    {},
+                                    ['', 'From', 'Date', 'Due', 'Total'].map((x, i) =>
+                                        h('th', { class: i === 4 ? 'r' : '' }, x)
+                                    )
+                                )
+                            ),
+                            h(
+                                'tbody',
+                                {},
+                                other.slice(0, 30).map((d) =>
+                                    h(
+                                        'tr',
+                                        {},
+                                        h(
+                                            'td',
+                                            {},
+                                            h(
+                                                'span',
+                                                {
+                                                    class: 'chip',
+                                                    style: {
+                                                        background: 'transparent',
+                                                        border: '1px solid var(--line-strong)',
+                                                        color: KIND[d.kind] || 'var(--muted)',
+                                                    },
+                                                },
+                                                h('span', {
+                                                    class: 'sw',
+                                                    style: { background: KIND[d.kind] || '#999' },
+                                                }),
+                                                d.kind
+                                            )
+                                        ),
+                                        h(
+                                            'td',
+                                            {},
+                                            h('div', { style: { fontWeight: 600 } }, properName(d)),
+                                            d.summary
+                                                ? h('div', { class: 'faint', style: { fontSize: '12px' } }, d.summary)
+                                                : null
+                                        ),
+                                        h('td', { class: 'num' }, d.date || '-'),
+                                        h('td', { class: 'num' }, d.due_date || '-'),
+                                        h(
+                                            'td',
+                                            { class: 'r num', style: { fontWeight: 650 } },
+                                            d.total != null ? money(d.total, 2) : '-'
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                      : h('div', { class: 'empty' }, 'Nothing else yet.')
+              )
+            : null;
+    }
+
+    function buildStatusCard(ver, LEVEL) {
+        return ver.problems.length
+            ? h(
+                  'div',
+                  { class: 'card' },
+                  h(
+                      'h2',
+                      { style: { marginBottom: '8px' } },
+                      `${ver.problems.length} thing${ver.problems.length === 1 ? '' : 's'} to look at`
+                  ),
+                  h(
+                      'div',
+                      { class: 'list' },
+                      ver.problems
+                          .slice(0, 8)
+                          .map((p) =>
+                              h(
+                                  'div',
+                                  { class: 'item' },
+                                  h(
+                                      'span',
+                                      { class: LEVEL[p.level][1], style: { fontWeight: 700, width: '18px' } },
+                                      LEVEL[p.level][0]
+                                  ),
+                                  h(
+                                      'div',
+                                      { class: 'grow' },
+                                      h('div', { style: { fontWeight: 600 } }, plain(p.message)),
+                                      h('div', { class: 'faint', style: { fontSize: '12.5px' } }, p.subject)
+                                  )
+                              )
+                          )
+                  )
+              )
+            : ver.passed
+              ? h(
+                    'div',
+                    { class: 'card' },
+                    h(
+                        'div',
+                        { class: 'row' },
+                        h('span', { class: 'tick' }, '✓'),
+                        h('div', { style: { fontWeight: 650, fontSize: '18px' } }, 'Everything adds up')
+                    )
+                )
+              : null;
+    }
+
+    function buildDetailsFold(ver) {
+        return Object.keys(ver.summary).length
+            ? h(
+                  'details',
+                  { class: 'card fold' },
+                  h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'Details')),
+                  h('div', { style: { height: '12px' } }),
+                  h(
+                      'div',
+                      { class: 'lines' },
+                      Object.entries(ver.summary).map(([agent, c]) =>
+                          h(
+                              'div',
+                              { class: 'line' },
+                              h('span', { style: { textTransform: 'capitalize' } }, agent),
+                              h(
+                                  'span',
+                                  { class: 'num' },
+                                  h('span', { class: 'good' }, `✓ ${c.ok}`),
+                                  c.warn
+                                      ? h(
+                                            'span',
+                                            { style: { color: 'var(--warn)', marginLeft: '12px' } },
+                                            `! ${c.warn}`
+                                        )
+                                      : null,
+                                  c.fail
+                                      ? h('span', { class: 'bad', style: { marginLeft: '12px' } }, `✗ ${c.fail}`)
+                                      : null
+                              )
+                          )
+                      )
+                  )
+              )
+            : null;
+    }
+
+    /** The colour of each kind of file. */
+    const KIND = {
+        invoice: '#6366f1',
+        receipt: '#10b981',
+        payslip: '#ec4899',
+        tax: '#f59e0b',
+        insurance: '#06b6d4',
+        contract: '#8b5cf6',
+        bank_statement: '#a3a3a3',
+        other: '#a3a3a3',
+    };
+
+    /** What the import is doing, on the button and in the status card (the card shows what was added, what is wrong, and what could not be read). */
+    function showImportState(s, importBtn, status) {
+        status.style.display = s.running || s.result || s.error ? '' : 'none';
+        importBtn.disabled = Boolean(s.running);
+        importBtn.textContent = s.running ? 'Reading...' : 'Read my files';
+        if (s.running) {
+            status.replaceChildren(
+                h(
+                    'div',
+                    { class: 'row' },
+                    h('span', { class: 'chip' }, 'In progress'),
+                    h('div', { class: 'grow muted' }, s.progress || 'Starting...')
+                ),
+                h('div', { class: 'progress busy' })
+            );
+        } else if (s.error) {
+            status.replaceChildren(h('div', { class: 'bad', style: { fontWeight: 600 } }, s.error));
+        } else if (s.result) {
+            const r = s.result;
+            status.replaceChildren(
+                h(
+                    'div',
+                    { style: { fontWeight: 650 } },
+                    `Added ${r.new_transactions} payments from ${r.files} file${r.files === 1 ? '' : 's'}.`
+                ),
+                ...r.problems.map((p) => h('div', { class: 'bad' }, p)),
+                r.files_with_no_transactions.length
+                    ? h('div', { class: 'muted' }, 'Could not read: ' + r.files_with_no_transactions.join(', '))
+                    : null
+            );
+        }
+    }
+
     async function documentsPage() {
         cur = (await api('/api/settings')).currency;
         const wrap = h('div', { class: 'stack' });
@@ -1016,40 +1268,9 @@
         }
         async function poll() {
             const s = await api('/api/import');
-            status.style.display = s.running || s.result || s.error ? '' : 'none';
-            if (s.running) {
-                importBtn.disabled = true;
-                importBtn.textContent = 'Reading...';
-                status.replaceChildren(
-                    h(
-                        'div',
-                        { class: 'row' },
-                        h('span', { class: 'chip' }, 'In progress'),
-                        h('div', { class: 'grow muted' }, s.progress || 'Starting...')
-                    ),
-                    h('div', { class: 'progress busy' })
-                );
-                setTimeout(poll, 1500);
-                return;
-            }
-            importBtn.disabled = false;
-            importBtn.textContent = 'Read my files';
-            if (s.error) status.replaceChildren(h('div', { class: 'bad', style: { fontWeight: 600 } }, s.error));
-            else if (s.result) {
-                const r = s.result;
-                status.replaceChildren(
-                    h(
-                        'div',
-                        { style: { fontWeight: 650 } },
-                        `Added ${r.new_transactions} payments from ${r.files} file${r.files === 1 ? '' : 's'}.`
-                    ),
-                    ...r.problems.map((p) => h('div', { class: 'bad' }, p)),
-                    r.files_with_no_transactions.length
-                        ? h('div', { class: 'muted' }, 'Could not read: ' + r.files_with_no_transactions.join(', '))
-                        : null
-                );
-                if (r.files) draw();
-            }
+            showImportState(s, importBtn, status);
+            if (s.running) setTimeout(poll, 1500);
+            else if (s.result && s.result.files) draw();
         }
         async function draw() {
             const [slips, docs, docTotals, checks, ver, cc] = await Promise.all([
@@ -1082,99 +1303,8 @@
                           )
                       )
                     : null;
-            const KIND = {
-                invoice: '#6366f1',
-                receipt: '#10b981',
-                payslip: '#ec4899',
-                tax: '#f59e0b',
-                insurance: '#06b6d4',
-                contract: '#8b5cf6',
-                bank_statement: '#a3a3a3',
-                other: '#a3a3a3',
-            };
             const other = docs.filter((d) => !['bank_statement', 'payslip'].includes(d.kind));
-            const docCard = docs.length
-                ? h(
-                      'div',
-                      { class: 'card' },
-                      h(
-                          'div',
-                          { class: 'card-head' },
-                          h('h2', {}, 'Other files'),
-                          h(
-                              'div',
-                              { class: 'row' },
-                              docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`))
-                          )
-                      ),
-                      other.length
-                          ? h(
-                                'table',
-                                { class: 'table' },
-                                h(
-                                    'thead',
-                                    {},
-                                    h(
-                                        'tr',
-                                        {},
-                                        ['', 'From', 'Date', 'Due', 'Total'].map((x, i) =>
-                                            h('th', { class: i === 4 ? 'r' : '' }, x)
-                                        )
-                                    )
-                                ),
-                                h(
-                                    'tbody',
-                                    {},
-                                    other.slice(0, 30).map((d) =>
-                                        h(
-                                            'tr',
-                                            {},
-                                            h(
-                                                'td',
-                                                {},
-                                                h(
-                                                    'span',
-                                                    {
-                                                        class: 'chip',
-                                                        style: {
-                                                            background: 'transparent',
-                                                            border: '1px solid var(--line-strong)',
-                                                            color: KIND[d.kind] || 'var(--muted)',
-                                                        },
-                                                    },
-                                                    h('span', {
-                                                        class: 'sw',
-                                                        style: { background: KIND[d.kind] || '#999' },
-                                                    }),
-                                                    d.kind
-                                                )
-                                            ),
-                                            h(
-                                                'td',
-                                                {},
-                                                h('div', { style: { fontWeight: 600 } }, properName(d)),
-                                                d.summary
-                                                    ? h(
-                                                          'div',
-                                                          { class: 'faint', style: { fontSize: '12px' } },
-                                                          d.summary
-                                                      )
-                                                    : null
-                                            ),
-                                            h('td', { class: 'num' }, d.date || '-'),
-                                            h('td', { class: 'num' }, d.due_date || '-'),
-                                            h(
-                                                'td',
-                                                { class: 'r num', style: { fontWeight: 650 } },
-                                                d.total != null ? money(d.total, 2) : '-'
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                          : h('div', { class: 'empty' }, 'Nothing else yet.')
-                  )
-                : null;
+            const docCard = buildDocCard(docs, docTotals, other, KIND);
             // ---- day to day: category tiles; tap one to see its payments
 
             // ---- trips & events: found by the model from your statements; tap a card for its lines
@@ -1182,85 +1312,8 @@
             // ---- income: how much came in, from where, and the payslip
             // ---- every verifier agent, in words
             const LEVEL = { ok: ['✓', 'good'], warn: ['!', ''], fail: ['✗', 'bad'] };
-            const statusCard = ver.problems.length
-                ? h(
-                      'div',
-                      { class: 'card' },
-                      h(
-                          'h2',
-                          { style: { marginBottom: '8px' } },
-                          `${ver.problems.length} thing${ver.problems.length === 1 ? '' : 's'} to look at`
-                      ),
-                      h(
-                          'div',
-                          { class: 'list' },
-                          ver.problems
-                              .slice(0, 8)
-                              .map((p) =>
-                                  h(
-                                      'div',
-                                      { class: 'item' },
-                                      h(
-                                          'span',
-                                          { class: LEVEL[p.level][1], style: { fontWeight: 700, width: '18px' } },
-                                          LEVEL[p.level][0]
-                                      ),
-                                      h(
-                                          'div',
-                                          { class: 'grow' },
-                                          h('div', { style: { fontWeight: 600 } }, plain(p.message)),
-                                          h('div', { class: 'faint', style: { fontSize: '12.5px' } }, p.subject)
-                                      )
-                                  )
-                              )
-                      )
-                  )
-                : ver.passed
-                  ? h(
-                        'div',
-                        { class: 'card' },
-                        h(
-                            'div',
-                            { class: 'row' },
-                            h('span', { class: 'tick' }, '✓'),
-                            h('div', { style: { fontWeight: 650, fontSize: '18px' } }, 'Everything adds up')
-                        )
-                    )
-                  : null;
-            const detailsFold = Object.keys(ver.summary).length
-                ? h(
-                      'details',
-                      { class: 'card fold' },
-                      h('summary', {}, h('span', { style: { fontWeight: 650, fontSize: '17px' } }, 'Details')),
-                      h('div', { style: { height: '12px' } }),
-                      h(
-                          'div',
-                          { class: 'lines' },
-                          Object.entries(ver.summary).map(([agent, c]) =>
-                              h(
-                                  'div',
-                                  { class: 'line' },
-                                  h('span', { style: { textTransform: 'capitalize' } }, agent),
-                                  h(
-                                      'span',
-                                      { class: 'num' },
-                                      h('span', { class: 'good' }, `✓ ${c.ok}`),
-                                      c.warn
-                                          ? h(
-                                                'span',
-                                                { style: { color: 'var(--warn)', marginLeft: '12px' } },
-                                                `! ${c.warn}`
-                                            )
-                                          : null,
-                                      c.fail
-                                          ? h('span', { class: 'bad', style: { marginLeft: '12px' } }, `✗ ${c.fail}`)
-                                          : null
-                                  )
-                              )
-                          )
-                      )
-                  )
-                : null;
+            const statusCard = buildStatusCard(ver, LEVEL);
+            const detailsFold = buildDetailsFold(ver);
             // ---- honesty about files: what could not be proven correct is said out loud and is NOT in the totals
             const bad = checks.filter((c) => c.status === 'needs_check'),
                 unproven = checks.filter((c) => c.status === 'unverified');

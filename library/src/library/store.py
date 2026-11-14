@@ -580,7 +580,8 @@ def list_documents(
     Without either, everything the model recognised (not "other") is returned. With `full`, the text and structured data come too."""
     wanted = set(kinds or [])
     out: list[dict] = []
-    where, args = "ready > ?", [max(0, int(since))]
+    where = "ready > ?"
+    args: list[Any] = [max(0, int(since))]
     if wanted and not area:
         where += f" AND fact_kind IN ({','.join('?' for _ in wanted)})"
         args += sorted(wanted)

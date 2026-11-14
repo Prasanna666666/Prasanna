@@ -79,9 +79,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npx --yes eslint@10.1.0 src/finance/static/app.js
+      - run: npx --yes eslint@10.1.0 src/finance/static
       - run: npx --yes prettier@3.8.1 --check src/finance/static
-      - run: npx --yes eslint@10.1.0 ../library/src/library/static/app.js ../library/src/library/static/pictures.js
+      - run: npx --yes eslint@10.1.0 ../library/src/library/static
+      - run: npx --yes prettier@3.8.1 --check ../design
       - run: npx --yes prettier@3.8.1 --check ../library/src/library/static
   atlas:
     runs-on: ubuntu-latest
@@ -101,7 +102,7 @@ jobs:
       - run: ruff format --check .
       - run: mypy src
       - run: pytest -q
-      - run: npx --yes eslint@10.1.0 src/atlas/static/atlas.js
+      - run: npx --yes eslint@10.1.0 src/atlas/static
       - run: npx --yes prettier@3.8.1 --check src/atlas/static
   security:
     runs-on: ubuntu-latest

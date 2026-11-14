@@ -29,12 +29,10 @@
     --edge: none;
     --mesh: none;
     --radius: 14px;
-    --font:
-        -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui,
-        sans-serif;
+    --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', system-ui, sans-serif;
     color-scheme: light;
 }
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
     --bg: #0e1013;
     --fg: #e8eaee;
     --ink: #e8eaee;
@@ -63,7 +61,7 @@
     color-scheme: dark;
 }
 @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    :root:not([data-theme='light']):not([data-theme='dark']) {
         --bg: #0e1013;
         --fg: #e8eaee;
         --ink: #e8eaee;
@@ -160,10 +158,10 @@ h3 {
 .hero .v {
     color: var(--ink) !important;
 }
-.hero .spark path[fill="none"] {
+.hero .spark path[fill='none'] {
     stroke: var(--accent) !important;
 }
-.hero .spark path:not([fill="none"]) {
+.hero .spark path:not([fill='none']) {
     stroke: none !important;
 }
 .stat::before,
@@ -282,7 +280,7 @@ h3 {
 }
 .btn.primary,
 .apptab.active,
-.apptabs button[aria-pressed="true"],
+.apptabs button[aria-pressed='true'],
 .item.active,
 .fab,
 .launch {
@@ -573,13 +571,9 @@ main {
     font-size: 11px;
     border-radius: 8px;
     color: var(--muted);
-    background: color-mix(
-        in srgb,
-        var(--accent) calc(var(--level, 0) * 85%),
-        var(--surface-2)
-    );
+    background: color-mix(in srgb, var(--accent) calc(var(--level, 0) * 85%), var(--surface-2));
 }
-.heat-cell[style*="--level:0."] {
+.heat-cell[style*='--level:0.'] {
     color: var(--ink);
 }
 .shopbars {

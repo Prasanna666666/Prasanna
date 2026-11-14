@@ -40,7 +40,7 @@ def install() -> None:
         return
     _orig["gai"], _orig["connect"], _orig["connect_ex"] = socket.getaddrinfo, socket.socket.connect, socket.socket.connect_ex
 
-    def gai(host, *a, **k):
+    def gai(host: Any, *a: Any, **k: Any) -> Any:
         h = host.decode() if isinstance(host, bytes) else host
         if h is None or h in _local_hosts or _is_loopback(h or ""):
             res = _orig["gai"](host, *a, **k)
@@ -49,25 +49,25 @@ def install() -> None:
             return res
         raise EgressBlocked(f"blocked DNS lookup for {h!r}: Finance is offline by design")
 
-    def check(addr):
+    def check(addr: Any) -> None:
         if isinstance(addr, tuple) and addr and isinstance(addr[0], str):
             ip = addr[0]
             if not (_is_loopback(ip) or ip in _allowed_ips):
                 raise EgressBlocked(f"blocked connection to {ip}: not loopback or a trusted local host")
 
-    def connect(self, addr):
+    def connect(self: socket.socket, addr: Any) -> Any:
         if self.family != getattr(socket, "AF_UNIX", -1):
             check(addr)
         return _orig["connect"](self, addr)
 
-    def connect_ex(self, addr):
+    def connect_ex(self: socket.socket, addr: Any) -> Any:
         if self.family != getattr(socket, "AF_UNIX", -1):
             check(addr)
         return _orig["connect_ex"](self, addr)
 
     socket.getaddrinfo = gai
-    socket.socket.connect = connect  # type: ignore[method-assign]
-    socket.socket.connect_ex = connect_ex  # type: ignore[method-assign]
+    socket.socket.connect = connect  # type: ignore[method-assign,assignment]
+    socket.socket.connect_ex = connect_ex  # type: ignore[method-assign,assignment]
     _installed = True
 
 
