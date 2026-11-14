@@ -321,8 +321,10 @@
         const board = el('div', 'board');
         wrap.append(asks, board);
         fetch('/_atlas/api/home')
-            .then((r) => r.json())
-            .then(({ cards, builds }) => {
+            .then((r) => r.text())
+            .then((raw) => {
+                state.homeSig = raw;
+                const { cards, builds } = JSON.parse(raw);
                 const shown = HOME_ORDER.filter((id) => cards[id]).map((id) => state.modules.find((m) => m.id === id));
                 board.replaceChildren(...shown.filter(Boolean).map((m) => homeCard(m, cards[m.id])));
                 if (!shown.length) board.append(el('div', 'empty', 'Nothing to show yet. Press Read new files.'));
@@ -360,18 +362,21 @@
         return chip;
     };
     const renderChips = () => {
-        $('#chips').replaceChildren(
-            ...[
-                aiChip(),
-                ...state.modules
-                    .filter((m) => !m.hidden)
-                    .map((module) => {
-                        const chip = el('span', 'chip ' + statusClass(module), module.name);
-                        chip.prepend(el('i'));
-                        return chip;
-                    }),
-            ].filter(Boolean)
-        );
+        const chips = [
+            aiChip(),
+            ...state.modules
+                .filter((m) => !m.hidden)
+                .map((module) => {
+                    const chip = el('span', 'chip ' + statusClass(module), module.name);
+                    chip.prepend(el('i'));
+                    return chip;
+                }),
+        ].filter(Boolean);
+        const box = $('#chips');
+        const html = chips.map((c) => c.outerHTML).join('');
+        if (box.dataset.html === html) return; // nothing changed: nothing is redrawn
+        box.dataset.html = html;
+        box.replaceChildren(...chips);
     };
     const refreshHealth = async () => {
         try {
@@ -383,9 +388,19 @@
         renderChips();
         document.querySelectorAll('#nav .group .dot').forEach((dot) => {
             const module = byId(dot.closest('.group').dataset.module);
-            dot.className = 'dot ' + statusClass(module);
+            const next = 'dot ' + statusClass(module);
+            if (dot.className !== next) dot.className = next;
         });
-        if (!parse().module) render();
+        if (!parse().module) refreshHome();
+    };
+    // the overview is redrawn only when what it shows has changed (redrawing it every 15 seconds made it flash)
+    const refreshHome = async () => {
+        try {
+            const raw = await (await fetch('/_atlas/api/home')).text();
+            if (raw !== state.homeSig) render();
+        } catch (_) {
+            /* the page stays as it is; the next look tries again */
+        }
     };
 
     // ---------------------------------------------------------------- one search box for everything
