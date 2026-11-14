@@ -121,7 +121,7 @@ Controls (each has a test or a CI gate):
 ## 10. Worked example: "the expenses, pictures, health reports and travel tickets for my India trip 2026"
 1. The model parses the request into `{lens: trip, place: India, year: 2026, wants: [expenses, photos, health, tickets]}`; code validates it.
 2. The link book resolves the trip (candidates nominated by photos, finance and tickets, merged by overlap in time and place). Two matching trips: Atlas asks which, or offers both.
-3. Atlas calls `items_in_window` in each module in parallel, within the chat's scope. Health is locked: the page shows "3 reports, unlock to include".
+3. Atlas calls `items_in_window` in each module in parallel, within the chat's scope. Health is included like any other app.
 4. The checker verifies every figure; a ticket's dates are cross-checked against the matching flight payment. The model writes a short summary.
 5. Atlas shows one page with a section per module and can export a copy of the originals.
 Tickets and health reports are served from the shared document store (by classified kind and date) until dedicated modules add structure.

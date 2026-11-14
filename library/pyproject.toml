@@ -28,7 +28,6 @@ library = ["static/*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "../kit/src", "../finance/src"]   # the kit is shared; ../finance only for the end-to-end test that hands documents to Finance
-markers = ["open_health: runs with the default, Health not locked"]
 
 [tool.ruff]
 line-length = 160

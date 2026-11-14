@@ -261,7 +261,7 @@ def test_documents_and_emails_are_listed_apart(inbox):
     assert names_of("mail") == {"offer.eml"} and names_of("files") == {"scan001.pdf", "letter.pdf"}
 
 
-def test_health_documents_stay_out_of_every_list_search_and_answer_until_unlocked(inbox):
+def test_health_documents_go_only_to_whoever_asks_for_them_by_name(inbox):
     import json
 
     inbox.conn.execute(
@@ -269,18 +269,9 @@ def test_health_documents_stay_out_of_every_list_search_and_answer_until_unlocke
         (json.dumps({"kind": "medical"}),),
     )
     inbox.conn.commit()
-    store.set_health_unlocked(False)
-    try:
-        assert all(d["kind"] != "medical" for d in store.list_documents(inbox.conn, ["medical", "invoice"]))
-        assert store.get_document(inbox.conn, "h") is None and store.hidden_health_count(inbox.conn) == 1
-        assert not any("haemoglobin" in p["text"] for p in store.passages(inbox.conn, "haemoglobin"))
-        assert {"kind": "medical", "count": 1} not in store.by_kind(inbox.conn)
-        out = tools.run(inbox.state, inbox.conn, "find_documents", {"kind": "invoice"})
-        assert "locked" in out["data"]["note"]
-        store.set_health_unlocked(True)
-        assert [d["name"] for d in store.list_documents(inbox.conn, ["medical"])] == ["blood.pdf"] and store.get_document(inbox.conn, "h")
-    finally:
-        store.set_health_unlocked(False)
+    assert all(d["kind"] != "medical" for d in store.list_documents(inbox.conn, ["invoice"]))
+    assert all(d["kind"] != "medical" for d in store.list_documents(inbox.conn, []))  # asking for everything does not include them
+    assert [d["name"] for d in store.list_documents(inbox.conn, ["medical"])] == ["blood.pdf"]
 
 
 def test_whole_library_pages_are_worked_out_once_per_change_to_the_library(world, monkeypatch):
@@ -296,17 +287,6 @@ def test_whole_library_pages_are_worked_out_once_per_change_to_the_library(world
     index.close()
     pictures.browse(world.engine, "timeline", {})
     assert len(calls) == 2  # a photo went missing: worked out again
-
-
-def test_unlocked_health_closes_again_by_itself(monkeypatch):
-    store.set_health_unlocked(True)
-    assert store.health_unlocked()
-    now = store.time.monotonic()
-    monkeypatch.setattr(store.time, "monotonic", lambda: now + store.HEALTH_OPEN_SECONDS + 1)
-    assert not store.health_unlocked()  # left alone for a quarter of an hour
-    monkeypatch.setattr(store.time, "monotonic", lambda: now)
-    store.set_health_unlocked(False)
-    assert not store.health_unlocked()
 
 
 def test_the_update_builds_the_search_index_so_the_first_question_does_not_wait(inbox):

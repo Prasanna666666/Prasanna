@@ -9,8 +9,6 @@
         return e;
     };
     const getJson = async (path) => (await fetch(path, { headers: { Accept: 'application/json' } })).json();
-    const post = (path) =>
-        fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Library': '1' }, body: '{}' });
     const host = () => $('#page-apps');
     const go = (path, params) => {
         const qs = new URLSearchParams(
@@ -364,22 +362,6 @@
     }
 
     // ---------------------------------------------------------------- Health
-    const lockedView = (r, again) => {
-        const unlock = button('Unlock Health', async () => {
-            await post('/api/medical/unlock');
-            again();
-        });
-        return [
-            head('Health is locked', ''),
-            el(
-                'p',
-                'muted',
-                `${r.held_back ? `${r.held_back} documents are held back. ` : ''}They stay out of search and chat until you unlock them, and lock again after 15 minutes unused or whenever Atlas starts.`
-            ),
-            unlock,
-        ];
-    };
-
     function sparkline(numbers) {
         const w = 160,
             h = 36;
@@ -433,11 +415,8 @@
 
     async function health(sub) {
         host().replaceChildren(el('div', 'empty', 'Loading…'));
-        const again = () => health(sub);
-        const state = await getJson('/api/medical');
-        if (state.locked) return host().replaceChildren(...lockedView(state, again));
-        const data = state; // the documents; the dashboard asks for values, medicines and follow-ups itself
         if (sub === 'documents') {
+            const data = await getJson('/api/medical/documents');
             const page = [appTabs('health', 'health-docs')];
             if (!data.documents.length) page.push(el('p', 'muted', 'No health documents yet. Press Read new files.'));
             for (const d of data.documents)

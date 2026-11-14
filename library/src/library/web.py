@@ -290,39 +290,15 @@ def _post_packing(state: State, conn, body: dict) -> dict:
 
 def _get_medical_part(part):
     def route(state: State, conn, query: dict[str, str]) -> dict:
-        if part == "timeline":
-            store.touch_health()
-            return store.health_timeline(conn)
+        if part == "documents":
+            return store.health_documents(conn)
         if part == "values":
-            store.touch_health()
             return store.health_values(conn, query.get("test", "")[:60])
         if part == "medicines":
-            store.touch_health()
             return store.health_medicines(conn)
-        store.touch_health()
         return store.health_followups(conn, _today())
 
     return route
-
-
-def _get_medical(state: State, conn, query: dict[str, str]) -> dict:
-    """Health: locked until the person unlocks it; locked again every time the service starts."""
-    if not store.health_unlocked():
-        return {"locked": True, "held_back": store.hidden_health_count(conn), "documents": []}
-    store.set_health_unlocked(True)  # being used keeps it open; left alone it closes by itself
-    return {"locked": False, "held_back": 0, "documents": store.list_documents(conn, sorted(store.HEALTH_KINDS), limit=200)}
-
-
-def _post_medical_unlock(state: State, conn, body: dict) -> dict:
-    store.set_health_unlocked(True)
-    _CACHE.clear()
-    return {"ok": True}
-
-
-def _post_medical_lock(state: State, conn, body: dict) -> dict:
-    store.set_health_unlocked(False)
-    _CACHE.clear()
-    return {"ok": True}
 
 
 def _post_albums(state: State, conn, body: dict) -> dict:
@@ -486,8 +462,7 @@ GET_ROUTES = {
     "/api/tools": _get_tools,
     "/api/pictures/browse": _get_browse,
     "/api/changes": _get_changes,
-    "/api/medical": _get_medical,
-    "/api/medical/timeline": _get_medical_part("timeline"),
+    "/api/medical/documents": _get_medical_part("documents"),
     "/api/medical/values": _get_medical_part("values"),
     "/api/medical/medicines": _get_medical_part("medicines"),
     "/api/medical/followups": _get_medical_part("followups"),
@@ -507,8 +482,6 @@ POST_ROUTES = {
     "/api/change/undo": _post_undo,
     "/api/change/albums": _post_albums,
     "/api/travel/packing": _post_packing,
-    "/api/medical/unlock": _post_medical_unlock,
-    "/api/medical/lock": _post_medical_lock,
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_scan(state)},
     "/api/scan/pause": lambda state, conn, body: _control(state, "pause"),
     "/api/scan/resume": lambda state, conn, body: _control(state, "resume"),

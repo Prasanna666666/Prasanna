@@ -84,11 +84,7 @@ def test_a_second_app_takes_its_own_kind_from_the_same_store_and_finance_never_s
     parser.process_inbox(health, parsed, isolated=False, area="health")  # a collection with any name; its files are always read
     store.ingest_dir(conn, parsed)
     store.judge_pending(conn, Model(), "fake")
-    assert store.list_documents(conn, ["medical"]) == []  # Health is locked until the person unlocks it
-    store.set_health_unlocked(True)
-    try:
-        assert [d["facts"]["title"] for d in store.list_documents(conn, ["medical"])] == ["Blood test"]  # what a health app would ask for
-    finally:
-        store.set_health_unlocked(False)
+    assert store.list_documents(conn, ["invoice"]) == []  # an app asking for other kinds does not receive it
+    assert [d["facts"]["title"] for d in store.list_documents(conn, ["medical"])] == ["Blood test"]  # what a health app would ask for
     assert library_client.pull(finance, library_over_http(conn)) == {"new": 0, "known": 0}  # Finance asks for its own kinds and its own folder only
     assert finance.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 0

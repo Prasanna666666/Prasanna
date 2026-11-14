@@ -80,10 +80,15 @@ If something here is wrong, the owner says so once and it is changed here.
 - Reading and judging no longer take turns for hours: one Update round judges at most 20 documents (`JUDGE_PER_ROUND`), then takes in what the reader produced meanwhile. Before, the model worked through every waiting document (tens of thousands of mails) in one go, so the file count rose once per press and then stood still.
 
 ## Health is not locked (owner's call: "No point locking health")
-- `store.health_unlocked()` is always true; the lock stays in the code behind `ATLAS_HEALTH_LOCK=1`. Everything runs on this one Mac, offline, behind the same disk encryption as the other apps, so the lock added clicks and no protection the others lack.
+- The lock is removed from the code (no `health_unlocked`, no lock routes, no `ATLAS_HEALTH_LOCK`). Everything runs on this one Mac, offline, behind the same disk encryption as the other apps, so the lock added clicks and no protection the others lack.
 
 ## Each app is a dashboard plus the one chat (owner's call)
 - Finance's menu is Dashboard, Documents and Settings. The other pages (income, expenses, net worth, savings, investments, plan, tasks, notes, people, files) are no longer in the menu; the dashboard's cards still open them, and questions go to the chat. Documents stay in one place per app.
 - Finance is now only Dashboard and Documents (Settings is a small gear in the sidebar foot). Dashboard cards no longer open detail pages: a click sends the matching question to the chat.
 - The menu the shell shows comes from `atlas/modules.d/<app>.json` `pages` (the earlier Finance change only touched Finance's own sidebar). Finance, Health and Travel now list exactly two pages: Dashboard and Documents. Health's dashboard has coming-up dates, lab values and medicines on one page; its Documents is the list of medical documents (the old timeline). Travel's Documents lists the travel folder plus tickets and bookings found anywhere. Photos is unchanged (Photos, Places, People, Changes).
 - Dashboards say little and show a lot: headline tiles (number + 1-3 word label), small cards with sparklines and a colour dot for lab values, a next-trip hero with a countdown and photos, chips for medicines. Finance lost its six shortcut cards and long "needs a look" sentences. The old `.tile` class (square photo grid) is not reused: dashboard tiles are `.stat`.
+
+## One entry per app in the menu; tabs inside (owner's call)
+- The Atlas menu lists the apps only (`pages: []` in `atlas/modules.d`). Inside each app a tab bar: Finance, Health, Travel have Dashboard and Documents; Photos has Dashboard (totals, highlights, recent trips, places, people) and Folders (trips, places, people as covers). The old per-page menus are gone.
+- Medical documents (kind `medical` or the health folder) are returned only to a request that asks for them by name, so another app asking for its own kinds, or for everything, never receives them. This replaces what the lock did for that purpose.
+- Finance's detail pages (income, expenses, savings, investments, net worth, plan, tasks, notes, people, files) and everything only they used were deleted (3,700 to 1,360 lines of JavaScript); the dashboard's cards and the search palette send their question to the chat. Dashboard-only pieces in the library app: ring, range bar, countdown hero, covers.

@@ -105,9 +105,6 @@ def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
     if window and a.get("place"):
         found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or d["kind"] not in ("ticket", "booking")]
     data = {"count": len(found), "documents": [_doc_row(d) for d in found[:40]]}
-    held = store.hidden_health_count(conn)
-    if held:
-        data["note"] = f"{held} health documents are locked and were left out. If the person asks for them, tell them to open Health in Atlas and unlock it."
     return data, [_doc_item(d) for d in found[:MAX_ITEMS]] if a.get("show") is True else []
 
 
@@ -131,20 +128,9 @@ def trips(state, conn, a: dict, ask: Ask | None = None) -> Result:
     return {"trips": store.trips(conn, str(a.get("place", ""))[:80], str(a.get("year", ""))[:4])}, []
 
 
-_LOCKED_NOTE = "Health is locked: nothing was read from it. Tell the person to open Health in Atlas and unlock it, then ask again."
-
-
-def _health(data: dict) -> Result:
-    if data.get("locked"):
-        data = {**data, "note": _LOCKED_NOTE}
-    return data, []
-
-
 def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
     """Measurements from the person's medical documents over time, exactly as printed (result, unit, reference range if printed). Never interpreted."""
     data = store.health_values(conn, str(a.get("test", ""))[:60])
-    if data.get("locked"):
-        return _health(data)
 
     def brief(g: dict, readings: int) -> dict:
         return {
@@ -157,7 +143,6 @@ def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
 
     narrowed = bool(a.get("test"))
     return {
-        "locked": False,
         "outside_printed_range": [brief(g, 1) for g in data["attention"]],
         "tests": [brief(g, 8 if narrowed else 3) for g in data["common"] + data["other"]][:30],
         "note": data["note"] + " Say only that a result is inside or outside the printed range; never what it means for health.",
@@ -165,15 +150,11 @@ def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
 
 
 def health_medicines(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return _health(store.health_medicines(conn))
-
-
-def health_timeline(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return _health(store.health_timeline(conn))
+    return store.health_medicines(conn), []
 
 
 def health_followups(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return _health(store.health_followups(conn, datetime.now().astimezone().date().isoformat()))
+    return store.health_followups(conn, datetime.now().astimezone().date().isoformat()), []
 
 
 def trip_details(state, conn, a: dict, ask: Ask | None = None) -> Result:
@@ -426,14 +407,13 @@ TOOLS = (
     ),
     Tool(
         "health_medicines",
-        "Medicines prescribed in the person's medical documents, with dose and duration as printed. Locked unless Health is unlocked.",
+        "Medicines prescribed in the person's medical documents, with dose and duration as printed.",
         {},
         health_medicines,
     ),
-    Tool("health_timeline", "The person's medical documents in date order. Locked unless Health is unlocked.", {}, health_timeline),
     Tool(
         "health_followups",
-        "Follow-up or next-appointment dates stated in the person's medical documents, from today on. Locked unless Health is unlocked.",
+        "Follow-up or next-appointment dates stated in the person's medical documents, from today on.",
         {},
         health_followups,
     ),

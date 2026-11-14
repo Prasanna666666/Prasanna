@@ -1,4 +1,4 @@
-"""Health (locked; values and medicines exactly as printed) and Travel (trips from tickets, bookings and photos)."""
+"""Health (values and medicines exactly as printed) and Travel (trips from tickets, bookings and photos)."""
 
 from __future__ import annotations
 
@@ -25,9 +25,7 @@ def lib(tmp_path):
         )
         conn.commit()
 
-    store.set_health_unlocked(False)
-    yield SimpleNamespace(conn=conn, add=add, state=SimpleNamespace(engine=lambda: None, picture_text=lambda: None))
-    store.set_health_unlocked(False)
+    return SimpleNamespace(conn=conn, add=add, state=SimpleNamespace(engine=lambda: None, picture_text=lambda: None))
 
 
 def _blood(lib):
@@ -41,23 +39,14 @@ def _blood(lib):
     lib.add("bloed-juni.pdf", "medical", title="Blood test", date="2026-06-02", party="Kliniek", health=health2)
 
 
-def test_health_is_locked_nothing_comes_out_and_the_assistant_is_told_why(lib):
+def test_health_shows_each_measurement_over_time_exactly_as_printed(lib):
     _blood(lib)
-    for fn in (store.health_timeline, store.health_values, store.health_medicines):
-        assert fn(lib.conn) == {"locked": True, "held_back": 2}
-    out = tools.run(lib.state, lib.conn, "health_values", {})
-    assert out["ok"] and out["data"]["locked"] is True and "unlock" in out["data"]["note"].lower()
-
-
-def test_unlocked_health_shows_each_measurement_over_time_exactly_as_printed(lib):
-    _blood(lib)
-    store.set_health_unlocked(True)
     tests = store.health_values(lib.conn)["tests"]
     assert len(tests) == 1 and tests[0]["test"] == "Hemoglobin" and tests[0]["unit"] == "mmol/L"
     assert [(r["date"], r["value"], r["range"]) for r in tests[0]["readings"]] == [("2026-03-01", "8,4", "7,5 - 10,0"), ("2026-06-02", "9,0", "7,5 - 10,0")]
     assert store.health_values(lib.conn, "cholesterol")["tests"] == []
     assert [m["name"] for m in store.health_medicines(lib.conn)["medicines"]] == ["Metformine"]
-    assert [d["name"] for d in store.health_timeline(lib.conn)["documents"]] == ["bloed-juni.pdf", "bloed-maart.pdf"]  # newest first
+    assert [d["name"] for d in store.health_documents(lib.conn)["documents"]] == ["bloed-juni.pdf", "bloed-maart.pdf"]  # newest first
     assert [f["date"] for f in store.health_followups(lib.conn, "2026-07-01")["follow_ups"]] == ["2099-06-01"]
     assert store.health_followups(lib.conn, "2100-01-01")["follow_ups"] == []
 
@@ -72,7 +61,6 @@ def test_medical_details_are_filled_for_documents_judged_before_and_use_the_mode
             return {"content": json.dumps({"values": [{"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L"}]})}
 
     assert store.fill_health_details(lib.conn, Model(), "m") == 1 and store.fill_health_details(lib.conn, Model(), "m") == 0 and len(calls) == 1
-    store.set_health_unlocked(True)
     assert store.health_values(lib.conn)["tests"][0]["readings"][0]["value"] == "8,4"
 
 
@@ -101,7 +89,7 @@ def test_the_calendar_file_lists_every_trip_as_whole_days():
 
 
 def test_the_travel_and_health_routes_exist_and_a_trip_needs_real_days(lib):
-    for route in ("/api/travel/trips", "/api/travel/trip", "/api/medical/timeline", "/api/medical/values", "/api/medical/medicines", "/api/medical/followups"):
+    for route in ("/api/travel/trips", "/api/travel/trip", "/api/medical/documents", "/api/medical/values", "/api/medical/medicines", "/api/medical/followups"):
         assert route in web.GET_ROUTES
     with pytest.raises(web.Fail):
         web._get_travel_trip(lib.state, lib.conn, {"place": "x", "start": "not", "end": "2026-01-01"})
@@ -206,7 +194,6 @@ def test_lab_values_are_grouped_by_common_test_with_the_latest_flag_and_the_chan
         ("Hb", "9,0", 9.0, "mmol/L", "7,5 - 10,0"),
         ("Zink", "11", 11.0, "umol/L", ""),
     )
-    store.set_health_unlocked(True)
     r = store.health_values(lib.conn)
     chol = next(g for g in r["common"] if g["test"] == "Cholesterol (total)")
     assert [x["value"] for x in chol["readings"]] == ["5,0", "5,6"] and chol["flag"] == "above_range"  # two spellings, one test
@@ -233,13 +220,8 @@ def test_a_document_in_the_health_folder_is_a_health_document_whatever_the_model
         ("f" * 64, "new.pdf", "pdf", "unread secret", "health", ""),
     )
     lib.conn.commit()
-    assert store.list_documents(lib.conn, ["other"]) == [] and store.get_document(lib.conn, "e" * 64) is None
-    assert not any(
-        "unread secret" in p["text"] or "haemoglobine" in p["text"] for p in store.passages(lib.conn, "haemoglobine secret")
-    )  # not searchable while locked, judged or not
-    assert store.hidden_health_count(lib.conn) == 2 and {"kind": "other", "count": 1} not in store.by_kind(lib.conn)
-    store.set_health_unlocked(True)
-    assert [d["name"] for d in store.health_timeline(lib.conn)["documents"]] == ["scan.pdf"] and store.get_document(lib.conn, "e" * 64)
+    assert store.list_documents(lib.conn, ["other"]) == []  # another app asking for kind "other" never receives it
+    assert [d["name"] for d in store.health_documents(lib.conn)["documents"]] == ["scan.pdf"] and store.get_document(lib.conn, "e" * 64)
 
 
 def test_the_folders_script_gives_the_reader_category_folders_and_listed_ones_read_only_and_skips_bad_lines(tmp_path):
@@ -469,8 +451,3 @@ def test_a_folder_inside_one_already_read_is_not_read_twice(tmp_path):
     icloud, text, said = _found(tmp_path, "Personal/Health", "Personal/Travel", "Finance/Others")
     assert said.count("Atlas will read") == 2 and f"{icloud / 'Personal'} as personal" in said and f"{icloud / 'Finance'} as finance" in said
     assert "Personal/Health" not in text and "Finance/Others" not in text  # the parent already covers them: the same files are not read under two kinds
-
-
-@pytest.mark.open_health
-def test_health_is_open_by_default(lib):
-    assert store.health_unlocked() and store.hidden_health_count(lib.conn) == 0

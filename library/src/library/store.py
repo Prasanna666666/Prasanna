@@ -332,14 +332,8 @@ def _medical_documents(conn) -> list[dict]:
     return sorted(out, key=lambda d: (d["date"], d["id"]))
 
 
-def _locked(conn) -> dict[str, Any]:
-    return {"locked": True, "held_back": hidden_health_count(conn)}
-
-
-def health_timeline(conn) -> dict[str, Any]:
+def health_documents(conn) -> dict[str, Any]:
     """Every medical document in date order, newest first: what it is, who it is from, how many values and medicines it holds, and any follow-up it states."""
-    if not health_unlocked():
-        return _locked(conn)
     docs = [
         {
             "id": d["id"],
@@ -353,7 +347,7 @@ def health_timeline(conn) -> dict[str, Any]:
         }
         for d in reversed(_medical_documents(conn))
     ]
-    return {"locked": False, "documents": docs}
+    return {"documents": docs}
 
 
 # The common blood and health tests, by the names reports use (English and Dutch). A reading is filed under the common name when its test name matches.
@@ -419,8 +413,6 @@ def _common_name(test: str) -> str:
 def health_values(conn, test: str = "") -> dict[str, Any]:
     """Each measurement over time exactly as the documents print it, grouped (the common tests under their common names), with for each: the latest result, whether
     it lies inside the reference range printed on that report, and how it changed since the reading before. Never interpreted."""
-    if not health_unlocked():
-        return _locked(conn)
     groups: dict[str, dict[str, Any]] = {}
     for d in _medical_documents(conn):
         for v in d["health"].get("values") or []:
@@ -460,7 +452,6 @@ def health_values(conn, test: str = "") -> dict[str, Any]:
     order = {name: i for i, (name, _p) in enumerate(COMMON_TESTS)}
     common_list = sorted((g for g in ordered if g["common"]), key=lambda g: order[g["test"]])
     return {
-        "locked": False,
         "tests": ordered,
         "attention": [g for g in ordered if g["flag"] in ("above_range", "below_range")],
         "common": common_list,
@@ -471,20 +462,16 @@ def health_values(conn, test: str = "") -> dict[str, Any]:
 
 def health_medicines(conn) -> dict[str, Any]:
     """Every medicine a document prescribes, newest first, with the dose and duration as printed."""
-    if not health_unlocked():
-        return _locked(conn)
     meds = [
         {"name": m["name"], "dose": m.get("dose") or "", "duration": m.get("duration") or "", "date": d["date"], "document": d["name"], "id": d["id"]}
         for d in reversed(_medical_documents(conn))
         for m in d["health"].get("medicines") or []
     ]
-    return {"locked": False, "medicines": meds}
+    return {"medicines": meds}
 
 
 def health_followups(conn, today: str) -> dict[str, Any]:
     """Follow-up or next-appointment dates the documents state, from today on."""
-    if not health_unlocked():
-        return _locked(conn)
     ups = sorted(
         (
             {"date": d["health"]["follow_up"], "document": d["name"], "title": d["title"], "id": d["id"]}
@@ -493,7 +480,7 @@ def health_followups(conn, today: str) -> dict[str, Any]:
         ),
         key=lambda x: x["date"],
     )
-    return {"locked": False, "follow_ups": ups}
+    return {"follow_ups": ups}
 
 
 # ---- asking: what any app can take -------------------------------------------------------------------------------------------
@@ -501,42 +488,13 @@ GENTLE_SECONDS = float(os.environ.get("LIBRARY_GENTLE_SECONDS", "0.5"))
 LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready"
 
 
-# ---- Health can be locked (ATLAS_HEALTH_LOCK=1; off by default): medical documents stay out of every list, search and answer until the person unlocks them; it locks again whenever the service starts -------
+# ---- Health: medical documents are recognised by kind or by the health folder
 HEALTH_KINDS = frozenset({"medical"})
-HEALTH_OPEN_SECONDS = 900  # unlocked Health closes again by itself after this long without being used
-_health: dict[str, Any] = {"until": 0.0}
-
-
-HEALTH_LOCK = os.environ.get("ATLAS_HEALTH_LOCK") == "1"  # off by default: Health is open like the other apps; set ATLAS_HEALTH_LOCK=1 to lock it again
-
-
-def health_unlocked() -> bool:
-    if not HEALTH_LOCK:
-        return True
-    return time.monotonic() < _health["until"]
-
-
-def touch_health() -> None:
-    """Using Health keeps it open: it closes by itself only after a quarter of an hour without use."""
-    if health_unlocked():
-        set_health_unlocked(True)
-
-
-def set_health_unlocked(value: bool) -> None:
-    _health["until"] = time.monotonic() + HEALTH_OPEN_SECONDS if value else 0.0
 
 
 def _is_health(facts_json: str, area: str = "") -> bool:
     """A medical document: the model said so, or it lies in the person's health folder (whatever the model said)."""
     return area == "health" or (bool(facts_json) and json.loads(facts_json).get("kind") in HEALTH_KINDS)
-
-
-def hidden_health_count(conn) -> int:
-    """How many documents are held back while Health is locked (0 once it is unlocked)."""
-    if health_unlocked():
-        return 0
-    marks = ",".join("?" for _ in HEALTH_KINDS)
-    return conn.execute(f"SELECT COUNT(*) FROM documents WHERE area='health' OR (judged=1 AND fact_kind IN ({marks}))", sorted(HEALTH_KINDS)).fetchone()[0]
 
 
 def _as_document(r) -> dict[str, Any]:
@@ -575,8 +533,8 @@ def list_documents(
         args += sorted(wanted)
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE {where} ORDER BY ready", args):
         doc = _as_document(r)
-        if not health_unlocked() and (doc["kind"] in HEALTH_KINDS or doc["area"] == "health"):
-            continue
+        if (doc["kind"] in HEALTH_KINDS or doc["area"] == "health") and "medical" not in wanted and area != "health":
+            continue  # medical documents go to whoever asks for them by name, never to another app that asks for its own kinds or for everything
         if source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
             continue
         if wanted or area:
@@ -601,25 +559,23 @@ def list_documents(
 
 def get_document(conn, sha: str) -> dict | None:
     r = conn.execute("SELECT * FROM documents WHERE sha256=? OR id=?", (sha, sha if sha.isdigit() else -1)).fetchone()
-    if r is None or (not health_unlocked() and _is_health(r["facts"], r["area"])):
+    if r is None:
         return None
     return {**_as_document(r), "text": r["text"], "data": r["data"]}
 
 
 def _sources(conn) -> Iterator[tuple[str, str, str, str]]:
     for r in conn.execute("SELECT id, name, text, facts, area FROM documents"):
-        if not health_unlocked() and _is_health(r["facts"], r["area"]):
-            continue
         facts = json.loads(r["facts"]) if r["facts"] else {}
         summary = " ".join(str(facts.get(k) or "") for k in ("title", "summary", "party", "reference", "place")).strip()
         yield f"d{r['id']}", "document", r["name"], (summary + " " + r["text"]).strip()
 
 
 def _fingerprint(conn, more_sources=None) -> str:
-    """Changes whenever something searchable changed (a document arrived or was judged, Health was locked or unlocked, pictures gained text): the search checks nothing else."""
+    """Changes whenever something searchable changed (a document arrived or was judged, pictures gained text): the search checks nothing else."""
     r = conn.execute("SELECT COUNT(*), COALESCE(MAX(id),0), COALESCE(SUM(judged),0), COALESCE(MAX(ready),0) FROM documents").fetchone()
     more = getattr(more_sources, "fingerprint", None)
-    return f"{tuple(r)}|{health_unlocked()}|{more() if more else ''}"
+    return f"{tuple(r)}|{more() if more else ''}"
 
 
 _INDEXING = threading.Lock()
@@ -665,12 +621,9 @@ def by_kind(conn) -> list[dict]:
     """How many documents of each recognised kind there are."""
     out = [
         {"kind": r[0] or "other", "count": r[1]}
-        for r in conn.execute(
-            "SELECT fact_kind, COUNT(*) FROM documents WHERE judged=1 AND fact_kind IS NOT NULL AND (?1 OR area<>'health') GROUP BY fact_kind ORDER BY COUNT(*) DESC",
-            (int(health_unlocked()),),
-        )
+        for r in conn.execute("SELECT fact_kind, COUNT(*) FROM documents WHERE judged=1 AND fact_kind IS NOT NULL GROUP BY fact_kind ORDER BY COUNT(*) DESC")
     ]
-    return [x for x in out if health_unlocked() or x["kind"] not in HEALTH_KINDS]
+    return out
 
 
 # ---- trips: derived from the tickets and bookings that were read -----------------------------------------------------------------
