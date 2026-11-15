@@ -427,7 +427,14 @@ def _speed_line(model_left: int, elapsed: float, calls: int) -> str:
 
 
 SKIPPED_NO_TEXT = "no readable text"
-SKIPPED_BY_RULE = "no amount with an invoice-like word"  # the keyword rule in `relevance`: such a mail or loose file is not shown to the model
+SKIPPED_BY_RULE = "no amount of money and none of the words your apps declare"  # the gate in `relevance`: such a mail or loose file is not shown to the model
+SKIPPED_NOT_A_DOCUMENT = "not a document: no reader for this type of file"  # a program, a database, a video: only the words found inside it are kept
+
+
+def _why_skipped(d) -> str:
+    if not d["text"].strip():
+        return SKIPPED_NO_TEXT
+    return SKIPPED_NOT_A_DOCUMENT if d["kind"] == "binary" else SKIPPED_BY_RULE
 
 
 def _skippable(d) -> bool:
@@ -524,7 +531,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                 _mark_ready(conn, d["sha256"], 1, exact)
                 _trace(trace, d["name"], "sorted", str(exact.get("kind", "")))  # shown by its title, like every other file
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
-                why = SKIPPED_NO_TEXT if not d["text"].strip() else SKIPPED_BY_RULE
+                why = _why_skipped(d)
                 _mark_ready(conn, d["sha256"], 2, {"skipped": why})  # the reason is kept, so what was not shown to the model can be counted and read later
                 _trace(trace, d["name"], "skipped", why)
                 out["skipped"] += 1

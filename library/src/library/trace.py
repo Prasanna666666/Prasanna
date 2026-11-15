@@ -38,6 +38,13 @@ class Trace:
 
 FAILED = "could not be sorted"
 FAILED_GROUP = "could not be read"
+SHOWN = (
+    "sorted",
+    FAILED,
+    FAILED_GROUP,
+    "group read",
+    "kept as sorted",
+)  # what the card lists: files a model worked on; a file with nothing to read is not news
 FINISHED = ("sorted", "skipped", FAILED, FAILED_GROUP, "group read", "kept as sorted")
 
 
@@ -55,8 +62,8 @@ def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:
     """The last files finished in this read, newest first, each with its result, how long it took and whether it worked (`state`: done or failed), for the panel.
     A file that was sorted is described by its title, not by the category the apps route it by."""
     rows = conn.execute(
-        f"SELECT name, step, detail, seconds FROM trace WHERE run=? AND step IN ({','.join('?' for _ in FINISHED)}) ORDER BY id DESC LIMIT ?",
-        (run, *FINISHED, limit),
+        f"SELECT name, step, detail, seconds FROM trace WHERE run=? AND step IN ({','.join('?' for _ in SHOWN)}) ORDER BY id DESC LIMIT ?",
+        (run, *SHOWN, limit),
     )
     out = []
     for r in rows:
