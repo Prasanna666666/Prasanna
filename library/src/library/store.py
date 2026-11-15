@@ -14,6 +14,7 @@ import contextlib
 import json
 import os
 import re
+import sqlite3
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -148,13 +149,7 @@ MIGRATIONS = (
     """,
     """
     ALTER TABLE documents ADD COLUMN fact_apps TEXT;   -- '|finance|health|': the apps the model marked the file for, kept apart so listing by app never reads every document
-    -- Files sorted before the apps were declared have only the kind the model gave then. This one-time conversion turns it into the apps' marks (the only place a kind is
-    -- ever matched against a name); every file sorted from now on is marked by the model itself.
-    UPDATE documents SET facts = json_set(facts, '$.apps', json(CASE json_extract(facts, '$.kind')
-        WHEN 'bank_statement' THEN '["finance"]' WHEN 'payslip' THEN '["finance"]' WHEN 'annual_statement' THEN '["finance"]' WHEN 'invoice' THEN '["finance"]'
-        WHEN 'receipt' THEN '["finance"]' WHEN 'tax' THEN '["finance"]' WHEN 'insurance' THEN '["finance"]' WHEN 'contract' THEN '["finance"]'
-        WHEN 'ticket' THEN '["travel"]' WHEN 'booking' THEN '["travel"]' WHEN 'medical' THEN '["health"]' ELSE '[]' END))
-        WHERE facts<>'' AND json_valid(facts) AND json_extract(facts, '$.apps') IS NULL;
+    -- Files sorted before the apps were declared have no marks yet; `mark_old_files` gives them theirs from the words the apps declare (nothing is matched here).
     UPDATE documents SET fact_apps = '|' || COALESCE((SELECT group_concat(value, '|') FROM json_each(json_extract(facts, '$.apps'))), '') || '|' WHERE facts<>'' AND json_valid(facts);
     CREATE INDEX documents_fact_apps ON documents (judged, fact_apps);
     CREATE TRIGGER documents_apps_new AFTER INSERT ON documents WHEN NEW.facts<>'' AND json_valid(NEW.facts) BEGIN
@@ -435,6 +430,23 @@ def _why_skipped(d) -> str:
     if not d["text"].strip():
         return SKIPPED_NO_TEXT
     return SKIPPED_NOT_A_DOCUMENT if d["kind"] == "binary" else SKIPPED_BY_RULE
+
+
+def mark_old_files(conn) -> int:
+    """Files sorted before the apps were declared have only the words the model used for what they are. They are marked for the apps whose declared words (apps.json) appear
+    in those words: no table of kinds is in the code, and nothing is sent to the model. Done once per file; returns how many were marked."""
+    try:
+        rows = conn.execute(
+            "SELECT id, facts FROM documents WHERE facts<>'' AND json_valid(facts) AND json_extract(facts, '$.apps') IS NULL AND json_extract(facts, '$.kind') IS NOT NULL"
+        ).fetchall()
+    except sqlite3.OperationalError:  # the database is not made yet
+        return 0
+    for r in rows:
+        facts = json.loads(r["facts"])
+        facts["apps"] = apps.matching(str(facts.get("kind", "")))
+        conn.execute("UPDATE documents SET facts=? WHERE id=?", (json.dumps(facts), r["id"]))
+    conn.commit()
+    return len(rows)
 
 
 def _skippable(d) -> bool:

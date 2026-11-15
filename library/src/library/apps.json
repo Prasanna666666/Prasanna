@@ -9,7 +9,7 @@
     {
       "name": "health",
       "about": "health: medical reports, lab results, prescriptions, appointment letters, vaccination records, and anything about the person's health",
-      "terms": "appointment afspraak prescription recept uitslag",
+      "terms": "medical medisch medicine lab appointment afspraak prescription recept uitslag",
       "reads": "medical"
     },
     {

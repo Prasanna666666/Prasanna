@@ -98,7 +98,7 @@ def search_files(state, conn, a: dict, ask: Ask | None = None) -> Result:
 
 
 def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    """Documents by what they are (invoice, receipt, payslip, statement, tax, insurance, contract, ticket, booking, medical), place, year or dates."""
+    """Documents by what they are (in the words the documents themselves were described with), place, year or dates."""
     kinds = [k for k in str(a.get("kind", "")).replace(" ", "").split(",") if k]
     window = _dates(a)
     if window:
@@ -319,7 +319,7 @@ TOOLS = (
     ),
     Tool(
         "find_documents",
-        "List documents by kind, place, year or between two dates, with what each says: title, who from, date, amount, place. Kinds: invoice, receipt, payslip, bank_statement, tax, insurance, contract, ticket, booking, medical.",
+        "List documents by kind, place, year or between two dates, with what each says: title, who from, date, amount, place. Use words the person used for the kind of document.",
         {
             "kind": _str("One or more kinds, comma separated"),
             "place": _str("Part of a place, for example India"),
@@ -395,7 +395,7 @@ TOOLS = (
         "where it is). This changes NOTHING: a confirmation window opens for the person, who reviews the list and presses Confirm themselves. You cannot confirm. "
         "Bank statements are never touched.",
         {
-            "kind": _str("Kind of document, for example invoice, insurance, contract"),
+            "kind": _str("What the document is, in a word or two"),
             "folder": _str("Folder name"),
             "mail": {"type": "boolean", "description": "Copy mail messages instead"},
         },

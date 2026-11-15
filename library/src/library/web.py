@@ -59,7 +59,9 @@ class State:
         return pictures.text_sources(engine) if engine is not None else None
 
     def connect(self):
-        return db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
+        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
+        store.mark_old_files(conn)  # files sorted before the apps were declared get their marks, once
+        return conn
 
 
 AUTO_LIMIT = int(
