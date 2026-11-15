@@ -523,6 +523,13 @@ def _post_auto(state: State, conn, body: dict) -> dict:
     return {"started": start_scan(state, auto=True), "reason": "small", "waiting": waiting, "limit": AUTO_LIMIT}  # the round also stops at the limit
 
 
+def _overall(conn) -> dict[str, Any]:
+    """How much of everything read is identified: all files and mail together."""
+    done = _identified(conn, "1=1")
+    waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE judged=0").fetchone()[0]
+    return {"percent": _share(done, done + waiting), "detail": f"{done:,} of {done + waiting:,} identified"}
+
+
 def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
     """The file being worked on: its step, the seconds so far and how far along it is. A medical document read in parts is exact (part 3 of 9 is 33%); a file that takes
     one model call has no exact progress, so its bar is an estimate from how long files have taken in this read (`estimated`), and none at all before there is one to go by."""
@@ -548,6 +555,8 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "progress": s["progress"],
         "file": _file_now(s, conn),
         "recent": trace.finished(conn, s.get("run", "")) if s["running"] else [],
+        "waiting": store.waiting_files(conn, (s.get("now") or ("",))[0]) if s["running"] else [],
+        "overall": _overall(conn) if s["running"] else None,
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],

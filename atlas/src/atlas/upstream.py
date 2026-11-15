@@ -162,6 +162,8 @@ class Upstreams:
             "needs_check": 0,
             "file": None,
             "recent": [],
+            "waiting": [],
+            "overall": None,
             "parts": [],
             "paused": False,
             "stopping": False,
@@ -184,7 +186,9 @@ class Upstreams:
             "running": bool(raw.get("running")),
             "progress": str(raw.get("progress", ""))[:200],
             "file": self._file(raw.get("file")),  # the file being worked on right now
-            "recent": [str(x)[:240] for x in (raw.get("recent") or [])][:3],  # the last files finished, with their result
+            "recent": self._named(raw.get("recent")),  # the last files finished, with their result
+            "waiting": [str(n)[:200] for n in (raw.get("waiting") or []) if isinstance(n, str)][:6],  # the next files to be read
+            "overall": self._overall(raw.get("overall")),  # how far all of it has got
             "summary": str(raw.get("summary", ""))[:200],
             "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
             "needs_check": int(raw.get("needs_check") or 0),
@@ -205,6 +209,19 @@ class Upstreams:
             for p in raw[:6]
             if isinstance(p, dict) and p.get("name")
         ]
+
+    @staticmethod
+    def _named(raw: Any) -> list[dict[str, str]]:
+        """Files with a line each (the last ones finished), checked."""
+        if not isinstance(raw, list):
+            return []
+        return [{"name": str(r["name"])[:200], "detail": str(r.get("detail", ""))[:200]} for r in raw[:6] if isinstance(r, dict) and r.get("name")]
+
+    @staticmethod
+    def _overall(raw: Any) -> dict[str, Any] | None:
+        if not isinstance(raw, dict) or _percent(raw.get("percent")) is None:
+            return None
+        return {"percent": _percent(raw["percent"]), "detail": str(raw.get("detail", ""))[:120]}
 
     @staticmethod
     def _file(raw: Any) -> dict[str, Any] | None:

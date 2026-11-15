@@ -292,6 +292,17 @@ def _pending_chunks(conn):
             yield rows
 
 
+def waiting_files(conn, current: str = "", limit: int = 5) -> list[str]:
+    """The next files the model will identify, in the order they will be taken (named folders, then loose files, then mail); only files with text for the model."""
+    names: list[str] = []
+    for tier in PRIORITY:
+        rows = conn.execute(f"SELECT name FROM documents WHERE judged=0 AND kind<>'binary' AND TRIM(text)<>'' AND {tier} ORDER BY id LIMIT ?", (limit + 1,))
+        names += [r["name"] for r in rows if r["name"] != current]
+        if len(names) >= limit:
+            break
+    return names[:limit]
+
+
 def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
     while control is not None and control() == "pause":  # paused by the person: wait here, nothing is lost
         conn.commit()

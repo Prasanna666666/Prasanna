@@ -586,59 +586,18 @@ body.chatting .fab {
     background: var(--soft);
 }
 .scan {
-    margin: 12px 24px 0;
-    padding: 12px 16px;
-    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin: 16px 24px 0;
+    padding: 18px 20px;
+    border-radius: 20px;
     border: 1px solid var(--line);
-    background: var(--soft);
+    background: var(--card);
+    box-shadow: var(--shadow);
 }
 .scan[hidden] {
     display: none;
-}
-.scan-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 8px;
-}
-.scan-close {
-    border: 0;
-    background: transparent;
-    color: var(--faint);
-    font-size: 22px;
-    line-height: 1;
-    padding: 0 4px;
-}
-.scan-row {
-    display: flex;
-    gap: 12px;
-    padding: 9px 0;
-    border-top: 1px solid var(--line);
-}
-.scan-row i {
-    flex: none;
-    width: 9px;
-    height: 9px;
-    margin-top: 7px;
-    border-radius: 50%;
-    background: var(--good);
-}
-.scan-row.busy i {
-    background: var(--a1);
-}
-.scan-row.warn i {
-    background: var(--warn);
-}
-.scan-text {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-.scan-text span {
-    color: var(--muted);
-    font-size: 13.5px;
 }
 
 @media (max-width: 860px) {
@@ -947,57 +906,223 @@ body.chatting .fab {
     white-space: nowrap;
 }
 
-.scan-control {
-    border: 1px solid var(--line, #3334);
-    background: transparent;
-    color: inherit;
+.rd-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+}
+.rd-words {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.rd-title {
+    font-size: 17px;
+    font-weight: 650;
+}
+.rd-sub {
+    color: var(--muted);
+    font-size: 13.5px;
+}
+.rd-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+.rd-btn {
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
     border-radius: 999px;
-    padding: 2px 10px;
-    margin-left: 8px;
+    padding: 6px 16px;
     font: inherit;
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
 }
-.scan-control:disabled {
+.rd-btn:hover {
+    border-color: var(--a1);
+}
+.rd-btn.stop {
+    color: var(--bad);
+}
+.rd-btn:disabled {
     opacity: 0.5;
 }
-
-.readbar {
-    height: 6px;
-    margin-top: 6px;
-    border-radius: 3px;
-    background: var(--line);
+.rd-x {
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    font-size: 22px;
+    line-height: 1;
+    padding: 0 4px;
+    cursor: pointer;
+}
+.rd-overall {
+    display: grid;
+    gap: 10px;
+}
+.rd-ohead {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+.rd-big {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+.rd-meter {
+    flex: 1;
+    min-width: 40px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
     overflow: hidden;
 }
-.readbar .fill {
-    display: block;
+.rd-overall .rd-meter {
+    height: 12px;
+}
+.rd-fill {
     height: 100%;
     width: 0;
-    border-radius: 3px;
-    background: var(--a1);
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--a1), var(--accent-2));
     transition: width 1.2s linear;
 }
-.readbar.unknown .fill {
+.rd-meter.unknown .rd-fill {
     width: 100%;
-    opacity: 0.25;
+    opacity: 0.18;
 }
-.scan-pct {
+.rd-label {
+    margin-bottom: 6px;
     font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
 }
-
-.readline {
+.rd-files {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.rd-file {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) minmax(150px, 34%);
+    align-items: center;
+    gap: 12px;
+    padding: 9px 10px;
+    border-radius: 12px;
+}
+.rd-file.now {
+    background: var(--accent-soft);
+}
+.rd-file.wait {
+    opacity: 0.6;
+}
+.rd-mark {
+    box-sizing: border-box;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--line-strong);
+}
+.rd-file.done .rd-mark {
+    display: grid;
+    place-items: center;
+    background: var(--good);
+    border-color: var(--good);
+    color: #fff;
+    font-size: 11px;
+    font-style: normal;
+    line-height: 1;
+}
+.rd-file.done .rd-mark::after {
+    content: '\2713';
+}
+.rd-file.now .rd-mark {
+    border-color: var(--a1);
+    background: radial-gradient(circle, var(--a1) 38%, transparent 42%);
+}
+.rd-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.rd-name {
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rd-detail {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rd-side {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 4px;
 }
-.readline .readbar {
-    flex: 1;
-    margin-top: 0;
-}
-.readline .scan-pct {
+.rd-pct {
     min-width: 44px;
     text-align: right;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+}
+.rd-totals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+.rd-total {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+}
+.rd-total .rd-meter {
+    flex: none;
+}
+.rd-total .rd-detail {
+    white-space: normal;
+}
+.rd-thead {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+.rd-note {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--warn);
+    font-size: 13.5px;
+}
+.rd-note.bad {
+    color: var(--bad);
+}
+@media (max-width: 720px) {
+    .scan {
+        margin: 12px 12px 0;
+        padding: 14px;
+    }
+    .rd-file {
+        grid-template-columns: 22px minmax(0, 1fr);
+    }
+    .rd-side {
+        grid-column: 2;
+    }
 }

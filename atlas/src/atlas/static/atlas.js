@@ -548,7 +548,7 @@
                 run(items[active]);
             }
         };
-        const bar = el('div', 'readbar');
+        const bar = el('div', 'pbar');
         bar.append(icon(ICON.search), box, el('kbd', '', 'esc'));
         const overlay = el('div', 'overlay');
         const card = el('div', 'palette');
@@ -568,47 +568,72 @@
 
     // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
     const scan = { timer: null, hide: null };
-    // a bar with its percentage: exact where the app knows it, marked "~" where it is an estimate, a faint full bar where there is no number
-    const bar = (percent, estimated) => {
-        const track = el('div', 'readbar' + (percent == null ? ' unknown' : ''));
-        const fill = el('div', 'fill');
+    // ---- the reading card: one overall bar, one row per file (done, being read, waiting), and the totals; part of the page, redrawn only where something changed
+    const pctText = (p, estimated) =>
+        p == null ? '' : p === 0 ? '0%' : (estimated ? '~' : '') + (p < 10 ? p.toFixed(1) : Math.round(p)) + '%';
+    const meter = (percent) => {
+        const track = el('div', 'rd-meter' + (percent == null ? ' unknown' : ''));
+        const fill = el('div', 'rd-fill');
         if (percent != null) fill.style.width = percent + '%';
         track.append(fill);
-        const label =
-            percent == null
-                ? ''
-                : (estimated ? '~' : '') + (percent < 10 ? percent.toFixed(1) : Math.round(percent)) + '%';
-        const line = el('div', 'readline');
-        line.append(track, el('span', 'scan-pct', label));
-        return [line];
+        return track;
     };
-    const partLine = (part, busy, warn = false) => {
-        const row = el('div', 'scan-row' + (warn ? ' warn' : busy ? ' busy' : ''));
-        const text = el('div', 'scan-text');
-        text.append(el('b', '', part.name), el('span', '', part.detail));
-        if (part.percent !== undefined) text.append(...bar(part.percent, part.estimated));
-        row.append(el('i'), text);
+    const fileRow = (kind, name, detail, percent, estimated) => {
+        const row = el('div', 'rd-file ' + kind);
+        const text = el('div', 'rd-text');
+        text.append(el('b', 'rd-name', name), el('span', 'rd-detail', detail));
+        const side = el('div', 'rd-side');
+        side.append(meter(percent), el('span', 'rd-pct', pctText(percent, estimated)));
+        row.append(el('i', 'rd-mark'), text, side);
         return row;
     };
-    // the file being worked on right now, and the step (from the trace of the read)
-    const nowRows = (info) => [
-        ...(info.file
+    const filesBlock = (info) => {
+        const now = info.file
             ? [
-                  partLine(
-                      {
-                          name: info.file.name,
-                          detail: `${info.file.step} · ${info.file.seconds} s`,
-                          percent: info.file.percent,
-                          estimated: info.file.estimated,
-                      },
-                      info.running
+                  fileRow(
+                      'now',
+                      info.file.name,
+                      `${info.file.step} · ${info.file.seconds} s`,
+                      info.file.percent,
+                      info.file.estimated
                   ),
               ]
-            : []),
-        ...(info.recent || []).map((line) => partLine({ name: 'Done', detail: line, percent: 100 }, false)),
-    ];
+            : [];
+        const rows = [
+            ...(info.recent || []).map((f) => fileRow('done', f.name, f.detail, 100)).reverse(),
+            ...now,
+            ...(info.waiting || []).map((name) => fileRow('wait', name, 'waiting', 0)),
+        ];
+        if (!rows.length) return null;
+        const box = el('div', 'rd-files');
+        box.append(el('div', 'rd-label', 'Files'), ...rows);
+        return box;
+    };
+    const overallBlock = (overall) => {
+        if (!overall) return null;
+        const box = el('div', 'rd-overall');
+        const head = el('div', 'rd-ohead');
+        head.append(el('span', 'rd-big', pctText(overall.percent)), el('span', 'rd-sub', overall.detail));
+        box.append(head, meter(overall.percent));
+        return box;
+    };
+    const totalsBlock = (parts) => {
+        if (!parts.length) return null;
+        const box = el('div', 'rd-totals');
+        for (const p of parts) {
+            const card = el('div', 'rd-total');
+            const head = el('div', 'rd-thead');
+            head.append(el('b', '', p.name), el('span', 'rd-pct', pctText(p.percent)));
+            card.append(head);
+            if (p.percent != null) card.append(meter(p.percent));
+            card.append(el('span', 'rd-detail', p.detail));
+            box.append(card);
+        }
+        return box;
+    };
+    const noteBlock = (text, bad = false) => el('div', 'rd-note' + (bad ? ' bad' : ''), text);
     const controlButton = (label, action) => {
-        const b = el('button', 'scan-control', label);
+        const b = el('button', 'rd-btn' + (action === 'stop' ? ' stop' : ''), label);
         b.type = 'button';
         b.addEventListener('click', async () => {
             b.disabled = true;
@@ -626,6 +651,34 @@
             }
         });
         return b;
+    };
+    const topRow = (title, sub, running, paused, panel) => {
+        const top = el('div', 'rd-top');
+        const words = el('div', 'rd-words');
+        words.append(el('b', 'rd-title', title));
+        if (sub) words.append(el('span', 'rd-sub', sub));
+        const buttons = el('div', 'rd-actions');
+        if (running) {
+            buttons.append(
+                controlButton(paused ? 'Resume' : 'Pause', paused ? 'resume' : 'pause'),
+                controlButton('Stop', 'stop')
+            );
+        }
+        const close = el('button', 'rd-x', '×');
+        close.type = 'button';
+        close.setAttribute('aria-label', 'Close');
+        close.addEventListener('click', () => {
+            panel.hidden = true;
+        });
+        buttons.append(close);
+        top.append(words, buttons);
+        return top;
+    };
+    const scanTitle = (report, readerOff, running) => {
+        if (readerOff) return 'Reading is switched off';
+        if (!running) return 'Finished reading';
+        const some = (key) => Object.values(report.modules).some((m) => m[key]);
+        return some('paused') ? 'Paused' : some('stopping') ? 'Stopping…' : 'Reading your files, mail and photos';
     };
     // only the rows whose content changed are replaced: the buttons stay under the cursor and the scroll position stays (a full rebuild each second broke both)
     const patchNode = (old, node) => {
@@ -654,7 +707,7 @@
         });
         while (parent.children.length > nodes.length) parent.lastElementChild.remove();
     };
-    // the panel is rebuilt only when what it says has changed (a rebuild at every poll made it flicker)
+    // the card is rebuilt only when what it says has changed
     const scanUnchanged = (report, panel) => {
         const sig = JSON.stringify(report);
         const missing = Object.values(report.modules || {}).some((r) => r && r.up === false);
@@ -662,73 +715,43 @@
         scan.sig = sig;
         return same;
     };
+    const scanBlocks = (report, info) => {
+        const infos = state.modules.map((m) => report.modules[m.id]).filter(Boolean);
+        const parts = infos.flatMap((i) => i.parts || []);
+        const problems = infos.flatMap((i) => i.problems || []).map((p) => noteBlock(p, true));
+        return [overallBlock(info.overall), filesBlock(info), totalsBlock(parts), ...problems];
+    };
     const showScan = (report) => {
         const panel = $('#scan');
         if (scanUnchanged(report, panel)) return;
-        const close = el('button', 'scan-close', '×');
-        close.type = 'button';
-        close.setAttribute('aria-label', 'Close');
-        close.addEventListener('click', () => {
-            panel.hidden = true;
-        });
-        const head = el('div', 'scan-head');
-        // the part of Atlas that reads the files (hidden from the menu) decides what the panel says: when it is switched off there is nothing to pause or stop
+        // the part of Atlas that reads the files (hidden from the menu) decides what the card says: when it is switched off there is nothing to pause or stop
         const reader = state.modules.filter((m) => m.hidden && report.modules[m.id]).map((m) => report.modules[m.id]);
         // one missed answer is not "switched off": it must stay missing for two looks in a row (a few seconds)
         scan.misses = reader.some((r) => r.up === false) ? (scan.misses || 0) + 1 : 0;
         const readerOff = scan.misses >= 2;
         const running = !readerOff && report.running;
-        const title = readerOff
-            ? 'Reading is switched off'
-            : running
-              ? Object.values(report.modules).some((m) => m.paused)
-                  ? 'Paused'
-                  : Object.values(report.modules).some((m) => m.stopping)
-                    ? 'Stopping…'
-                    : 'Reading your files, mail and photos…'
-              : 'Finished reading';
-        head.append(el('b', '', title));
-        if (running) {
-            const paused = Object.values(report.modules).some((m) => m.paused);
-            head.append(
-                controlButton(paused ? 'Resume' : 'Pause', paused ? 'resume' : 'pause'),
-                controlButton('Stop', 'stop')
-            );
-        }
-        head.append(close);
-        const rows = [];
+        const info = reader.find((r) => r.up) || reader[0] || {};
+        const paused = Object.values(report.modules).some((m) => m.paused);
+        const blocks = [
+            topRow(
+                scanTitle(report, readerOff, running),
+                readerOff ? '' : info.progress || info.summary || '',
+                running,
+                paused,
+                panel
+            ),
+        ];
         if (readerOff) {
-            rows.push(
-                partLine(
-                    {
-                        name: 'Switched off',
-                        detail: 'The part of Atlas that reads your files is not running. Double-click the Atlas app in your Applications folder to switch it back on. Nothing is lost.',
-                    },
-                    false,
+            blocks.push(
+                noteBlock(
+                    'The part of Atlas that reads your files is not running. Double-click the Atlas app in your Applications folder to switch it back on. Nothing is lost.',
                     true
                 )
             );
+        } else {
+            blocks.push(...scanBlocks(report, info));
         }
-        for (const m of state.modules) {
-            const info = report.modules[m.id];
-            if (!info) continue;
-            if (!info.parts || !info.parts.length) {
-                // an app without rows (Finance) is not listed here: if it is down, its dot at the top says so. The reader of the files (hidden from the menu) always explains itself.
-                if (m.hidden) {
-                    const detail = info.progress || info.summary || (info.up ? 'working…' : '');
-                    if (detail) rows.push(partLine({ name: m.name, detail }, info.running));
-                    rows.push(...nowRows(info));
-                    if (!readerOff) {
-                        info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
-                    }
-                }
-                continue;
-            }
-            info.parts.forEach((p) => rows.push(partLine(p, info.running)));
-            rows.push(...nowRows(info));
-            info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
-        }
-        patchChildren(panel, [head, ...rows]);
+        patchChildren(panel, blocks.filter(Boolean));
         panel.hidden = false;
         $('#update').classList.toggle('busy', running);
         $('#update span').textContent = running ? 'Reading…' : 'Read new files';

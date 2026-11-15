@@ -330,7 +330,6 @@ def test_percentages_never_round_up_to_a_finish_that_has_not_happened():
 def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate_for_a_single_call(conn):
     import time
 
-
     now = time.monotonic()
     running = {"running": True, "run": "r1", "now_since": now - 10}
     medical = web._file_now({**running, "now": ("report.pdf", "reading part", "report.pdf: reading part 3 of 9")}, conn)
@@ -341,3 +340,16 @@ def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate
     assert guess["estimated"] is True and guess["percent"] == 50.0  # 10 s of the usual 20 s
     assert web._file_now({**running, "running": False, "now": ("a.pdf", "identifying", "")}, conn) is None
     assert web._share(17, 1201) == 1.4 and web._share(1201, 1201) == 100.0 and web._share(1200, 1201) == 99.9 and web._share(0, 0) == 0.0
+
+
+def test_the_report_names_the_files_waiting_and_the_overall_share(conn):
+    for i, area in enumerate(("finance", "", "mail", "finance")):
+        conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,0)", (f"{i:064x}", f"f{i}.pdf", "pdf", "text", area))
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('z','done.pdf','pdf','text','finance',1)")
+    conn.commit()
+    assert store.waiting_files(conn, current="f0.pdf", limit=3) == [
+        "f3.pdf",
+        "f1.pdf",
+        "f2.pdf",
+    ]  # named folders first, then loose files, then mail; not the one being read
+    assert web._overall(conn) == {"percent": 20.0, "detail": "1 of 5 identified"}

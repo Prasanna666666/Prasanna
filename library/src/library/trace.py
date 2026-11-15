@@ -38,13 +38,16 @@ class Trace:
 FINISHED = ("identified", "set aside", "no usable answer", "group read", "kept as identified")
 
 
-def finished(conn, run: str, limit: int = 3) -> list[str]:
-    """The last files finished in this read, each with its result and how long it took, for the panel."""
+def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:
+    """The last files finished in this read, newest first, each with its result and how long it took, for the panel."""
     rows = conn.execute(
         f"SELECT name, step, detail, seconds FROM trace WHERE run=? AND step IN ({','.join('?' for _ in FINISHED)}) ORDER BY id DESC LIMIT ?",
         (run, *FINISHED, limit),
     )
-    return [f"{r['name']}: {r['step']}" + (f", {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else "") for r in rows]
+    return [
+        {"name": r["name"], "detail": r["step"] + (f", {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else "")}
+        for r in rows
+    ]
 
 
 def average_seconds(conn, run: str) -> float:
