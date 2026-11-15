@@ -332,8 +332,11 @@ def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate
 
     now = time.monotonic()
     running = {"running": True, "run": "r1", "now_since": now - 10}
-    medical = web._file_now({**running, "now": ("report.pdf", "reading part", "report.pdf: reading part 3 of 9")}, conn)
-    assert medical["percent"] == 22.2 and medical["estimated"] is False  # two of nine parts are done
+    medical = web._file_now({**running, "now": ("report.pdf", "reading part", "reading part 3 of 9")}, conn)
+    assert medical["step"] == "reading part 3 of 9" and medical["estimated"] is True  # not "reading part: reading part 3 of 9"
+    assert medical["percent"] == 29.6  # two parts are done, and 10 s of a first guess of 15 s into the third: (2 + 0.67) / 9
+    later = web._file_now({**running, "now_since": now - 400, "now": ("report.pdf", "reading part", "reading part 1 of 2")}, conn)
+    assert later["percent"] == 47.5  # a long wait inside part 1 of 2 never reaches the end of the part: (0 + 0.95) / 2
     first = web._file_now({**running, "now": ("a.pdf", "sorting", "31 characters")}, conn)
     assert first["estimated"] is True and first["percent"] == 66.7  # no file has finished yet: 10 s of a first guess of 15 s, marked as an estimate
     conn.execute("INSERT INTO trace (run, at, name, step, detail, seconds) VALUES ('r1','12:00:00','x.pdf','sorted','invoice',20)")
