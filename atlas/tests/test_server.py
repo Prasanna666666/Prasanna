@@ -72,7 +72,7 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     report = json.loads(body)
     assert set(report["modules"]) == {"money", "photos"} and report["running"] is True
     assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
-    assert report["modules"]["money"]["now"] == "bill.pdf: identifying (31 characters)"  # the file being worked on reaches the panel
+    assert report["modules"]["money"]["file"] == {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
     assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it
     running.apps["money"].scanning = running.apps["photos"].scanning = False
     done = running.json("/_atlas/api/scan")
@@ -116,7 +116,10 @@ def test_the_rows_an_app_wants_the_update_to_show_come_through_checked(running):
     start_update(running)
     running.apps["money"].scanning = running.apps["photos"].scanning = False
     done = running.json("/_atlas/api/scan")
-    assert done["modules"]["photos"]["parts"] == [{"name": "Documents", "detail": "5 of 9 files"}]  # the malformed ones are dropped
+    assert done["modules"]["photos"]["parts"] == [
+        {"name": "Documents", "detail": "5 of 9 files", "percent": 55.5},
+        {"name": "Photos", "detail": "x", "percent": None},  # 400% is not a percentage: dropped
+    ]  # the malformed ones are dropped
 
 
 def test_pause_resume_and_stop_reach_the_apps_and_need_the_pages_own_origin(running):

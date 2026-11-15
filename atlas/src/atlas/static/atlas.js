@@ -548,7 +548,7 @@
                 run(items[active]);
             }
         };
-        const bar = el('div', 'pbar');
+        const bar = el('div', 'readbar');
         bar.append(icon(ICON.search), box, el('kbd', '', 'esc'));
         const overlay = el('div', 'overlay');
         const card = el('div', 'palette');
@@ -568,17 +568,44 @@
 
     // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
     const scan = { timer: null, hide: null };
+    // a bar with its percentage: exact where the app knows it, marked "~" where it is an estimate, a faint full bar where there is no number
+    const bar = (percent, estimated) => {
+        const track = el('div', 'readbar' + (percent == null ? ' unknown' : ''));
+        const fill = el('div', 'fill');
+        if (percent != null) fill.style.width = percent + '%';
+        track.append(fill);
+        const label =
+            percent == null
+                ? ''
+                : (estimated ? '~' : '') + (percent < 10 ? percent.toFixed(1) : Math.round(percent)) + '%';
+        const line = el('div', 'readline');
+        line.append(track, el('span', 'scan-pct', label));
+        return [line];
+    };
     const partLine = (part, busy, warn = false) => {
         const row = el('div', 'scan-row' + (warn ? ' warn' : busy ? ' busy' : ''));
         const text = el('div', 'scan-text');
         text.append(el('b', '', part.name), el('span', '', part.detail));
+        if (part.percent !== undefined) text.append(...bar(part.percent, part.estimated));
         row.append(el('i'), text);
         return row;
     };
     // the file being worked on right now, and the step (from the trace of the read)
     const nowRows = (info) => [
-        ...(info.now ? [partLine({ name: 'Reading now', detail: info.now }, info.running)] : []),
-        ...(info.recent || []).map((line) => partLine({ name: 'Done', detail: line }, false)),
+        ...(info.file
+            ? [
+                  partLine(
+                      {
+                          name: info.file.name,
+                          detail: `${info.file.step} · ${info.file.seconds} s`,
+                          percent: info.file.percent,
+                          estimated: info.file.estimated,
+                      },
+                      info.running
+                  ),
+              ]
+            : []),
+        ...(info.recent || []).map((line) => partLine({ name: 'Done', detail: line, percent: 100 }, false)),
     ];
     const controlButton = (label, action) => {
         const b = el('button', 'scan-control', label);
@@ -607,6 +634,11 @@
             old.className === node.className &&
             old.children.length === node.children.length;
         if (!same) return old.replaceWith(node);
+        if (old.getAttribute('style') !== node.getAttribute('style')) {
+            // the bar's width: changed in place, so it slides instead of jumping
+            if (node.hasAttribute('style')) old.setAttribute('style', node.getAttribute('style'));
+            else old.removeAttribute('style');
+        }
         if (!node.children.length) {
             if (old.textContent !== node.textContent) old.textContent = node.textContent;
             return undefined;

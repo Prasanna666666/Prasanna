@@ -91,10 +91,10 @@ def test_a_read_leaves_a_trace_of_every_step_on_every_file(conn):
         def chat(self, model, messages, **kw):
             return {"content": json.dumps({"kind": "invoice", "title": "t", "what": "w", "party": "Ziggo", "total": "60,50", "currency": "EUR"})}
 
-    followed = trace.Trace(conn, now.append)
+    followed = trace.Trace(conn, lambda name, step, detail: now.append((name, step, detail)))
     store.judge_pending(conn, Model(), "fake", trace=followed)
     steps = [(s["name"], s["step"], s["detail"]) for s in reversed(trace.recent(conn))]
     assert ("bill.pdf", "identifying", "31 characters") in steps and ("bill.pdf", "identified", "invoice") in steps
     assert ("empty.pdf", "set aside", "no readable text") in steps
-    assert now[0] == "bill.pdf: identifying (31 characters)"  # the panel is told which file is being worked on
+    assert now[0] == ("bill.pdf", "identifying", "31 characters")  # the panel is told which file is being worked on
     assert [s["step"] for s in trace.recent(conn, name="empty")] == ["set aside"]

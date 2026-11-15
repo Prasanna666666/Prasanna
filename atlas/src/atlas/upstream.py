@@ -58,6 +58,11 @@ def _build_of(body: bytes) -> str:
     return str(raw)[:12] if isinstance(raw, str) else ""
 
 
+def _percent(value: Any) -> float | None:
+    """A percentage from an app, kept only if it is a number from 0 to 100."""
+    return round(float(value), 1) if isinstance(value, int | float) and not isinstance(value, bool) and 0 <= value <= 100 else None
+
+
 class Upstreams:
     def __init__(self, modules: dict[str, Module]) -> None:
         self.modules = modules
@@ -155,7 +160,7 @@ class Upstreams:
             "summary": "",
             "problems": [f"{module.name} is not running"],
             "needs_check": 0,
-            "now": "",
+            "file": None,
             "recent": [],
             "parts": [],
             "paused": False,
@@ -178,7 +183,7 @@ class Upstreams:
             "up": True,
             "running": bool(raw.get("running")),
             "progress": str(raw.get("progress", ""))[:200],
-            "now": str(raw.get("now", ""))[:240],  # the file being worked on right now, and the step
+            "file": self._file(raw.get("file")),  # the file being worked on right now
             "recent": [str(x)[:240] for x in (raw.get("recent") or [])][:3],  # the last files finished, with their result
             "summary": str(raw.get("summary", ""))[:200],
             "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
@@ -191,11 +196,29 @@ class Upstreams:
         return report
 
     @staticmethod
-    def _parts(raw: Any) -> list[dict[str, str]]:
-        """The rows an app wants the Update to show (Documents, Pictures, Mails), checked: a name and a short line each."""
+    def _parts(raw: Any) -> list[dict[str, Any]]:
+        """The rows an app wants the Update to show (Documents, Pictures, Mails), checked: a name, a short line and how far along it is (0 to 100, or none) each."""
         if not isinstance(raw, list):
             return []
-        return [{"name": str(p["name"])[:30], "detail": str(p.get("detail", ""))[:200]} for p in raw[:6] if isinstance(p, dict) and p.get("name")]
+        return [
+            {"name": str(p["name"])[:30], "detail": str(p.get("detail", ""))[:300], "percent": _percent(p.get("percent"))}
+            for p in raw[:6]
+            if isinstance(p, dict) and p.get("name")
+        ]
+
+    @staticmethod
+    def _file(raw: Any) -> dict[str, Any] | None:
+        """The file being worked on right now, checked: its name, the step, how far along it is, whether that is only an estimate, and the seconds so far."""
+        if not isinstance(raw, dict) or not raw.get("name"):
+            return None
+        seconds = raw.get("seconds")
+        return {
+            "name": str(raw["name"])[:200],
+            "step": str(raw.get("step", ""))[:120],
+            "percent": _percent(raw.get("percent")),
+            "estimated": raw.get("estimated") is True,
+            "seconds": seconds if isinstance(seconds, int) and 0 <= seconds < 10**6 else 0,
+        }
 
     def control(self, action: str) -> dict[str, Any]:
         """Pause, resume or stop the reading that is running, in every app that supports it (an app that does not simply ignores it)."""

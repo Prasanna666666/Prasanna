@@ -67,11 +67,18 @@ class _Handler(BaseHTTPRequestHandler):
                 done = {
                     "running": self.app.scanning,
                     "progress": "reading" if self.app.scanning else "",
-                    "now": "bill.pdf: identifying (31 characters)" if self.app.scanning else "",
+                    "file": {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
+                    if self.app.scanning
+                    else None,
                     "summary": "" if self.app.scanning else "3 files read",
                     "problems": ["one needs a look"] if not self.app.scanning else [],
                     "needs_check": 1,
-                    "parts": [{"name": "Documents", "detail": "5 of 9 files"}, {"nope": 1}, "bad"],
+                    "parts": [
+                        {"name": "Documents", "detail": "5 of 9 files", "percent": 55.5},
+                        {"name": "Photos", "detail": "x", "percent": 400},
+                        {"nope": 1},
+                        "bad",
+                    ],
                 }
                 self._reply(200, json.dumps(done).encode())
         elif path == "/api/stream":

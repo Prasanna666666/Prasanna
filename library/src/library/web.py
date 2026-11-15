@@ -9,6 +9,7 @@ import contextlib
 import faulthandler
 import json
 import os
+import re
 import signal
 import threading
 import time
@@ -42,7 +43,7 @@ class State:
     """What the server remembers between requests: the Update that is running, if any."""
 
     def __init__(self) -> None:
-        self.scan: dict[str, Any] = {"running": False, "progress": "", "summary": "", "problems": [], "now": ""}
+        self.scan: dict[str, Any] = {"running": False, "progress": "", "summary": "", "problems": [], "now": None}
         self.control = "run"  # run | pause | stop: what the person asked of the Update that is running
         self.lock = threading.Lock()
         self._engine: Any = None
@@ -129,7 +130,7 @@ def _read_all(state: State) -> None:
             client, model = model_client()
         except RuntimeError:
             client, model = None, ""
-        followed = trace.Trace(conn, lambda m: state.scan.update(now=m, now_since=time.monotonic()))
+        followed = trace.Trace(conn, lambda name, step, detail: state.scan.update(now=(name, step, detail), now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
@@ -166,7 +167,7 @@ def _read_all(state: State) -> None:
         log.failed("update failed", exc)
         state.scan["problems"] = [f"{type(exc).__name__}: {exc}"]
     finally:
-        state.scan.update(running=False, now="")
+        state.scan.update(running=False, now=None)
         _CACHE.clear()
         conn.close()
 
@@ -368,7 +369,7 @@ def _found() -> dict[str, Any]:
         return {}
 
 
-def _row(name: str, read: int, total: int | None, noun: str) -> dict[str, str]:
+def _row(name: str, read: int, total: int | None, noun: str) -> dict[str, Any]:
     """One line of the Update, in files (or mails), the way the person counts them: "12 of 36 files" while reading, "36 files" when done."""
     if total is not None and read < total:
         return {"name": name, "detail": f"{read:,} of {total:,} {noun}"}
@@ -417,7 +418,7 @@ def _refresh(key: str, make, state: State) -> None:
             _REFRESHING.discard(key)
 
 
-def _parts(state: State, conn) -> list[dict[str, str]]:
+def _parts(state: State, conn) -> list[dict[str, Any]]:
     """What the Update shows: Documents, Photos and Mails, each as a number of files the person can check."""
     return _cached("parts", lambda c: _parts_now(state, c), state, conn)
 
@@ -430,6 +431,15 @@ def _percent(part: int, whole: int) -> str:
     return "100%" if part == whole else f"{value:.1f}%" if value < 10 else f"{min(value, 99):.0f}%"
 
 
+def _identified(conn, where: str) -> int:
+    return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
+
+
+def _share(part: int, whole: int) -> float:
+    """How much of the whole is done, 0 to 100; 100 only when it really is all of it."""
+    return 0.0 if not whole else 100.0 if part >= whole else round(min(part * 100 / whole, 99.9), 1)
+
+
 def _understood(conn, where: str) -> str:
     """How far each step has got after reading (identified, not identified), so 80% read is never mistaken for 80% done."""
     done = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
@@ -439,7 +449,7 @@ def _understood(conn, where: str) -> str:
     return f" · {done:,} identified ({_percent(done, done + waiting)})" + (f" · {waiting:,} not identified" if waiting else "")
 
 
-def _parts_now(state: State, conn) -> list[dict[str, str]]:
+def _parts_now(state: State, conn) -> list[dict[str, Any]]:
     found = _found()
     files = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
     mails = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area='mail'").fetchone()[0]
@@ -448,7 +458,10 @@ def _parts_now(state: State, conn) -> list[dict[str, str]]:
         mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
     docs_row = _row("Documents", files, found.get("documents"), "files")
     docs_row["detail"] += _understood(conn, "area NOT IN ('mail','pictures')")
-    mail_row["detail"] += _understood(conn, "area='mail'") if mail_row.get("detail", "").find("not connected") < 0 else ""
+    docs_row["percent"] = _share(_identified(conn, "area NOT IN ('mail','pictures')"), max(files, found.get("documents") or 0))
+    if mail_row.get("detail", "").find("not connected") < 0:
+        mail_row["detail"] += _understood(conn, "area='mail'")
+        mail_row["percent"] = _share(_identified(conn, "area='mail'"), max(mails, found.get("mails") or 0))
     shares = [
         f"{'Other' if k == 'inbox' else k.capitalize()} {v:,}" for k, v in found.get("by_folder", {}).items() if v
     ]  # where the number comes from; empty folders are left out
@@ -463,7 +476,7 @@ def _parts_now(state: State, conn) -> list[dict[str, str]]:
         rows.insert(1, {"name": "Photos", "detail": "not connected: the photo drive was not found when Documents started"})
     else:
         c = pictures.counts(engine)
-        rows.insert(1, _row("Photos", c["indexed"], c["pictures"], "photos"))
+        rows.insert(1, {**_row("Photos", c["indexed"], c["pictures"], "photos"), "percent": _share(c["indexed"], c["pictures"])})
     return rows
 
 
@@ -510,11 +523,22 @@ def _post_auto(state: State, conn, body: dict) -> dict:
     return {"started": start_scan(state, auto=True), "reason": "small", "waiting": waiting, "limit": AUTO_LIMIT}  # the round also stops at the limit
 
 
-def _now_line(s: dict[str, Any]) -> str:
-    """The file being worked on and how long this step has taken so far."""
+def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
+    """The file being worked on: its step, the seconds so far and how far along it is. A medical document read in parts is exact (part 3 of 9 is 33%); a file that takes
+    one model call has no exact progress, so its bar is an estimate from how long files have taken in this read (`estimated`), and none at all before there is one to go by."""
     if not (s["running"] and s.get("now")):
-        return ""
-    return f"{s['now']} · {int(time.monotonic() - s.get('now_since', time.monotonic()))} s so far"
+        return None
+    name, step, detail = s["now"]
+    seconds = int(time.monotonic() - s.get("now_since", time.monotonic()))
+    percent, estimated = None, False
+    part = re.search(r"part (\d+) of (\d+)", detail)
+    if step == "reading part" and part:
+        percent = round((int(part[1]) - 1) * 100 / int(part[2]), 1)
+    elif step == "identifying":
+        average = trace.average_seconds(conn, s.get("run", ""))
+        if average:
+            percent, estimated = round(min(95.0, seconds * 100 / average), 1), True
+    return {"name": name, "step": f"{step}: {detail}" if detail else step, "percent": percent, "estimated": estimated, "seconds": seconds}
 
 
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
@@ -522,7 +546,7 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     return {
         "running": s["running"],
         "progress": s["progress"],
-        "now": _now_line(s),
+        "file": _file_now(s, conn),
         "recent": trace.finished(conn, s.get("run", "")) if s["running"] else [],
         "summary": s["summary"],
         "problems": s["problems"],

@@ -325,3 +325,19 @@ def test_automatic_reading_only_starts_for_a_small_backlog_and_never_before_a_fi
 def test_percentages_never_round_up_to_a_finish_that_has_not_happened():
     assert web._percent(17, 1201) == "1.4%" and web._percent(600, 1201) == "50%" and web._percent(1200, 1201) == "99%" and web._percent(1201, 1201) == "100%"
     assert web._percent(0, 0) == "0%"
+
+
+def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate_for_a_single_call(conn):
+    import time
+
+
+    now = time.monotonic()
+    running = {"running": True, "run": "r1", "now_since": now - 10}
+    medical = web._file_now({**running, "now": ("report.pdf", "reading part", "report.pdf: reading part 3 of 9")}, conn)
+    assert medical["percent"] == 22.2 and medical["estimated"] is False  # two of nine parts are done
+    assert web._file_now({**running, "now": ("a.pdf", "identifying", "31 characters")}, conn)["percent"] is None  # nothing to go by yet: no number
+    conn.execute("INSERT INTO trace (run, at, name, step, detail, seconds) VALUES ('r1','12:00:00','x.pdf','identified','invoice',20)")
+    guess = web._file_now({**running, "now": ("a.pdf", "identifying", "31 characters")}, conn)
+    assert guess["estimated"] is True and guess["percent"] == 50.0  # 10 s of the usual 20 s
+    assert web._file_now({**running, "running": False, "now": ("a.pdf", "identifying", "")}, conn) is None
+    assert web._share(17, 1201) == 1.4 and web._share(1201, 1201) == 100.0 and web._share(1200, 1201) == 99.9 and web._share(0, 0) == 0.0

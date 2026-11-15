@@ -12,9 +12,9 @@ KEEP = 30_000  # steps kept: the last few reads in full
 
 
 class Trace:
-    """One read's trace. `now` is told which file is being worked on and how, for the panel."""
+    """One read's trace. `now` is told which file is being worked on, the step and its detail, for the panel."""
 
-    def __init__(self, conn, now: Callable[[str], None] | None = None) -> None:
+    def __init__(self, conn, now: Callable[[str, str, str], None] | None = None) -> None:
         self.conn = conn
         self.run = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
         self._now = now
@@ -32,7 +32,7 @@ class Trace:
         self.conn.commit()
         print(f"trace {self.run} | {name} | {step} | {detail} | {seconds:.1f}s", flush=True)
         if self._now is not None:
-            self._now(f"{name}: {step}" + (f" ({detail})" if detail and step in ("identifying", "reading part") else ""))
+            self._now(name, step, detail)
 
 
 FINISHED = ("identified", "set aside", "no usable answer", "group read", "kept as identified")
@@ -45,6 +45,12 @@ def finished(conn, run: str, limit: int = 3) -> list[str]:
         (run, *FINISHED, limit),
     )
     return [f"{r['name']}: {r['step']}" + (f", {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else "") for r in rows]
+
+
+def average_seconds(conn, run: str) -> float:
+    """How long identifying one file has taken in this read so far (0 until there is one to go by)."""
+    row = conn.execute("SELECT AVG(seconds) FROM trace WHERE run=? AND step='identified' AND seconds>=1", (run,)).fetchone()
+    return float(row[0] or 0)
 
 
 def recent(conn, run: str = "", name: str = "", limit: int = 100) -> list[dict[str, Any]]:
