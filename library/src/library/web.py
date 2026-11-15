@@ -476,17 +476,6 @@ def _states(conn, where: str) -> dict[str, int]:
     return {"identified": count("=1"), "aside": count("=2"), "waiting": count("=0"), "unclear": count("=3")}
 
 
-def _skipped_reasons(conn, where: str = "1=1") -> dict[str, int]:
-    """Why files were skipped: no readable text, the keyword rule (not shown to the model), or skipped before the reason was kept."""
-
-    def count(extra: str) -> int:
-        return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=2 {extra}").fetchone()[0]
-
-    no_text = count(f"AND facts LIKE '%{store.SKIPPED_NO_TEXT}%'")
-    rule = count(f"AND facts LIKE '%{store.SKIPPED_BY_RULE}%'")
-    return {"no_text": no_text, "rule": rule, "unknown": count("") - no_text - rule}
-
-
 def _need_share(states: dict[str, int]) -> float:
     """How far the files that need the model have got (sorted of sorted, to do and could not be sorted); skipped files are not part of it."""
     return _share(states["identified"], states["identified"] + states["waiting"] + states["unclear"])
@@ -605,20 +594,6 @@ def _identify_detail(conn, states: dict[str, int]) -> str:
     return line + (f" · {states['unclear']:,} could not be sorted" if states["unclear"] else "")
 
 
-def _skipped_line(conn) -> str:
-    """The files not shown to the model, counted by what they are (mails, files) with the one rule that explains it. The reason of each older one was not kept, so the sentence
-    states the rule, not a count of reasons."""
-
-    def count(where: str) -> int:
-        return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE judged=2 AND {where}").fetchone()[0]
-
-    mails, files = count("area='mail'"), count("area NOT IN ('mail','pictures')")
-    if not mails and not files:
-        return ""
-    parts = [f"{mails:,} mail{'s' if mails != 1 else ''}"] * bool(mails) + [f"{files:,} file{'s' if files != 1 else ''}"] * bool(files)
-    return f"Not shown to the model: {' and '.join(parts)}. A mail is skipped when it has no amount of money together with an invoice-like word; a file when it has no readable text."
-
-
 def _identify_note(conn, states: dict[str, int]) -> str:
     """One plain sentence for step 2: which app the model is on and how much is left of it."""
     if not states["waiting"]:
@@ -674,6 +649,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "n": 1,
             "name": "Read",
+            "doing": "Reading files",
             "about": "Get the text out of every file",
             "state": _step_state((parsed_dir() / ".busy").exists(), True),
             "detail": f"{read:,} of {total:,} files and mails read",
@@ -683,16 +659,17 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         {
             "n": 2,
             "name": "Sort",
+            "doing": "Sorting files",
             "about": "Find out what each file is",
             "state": _step_state(phase == 2, not states["waiting"]),
             "detail": _identify_detail(conn, states),
             "note": _identify_note(conn, states),
             "percent": _need_share(states),
-            "also": _skipped_line(conn),
         },
         {
             "n": 3,
             "name": "Understand",
+            "doing": "Understanding your files",
             "about": "Group related files, read each group, check the other apps",
             "state": _step_state(phase in (3, 4), all_in),
             "app": s.get("app") or "",

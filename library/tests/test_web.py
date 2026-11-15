@@ -357,7 +357,6 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     steps = web._steps(conn, {"phase": 2})
     assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Sort", "running")
     assert steps[1]["detail"] == "1 sorted · 4 to do" and steps[1]["percent"] == 20.0  # 1 of the 5 files that need the model; the skipped one is not part of it
-    assert steps[1]["also"].startswith("Not shown to the model: 1 mail.")
     assert len(steps) == 3 and steps[2]["state"] == "waiting" and [p["name"] for p in steps[2]["parts"]] == ["Group related files", "Read each group"]
     assert web._steps(conn, {"phase": 4, "app": "Finance"})[2]["state"] == "running"
 
@@ -370,21 +369,6 @@ def test_each_step_says_in_one_sentence_what_it_is_on_or_waiting_for(conn):
     assert steps[1]["note"] == "Now on Finance: 2 files left"  # Finance is served first
     assert steps[2]["note"] == "Starts for Finance when its last 2 files are sorted"  # why step 3 has not started
     assert web._steps(conn, {"phase": 3, "app": "Finance"})[2]["note"] == "Working on Finance"
-
-
-def test_skipped_files_are_counted_by_the_real_reason(conn):
-    from library import store
-
-    rows = (("a", store.SKIPPED_BY_RULE), ("b", store.SKIPPED_BY_RULE), ("c", store.SKIPPED_NO_TEXT), ("d", None))
-    for sha, why in rows:
-        conn.execute(
-            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts) VALUES (?,?,?,?,?,2,?)",
-            (sha, sha, "email", "", "mail", f'{{"skipped": "{why}"}}' if why else ""),
-        )
-    conn.commit()
-    assert web._skipped_reasons(conn) == {"no_text": 1, "rule": 2, "unknown": 1}
-    line = web._skipped_line(conn)
-    assert line.startswith("Not shown to the model: 4 mails.") and "no amount of money together with an invoice-like word" in line
 
 
 def test_the_status_counts_through_the_database_once_not_at_every_question(conn, monkeypatch):

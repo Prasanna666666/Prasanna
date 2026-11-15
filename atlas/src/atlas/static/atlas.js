@@ -567,10 +567,15 @@
     }
 
     // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
-    const scan = { timer: null, hide: null };
+    const scan = { timer: null, hide: null, open: false };
     // ---- the reading card: one overall bar, one row per file (done, being read, waiting), and the totals; part of the page, redrawn only where something changed
-    const pctText = (p, estimated) =>
-        p == null ? '' : p === 0 ? '0%' : (estimated ? '~' : '') + (p < 10 ? p.toFixed(1) : Math.round(p)) + '%';
+    // never "100%" before it is all done (99.8 reads 99%), and never "0%" shown as a guess
+    const pctText = (p, estimated) => {
+        if (p == null) return '';
+        if (p === 0) return '0%';
+        const shown = p >= 100 ? '100' : p < 10 ? p.toFixed(1) : String(Math.min(99, Math.floor(p)));
+        return (estimated ? '~' : '') + shown + '%';
+    };
     const meter = (percent) => {
         const track = el('div', 'rd-meter' + (percent == null ? ' unknown' : ''));
         const fill = el('div', 'rd-fill');
@@ -635,19 +640,14 @@
         if (s.detail) card.append(el('span', 'rd-detail', s.detail));
         const parts = (s.parts || []).filter((p) => p.percent != null);
         if (parts.length) card.append(stepParts(parts));
-        if (s.also) card.append(el('span', 'rd-also', s.also));
         return card;
     };
     const stepsBlock = (steps) => {
         if (!steps || !steps.length) return null;
-        const box = el('div', 'rd-steps');
         const now = currentStep(steps);
-        const where = now
-            ? `Step ${now.n} of ${steps.length} · ${now.name}${now.app ? ' · ' + now.app : ''}`
-            : `All ${steps.length} steps done`;
-        box.append(el('div', 'rd-stephead', where));
         const row = el('div', 'rd-stepgrid');
         row.append(...steps.map((s) => stepCard(s, now)));
+        const box = el('div', 'rd-steps');
         box.append(row);
         return box;
     };
@@ -675,6 +675,12 @@
         return b;
     };
     const pressControl = async (e) => {
+        if (e.target.closest('.rd-more')) {
+            scan.open = !scan.open;
+            scan.sig = ''; // draw again even though the report has not changed
+            if (scan.last) showScan(scan.last);
+            return;
+        }
         const b = e.target.closest('.rd-btn');
         if (!b || b.disabled) return;
         b.disabled = true;
@@ -693,11 +699,10 @@
             b.disabled = false; // pressable again: the same button is now Resume, or still Pause if nothing changed
         }
     };
-    const topRow = (title, sub, running, paused, panel) => {
+    const topRow = (title, running, paused, panel) => {
         const top = el('div', 'rd-top');
         const words = el('div', 'rd-words');
         words.append(el('b', 'rd-title', title));
-        if (sub) words.append(el('span', 'rd-sub', sub));
         const buttons = el('div', 'rd-actions');
         if (running) {
             buttons.append(
@@ -760,14 +765,40 @@
         scan.sig = sig;
         return same;
     };
-    const scanBlocks = (report, info) => {
-        const infos = state.modules.map((m) => report.modules[m.id]).filter(Boolean);
-        const parts = infos.flatMap((i) => i.parts || []);
-        const problems = infos.flatMap((i) => i.problems || []).map((p) => noteBlock(p, true));
-        return [stepsBlock(info.steps), filesBlock(info), totalsBlock(parts), ...problems];
+    // what the person wants to know while it reads: which step, how far, how long, and what is being worked on right now
+    const headlineBlock = (info, running) => {
+        const box = el('div', 'rd-headline');
+        if (!running) {
+            if (info.summary) box.append(el('span', 'rd-summary', info.summary));
+            return box.children.length ? box : null;
+        }
+        const steps = info.steps || [];
+        const now = currentStep(steps);
+        if (!now) return null;
+        box.append(el('b', 'rd-doing', `Step ${now.n} of ${steps.length} · ${now.doing || now.name}`));
+        const bar = el('div', 'rd-big');
+        bar.append(meter(now.percent), el('span', 'rd-bigpct', pctText(now.percent)));
+        box.append(bar);
+        const line = info.file ? `${info.file.name} · ${info.file.step}` : now.note || '';
+        if (line) box.append(el('span', 'rd-nowline', line));
+        if (info.progress) box.append(el('span', 'rd-sub', info.progress));
+        return box;
     };
+    const moreButton = () => {
+        const b = el('button', 'rd-more', scan.open ? 'Hide details' : 'Show details');
+        b.type = 'button';
+        b.dataset.toggle = 'details';
+        return b;
+    };
+    const detailBlocks = (report, info) => {
+        const parts = state.modules.flatMap((m) => (report.modules[m.id] || {}).parts || []);
+        return [stepsBlock(info.steps), filesBlock(info), totalsBlock(parts)];
+    };
+    const problemBlocks = (report) =>
+        state.modules.flatMap((m) => (report.modules[m.id] || {}).problems || []).map((p) => noteBlock(p, true));
     const showScan = (report) => {
         const panel = $('#scan');
+        scan.last = report;
         if (scanUnchanged(report, panel)) return;
         // the part of Atlas that reads the files (hidden from the menu) decides what the card says: when it is switched off there is nothing to pause or stop
         const reader = state.modules.filter((m) => m.hidden && report.modules[m.id]).map((m) => report.modules[m.id]);
@@ -777,15 +808,7 @@
         const running = !readerOff && report.running;
         const info = reader.find((r) => r.up) || reader[0] || {};
         const paused = Object.values(report.modules).some((m) => m.paused);
-        const blocks = [
-            topRow(
-                scanTitle(report, readerOff, running),
-                readerOff ? '' : info.progress || info.summary || '',
-                running,
-                paused,
-                panel
-            ),
-        ];
+        const blocks = [topRow(scanTitle(report, readerOff, running), running, paused, panel)];
         if (readerOff) {
             blocks.push(
                 noteBlock(
@@ -794,7 +817,12 @@
                 )
             );
         } else {
-            blocks.push(...scanBlocks(report, info));
+            blocks.push(headlineBlock(info, running));
+            if (running) {
+                blocks.push(moreButton());
+                if (scan.open) blocks.push(...detailBlocks(report, info));
+            }
+            blocks.push(...problemBlocks(report));
         }
         patchChildren(panel, blocks.filter(Boolean));
         panel.hidden = false;

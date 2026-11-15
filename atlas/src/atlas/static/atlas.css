@@ -1115,11 +1115,7 @@ body.chatting .fab {
     display: grid;
     gap: 12px;
 }
-.rd-stephead {
-    font-size: 15px;
-    font-weight: 650;
-    color: var(--a1);
-}
+
 .rd-stepgrid {
     display: grid;
     align-items: start;
@@ -1233,9 +1229,51 @@ body.chatting .fab {
     display: none;
 }
 
-.rd-also {
-    padding-top: 6px;
-    border-top: 1px solid var(--line);
-    color: var(--faint);
-    font-size: 12.5px;
+.rd-headline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.rd-doing {
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--a1);
+}
+.rd-big {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.rd-big .rd-meter {
+    height: 14px;
+}
+.rd-bigpct {
+    min-width: 72px;
+    text-align: right;
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+.rd-nowline {
+    font-size: 14px;
+    color: var(--ink);
+}
+.rd-summary {
+    color: var(--muted);
+    font-size: 14px;
+}
+.rd-more {
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--a1);
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.rd-more:hover {
+    text-decoration: underline;
 }
