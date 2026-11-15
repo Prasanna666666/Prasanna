@@ -620,23 +620,26 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     )
     steps = []
     for n, ((name, doing, text), (where, running)) in enumerate(zip(about, stages, strict=True), 1):
-        counts = []
-        mails_in = count(groups[1][2], groups[1][3], "1=1") >= (found.get("mails") or 0)
+        mails_in = bool(found) and count(groups[1][2], groups[1][3], "1=1") >= (found.get("mails") or 0)
+        attached_in = mails_in and count(groups[2][2], groups[2][3], "1=1") >= int(promised)
+        counts, every = [], []
         for key, label, base, how, known in groups:
-            if key == "attachments" and not mails_in:
-                continue  # its total is known only when every mail has been opened: it starts then
-            present = count(base, how, "1=1")
-            total = max(present, known or 0, int(promised) if key == "attachments" and n == 1 else 0)
-            if total:
-                counts.append({"key": key, "label": label, "done": count(base, how, where), "total": total})
+            total = max(count(base, how, "1=1"), known or 0, int(promised) if key == "attachments" and n == 1 else 0)
+            line = {"key": key, "label": label, "done": count(base, how, where), "total": total}
+            every.append(line)
+            # Reading takes the mails first, with all they carry, and then the documents. A number is shown only when its total is fully known and its turn has come.
+            visible = (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
+            if total and (n > 1 or visible):
+                counts.append(line)
         done, total = sum(int(c["done"]) for c in counts), sum(int(c["total"]) for c in counts)
+        everything = bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
         steps.append(
             {
                 "n": n,
                 "name": name,
                 "doing": doing,
                 "about": text,
-                "state": _step_state(running, bool(total) and done >= total),
+                "state": _step_state(running, everything),
                 "counts": counts,
                 "detail": "",
                 "percent": _share(done, total),

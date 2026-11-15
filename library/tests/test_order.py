@@ -29,8 +29,10 @@ def test_finance_files_are_taken_before_health_files_and_before_loose_files_and_
     assert store.waiting_files(conn, limit=5) == ["finance.pdf", "health.pdf", "other.pdf", "loose.pdf", "mail.eml"]
 
 
-def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn):
+def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, monkeypatch):
     from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 1})
 
     _add(conn, "a.pdf", "finance", judged=1)
     _add(conn, "b.pdf", "finance", judged=0)
@@ -43,7 +45,11 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn):
     conn.execute("UPDATE documents SET data=? WHERE name='m1.eml'", ('{"meta": {"attachments": 7}}',))
     conn.commit()
     read = web._steps(conn, {"phase": 1})[0]
-    assert {c["key"]: c["total"] for c in read["counts"]}["attachments"] == 7  # the mail says how many it carried, even before they are all taken out
+    assert {c["key"]: c["total"] for c in read["counts"]} == {
+        "mails": 1,
+        "attachments": 7,
+    }  # the documents are not mentioned until the mails and all they carry are in
+    assert web._steps(conn, {"phase": 2})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
     assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
 
 
