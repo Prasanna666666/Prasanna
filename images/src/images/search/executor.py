@@ -200,20 +200,6 @@ class Executor:
             result.notes.append(f"{len(ids):,} taken within 25 km of {query} (GPS).")
         return ids
 
-    def _closest_in_look(self, ids: np.ndarray, queries: list[str], keep: int) -> np.ndarray:
-        index, embedder = self._index_provider(), self._embedder_provider()
-        if embedder is None or len(index) == 0:
-            return ids[:keep]
-        search = VisualSearch(index, embedder, self._strictness)
-        rows = np.searchsorted(index.ids, ids)
-        rows = np.clip(rows, 0, len(index) - 1)
-        known = index.ids[rows] == ids  # photos without an embedding cannot be ranked
-        if not known.any():
-            return ids[:keep]
-        vectors = index.vectors[rows[known]].astype(np.float32)
-        score = sum(vectors @ search.query_vector(q) for q in queries)
-        return ids[known][np.argsort(-score)][:keep]
-
     HARD = (
         "place",
         "near",

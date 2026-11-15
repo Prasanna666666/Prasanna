@@ -52,9 +52,3 @@ class EmbeddingIndex:
         for start, block in self.chunks():
             out[start : start + len(block)] = block @ q
         return out
-
-    def vector_of(self, item_id: int) -> np.ndarray | None:
-        pos = int(np.searchsorted(self.ids, item_id))
-        if pos < len(self) and self.ids[pos] == item_id:
-            return self.vectors[pos].astype(np.float32)
-        return None

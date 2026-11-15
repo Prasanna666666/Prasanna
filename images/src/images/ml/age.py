@@ -6,9 +6,6 @@ few years); the app only uses it for broad groups (baby, child, teenager ...), a
 
 from __future__ import annotations
 
-CROP_FRACTION = 0.88  # our saved crops have the face at 59% of their width; the model expects 67%: keep the middle 88%
-
-
 # Groups, and the part of each that counts as clearly inside it: an estimate near a boundary gets no label (wrong answers are worse than none).
 GROUPS = (
     ("baby", 0, 2),

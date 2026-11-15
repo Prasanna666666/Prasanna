@@ -17,7 +17,6 @@ from pathlib import Path
 log = logging.getLogger("aperture.replica")
 
 TABLES = ("items", "faces", "people", "flags", "photo_labels", "photo_events", "captions")
-REFRESH_SECONDS = 600.0
 
 
 class Replica:
@@ -83,17 +82,6 @@ class Replica:
 
     def stale(self) -> bool:
         return self._current is None or self._signature() != self._built_for
-
-    def keep_fresh(self) -> None:
-        """Rebuild in the background when the library file has changed (checked every few minutes)."""
-
-        def loop() -> None:
-            while True:
-                time.sleep(REFRESH_SECONDS)
-                if self.stale():
-                    self.build()
-
-        threading.Thread(target=loop, name="replica-refresh", daemon=True).start()
 
     # ------------------------------------------------------------------
     def connect(self) -> sqlite3.Connection | None:

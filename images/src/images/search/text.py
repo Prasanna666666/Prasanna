@@ -16,7 +16,6 @@ from ..db import meta_get
 from .textnorm import like_escape
 
 _TERM = re.compile(r'"([^"]+)"|(\S+)')
-SNIPPET_WIDTH = 90
 
 
 def parse_terms(query: str) -> list[str]:

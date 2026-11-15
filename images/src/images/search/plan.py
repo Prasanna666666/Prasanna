@@ -15,11 +15,8 @@ from images.colors import COLORS
 from images.search.dates import RELATIVE, DateSpec
 from images.search.filters import DAY_TYPES, KINDS, ORIENTATIONS, QUALITIES, TIMES_OF_DAY, TRISTATE, Filters
 
-ENGINES = ("visual", "text", "path", "person", "place")
-INTENTS = ("find", "count", "export", "chat", "clarify", "question")
 SEASONS = ("none", "spring", "summer", "autumn", "winter")
 RELATIVES = ("none", *RELATIVE)
-MAX_CLAUSES = 8
 
 
 @dataclass(frozen=True)
@@ -77,33 +74,6 @@ _FILTER_PROPS: dict[str, Any] = {
     "color": {"type": "string", "enum": list(COLORS)},
 }
 
-PLAN_JSON_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "intent": {"type": "string", "enum": list(INTENTS)},
-        "message": {"type": "string"},
-        "scope": {"type": "string", "enum": ["library", "previous"]},
-        "match": {"type": "string", "enum": ["all", "any"]},
-        "all_photos": {"type": "boolean"},
-        "clauses": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "engines": {"type": "array", "items": {"type": "string", "enum": list(ENGINES)}},
-                    "query": {"type": "string"},
-                    "exclude": {"type": "boolean"},
-                },
-                "required": ["engines", "query", "exclude"],
-            },
-        },
-        "date": {"type": "object", "properties": _DATE_PROPS, "required": list(_DATE_PROPS)},
-        "filters": {"type": "object", "properties": _FILTER_PROPS},
-        "folder_name": {"type": "string"},
-    },
-    "required": ["intent", "message", "scope", "match", "all_photos", "clauses", "date", "folder_name"],
-}
-
 
 # --------------------------------------------------------------------------
 # Lenient coercion: never raises, never KeyErrors.
@@ -122,22 +92,6 @@ def _int(value: Any) -> int:
 def _choice(value: Any, allowed: tuple[str, ...] | list[str], default: str) -> str:
     text = _text(value).lower().replace(" ", "_")
     return text if text in allowed else default
-
-
-def _date_spec(raw: Any) -> DateSpec:
-    if not isinstance(raw, dict):
-        return DateSpec()
-    return DateSpec(
-        year=_int(raw.get("year")),
-        month=_int(raw.get("month")),
-        season=_choice(raw.get("season"), SEASONS, "none"),
-        relative=_choice(raw.get("relative"), RELATIVES, "none"),
-        start=_text(raw.get("start"), 10),
-        end=_text(raw.get("end"), 10),
-        ago=max(0, min(_int(raw.get("ago")), 1200)),
-        unit=_choice(raw.get("unit"), ("day", "week", "month", "year"), "none"),
-        through=raw.get("through") is True or raw.get("span") == "until_now",
-    )
 
 
 def _people_count(value: Any) -> int:
