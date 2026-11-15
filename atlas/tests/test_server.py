@@ -99,7 +99,7 @@ def test_another_website_cannot_start_an_update(running):
 def test_an_app_that_is_down_is_reported_and_does_not_stop_the_others(running):
     running.apps["money"].close()
     report = json.loads(start_update(running)[2])
-    assert report["modules"]["money"]["up"] is False and "not running" in report["modules"]["money"]["problems"][0]
+    assert report["modules"]["money"]["up"] is False and "could not be reached" in report["modules"]["money"]["problems"][0]
     assert report["modules"]["photos"]["up"] is True and running.apps["photos"].scanning
 
 
@@ -234,3 +234,16 @@ def test_the_cross_check_starts_while_a_read_is_still_going_not_only_after_it(ru
             break
         time.sleep(0.05)
     assert started == [400]
+
+
+def test_a_refusal_or_an_error_is_not_reported_as_switched_off_and_says_what_happened(running, monkeypatch):
+    start_update(running)
+    upstreams = running.atlas.upstreams
+    monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (403, b"{}"))
+    refused = running.json("/_atlas/api/scan")["modules"]["photos"]
+    assert refused["up"] is True and "HTTP 403" in refused["problems"][0] and "run ./up.sh again" in refused["problems"][0]
+    monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (500, b"{}"))
+    broken = running.json("/_atlas/api/scan")["modules"]["photos"]
+    assert (broken["up"] is True and broken["problems"] == ["Photos answered with an error (HTTP 500)"]) or "HTTP 500" in broken["problems"][0]
+    monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (_ for _ in ()).throw(ConnectionRefusedError()))
+    assert running.json("/_atlas/api/scan")["modules"]["photos"]["up"] is False  # only a refused connection really is "not running"

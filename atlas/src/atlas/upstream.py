@@ -156,13 +156,20 @@ class Upstreams:
         return [item for items in lists for item in items]
 
     # ---- one Update button: read everything new, in every app that can -----------------------------------------------
+    @staticmethod
+    def _why_not(module: Module, status: int) -> str:
+        """What an app's refusal means, in words (the status only: nothing from the app's own answer is shown)."""
+        if status in (401, 403):
+            return f"{module.name} refused Atlas's request (HTTP {status}): the keys do not match, run ./up.sh again"
+        return f"{module.name} answered with an error (HTTP {status})"
+
     def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
         down = {
             "up": False,
             "running": False,
             "progress": "",
             "summary": "",
-            "problems": [f"{module.name} is not running"],
+            "problems": [f"{module.name} could not be reached (connection refused or no answer)"],
             "needs_check": 0,
             "file": None,
             "recent": [],
@@ -177,6 +184,8 @@ class Upstreams:
                 self._authed(module, "POST", module.scan, SCAN_SECONDS)
             status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
             raw = json.loads(body) if status == 200 else None
+            if status != 200:
+                return {**down, "up": True, "problems": [self._why_not(module, status)]}  # the app is there: it said no, and why is shown
         except TimeoutError:
             # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
             last = self._last_scan.get(module.id)
@@ -184,7 +193,7 @@ class Upstreams:
         except (OSError, http.client.HTTPException, ValueError):
             return down
         if not isinstance(raw, dict):
-            return down
+            return {**down, "up": True, "problems": [f"{module.name} gave an answer Atlas could not read"]}
         report = {
             "up": True,
             "running": bool(raw.get("running")),
