@@ -596,11 +596,24 @@
         return b;
     };
     // only the rows whose content changed are replaced: the buttons stay under the cursor and the scroll position stays (a full rebuild each second broke both)
+    const patchNode = (old, node) => {
+        const same =
+            old.nodeName === node.nodeName &&
+            old.className === node.className &&
+            old.children.length === node.children.length;
+        if (!same) return old.replaceWith(node);
+        if (!node.children.length) {
+            if (old.textContent !== node.textContent) old.textContent = node.textContent;
+            return undefined;
+        }
+        [...node.children].forEach((child, i) => patchNode(old.children[i], child));
+        return undefined;
+    };
     const patchChildren = (parent, nodes) => {
         nodes.forEach((node, i) => {
             const old = parent.children[i];
             if (!old) parent.append(node);
-            else if (old.outerHTML !== node.outerHTML) old.replaceWith(node);
+            else patchNode(old, node);
         });
         while (parent.children.length > nodes.length) parent.lastElementChild.remove();
     };
