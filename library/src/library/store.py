@@ -208,7 +208,6 @@ def ingest_dir(conn, directory: Path, stop=None) -> dict[str, int]:
 
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
-MAX_FINISH_ROUNDS = 500  # a safety net, never reached in practice: each round must change something or the work is done
 MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never what it is
 
 
@@ -361,23 +360,15 @@ def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool =
 
 
 def finish_matters(conn, client, model, control: Callable[[], str] | None = None, progress: Progress | None = None) -> int:
-    """Everything read is put together and understood: round after round until nothing more can be (the Read button does all of it). Respects Pause and Stop;
-    a matter the model cannot make sense of is tried up to three times, then listed with its reason. Returns how many matters were understood."""
-    total = 0
-    for _ in range(MAX_FINISH_ROUNDS):
-        _wait_while_paused(conn, control)
-        if control is not None and control() == "stop":
-            break
-        changed = casebook.rebuild(conn, client, model)
-        done = casebook.understand_pending(conn, client, model)
-        forget_mail_bodies(conn)
-        total += done
-        if progress and (changed or done):
-            progress(f"Reading related files together… {total} groups done")
-        if not (changed or done):
-            break
+    """The end of a read: the files are grouped once, then each group is read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit`
+    and carried on by the next read. Returns how many groups were read."""
+    if progress:
+        progress("Finding which files belong together…")
+    casebook.rebuild(conn, client, model, control, progress)
+    done = casebook.understand_pending(conn, client, model, control=control, progress=progress)
+    forget_mail_bodies(conn)
     conn.commit()
-    return total
+    return done
 
 
 def audit(conn) -> dict[str, int]:

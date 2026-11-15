@@ -704,7 +704,7 @@
         }
         showScan(report);
         if (report.running) scan.timer = setTimeout(followScan, 2000);
-        else refreshHealth().then(render); // the read is finished: everything is shown in its final form
+        else refreshHealth().then(() => parse().module && render()); // the read is finished: a page of an app is drawn again; the overview redraws itself only if its data changed
     };
     const startScan = async () => {
         try {

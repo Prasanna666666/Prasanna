@@ -122,3 +122,24 @@ def test_the_audit_says_final_only_when_nothing_is_left(conn, monkeypatch):
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: {"title": "Letter", "what": "A letter"})
     store.finish_matters(conn, object(), "m")
     assert store.audit_line(store.audit(conn)).startswith("Nothing is left: 1 files identified, in 1 groups of related files")
+
+
+def test_a_lone_file_costs_no_model_call_and_a_file_with_a_date_to_act_on_is_read_by_the_model(conn, monkeypatch):
+    from library import store
+
+    _doc(conn, "lone", "A newsletter about gardens")
+    _doc(conn, "bill", "Invoice for internet", {"due_date": "2026-12-01", "kind": "invoice"})
+    calls = []
+    monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(a[3]) or {"title": "Internet bill", "what": "A bill", "open": False})
+    assert store.finish_matters(conn, object(), "m") == 2
+    assert len(calls) == 1 and "Invoice for internet" in calls[0]  # only the file with a date was sent to the model
+
+
+def test_a_stop_pressed_during_the_final_step_ends_it_before_the_next_model_call(conn, monkeypatch):
+    from library import store
+
+    for i in range(3):
+        _doc(conn, f"b{i}", f"Invoice number {i}", {"due_date": "2026-12-01"})
+    calls = []
+    monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(1) or {"title": "t", "what": "w"})
+    assert store.finish_matters(conn, object(), "m", lambda: "stop") == 0 and calls == []

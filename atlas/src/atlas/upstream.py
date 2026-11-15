@@ -168,7 +168,7 @@ class Upstreams:
         except TimeoutError:
             # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
             last = self._last_scan.get(module.id)
-            return {**last, "progress": "busy, still working…"} if last else {**down, "up": True, "problems": []}
+            return last if last else {**down, "up": True, "problems": []}  # the same words as before: a busy answer must not flip the text back and forth
         except (OSError, http.client.HTTPException, ValueError):
             return down
         if not isinstance(raw, dict):

@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
@@ -19,7 +20,7 @@ from kit import extract
 ID = re.compile(r"\b(?=[A-Za-z0-9/\-]*\d)[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b")
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
-MAX_CONFIRMS = 200  # model checks per round of the final step; the rest wait for the next round
+MAX_CONFIRMS = 200  # pairs of files compared by the model per press of Read; the rest wait for the next press
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
 
@@ -247,13 +248,22 @@ def _health_lines(health: Any) -> str:
     return "\n".join(r.strip() for r in [*rows, str(health.get("follow_up") or "")] if r.strip())
 
 
-def pieces_of(conn) -> list[dict[str, Any]]:
+def pieces_of(conn, ids: list[int] | None = None) -> list[dict[str, Any]]:
     """Everything read that can say something: the documents, the mails (what they say), the attachments, the photos with their text, and what medical documents print."""
     out = []
-    for r in conn.execute("SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND (TRIM(text)<>'' OR facts<>'')"):
+    where = f"AND id IN ({','.join('?' for _ in ids)})" if ids else ""
+    for r in conn.execute(f"SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND (TRIM(text)<>'' OR facts<>'') {where}", ids or []):
         facts = json.loads(r["facts"]) if r["facts"] else {}
         said = " ".join(f"{k} {v}" for k, v in facts.items() if isinstance(v, str | int | float))
-        out.append({"id": r["id"], "name": r["name"], "sha": r["sha256"], "text": f"{r['text'] or ''} {said}\n{_health_lines(facts.get('health'))}".strip()})
+        out.append(
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "sha": r["sha256"],
+                "facts": facts,
+                "text": f"{r['text'] or ''} {said}\n{_health_lines(facts.get('health'))}".strip(),
+            }
+        )
     return out
 
 
@@ -264,7 +274,15 @@ def _hash(group: list[int], pieces: dict[int, dict[str, Any]]) -> str:
     return h.hexdigest()[:20]
 
 
-def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]], answered: list[int]) -> Callable[[int, int], bool | None]:
+def _verdicts(
+    conn,
+    client: Any,
+    model: str,
+    by_id: dict[int, dict[str, Any]],
+    answered: list[int],
+    control: Callable[[], str] | None,
+    progress: Callable[[str], None] | None,
+) -> Callable[[int, int], bool | None]:
     """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round. `answered` counts the new answers."""
     budget = [MAX_CONFIRMS if client is not None else 0]
 
@@ -273,9 +291,13 @@ def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]], a
         row = conn.execute("SELECT same FROM links WHERE sha_a=? AND sha_b=?", key).fetchone()
         if row is not None:
             return bool(row["same"])
-        if budget[0] <= 0:
+        if budget[0] <= 0 or (control is not None and control() == "stop"):
             return None
+        while control is not None and control() == "pause":
+            time.sleep(0.5)
         budget[0] -= 1
+        if progress:
+            progress(f"Comparing files: {MAX_CONFIRMS - budget[0]} of up to {MAX_CONFIRMS}")
         try:
             same = confirm(client, model, by_id[a], by_id[b])
         except extract.Unclear:
@@ -287,12 +309,12 @@ def _verdicts(conn, client: Any, model: str, by_id: dict[int, dict[str, Any]], a
     return verdict
 
 
-def rebuild(conn, client: Any = None, model: str = "") -> int:
+def rebuild(conn, client: Any = None, model: str = "", control: Callable[[], str] | None = None, progress: Callable[[str], None] | None = None) -> int:
     """Group the pieces into matters (returns how much changed). A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
     pieces = pieces_of(conn)
     by_id = {p["id"]: p for p in pieces}
     answered = [0]
-    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered))[0]}
+    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, control, progress))[0]}
     known = {r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")}
     for h in known - set(now):
         conn.execute("DELETE FROM cases WHERE input_hash=?", (h,))
@@ -309,25 +331,62 @@ def rebuild(conn, client: Any = None, model: str = "") -> int:
     return new + answered[0]  # how much changed: new matters and new answers about which pieces belong together
 
 
-def understand_pending(conn, client: Any, model: str, limit: int = 5) -> int:
-    """Read matters not yet understood, a few at a time: the pieces together, the claims checked. A matter the model cannot make sense of is tried again next time."""
-    by_id = {p["id"]: p for p in pieces_of(conn)}
-    done = 0
-    for row in conn.execute("SELECT id, members FROM cases WHERE summary='' AND tries<3 ORDER BY id").fetchall():
-        members = [by_id[m] for m in json.loads(row["members"]) if m in by_id]
+ACT_DATES = ("due_date", "start_date", "end_date")  # a file with a date to act on needs its status read by the model
+MAX_READ_PER_PRESS = 100  # model readings of groups per press of Read; the audit says how many are left
+
+
+def _alone(piece: dict[str, Any]) -> dict[str, Any]:
+    """A file with no partner: what the model already identified about it is its whole account, no second model call is spent on it."""
+    f = piece["facts"]
+    dates = [{"label": k.replace("_", " "), "value": str(f[k]), "quote": ""} for k in ("date", *ACT_DATES) if f.get(k)]
+    amounts = [{"label": "total", "value": str(f["total"]), "quote": ""}] if f.get("total") not in (None, "") else []
+    return {
+        "title": str(f.get("title") or piece["name"])[:120],
+        "what": str(f.get("kind") or "document"),
+        "verified": 0,
+        "pieces": 1,
+        "dates": dates,
+        "amounts": amounts,
+        "open": False,
+        "coverage": 1.0,
+    }
+
+
+def _needs_model(members: list[dict[str, Any]]) -> bool:
+    return len(members) > 1 or any(members[0]["facts"].get(k) for k in ACT_DATES)
+
+
+def understand_pending(
+    conn, client: Any, model: str, limit: int = MAX_READ_PER_PRESS, control: Callable[[], str] | None = None, progress: Callable[[str], None] | None = None
+) -> int:
+    """Groups not yet read: a group of related files, or a file with a date to act on, is read by the model with all its text; a lone file keeps what it was identified as.
+    Respects Pause and Stop between readings; a group the model cannot make sense of is tried up to three times. Returns how many were read."""
+    rows = conn.execute("SELECT id, members FROM cases WHERE summary='' AND tries<3 ORDER BY id").fetchall()
+    done = asked = 0
+    for row in rows:
+        while control is not None and control() == "pause":
+            time.sleep(0.5)
+        if control is not None and control() == "stop":
+            break
+        members = pieces_of(conn, json.loads(row["members"]))
         if not members:
             continue
-        try:
-            summary = synthesize(client, model, members)
-        except extract.Unclear:
-            conn.execute("UPDATE cases SET tries=tries+1 WHERE id=?", (row["id"],))
-            continue
+        if _needs_model(members):
+            if asked >= limit:
+                continue
+            asked += 1
+            if progress:
+                progress(f"Reading group {asked} of up to {limit}")
+            try:
+                summary = synthesize(client, model, members)
+            except extract.Unclear:
+                conn.execute("UPDATE cases SET tries=tries+1 WHERE id=?", (row["id"],))
+                continue
+        else:
+            summary = _alone(members[0])
         conn.execute("UPDATE cases SET summary=? WHERE id=?", (json.dumps(summary), row["id"]))
-        for m in members:
-            conn.execute("UPDATE documents SET case_id=? WHERE id=?", (row["id"], m["id"]))
+        conn.execute(f"UPDATE documents SET case_id=? WHERE id IN ({','.join('?' for _ in members)})", (row["id"], *[m["id"] for m in members]))
         done += 1
-        if done >= limit:
-            break
     conn.commit()
     return done
 
