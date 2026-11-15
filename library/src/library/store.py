@@ -285,11 +285,11 @@ def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
         time.sleep(0.5)
 
 
-def _understand(client, model: str, d) -> dict:
+def _understand(client, model: str, d, progress: Progress | None = None) -> dict:
     """What the model makes of one document: what it is and its key facts, and for a medical document the lab values and medicines the document itself prints."""
     facts = extract.classify(client, model, d["name"], d["text"])
     if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
-        facts["health"] = extract.medical_details(client, model, d["name"], d["text"])
+        facts["health"] = extract.medical_details(client, model, d["name"], d["text"], progress)
     return facts
 
 
@@ -349,7 +349,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                     progress(_speed_line(total - index + 1, time.monotonic() - began, calls))
                 calls += 1
                 try:
-                    facts = _understand(client, model, d)
+                    facts = _understand(client, model, d, progress)
                 except extract.Unclear:  # the model answered but could not make sense of it: not 'other', not lost: counted and tried again at the next Read
                     conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
                     conn.commit()

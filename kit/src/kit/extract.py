@@ -277,14 +277,17 @@ def _health_window(client, model: str, name: str, body: str) -> dict:
     return {"values": values, "medicines": medicines, "follow_up": follow_up if follow_up in dates_in(body) else None}
 
 
-def medical_details(client, model: str, name: str, text: str) -> dict:
+def medical_details(client, model: str, name: str, text: str, progress=None) -> dict:
     """Lab values and medicines of a medical document, read over the WHOLE document (a long report is read in overlapping pieces, not cut off after the first pages).
     The model quotes; code keeps a value only when its test name, its result, its unit and its range are printed in the piece it came from, a date only when it is written
     there, and reads the number from the printed result itself. Nothing is interpreted. The same row seen in two pieces is kept once."""
     values: list[dict] = []
     medicines: list[dict] = []
     follow_up = None
-    for body in _windows(text):
+    parts = _windows(text)
+    for n, body in enumerate(parts, 1):
+        if progress:
+            progress(f"{name}: reading part {n} of {len(parts)}")
         got = _health_window(client, model, name, body)
         for v in got["values"]:
             if not any((v["test"].lower(), v["value"], v["unit"]) == (o["test"].lower(), o["value"], o["unit"]) for o in values):

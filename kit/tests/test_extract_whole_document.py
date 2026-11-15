@@ -73,3 +73,15 @@ def test_a_document_the_full_question_failed_on_gets_a_second_look_with_a_smalle
     got = extract.classify(model, "m", "f.pdf", "HUUROVEREENKOMST tussen partijen " * 20)
     assert got == {"kind": "contract", "title": "Lease", "partial": True}
     assert model.calls.count("full") == 2 and model.calls[-1] == "kind-only"  # two tries of the full question, then the smaller one
+
+
+def test_a_long_medical_document_says_which_part_of_it_is_being_read():
+    said = []
+    text = "Hemoglobine 8,4 mmol/L 7,5 - 10,0\n" * 800
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": json.dumps({"values": [], "medicines": [], "follow_up": ""})}
+
+    extract.medical_details(Model(), "m", "report.pdf", text, said.append)
+    assert len(said) > 1 and said[0] == f"report.pdf: reading part 1 of {len(said)}"
