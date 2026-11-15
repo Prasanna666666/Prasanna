@@ -35,6 +35,18 @@ class Trace:
             self._now(f"{name}: {step}" + (f" ({detail})" if detail and step in ("identifying", "reading part") else ""))
 
 
+FINISHED = ("identified", "set aside", "no usable answer", "group read", "kept as identified")
+
+
+def finished(conn, run: str, limit: int = 3) -> list[str]:
+    """The last files finished in this read, each with its result and how long it took, for the panel."""
+    rows = conn.execute(
+        f"SELECT name, step, detail, seconds FROM trace WHERE run=? AND step IN ({','.join('?' for _ in FINISHED)}) ORDER BY id DESC LIMIT ?",
+        (run, *FINISHED, limit),
+    )
+    return [f"{r['name']}: {r['step']}" + (f", {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else "") for r in rows]
+
+
 def recent(conn, run: str = "", name: str = "", limit: int = 100) -> list[dict[str, Any]]:
     """The newest steps of a read (the latest read unless `run` is given), newest first; `name` keeps only the steps of files whose name contains it."""
     if not run:

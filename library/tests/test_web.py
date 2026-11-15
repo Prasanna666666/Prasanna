@@ -136,13 +136,13 @@ def test_the_update_counts_files_the_way_the_person_does_even_when_one_file_hold
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
     assert (
-        rows["Documents"] == "2 of 36 files · 0 identified · 2 not identified"
-        and rows["Mails"] == "1 of 12 mails · 0 identified · 1 not identified"
+        rows["Documents"] == "2 of 36 files · 0 identified (0.0%) · 2 not identified"
+        and rows["Mails"] == "1 of 12 mails · 0 identified (0.0%) · 1 not identified"
         and "not connected" in rows["Photos"]
     )
     web._CACHE.clear()  # the numbers are reused for a few seconds
     (parsed / ".found").write_text(json.dumps({"documents": 2, "mails": 1}))
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 identified · 2 not identified"
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 identified (0.0%) · 2 not identified"
 
 
 def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monkeypatch):
@@ -320,3 +320,8 @@ def test_automatic_reading_only_starts_for_a_small_backlog_and_never_before_a_fi
     monkeypatch.setattr(web, "backlog", lambda c: 5)
     out = web._post_auto(state, conn, {})
     assert out["started"] is True and (parsed / flags.AUTO_LIMIT).read_text() == str(web.AUTO_LIMIT)
+
+
+def test_percentages_never_round_up_to_a_finish_that_has_not_happened():
+    assert web._percent(17, 1201) == "1.4%" and web._percent(600, 1201) == "50%" and web._percent(1200, 1201) == "99%" and web._percent(1201, 1201) == "100%"
+    assert web._percent(0, 0) == "0%"

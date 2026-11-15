@@ -576,7 +576,10 @@
         return row;
     };
     // the file being worked on right now, and the step (from the trace of the read)
-    const nowRows = (info) => (info.now ? [partLine({ name: 'Now', detail: info.now }, info.running)] : []);
+    const nowRows = (info) => [
+        ...(info.now ? [partLine({ name: 'Reading now', detail: info.now }, info.running)] : []),
+        ...(info.recent || []).map((line) => partLine({ name: 'Done', detail: line }, false)),
+    ];
     const controlButton = (label, action) => {
         const b = el('button', 'scan-control', label);
         b.type = 'button';

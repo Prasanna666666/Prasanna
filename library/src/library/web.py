@@ -129,7 +129,7 @@ def _read_all(state: State) -> None:
             client, model = model_client()
         except RuntimeError:
             client, model = None, ""
-        followed = trace.Trace(conn, lambda m: state.scan.update(now=m))
+        followed = trace.Trace(conn, lambda m: state.scan.update(now=m, now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
@@ -422,13 +422,21 @@ def _parts(state: State, conn) -> list[dict[str, str]]:
     return _cached("parts", lambda c: _parts_now(state, c), state, conn)
 
 
+def _percent(part: int, whole: int) -> str:
+    """Whole numbers from 10% up, one decimal below (so 17 of 1,201 reads 1.4%, never a misleading 0% or 1%); 100% only when it really is."""
+    if not whole:
+        return "0%"
+    value = part * 100 / whole
+    return "100%" if part == whole else f"{value:.1f}%" if value < 10 else f"{min(value, 99):.0f}%"
+
+
 def _understood(conn, where: str) -> str:
     """How far each step has got after reading (identified, not identified), so 80% read is never mistaken for 80% done."""
     done = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
     waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=0").fetchone()[0]
     if not done and not waiting:
         return ""
-    return f" · {done:,} identified" + (f" · {waiting:,} not identified" if waiting else "")
+    return f" · {done:,} identified ({_percent(done, done + waiting)})" + (f" · {waiting:,} not identified" if waiting else "")
 
 
 def _parts_now(state: State, conn) -> list[dict[str, str]]:
@@ -502,12 +510,20 @@ def _post_auto(state: State, conn, body: dict) -> dict:
     return {"started": start_scan(state, auto=True), "reason": "small", "waiting": waiting, "limit": AUTO_LIMIT}  # the round also stops at the limit
 
 
+def _now_line(s: dict[str, Any]) -> str:
+    """The file being worked on and how long this step has taken so far."""
+    if not (s["running"] and s.get("now")):
+        return ""
+    return f"{s['now']} · {int(time.monotonic() - s.get('now_since', time.monotonic()))} s so far"
+
+
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     s = state.scan
     return {
         "running": s["running"],
         "progress": s["progress"],
-        "now": s.get("now", "") if s["running"] else "",
+        "now": _now_line(s),
+        "recent": trace.finished(conn, s.get("run", "")) if s["running"] else [],
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],
