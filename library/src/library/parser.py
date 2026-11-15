@@ -200,6 +200,12 @@ ATTACHED = ".attached-2"  # marks the mails whose attachments have all been take
 MAIL_DEPTH = 3  # a mail forwarded inside a mail still gets its attachments read
 
 
+def _now(out: Path, name: str, step: str = "") -> None:
+    """What the reader is on, for the Documents service to show: the name, and (when it is not simply reading a file) what it is doing."""
+    with contextlib.suppress(OSError):
+        (out / ".now").write_text(f"{name[:200]}\n{step[:100]}")
+
+
 def _process_attachments(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int, digest: str) -> None:
     """Every document a mail carries is read as a document of its own; the mail is then marked, so it is not opened again for this."""
     import tempfile
@@ -251,8 +257,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
                     inner.write_bytes(content)
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
             return
-        with contextlib.suppress(OSError):
-            (out / ".now").write_text(label[:200])  # what the Documents service shows as the file being read
+        _now(out, label)
         res = extract_isolated(f) if isolated else extract(f)
         _write(out, digest, label, f.stat().st_size, res, area, source if depth == 0 else "")
         counts["parsed"] += 1
@@ -404,8 +409,10 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
     todo: list[tuple[Path, str, str]] = []
     # looked at one by one (not sorted first), so Pause and Stop are heard during the walk
     for seen_files, f in enumerate(root.rglob("*.emlx"), 1):
-        if seen_files % CHECK_EVERY == 0 and halted(out):
-            return counts  # stopped while looking through the mail folder
+        if seen_files % CHECK_EVERY == 0:
+            _now(out, "Mail", f"looking for new messages ({seen_files:,} looked at)")
+            if halted(out):
+                return counts  # stopped while looking through the mail folder
         if f.is_symlink() or root not in f.resolve().parents:
             continue
         inside = f.relative_to(root)
@@ -623,13 +630,16 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
     if (Path(a.out) / STOP).exists():
         return {"parsed": 0, "skipped": 0, "failed": 0}
     extra = []
+    _now(Path(a.out), "Mail", "looking for new messages")
     if (Path(a.inbox) / "mail").is_dir():  # the mail first, with everything it carries (mail exports dropped into the inbox: .mbox, .eml, .emlx)
         extra.append(process_inbox(Path(a.inbox) / "mail", Path(a.out), area="mail"))
     if a.mail and Path(a.mail).is_dir():
         extra.append(process_mail_store(Path(a.mail), Path(a.out)))
     for name, folder in sorted(collections(a.collection), key=lambda c: priority.rank(c[0])):  # then the documents, the apps in their order
         if folder.is_dir():
+            _now(Path(a.out), folder.name or name, "looking for new files")
             extra.append(process_inbox(folder, Path(a.out), area=name))
+    _now(Path(a.out), "Your other files", "looking for new files")
     res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))  # then the loose files
     for more in extra:
         res = {k: res[k] + more[k] for k in res}

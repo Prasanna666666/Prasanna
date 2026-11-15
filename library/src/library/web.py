@@ -716,14 +716,15 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
 def _reading_now(s: dict[str, Any]) -> dict[str, Any] | None:
     """Step 1: the file the reader says it is on (it writes the name as it starts each one), and how long it has been on it."""
     try:
-        name = (parsed_dir() / ".now").read_text()[:200]
+        name, _, step = (parsed_dir() / ".now").read_text()[:400].partition("\n")
     except OSError:
         return None
     if not name:
         return None
+    step = step.strip() or "reading the text"
     if s.get("reading_name") != name:
         s["reading_name"], s["reading_since"] = name, time.monotonic()
-    return {"name": name, "step": "reading the text", "percent": None, "estimated": False, "seconds": int(time.monotonic() - s["reading_since"])}
+    return {"name": name, "step": step, "percent": None, "estimated": False, "seconds": int(time.monotonic() - s["reading_since"])}
 
 
 def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
