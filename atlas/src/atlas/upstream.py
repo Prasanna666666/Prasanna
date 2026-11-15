@@ -420,14 +420,12 @@ class Upstreams:
             threading.Thread(target=self.agenda, args=(400,), daemon=True).start()
 
     def _crosscheck_part(self) -> dict[str, Any]:
-        """The last part of the last step, the same for every app: each open item is compared with the items the other apps handed over (listed here by kind)."""
+        """The last part of the last step, the same for every app: how many open items have been compared with what the other apps handed over. With nothing open there is
+        no percentage, and the part is not shown."""
         done, total = self.crosschecker.done, self.crosschecker.total
-        seen = ", ".join(f"{n:,} {kind}s" for kind, n in self.crosschecker.seen.most_common(4)) or "nothing yet"
         return {
             "name": "Check the other apps",
-            "detail": f"{min(done, total):,} of {total:,} open items compared with {seen}"
-            if total
-            else f"nothing to compare yet ({seen} ready from the other apps)",
+            "detail": f"{min(done, total):,} of {total:,} items" if total else "",
             "percent": 100.0 if total and done >= total else round(min(done, total) * 100 / total, 1) if total else None,
         }
 

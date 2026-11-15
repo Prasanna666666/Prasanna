@@ -357,7 +357,7 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     steps = web._steps(conn, {"phase": 2})
     assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Sort", "running")
     assert steps[1]["detail"] == "1 sorted · 4 to do" and steps[1]["percent"] == 20.0  # 1 of the 5 files that need the model; the skipped one is not part of it
-    assert "1 files are not shown to the model: 1 earlier, reason not kept" in steps[1]["also"]
+    assert steps[1]["also"].startswith("Not shown to the model: 1 mail.")
     assert len(steps) == 3 and steps[2]["state"] == "waiting" and [p["name"] for p in steps[2]["parts"]] == ["Group related files", "Read each group"]
     assert web._steps(conn, {"phase": 4, "app": "Finance"})[2]["state"] == "running"
 
@@ -383,7 +383,8 @@ def test_skipped_files_are_counted_by_the_real_reason(conn):
         )
     conn.commit()
     assert web._skipped_reasons(conn) == {"no_text": 1, "rule": 2, "unknown": 1}
-    assert "2 by the keyword rule" in web._skipped_line(conn) and "4 files are not shown to the model" in web._skipped_line(conn)
+    line = web._skipped_line(conn)
+    assert line.startswith("Not shown to the model: 4 mails.") and "no amount of money together with an invoice-like word" in line
 
 
 def test_the_status_counts_through_the_database_once_not_at_every_question(conn, monkeypatch):
@@ -407,4 +408,4 @@ def test_the_number_of_files_in_groups_is_one_count_and_exact(conn):
         "INSERT INTO documents (sha256, name, kind, text, area, judged) SELECT printf('%064d', value), 'f', 'pdf', 't', 'finance', 1 FROM (WITH RECURSIVE c(value) AS (SELECT 1 UNION ALL SELECT value+1 FROM c WHERE value<10) SELECT value FROM c)"
     )
     conn.commit()
-    assert web._steps(conn, {})[2]["parts"][0]["detail"] == "6 of 10 files checked for related files"
+    assert web._steps(conn, {})[2]["parts"][0]["detail"] == "6 of 10 files"

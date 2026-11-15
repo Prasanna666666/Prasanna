@@ -629,16 +629,12 @@
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
         const head = el('div', 'rd-stepname');
         head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
-        const percent = el('span', 'rd-pct', pctText(s.percent));
-        card.append(
-            head,
-            el('span', 'rd-about', s.about || ''),
-            el('span', 'rd-note-line', s.note || ''),
-            meter(s.percent),
-            percent
-        );
+        card.append(head, el('span', 'rd-about', s.about || ''), el('span', 'rd-note-line', s.note || ''));
+        if (s.state === 'waiting' && !s.percent) return card; // not started: only what it is waiting for, no empty bars
+        card.append(meter(s.percent), el('span', 'rd-pct', pctText(s.percent)));
         if (s.detail) card.append(el('span', 'rd-detail', s.detail));
-        if (s.parts && s.parts.length) card.append(stepParts(s.parts));
+        const parts = (s.parts || []).filter((p) => p.percent != null);
+        if (parts.length) card.append(stepParts(parts));
         if (s.also) card.append(el('span', 'rd-also', s.also));
         return card;
     };

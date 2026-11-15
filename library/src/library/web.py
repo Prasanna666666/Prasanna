@@ -606,18 +606,17 @@ def _identify_detail(conn, states: dict[str, int]) -> str:
 
 
 def _skipped_line(conn) -> str:
-    """The files not shown to the model, with the real reason for each group, as a footnote of step 2 (never as part of its progress)."""
-    why = _skipped_reasons(conn)
-    parts = [
-        f"{why[key]:,} {label}"
-        for key, label in (
-            ("rule", "by the keyword rule (no amount with an invoice-like word)"),
-            ("no_text", "with no readable text"),
-            ("unknown", "earlier, reason not kept"),
-        )
-        if why[key]
-    ]
-    return f"{sum(why.values()):,} files are not shown to the model: " + ", ".join(parts) if parts else ""
+    """The files not shown to the model, counted by what they are (mails, files) with the one rule that explains it. The reason of each older one was not kept, so the sentence
+    states the rule, not a count of reasons."""
+
+    def count(where: str) -> int:
+        return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE judged=2 AND {where}").fetchone()[0]
+
+    mails, files = count("area='mail'"), count("area NOT IN ('mail','pictures')")
+    if not mails and not files:
+        return ""
+    parts = [f"{mails:,} mail{'s' if mails != 1 else ''}"] * bool(mails) + [f"{files:,} file{'s' if files != 1 else ''}"] * bool(files)
+    return f"Not shown to the model: {' and '.join(parts)}. A mail is skipped when it has no amount of money together with an invoice-like word; a file when it has no readable text."
 
 
 def _identify_note(conn, states: dict[str, int]) -> str:
@@ -661,12 +660,12 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     together: list[dict[str, Any]] = [
         {
             "name": "Group related files",
-            "detail": f"{grouped:,} of {identified_rows:,} files checked for related files",
+            "detail": f"{grouped:,} of {identified_rows:,} files",
             "percent": _share(grouped, identified_rows),
         },
         {
             "name": "Read each group",
-            "detail": f"{groups[1]:,} of {groups[0]:,} groups read" if groups[0] else "no groups yet",
+            "detail": f"{groups[1]:,} of {groups[0]:,} groups",
             "percent": _share(groups[1], groups[0]),
         },
     ]
