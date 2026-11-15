@@ -468,7 +468,7 @@ def _percent(part: int, whole: int) -> str:
 
 
 def _states(conn, where: str) -> dict[str, int]:
-    """Files by what has happened to them: identified by the model, set aside (nothing to read in them), waiting for the model, or no usable answer yet."""
+    """Files by what has happened to them: identified by the model, skipped (nothing to read in them), waiting for the model, or no usable answer yet."""
 
     def count(judged: str) -> int:
         return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged{judged}").fetchone()[0]
@@ -477,7 +477,7 @@ def _states(conn, where: str) -> dict[str, int]:
 
 
 def _handled(states: dict[str, int]) -> int:
-    """Files with nothing more to do at the identifying step: identified, or set aside."""
+    """Files with nothing more to do at the identifying step: identified, or skipped."""
     return states["identified"] + states["aside"]
 
 
@@ -487,12 +487,12 @@ def _share(part: int, whole: int) -> float:
 
 
 def _understood(conn, where: str) -> str:
-    """What has happened to the files so far, in plain counts: identified by the model, set aside (nothing to read), waiting, no usable answer."""
+    """What has happened to the files so far, in plain counts: identified by the model, skipped (nothing to read), waiting, no usable answer."""
     s = _states(conn, where)
     if not any(s.values()):
         return ""
     line = f" · {s['identified']:,} identified"
-    for key, label in (("aside", "set aside"), ("waiting", "waiting"), ("unclear", "no usable answer")):
+    for key, label in (("aside", "skipped"), ("waiting", "waiting"), ("unclear", "no usable answer")):
         line += f" · {s[key]:,} {label}" if s[key] else ""
     return line
 
@@ -575,6 +575,37 @@ def _step_state(running: bool, done: bool) -> str:
     return "running" if running else "done" if done else "waiting"
 
 
+def _app_name(area: str) -> str:
+    return {"": "loose files", "mail": "mail"}.get(area, area.capitalize())
+
+
+def _first_app_open(conn) -> tuple[str, int]:
+    """The app the model is on: the first, in the order the apps are served in, that still has files to identify, and how many."""
+    rows = conn.execute("SELECT area, COUNT(*) FROM documents WHERE judged=0 AND TRIM(text)<>'' GROUP BY area").fetchall()
+    if not rows:
+        return "", 0
+    area, n = min(((r[0], r[1]) for r in rows), key=lambda r: priority.rank(r[0]))
+    return area, n
+
+
+def _identify_note(conn, states: dict[str, int]) -> str:
+    """One plain sentence for step 2: which app the model is on and how much is left of it."""
+    if not states["waiting"]:
+        return "Every file is identified or skipped"
+    area, n = _first_app_open(conn)
+    return f"Now on {_app_name(area)}: {n:,} files left" if n else f"{states['waiting']:,} files to do"
+
+
+def _understand_note(conn, s: dict[str, Any], all_in: bool) -> str:
+    """One plain sentence for step 3: what it is doing, or what it is waiting for. It starts for an app only when every file of that app is identified."""
+    if s.get("phase") in (3, 4):
+        return f"Working on {s.get('app') or 'an app'}"
+    if all_in:
+        return "Done"
+    area, n = _first_app_open(conn)
+    return f"Starts for {_app_name(area)} when its last {n:,} files are identified" if n else "Nothing to group yet"
+
+
 def _mean(values: list[float | None]) -> float | None:
     known = [v for v in values if v is not None]
     return round(sum(known) / len(known), 1) if known else None
@@ -593,8 +624,16 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     groups = conn.execute("SELECT COUNT(*), COALESCE(SUM(summary<>''), 0) FROM cases").fetchone()
     phase, handled = s.get("phase"), _handled(states)
     together: list[dict[str, Any]] = [
-        {"name": "Group related files", "detail": f"{grouped:,} of {identified_rows:,} files placed in a group", "percent": _share(grouped, identified_rows)},
-        {"name": "Read each group", "detail": f"{groups[1]:,} of {groups[0]:,} groups read", "percent": _share(groups[1], groups[0])},
+        {
+            "name": "Group related files",
+            "detail": f"{grouped:,} of {identified_rows:,} files checked for related files",
+            "percent": _share(grouped, identified_rows),
+        },
+        {
+            "name": "Read each group",
+            "detail": f"{groups[1]:,} of {groups[0]:,} groups read" if groups[0] else "no groups yet",
+            "percent": _share(groups[1], groups[0]),
+        },
     ]
     all_in = identified_rows > 0 and grouped >= identified_rows and groups[0] > 0 and groups[1] >= groups[0]
     return [
@@ -604,6 +643,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "about": "Get the text out of every file",
             "state": _step_state((parsed_dir() / ".busy").exists(), True),
             "detail": f"{read:,} of {total:,} files and mails read",
+            "note": f"{total - read:,} files still to read" if total > read else "All files read",
             "percent": _share(read, total),
         },
         {
@@ -611,7 +651,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "Identify",
             "about": "Find out what each file is",
             "state": _step_state(phase == 2, not states["waiting"]),
-            "detail": f"{states['identified']:,} identified · {states['aside']:,} set aside · {states['waiting']:,} waiting",
+            "detail": f"{states['identified']:,} identified · {states['aside']:,} skipped (nothing to read) · {states['waiting']:,} to do",
+            "note": _identify_note(conn, states),
             "percent": _share(handled, handled + states["waiting"]),
         },
         {
@@ -622,6 +663,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "app": s.get("app") or "",
             "parts": together,
             "detail": "",
+            "note": _understand_note(conn, s, all_in),
             "percent": _mean([p["percent"] for p in together]),
         },
     ]

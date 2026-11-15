@@ -96,9 +96,9 @@ def test_a_read_leaves_a_trace_of_every_step_on_every_file(conn):
     store.judge_pending(conn, Model(), "fake", trace=followed)
     steps = [(s["name"], s["step"], s["detail"]) for s in reversed(trace.recent(conn))]
     assert ("bill.pdf", "identifying", "31 characters") in steps and ("bill.pdf", "identified", "invoice") in steps
-    assert ("empty.pdf", "set aside", "no readable text") in steps
+    assert ("empty.pdf", "skipped", "no readable text") in steps
     assert now[0] == ("bill.pdf", "identifying", "31 characters")  # the panel is told which file is being worked on
-    assert [s["step"] for s in trace.recent(conn, name="empty")] == ["set aside"]
+    assert [s["step"] for s in trace.recent(conn, name="empty")] == ["skipped"]
 
 
 def test_a_file_the_model_cannot_make_sense_of_is_not_asked_again_after_three_tries(conn):

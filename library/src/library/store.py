@@ -468,7 +468,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                 _trace(trace, d["name"], "identified", "from its own data, no model needed")
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
                 _mark_ready(conn, d["sha256"], 2, None)
-                _trace(trace, d["name"], "set aside", "no readable text" if not d["text"].strip() else "not worth reading")
+                _trace(trace, d["name"], "skipped", "no readable text" if not d["text"].strip() else "not worth reading")
                 out["skipped"] += 1
                 continue
             else:

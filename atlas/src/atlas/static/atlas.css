@@ -1223,3 +1223,12 @@ body.chatting .fab {
     flex: none;
     height: 6px;
 }
+
+.rd-note-line {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+}
+.rd-note-line:empty {
+    display: none;
+}

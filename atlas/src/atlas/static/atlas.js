@@ -630,7 +630,13 @@
         const head = el('div', 'rd-stepname');
         head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
         const percent = el('span', 'rd-pct', pctText(s.percent));
-        card.append(head, el('span', 'rd-about', s.about || ''), meter(s.percent), percent);
+        card.append(
+            head,
+            el('span', 'rd-about', s.about || ''),
+            el('span', 'rd-note-line', s.note || ''),
+            meter(s.percent),
+            percent
+        );
         if (s.detail) card.append(el('span', 'rd-detail', s.detail));
         if (s.parts && s.parts.length) card.append(stepParts(s.parts));
         return card;

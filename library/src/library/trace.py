@@ -35,7 +35,7 @@ class Trace:
             self._now(name, step, detail)
 
 
-FINISHED = ("identified", "set aside", "no usable answer", "group read", "kept as identified")
+FINISHED = ("identified", "skipped", "no usable answer", "group read", "kept as identified")
 
 
 def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:

@@ -253,6 +253,7 @@ class Upstreams:
                     "state": step["state"] if step.get("state") in ("running", "done", "waiting") else "waiting",
                     "app": str(step.get("app", ""))[:30],
                     "detail": str(step.get("detail", ""))[:160],
+                    "note": str(step.get("note", ""))[:160],
                     "percent": _percent(step.get("percent")),
                     "parts": parts,
                 }
@@ -417,7 +418,7 @@ class Upstreams:
             "name": "Check the other apps",
             "detail": f"{min(done, total):,} of {total:,} open items compared with {seen}"
             if total
-            else f"no open item to compare (other apps handed over {seen})",
+            else f"nothing to compare yet ({seen} ready from the other apps)",
             "percent": 100.0 if total and done >= total else round(min(done, total) * 100 / total, 1) if total else None,
         }
 
