@@ -454,7 +454,7 @@ _REFRESHING: set[str] = set()
 _REFRESH_LOCK = threading.Lock()
 
 
-def _cached(key: str, make, state: State | None = None, conn=None):
+def _cached(key: str, make, state: State | None = None, conn=None, first=None):
     """The answer of `make(conn)`, reused for a few seconds. When the answer is older than that it is still given at once, and brought up to date in the background
     (on its own connection): a status question never waits for the database, however busy a big read keeps it. Only the very first time is it worked out on the spot."""
     now = time.monotonic()
@@ -467,6 +467,12 @@ def _cached(key: str, make, state: State | None = None, conn=None):
                 _REFRESHING.add(key)
                 threading.Thread(target=_refresh, args=(key, make, state), name=f"refresh-{key}", daemon=True).start()
         return hit[1]
+    if first is not None and state is not None:  # nothing known yet: say what can be said at once, and work the numbers out in the background
+        with _REFRESH_LOCK:
+            if key not in _REFRESHING:
+                _REFRESHING.add(key)
+                threading.Thread(target=_refresh, args=(key, make, state), name=f"refresh-{key}", daemon=True).start()
+        return first
     value = make(conn)
     _CACHE[key] = (now, value)
     return value
@@ -605,43 +611,71 @@ def _step_state(running: bool, done: bool) -> str:
     return "running" if running else "done" if done else "waiting"
 
 
+STEP_WORDS = (
+    ("Read", "Reading files", "Get the text out of every file"),
+    ("Sort", "Sorting files", "Find out what each file is"),
+    ("Understand", "Understanding your files", "Connect related files and read them together"),
+)
+
+
+def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
+    """The three steps with no numbers yet: shown at once while the counts are being worked out, so the card is never empty."""
+    phase = s.get("phase")
+    running = [phase == 1 or (parsed_dir() / ".busy").exists(), phase == 2, phase in (3, 4)]
+    return [
+        {"n": n, "name": name, "doing": doing, "about": text, "state": "running" if running[n - 1] else "waiting", "counts": [], "detail": "", "percent": 0.0}
+        for n, (name, doing, text) in enumerate(STEP_WORDS, 1)
+    ]
+
+
+def _tally(conn) -> dict[str, dict[str, int]]:
+    """How far the files have got, in one pass over the database: for the documents (files in the folders, counted by the file they came from), the mails and the documents in mails,
+    how many are in, sorted and understood, and how many attachments the mails say they carried."""
+    out = {g: {"present": 0, "sorted": 0, "understood": 0, "promised": 0} for g in ("documents", "mails", "attachments")}
+    rows = conn.execute(
+        f"""SELECT g, COUNT(DISTINCT f) AS present,
+                   COUNT(DISTINCT CASE WHEN judged IN (1, 2) THEN f END) AS sorted,
+                   COUNT(DISTINCT CASE WHEN judged=2 OR (judged=1 AND case_id IS NOT NULL) THEN f END) AS understood,
+                   COALESCE(SUM(promised), 0) AS promised
+            FROM (SELECT CASE WHEN area='mail' AND kind='email' THEN 'mails' WHEN area='mail' THEN 'attachments' ELSE 'documents' END AS g,
+                         CASE WHEN area='mail' THEN CAST(id AS TEXT) ELSE {_FILE_OF} END AS f, judged, case_id, promised
+                  FROM documents WHERE area<>'pictures')
+            GROUP BY g"""
+    )
+    for r in rows:
+        out[r["g"]] = {k: int(r[k]) for k in ("present", "sorted", "understood", "promised")}
+    out["attachments"]["promised"] = out["mails"]["promised"]  # carried by the mails
+    return out
+
+
 def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Understand: related
     files are connected and read together. Each step counts three things apart, the way the person knows them: the documents (files in the folders), the mails, and the documents
     inside mails. A step is done when all of them are."""
     found = _found()
-    groups = (
-        ("documents", "documents", "area NOT IN ('mail', 'pictures')", f"COUNT(DISTINCT {_FILE_OF})", found.get("documents")),
-        ("mails", "mails", "area='mail' AND kind='email'", "COUNT(*)", found.get("mails")),
-        ("attachments", "documents in mails", "area='mail' AND kind<>'email'", "COUNT(*)", None),  # known only as the mails are read
-    )
-
-    # every mail says how many attachments it carried: that is how many documents in mails there are to read, whether or not they have all been taken out yet
-    promised = conn.execute(
-        "SELECT COALESCE(SUM(CASE WHEN json_valid(data) THEN json_extract(data, '$.meta.attachments') ELSE 0 END), 0) FROM documents WHERE area='mail' AND kind='email'"
-    ).fetchone()[0]
-
-    def count(base: str, how: str, extra: str) -> int:
-        return conn.execute(f"SELECT {how} FROM documents WHERE {base} AND ({extra})").fetchone()[0]
-
+    tally = _tally(conn)
+    promised = tally["attachments"][
+        "promised"
+    ]  # every mail says how many attachments it carried: that is how many documents in mails there are to read, taken out yet or not
+    labels = {"documents": "documents", "mails": "mails", "attachments": "documents in mails"}
+    known = {
+        "documents": found.get("documents"),
+        "mails": found.get("mails"),
+        "attachments": None,
+    }  # the reader counts the first two before it starts; the third only as the mails are opened
     stages = (
-        ("1=1", (parsed_dir() / ".busy").exists() or s.get("phase") == 1),
-        ("judged IN (1, 2)", s.get("phase") == 2),
-        ("judged=2 OR (judged=1 AND case_id IS NOT NULL)", s.get("phase") in (3, 4)),
-    )
-    about = (
-        ("Read", "Reading files", "Get the text out of every file"),
-        ("Sort", "Sorting files", "Find out what each file is"),
-        ("Understand", "Understanding your files", "Connect related files and read them together"),
+        ("present", (parsed_dir() / ".busy").exists() or s.get("phase") == 1),
+        ("sorted", s.get("phase") == 2),
+        ("understood", s.get("phase") in (3, 4)),
     )
     steps = []
-    for n, ((name, doing, text), (where, running)) in enumerate(zip(about, stages, strict=True), 1):
-        mails_in = bool(found) and count(groups[1][2], groups[1][3], "1=1") >= (found.get("mails") or 0)
-        attached_in = mails_in and count(groups[2][2], groups[2][3], "1=1") >= int(promised)
+    for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
+        mails_in = bool(found) and tally["mails"]["present"] >= (found.get("mails") or 0)
+        attached_in = mails_in and tally["attachments"]["present"] >= promised
         counts, every = [], []
-        for key, label, base, how, known in groups:
-            total = max(count(base, how, "1=1"), known or 0, int(promised) if key == "attachments" and n == 1 else 0)
-            line = {"key": key, "label": label, "done": count(base, how, where), "total": total}
+        for key, label in labels.items():
+            total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" and n == 1 else 0)
+            line = {"key": key, "label": label, "done": tally[key][where], "total": total}
             every.append(line)
             # Reading takes the mails first, with all they carry, and then the documents. A number is shown only when its total is fully known and its turn has come.
             visible = (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
@@ -713,7 +747,7 @@ def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
             "recent": trace.finished(c, snapshot.get("run") or ""),
         }
 
-    return _cached(f"counted:{snapshot['phase']}", make, state, conn)
+    return _cached(f"counted:{snapshot['phase']}", make, state, conn, first={"steps": _steps_for_now(snapshot), "waiting": [], "recent": []})
 
 
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:

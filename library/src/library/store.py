@@ -161,6 +161,9 @@ MIGRATIONS = (
             THEN '|' || COALESCE((SELECT group_concat(value, '|') FROM json_each(json_extract(NEW.facts, '$.apps'))), '') || '|' END WHERE id=NEW.id;
     END;
     """,
+    """
+    ALTER TABLE documents ADD COLUMN promised INTEGER NOT NULL DEFAULT 0;   -- for a mail: how many attachments it says it carried (so the number of documents in mails is known before they are all taken out)
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
@@ -185,6 +188,12 @@ def _valid(d: Any, stem: str) -> bool:
         and len(d["text"]) <= MAX_TEXT
         and (d.get("source") is None or (isinstance(d["source"], str) and len(d["source"]) <= 600))
     )
+
+
+def _promised(d: dict) -> int:
+    meta = d.get("meta") if d.get("kind") == "email" and isinstance(d.get("meta"), dict) else {}
+    count = (meta or {}).get("attachments")
+    return count if isinstance(count, int) and not isinstance(count, bool) and 0 <= count <= 10_000 else 0
 
 
 def _structured(d: dict) -> str:
@@ -250,8 +259,8 @@ def ingest_dir(conn, directory: Path, stop=None, on_new: Callable[[str], None] |
         area = d["area"] if isinstance(d.get("area"), str) and (d["area"] == "mail" or _COLLECTION.match(d["area"])) else ""
         source = d.get("source") or ""
         cur = conn.execute(
-            "INSERT OR IGNORE INTO documents (sha256, name, kind, text, area, data, parsed_at, source) VALUES (?,?,?,?,?,?,?,?)",
-            (d["sha256"], d["name"], d["kind"], d["text"], area, _structured(d), str(d.get("parsed_at", ""))[:25], source),
+            "INSERT OR IGNORE INTO documents (sha256, name, kind, text, area, data, parsed_at, source, promised) VALUES (?,?,?,?,?,?,?,?,?)",
+            (d["sha256"], d["name"], d["kind"], d["text"], area, _structured(d), str(d.get("parsed_at", ""))[:25], source, _promised(d)),
         )
         if cur.rowcount and source:
             replaced += _replace_older_versions(conn, directory, source, d["sha256"])
