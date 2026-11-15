@@ -36,6 +36,8 @@ def test_a_matter_the_bank_shows_paid_is_settled_and_a_part_payment_is_shown_as_
     part = dots.agenda([matter()], TODAY, settled={1: {"relation": "part", "amount": 20.0, "date": "2026-11-10"}})["events"]
     assert "part paid 20.00 on 2026-11-10" in part[0]["subtitle"]
     assert len(dots.agenda([matter()], TODAY, settled={1: {"relation": "none"}})["events"]) == 1
+    linked = dots.agenda([matter()], TODAY, settled={1: {"relation": "related", "kind": "trip", "title": "India", "date": "2026-11-18"}})["events"]
+    assert "linked to trip: India" in linked[0]["subtitle"]
 
 
 def test_a_trip_shows_what_was_spent_while_it_lasted():

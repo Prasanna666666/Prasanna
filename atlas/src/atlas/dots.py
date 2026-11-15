@@ -1,5 +1,5 @@
 """Joining the dots, kept small: the library has already read each matter as a whole, with every piece found and put together. What is left here is what only Atlas can see:
-the bank. A matter whose amount was paid (the same amount, to a payee named in the matter) is settled; a trip shows what was spent while it lasted. Pure functions, nothing guessed."""
+the other apps. An open matter that the cross-check found paid (a bank payment of exactly one of its amounts, with the payment's own words as proof) is settled; one that is only partly paid or that belongs with an item of another app says so; a trip shows what was spent while it lasted. Pure functions, nothing guessed."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def _event(kind: str, when: str, title: str, subtitle: str, doc: Any, *, end: st
 
 
 def _matter_events(it: dict[str, Any], paid: dict[str, Any] | None, now: date, left_out: dict[str, int]) -> list[tuple[tuple[Any, ...], dict[str, Any]]]:
-    """A matter read as a whole by the library: what happens next and when, in its own words, unless it is closed or the bank shows it paid (`paid`: the settlement judged by the model, checked exactly)."""
+    """A matter read as a whole by the library: what happens next and when, in its own words, unless it is closed or the bank shows it paid (`paid`: how the cross-check found it related to the other apps' items, judged by the model and checked exactly)."""
     if not it.get("open"):
         left_out["done"] += 1
         return []
@@ -51,7 +51,13 @@ def _matter_events(it: dict[str, Any], paid: dict[str, Any] | None, now: date, l
         return []
     if not _day(it.get("due")):
         return []
-    part = f"part paid {paid['amount']:,.2f} on {paid['date']}" if paid and paid.get("relation") == "part" else ""
+    part = (
+        f"part paid {paid['amount']:,.2f} on {paid['date']}"
+        if paid and paid.get("relation") == "part"
+        else f"linked to {paid['kind']}: {paid['title']}"
+        if paid and paid.get("relation") == "related"
+        else ""
+    )
     sub = " · ".join(x for x in (it.get("next"), it.get("status"), part) if x)
     state = "overdue" if it["due"] < now.isoformat() else "open"
     return [(("matter", it["id"], it["due"]), _event("due", it["due"], it["title"], sub, it.get("id"), state=state))]

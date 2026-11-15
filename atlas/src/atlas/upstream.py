@@ -16,7 +16,7 @@ from urllib.parse import quote, urlsplit
 
 from kit.sign import sign
 
-from . import dots, settle
+from . import crosscheck, dots
 from .registry import Module
 
 HEALTH_SECONDS = 1.5
@@ -70,8 +70,8 @@ class Upstreams:
         self._health: dict[str, tuple[float, dict[str, Any]]] = {}
         self._last_scan: dict[str, dict[str, Any]] = {}  # what each app last said about its reading
         self._lock = threading.Lock()
-        self._settle_after_read = False
-        self.settler = settle.Settler()  # which bank payment settles which matter; its model is set by the Atlas
+        self._crosscheck_after_read = False
+        self.crosschecker = crosscheck.Crosschecker()  # how each open item relates to what the other apps know; its model is set by the Atlas
 
     # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
     def _token(self, module: Module, refresh: bool = False) -> str:
@@ -315,8 +315,8 @@ class Upstreams:
             lists = list(pool.map(one, targets))
         items = [i for part in lists for i in part]
         matters = [i for i in items if i.get("kind") == "matter"]
-        self.settler.start(matters, [i for i in items if i.get("kind") == "payment"])  # in the background; the calendar uses what is known now
-        return dots.agenda(items, datetime.now().astimezone().date().isoformat(), days, self.settler.known(matters))
+        self.crosschecker.start(matters, [i for i in items if i.get("kind") != "matter"])  # in the background; the calendar uses what is known now
+        return dots.agenda(items, datetime.now().astimezone().date().isoformat(), days, self.crosschecker.known(matters))
 
     def home(self) -> dict[str, Any]:
         """The home page: each app's card, fetched at the same time; an app that is down or slow just has no card."""
@@ -359,31 +359,34 @@ class Upstreams:
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
             results = list(pool.map(lambda m: self._scan_one(m, start), targets))
         if start:
-            self._settle_after_read = True
-        if self._settle_after_read and not any(r["running"] for r in results):
-            self._settle_after_read = False
+            self._crosscheck_after_read = True
+        if self._crosscheck_after_read and not any(r["running"] for r in results):
+            self._crosscheck_after_read = False
             self.agenda(400)  # the read is done: the payments are matched to what they pay, in the background, before the read counts as finished
-        if self.settler.working() and not any(r["running"] for r in results):
+        if self.crosschecker.working() and not any(r["running"] for r in results):
             first = next((r for r in results if r.get("up")), None)
             if first is not None:
-                first.update(running=True, progress="Checking open bills and items against your bank payments…")
+                first.update(running=True, progress="Checking open items against what your other apps know…")
         reader = next((r for r in results if r.get("steps")), None)
         if reader is not None:
             reader["steps"] = [
                 *reader["steps"],
-                self._payments_step(),
-            ]  # step 5 is Atlas's own: the open items that have an amount are checked against Finance's bank payments
+                self._crosscheck_step(),
+            ]  # step 5 is Atlas's own and the same for every app: open items are compared with what the other apps handed over
         modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
         return {"running": any(r["running"] for r in results), "modules": modules}
 
-    def _payments_step(self) -> dict[str, Any]:
-        done, total = self.settler.done, self.settler.total
-        working = self.settler.working()
+    def _crosscheck_step(self) -> dict[str, Any]:
+        """Step 5, the same for every app: each open item is compared with the items the other apps handed over (listed here by kind)."""
+        done, total = self.crosschecker.done, self.crosschecker.total
+        seen = ", ".join(f"{n:,} {kind}s" for kind, n in self.crosschecker.seen.most_common(4)) or "nothing yet"
         return {
             "n": 5,
-            "name": "Checking with Finance",
-            "state": "running" if working else "done" if self.settler.total or done else "waiting",
-            "detail": f"{min(done, total):,} of {total:,} open items checked against your bank payments" if total else "no open item with an amount to check",
+            "name": "Checking other apps",
+            "state": "running" if self.crosschecker.working() else "done" if total or done else "waiting",
+            "detail": f"{min(done, total):,} of {total:,} open items compared with {seen}"
+            if total
+            else f"no open item to compare (other apps handed over {seen})",
             "percent": 100.0 if total and done >= total else round(min(done, total) * 100 / total, 1) if total else None,
         }
 

@@ -81,7 +81,7 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
         "percent": 12.5,
     }
     assert (
-        report["modules"]["money"]["steps"][-1]["n"] == 5 and report["modules"]["money"]["steps"][-1]["name"] == "Checking with Finance"
+        report["modules"]["money"]["steps"][-1]["n"] == 5 and report["modules"]["money"]["steps"][-1]["name"] == "Checking other apps"
     )  # Atlas adds its own step
     assert report["modules"]["money"]["file"] == {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
     assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it
