@@ -690,13 +690,14 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         counts, every = [], []
         for key, label in labels.items():
             total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" and n == 1 else 0)
-            line = {"key": key, "label": label, "done": tally[key][where], "total": total}
+            # Each of the three is always listed. Its number is given only when its total is fully known: the mails and the documents are counted by the reader before it reads
+            # (the documents are only listed once the mails with all they carry are in); the documents in mails only once every mail is opened.
+            known_now = n > 1 or (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
+            line = {"key": key, "label": label, "done": tally[key][where], "total": total, "known": known_now}
             every.append(line)
-            # Reading takes the mails first, with all they carry, and then the documents. A number is shown only when its total is fully known and its turn has come.
-            visible = (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
-            if (total or (key == "mails" and found)) and (n > 1 or visible):  # mails are always said, even when none were found
-                counts.append(line)
-        done, total = sum(int(c["done"]) for c in counts), sum(int(c["total"]) for c in counts)
+            counts.append(line)
+        shown = [c for c in counts if c["known"]]
+        done, total = sum(int(c["done"]) for c in shown), sum(int(c["total"]) for c in shown)
         everything = bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
         steps.append(
             {

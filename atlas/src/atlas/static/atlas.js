@@ -636,9 +636,11 @@
                 el(
                     'span',
                     'rd-detail',
-                    c.total
-                        ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`
-                        : `no ${c.label} found`
+                    !c.known
+                        ? `${c.label}: counting…`
+                        : c.total
+                          ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`
+                          : `no ${c.label} found`
                 )
             );
         }

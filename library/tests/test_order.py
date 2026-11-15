@@ -45,10 +45,11 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
     conn.execute("UPDATE documents SET promised=7 WHERE name='m1.eml'")
     conn.commit()
     read = web._steps(conn, {"phase": 1})[0]
-    assert {c["key"]: c["total"] for c in read["counts"]} == {
+    assert {c["key"]: c["total"] for c in read["counts"] if c["known"]} == {
         "mails": 1,
         "attachments": 7,
-    }  # the documents are not mentioned until the mails and all they carry are in
+    }  # the documents get their number only when the mails and all they carry are in
+    assert [c["key"] for c in read["counts"]] == ["documents", "mails", "attachments"]  # but all three are always listed
     assert web._steps(conn, {"phase": 2})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
     assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
 
