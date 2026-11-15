@@ -99,3 +99,18 @@ def test_a_read_leaves_a_trace_of_every_step_on_every_file(conn):
     assert ("empty.pdf", "set aside", "no readable text") in steps
     assert now[0] == ("bill.pdf", "identifying", "31 characters")  # the panel is told which file is being worked on
     assert [s["step"] for s in trace.recent(conn, name="empty")] == ["set aside"]
+
+
+def test_a_file_the_model_cannot_make_sense_of_is_not_asked_again_after_three_tries(conn):
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('a','x.pdf','pdf','garbled','finance',0)")
+    conn.commit()
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            return {"content": "not json"}
+
+    for _ in range(store.MAX_TRIES):
+        store.retry_unclear(conn)
+        store.judge_pending(conn, Model(), "fake")
+    assert conn.execute("SELECT judged, tries FROM documents").fetchone()[:] == (3, store.MAX_TRIES)
+    assert store.retry_unclear(conn) == 0  # it stays as it is: no more model calls spent on it, and the audit still lists it

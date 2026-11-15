@@ -143,6 +143,9 @@ MIGRATIONS = (
     ALTER TABLE cases ADD COLUMN rank INTEGER NOT NULL DEFAULT 99;   -- where its files' app comes in the order the apps are served in (see priority)
     CREATE INDEX cases_rank ON cases (rank, id);
     """,
+    """
+    ALTER TABLE documents ADD COLUMN tries INTEGER NOT NULL DEFAULT 0;   -- how many times the model has been given the file without a usable answer
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
@@ -345,7 +348,7 @@ def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trac
     try:
         facts = ahead.result(d, _both(progress, trace, d["name"]))
     except extract.Unclear:
-        conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
+        conn.execute("UPDATE documents SET judged=3, tries=tries+1 WHERE sha256=?", (d["sha256"],))
         _trace(trace, d["name"], "no usable answer", "the model's answers could not be used; tried again at the next read", time.monotonic() - started)
         conn.commit()
         return "unclear", ""
@@ -969,9 +972,14 @@ def forget(conn, doc_id: int) -> str | None:
     return str(row["name"])
 
 
+MAX_TRIES = (
+    3  # a file the model gave no usable answer for this many times is not asked again until the file itself changes (each try can be several model calls)
+)
+
+
 def retry_unclear(conn) -> int:
-    """Documents the model could not make sense of get another try (called when the person presses Read new files)."""
-    n = conn.execute("UPDATE documents SET judged=0 WHERE judged=3").rowcount
+    """Files the model could not make sense of get another try when the person presses Read new files, up to MAX_TRIES times in all."""
+    n = conn.execute("UPDATE documents SET judged=0 WHERE judged=3 AND tries<?", (MAX_TRIES,)).rowcount
     conn.commit()
     return n
 
