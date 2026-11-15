@@ -609,12 +609,36 @@
         box.append(el('div', 'rd-label', 'Files'), ...rows);
         return box;
     };
-    const overallBlock = (overall) => {
-        if (!overall) return null;
-        const box = el('div', 'rd-overall');
-        const head = el('div', 'rd-ohead');
-        head.append(el('span', 'rd-big', pctText(overall.percent)), el('span', 'rd-sub', overall.detail));
-        box.append(head, meter(overall.percent));
+    // the steps of a read: how many there are, which is running, and how far each has got
+    const currentStep = (steps) =>
+        steps.find((s) => s.state === 'running' && s.n > 1) ||
+        steps.find((s) => s.state === 'running') ||
+        steps.find((s) => s.state === 'waiting');
+    const stepsBlock = (steps) => {
+        if (!steps || !steps.length) return null;
+        const box = el('div', 'rd-steps');
+        const now = currentStep(steps);
+        box.append(
+            el(
+                'div',
+                'rd-stephead',
+                now ? `Step ${now.n} of ${steps.length} · ${now.name}` : `All ${steps.length} steps done`
+            )
+        );
+        const row = el('div', 'rd-stepgrid');
+        for (const s of steps) {
+            const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
+            const head = el('div', 'rd-stepname');
+            head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
+            card.append(
+                head,
+                meter(s.percent),
+                el('span', 'rd-detail', s.detail),
+                el('span', 'rd-pct', pctText(s.percent))
+            );
+            row.append(card);
+        }
+        box.append(row);
         return box;
     };
     const totalsBlock = (parts) => {
@@ -719,7 +743,7 @@
         const infos = state.modules.map((m) => report.modules[m.id]).filter(Boolean);
         const parts = infos.flatMap((i) => i.parts || []);
         const problems = infos.flatMap((i) => i.problems || []).map((p) => noteBlock(p, true));
-        return [overallBlock(info.overall), filesBlock(info), totalsBlock(parts), ...problems];
+        return [stepsBlock(info.steps), filesBlock(info), totalsBlock(parts), ...problems];
     };
     const showScan = (report) => {
         const panel = $('#scan');

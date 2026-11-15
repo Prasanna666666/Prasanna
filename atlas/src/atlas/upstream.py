@@ -163,7 +163,7 @@ class Upstreams:
             "file": None,
             "recent": [],
             "waiting": [],
-            "overall": None,
+            "steps": [],
             "parts": [],
             "paused": False,
             "stopping": False,
@@ -188,7 +188,7 @@ class Upstreams:
             "file": self._file(raw.get("file")),  # the file being worked on right now
             "recent": self._named(raw.get("recent")),  # the last files finished, with their result
             "waiting": [str(n)[:200] for n in (raw.get("waiting") or []) if isinstance(n, str)][:6],  # the next files to be read
-            "overall": self._overall(raw.get("overall")),  # how far all of it has got
+            "steps": self._steps(raw.get("steps")),  # the steps of the read and which is running
             "summary": str(raw.get("summary", ""))[:200],
             "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
             "needs_check": int(raw.get("needs_check") or 0),
@@ -218,10 +218,21 @@ class Upstreams:
         return [{"name": str(r["name"])[:200], "detail": str(r.get("detail", ""))[:200]} for r in raw[:6] if isinstance(r, dict) and r.get("name")]
 
     @staticmethod
-    def _overall(raw: Any) -> dict[str, Any] | None:
-        if not isinstance(raw, dict) or _percent(raw.get("percent")) is None:
-            return None
-        return {"percent": _percent(raw["percent"]), "detail": str(raw.get("detail", ""))[:120]}
+    def _steps(raw: Any) -> list[dict[str, Any]]:
+        """The steps of a read an app reports, checked: a number, a name, running / done / waiting, a short line and how far along it is."""
+        if not isinstance(raw, list):
+            return []
+        return [
+            {
+                "n": step["n"],
+                "name": str(step.get("name", ""))[:40],
+                "state": step["state"] if step.get("state") in ("running", "done", "waiting") else "waiting",
+                "detail": str(step.get("detail", ""))[:160],
+                "percent": _percent(step.get("percent")),
+            }
+            for step in raw[:6]
+            if isinstance(step, dict) and isinstance(step.get("n"), int) and not isinstance(step.get("n"), bool)
+        ]
 
     @staticmethod
     def _file(raw: Any) -> dict[str, Any] | None:
@@ -356,8 +367,25 @@ class Upstreams:
             first = next((r for r in results if r.get("up")), None)
             if first is not None:
                 first.update(running=True, progress="Matching payments to what they pay…")
+        reader = next((r for r in results if r.get("steps")), None)
+        if reader is not None:
+            reader["steps"] = [
+                *reader["steps"],
+                self._payments_step(),
+            ]  # step 5 is Atlas's own: payments are matched to the groups of files that are still open
         modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
         return {"running": any(r["running"] for r in results), "modules": modules}
+
+    def _payments_step(self) -> dict[str, Any]:
+        done, total = self.settler.done, self.settler.total
+        working = self.settler.working()
+        return {
+            "n": 5,
+            "name": "Matching payments",
+            "state": "running" if working else "done" if self.settler.total or done else "waiting",
+            "detail": f"{min(done, total):,} of {total:,} open groups matched against your payments" if total else "no open group to match",
+            "percent": 100.0 if total and done >= total else round(min(done, total) * 100 / total, 1) if total else None,
+        }
 
     # ---- the one AI model all apps share (Ollama on this computer) -----------------------------------------------------
     def ai(self, model_url: str) -> dict[str, Any]:

@@ -69,7 +69,12 @@ class _Handler(BaseHTTPRequestHandler):
                     "progress": "reading" if self.app.scanning else "",
                     "recent": [{"name": "old.pdf", "detail": "identified, invoice (14 s)"}, {"bad": 1}] if self.app.scanning else [],
                     "waiting": ["next.pdf", 5] if self.app.scanning else [],
-                    "overall": {"percent": 12.5, "detail": "1 of 8 identified"} if self.app.scanning else None,
+                    "steps": [
+                        {"n": 2, "name": "Identifying files", "state": "running", "detail": "1 identified · 0 set aside · 7 waiting", "percent": 12.5},
+                        {"n": "x"},
+                    ]
+                    if self.app.scanning
+                    else [],
                     "file": {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
                     if self.app.scanning
                     else None,

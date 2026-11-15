@@ -73,7 +73,16 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     assert set(report["modules"]) == {"money", "photos"} and report["running"] is True
     assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
     assert report["modules"]["money"]["recent"] == [{"name": "old.pdf", "detail": "identified, invoice (14 s)"}]  # the malformed one is dropped
-    assert report["modules"]["money"]["waiting"] == ["next.pdf"] and report["modules"]["money"]["overall"] == {"percent": 12.5, "detail": "1 of 8 identified"}
+    assert report["modules"]["money"]["waiting"] == ["next.pdf"] and report["modules"]["money"]["steps"][0] == {
+        "n": 2,
+        "name": "Identifying files",
+        "state": "running",
+        "detail": "1 identified · 0 set aside · 7 waiting",
+        "percent": 12.5,
+    }
+    assert (
+        report["modules"]["money"]["steps"][-1]["n"] == 5 and report["modules"]["money"]["steps"][-1]["name"] == "Matching payments"
+    )  # Atlas adds its own step
     assert report["modules"]["money"]["file"] == {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
     assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it
     running.apps["money"].scanning = running.apps["photos"].scanning = False

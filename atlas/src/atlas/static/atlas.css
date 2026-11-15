@@ -960,21 +960,7 @@ body.chatting .fab {
     padding: 0 4px;
     cursor: pointer;
 }
-.rd-overall {
-    display: grid;
-    gap: 10px;
-}
-.rd-ohead {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-}
-.rd-big {
-    font-size: 36px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
-}
+
 .rd-meter {
     flex: 1;
     min-width: 40px;
@@ -983,9 +969,7 @@ body.chatting .fab {
     background: var(--surface-2);
     overflow: hidden;
 }
-.rd-overall .rd-meter {
-    height: 12px;
-}
+
 .rd-fill {
     height: 100%;
     width: 0;
@@ -1124,5 +1108,90 @@ body.chatting .fab {
     }
     .rd-side {
         grid-column: 2;
+    }
+}
+
+.rd-steps {
+    display: grid;
+    gap: 12px;
+}
+.rd-stephead {
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--a1);
+}
+.rd-stepgrid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+}
+.rd-step {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+}
+.rd-step.current {
+    border-color: var(--a1);
+    background: var(--accent-soft);
+}
+.rd-step.waiting {
+    opacity: 0.6;
+}
+.rd-stepname {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.rd-stepname b {
+    overflow: hidden;
+    font-size: 13.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rd-stepmark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--line-strong);
+    box-sizing: border-box;
+    font-size: 11px;
+    font-style: normal;
+    font-weight: 700;
+    color: var(--muted);
+}
+.rd-step.running .rd-stepmark {
+    border-color: var(--a1);
+    background: var(--a1);
+    color: #fff;
+}
+.rd-step.done .rd-stepmark {
+    border-color: var(--good);
+    background: var(--good);
+}
+.rd-step.done .rd-stepmark::after {
+    content: '\2713';
+    color: #fff;
+}
+.rd-step .rd-meter {
+    flex: none;
+}
+.rd-step .rd-detail {
+    white-space: normal;
+}
+.rd-step .rd-pct {
+    min-width: 0;
+    text-align: left;
+}
+@media (max-width: 900px) {
+    .rd-stepgrid {
+        grid-template-columns: 1fr;
     }
 }

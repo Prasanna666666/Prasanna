@@ -136,13 +136,13 @@ def test_the_update_counts_files_the_way_the_person_does_even_when_one_file_hold
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
     assert (
-        rows["Documents"] == "2 of 36 files · 0 identified (0.0%) · 2 not identified"
-        and rows["Mails"] == "1 of 12 mails · 0 identified (0.0%) · 1 not identified"
+        rows["Documents"] == "2 of 36 files · 0 identified · 2 waiting"
+        and rows["Mails"] == "1 of 12 mails · 0 identified · 1 waiting"
         and "not connected" in rows["Photos"]
     )
     web._CACHE.clear()  # the numbers are reused for a few seconds
     (parsed / ".found").write_text(json.dumps({"documents": 2, "mails": 1}))
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 identified (0.0%) · 2 not identified"
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 identified · 2 waiting"
 
 
 def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monkeypatch):
@@ -342,14 +342,19 @@ def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate
     assert web._share(17, 1201) == 1.4 and web._share(1201, 1201) == 100.0 and web._share(1200, 1201) == 99.9 and web._share(0, 0) == 0.0
 
 
-def test_the_report_names_the_files_waiting_and_the_overall_share(conn):
+def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_from_identified_ones(conn):
     for i, area in enumerate(("finance", "", "mail", "finance")):
         conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,0)", (f"{i:064x}", f"f{i}.pdf", "pdf", "text", area))
     conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('z','done.pdf','pdf','text','finance',1)")
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('y','junk.eml','email','','mail',2)")
     conn.commit()
     assert store.waiting_files(conn, current="f0.pdf", limit=3) == [
         "f3.pdf",
         "f1.pdf",
         "f2.pdf",
     ]  # named folders first, then loose files, then mail; not the one being read
-    assert web._overall(conn) == {"percent": 20.0, "detail": "1 of 5 identified"}
+    assert web._states(conn, "1=1") == {"identified": 1, "aside": 1, "waiting": 4, "unclear": 0}  # a file set aside is not counted as identified
+    steps = web._steps(conn, {"phase": 2})
+    assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Identifying files", "running")
+    assert steps[1]["detail"] == "1 identified · 1 set aside · 4 waiting" and steps[1]["percent"] == 33.3  # 2 of 6 have nothing more to do here
+    assert len(steps) == 4 and steps[3]["state"] == "waiting"

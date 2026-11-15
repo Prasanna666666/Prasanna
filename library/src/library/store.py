@@ -444,12 +444,17 @@ def finish_matters(
     trace: Trace | None = None,
     pairs: int = casebook.MAX_CONFIRMS,
     groups: int = casebook.MAX_READ_PER_PRESS,
+    phase: Callable[[int], None] | None = None,
 ) -> int:
     """Interpretation: the files are grouped (comparing up to `pairs` pairs) and then up to `groups` groups are read. Done in small slices while files are still being identified,
     and in full at the end of a read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit` and carried on. Returns how many groups were read."""
+    if phase:
+        phase(3)
     if progress:
         progress("Finding which files belong together…")
     casebook.rebuild(conn, client, model, control, progress, trace, pairs)
+    if phase:
+        phase(4)
     done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace)
     forget_mail_bodies(conn)
     conn.commit()

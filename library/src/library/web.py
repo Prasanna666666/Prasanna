@@ -71,6 +71,7 @@ JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken 
 
 
 def _one_round(conn, client, model, state: State, followed: trace.Trace) -> tuple[int, int, dict]:
+    state.scan["phase"] = 2
     ingested = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
     judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
     judged["replaced"] = ingested.get("replaced", 0)
@@ -116,14 +117,27 @@ def _read_pictures(state: State, conn, client, model) -> None:
 def _interpret_slice(state: State, conn, client, model, followed: trace.Trace, identified: int, rounds: int) -> None:
     """While files are still being identified, every few rounds a small slice of interpretation runs, so grouping and reading do not wait for the last file."""
     if identified and rounds % INTERPRET_EVERY_ROUNDS == 0 and client is not None and model and state.control != "stop":
-        store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed, SLICE_PAIRS, SLICE_GROUPS)
+        store.finish_matters(
+            conn,
+            client,
+            model,
+            lambda: state.control,
+            lambda m: state.scan.update(progress=m),
+            followed,
+            SLICE_PAIRS,
+            SLICE_GROUPS,
+            lambda n: state.scan.update(phase=n),
+        )
+        state.scan["phase"] = 2  # back to identifying
 
 
 def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
     if client is None or not model or state.control == "stop":
         return
-    store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed)
+    store.finish_matters(
+        conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed, phase=lambda n: state.scan.update(phase=n)
+    )
     if state.control != "stop":
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
 
@@ -185,7 +199,7 @@ def _read_all(state: State) -> None:
         log.failed("update failed", exc)
         state.scan["problems"] = [f"{type(exc).__name__}: {exc}"]
     finally:
-        state.scan.update(running=False, now=None)
+        state.scan.update(running=False, now=None, phase=None)
         _CACHE.clear()
         conn.close()
 
@@ -449,8 +463,18 @@ def _percent(part: int, whole: int) -> str:
     return "100%" if part == whole else f"{value:.1f}%" if value < 10 else f"{min(value, 99):.0f}%"
 
 
-def _identified(conn, where: str) -> int:
-    return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
+def _states(conn, where: str) -> dict[str, int]:
+    """Files by what has happened to them: identified by the model, set aside (nothing to read in them), waiting for the model, or no usable answer yet."""
+
+    def count(judged: str) -> int:
+        return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged{judged}").fetchone()[0]
+
+    return {"identified": count("=1"), "aside": count("=2"), "waiting": count("=0"), "unclear": count("=3")}
+
+
+def _handled(states: dict[str, int]) -> int:
+    """Files with nothing more to do at the identifying step: identified, or set aside."""
+    return states["identified"] + states["aside"]
 
 
 def _share(part: int, whole: int) -> float:
@@ -459,12 +483,14 @@ def _share(part: int, whole: int) -> float:
 
 
 def _understood(conn, where: str) -> str:
-    """How far each step has got after reading (identified, not identified), so 80% read is never mistaken for 80% done."""
-    done = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged IN (1,2)").fetchone()[0]
-    waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=0").fetchone()[0]
-    if not done and not waiting:
+    """What has happened to the files so far, in plain counts: identified by the model, set aside (nothing to read), waiting, no usable answer."""
+    s = _states(conn, where)
+    if not any(s.values()):
         return ""
-    return f" · {done:,} identified ({_percent(done, done + waiting)})" + (f" · {waiting:,} not identified" if waiting else "")
+    line = f" · {s['identified']:,} identified"
+    for key, label in (("aside", "set aside"), ("waiting", "waiting"), ("unclear", "no usable answer")):
+        line += f" · {s[key]:,} {label}" if s[key] else ""
+    return line
 
 
 def _parts_now(state: State, conn) -> list[dict[str, Any]]:
@@ -476,10 +502,10 @@ def _parts_now(state: State, conn) -> list[dict[str, Any]]:
         mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
     docs_row = _row("Documents", files, found.get("documents"), "files")
     docs_row["detail"] += _understood(conn, "area NOT IN ('mail','pictures')")
-    docs_row["percent"] = _share(_identified(conn, "area NOT IN ('mail','pictures')"), max(files, found.get("documents") or 0))
+    docs_row["percent"] = _share(_handled(_states(conn, "area NOT IN ('mail','pictures')")), max(files, found.get("documents") or 0))
     if mail_row.get("detail", "").find("not connected") < 0:
         mail_row["detail"] += _understood(conn, "area='mail'")
-        mail_row["percent"] = _share(_identified(conn, "area='mail'"), max(mails, found.get("mails") or 0))
+        mail_row["percent"] = _share(_handled(_states(conn, "area='mail'")), max(mails, found.get("mails") or 0))
     shares = [
         f"{'Other' if k == 'inbox' else k.capitalize()} {v:,}" for k, v in found.get("by_folder", {}).items() if v
     ]  # where the number comes from; empty folders are left out
@@ -541,11 +567,51 @@ def _post_auto(state: State, conn, body: dict) -> dict:
     return {"started": start_scan(state, auto=True), "reason": "small", "waiting": waiting, "limit": AUTO_LIMIT}  # the round also stops at the limit
 
 
-def _overall(conn) -> dict[str, Any]:
-    """How much of everything read is identified: all files and mail together."""
-    done = _identified(conn, "1=1")
-    waiting = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE judged=0").fetchone()[0]
-    return {"percent": _share(done, done + waiting), "detail": f"{done:,} of {done + waiting:,} identified"}
+def _step_state(running: bool, done: bool) -> str:
+    return "running" if running else "done" if done else "waiting"
+
+
+def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
+    """The steps of a read, in order, each with its own state and count: 1 reading the files, 2 the model identifying them, 3 grouping the related ones, 4 the model reading each group.
+    (Atlas adds step 5, matching payments.) A step is running while it is the one being worked on; the first runs alongside the second, as the reader keeps taking in files."""
+    states = _states(conn, "1=1")
+    found = _found()
+    read = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area<>'pictures'").fetchone()[0]
+    total = max(read, (found.get("documents") or 0) + (found.get("mails") or 0))
+    identified_rows = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0]
+    grouped = sum(len(json.loads(r[0])) for r in conn.execute("SELECT members FROM cases"))
+    groups = conn.execute("SELECT COUNT(*), COALESCE(SUM(summary<>''), 0) FROM cases").fetchone()
+    phase, handled = s.get("phase"), _handled(states)
+    return [
+        {
+            "n": 1,
+            "name": "Reading files",
+            "state": _step_state((parsed_dir() / ".busy").exists(), True),
+            "detail": f"{read:,} of {total:,} read",
+            "percent": _share(read, total),
+        },
+        {
+            "n": 2,
+            "name": "Identifying files",
+            "state": _step_state(phase == 2, not states["waiting"]),
+            "detail": f"{states['identified']:,} identified · {states['aside']:,} set aside · {states['waiting']:,} waiting",
+            "percent": _share(handled, handled + states["waiting"]),
+        },
+        {
+            "n": 3,
+            "name": "Grouping files",
+            "state": _step_state(phase == 3, identified_rows > 0 and grouped >= identified_rows),
+            "detail": f"{min(grouped, identified_rows):,} of {identified_rows:,} identified files placed in a group",
+            "percent": _share(min(grouped, identified_rows), identified_rows),
+        },
+        {
+            "n": 4,
+            "name": "Reading groups",
+            "state": _step_state(phase == 4, groups[0] > 0 and groups[1] >= groups[0]),
+            "detail": f"{groups[1]:,} of {groups[0]:,} groups read",
+            "percent": _share(groups[1], groups[0]),
+        },
+    ]
 
 
 def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
@@ -574,7 +640,7 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "file": _file_now(s, conn),
         "recent": trace.finished(conn, s.get("run", "")) if s["running"] else [],
         "waiting": store.waiting_files(conn, (s.get("now") or ("",))[0]) if s["running"] else [],
-        "overall": _overall(conn) if s["running"] else None,
+        "steps": _steps(conn, s) if s["running"] else [],
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],

@@ -95,6 +95,7 @@ class Settler:
         self.pick = pick
         self._known: dict[str, dict[str, Any]] = {}
         self._busy = threading.Lock()
+        self.done = self.total = 0  # of the open groups without an answer when the last round started
 
     def known(self, matters: list[dict[str, Any]]) -> dict[Any, dict[str, Any]]:
         return {m["id"]: self._known[key_of(m)] for m in matters if m.get("open") and key_of(m) in self._known}
@@ -105,6 +106,8 @@ class Settler:
     def start(self, matters: list[dict[str, Any]], payments: list[dict[str, Any]]) -> None:
         """Every open matter without an answer is judged in the background, one at a time (the model is shared); what failed is asked again the next time."""
         todo = [m for m in matters if m.get("open") and key_of(m) not in self._known]
+        if not self._busy.locked():
+            self.done, self.total = 0, len(todo)
         if todo and self.pick is not None and self._busy.acquire(blocking=False):
             threading.Thread(target=self._run, args=(todo, payments), daemon=True).start()
 
@@ -113,5 +116,6 @@ class Settler:
             for m in todo:
                 if self.pick is not None and (result := judge(self.pick, m, payments)) is not None:
                     self._known[key_of(m)] = result
+                self.done += 1
         finally:
             self._busy.release()
