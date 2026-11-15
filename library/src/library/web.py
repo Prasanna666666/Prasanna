@@ -6,8 +6,10 @@ addresses are accepted, and anything that changes something needs this service's
 from __future__ import annotations
 
 import contextlib
+import faulthandler
 import json
 import os
+import signal
 import threading
 import time
 import urllib.parse
@@ -690,6 +692,9 @@ def serve(host: str = "127.0.0.1", port: int = 8502) -> int:
     conn.close()
     threading.Thread(target=_warm_at_start, args=(state,), name="search-index", daemon=True).start()  # ready before the first question, not at it
     httpd = ThreadingHTTPServer((host, port), make_handler(state))
+    faulthandler.register(
+        signal.SIGUSR1, all_threads=True
+    )  # `docker kill -s USR1 <container>` prints what every part of the app is doing right now (to the log)
     print(f"Documents is running on http://{host}:{port}", flush=True)
     with contextlib.suppress(KeyboardInterrupt):
         httpd.serve_forever()
