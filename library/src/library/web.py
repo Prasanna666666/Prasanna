@@ -201,7 +201,7 @@ def _read_all(state: State) -> None:
         state.scan["problems"] = [problem] if problem else []
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)
-        state.scan["problems"] = [f"{type(exc).__name__}: {exc}"]
+        state.scan["problems"] = [f"{type(exc).__name__}: {exc} (in {log.where(exc)})"]
     finally:
         state.scan.update(running=False, now=None, phase=None, app="")
         _CACHE.clear()
@@ -652,7 +652,10 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     read = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area<>'pictures'").fetchone()[0]
     total = max(read, (found.get("documents") or 0) + (found.get("mails") or 0))
     identified_rows = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0]
-    grouped = min(sum(len(json.loads(r[0])) for r in conn.execute("SELECT members FROM cases")), identified_rows)
+    in_groups = conn.execute("SELECT COALESCE(SUM(length(members) - length(replace(members, ',', '')) + 1), 0) FROM cases").fetchone()[
+        0
+    ]  # a group's members are a list of ids: its commas plus one
+    grouped = min(in_groups, identified_rows)
     groups = conn.execute("SELECT COUNT(*), COALESCE(SUM(summary<>''), 0) FROM cases").fetchone()
     phase = s.get("phase")
     together: list[dict[str, Any]] = [
@@ -720,15 +723,31 @@ def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
     return {"name": name, "step": f"{step}: {detail}" if detail else step, "percent": percent, "estimated": estimated, "seconds": seconds}
 
 
+def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
+    """The parts of the status that count through the whole database (the steps, the files waiting, the files just done). Like every count here they are reused for a few seconds and
+    brought up to date in the background: a status question must never wait for the database, however big it is or busy a read keeps it."""
+    snapshot = {key: s.get(key) for key in ("phase", "app", "run", "now")}
+
+    def make(c) -> dict[str, Any]:
+        return {
+            "steps": _steps(c, snapshot),
+            "waiting": store.waiting_files(c, (snapshot.get("now") or ("",))[0]),
+            "recent": trace.finished(c, snapshot.get("run") or ""),
+        }
+
+    return _cached(f"counted:{snapshot['phase']}:{snapshot['app']}", make, state, conn)
+
+
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     s = state.scan
+    counted = _counted(state, conn, s) if s["running"] else {"recent": [], "waiting": [], "steps": []}
     return {
         "running": s["running"],
         "progress": s["progress"],
         "file": _file_now(s, conn),
-        "recent": trace.finished(conn, s.get("run", "")) if s["running"] else [],
-        "waiting": store.waiting_files(conn, (s.get("now") or ("",))[0]) if s["running"] else [],
-        "steps": _steps(conn, s) if s["running"] else [],
+        "recent": counted["recent"],
+        "waiting": counted["waiting"],
+        "steps": counted["steps"],
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],
@@ -846,7 +865,7 @@ class _Handler(JsonHandler):
             self._fail(failure.status, failure.message)
         except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
             log.failed("request failed", exc, path=path)
-            self._fail(500, f"{type(exc).__name__}: {exc}")
+            self._fail(500, f"{type(exc).__name__}: {exc} (in {log.where(exc)})")
         finally:
             conn.close()
 

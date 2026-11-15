@@ -157,11 +157,19 @@ class Upstreams:
 
     # ---- one Update button: read everything new, in every app that can -----------------------------------------------
     @staticmethod
-    def _why_not(module: Module, status: int) -> str:
-        """What an app's refusal means, in words (the status only: nothing from the app's own answer is shown)."""
+    def _why_not(module: Module, status: int, body: bytes = b"") -> str:
+        """What an app's refusal means, in words. For an error inside the app: the kind of error and where in its own code, which is all that is needed to find it
+        (the app's message itself, which can name a file, is not shown)."""
         if status in (401, 403):
             return f"{module.name} refused Atlas's request (HTTP {status}): the keys do not match, run ./up.sh again"
-        return f"{module.name} answered with an error (HTTP {status})"
+        try:
+            raw = str(json.loads(body).get("error", ""))
+        except (ValueError, AttributeError):
+            raw = ""
+        kind = re.match(r"\w+", raw)
+        place = re.search(r"\(in ([\w ,.:<>-]{1,80})\)\s*$", raw)
+        detail = (f": {kind.group(0)}" if kind else "") + (f" in {place.group(1)}" if place else "")
+        return f"{module.name} answered with an error (HTTP {status}{detail})"
 
     def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
         down = {
@@ -185,7 +193,7 @@ class Upstreams:
             status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
             raw = json.loads(body) if status == 200 else None
             if status != 200:
-                return {**down, "up": True, "problems": [self._why_not(module, status)]}  # the app is there: it said no, and why is shown
+                return {**down, "up": True, "problems": [self._why_not(module, status, body)]}  # the app is there: it said no, and why is shown
         except TimeoutError:
             # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
             last = self._last_scan.get(module.id)

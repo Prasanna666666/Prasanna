@@ -90,3 +90,16 @@ def test_unproven_figures_ignore_dates_and_small_counts():
     assert unproven_figures("You spent 850.00 on 2026-10-05, 3 payments, rent 800", tool) == []
     assert unproven_figures("You spent 851.00", tool) == [851.0]
     assert unproven_figures("No tool was used and 9,999 appears", []) == []
+
+
+def test_an_error_says_where_in_the_code_it_happened_and_nothing_else():
+    from kit import log
+
+    def inner():
+        raise KeyError("Bank statement.pdf")
+
+    try:
+        inner()
+    except KeyError as exc:
+        place = log.where(exc)
+    assert place.startswith("inner, test_kit.py:") and "Bank statement" not in place

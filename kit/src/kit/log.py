@@ -51,3 +51,15 @@ def event(name: str, level: int = logging.INFO, **fields: str | int | float | bo
 def failed(name: str, exc: BaseException, **fields: str | int | float | bool) -> None:
     """Record a failure that was handled on purpose (the app carried on): which event, and the error's type only (its message may quote private text)."""
     event(name, logging.WARNING, error=type(exc).__name__, **fields)
+
+
+def where(exc: BaseException) -> str:
+    """Where in the program's own code an error happened, as "function, file.py:line" (no data: the names are code's). For showing a person what broke without showing what was being read."""
+    import traceback
+    from pathlib import Path
+
+    frames = [f for f in traceback.extract_tb(exc.__traceback__) if "site-packages" in f.filename or "/src/" in f.filename or f.filename.endswith(".py")]
+    if not frames:
+        return ""
+    last = frames[-1]
+    return f"{last.name}, {Path(last.filename).name}:{last.lineno}"

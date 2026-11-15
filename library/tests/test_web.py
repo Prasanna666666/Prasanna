@@ -384,3 +384,27 @@ def test_skipped_files_are_counted_by_the_real_reason(conn):
     conn.commit()
     assert web._skipped_reasons(conn) == {"no_text": 1, "rule": 2, "unknown": 1}
     assert "2 by the keyword rule" in web._skipped_line(conn) and "4 files are not shown to the model" in web._skipped_line(conn)
+
+
+def test_the_status_counts_through_the_database_once_not_at_every_question(conn, monkeypatch):
+    calls = []
+    real = web._steps
+    monkeypatch.setattr(web, "_steps", lambda c, s: calls.append(1) or real(c, s))
+    web._CACHE.clear()
+    state = type("S", (), {"connect": staticmethod(lambda: conn)})()
+    running = {"running": True, "phase": 2, "app": "", "run": "r", "now": None}
+    for _ in range(5):
+        web._counted(state, conn, running)  # a status question every two seconds while a read goes on
+    assert len(calls) == 1
+
+
+def test_the_number_of_files_in_groups_is_one_count_and_exact(conn):
+    for i, members in enumerate(("[1]", "[2, 3]", "[4, 5, 6]")):
+        conn.execute("INSERT INTO cases (input_hash, members, summary) VALUES (?,?,?)", (f"h{i}", members, ""))
+    conn.commit()
+    assert web._steps(conn, {})[2]["parts"][0]["detail"].startswith("0 of 0")  # nothing is sorted yet: the count is capped by what is sorted
+    conn.execute(
+        "INSERT INTO documents (sha256, name, kind, text, area, judged) SELECT printf('%064d', value), 'f', 'pdf', 't', 'finance', 1 FROM (WITH RECURSIVE c(value) AS (SELECT 1 UNION ALL SELECT value+1 FROM c WHERE value<10) SELECT value FROM c)"
+    )
+    conn.commit()
+    assert web._steps(conn, {})[2]["parts"][0]["detail"] == "6 of 10 files checked for related files"
