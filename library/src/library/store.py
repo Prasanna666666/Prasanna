@@ -25,7 +25,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import casebook, priority, recognise, relevance
+from . import apps, casebook, priority, recognise, relevance
 from .trace import FAILED, Trace
 
 MIGRATIONS = (
@@ -145,6 +145,25 @@ MIGRATIONS = (
     """,
     """
     ALTER TABLE documents ADD COLUMN tries INTEGER NOT NULL DEFAULT 0;   -- how many times the model has been given the file without a usable answer
+    """,
+    """
+    ALTER TABLE documents ADD COLUMN fact_apps TEXT;   -- '|finance|health|': the apps the model marked the file for, kept apart so listing by app never reads every document
+    -- Files sorted before the apps were declared have only the kind the model gave then. This one-time conversion turns it into the apps' marks (the only place a kind is
+    -- ever matched against a name); every file sorted from now on is marked by the model itself.
+    UPDATE documents SET facts = json_set(facts, '$.apps', json(CASE json_extract(facts, '$.kind')
+        WHEN 'bank_statement' THEN '["finance"]' WHEN 'payslip' THEN '["finance"]' WHEN 'annual_statement' THEN '["finance"]' WHEN 'invoice' THEN '["finance"]'
+        WHEN 'receipt' THEN '["finance"]' WHEN 'tax' THEN '["finance"]' WHEN 'insurance' THEN '["finance"]' WHEN 'contract' THEN '["finance"]'
+        WHEN 'ticket' THEN '["travel"]' WHEN 'booking' THEN '["travel"]' WHEN 'medical' THEN '["health"]' ELSE '[]' END))
+        WHERE facts<>'' AND json_valid(facts) AND json_extract(facts, '$.apps') IS NULL;
+    UPDATE documents SET fact_apps = '|' || COALESCE((SELECT group_concat(value, '|') FROM json_each(json_extract(facts, '$.apps'))), '') || '|' WHERE facts<>'' AND json_valid(facts);
+    CREATE INDEX documents_fact_apps ON documents (judged, fact_apps);
+    CREATE TRIGGER documents_apps_new AFTER INSERT ON documents WHEN NEW.facts<>'' AND json_valid(NEW.facts) BEGIN
+        UPDATE documents SET fact_apps = '|' || COALESCE((SELECT group_concat(value, '|') FROM json_each(json_extract(NEW.facts, '$.apps'))), '') || '|' WHERE id=NEW.id;
+    END;
+    CREATE TRIGGER documents_apps_changed AFTER UPDATE OF facts ON documents BEGIN
+        UPDATE documents SET fact_apps = CASE WHEN NEW.facts<>'' AND json_valid(NEW.facts)
+            THEN '|' || COALESCE((SELECT group_concat(value, '|') FROM json_each(json_extract(NEW.facts, '$.apps'))), '') || '|' END WHERE id=NEW.id;
+    END;
     """,
 )
 MODULE = Module("library", MIGRATIONS)
@@ -275,13 +294,14 @@ def _attachment_count(d) -> int:
 
 
 def _exact_facts(d) -> dict | None:
-    """Documents that need no model: a bank standard (MT940, camt.053), the ECB's exchange-rate file, or a picture with no text in it (a photo)."""
+    """Documents that need no model: a bank standard (MT940, camt.053), the ECB's exchange-rate file, or a picture with no text in it (a photo). What each is is its own plain
+    label; the apps it is about are the ones whose declared words appear in that label."""
     if recognise.bank_standard(d["text"]):
-        return {"kind": "bank_statement", "title": "Bank statement"}
+        return {"kind": "bank statement", "title": "Bank statement", "apps": apps.matching("bank statement")}
     if recognise.exchange_rate_file(_data(d).get("rows")):
-        return {"kind": "other", "title": "ECB exchange rates"}
+        return {"kind": "exchange rates", "title": "ECB exchange rates", "apps": apps.matching("ECB exchange rates")}
     if d["kind"] == "image" and len(d["text"].strip()) < relevance.MIN_TEXT:  # a picture with no text in it is a photo, not a document: Photos' business
-        return {"kind": "photo", "title": d["name"]}
+        return {"kind": "photo", "title": d["name"], "apps": []}
     return None
 
 
@@ -324,8 +344,11 @@ def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
 
 def _understand(client, model: str, d, progress: Progress | None = None) -> dict:
     """What the model makes of one document: what it is and its key facts, and for a medical document the lab values and medicines the document itself prints."""
-    facts = extract.classify(client, model, d["name"], d["text"])
-    if facts.get("kind") in HEALTH_KINDS or d["area"] == "health":
+    facts = extract.classify(client, model, d["name"], d["text"], apps.describe())
+    readers = {
+        apps.reading(name) for name in [*facts.get("apps", []), d["area"]]
+    }  # an app can ask for an extra reading of its files (a folder named after the app counts too)
+    if "medical" in readers:
         facts["health"] = extract.medical_details(client, model, d["name"], d["text"], progress)
     return facts
 
@@ -551,7 +574,6 @@ def finish_matters(
     pairs: int = casebook.MAX_CONFIRMS,
     groups: int = casebook.MAX_READ_PER_PRESS,
     phase: Callable[[int], None] | None = None,
-    up_to_rank: int = 99,
 ) -> int:
     """Interpretation: the files are grouped (comparing up to `pairs` pairs) and then up to `groups` groups are read. Done in small slices while files are still being identified,
     and in full at the end of a read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit` and carried on. Returns how many groups were read."""
@@ -562,17 +584,10 @@ def finish_matters(
     casebook.rebuild(conn, client, model, control, progress, trace, pairs)
     if phase:
         phase(4)
-    done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace, up_to_rank=up_to_rank)
+    done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace)
     forget_mail_bodies(conn)
     conn.commit()
     return done
-
-
-def app_ready(conn, area: str, found: int) -> bool:
-    """Is every file of this app read and identified? Only then can its groups be formed and read: a group is right only when all its pieces are in."""
-    pending = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0 AND area=?", (area,)).fetchone()[0]
-    read = conn.execute("SELECT COUNT(*) FROM documents WHERE area=?", (area,)).fetchone()[0]
-    return pending == 0 and read > 0 and read >= found
 
 
 def audit(conn) -> dict[str, int]:
@@ -604,12 +619,19 @@ def audit_line(found: dict[str, int]) -> str:
     return "Still left: " + "; ".join(left)
 
 
+def _apps_clause(names: list[str]) -> tuple[str, list[str]]:
+    """A query condition for the files that are about any of these apps: marked for one by the model, or in a folder named after one. No app: nothing."""
+    if not names:
+        return "0", []
+    return "(" + " OR ".join("fact_apps LIKE ? OR area=?" for _ in names) + ")", [v for n in names for v in (f"%|{n}|%", n)]
+
+
 def fill_health_details(conn, client, model, control: Callable[[], str] | None = None) -> int:
     """Medical documents judged before lab values and medicines were read get them now (one model call each); returns how many."""
-    marks = ",".join("?" for _ in HEALTH_KINDS)
+    clause, args = _apps_clause(apps.with_reading("medical"))
     rows = conn.execute(
-        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND (fact_kind IN ({marks}) OR area='health') AND facts<>'' AND facts NOT LIKE '%\"health\"%'",
-        sorted(HEALTH_KINDS),
+        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND {clause} AND facts<>'' AND json_extract(facts, '$.health') IS NULL",
+        args,
     ).fetchall()
     done = 0
     for r in rows:
@@ -629,11 +651,9 @@ def fill_health_details(conn, client, model, control: Callable[[], str] | None =
 
 # ---- Health: the person's own medical documents, only when unlocked; values and medicines exactly as the documents print them --------------------
 def _medical_documents(conn) -> list[dict]:
-    marks = ",".join("?" for _ in HEALTH_KINDS)
+    clause, args = _apps_clause(apps.with_reading("medical"))
     out = []
-    for r in conn.execute(
-        f"SELECT id, name, kind, facts FROM documents WHERE judged=1 AND facts<>'' AND (fact_kind IN ({marks}) OR area='health')", sorted(HEALTH_KINDS)
-    ):
+    for r in conn.execute(f"SELECT id, name, kind, facts FROM documents WHERE judged=1 AND facts<>'' AND {clause}", args):
         facts = json.loads(r["facts"])
         out.append(
             {
@@ -651,9 +671,7 @@ def _medical_documents(conn) -> list[dict]:
 
 def health_funnel(conn) -> dict[str, int]:
     """Why Health may be empty, in counts: how many health documents there are, how many the model has understood, how many hold lab values, and where the rest is stuck."""
-    marks = ",".join("?" for _ in HEALTH_KINDS)
-    where = f"(area='health' OR fact_kind IN ({marks}))"
-    args = sorted(HEALTH_KINDS)
+    where, args = _apps_clause(apps.with_reading("medical"))
 
     def count(extra: str = "") -> int:
         return int(conn.execute(f"SELECT COUNT(*) FROM documents WHERE {where}{extra}", args).fetchone()[0])
@@ -827,7 +845,6 @@ LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready, case_id"
 
 
 # ---- Health: medical documents are recognised by kind or by the health folder
-HEALTH_KINDS = frozenset({"medical"})
 
 
 def proper_name(facts: dict, file_name: str, kind: str = "") -> str:
@@ -849,7 +866,8 @@ def _as_document(r) -> dict[str, Any]:
         "title": proper_name(facts, r["name"], facts.get("kind", "")),
         "file_kind": r["kind"],
         "area": r["area"],
-        "kind": facts.get("kind", "other"),
+        "kind": facts.get("kind", ""),
+        "apps": facts.get("apps") or [],
         "facts": facts,
         "ready": r["ready"],
     }
@@ -881,10 +899,9 @@ def held_back(conn, area: str = "", kinds: list[str] | None = None, limit: int =
     return out
 
 
-def _fits(doc: dict[str, Any], wanted: set[str], area: str, source: str, only_understood: bool) -> bool:
+def _fits(doc: dict[str, Any], wanted: set[str], area: str, source: str, only_understood: bool, app: str = "") -> bool:
     """Does this document belong in the list that was asked for?"""
-    if (doc["kind"] in HEALTH_KINDS or doc["area"] == "health") and "medical" not in wanted and area != "health":
-        return False  # medical documents go to whoever asks for them by name, never to another app that asks for its own kinds or for everything
+    said = any(w in doc["kind"].lower() for w in wanted)  # the words asked for, in what the model called the file
     if (only_understood or source == "documents") and not doc["understood"]:
         return False  # shown only when understood completely enough to help (the rest is listed by `held_back`, with the reason)
     if source == "documents":
@@ -892,9 +909,9 @@ def _fits(doc: dict[str, Any], wanted: set[str], area: str, source: str, only_un
             return False  # documents from folders and the documents inside emails, never a whole email
     elif source and (doc["area"] == "mail") != (source == "mail"):  # `mail` only the mail; `files` everything else
         return False
-    if wanted or area:
-        return doc["kind"] in wanted or bool(area and doc["area"] == area)
-    return doc["kind"] != "other"
+    if wanted or area or app:
+        return said or bool(app and app in doc["apps"]) or bool(area and doc["area"] == area)
+    return bool(doc["apps"])  # everything the model found to be about some app
 
 
 def list_documents(
@@ -908,19 +925,23 @@ def list_documents(
     full: bool = False,
     source: str = "",
     only_understood: bool = False,
+    app: str = "",
 ) -> list[dict]:
-    """Ready documents, oldest first. `kinds` are classified kinds (invoice, ticket, medical ...); a document is returned when its kind is listed or, with `area`, when it came from that area.
-    Without either, everything the model recognised (not "other") is returned. With `full`, the text and structured data come too."""
-    wanted = set(kinds or [])
+    """Ready documents, oldest first. `app` is an app the model marked the file for; `kinds` are words looked for in what the model called the file; with `area`, a document also
+    qualifies when it came from that area. Without any of them, everything the model found to be about some app is returned. With `full`, the text and structured data come too."""
+    wanted = {k.lower() for k in kinds or [] if k}
     out: list[dict] = []
     where = "ready > ?"
     args: list[Any] = [max(0, int(since))]
-    if wanted and not area:
-        where += f" AND fact_kind IN ({','.join('?' for _ in wanted)})"
-        args += sorted(wanted)
+    if app and not area:
+        where += " AND fact_apps LIKE ?"
+        args.append(f"%|{app}|%")
+    elif wanted and not area:
+        where += " AND (" + " OR ".join("LOWER(COALESCE(fact_kind, '')) LIKE ?" for _ in wanted) + ")"
+        args += [f"%{w}%" for w in sorted(wanted)]
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE {where} ORDER BY ready", args):
         doc = _as_document(r)
-        if not _fits(doc, wanted, area, source, only_understood):
+        if not _fits(doc, wanted, area, source, only_understood, app):
             continue
         facts = doc["facts"]
         if place and place.lower() not in str(facts.get("place", "")).lower():
@@ -1031,12 +1052,24 @@ def by_kind(conn) -> list[dict]:
     return out
 
 
+def trip_documents(conn, limit: int = 500) -> list[dict]:
+    """The files that are about a trip: those marked for an app that reads trips (`apps.json`)."""
+    found: list[dict] = []
+    for name in apps.with_reading("trip"):
+        found += list_documents(conn, app=name, limit=limit)
+    return found
+
+
+def is_trip_document(doc: dict) -> bool:
+    return bool(set(doc["apps"]) & set(apps.with_reading("trip")))
+
+
 # ---- trips: derived from the tickets and bookings that were read -----------------------------------------------------------------
 def trips(conn, place: str = "", year: str = "") -> list[dict]:
     """Journeys found in the tickets and bookings: where, from which day to which day (as the documents themselves write them), and how many
     documents show it. Documents for the same place whose dates are within 60 days of each other are one trip. Most documents first."""
     found: dict[str, list[dict]] = {}
-    for doc in list_documents(conn, ["ticket", "booking"], limit=500):
+    for doc in trip_documents(conn):
         facts = doc["facts"]
         start, name = str(facts.get("start_date") or ""), str(facts.get("place") or "").strip()
         if not start or not name:

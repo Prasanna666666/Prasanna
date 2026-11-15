@@ -71,7 +71,7 @@ def test_a_document_the_full_question_failed_on_gets_a_second_look_with_a_smalle
 
     model = TwoStep()
     got = extract.classify(model, "m", "f.pdf", "HUUROVEREENKOMST tussen partijen " * 20)
-    assert got == {"kind": "contract", "title": "Lease", "partial": True}
+    assert got == {"kind": "contract", "title": "Lease", "apps": [], "partial": True}
     assert model.calls.count("full") == 2 and model.calls[-1] == "kind-only"  # two tries of the full question, then the smaller one
 
 
@@ -115,3 +115,21 @@ def test_the_model_failing_says_why_and_never_with_anything_from_the_text():
 def test_the_text_for_the_model_loses_control_characters_but_keeps_every_script():
     dirty = "Aadhaar\x00 card\x07\n\tनाम: प्रसन्ना \udc80 Name: Prasanna\r\n"
     assert extract.clean(dirty) == "Aadhaar card\n\tनाम: प्रसन्ना  Name: Prasanna\r\n"
+
+
+def test_the_model_describes_the_file_freely_and_marks_only_the_apps_that_are_declared():
+    seen = {}
+
+    class Model:
+        def chat(self, model, messages, schema=None, **kw):
+            seen["prompt"], seen["schema"] = messages[0]["content"], schema
+            return {"content": json.dumps({"kind": "Aadhaar identity card", "title": "Aadhaar", "apps": ["identity", "wallet"]})}
+
+    declared = {"wallet": "money and payments", "garden": "the garden"}
+    got = extract.classify(Model(), "m", "id.pdf", "Aadhaar card " * 30, declared)
+    assert got["kind"] == "Aadhaar identity card"  # whatever the model calls it: there is no list to choose from, nothing is refused for being unknown
+    assert got["apps"] == ["wallet"]  # "identity" is not a declared app: dropped
+    assert "enum" not in seen["schema"]["properties"]["kind"] and seen["schema"]["properties"]["apps"]["items"]["enum"] == ["wallet", "garden"]
+    assert "wallet: money and payments" in seen["prompt"] and "garden: the garden" in seen["prompt"]
+    for word in ("invoice", "payslip", "bank_statement", "medical", "ticket"):
+        assert word not in seen["prompt"]  # no kind of document is named in the question

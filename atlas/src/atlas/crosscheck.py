@@ -9,7 +9,6 @@ import hashlib
 import json
 import re
 import threading
-from collections import Counter
 from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
@@ -111,8 +110,6 @@ class Crosschecker:
         self.pick = pick
         self._known: dict[str, dict[str, Any]] = {}
         self._busy = threading.Lock()
-        self.done = self.total = 0  # of the open items without an answer when the last round started
-        self.seen: Counter[str] = Counter()  # what the other apps handed over, by kind
 
     def known(self, matters: list[dict[str, Any]]) -> dict[Any, dict[str, Any]]:
         return {m["id"]: self._known[key_of(m)] for m in matters if m.get("open") and key_of(m) in self._known}
@@ -123,9 +120,6 @@ class Crosschecker:
     def start(self, matters: list[dict[str, Any]], others: list[dict[str, Any]]) -> None:
         """Every open item without an answer is compared in the background, one at a time (the model is shared); what failed is asked again the next time."""
         todo = [m for m in matters if m.get("open") and key_of(m) not in self._known]
-        if not self._busy.locked():
-            self.done, self.total = 0, len(todo)
-            self.seen = Counter(str(o.get("kind", "item")) for o in others)
         if todo and self.pick is not None and self._busy.acquire(blocking=False):
             threading.Thread(target=self._run, args=(todo, others), daemon=True).start()
 
@@ -134,6 +128,5 @@ class Crosschecker:
             for m in todo:
                 if self.pick is not None and (result := judge(self.pick, m, others)) is not None:
                     self._known[key_of(m)] = result
-                self.done += 1
         finally:
             self._busy.release()

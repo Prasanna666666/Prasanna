@@ -3,7 +3,6 @@
 import json
 
 import pytest
-from kit import extract
 
 from finance import canary, tables
 from finance.modules import money
@@ -20,9 +19,8 @@ class Model:
 
     def chat(self, model, messages, tools=None, schema=None, **kw):
         self.calls += 1
-        system = messages[0]["content"]
-        if system == extract.KIND_PROMPT:
-            return {"content": json.dumps({"kind": "bank_statement"})}
+        if "kind" in ((schema or {}).get("properties") or {}):
+            return {"content": json.dumps({"kind": "bank_statement", "apps": ["finance"]})}
         ok = self.sample_ok if any(SAMPLE_MARK in m["content"] for m in messages) else self.others_ok
         return {"content": json.dumps(LAYOUT if ok else {"header_line": 0, "roles": ["date"], "date_format": "%d-%m-%Y"})}
 
@@ -65,7 +63,7 @@ def test_progress_says_how_many_could_not_be_read_so_far(conn, tmp_path):
 
     class Flaky(Model):
         def chat(self, model, messages, tools=None, schema=None, **kw):
-            if not any(SAMPLE_MARK in m["content"] for m in messages) and messages[0]["content"] != extract.KIND_PROMPT:
+            if not any(SAMPLE_MARK in m["content"] for m in messages) and "kind" not in ((schema or {}).get("properties") or {}):
                 self.n = getattr(self, "n", 0) + 1
                 self.others_ok = self.n in (3, 4)  # the first two files and then others fail, but never three in a row
             return super().chat(model, messages, tools, schema, **kw)

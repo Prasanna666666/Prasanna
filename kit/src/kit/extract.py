@@ -14,38 +14,44 @@ from datetime import date
 
 from .amounts import money_from_printed
 
-KINDS = ("bank_statement", "payslip", "annual_statement", "invoice", "receipt", "tax", "insurance", "contract", "ticket", "booking", "medical", "other")
 MONEY_FIELDS = ("total", "vat", "gross", "net", "tax", "pension", "holiday_pay")
 _STR = {"type": ["string", "null"]}
-KIND_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "kind": {"type": "string", "enum": list(KINDS)},
-        "title": {"type": "string"},
-        "summary": {"type": "string"},
-        "party": {"type": "string"},  # who it is from / to: the shop, supplier, employer, insurer, tax office ...
-        "date": {"type": "string"},
-        "due_date": {"type": "string"},
-        "reference": {"type": "string"},  # YYYY-MM-DD; invoice / policy / case number
-        "currency": {"type": "string"},
-        "period": {"type": "string"},  # YYYY-MM for a payslip
-        "start_date": {"type": "string"},  # a ticket or booking: departure or check-in, YYYY-MM-DD
-        "end_date": {"type": "string"},  # return, arrival or check-out, YYYY-MM-DD
-        "place": {"type": "string"},  # where to: the destination or the hotel's city
-        **dict.fromkeys(MONEY_FIELDS, _STR),  # each amount exactly as printed in the document, e.g. "3.500,00"
-    },
-    "required": ["kind"],
+FACT_FIELDS = {
+    "title": {"type": "string"},
+    "summary": {"type": "string"},
+    "party": {"type": "string"},  # who it is from / to: the shop, supplier, employer, insurer, tax office, hospital ...
+    "date": {"type": "string"},
+    "due_date": {"type": "string"},
+    "reference": {"type": "string"},  # an invoice / policy / case number
+    "currency": {"type": "string"},
+    "period": {"type": "string"},  # the month or year a statement or slip covers
+    "start_date": {"type": "string"},  # a stay or trip: departure or check-in, YYYY-MM-DD
+    "end_date": {"type": "string"},  # return, arrival or check-out, YYYY-MM-DD
+    "place": {"type": "string"},  # where to: the destination or the hotel's city
+    **dict.fromkeys(MONEY_FIELDS, _STR),  # each amount exactly as printed in the document, e.g. "3.500,00"
 }
-KIND_PROMPT = (
-    "You read the start of a personal finance document. It may be in Dutch or English. Say what it is: bank_statement (a list of account "
-    "transactions), payslip (salary slip / loonstrook), annual_statement (a yearly income statement / jaaropgave: gross, tax and net for a whole year), invoice (factuur), receipt (bon / kassabon), tax (belasting: aanslag, aangifte), insurance "
-    "(verzekering: polis, premie), contract (agreement, lease, loan), ticket (a flight, train or event ticket or boarding pass), booking (a hotel, rental or "
-    "reservation confirmation), medical (a medical report, prescription, lab result or appointment letter), or other. A payment confirmation or order confirmation is a receipt. Then give: title (a few words), summary (one short sentence), party "
-    "(who it is from or to: shop, supplier, employer, insurer, tax office), date and due_date as YYYY-MM-DD, reference (invoice / policy / case "
-    'number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example "3.500,00"): '
-    "total and vat for invoices and receipts; for a payslip also period as YYYY-MM and gross = bruto, net = netto paid out, tax = loonheffing, "
-    "pension = pensioen, holiday_pay = vakantiegeld; for an annual_statement give period as the year YYYY and gross, tax and net the same way. For a ticket or booking also give start_date and end_date as YYYY-MM-DD and place (the destination), only as printed. Leave out or use null what is not there. Never invent or recalculate."
-)
+
+
+def kind_schema(apps: dict[str, str] | None) -> dict:
+    """What the model may answer: what the file is in its own words (no list to choose from), the apps it is about (only the ones declared), and the facts."""
+    props: dict = {"kind": {"type": "string"}, **FACT_FIELDS}
+    if apps:
+        props["apps"] = {"type": "array", "items": {"type": "string", "enum": list(apps)}}
+    return {"type": "object", "properties": props, "required": ["kind"]}
+
+
+def kind_prompt(apps: dict[str, str] | None) -> str:
+    """The question: describe the file freely, say which of the declared apps it is about (none if none), and give the facts exactly as printed."""
+    about = "".join(f"\n- {name}: {text}" for name, text in (apps or {}).items())
+    marks = f" Then say which of these apps it is about, if any (none if it is about none of them):{about}\n" if about else " "
+    return (
+        "You read the start of a personal document. It may be in any language. Say what it is in a few words, as a person would name it (kind)."
+        + marks
+        + "Then give: title (a few words), summary (one short sentence), party (who it is from or to), date and due_date as YYYY-MM-DD, reference (any reference or case "
+        'number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example "3.500,00"): '
+        "total (the main amount) and vat, and where the document states them period (the month or year it covers) and gross, net, tax, pension, holiday_pay. For a stay or trip "
+        "also give start_date and end_date as YYYY-MM-DD and place (the destination), only as printed. Leave out or use null what is not there. Never invent or recalculate."
+    )
 
 
 class Unclear(Exception):
@@ -162,42 +168,40 @@ def sample_of(text: str) -> str:
     return text[:HEAD_CHARS] + "\n[...]\n" + text[-TAIL_CHARS:]
 
 
-KIND_ONLY_SCHEMA = {"type": "object", "properties": {"kind": {"type": "string", "enum": list(KINDS)}, "title": {"type": "string"}}, "required": ["kind"]}
-KIND_ONLY_PROMPT = "Say what kind of document this is (one of the allowed kinds) and give it a short title. Nothing else."
-
-
-def _classify_fully(client, model: str, name: str, text: str) -> dict:
-    data = _ask(client, model, KIND_PROMPT, f"File name: {name}\n\n{sample_of(text)}", KIND_SCHEMA)
-    if data.get("kind") not in KINDS:
-        raise Unclear("the model named a kind that does not exist")
+def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
+    data = _ask(client, model, kind_prompt(apps), f"File name: {name}\n\n{sample_of(text)}", kind_schema(apps))
     checked = verify_trip_fields(verify_amounts(data, text), text)
+    checked["kind"] = str(checked.get("kind") or "").strip()[:60]
+    checked["apps"] = [a for a in (checked.get("apps") or []) if a in (apps or {})]
     party = str(checked.get("party") or "").strip()
     if party and _squash(party.lower()) not in _squash(text.lower()):
         checked["party"] = ""  # a name the document does not contain is the model's invention
     return checked
 
 
-def _classify_briefly(client, model: str, name: str, text: str) -> dict:
-    """The second look: a much smaller question (only the kind and a title, about a shorter piece), for a document the full question got no usable answer for."""
-    data = _ask(client, model, KIND_ONLY_PROMPT, f"File name: {name}\n\n{text[:1200]}\n[...]\n{text[-400:] if len(text) > 1600 else ''}", KIND_ONLY_SCHEMA)
-    if data.get("kind") not in KINDS:
-        raise Unclear("the model named a kind that does not exist")
+def _classify_briefly(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
+    """The second look: a much smaller question (only what it is, a title and the apps), about a shorter piece, for a file the full question got no usable answer for."""
+    schema = kind_schema(apps)
+    schema = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k in ("kind", "title", "apps")}}
+    prompt = kind_prompt(apps).split(" Then give:")[0] + " Then give a short title. Nothing else."
+    data = _ask(client, model, prompt, f"File name: {name}\n\n{text[:1200]}\n[...]\n{text[-400:] if len(text) > 1600 else ''}", schema)
     return {
-        "kind": data["kind"],
+        "kind": str(data.get("kind") or "").strip()[:60],
         "title": str(data.get("title") or "")[:120],
+        "apps": [a for a in (data.get("apps") or []) if a in (apps or {})],
         "partial": True,
     }  # a partial reading: no amounts or dates are kept without the full one
 
 
-def classify(client, model: str, name: str, text: str) -> dict:
-    """What the file is and its key facts. The model is shown the beginning and the end; every amount, date and party is then checked against the WHOLE text and dropped if the
-    document does not say it. When the full question gets no usable answer, a smaller one is asked about a shorter piece. If that fails too, Unclear is raised: the
-    document is never turned into 'other' because the model failed."""
+def classify(client, model: str, name: str, text: str, apps: dict[str, str] | None = None) -> dict:
+    """What the file is, in the model's own words, which of the declared `apps` it is about, and its key facts. The model is shown the beginning and the end; every amount, date and
+    party is then checked against the WHOLE text and dropped if the document does not say it. When the full question gets no usable answer, a smaller one is asked about a shorter
+    piece. If that fails too, Unclear is raised: the file is never turned into 'about nothing' because the model failed."""
     text = clean(text)
     try:
-        return _classify_fully(client, model, name, text)
+        return _classify_fully(client, model, name, text, apps)
     except Unclear:
-        return _classify_briefly(client, model, name, text)
+        return _classify_briefly(client, model, name, text, apps)
 
 
 # ---- health: lab values and medicines, only what the document itself prints -------------------------------------------------------------------

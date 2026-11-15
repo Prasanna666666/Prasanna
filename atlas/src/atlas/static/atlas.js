@@ -623,33 +623,19 @@
         steps.find((s) => s.state === 'running' && s.n > 1) ||
         steps.find((s) => s.state === 'running') ||
         steps.find((s) => s.state === 'waiting');
-    const stepParts = (parts) => {
-        const box = el('div', 'rd-parts');
-        for (const p of parts) {
-            const row = el('div', 'rd-part');
-            const head = el('div', 'rd-parthead');
-            head.append(el('span', '', p.name), el('span', 'rd-pct', pctText(p.percent)));
-            row.append(head, meter(p.percent), el('span', 'rd-detail', p.detail));
-            box.append(row);
-        }
-        return box;
-    };
-    // a step says only what is needed: not started, just its name; finished, its name and one count; running, everything about it
+    // a step: its name, what it does, how far it is, and how many of the files that is; a step that has not started shows only its name
     const stepCard = (s, now) => {
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
         const head = el('div', 'rd-stepname');
         head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
         card.append(head);
         if (s.state === 'waiting' && !s.percent) return card;
-        if (s.state === 'done') {
-            if (s.detail) card.append(el('span', 'rd-detail', s.detail));
-            return card;
+        card.append(el('span', 'rd-about', s.about || ''), meter(s.percent), el('span', 'rd-pct', pctText(s.percent)));
+        for (const c of s.counts || []) {
+            card.append(
+                el('span', 'rd-detail', `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`)
+            );
         }
-        card.append(el('span', 'rd-about', s.about || ''), el('span', 'rd-note-line', s.note || ''));
-        card.append(meter(s.percent), el('span', 'rd-pct', pctText(s.percent)));
-        if (s.detail) card.append(el('span', 'rd-detail', s.detail));
-        const parts = (s.parts || []).filter((p) => p.percent != null);
-        if (parts.length) card.append(stepParts(parts));
         return card;
     };
     const stepsBlock = (steps) => {
@@ -659,20 +645,6 @@
         row.append(...steps.map((s) => stepCard(s, now)));
         const box = el('div', 'rd-steps');
         box.append(row);
-        return box;
-    };
-    const totalsBlock = (parts) => {
-        if (!parts.length) return null;
-        const box = el('div', 'rd-totals');
-        for (const p of parts) {
-            const card = el('div', 'rd-total');
-            const head = el('div', 'rd-thead');
-            head.append(el('b', '', p.name), el('span', 'rd-pct', pctText(p.percent)));
-            card.append(head);
-            if (p.percent != null) card.append(meter(p.percent));
-            card.append(el('span', 'rd-detail', p.detail));
-            box.append(card);
-        }
         return box;
     };
     const noteBlock = (text, bad = false) => el('div', 'rd-note' + (bad ? ' bad' : ''), text);
@@ -787,19 +759,11 @@
         const steps = info.steps || [];
         const now = currentStep(steps);
         if (!now) return null;
-        // steps overlap: the reader carries on with the last files while the model is already sorting the ones it has read, so both are named
-        const earlier = steps.find((s) => s.state === 'running' && s.n < now.n);
-        const where = earlier
-            ? `Steps ${earlier.n} and ${now.n} of ${steps.length} · ${earlier.doing || earlier.name} and ${(now.doing || now.name).toLowerCase()}`
-            : `Step ${now.n} of ${steps.length} · ${now.doing || now.name}`;
+        const where = `Step ${now.n} of ${steps.length} · ${now.doing || now.name}`;
         box.append(el('b', 'rd-doing', where));
         const bar = el('div', 'rd-big');
         bar.append(meter(now.percent), el('span', 'rd-bigpct', pctText(now.percent)));
         box.append(bar);
-        if (!info.file && now.note) box.append(el('span', 'rd-nowline', now.note));
-        if (earlier && earlier.note) {
-            box.append(el('span', 'rd-sub', `${earlier.name}: ${earlier.note}`));
-        }
         if (info.progress) box.append(el('span', 'rd-sub', info.progress));
         return box;
     };
@@ -809,10 +773,7 @@
         b.dataset.toggle = 'details';
         return b;
     };
-    const detailBlocks = (report, info) => {
-        const parts = state.modules.flatMap((m) => (report.modules[m.id] || {}).parts || []);
-        return [stepsBlock(info.steps), totalsBlock(parts)];
-    };
+    const detailBlocks = (info) => [stepsBlock(info.steps)];
     const problemBlocks = (report) =>
         state.modules.flatMap((m) => (report.modules[m.id] || {}).problems || []).map((p) => noteBlock(p, true));
     const showScan = (report) => {
@@ -839,7 +800,7 @@
             blocks.push(headlineBlock(info, running));
             if (running) {
                 blocks.push(filesBlock(info, 2, 3), moreButton());
-                if (scan.open) blocks.push(...detailBlocks(report, info));
+                if (scan.open) blocks.push(...detailBlocks(info));
             }
             blocks.push(...problemBlocks(report));
         }

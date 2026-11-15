@@ -17,7 +17,16 @@ class Model:
         if schema:
             return {
                 "content": json.dumps(
-                    {"kind": "invoice", "title": "Hotel", "what": "A hotel", "party": "Hotel Delhi", "date": "2026-01-12", "total": "480,00", "currency": "EUR"}
+                    {
+                        "kind": "invoice",
+                        "apps": ["finance"],
+                        "title": "Hotel",
+                        "what": "A hotel",
+                        "party": "Hotel Delhi",
+                        "date": "2026-01-12",
+                        "total": "480,00",
+                        "currency": "EUR",
+                    }
                 )
             }
         return {"content": "You paid 480 euros for the hotel."}
@@ -88,10 +97,10 @@ def test_one_update_reads_judges_and_serves_everything(server):
     assert call(port, "GET", "/api/search?q=hotel")[1]["results"][0]["link"] == f"#/doc/{doc['id']}"
     specs = {t["name"] for t in call(port, "GET", "/api/tools")[1]["tools"]}
     assert {"search_files", "find_documents", "read_document", "trips", "find_pictures", "library_overview"} <= specs
-    found = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice", "show": True}})[1]
+    found = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice", "apps": ["finance"], "show": True}})[1]
     assert found["ok"] and found["data"]["count"] == 1 and found["data"]["documents"][0]["party"] == "Hotel Delhi"
     assert found["items"][0]["title"] == "Hotel · Hotel Delhi" and found["items"][0]["link"] == f"#/doc/{doc['id']}"
-    quiet = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice"}})[1]
+    quiet = post(port, "/api/tool", {"name": "find_documents", "args": {"kind": "invoice", "apps": ["finance"]}})[1]
     assert quiet["items"] == []  # nothing is shown unless the person asked to see it
     dated = post(port, "/api/tool", {"name": "find_documents", "args": {"from": "2026-01-01", "to": "2026-01-31"}})[1]
     assert dated["data"]["count"] == 1
@@ -360,19 +369,9 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     assert web._states(conn, "1=1") == {"identified": 1, "aside": 1, "waiting": 4, "unclear": 0}  # a file skipped is not counted as identified
     steps = web._steps(conn, {"phase": 2})
     assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Sort", "running")
-    assert steps[1]["detail"] == "1 sorted · 4 to do" and steps[1]["percent"] == 20.0  # 1 of the 5 files that need the model; the skipped one is not part of it
-    assert len(steps) == 3 and steps[2]["state"] == "waiting" and [p["name"] for p in steps[2]["parts"]] == ["Group related files", "Read each group"]
-    assert web._steps(conn, {"phase": 4, "app": "Finance"})[2]["state"] == "running"
-
-
-def test_each_step_says_in_one_sentence_what_it_is_on_or_waiting_for(conn):
-    for i, area in enumerate(("health", "finance", "finance")):
-        conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,0)", (f"{i:064x}", f"f{i}.pdf", "pdf", "text", area))
-    conn.commit()
-    steps = web._steps(conn, {"phase": 2})
-    assert steps[1]["note"] == "Now on Finance: 2 files left"  # Finance is served first
-    assert steps[2]["note"] == ""  # a step that has not started says nothing
-    assert web._steps(conn, {"phase": 3, "app": "Finance"})[2]["note"] == "Working on Finance"
+    assert {c["key"]: (c["done"], c["total"]) for c in steps[1]["counts"]} == {"documents": (1, 4), "mails": (1, 1), "attachments": (0, 1)}  # each kind of file is counted on its own
+    assert len(steps) == 3 and steps[2]["state"] == "waiting"
+    assert web._steps(conn, {"phase": 4})[2]["state"] == "running"
 
 
 def test_the_status_counts_through_the_database_once_not_at_every_question(conn, monkeypatch):
@@ -385,15 +384,3 @@ def test_the_status_counts_through_the_database_once_not_at_every_question(conn,
     for _ in range(5):
         web._counted(state, conn, running)  # a status question every two seconds while a read goes on
     assert len(calls) == 1
-
-
-def test_the_number_of_files_in_groups_is_one_count_and_exact(conn):
-    for i, members in enumerate(("[1]", "[2, 3]", "[4, 5, 6]")):
-        conn.execute("INSERT INTO cases (input_hash, members, summary) VALUES (?,?,?)", (f"h{i}", members, ""))
-    conn.commit()
-    assert web._steps(conn, {})[2]["parts"][0]["detail"].startswith("0 of 0")  # nothing is sorted yet: the count is capped by what is sorted
-    conn.execute(
-        "INSERT INTO documents (sha256, name, kind, text, area, judged) SELECT printf('%064d', value), 'f', 'pdf', 't', 'finance', 1 FROM (WITH RECURSIVE c(value) AS (SELECT 1 UNION ALL SELECT value+1 FROM c WHERE value<10) SELECT value FROM c)"
-    )
-    conn.commit()
-    assert web._steps(conn, {})[2]["parts"][0]["detail"] == "6 of 10 files"

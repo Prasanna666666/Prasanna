@@ -73,7 +73,7 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
     window_end = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
     booked = [
         _ticket(d)
-        for d in store.list_documents(conn, ["ticket", "booking"], limit=500)
+        for d in store.trip_documents(conn)
         if place.casefold() in str(d["facts"].get("place") or "").casefold()
         and _overlaps(str(d["facts"].get("start_date") or "9"), str(d["facts"].get("end_date") or d["facts"].get("start_date") or "0"), start, end)
     ]
@@ -87,7 +87,7 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
             "date": str(d["facts"].get("date") or d["facts"].get("start_date") or ""),
         }
         for d in store.documents_between(conn, window_start, window_end, limit=60)
-        if d["id"] not in booked_ids and d["kind"] not in ("ticket", "booking")
+        if d["id"] not in booked_ids and not store.is_trip_document(d)
     ]
     minor: dict[str, int] = {}
     for t in booked:

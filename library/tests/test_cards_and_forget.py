@@ -6,6 +6,8 @@ from kit import db
 
 from library import store
 
+from .marks import APPS_OF
+
 
 @pytest.fixture
 def conn(tmp_path):
@@ -17,7 +19,7 @@ def conn(tmp_path):
         n[0] += 1
         c.execute(
             "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready) VALUES (?,?,?,?,?,?,1,?)",
-            (f"{n[0]:064x}", name, "pdf", "t", "", json.dumps({"kind": kind, **facts}), n[0]),
+            (f"{n[0]:064x}", name, "pdf", "t", "", json.dumps({"kind": kind, "apps": APPS_OF.get(kind, []), **facts}), n[0]),
         )
         c.commit()
 

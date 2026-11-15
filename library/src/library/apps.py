@@ -72,3 +72,14 @@ def terms() -> frozenset[str]:
 def reading(name: str) -> str:
     """The extra reading the files of this app get, or ''."""
     return next((a.reads for a in load() if a.name == name), "")
+
+
+def with_reading(reader: str) -> list[str]:
+    """The apps whose files get this extra reading."""
+    return [a.name for a in load() if a.reads == reader]
+
+
+def matching(text: str) -> list[str]:
+    """The apps whose declared words appear in this text (for what a recogniser calls a file: no app is named in the code)."""
+    words = set(re.findall(r"[^\W\d_]+", text.lower()))
+    return [a.name for a in load() if a.terms & words]

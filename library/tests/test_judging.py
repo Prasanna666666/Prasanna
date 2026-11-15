@@ -93,7 +93,9 @@ def test_each_file_the_model_finishes_is_saved_at_once_so_the_counts_move(tmp_pa
             other = sqlite3.connect(path)  # what a status question sees while the model is working on the next file
             seen.append(other.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0])
             other.close()
-            return {"content": json.dumps({"kind": "invoice", "title": "t", "what": "w", "party": "Ziggo", "total": "1,00", "currency": "EUR"})}
+            return {
+                "content": json.dumps({"kind": "invoice", "apps": ["finance"], "title": "t", "what": "w", "party": "Ziggo", "total": "1,00", "currency": "EUR"})
+            }
 
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
     monkeypatch.setattr(store, "PARALLEL", 1)  # one at a time: each file is finished and saved before the next is asked
@@ -113,7 +115,11 @@ def test_a_read_leaves_a_trace_of_every_step_on_every_file(conn):
 
     class Model:
         def chat(self, model, messages, **kw):
-            return {"content": json.dumps({"kind": "invoice", "title": "t", "what": "w", "party": "Ziggo", "total": "60,50", "currency": "EUR"})}
+            return {
+                "content": json.dumps(
+                    {"kind": "invoice", "apps": ["finance"], "title": "t", "what": "w", "party": "Ziggo", "total": "60,50", "currency": "EUR"}
+                )
+            }
 
     followed = trace.Trace(conn, lambda name, step, detail: now.append((name, step, detail)))
     store.judge_pending(conn, Model(), "fake", trace=followed)
@@ -163,7 +169,7 @@ def test_a_sorted_file_is_described_by_its_own_title_not_by_the_category(conn):
 
     conn.execute(
         "INSERT INTO documents (sha256, name, kind, text, area, judged, facts) VALUES ('t','return.pdf','pdf','x','finance',1,?)",
-        (json.dumps({"kind": "tax", "title": "Tax assessment 2023"}),),
+        (json.dumps({"kind": "tax", "apps": ["finance"], "title": "Tax assessment 2023"}),),
     )
     conn.commit()
     followed = trace.Trace(conn)

@@ -10,6 +10,8 @@ from kit import db
 
 from library import store, tools, travel, web
 
+from .marks import APPS_OF
+
 
 @pytest.fixture
 def lib(tmp_path):
@@ -21,7 +23,7 @@ def lib(tmp_path):
         n[0] += 1
         conn.execute(
             "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready, case_id) VALUES (?,?,?,?,?,?,1,?,1)",
-            (f"{n[0]:064x}", name, "pdf", text, "", json.dumps({"kind": kind, **facts}), n[0]),
+            (f"{n[0]:064x}", name, "pdf", text, "", json.dumps({"kind": kind, "apps": APPS_OF.get(kind, []), **facts}), n[0]),
         )
         conn.commit()
 
@@ -220,7 +222,7 @@ def test_a_document_in_the_health_folder_is_a_health_document_whatever_the_model
         ("f" * 64, "new.pdf", "pdf", "unread secret", "health", ""),
     )
     lib.conn.commit()
-    assert store.list_documents(lib.conn, ["other"]) == []  # another app asking for kind "other" never receives it
+    assert [d["name"] for d in store.list_documents(lib.conn, ["other"])] == ["scan.pdf"]  # a folder's file is in the one store like any other
     assert [d["name"] for d in store.health_documents(lib.conn)["documents"]] == ["scan.pdf"] and store.get_document(lib.conn, "e" * 64)
 
 

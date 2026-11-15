@@ -29,15 +29,18 @@ def test_finance_files_are_taken_before_health_files_and_before_loose_files_and_
     assert store.waiting_files(conn, limit=5) == ["finance.pdf", "health.pdf", "other.pdf", "loose.pdf", "mail.eml"]
 
 
-def test_an_app_is_grouped_only_when_every_one_of_its_files_is_read_and_identified(conn):
+def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn):
+    from library import web
+
     _add(conn, "a.pdf", "finance", judged=1)
     _add(conn, "b.pdf", "finance", judged=0)
+    _add(conn, "m1.eml", "mail", judged=1)
+    conn.execute("UPDATE documents SET kind='email' WHERE name='m1.eml'")
+    _add(conn, "m1.eml/bill.pdf", "mail", judged=0)
     conn.commit()
-    assert store.app_ready(conn, "finance", found=2) is False  # one file still waits for the model
-    conn.execute("UPDATE documents SET judged=1 WHERE name='b.pdf'")
-    conn.commit()
-    assert store.app_ready(conn, "finance", found=3) is False  # the reader has not yet read all three files it found
-    assert store.app_ready(conn, "finance", found=2) is True and store.app_ready(conn, "health", found=0) is False
+    sort = web._steps(conn, {"phase": 2})[1]
+    assert {c["key"]: (c["done"], c["total"]) for c in sort["counts"]} == {"documents": (1, 2), "mails": (1, 1), "attachments": (0, 1)}
+    assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
 
 
 def test_the_groups_of_the_app_served_first_are_read_first(conn, monkeypatch):
@@ -49,10 +52,8 @@ def test_the_groups_of_the_app_served_first_are_read_first(conn, monkeypatch):
     conn.commit()
     asked = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: asked.append(a[3]) or {"title": "t", "what": "w"})
-    store.finish_matters(conn, object(), "m", up_to_rank=priority.rank("finance"))
-    assert len(asked) == 1 and "f.pdf" in asked[0]  # Health waits for its turn
     store.finish_matters(conn, object(), "m")
-    assert len(asked) == 2 and "h.pdf" in asked[1]
+    assert len(asked) == 2 and "f.pdf" in asked[0] and "h.pdf" in asked[1]  # the app served first is read first
     assert [r["rank"] for r in conn.execute("SELECT rank FROM cases ORDER BY id")] == [priority.rank("health"), priority.rank("finance")]
 
 
@@ -65,7 +66,7 @@ def test_the_model_is_asked_about_the_next_file_while_the_current_one_is_still_b
     class Model:
         def chat(self, model, messages, **kw):
             both_asked.wait()
-            return {"content": json.dumps({"kind": "invoice", "title": "t", "what": "w"})}
+            return {"content": json.dumps({"kind": "invoice", "apps": ["finance"], "title": "t", "what": "w"})}
 
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
     monkeypatch.setattr(store, "PARALLEL", 2)

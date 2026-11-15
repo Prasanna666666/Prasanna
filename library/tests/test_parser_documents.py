@@ -78,7 +78,9 @@ def test_a_document_becomes_ready_once_judged_and_an_app_asks_by_kind(conn, tmp_
     class Model:
         def chat(self, model, messages, **kw):
             return {
-                "content": json.dumps({"kind": "invoice", "title": "Internet", "what": "A document", "party": "Ziggo", "total": "60,50", "currency": "EUR"})
+                "content": json.dumps(
+                    {"kind": "invoice", "apps": ["finance"], "title": "Internet", "what": "A document", "party": "Ziggo", "total": "60,50", "currency": "EUR"}
+                )
             }
 
     done = store.judge_pending(conn, Model(), "fake")
@@ -107,7 +109,11 @@ def test_a_picture_with_no_text_is_a_photo_and_one_with_text_is_a_document(conn,
 
     class Model:
         def chat(self, model, messages, **kw):
-            return {"content": json.dumps({"kind": "receipt", "title": "Albert Heijn", "what": "A document", "total": "23,45", "currency": "EUR"})}
+            return {
+                "content": json.dumps(
+                    {"kind": "receipt", "apps": ["finance"], "title": "Albert Heijn", "what": "A document", "total": "23,45", "currency": "EUR"}
+                )
+            }
 
     store.judge_pending(conn, Model(), "fake")
     assert [d["name"] for d in store.list_documents(conn, ["photo"])] == ["holiday.jpg"]  # for the Photos app to take; no model was asked
@@ -127,16 +133,28 @@ def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_win
         "flight-out.eml": (
             "c" * 64,
             "ticket",
-            {"kind": "ticket", "title": "Flight out", "place": "India", "start_date": "2026-01-12", "end_date": "2026-01-12"},
+            {"kind": "ticket", "apps": ["travel"], "title": "Flight out", "place": "India", "start_date": "2026-01-12", "end_date": "2026-01-12"},
         ),
-        "hotel.eml": ("d" * 64, "booking", {"kind": "booking", "title": "Hotel Delhi", "place": "India", "start_date": "2026-01-12", "end_date": "2026-01-28"}),
+        "hotel.eml": (
+            "d" * 64,
+            "booking",
+            {"kind": "booking", "apps": ["travel"], "title": "Hotel Delhi", "place": "India", "start_date": "2026-01-12", "end_date": "2026-01-28"},
+        ),
         "flight-back.eml": (
             "e" * 64,
             "ticket",
-            {"kind": "ticket", "title": "Flight back", "place": "India", "start_date": "2026-01-30", "end_date": "2026-01-30"},
+            {"kind": "ticket", "apps": ["travel"], "title": "Flight back", "place": "India", "start_date": "2026-01-30", "end_date": "2026-01-30"},
         ),
-        "paris.eml": ("f" * 64, "booking", {"kind": "booking", "title": "Paris", "place": "France", "start_date": "2025-06-01", "end_date": "2025-06-03"}),
-        "taxi.eml": ("1" * 64, "receipt", {"kind": "receipt", "title": "Taxi Delhi", "party": "Taxi", "total": 12.5, "date": "2026-01-14"}),
+        "paris.eml": (
+            "f" * 64,
+            "booking",
+            {"kind": "booking", "apps": ["travel"], "title": "Paris", "place": "France", "start_date": "2025-06-01", "end_date": "2025-06-03"},
+        ),
+        "taxi.eml": (
+            "1" * 64,
+            "receipt",
+            {"kind": "receipt", "apps": ["finance"], "title": "Taxi Delhi", "party": "Taxi", "total": 12.5, "date": "2026-01-14"},
+        ),
     }
     for name, (sha, kind, _facts) in texts.items():
         _put(tmp_path, _doc(name=name.replace(".eml", ".pdf"), kind="pdf", text=f"{kind} {name}", sha256=sha))
@@ -338,7 +356,11 @@ def test_judging_in_small_rounds_leaves_the_rest_for_the_next_round(conn, tmp_pa
 
     class Model:
         def chat(self, model, messages, **kw):
-            return {"content": json.dumps({"kind": "invoice", "title": "x", "what": "A document", "party": "Ziggo", "total": "1,00", "currency": "EUR"})}
+            return {
+                "content": json.dumps(
+                    {"kind": "invoice", "apps": ["finance"], "title": "x", "what": "A document", "party": "Ziggo", "total": "1,00", "currency": "EUR"}
+                )
+            }
 
     assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
     assert store.counts(conn)["waiting"] == 3  # the other three wait; new files can be taken in meanwhile
@@ -357,6 +379,7 @@ def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stay
                 "content": json.dumps(
                     {
                         "kind": "booking",
+                        "apps": ["travel"],
                         "title": "Hotel booking",
                         "what": "A hotel booking",
                         "party": "Taj",
@@ -388,7 +411,15 @@ def test_documents_are_named_by_what_they_say_and_a_whole_email_is_never_listed(
         def chat(self, model, messages, **kw):
             return {
                 "content": json.dumps(
-                    {"kind": "invoice", "title": "Internet bill", "what": "A document", "party": "Ziggo", "total": "60,50", "currency": "EUR"}
+                    {
+                        "kind": "invoice",
+                        "apps": ["finance"],
+                        "title": "Internet bill",
+                        "what": "A document",
+                        "party": "Ziggo",
+                        "total": "60,50",
+                        "currency": "EUR",
+                    }
                 )
             }
 

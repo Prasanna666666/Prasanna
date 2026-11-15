@@ -128,7 +128,7 @@ def test_a_lone_file_costs_no_model_call_and_a_file_with_a_date_to_act_on_is_rea
     from library import store
 
     _doc(conn, "lone", "A newsletter about gardens")
-    _doc(conn, "bill", "Invoice for internet", {"due_date": "2026-12-01", "kind": "invoice"})
+    _doc(conn, "bill", "Invoice for internet", {"due_date": "2026-12-01", "kind": "invoice", "apps": ["finance"]})
     calls = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(a[3]) or {"title": "Internet bill", "what": "A bill", "open": False})
     assert store.finish_matters(conn, object(), "m") == 2

@@ -227,7 +227,7 @@ def inbox(world, tmp_path, monkeypatch):
 
 
 def test_originals_are_filed_only_through_the_window_and_can_be_put_back(inbox):
-    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "folder": "Invoices"})
+    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "apps": ["finance"], "folder": "Invoices"})
     assert out["ok"] and out["data"]["files"] == 1 and inbox.invoice.is_file()  # nothing moved yet
     change = out["data"]["change_id"]
     window = open_window(inbox, change)
@@ -248,8 +248,8 @@ def test_mail_is_copied_never_moved_and_the_mail_folder_is_never_a_destination(i
 
 
 def test_a_file_that_changed_or_a_missing_folder_name_stops_the_filing(inbox):
-    assert not tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "folder": ""})["ok"]
-    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "folder": "Invoices"})
+    assert not tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "apps": ["finance"], "folder": ""})["ok"]
+    out = tools.run(inbox.state, inbox.conn, "preview_file_documents", {"kind": "invoice", "apps": ["finance"], "folder": "Invoices"})
     inbox.invoice.write_bytes(b"changed after it was prepared")
     window = open_window(inbox, out["data"]["change_id"])
     assert any("changed since" in p for p in window["problems"])
@@ -261,17 +261,18 @@ def test_documents_and_emails_are_listed_apart(inbox):
     assert names_of("mail") == {"offer.eml"} and names_of("files") == {"scan001.pdf", "letter.pdf"}
 
 
-def test_health_documents_go_only_to_whoever_asks_for_them_by_name(inbox):
+def test_every_apps_documents_are_in_the_one_store_and_none_is_treated_differently(inbox):
     import json
 
     inbox.conn.execute(
         "INSERT INTO documents (sha256, name, kind, text, area, facts, judged, ready) VALUES ('h','blood.pdf','pdf','haemoglobin 14','',?,1,99)",
-        (json.dumps({"kind": "medical"}),),
+        (json.dumps({"kind": "medical report", "apps": ["health"]}),),
     )
     inbox.conn.commit()
-    assert all(d["kind"] != "medical" for d in store.list_documents(inbox.conn, ["invoice"]))
-    assert all(d["kind"] != "medical" for d in store.list_documents(inbox.conn, []))  # asking for everything does not include them
-    assert [d["name"] for d in store.list_documents(inbox.conn, ["medical"])] == ["blood.pdf"]
+    names = lambda *a, **k: {d["name"] for d in store.list_documents(inbox.conn, *a, **k)}  # noqa: E731
+    assert "blood.pdf" in names([])  # asking for everything includes it, like any other app's documents: the store is one
+    assert "blood.pdf" in names(["medical"]) and "blood.pdf" in names(app="health")  # by what it is, or by the app it is about
+    assert "blood.pdf" not in names(app="finance")  # an app asks for what it is about; that is how it finds its files, not a wall
 
 
 def test_whole_library_pages_are_worked_out_once_per_change_to_the_library(world, monkeypatch):

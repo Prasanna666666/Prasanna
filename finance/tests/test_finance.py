@@ -47,7 +47,7 @@ class FakeModel:
         if self.fail_after is not None and self.calls > self.fail_after:
             raise RuntimeError("Cannot reach the local model server")
         system, text = messages[0]["content"], messages[1]["content"]
-        if system == extract.KIND_PROMPT:
+        if "kind" in ((schema or {}).get("properties") or {}):
             if self.kind:
                 return {"content": json.dumps(self.kind(text))}
             if "LOONSTROOK" in text:
@@ -55,6 +55,7 @@ class FakeModel:
                     "content": json.dumps(
                         {
                             "kind": "payslip",
+                            "apps": ["finance"],
                             "period": "2026-10",
                             "gross": "3.500,00",
                             "net": "2.512,60",
@@ -69,6 +70,7 @@ class FakeModel:
                     "content": json.dumps(
                         {
                             "kind": "invoice",
+                            "apps": ["finance"],
                             "title": "Internet",
                             "party": "Ziggo",
                             "date": "2026-10-03",
@@ -79,7 +81,7 @@ class FakeModel:
                         }
                     )
                 }
-            return {"content": json.dumps({"kind": "bank_statement" if "Datum" in text else "other", "title": "x"})}
+            return {"content": json.dumps({"kind": "bank_statement" if "Datum" in text else "other", "apps": ["finance"], "title": "x"})}
         if system == tables.LAYOUT_PROMPT:
             return {"content": json.dumps(self.layout)}
         return {"content": "{}"}
@@ -193,7 +195,7 @@ def test_printed_amounts_are_read_from_the_figure_itself():
 
 def test_an_amount_the_model_made_up_is_dropped_because_it_is_not_in_the_document():
     text = "Factuur Ziggo totaal 60,50 btw 10,50"
-    checked = extract.verify_amounts({"kind": "invoice", "total": "60,50", "vat": "99,99"}, text)
+    checked = extract.verify_amounts({"kind": "invoice", "apps": ["finance"], "total": "60,50", "vat": "99,99"}, text)
     assert checked["total"] == 60.5 and checked["vat"] is None and checked["unverified_fields"] == ["vat"]
 
 
@@ -250,7 +252,7 @@ def test_invoices_are_filed_with_verified_totals(conn, tmp_path):
     _load(conn, tmp_path, "factuur.pdf", None, text="FACTUUR Ziggo oktober totaal 60,50 waarvan btw 10,50")
     r = run(conn)
     assert r["files"] == 1 and r["new_transactions"] == 0 and r["needs_check"] == []
-    inv = money.finance_documents(conn, {"kind": "invoice"})[0]
+    inv = money.finance_documents(conn, {"kind": "invoice", "apps": ["finance"]})[0]
     assert (inv["party"], inv["total"], inv["vat"]) == ("Ziggo", 60.5, 10.5)
 
 

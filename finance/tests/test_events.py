@@ -109,7 +109,6 @@ def test_day_to_day_spending_by_category_compares_with_the_month_before_and_leav
 
 
 def test_reading_the_files_also_groups_the_payments_into_trips_and_events_without_any_clicks(conn, tmp_path):
-    from kit import extract
 
     from finance import tables
     from finance.modules import documents
@@ -129,8 +128,8 @@ def test_reading_the_files_also_groups_the_payments_into_trips_and_events_withou
     class Model:
         def chat(self, model, messages, schema=None, **kw):
             system, text = messages[0]["content"], messages[1]["content"]
-            if system == extract.KIND_PROMPT:
-                return {"content": json.dumps({"kind": "bank_statement"})}
+            if "kind" in ((schema or {}).get("properties") or {}):
+                return {"content": json.dumps({"kind": "bank_statement", "apps": ["finance"]})}
             if system == tables.LAYOUT_PROMPT:
                 return {"content": json.dumps(layout)}
             if system.startswith(events.PROMPT[:40]):

@@ -102,11 +102,11 @@ def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
     kinds = [k for k in str(a.get("kind", "")).replace(" ", "").split(",") if k]
     window = _dates(a)
     if window:
-        found = [d for d in store.documents_between(conn, *window, limit=200) if not kinds or d["kind"] in kinds]
+        found = [d for d in store.documents_between(conn, *window, limit=200) if not kinds or any(k.lower() in d["kind"].lower() for k in kinds)]
     else:
         found = store.list_documents(conn, kinds, place=str(a.get("place", ""))[:80], year=str(a.get("year", ""))[:4], limit=200, source="documents")
     if window and a.get("place"):
-        found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or d["kind"] not in ("ticket", "booking")]
+        found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or not store.is_trip_document(d)]
     data = {"count": len(found), "documents": [_doc_row(d) for d in found[:40]]}
     return data, [_doc_item(d) for d in found[:MAX_ITEMS]] if a.get("show") is True else []
 

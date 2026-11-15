@@ -23,7 +23,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, flags, highlights, items, pictures, priority, readreport, store, tools, trace, travel
+from . import changes, flags, highlights, items, pictures, readreport, store, tools, trace, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -68,18 +68,6 @@ AUTO_LIMIT = int(
 JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
 
 
-def _one_round(conn, client, model, state: State, followed: trace.Trace) -> tuple[int, int, dict]:
-    state.scan["phase"] = 2
-    ingested = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
-    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
-    judged["replaced"] = ingested.get("replaced", 0)
-    if (ingested["new"] or judged["read"]) and state.control != "stop":
-        store.warm_search(
-            conn, state.picture_text(), lambda: state.control == "stop"
-        )  # the new documents are searchable as soon as they are read, not at the first question
-    return ingested["new"], judged["read"] + judged["skipped"], judged
-
-
 class _StopRequested(Exception):
     """The person pressed Stop while the pictures were being read."""
 
@@ -112,30 +100,6 @@ def _read_pictures(state: State, conn, client, model) -> None:
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
-def _interpret_ready_apps(state: State, conn, client, model, followed: trace.Trace, done: set[str]) -> None:
-    """The apps are served in order: as soon as every file of one app (Finance first) is read and identified, that app's groups are formed and read, while the reader is
-    already taking in the next app's files. An app is never grouped before all of its files are in: a group is right only when all its pieces are known."""
-    if client is None or not model or state.control == "stop":
-        return
-    found = _found().get("by_folder", {})
-    for area in priority.order():
-        if area in done or not store.app_ready(conn, area, found.get(area, 0)):
-            continue
-        done.add(area)
-        state.scan["app"] = area.capitalize()
-        store.finish_matters(
-            conn,
-            client,
-            model,
-            lambda: state.control,
-            lambda m: state.scan.update(progress=m),
-            followed,
-            phase=lambda n: state.scan.update(phase=n),
-            up_to_rank=priority.rank(area),
-        )
-        state.scan.update(phase=2, app="")  # back to identifying the next app
-
-
 def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
     if client is None or not model or state.control == "stop":
@@ -145,6 +109,35 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     )
     if state.control != "stop":
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
+
+
+def _take_in_all(state: State, conn, totals: dict[str, int]) -> None:
+    """Step 1, completely: everything the reader produces is taken in until it is idle and nothing new arrives. Nothing is sorted meanwhile."""
+    state.scan["phase"] = 1
+    while True:
+        got = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
+        totals["new"] += got["new"]
+        totals["replaced"] += got.get("replaced", 0)
+        busy = (parsed_dir() / ".busy").exists()
+        if state.control == "stop" or (not busy and not got["new"]):
+            return
+        state.scan["progress"] = f"Reading… {totals['new']} new files so far"
+        if busy:
+            time.sleep(SETTLE_SECONDS)
+
+
+def _sort_all(state: State, conn, client, model, followed: trace.Trace, totals: dict[str, int]) -> str:
+    """Step 2, completely: the model sorts every file that needs it, in the order the apps are served in, until none is left. Returns what went wrong, if anything."""
+    state.scan["phase"] = 2
+    problem = ""
+    while state.control != "stop":
+        judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
+        totals["read"] += judged["read"]
+        totals["skipped"] += judged["skipped"]
+        problem = judged["problem"] or problem
+        if judged["stopped"] or not (judged["read"] + judged["skipped"]):
+            break
+    return problem
 
 
 def _summarise(state: State, conn, totals: dict[str, int]) -> bool:
@@ -163,7 +156,7 @@ def _summarise(state: State, conn, totals: dict[str, int]) -> bool:
 
 
 def _read_all(state: State) -> None:
-    """Update: wake the reader, then take in and judge what it produces until it is idle and nothing new arrives. One press reads everything."""
+    """Update, in three strict stages: everything is read, then everything is sorted, then everything is understood. One press does all of it (and the last stage is bounded; the end of a read says what is left)."""
     conn = state.connect()
     totals = {"new": 0, "read": 0, "skipped": 0, "replaced": 0}
     problem = ""
@@ -178,21 +171,8 @@ def _read_all(state: State) -> None:
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
-        ready: set[str] = set()  # the apps whose groups have been read in this read
-        while True:
-            new, judged_count, judged = _one_round(conn, client, model, state, followed)
-            _interpret_ready_apps(state, conn, client, model, followed, ready)
-            totals["new"] += new
-            totals["read"] += judged["read"]
-            totals["skipped"] += judged["skipped"]
-            totals["replaced"] += judged["replaced"]
-            problem = judged["problem"] or problem
-            busy = (parsed_dir() / ".busy").exists()
-            if state.control == "stop" or (not busy and not new and not judged_count):
-                break
-            state.scan["progress"] = f"Reading… {totals['new']} new files so far" if busy else state.scan["progress"]
-            if busy:
-                time.sleep(SETTLE_SECONDS)
+        _take_in_all(state, conn, totals)  # step 1, completely
+        problem = _sort_all(state, conn, client, model, followed, totals)  # then step 2, completely
         if _summarise(state, conn, totals):
             _read_pictures(state, conn, client, model)
             _finish(state, conn, client, model, followed)
@@ -203,7 +183,7 @@ def _read_all(state: State) -> None:
         log.failed("update failed", exc)
         state.scan["problems"] = [f"{type(exc).__name__}: {exc} (in {log.where(exc)})"]
     finally:
-        state.scan.update(running=False, now=None, phase=None, app="")
+        state.scan.update(running=False, now=None, phase=None)
         _CACHE.clear()
         conn.close()
 
@@ -230,7 +210,7 @@ def _list_arg(query: dict[str, str], key: str) -> list[str]:
 
 
 def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
-    """What any app takes from here: /api/documents?kind=invoice,ticket&area=<a collection name>&place=&year=&since=<ready number>&limit=&full=1"""
+    """What any app takes from here: /api/documents?app=<an app>&kind=<words in what the model called the file>&area=<a collection name>&place=&year=&since=<ready number>&limit=&full=1"""
     full = query.get("full") == "1"
     since = int(query["since"]) if query.get("since", "").isdigit() else 0
     limit = int(query["limit"]) if query.get("limit", "").isdigit() else 100
@@ -245,6 +225,7 @@ def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
         full,
         query.get("source", "")[:9],
         query.get("understood") == "1",
+        re.sub(r"[^a-z0-9_-]", "", query.get("app", "").lower())[:30],
     )
     return {"documents": found}
 
@@ -576,105 +557,52 @@ def _step_state(running: bool, done: bool) -> str:
     return "running" if running else "done" if done else "waiting"
 
 
-def _app_name(area: str) -> str:
-    return {"": "loose files", "mail": "mail"}.get(area, area.capitalize())
-
-
-def _first_app_open(conn) -> tuple[str, int]:
-    """The app the model is on: the first, in the order the apps are served in, that still has files to identify, and how many."""
-    rows = conn.execute("SELECT area, COUNT(*) FROM documents WHERE judged=0 AND TRIM(text)<>'' GROUP BY area").fetchall()
-    if not rows:
-        return "", 0
-    area, n = min(((r[0], r[1]) for r in rows), key=lambda r: priority.rank(r[0]))
-    return area, n
-
-
-def _identify_detail(conn, states: dict[str, int]) -> str:
-    """The counts of step 2: only the files that need the model (sorted, to do, no usable answer). Skipped files are not part of the progress; they are listed apart."""
-    line = f"{states['identified']:,} sorted · {states['waiting']:,} to do"
-    return line + (f" · {states['unclear']:,} could not be sorted" if states["unclear"] else "")
-
-
-def _identify_note(conn, states: dict[str, int]) -> str:
-    """One plain sentence for step 2: which app the model is on and how much is left of it."""
-    if not states["waiting"]:
-        return "Every file is sorted or skipped"
-    area, n = _first_app_open(conn)
-    return f"Now on {_app_name(area)}: {n:,} files left" if n else f"{states['waiting']:,} files to do"
-
-
-def _understand_note(s: dict[str, Any]) -> str:
-    """One plain sentence for step 3 while it runs: which app it is on. Before it starts there is nothing to say."""
-    return f"Working on {s.get('app') or 'an app'}" if s.get("phase") in (3, 4) else ""
-
-
-def _mean(values: list[float | None]) -> float | None:
-    known = [v for v in values if v is not None]
-    return round(sum(known) / len(known), 1) if known else None
-
-
 def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
-    """The three steps of a read, in plain words. 1 Read: the text of every file is taken out (its own container, running ahead). 2 Identify: the model says what each file is.
-    3 Understand: for an app whose files are all in, the related files are grouped and each group is read (Atlas adds the check against the other apps). Step 3 is split into
-    parts only to show how far each part has got; they are one step because they happen one after the other for the same app."""
-    states = _states(conn, "1=1")
+    """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Understand: related
+    files are connected and read together. Each step counts three things apart, the way the person knows them: the documents (files in the folders), the mails, and the documents
+    inside mails. A step is done when all of them are."""
     found = _found()
-    read = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area<>'pictures'").fetchone()[0]
-    total = max(read, (found.get("documents") or 0) + (found.get("mails") or 0))
-    identified_rows = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0]
-    in_groups = conn.execute("SELECT COALESCE(SUM(length(members) - length(replace(members, ',', '')) + 1), 0) FROM cases").fetchone()[
-        0
-    ]  # a group's members are a list of ids: its commas plus one
-    grouped = min(in_groups, identified_rows)
-    groups = conn.execute("SELECT COUNT(*), COALESCE(SUM(summary<>''), 0) FROM cases").fetchone()
-    phase = s.get("phase")
-    together: list[dict[str, Any]] = [
-        {
-            "name": "Group related files",
-            "detail": f"{grouped:,} of {identified_rows:,} files",
-            "percent": _share(grouped, identified_rows),
-        },
-        {
-            "name": "Read each group",
-            "detail": f"{groups[1]:,} of {groups[0]:,} groups",
-            "percent": _share(groups[1], groups[0]),
-        },
-    ]
-    all_in = identified_rows > 0 and grouped >= identified_rows and groups[0] > 0 and groups[1] >= groups[0]
-    return [
-        {
-            "n": 1,
-            "name": "Read",
-            "doing": "Reading files",
-            "about": "Get the text out of every file",
-            "state": _step_state((parsed_dir() / ".busy").exists(), True),
-            "detail": f"{read:,} of {total:,} files and mails read",
-            "note": f"{total - read:,} files still to read" if total > read else "All files read",
-            "percent": _share(read, total),
-        },
-        {
-            "n": 2,
-            "name": "Sort",
-            "doing": "Sorting files",
-            "about": "Find out what each file is",
-            "state": _step_state(phase == 2, not states["waiting"]),
-            "detail": _identify_detail(conn, states),
-            "note": _identify_note(conn, states),
-            "percent": _need_share(states),
-        },
-        {
-            "n": 3,
-            "name": "Understand",
-            "doing": "Understanding your files",
-            "about": "Group related files, read each group, check the other apps",
-            "state": _step_state(phase in (3, 4), all_in),
-            "app": s.get("app") or "",
-            "parts": together,
-            "detail": "",
-            "note": _understand_note(s),
-            "percent": _mean([p["percent"] for p in together]),
-        },
-    ]
+    groups = (
+        ("documents", "documents", "area NOT IN ('mail', 'pictures')", f"COUNT(DISTINCT {_FILE_OF})", found.get("documents")),
+        ("mails", "mails", "area='mail' AND kind='email'", "COUNT(*)", found.get("mails")),
+        ("attachments", "documents in mails", "area='mail' AND kind<>'email'", "COUNT(*)", None),  # known only as the mails are read
+    )
+
+    def count(base: str, how: str, extra: str) -> int:
+        return conn.execute(f"SELECT {how} FROM documents WHERE {base} AND ({extra})").fetchone()[0]
+
+    stages = (
+        ("1=1", (parsed_dir() / ".busy").exists() or s.get("phase") == 1),
+        ("judged IN (1, 2)", s.get("phase") == 2),
+        ("judged=2 OR (judged=1 AND case_id IS NOT NULL)", s.get("phase") in (3, 4)),
+    )
+    about = (
+        ("Read", "Reading files", "Get the text out of every file"),
+        ("Sort", "Sorting files", "Find out what each file is"),
+        ("Understand", "Understanding your files", "Connect related files and read them together"),
+    )
+    steps = []
+    for n, ((name, doing, text), (where, running)) in enumerate(zip(about, stages, strict=True), 1):
+        counts = []
+        for key, label, base, how, known in groups:
+            present = count(base, how, "1=1")
+            total = max(present, known or 0)
+            if total:
+                counts.append({"key": key, "label": label, "done": count(base, how, where), "total": total})
+        done, total = sum(int(c["done"]) for c in counts), sum(int(c["total"]) for c in counts)
+        steps.append(
+            {
+                "n": n,
+                "name": name,
+                "doing": doing,
+                "about": text,
+                "state": _step_state(running, bool(total) and done >= total),
+                "counts": counts,
+                "detail": "",
+                "percent": _share(done, total),
+            }
+        )
+    return steps
 
 
 def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
@@ -702,7 +630,7 @@ def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
 def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
     """The parts of the status that count through the whole database (the steps, the files waiting, the files just done). Like every count here they are reused for a few seconds and
     brought up to date in the background: a status question must never wait for the database, however big it is or busy a read keeps it."""
-    snapshot = {key: s.get(key) for key in ("phase", "app", "run", "now")}
+    snapshot = {key: s.get(key) for key in ("phase", "run", "now")}
 
     def make(c) -> dict[str, Any]:
         return {
@@ -711,7 +639,7 @@ def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
             "recent": trace.finished(c, snapshot.get("run") or ""),
         }
 
-    return _cached(f"counted:{snapshot['phase']}:{snapshot['app']}", make, state, conn)
+    return _cached(f"counted:{snapshot['phase']}", make, state, conn)
 
 
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:

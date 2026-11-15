@@ -7,7 +7,7 @@ import urllib.parse
 import pytest
 from finance import library_client
 from finance.modules import ALL, money
-from kit import db, extract
+from kit import db
 
 from library import parser, store
 from tests.test_readers import fake_ocr, scanned_pdf  # noqa: F401 - the fixture is used by name
@@ -33,10 +33,19 @@ class Model:
 
     def chat(self, model, messages, schema=None, **kw):
         self.asked += 1
-        if messages[0]["content"] == extract.KIND_PROMPT:
+        if schema and "kind" in schema.get("properties", {}) and "values" not in schema["properties"]:
             text = messages[1]["content"]
             kind = "medical" if "bloedonderzoek" in text else "bank_statement"
-            return {"content": json.dumps({"kind": kind, "title": "Blood test" if kind == "medical" else "Statement", "date": "2026-03-01"})}
+            return {
+                "content": json.dumps(
+                    {
+                        "kind": kind,
+                        "apps": ["health"] if kind == "medical" else ["finance"],
+                        "title": "Blood test" if kind == "medical" else "Statement",
+                        "date": "2026-03-01",
+                    }
+                )
+            }
         return {"content": json.dumps(LAYOUT)}
 
 

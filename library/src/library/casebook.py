@@ -386,11 +386,10 @@ def understand_pending(
     control: Callable[[], str] | None = None,
     progress: Callable[[str], None] | None = None,
     trace: Any = None,
-    up_to_rank: int = 99,
 ) -> int:
     """Groups not yet read: a group of related files, or a file with a date to act on, is read by the model with all its text; a lone file keeps what it was identified as.
     Respects Pause and Stop between readings; a group the model cannot make sense of is tried up to three times. Returns how many were read."""
-    rows = conn.execute("SELECT id, members FROM cases WHERE summary='' AND tries<3 AND rank<=? ORDER BY rank, id", (up_to_rank,)).fetchall()
+    rows = conn.execute("SELECT id, members FROM cases WHERE summary='' AND tries<3 ORDER BY rank, id").fetchall()
     done = asked = 0
     for row in rows:
         while control is not None and control() == "pause":
