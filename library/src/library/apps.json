@@ -1,0 +1,21 @@
+{
+  "_about": "What each app is about, in words. The model marks a file with the apps it is about; each app takes the files marked for it; the apps are served in this order; and a mail is shown to the model only when it has an amount of money together with one of an app's terms. Add an app, a language or a word here: nothing in the code names an app or a kind of document.",
+  "apps": [
+    {
+      "name": "finance",
+      "about": "money: bank statements, payslips, yearly income statements, invoices, receipts, taxes, insurance, contracts, loans, subscriptions, payments, and anything that states an amount paid or owed",
+      "terms": "invoice invoices factuur factuurnummer rekening bon receipt payment payments betaling betalingen betaald paid refund terugbetaling statement afschrift payslip loonstrook salaris tax belasting aanslag insurance policy polis premie verzekering contract lease huur subscription abonnement order bestelling confirmation bevestiging"
+    },
+    {
+      "name": "health",
+      "about": "health: medical reports, lab results, prescriptions, appointment letters, vaccination records, and anything about the person's health",
+      "terms": "appointment afspraak prescription recept uitslag",
+      "reads": "medical"
+    },
+    {
+      "name": "travel",
+      "about": "travel: flight, train and event tickets, boarding passes, hotel and rental bookings, itineraries, visas, and anything about a trip",
+      "terms": "ticket tickets boarding booking bookings reservation reservering boeking itinerary hotel flight vlucht"
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-"""The order the apps are served in. Finance first, then Health, then Travel, then the other named folders, then loose files, then mail (`LIBRARY_PRIORITY` changes the first ones).
+"""The order the apps are served in: the order they are declared in (`apps.py`; `LIBRARY_PRIORITY` overrides it), then the other named folders, then loose files, then mail.
 The reader takes the folders in this order, the model identifies the files in this order, and the groups of an app are read as soon as all of that app's files are in:
 the person has a finished Finance before Health is started, not a little of everything."""
 
@@ -7,13 +7,17 @@ from __future__ import annotations
 import os
 import re
 
-DEFAULT = "finance,health,travel,personal"
+from . import apps
+
 LOOSE, MAIL = "", "mail"
 
 
 def order() -> list[str]:
     """The named apps, first served first (letters, digits, - and _ only: the names go into queries)."""
-    names = (re.sub(r"[^a-z0-9_-]", "", n.strip().lower()) for n in os.environ.get("LIBRARY_PRIORITY", DEFAULT).split(","))
+    override = os.environ.get("LIBRARY_PRIORITY")
+    if override is None:
+        return apps.names()
+    names = (re.sub(r"[^a-z0-9_-]", "", n.strip().lower()) for n in override.split(","))
     return [n for n in names if n]
 
 

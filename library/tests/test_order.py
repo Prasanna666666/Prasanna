@@ -1,14 +1,16 @@
 import json
 import threading
 
-from library import casebook, priority, store
+from library import apps, casebook, priority, store
 
 
 def test_the_apps_are_served_in_their_order_with_loose_files_and_mail_last(monkeypatch):
     monkeypatch.delenv("LIBRARY_PRIORITY", raising=False)
-    assert priority.order() == ["finance", "health", "travel", "personal"]
+    assert priority.order() == apps.names() == ["finance", "health", "travel"]  # the order the apps are declared in apps.json
     ranks = [priority.rank(a) for a in ("finance", "health", "travel", "personal", "others", "", "mail", "pictures")]
-    assert ranks == sorted(ranks) and len(set(ranks[:5])) == 5 and ranks[-1] == ranks[-2]  # mail and pictures come together, last
+    assert (
+        ranks == sorted(ranks) and len(set(ranks[:4])) == 4 and ranks[3] == ranks[4] and ranks[-1] == ranks[-2]
+    )  # other folders after the apps; mail and pictures together, last
     monkeypatch.setenv("LIBRARY_PRIORITY", "health, FINANCE, x'; drop table")
     assert priority.order() == ["health", "finance", "xdroptable"]  # the names go into queries: only letters, digits, - and _ survive
     assert priority.tiers()[0] == "area='health'" and priority.tiers()[-1] == "area IN ('mail', 'pictures')"
@@ -87,3 +89,17 @@ def test_a_mail_with_attachments_is_not_skipped_by_the_keyword_rule_but_one_with
         store._skippable({**base, "data": json.dumps({"meta": {"attachments": 2}})}) is False
     )  # its attachments are read: what the mail says about them matters
     assert store._skippable({**base, "text": "  ", "data": json.dumps({"meta": {"attachments": 2}})}) is True  # no text at all is still nothing to read
+
+
+def test_the_apps_and_their_words_come_from_the_file_not_from_the_code(tmp_path, monkeypatch):
+    from library import relevance
+
+    declared = tmp_path / "apps.json"
+    declared.write_text(
+        json.dumps({"apps": [{"name": "Garden", "about": "the garden", "terms": "tulips"}, {"name": "pets", "about": "the pets", "terms": "kibble"}]})
+    )
+    monkeypatch.setenv("LIBRARY_APPS", str(declared))
+    monkeypatch.delenv("LIBRARY_PRIORITY", raising=False)
+    assert priority.order() == ["garden", "pets"] and apps.describe() == {"garden": "the garden", "pets": "the pets"}
+    assert relevance.worth_reading("m.eml", "email", "Your tulips order: 12,50 euro")  # a word an app declares
+    assert not relevance.worth_reading("m.eml", "email", "Your invoice: 12,50 euro")  # "invoice" is in no declared app here: no word is in the code
