@@ -114,15 +114,30 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
 READER_START_SECONDS = 90  # how long the reader may take to pick up the request before it is called not running
 
 
+def _all_taken(conn) -> bool:
+    """Is everything the reader found in the folders, and everything the mails say they carried, in? (Files that cannot be read never arrive: the caller stops asking when a round brings nothing.)"""
+    found = _found()
+    one = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
+    documents = one(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail', 'pictures')")
+    mails = one("SELECT COUNT(*) FROM documents WHERE area='mail' AND kind='email'")
+    promised = one(
+        "SELECT COALESCE(SUM(CASE WHEN json_valid(data) THEN json_extract(data, '$.meta.attachments') ELSE 0 END), 0) FROM documents WHERE area='mail' AND kind='email'"
+    )
+    attached = one("SELECT COUNT(*) FROM documents WHERE area='mail' AND kind<>'email'")
+    return documents >= (found.get("documents") or 0) and mails >= (found.get("mails") or 0) and attached >= promised
+
+
 def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
     """Step 1, completely: everything the reader produces is taken in until the reader has picked the request up, finished its round and nothing new arrives. Nothing is sorted meanwhile.
     Returns what went wrong, if anything (the reader never picked the request up)."""
     state.scan["phase"] = 1
     asked = time.monotonic()
+    round_new = 0  # files that came in since the reader was last asked
     while True:
         got = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
         totals["new"] += got["new"]
         totals["replaced"] += got.get("replaced", 0)
+        round_new += got["new"]
         busy = (parsed_dir() / ".busy").exists()
         waiting = (parsed_dir() / ".wake").exists()  # the reader has not yet started the round that was asked for
         if state.control == "stop":
@@ -130,6 +145,13 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
         if waiting and not busy and time.monotonic() - asked > READER_START_SECONDS:
             return "" if totals["new"] else "The part of Documents that reads your files did not start"
         if not busy and not waiting and not got["new"]:
+            if round_new and not _all_taken(
+                conn
+            ):  # the reader stopped before everything it counted was in: it is asked again, for as long as a round still brings something
+                round_new = 0
+                (parsed_dir() / ".wake").touch()
+                asked = time.monotonic()
+                continue
             return ""
         state.scan["progress"] = f"Reading… {totals['new']} new files so far"
         if busy or waiting:
