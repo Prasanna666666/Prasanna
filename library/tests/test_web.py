@@ -136,13 +136,13 @@ def test_the_update_counts_files_the_way_the_person_does_even_when_one_file_hold
     state._engine = None
     rows = {r["name"]: r["detail"] for r in web._parts(state, conn)}
     assert (
-        rows["Documents"] == "2 of 36 files · 0 identified · 2 waiting"
-        and rows["Mails"] == "1 of 12 mails · 0 identified · 1 waiting"
+        rows["Documents"] == "2 of 36 files · 0 sorted · 2 to do"
+        and rows["Mails"] == "1 of 12 mails · 0 sorted · 1 to do"
         and "not connected" in rows["Photos"]
     )
     web._CACHE.clear()  # the numbers are reused for a few seconds
     (parsed / ".found").write_text(json.dumps({"documents": 2, "mails": 1}))
-    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 identified · 2 waiting"
+    assert {r["name"]: r["detail"] for r in web._parts(state, conn)}["Documents"] == "2 files · 0 sorted · 2 to do"
 
 
 def test_mails_say_plainly_when_apple_mail_was_not_given_to_atlas(tmp_path, monkeypatch):
@@ -334,11 +334,11 @@ def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate
     running = {"running": True, "run": "r1", "now_since": now - 10}
     medical = web._file_now({**running, "now": ("report.pdf", "reading part", "report.pdf: reading part 3 of 9")}, conn)
     assert medical["percent"] == 22.2 and medical["estimated"] is False  # two of nine parts are done
-    assert web._file_now({**running, "now": ("a.pdf", "identifying", "31 characters")}, conn)["percent"] is None  # nothing to go by yet: no number
-    conn.execute("INSERT INTO trace (run, at, name, step, detail, seconds) VALUES ('r1','12:00:00','x.pdf','identified','invoice',20)")
-    guess = web._file_now({**running, "now": ("a.pdf", "identifying", "31 characters")}, conn)
+    assert web._file_now({**running, "now": ("a.pdf", "sorting", "31 characters")}, conn)["percent"] is None  # nothing to go by yet: no number
+    conn.execute("INSERT INTO trace (run, at, name, step, detail, seconds) VALUES ('r1','12:00:00','x.pdf','sorted','invoice',20)")
+    guess = web._file_now({**running, "now": ("a.pdf", "sorting", "31 characters")}, conn)
     assert guess["estimated"] is True and guess["percent"] == 50.0  # 10 s of the usual 20 s
-    assert web._file_now({**running, "running": False, "now": ("a.pdf", "identifying", "")}, conn) is None
+    assert web._file_now({**running, "running": False, "now": ("a.pdf", "sorting", "")}, conn) is None
     assert web._share(17, 1201) == 1.4 and web._share(1201, 1201) == 100.0 and web._share(1200, 1201) == 99.9 and web._share(0, 0) == 0.0
 
 
@@ -355,10 +355,9 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     ]  # named folders first, then loose files, then mail; not the one being read
     assert web._states(conn, "1=1") == {"identified": 1, "aside": 1, "waiting": 4, "unclear": 0}  # a file skipped is not counted as identified
     steps = web._steps(conn, {"phase": 2})
-    assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Identify", "running")
-    assert (
-        steps[1]["detail"] == "1 identified by the model · 1 skipped earlier, reason not kept · 4 to do" and steps[1]["percent"] == 33.3
-    )  # 2 of 6 have nothing more to do here
+    assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Sort", "running")
+    assert steps[1]["detail"] == "1 sorted · 4 to do" and steps[1]["percent"] == 20.0  # 1 of the 5 files that need the model; the skipped one is not part of it
+    assert "1 files are not shown to the model: 1 earlier, reason not kept" in steps[1]["also"]
     assert len(steps) == 3 and steps[2]["state"] == "waiting" and [p["name"] for p in steps[2]["parts"]] == ["Group related files", "Read each group"]
     assert web._steps(conn, {"phase": 4, "app": "Finance"})[2]["state"] == "running"
 
@@ -369,7 +368,7 @@ def test_each_step_says_in_one_sentence_what_it_is_on_or_waiting_for(conn):
     conn.commit()
     steps = web._steps(conn, {"phase": 2})
     assert steps[1]["note"] == "Now on Finance: 2 files left"  # Finance is served first
-    assert steps[2]["note"] == "Starts for Finance when its last 2 files are identified"  # why step 3 has not started
+    assert steps[2]["note"] == "Starts for Finance when its last 2 files are sorted"  # why step 3 has not started
     assert web._steps(conn, {"phase": 3, "app": "Finance"})[2]["note"] == "Working on Finance"
 
 
@@ -384,4 +383,4 @@ def test_skipped_files_are_counted_by_the_real_reason(conn):
         )
     conn.commit()
     assert web._skipped_reasons(conn) == {"no_text": 1, "rule": 2, "unknown": 1}
-    assert "2 skipped by the keyword rule (not shown to the model)" in web._identify_detail(conn, web._states(conn, "1=1"))
+    assert "2 by the keyword rule" in web._skipped_line(conn) and "4 files are not shown to the model" in web._skipped_line(conn)

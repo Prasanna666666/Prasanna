@@ -254,6 +254,7 @@ class Upstreams:
                     "app": str(step.get("app", ""))[:30],
                     "detail": str(step.get("detail", ""))[:160],
                     "note": str(step.get("note", ""))[:160],
+                    "also": str(step.get("also", ""))[:300],
                     "percent": _percent(step.get("percent")),
                     "parts": parts,
                 }

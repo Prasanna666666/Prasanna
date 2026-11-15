@@ -487,9 +487,9 @@ def _skipped_reasons(conn, where: str = "1=1") -> dict[str, int]:
     return {"no_text": no_text, "rule": rule, "unknown": count("") - no_text - rule}
 
 
-def _handled(states: dict[str, int]) -> int:
-    """Files with nothing more to do at the identifying step: identified, or skipped."""
-    return states["identified"] + states["aside"]
+def _need_share(states: dict[str, int]) -> float:
+    """How far the files that need the model have got (sorted of sorted, to do and could not be sorted); skipped files are not part of it."""
+    return _share(states["identified"], states["identified"] + states["waiting"] + states["unclear"])
 
 
 def _share(part: int, whole: int) -> float:
@@ -502,8 +502,8 @@ def _understood(conn, where: str) -> str:
     s = _states(conn, where)
     if not any(s.values()):
         return ""
-    line = f" · {s['identified']:,} identified"
-    for key, label in (("aside", "skipped"), ("waiting", "waiting"), ("unclear", "no usable answer")):
+    line = f" · {s['identified']:,} sorted"
+    for key, label in (("waiting", "to do"), ("unclear", "could not be sorted"), ("aside", "skipped")):
         line += f" · {s[key]:,} {label}" if s[key] else ""
     return line
 
@@ -517,10 +517,10 @@ def _parts_now(state: State, conn) -> list[dict[str, Any]]:
         mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
     docs_row = _row("Documents", files, found.get("documents"), "files")
     docs_row["detail"] += _understood(conn, "area NOT IN ('mail','pictures')")
-    docs_row["percent"] = _share(_handled(_states(conn, "area NOT IN ('mail','pictures')")), max(files, found.get("documents") or 0))
+    docs_row["percent"] = _need_share(_states(conn, "area NOT IN ('mail','pictures')"))
     if mail_row.get("detail", "").find("not connected") < 0:
         mail_row["detail"] += _understood(conn, "area='mail'")
-        mail_row["percent"] = _share(_handled(_states(conn, "area='mail'")), max(mails, found.get("mails") or 0))
+        mail_row["percent"] = _need_share(_states(conn, "area='mail'"))
     shares = [
         f"{'Other' if k == 'inbox' else k.capitalize()} {v:,}" for k, v in found.get("by_folder", {}).items() if v
     ]  # where the number comes from; empty folders are left out
@@ -600,24 +600,30 @@ def _first_app_open(conn) -> tuple[str, int]:
 
 
 def _identify_detail(conn, states: dict[str, int]) -> str:
-    """The counts of step 2 with the real reason for each skipped group, so that "skipped" never hides that a file was simply not shown to the model."""
+    """The counts of step 2: only the files that need the model (sorted, to do, no usable answer). Skipped files are not part of the progress; they are listed apart."""
+    line = f"{states['identified']:,} sorted · {states['waiting']:,} to do"
+    return line + (f" · {states['unclear']:,} could not be sorted" if states["unclear"] else "")
+
+
+def _skipped_line(conn) -> str:
+    """The files not shown to the model, with the real reason for each group, as a footnote of step 2 (never as part of its progress)."""
     why = _skipped_reasons(conn)
-    parts = [f"{states['identified']:,} identified by the model"]
-    for key, label in (
-        ("rule", "skipped by the keyword rule (not shown to the model)"),
-        ("no_text", "skipped, no readable text"),
-        ("unknown", "skipped earlier, reason not kept"),
-    ):
-        if why[key]:
-            parts.append(f"{why[key]:,} {label}")
-    parts.append(f"{states['waiting']:,} to do")
-    return " · ".join(parts)
+    parts = [
+        f"{why[key]:,} {label}"
+        for key, label in (
+            ("rule", "by the keyword rule (no amount with an invoice-like word)"),
+            ("no_text", "with no readable text"),
+            ("unknown", "earlier, reason not kept"),
+        )
+        if why[key]
+    ]
+    return f"{sum(why.values()):,} files are not shown to the model: " + ", ".join(parts) if parts else ""
 
 
 def _identify_note(conn, states: dict[str, int]) -> str:
     """One plain sentence for step 2: which app the model is on and how much is left of it."""
     if not states["waiting"]:
-        return "Every file is identified or skipped"
+        return "Every file is sorted or skipped"
     area, n = _first_app_open(conn)
     return f"Now on {_app_name(area)}: {n:,} files left" if n else f"{states['waiting']:,} files to do"
 
@@ -629,7 +635,7 @@ def _understand_note(conn, s: dict[str, Any], all_in: bool) -> str:
     if all_in:
         return "Done"
     area, n = _first_app_open(conn)
-    return f"Starts for {_app_name(area)} when its last {n:,} files are identified" if n else "Nothing to group yet"
+    return f"Starts for {_app_name(area)} when its last {n:,} files are sorted" if n else "Nothing to group yet"
 
 
 def _mean(values: list[float | None]) -> float | None:
@@ -648,7 +654,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     identified_rows = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0]
     grouped = min(sum(len(json.loads(r[0])) for r in conn.execute("SELECT members FROM cases")), identified_rows)
     groups = conn.execute("SELECT COUNT(*), COALESCE(SUM(summary<>''), 0) FROM cases").fetchone()
-    phase, handled = s.get("phase"), _handled(states)
+    phase = s.get("phase")
     together: list[dict[str, Any]] = [
         {
             "name": "Group related files",
@@ -674,12 +680,13 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         },
         {
             "n": 2,
-            "name": "Identify",
+            "name": "Sort",
             "about": "Find out what each file is",
             "state": _step_state(phase == 2, not states["waiting"]),
             "detail": _identify_detail(conn, states),
             "note": _identify_note(conn, states),
-            "percent": _share(handled, handled + states["waiting"]),
+            "percent": _need_share(states),
+            "also": _skipped_line(conn),
         },
         {
             "n": 3,
@@ -706,7 +713,7 @@ def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
     part = re.search(r"part (\d+) of (\d+)", detail)
     if step == "reading part" and part:
         percent = round((int(part[1]) - 1) * 100 / int(part[2]), 1)
-    elif step == "identifying":
+    elif step == "sorting":
         average = trace.average_seconds(conn, s.get("run", ""))
         if average:
             percent, estimated = round(min(95.0, seconds * 100 / average), 1), True

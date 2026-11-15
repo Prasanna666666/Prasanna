@@ -639,6 +639,7 @@
         );
         if (s.detail) card.append(el('span', 'rd-detail', s.detail));
         if (s.parts && s.parts.length) card.append(stepParts(s.parts));
+        if (s.also) card.append(el('span', 'rd-also', s.also));
         return card;
     };
     const stepsBlock = (steps) => {

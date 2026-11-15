@@ -35,7 +35,7 @@ class Trace:
             self._now(name, step, detail)
 
 
-FINISHED = ("identified", "skipped", "no usable answer", "group read", "kept as identified")
+FINISHED = ("sorted", "skipped", "no usable answer", "group read", "kept as sorted")
 
 
 def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:
@@ -51,8 +51,8 @@ def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:
 
 
 def average_seconds(conn, run: str) -> float:
-    """How long identifying one file has taken in this read so far (0 until there is one to go by)."""
-    row = conn.execute("SELECT AVG(seconds) FROM trace WHERE run=? AND step='identified' AND seconds>=1", (run,)).fetchone()
+    """How long sorting one file has taken in this read so far (0 until there is one to go by)."""
+    row = conn.execute("SELECT AVG(seconds) FROM trace WHERE run=? AND step='sorted' AND seconds>=1", (run,)).fetchone()
     return float(row[0] or 0)
 
 

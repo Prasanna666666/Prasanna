@@ -421,7 +421,7 @@ def understand_pending(
         else:
             summary = _alone(members[0])
             if trace is not None:
-                trace.step(members[0]["name"], "kept as identified", "no related files, no date to act on")
+                trace.step(members[0]["name"], "kept as sorted", "no related files, no date to act on")
         conn.execute("UPDATE cases SET summary=? WHERE id=?", (json.dumps(summary), row["id"]))
         conn.execute(f"UPDATE documents SET case_id=? WHERE id IN ({','.join('?' for _ in members)})", (row["id"], *[m["id"] for m in members]))
         done += 1

@@ -75,7 +75,7 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
     assert report["modules"]["money"]["recent"] == [{"name": "old.pdf", "detail": "identified, invoice (14 s)"}]  # the malformed one is dropped
     money = report["modules"]["money"]
-    assert money["waiting"] == ["next.pdf"] and money["steps"][0]["name"] == "Identify" and money["steps"][0]["percent"] == 12.5
+    assert money["waiting"] == ["next.pdf"] and money["steps"][0]["name"] == "Sort" and money["steps"][0]["percent"] == 12.5
     last = money["steps"][-1]
     assert last["n"] == 3 and [p["name"] for p in last["parts"]] == [
         "Group related files",

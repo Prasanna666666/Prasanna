@@ -78,3 +78,12 @@ def test_a_cases_rank_follows_the_app_served_first_among_its_files(conn):
     conn.commit()
     pieces = casebook.pieces_of(conn)
     assert {p["area"] for p in pieces} == {"finance", "mail"}
+
+
+def test_a_mail_with_attachments_is_not_skipped_by_the_keyword_rule_but_one_without_still_can_be():
+    base = {"kind": "email", "area": "mail", "name": "00001 Hello.eml", "text": "Hi, see you soon, thanks for the lovely evening"}
+    assert store._skippable({**base, "data": json.dumps({"meta": {"attachments": 0}})}) is True  # no amount, no invoice-like word, nothing attached
+    assert (
+        store._skippable({**base, "data": json.dumps({"meta": {"attachments": 2}})}) is False
+    )  # its attachments are read: what the mail says about them matters
+    assert store._skippable({**base, "text": "  ", "data": json.dumps({"meta": {"attachments": 2}})}) is True  # no text at all is still nothing to read

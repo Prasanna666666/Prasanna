@@ -1232,3 +1232,10 @@ body.chatting .fab {
 .rd-note-line:empty {
     display: none;
 }
+
+.rd-also {
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+    color: var(--faint);
+    font-size: 12.5px;
+}

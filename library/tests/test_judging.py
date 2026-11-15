@@ -43,8 +43,8 @@ def test_a_parser_round_says_when_it_is_busy_and_wakes_on_request(tmp_path):
 
 
 def test_the_panel_says_how_long_one_file_takes_and_how_long_all_will_take():
-    assert store._speed_line(1184, 0, 0) == "Identifying files: 1,184 waiting"
-    assert store._speed_line(1184, 140, 10) == "Identifying files: 1,184 waiting, 14 s per file, about 4 h 36 min left"
+    assert store._speed_line(1184, 0, 0) == "Sorting files: 1,184 to do"
+    assert store._speed_line(1184, 140, 10) == "Sorting files: 1,184 to do, 14 s per file, about 4 h 36 min left"
     assert store._duration(45) == "45 s" and store._duration(600) == "10 min"
 
 
@@ -95,9 +95,9 @@ def test_a_read_leaves_a_trace_of_every_step_on_every_file(conn):
     followed = trace.Trace(conn, lambda name, step, detail: now.append((name, step, detail)))
     store.judge_pending(conn, Model(), "fake", trace=followed)
     steps = [(s["name"], s["step"], s["detail"]) for s in reversed(trace.recent(conn))]
-    assert ("bill.pdf", "identifying", "31 characters") in steps and ("bill.pdf", "identified", "invoice") in steps
+    assert ("bill.pdf", "sorting", "31 characters") in steps and ("bill.pdf", "sorted", "invoice") in steps
     assert ("empty.pdf", "skipped", "no readable text") in steps
-    assert now[0] == ("bill.pdf", "identifying", "31 characters")  # the panel is told which file is being worked on
+    assert now[0] == ("bill.pdf", "sorting", "31 characters")  # the panel is told which file is being worked on
     assert [s["step"] for s in trace.recent(conn, name="empty")] == ["skipped"]
 
 

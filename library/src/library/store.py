@@ -268,6 +268,12 @@ def _data(d) -> dict:
         return {}
 
 
+def _attachment_count(d) -> int:
+    meta = _data(d).get("meta")
+    count = meta.get("attachments") if isinstance(meta, dict) else 0
+    return count if isinstance(count, int) else 0
+
+
 def _exact_facts(d) -> dict | None:
     """Documents that need no model: a bank standard (MT940, camt.053), the ECB's exchange-rate file, or a picture with no text in it (a photo)."""
     if recognise.bank_standard(d["text"]):
@@ -343,7 +349,7 @@ def _both(progress: Progress | None, trace: Trace | None, name: str) -> Progress
 def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trace | None, ahead: _Ahead) -> tuple[str, str]:
     """The model identifies one file and the result is saved at once (the counts in the panel change with every file, not every twentieth).
     Returns "ok", "unclear" (answered but unusable: counted and tried again at the next read) or "unreachable" with the reason."""
-    _trace(trace, d["name"], "identifying", f"{len(d['text']):,} characters")
+    _trace(trace, d["name"], "sorting", f"{len(d['text']):,} characters")
     started = time.monotonic()
     try:
         facts = ahead.result(d, _both(progress, trace, d["name"]))
@@ -355,7 +361,7 @@ def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trac
     except RuntimeError as exc:
         return "unreachable", str(exc)
     _mark_ready(conn, d["sha256"], 1, facts)
-    _trace(trace, d["name"], "identified", f"{facts.get('kind', 'other')}", time.monotonic() - started)
+    _trace(trace, d["name"], "sorted", f"{facts.get('kind', 'other')}", time.monotonic() - started)
     conn.commit()
     return "ok", ""
 
@@ -368,9 +374,9 @@ def _duration(seconds: float) -> str:
 def _speed_line(waiting: int, elapsed: float, calls: int) -> str:
     """What the person sees while the model identifies files: how many are waiting, how long one takes, and how long all of them will take at that speed."""
     if calls < 2:
-        return f"Identifying files: {waiting:,} waiting"
+        return f"Sorting files: {waiting:,} to do"
     each = elapsed / calls
-    return f"Identifying files: {waiting:,} waiting, {each:.0f} s per file, about {_duration(waiting * each)} left"
+    return f"Sorting files: {waiting:,} to do, {each:.0f} s per file, about {_duration(waiting * each)} left"
 
 
 SKIPPED_NO_TEXT = "no readable text"
@@ -379,11 +385,11 @@ SKIPPED_BY_RULE = "no amount with an invoice-like word"  # the keyword rule in `
 
 def _skippable(d) -> bool:
     """Nothing readable to ask the model about: the file stays, found by its name."""
-    return bool(
-        d["kind"] == "binary"
-        or not d["text"].strip()
-        or (d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"]))
-    )
+    if d["kind"] == "binary" or not d["text"].strip():
+        return True
+    if d["kind"] == "email" and _attachment_count(d) > 0:
+        return False  # its attachments are read, and what the mail says about them (who sent it, when it is due) is what makes them mean something
+    return d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"])
 
 
 def _for_model(d) -> bool:
@@ -469,7 +475,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
             exact = _exact_facts(d)
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
-                _trace(trace, d["name"], "identified", "from its own data, no model needed")
+                _trace(trace, d["name"], "sorted", "from its own data, no model needed")
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
                 why = SKIPPED_NO_TEXT if not d["text"].strip() else SKIPPED_BY_RULE
                 _mark_ready(conn, d["sha256"], 2, {"skipped": why})  # the reason is kept, so what was not shown to the model can be counted and read later
@@ -561,7 +567,7 @@ def audit(conn) -> dict[str, int]:
 LEFT = {
     "not_identified": "files the model has not looked at yet",
     "no_usable_answer": "files the model gave no usable answer for (tried again at the next read)",
-    "not_grouped": "identified files not yet placed in a group of related files",
+    "not_grouped": "sorted files not yet placed in a group of related files",
     "matters_not_read": "groups of related files not yet read together",
 }
 
@@ -570,7 +576,7 @@ def audit_line(found: dict[str, int]) -> str:
     """What the audit found, with the numbers."""
     left = [f"{found[k]:,} {text}" for k, text in LEFT.items() if found[k]]
     if not left:
-        return f"Nothing is left: {found['files']:,} files identified, in {found['matters']:,} groups of related files, each group read together"
+        return f"Nothing is left: {found['files']:,} files sorted, in {found['matters']:,} groups of related files, each group read together"
     return "Still left: " + "; ".join(left)
 
 
