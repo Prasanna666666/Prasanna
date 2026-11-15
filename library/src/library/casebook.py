@@ -283,9 +283,10 @@ def _verdicts(
     control: Callable[[], str] | None,
     progress: Callable[[str], None] | None,
     trace: Any = None,
+    pairs: int = MAX_CONFIRMS,
 ) -> Callable[[int, int], bool | None]:
     """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round. `answered` counts the new answers."""
-    budget = [MAX_CONFIRMS if client is not None else 0]
+    budget = [pairs if client is not None else 0]
 
     def verdict(a: int, b: int) -> bool | None:
         key = sorted((by_id[a]["sha"], by_id[b]["sha"]))
@@ -298,7 +299,7 @@ def _verdicts(
             time.sleep(0.5)
         budget[0] -= 1
         if progress:
-            progress(f"Comparing files: {MAX_CONFIRMS - budget[0]} of up to {MAX_CONFIRMS}")
+            progress(f"Comparing files: {pairs - budget[0]} of up to {pairs}")
         began = time.monotonic()
         try:
             same = confirm(client, model, by_id[a], by_id[b])
@@ -320,12 +321,13 @@ def rebuild(
     control: Callable[[], str] | None = None,
     progress: Callable[[str], None] | None = None,
     trace: Any = None,
+    pairs: int = MAX_CONFIRMS,
 ) -> int:
     """Group the pieces into matters (returns how much changed). A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
     pieces = pieces_of(conn)
     by_id = {p["id"]: p for p in pieces}
     answered = [0]
-    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, control, progress, trace))[0]}
+    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, control, progress, trace, pairs))[0]}
     known = {r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")}
     for h in known - set(now):
         conn.execute("DELETE FROM cases WHERE input_hash=?", (h,))

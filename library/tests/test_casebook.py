@@ -156,3 +156,15 @@ def test_a_database_made_by_any_earlier_version_upgrades_without_error(tmp_path)
         db.migrate(conn, [db.Module("library", store.MIGRATIONS[:k])])
         db.migrate(conn, [store.MODULE])
         assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 0
+
+
+def test_interpretation_can_run_in_small_slices_while_files_are_still_being_identified(conn, monkeypatch):
+    from library import store
+
+    for i in range(6):
+        _doc(conn, f"b{i}", f"Invoice number {i}", {"due_date": "2026-12-01"})
+    calls = []
+    monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(1) or {"title": "t", "what": "w"})
+    assert store.finish_matters(conn, object(), "m", pairs=2, groups=2) == 2 and len(calls) == 2  # only a slice
+    assert store.finish_matters(conn, object(), "m", pairs=2, groups=2) == 2  # the next slice carries on from there
+    assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary=''").fetchone()[0] == 2

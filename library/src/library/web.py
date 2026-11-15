@@ -65,6 +65,8 @@ class State:
 AUTO_LIMIT = int(
     os.environ.get("ATLAS_AUTO_LIMIT", "50")
 )  # files: automatic reading only when fewer than this are waiting (and a round that starts by itself stops after this many)
+INTERPRET_EVERY_ROUNDS = 5  # every this many rounds of identifying (100 files) a small slice of interpretation runs, so it does not wait for the last file
+SLICE_PAIRS, SLICE_GROUPS = 10, 5  # what one slice does: pairs compared and groups read (a few minutes)
 JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
 
 
@@ -111,6 +113,12 @@ def _read_pictures(state: State, conn, client, model) -> None:
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
+def _interpret_slice(state: State, conn, client, model, followed: trace.Trace, identified: int, rounds: int) -> None:
+    """While files are still being identified, every few rounds a small slice of interpretation runs, so grouping and reading do not wait for the last file."""
+    if identified and rounds % INTERPRET_EVERY_ROUNDS == 0 and client is not None and model and state.control != "stop":
+        store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed, SLICE_PAIRS, SLICE_GROUPS)
+
+
 def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
     if client is None or not model or state.control == "stop":
@@ -118,6 +126,21 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed)
     if state.control != "stop":
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
+
+
+def _summarise(state: State, conn, totals: dict[str, int]) -> bool:
+    """What the read found, in words, for the panel. Returns True when the rest of the read (pictures, interpretation) should go on: it did not stop and was not cut off by the automatic limit."""
+    counts = store.counts(conn)
+    new, replaced = totals["new"], totals["replaced"]
+    line = f"{new} new file{'s' if new != 1 else ''}, {counts['documents']} in all"
+    if replaced:
+        line += f"; {replaced} changed file{'s' if replaced != 1 else ''} replaced their older version"
+    if state.control == "stop":
+        line = "Stopped. " + line + ". Reading carries on from here next time."
+    elif (parsed_dir() / flags.AUTO_CAPPED).exists():
+        line += f"; automatic reading stopped at its limit of {AUTO_LIMIT} files: press Read new files for the rest"
+    state.scan["summary"] = line
+    return state.control != "stop" and not (parsed_dir() / flags.AUTO_CAPPED).exists()
 
 
 def _read_all(state: State) -> None:
@@ -136,8 +159,11 @@ def _read_all(state: State) -> None:
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
+        rounds = 0
         while True:
             new, judged_count, judged = _one_round(conn, client, model, state, followed)
+            rounds += 1
+            _interpret_slice(state, conn, client, model, followed, judged["read"], rounds)
             totals["new"] += new
             totals["read"] += judged["read"]
             totals["skipped"] += judged["skipped"]
@@ -149,15 +175,7 @@ def _read_all(state: State) -> None:
             state.scan["progress"] = f"Reading… {totals['new']} new files so far" if busy else state.scan["progress"]
             if busy:
                 time.sleep(SETTLE_SECONDS)
-        counts = store.counts(conn)
-        state.scan["summary"] = f"{totals['new']} new file{'s' if totals['new'] != 1 else ''}, {counts['documents']} in all"
-        if totals["replaced"]:
-            state.scan["summary"] += f"; {totals['replaced']} changed file{'s' if totals['replaced'] != 1 else ''} replaced their older version"
-        if state.control == "stop":
-            state.scan["summary"] = "Stopped. " + state.scan["summary"] + ". Reading carries on from here next time."
-        elif (parsed_dir() / flags.AUTO_CAPPED).exists():
-            state.scan["summary"] += f"; automatic reading stopped at its limit of {AUTO_LIMIT} files: press Read new files for the rest"
-        else:
+        if _summarise(state, conn, totals):
             _read_pictures(state, conn, client, model)
             _finish(state, conn, client, model, followed)
         if state.control != "stop":
