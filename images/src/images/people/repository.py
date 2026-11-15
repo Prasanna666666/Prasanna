@@ -21,14 +21,6 @@ class PersonSummary:
         return self.name or f"Person {self.id}"
 
 
-@dataclass(frozen=True)
-class FaceReview:
-    face_id: int
-    item_id: int
-    crop: str | None
-    similarity: float
-
-
 def list_people(conn: sqlite3.Connection, min_photos: int = 2) -> list[PersonSummary]:
     rows = conn.execute(
         "SELECT p.id, p.name, COUNT(f.id) AS n_faces, COUNT(DISTINCT f.item_id) AS n_items, "

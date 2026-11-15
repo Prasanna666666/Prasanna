@@ -670,25 +670,32 @@
         return box;
     };
     const noteBlock = (text, bad = false) => el('div', 'rd-note' + (bad ? ' bad' : ''), text);
+    // Pause, Resume and Stop: the button only says which action it stands for (as data), so a button that stays in place when its label changes from Pause to Resume
+    // does what its label says; one handler on the card does the work
     const controlButton = (label, action) => {
         const b = el('button', 'rd-btn' + (action === 'stop' ? ' stop' : ''), label);
         b.type = 'button';
-        b.addEventListener('click', async () => {
-            b.disabled = true;
-            try {
-                const reply = await fetch(`/_atlas/api/scan/${action}`, {
-                    method: 'POST',
-                    headers: { 'X-Atlas': '1' },
-                });
-                if (reply.ok) {
-                    showScan(await reply.json());
-                    followScan(); // keeps showing where it stands until it has really stopped, paused or finished
-                }
-            } catch (_) {
-                /* the next refresh shows where it stands */
-            }
-        });
+        b.dataset.action = action;
         return b;
+    };
+    const pressControl = async (e) => {
+        const b = e.target.closest('.rd-btn');
+        if (!b || b.disabled) return;
+        b.disabled = true;
+        try {
+            const reply = await fetch(`/_atlas/api/scan/${b.dataset.action}`, {
+                method: 'POST',
+                headers: { 'X-Atlas': '1' },
+            });
+            if (reply.ok) {
+                showScan(await reply.json());
+                followScan(); // keeps showing where it stands until it has really stopped, paused or finished
+            }
+        } catch (_) {
+            /* the next refresh shows where it stands */
+        } finally {
+            b.disabled = false; // pressable again: the same button is now Resume, or still Pause if nothing changed
+        }
     };
     const topRow = (title, sub, running, paused, panel) => {
         const top = el('div', 'rd-top');
@@ -719,17 +726,21 @@
         return some('paused') ? 'Paused' : some('stopping') ? 'Stopping…' : 'Reading your files, mail and photos';
     };
     // only the rows whose content changed are replaced: the buttons stay under the cursor and the scroll position stays (a full rebuild each second broke both)
+    const syncAttributes = (old, node) => {
+        for (const { name, value } of [...node.attributes]) {
+            if (old.getAttribute(name) !== value) old.setAttribute(name, value); // the bar's width slides instead of jumping; a button's action follows its label
+        }
+        for (const { name } of [...old.attributes]) {
+            if (!node.hasAttribute(name) && name !== 'disabled') old.removeAttribute(name);
+        }
+    };
     const patchNode = (old, node) => {
         const same =
             old.nodeName === node.nodeName &&
             old.className === node.className &&
             old.children.length === node.children.length;
         if (!same) return old.replaceWith(node);
-        if (old.getAttribute('style') !== node.getAttribute('style')) {
-            // the bar's width: changed in place, so it slides instead of jumping
-            if (node.hasAttribute('style')) old.setAttribute('style', node.getAttribute('style'));
-            else old.removeAttribute('style');
-        }
+        syncAttributes(old, node);
         if (!node.children.length) {
             if (old.textContent !== node.textContent) old.textContent = node.textContent;
             return undefined;
@@ -1082,6 +1093,7 @@
         }
         renderNav();
         renderChips();
+        $('#scan').addEventListener('click', pressControl);
         render();
         refreshHealth();
         setInterval(refreshHealth, 15000);
