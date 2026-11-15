@@ -38,6 +38,7 @@ def server(tmp_path, monkeypatch):
     monkeypatch.setenv("ATLAS_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
     monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
+    monkeypatch.setattr(web, "READER_START_SECONDS", 0.2)  # no reader runs in these tests
     monkeypatch.setattr(web, "model_client", lambda: (Model(), "fake"))
     (tmp_path / "home").mkdir()
     state = web.State()
@@ -211,6 +212,7 @@ def test_pause_really_waits_resume_carries_on_and_stop_really_ends_a_running_rea
     monkeypatch.setenv("ATLAS_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
     monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
+    monkeypatch.setattr(web, "READER_START_SECONDS", 0.2)  # no reader runs in these tests
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
     (tmp_path / "home").mkdir()
     (tmp_path / "parsed").mkdir()

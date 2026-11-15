@@ -429,6 +429,50 @@ MESSAGE_MAX_BYTES = 25 * 1024 * 1024
 TINY_IMAGE = 10 * 1024  # logos and tracking pixels in signatures are not documents
 
 
+MAIL_MAX_ATTACHMENTS = 100  # per message
+
+
+def _attachments_of(msg: email.message.EmailMessage, body) -> list[tuple[str, bytes]]:
+    """Every document a message carries, wherever it sits in the message: beside the text, inside a nested part, without a file name, or as a forwarded message. Only the text
+    of the mail itself and tiny pictures (logos, tracking pixels) are left out. The same name twice stays twice."""
+    found: list[tuple[str, bytes]] = []
+    seen: dict[str, int] = {}
+    for part in msg.walk():
+        if part is msg and not part.is_multipart() and part is body:
+            continue
+        if part.is_multipart() or part is body:
+            continue
+        kind = part.get_content_type()
+        disposition = (part.get_content_disposition() or "").lower()
+        name = part.get_filename()
+        if not name and disposition != "attachment" and part.get_content_maintype() == "text":
+            continue  # the other form of the text (plain next to html), not a document
+        if kind == "message/rfc822":
+            inner = part.get_payload()
+            data = inner[0].as_bytes() if inner and hasattr(inner[0], "as_bytes") else b""
+            name = name or "forwarded message.eml"
+        else:
+            try:
+                payload = part.get_content()
+            except (LookupError, ValueError, KeyError):
+                payload = part.get_payload(decode=True) or b""
+            data = payload if isinstance(payload, bytes) else str(payload).encode()
+            if not name:
+                if part.get_content_maintype() == "multipart" or not data:
+                    continue
+                extension = (kind.split("/")[-1] or "bin").split("+")[0][:10]
+                name = f"attachment.{extension}"
+        if part.get_content_maintype() == "image" and len(data) < TINY_IMAGE:
+            continue
+        if not data:
+            continue
+        seen[name] = seen.get(name, 0) + 1
+        found.append((name if seen[name] == 1 else f"{seen[name]} {name}", data))
+        if len(found) >= MAIL_MAX_ATTACHMENTS:
+            break
+    return found
+
+
 def read_message(msg: email.message.EmailMessage) -> tuple[dict, list[tuple[str, bytes]]]:
     """One email: its text as a document, and its attachments (name, bytes) to be read as documents of their own. Nothing in it is executed or opened."""
     body = msg.get_body(preferencelist=("plain", "html"))
@@ -436,16 +480,7 @@ def read_message(msg: email.message.EmailMessage) -> tuple[dict, list[tuple[str,
     parsed = read_html_text(content) if body is not None and body.get_content_type() == "text/html" else None
     text = parsed["text"] if parsed else clean(content)
     head = f"From: {msg.get('From', '')}\nTo: {msg.get('To', '')}\nDate: {msg.get('Date', '')}\nSubject: {msg.get('Subject', '')}\n"
-    attachments = []
-    for a in msg.iter_attachments():
-        name = a.get_filename()
-        if not name:
-            continue
-        payload = a.get_content()
-        data = payload if isinstance(payload, bytes) else str(payload).encode()
-        if a.get_content_maintype() == "image" and len(data) < TINY_IMAGE:
-            continue
-        attachments.append((name, data))
+    attachments = _attachments_of(msg, body)
     full = clean(head + "\n" + text)
     return {
         "kind": "email",

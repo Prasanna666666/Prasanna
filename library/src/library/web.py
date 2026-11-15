@@ -111,18 +111,28 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
 
 
-def _take_in_all(state: State, conn, totals: dict[str, int]) -> None:
-    """Step 1, completely: everything the reader produces is taken in until it is idle and nothing new arrives. Nothing is sorted meanwhile."""
+READER_START_SECONDS = 90  # how long the reader may take to pick up the request before it is called not running
+
+
+def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
+    """Step 1, completely: everything the reader produces is taken in until the reader has picked the request up, finished its round and nothing new arrives. Nothing is sorted meanwhile.
+    Returns what went wrong, if anything (the reader never picked the request up)."""
     state.scan["phase"] = 1
+    asked = time.monotonic()
     while True:
         got = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
         totals["new"] += got["new"]
         totals["replaced"] += got.get("replaced", 0)
         busy = (parsed_dir() / ".busy").exists()
-        if state.control == "stop" or (not busy and not got["new"]):
-            return
+        waiting = (parsed_dir() / ".wake").exists()  # the reader has not yet started the round that was asked for
+        if state.control == "stop":
+            return ""
+        if waiting and not busy and time.monotonic() - asked > READER_START_SECONDS:
+            return "" if totals["new"] else "The part of Documents that reads your files did not start"
+        if not busy and not waiting and not got["new"]:
+            return ""
         state.scan["progress"] = f"Reading… {totals['new']} new files so far"
-        if busy:
+        if busy or waiting:
             time.sleep(SETTLE_SECONDS)
 
 
@@ -171,8 +181,8 @@ def _read_all(state: State) -> None:
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
-        _take_in_all(state, conn, totals)  # step 1, completely
-        problem = _sort_all(state, conn, client, model, followed, totals)  # then step 2, completely
+        problem = _take_in_all(state, conn, totals)  # step 1, completely
+        problem = _sort_all(state, conn, client, model, followed, totals) or problem  # then step 2, completely
         if _summarise(state, conn, totals):
             _read_pictures(state, conn, client, model)
             _finish(state, conn, client, model, followed)

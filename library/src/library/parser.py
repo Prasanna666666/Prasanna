@@ -196,6 +196,23 @@ def _identity(f: Path, kind: str, area: str) -> str:
     return hashlib.sha256((area + digest).encode()).hexdigest() if area else digest
 
 
+ATTACHED = ".attached-2"  # marks the mails whose attachments have all been taken out (by the method of this version)
+MAIL_DEPTH = 3  # a mail forwarded inside a mail still gets its attachments read
+
+
+def _process_attachments(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int, digest: str) -> None:
+    """Every document a mail carries is read as a document of its own; the mail is then marked, so it is not opened again for this."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, content in (readers.read_emlx(f) if _is_emlx(f) else readers.read_eml(f))[1]:
+            inner = Path(tmp) / f"{abs(hash(name)) % 10**8}-{Path(name).name}"  # two attachments with one name stay two files
+            inner.write_bytes(content)
+            _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
+    (out / ATTACHED).mkdir(parents=True, exist_ok=True)
+    (out / ATTACHED / digest).touch()
+
+
 def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0, source: str = "") -> None:
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
     import tempfile
@@ -213,6 +230,10 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         return
     digest = _identity(f, kind, area)
     if _done(out, digest):
+        if kind == "email" and depth < MAIL_DEPTH and not (out / ATTACHED / digest).exists():
+            _process_attachments(
+                f, label, out, area, isolated, counts, depth, digest
+            )  # a mail read before its attachments were all taken out: once more, for those
         return
     with _CLAIM_LOCK:  # files read at the same moment with the same content: only the first one reads it
         if digest in _CLAIMED:
@@ -237,12 +258,8 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
             _BUDGET["left"] -= 1
         if depth and area == "mail" and res["kind"] == "image":
             keep_picture(f)
-        if kind == "email" and depth < 2:
-            with tempfile.TemporaryDirectory() as tmp:
-                for name, content in (readers.read_emlx(f) if _is_emlx(f) else readers.read_eml(f))[1][:20]:
-                    inner = Path(tmp) / Path(name).name
-                    inner.write_bytes(content)
-                    _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
+        if kind == "email" and depth < MAIL_DEPTH:
+            _process_attachments(f, label, out, area, isolated, counts, depth, digest)
     except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
@@ -271,7 +288,7 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
     """A mailbox export: every message is parsed as an email (and its attachments as documents). A mailbox already read is not read again."""
     import tempfile
 
-    seen = out / ".seen" / digest
+    seen = out / ".seen-2" / digest
     if seen.exists():
         return
     with tempfile.TemporaryDirectory() as tmp:
@@ -365,7 +382,7 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
     path, size and time, so the folder is not re-read every round). Messages become documents with the area `mail`, attachments included."""
     out.mkdir(parents=True, exist_ok=True)
     root = store.resolve()
-    cache_file = out / ".mailseen" / (hashlib.sha256(str(root).encode()).hexdigest()[:16] + ".json")
+    cache_file = out / ".mailseen-2" / (hashlib.sha256(str(root).encode()).hexdigest()[:16] + ".json")
     try:
         seen: dict[str, str] = json.loads(cache_file.read_text()) if cache_file.exists() else {}
     except (OSError, ValueError):
