@@ -72,6 +72,7 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     report = json.loads(body)
     assert set(report["modules"]) == {"money", "photos"} and report["running"] is True
     assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
+    assert report["modules"]["money"]["now"] == "bill.pdf: identifying (31 characters)"  # the file being worked on reaches the panel
     assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it
     running.apps["money"].scanning = running.apps["photos"].scanning = False
     done = running.json("/_atlas/api/scan")

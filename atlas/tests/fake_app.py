@@ -67,6 +67,7 @@ class _Handler(BaseHTTPRequestHandler):
                 done = {
                     "running": self.app.scanning,
                     "progress": "reading" if self.app.scanning else "",
+                    "now": "bill.pdf: identifying (31 characters)" if self.app.scanning else "",
                     "summary": "" if self.app.scanning else "3 files read",
                     "problems": ["one needs a look"] if not self.app.scanning else [],
                     "needs_check": 1,

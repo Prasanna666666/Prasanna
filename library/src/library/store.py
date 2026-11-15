@@ -25,6 +25,7 @@ from kit import extract, rag
 from kit.module import Module
 
 from . import casebook, recognise, relevance
+from .trace import Trace
 
 MIGRATIONS = (
     """
@@ -116,6 +117,18 @@ MIGRATIONS = (
     );
     ALTER TABLE documents ADD COLUMN case_id INTEGER;
     CREATE INDEX documents_case ON documents (case_id);
+    """,
+    """
+    CREATE TABLE trace (
+        id INTEGER PRIMARY KEY,
+        run TEXT NOT NULL,                       -- which read (when it started)
+        at TEXT NOT NULL,
+        name TEXT NOT NULL,                      -- the file
+        step TEXT NOT NULL,                      -- what was done to it
+        detail TEXT NOT NULL DEFAULT '',         -- what came of it (never what the file says)
+        seconds REAL NOT NULL DEFAULT 0
+    );
+    CREATE INDEX trace_run ON trace (run, id);
     """,
     """
     CREATE TABLE links (
@@ -293,6 +306,42 @@ def _understand(client, model: str, d, progress: Progress | None = None) -> dict
     return facts
 
 
+def _trace(trace: Trace | None, name: str, step: str, detail: str = "", seconds: float = 0.0) -> None:
+    if trace is not None:
+        trace.step(name, step, detail, seconds)
+
+
+def _both(progress: Progress | None, trace: Trace | None, name: str) -> Progress:
+    """The progress of one long reading (the parts of a medical document) goes to the panel and into the trace."""
+
+    def say(message: str) -> None:
+        if progress:
+            progress(message)
+        _trace(trace, name, "reading part", message.rsplit(": ", 1)[-1])
+
+    return say
+
+
+def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trace | None) -> tuple[str, str]:
+    """The model identifies one file and the result is saved at once (the counts in the panel change with every file, not every twentieth).
+    Returns "ok", "unclear" (answered but unusable: counted and tried again at the next read) or "unreachable" with the reason."""
+    _trace(trace, d["name"], "identifying", f"{len(d['text']):,} characters")
+    started = time.monotonic()
+    try:
+        facts = _understand(client, model, d, _both(progress, trace, d["name"]))
+    except extract.Unclear:
+        conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
+        _trace(trace, d["name"], "no usable answer", "the model's answers could not be used; tried again at the next read", time.monotonic() - started)
+        conn.commit()
+        return "unclear", ""
+    except RuntimeError as exc:
+        return "unreachable", str(exc)
+    _mark_ready(conn, d["sha256"], 1, facts)
+    _trace(trace, d["name"], "identified", f"{facts.get('kind', 'other')}", time.monotonic() - started)
+    conn.commit()
+    return "ok", ""
+
+
 def _duration(seconds: float) -> str:
     hours, rest = divmod(int(seconds), 3600)
     return f"{hours} h {rest // 60} min" if hours else f"{rest // 60} min" if rest >= 60 else f"{rest} s"
@@ -306,7 +355,9 @@ def _speed_line(waiting: int, elapsed: float, calls: int) -> str:
     return f"Identifying files: {waiting:,} waiting, {each:.0f} s per file, about {_duration(waiting * each)} left"
 
 
-def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0) -> dict[str, Any]:
+def judge_pending(
+    conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0, trace: Trace | None = None
+) -> dict[str, Any]:
     """Judge every document not yet judged (or `limit` of them: the caller comes back for more, so new files keep being taken in meanwhile). Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
     forget_mail_bodies(conn)
@@ -329,6 +380,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
             exact = _exact_facts(d)
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
+                _trace(trace, d["name"], "identified", "from its own data, no model needed")
             elif (
                 d["kind"] == "binary"
                 or not d["text"].strip()
@@ -338,6 +390,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                 )
             ):  # nothing readable to ask the model about: it stays, found by its name
                 _mark_ready(conn, d["sha256"], 2, None)
+                _trace(trace, d["name"], "set aside", "no readable text" if not d["text"].strip() else "not worth reading")
                 out["skipped"] += 1
                 continue
             else:
@@ -348,20 +401,15 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                 if progress:
                     progress(_speed_line(total - index + 1, time.monotonic() - began, calls))
                 calls += 1
-                try:
-                    facts = _understand(client, model, d, progress)
-                except extract.Unclear:  # the model answered but could not make sense of it: not 'other', not lost: counted and tried again at the next Read
-                    conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
-                    conn.commit()
+                result, problem = _identify_one(conn, client, model, d, progress, trace)
+                if result == "unclear":
                     out["unclear"] += 1
                     continue
-                except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
+                if result == "unreachable":  # the model could not be reached: nothing is marked as done
                     out["waiting"] = total - index + 1
-                    out["problem"] = str(exc)
+                    out["problem"] = problem
                     conn.commit()
                     return _with_health(conn, client, model, control, out, skip=True)
-                _mark_ready(conn, d["sha256"], 1, facts)
-                conn.commit()  # saved at once: the counts in the panel change with every file the model finishes (a file takes seconds), not every twentieth
                 time.sleep(GENTLE_SECONDS)  # a short rest after each model call: the computer stays responsive while many documents are read
             out["read"] += 1
             if index % 20 == 0:
@@ -376,13 +424,13 @@ def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool =
     return out
 
 
-def finish_matters(conn, client, model, control: Callable[[], str] | None = None, progress: Progress | None = None) -> int:
+def finish_matters(conn, client, model, control: Callable[[], str] | None = None, progress: Progress | None = None, trace: Trace | None = None) -> int:
     """The end of a read: the files are grouped once, then each group is read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit`
     and carried on by the next read. Returns how many groups were read."""
     if progress:
         progress("Finding which files belong together…")
-    casebook.rebuild(conn, client, model, control, progress)
-    done = casebook.understand_pending(conn, client, model, control=control, progress=progress)
+    casebook.rebuild(conn, client, model, control, progress, trace)
+    done = casebook.understand_pending(conn, client, model, control=control, progress=progress, trace=trace)
     forget_mail_bodies(conn)
     conn.commit()
     return done

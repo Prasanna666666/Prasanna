@@ -22,7 +22,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, flags, highlights, items, pictures, readreport, store, tools, travel
+from . import changes, flags, highlights, items, pictures, readreport, store, tools, trace, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -42,7 +42,7 @@ class State:
     """What the server remembers between requests: the Update that is running, if any."""
 
     def __init__(self) -> None:
-        self.scan: dict[str, Any] = {"running": False, "progress": "", "summary": "", "problems": []}
+        self.scan: dict[str, Any] = {"running": False, "progress": "", "summary": "", "problems": [], "now": ""}
         self.control = "run"  # run | pause | stop: what the person asked of the Update that is running
         self.lock = threading.Lock()
         self._engine: Any = None
@@ -67,9 +67,9 @@ AUTO_LIMIT = int(
 JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
 
 
-def _one_round(conn, client, model, state: State) -> tuple[int, int, dict]:
+def _one_round(conn, client, model, state: State, followed: trace.Trace) -> tuple[int, int, dict]:
     ingested = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
-    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND)
+    judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
     judged["replaced"] = ingested.get("replaced", 0)
     if (ingested["new"] or judged["read"]) and state.control != "stop":
         store.warm_search(
@@ -110,11 +110,11 @@ def _read_pictures(state: State, conn, client, model) -> None:
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
-def _finish(state: State, conn, client, model) -> None:
+def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
     if client is None or not model or state.control == "stop":
         return
-    store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m))
+    store.finish_matters(conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed)
     if state.control != "stop":
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
 
@@ -129,12 +129,14 @@ def _read_all(state: State) -> None:
             client, model = model_client()
         except RuntimeError:
             client, model = None, ""
+        followed = trace.Trace(conn, lambda m: state.scan.update(now=m))
+        state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
         while True:
-            new, judged_count, judged = _one_round(conn, client, model, state)
+            new, judged_count, judged = _one_round(conn, client, model, state, followed)
             totals["new"] += new
             totals["read"] += judged["read"]
             totals["skipped"] += judged["skipped"]
@@ -156,7 +158,7 @@ def _read_all(state: State) -> None:
             state.scan["summary"] += f"; automatic reading stopped at its limit of {AUTO_LIMIT} files: press Read new files for the rest"
         else:
             _read_pictures(state, conn, client, model)
-            _finish(state, conn, client, model)
+            _finish(state, conn, client, model, followed)
         if state.control != "stop":
             store.warm_search(conn, state.picture_text(), lambda: state.control == "stop")
         state.scan["problems"] = [problem] if problem else []
@@ -164,7 +166,7 @@ def _read_all(state: State) -> None:
         log.failed("update failed", exc)
         state.scan["problems"] = [f"{type(exc).__name__}: {exc}"]
     finally:
-        state.scan["running"] = False
+        state.scan.update(running=False, now="")
         _CACHE.clear()
         conn.close()
 
@@ -505,6 +507,7 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     return {
         "running": s["running"],
         "progress": s["progress"],
+        "now": s.get("now", "") if s["running"] else "",
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],
@@ -512,6 +515,12 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "paused": bool(s["running"] and state.control == "pause"),
         "stopping": bool(s["running"] and state.control == "stop"),
     }
+
+
+def _get_trace(state: State, conn, query: dict[str, str]) -> dict:
+    """/api/trace?name=&run=&limit=: the steps of the latest read (or of `run`), newest first, optionally only those of files whose name contains `name`."""
+    limit = int(query.get("limit", "100")) if query.get("limit", "100").isdigit() else 100
+    return {"steps": trace.recent(conn, query.get("run", ""), query.get("name", ""), limit)}
 
 
 def _get_tools(state: State, conn, query: dict[str, str]) -> dict:
@@ -566,6 +575,7 @@ GET_ROUTES = {
     "/api/pictures": _get_pictures,
     "/api/pictures/status": _get_pictures_status,
     "/api/scan": _scan_status,
+    "/api/trace": _get_trace,
     "/api/highlights": _get_highlights,
     "/api/held-back": _get_held_back,
     "/api/items": _get_items,

@@ -575,6 +575,8 @@
         row.append(el('i'), text);
         return row;
     };
+    // the file being worked on right now, and the step (from the trace of the read)
+    const nowRows = (info) => (info.now ? [partLine({ name: 'Now', detail: info.now }, info.running)] : []);
     const controlButton = (label, action) => {
         const b = el('button', 'scan-control', label);
         b.type = 'button';
@@ -680,6 +682,7 @@
                 if (m.hidden) {
                     const detail = info.progress || info.summary || (info.up ? 'working…' : '');
                     if (detail) rows.push(partLine({ name: m.name, detail }, info.running));
+                    rows.push(...nowRows(info));
                     if (!readerOff) {
                         info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
                     }
@@ -687,6 +690,7 @@
                 continue;
             }
             info.parts.forEach((p) => rows.push(partLine(p, info.running)));
+            rows.push(...nowRows(info));
             info.problems.forEach((p) => rows.push(partLine({ name: 'Problem', detail: p }, false, true)));
         }
         patchChildren(panel, [head, ...rows]);

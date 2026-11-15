@@ -282,6 +282,7 @@ def _verdicts(
     answered: list[int],
     control: Callable[[], str] | None,
     progress: Callable[[str], None] | None,
+    trace: Any = None,
 ) -> Callable[[int, int], bool | None]:
     """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round. `answered` counts the new answers."""
     budget = [MAX_CONFIRMS if client is not None else 0]
@@ -298,10 +299,13 @@ def _verdicts(
         budget[0] -= 1
         if progress:
             progress(f"Comparing files: {MAX_CONFIRMS - budget[0]} of up to {MAX_CONFIRMS}")
+        began = time.monotonic()
         try:
             same = confirm(client, model, by_id[a], by_id[b])
         except extract.Unclear:
             return None
+        if trace is not None:
+            trace.step(by_id[a]["name"], "compared", f"with {by_id[b]['name']}: {'same group' if same else 'not the same'}", time.monotonic() - began)
         conn.execute("INSERT OR REPLACE INTO links (sha_a, sha_b, same) VALUES (?,?,?)", (*key, int(same)))
         answered[0] += 1
         return same
@@ -309,12 +313,19 @@ def _verdicts(
     return verdict
 
 
-def rebuild(conn, client: Any = None, model: str = "", control: Callable[[], str] | None = None, progress: Callable[[str], None] | None = None) -> int:
+def rebuild(
+    conn,
+    client: Any = None,
+    model: str = "",
+    control: Callable[[], str] | None = None,
+    progress: Callable[[str], None] | None = None,
+    trace: Any = None,
+) -> int:
     """Group the pieces into matters (returns how much changed). A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
     pieces = pieces_of(conn)
     by_id = {p["id"]: p for p in pieces}
     answered = [0]
-    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, control, progress))[0]}
+    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, control, progress, trace))[0]}
     known = {r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")}
     for h in known - set(now):
         conn.execute("DELETE FROM cases WHERE input_hash=?", (h,))
@@ -357,7 +368,13 @@ def _needs_model(members: list[dict[str, Any]]) -> bool:
 
 
 def understand_pending(
-    conn, client: Any, model: str, limit: int = MAX_READ_PER_PRESS, control: Callable[[], str] | None = None, progress: Callable[[str], None] | None = None
+    conn,
+    client: Any,
+    model: str,
+    limit: int = MAX_READ_PER_PRESS,
+    control: Callable[[], str] | None = None,
+    progress: Callable[[str], None] | None = None,
+    trace: Any = None,
 ) -> int:
     """Groups not yet read: a group of related files, or a file with a date to act on, is read by the model with all its text; a lone file keeps what it was identified as.
     Respects Pause and Stop between readings; a group the model cannot make sense of is tried up to three times. Returns how many were read."""
@@ -375,15 +392,25 @@ def understand_pending(
             if asked >= limit:
                 continue
             asked += 1
+            label = members[0]["name"] + (f" and {len(members) - 1} related" if len(members) > 1 else "")
             if progress:
                 progress(f"Reading group {asked} of up to {limit}")
+            if trace is not None:
+                trace.step(label, "reading group", f"{len(members)} files")
+            began = time.monotonic()
             try:
                 summary = synthesize(client, model, members)
             except extract.Unclear:
                 conn.execute("UPDATE cases SET tries=tries+1 WHERE id=?", (row["id"],))
+                if trace is not None:
+                    trace.step(label, "no usable answer", "the group could not be read; tried again at the next read", time.monotonic() - began)
                 continue
+            if trace is not None:
+                trace.step(label, "group read", f"{summary['verified']} checked statements", time.monotonic() - began)
         else:
             summary = _alone(members[0])
+            if trace is not None:
+                trace.step(members[0]["name"], "kept as identified", "no related files, no date to act on")
         conn.execute("UPDATE cases SET summary=? WHERE id=?", (json.dumps(summary), row["id"]))
         conn.execute(f"UPDATE documents SET case_id=? WHERE id IN ({','.join('?' for _ in members)})", (row["id"], *[m["id"] for m in members]))
         done += 1

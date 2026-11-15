@@ -156,6 +156,7 @@ class Upstreams:
             "summary": "",
             "problems": [f"{module.name} is not running"],
             "needs_check": 0,
+            "now": "",
             "parts": [],
             "paused": False,
             "stopping": False,
@@ -177,6 +178,7 @@ class Upstreams:
             "up": True,
             "running": bool(raw.get("running")),
             "progress": str(raw.get("progress", ""))[:200],
+            "now": str(raw.get("now", ""))[:240],  # the file being worked on right now, and the step
             "summary": str(raw.get("summary", ""))[:200],
             "problems": [str(p)[:300] for p in (raw.get("problems") or [])][:5],
             "needs_check": int(raw.get("needs_check") or 0),
