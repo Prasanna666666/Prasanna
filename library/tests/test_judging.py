@@ -169,3 +169,18 @@ def test_a_sorted_file_is_described_by_its_own_title_not_by_the_category(conn):
     followed = trace.Trace(conn)
     followed.step("return.pdf", "sorted", "tax", 14.0)
     assert [r["detail"] for r in trace.finished(conn, followed.run)] == ["sorted: Tax assessment 2023 (14 s)"]  # not "sorted, tax"
+
+
+def test_a_file_recognised_without_the_model_is_shown_by_its_title_like_any_other(conn):
+    from library import trace
+
+    conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('e','rates.xml','sheet','x','finance',0)")
+    conn.commit()
+    original = store._exact_facts
+    store._exact_facts = lambda d: {"kind": "other", "title": "ECB exchange rates"}
+    try:
+        followed = trace.Trace(conn)
+        store.judge_pending(conn, None, "", trace=followed)
+    finally:
+        store._exact_facts = original
+    assert [r["detail"] for r in trace.finished(conn, followed.run)] == ["sorted: ECB exchange rates"]  # not "from its own data, no model needed"

@@ -499,7 +499,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
             exact = _exact_facts(d)
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
-                _trace(trace, d["name"], "sorted", "from its own data, no model needed")
+                _trace(trace, d["name"], "sorted", str(exact.get("kind", "")))  # shown by its title, like every other file
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
                 why = SKIPPED_NO_TEXT if not d["text"].strip() else SKIPPED_BY_RULE
                 _mark_ready(conn, d["sha256"], 2, {"skipped": why})  # the reason is kept, so what was not shown to the model can be counted and read later
