@@ -205,6 +205,8 @@ def _read_all(state: State) -> None:
             client, model = model_client()
         except RuntimeError:
             client, model = None, ""
+        if client is not None:
+            client = store.StoppableModel(client, lambda: state.control == "stop")  # Stop ends a wait for the model at once
         followed = trace.Trace(conn, lambda name, step, detail: state.scan.update(now=(name, step, detail), now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
@@ -223,6 +225,8 @@ def _read_all(state: State) -> None:
         if state.control != "stop":
             store.warm_search(conn, state.picture_text(), lambda: state.control == "stop")
         state.scan["problems"] = [problem] if problem else []
+    except store.Stopped:
+        state.scan["summary"] = "Stopped. What was read stays; reading carries on from here next time."
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)
         state.scan["problems"] = [f"{type(exc).__name__}: {exc} (in {log.where(exc)})"]

@@ -62,3 +62,33 @@ def test_mail_read_before_the_mailboxes_were_chosen_is_forgotten_and_nothing_els
     assert store.forget_mail(conn, tmp_path) == 2
     assert [r["name"] for r in conn.execute("SELECT name FROM documents")] == ["keep.pdf"]
     assert [r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")] == ["h2"] and not (tmp_path / ".done" / f"{0:064x}").exists()
+
+
+def test_stop_ends_a_wait_for_the_model_at_once_and_an_answer_that_comes_is_passed_on_otherwise():
+    import threading
+    import time
+
+    from library import store
+
+    gate = threading.Event()
+
+    class Slow:
+        def chat(self, *a, **k):
+            gate.wait(30)
+            return {"content": "late"}
+
+        other = "kept"
+
+    stop = threading.Event()
+    model = store.StoppableModel(Slow(), stop.is_set)
+    assert model.other == "kept"  # everything but chat is passed on
+    threading.Timer(0.5, stop.set).start()
+    began = time.monotonic()
+    try:
+        model.chat("m", [])
+        raise AssertionError("it should have stopped")
+    except store.Stopped:
+        pass
+    gate.set()
+    assert time.monotonic() - began < 5  # not the 30 s the model would have taken
+    assert store.StoppableModel(Slow(), lambda: False).chat("m", []) == {"content": "late"}

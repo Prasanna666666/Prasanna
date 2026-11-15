@@ -402,6 +402,8 @@ def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trac
         _trace(trace, d["name"], FAILED, f"{why}; it is tried again at the next read (try {tries} of {MAX_TRIES})", time.monotonic() - started)
         conn.commit()
         return "unclear", ""
+    except Stopped:
+        return "stopped", ""
     except RuntimeError as exc:
         return "unreachable", str(exc)
     _mark_ready(conn, d["sha256"], 1, facts)
@@ -490,6 +492,39 @@ def _for_model(d) -> bool:
 PARALLEL = max(
     1, int(os.environ.get("LIBRARY_PARALLEL", "2"))
 )  # model calls in flight at once (the model server works on them together when it is set up to: OLLAMA_NUM_PARALLEL)
+
+
+class Stopped(Exception):
+    """The person pressed Stop while the model was being waited for."""
+
+
+class StoppableModel:
+    """The model client, but a wait for an answer ends the moment Stop is pressed (the answer, if it still comes, is thrown away). Everything else is passed on unchanged."""
+
+    def __init__(self, client, stopping: Callable[[], bool]) -> None:
+        self._client, self._stopping = client, stopping
+
+    def __getattr__(self, name: str):
+        return getattr(self._client, name)
+
+    def chat(self, *args, **kwargs):
+        box: dict[str, Any] = {}
+
+        def call() -> None:
+            try:
+                box["answer"] = self._client.chat(*args, **kwargs)
+            except BaseException as exc:  # noqa: BLE001 - handed back to the thread that waits, whatever it was
+                box["error"] = exc
+
+        worker = threading.Thread(target=call, name="model-call", daemon=True)
+        worker.start()
+        while worker.is_alive():
+            worker.join(0.3)
+            if self._stopping():
+                raise Stopped
+        if "error" in box:
+            raise box["error"]
+        return box["answer"]
 
 
 class _Ahead:
@@ -583,6 +618,11 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                 calls += 1
                 ahead.prefetch(chunk, position)
                 result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)
+                if result == "stopped":
+                    out["stopped"] = True
+                    out["waiting"] = total - index + 1
+                    conn.commit()
+                    return out
                 if result == "unclear":
                     out["unclear"] += 1
                     continue
