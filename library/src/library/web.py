@@ -122,6 +122,7 @@ def _interpret_ready_apps(state: State, conn, client, model, followed: trace.Tra
         if area in done or not store.app_ready(conn, area, found.get(area, 0)):
             continue
         done.add(area)
+        state.scan["app"] = area.capitalize()
         store.finish_matters(
             conn,
             client,
@@ -132,7 +133,7 @@ def _interpret_ready_apps(state: State, conn, client, model, followed: trace.Tra
             phase=lambda n: state.scan.update(phase=n),
             up_to_rank=priority.rank(area),
         )
-        state.scan["phase"] = 2  # back to identifying the next app
+        state.scan.update(phase=2, app="")  # back to identifying the next app
 
 
 def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
@@ -202,7 +203,7 @@ def _read_all(state: State) -> None:
         log.failed("update failed", exc)
         state.scan["problems"] = [f"{type(exc).__name__}: {exc}"]
     finally:
-        state.scan.update(running=False, now=None, phase=None)
+        state.scan.update(running=False, now=None, phase=None, app="")
         _CACHE.clear()
         conn.close()
 
@@ -574,45 +575,54 @@ def _step_state(running: bool, done: bool) -> str:
     return "running" if running else "done" if done else "waiting"
 
 
+def _mean(values: list[float | None]) -> float | None:
+    known = [v for v in values if v is not None]
+    return round(sum(known) / len(known), 1) if known else None
+
+
 def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
-    """The steps of a read, in order, each with its own state and count: 1 reading the files, 2 the model identifying them, 3 grouping the related ones, 4 the model reading each group.
-    (Atlas adds step 5, matching payments.) A step is running while it is the one being worked on; the first runs alongside the second, as the reader keeps taking in files."""
+    """The three steps of a read, in plain words. 1 Read: the text of every file is taken out (its own container, running ahead). 2 Identify: the model says what each file is.
+    3 Understand: for an app whose files are all in, the related files are grouped and each group is read (Atlas adds the check against the other apps). Step 3 is split into
+    parts only to show how far each part has got; they are one step because they happen one after the other for the same app."""
     states = _states(conn, "1=1")
     found = _found()
     read = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area<>'pictures'").fetchone()[0]
     total = max(read, (found.get("documents") or 0) + (found.get("mails") or 0))
     identified_rows = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0]
-    grouped = sum(len(json.loads(r[0])) for r in conn.execute("SELECT members FROM cases"))
+    grouped = min(sum(len(json.loads(r[0])) for r in conn.execute("SELECT members FROM cases")), identified_rows)
     groups = conn.execute("SELECT COUNT(*), COALESCE(SUM(summary<>''), 0) FROM cases").fetchone()
     phase, handled = s.get("phase"), _handled(states)
+    together: list[dict[str, Any]] = [
+        {"name": "Group related files", "detail": f"{grouped:,} of {identified_rows:,} files placed in a group", "percent": _share(grouped, identified_rows)},
+        {"name": "Read each group", "detail": f"{groups[1]:,} of {groups[0]:,} groups read", "percent": _share(groups[1], groups[0])},
+    ]
+    all_in = identified_rows > 0 and grouped >= identified_rows and groups[0] > 0 and groups[1] >= groups[0]
     return [
         {
             "n": 1,
-            "name": "Reading files",
+            "name": "Read",
+            "about": "Get the text out of every file",
             "state": _step_state((parsed_dir() / ".busy").exists(), True),
-            "detail": f"{read:,} of {total:,} read",
+            "detail": f"{read:,} of {total:,} files and mails read",
             "percent": _share(read, total),
         },
         {
             "n": 2,
-            "name": "Identifying files",
+            "name": "Identify",
+            "about": "Find out what each file is",
             "state": _step_state(phase == 2, not states["waiting"]),
             "detail": f"{states['identified']:,} identified · {states['aside']:,} set aside · {states['waiting']:,} waiting",
             "percent": _share(handled, handled + states["waiting"]),
         },
         {
             "n": 3,
-            "name": "Grouping files",
-            "state": _step_state(phase == 3, identified_rows > 0 and grouped >= identified_rows),
-            "detail": f"{min(grouped, identified_rows):,} of {identified_rows:,} identified files placed in a group",
-            "percent": _share(min(grouped, identified_rows), identified_rows),
-        },
-        {
-            "n": 4,
-            "name": "Reading groups",
-            "state": _step_state(phase == 4, groups[0] > 0 and groups[1] >= groups[0]),
-            "detail": f"{groups[1]:,} of {groups[0]:,} groups read",
-            "percent": _share(groups[1], groups[0]),
+            "name": "Understand",
+            "about": "Group related files, read each group, check the other apps",
+            "state": _step_state(phase in (3, 4), all_in),
+            "app": s.get("app") or "",
+            "parts": together,
+            "detail": "",
+            "percent": _mean([p["percent"] for p in together]),
         },
     ]
 

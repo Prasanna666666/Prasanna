@@ -1,4 +1,5 @@
 import json
+import time
 
 
 def test_the_hub_page_and_its_menu_are_served_under_one_name(running):
@@ -73,16 +74,14 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     assert set(report["modules"]) == {"money", "photos"} and report["running"] is True
     assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
     assert report["modules"]["money"]["recent"] == [{"name": "old.pdf", "detail": "identified, invoice (14 s)"}]  # the malformed one is dropped
-    assert report["modules"]["money"]["waiting"] == ["next.pdf"] and report["modules"]["money"]["steps"][0] == {
-        "n": 2,
-        "name": "Identifying files",
-        "state": "running",
-        "detail": "1 identified · 0 set aside · 7 waiting",
-        "percent": 12.5,
-    }
-    assert (
-        report["modules"]["money"]["steps"][-1]["n"] == 5 and report["modules"]["money"]["steps"][-1]["name"] == "Checking other apps"
-    )  # Atlas adds its own step
+    money = report["modules"]["money"]
+    assert money["waiting"] == ["next.pdf"] and money["steps"][0]["name"] == "Identify" and money["steps"][0]["percent"] == 12.5
+    last = money["steps"][-1]
+    assert last["n"] == 3 and [p["name"] for p in last["parts"]] == [
+        "Group related files",
+        "Check the other apps",
+    ]  # Atlas adds the cross-check as a part of the last step
+    assert last["percent"] == 0.0  # the mean of the parts that have a number
     assert report["modules"]["money"]["file"] == {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
     assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it
     running.apps["money"].scanning = running.apps["photos"].scanning = False
@@ -219,3 +218,19 @@ def test_the_daily_reminder_names_only_what_is_overdue_today_or_within_three_day
     }
     assert remind.due_soon(home) == ["Rent (overdue)", "Bill (in 2 d)", "Tax (today)"]
     assert remind.due_soon({}) == [] and remind.due_soon({"cards": {"calendar": None}}) == []
+
+
+def test_the_cross_check_starts_while_a_read_is_still_going_not_only_after_it(running, monkeypatch):
+    start_update(running)
+    upstreams = running.atlas.upstreams
+    started = []
+    monkeypatch.setattr(upstreams, "agenda", lambda days=400: started.append(days) or {"events": [], "left_out": {}})
+    monkeypatch.setattr("atlas.upstream.KICK_SECONDS", 0.0)
+    upstreams._last_kick = 0.0
+    upstreams._kick_while_reading(True)
+    upstreams._kick_while_reading(False)  # nothing is read: nothing is started
+    for _ in range(50):
+        if started:
+            break
+        time.sleep(0.05)
+    assert started == [400]

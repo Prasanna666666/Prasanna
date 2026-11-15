@@ -63,6 +63,9 @@ def _percent(value: Any) -> float | None:
     return round(float(value), 1) if isinstance(value, int | float) and not isinstance(value, bool) and 0 <= value <= 100 else None
 
 
+KICK_SECONDS = 120.0  # how often a read in progress starts the cross-check for the apps already done
+
+
 class Upstreams:
     def __init__(self, modules: dict[str, Module]) -> None:
         self.modules = modules
@@ -71,6 +74,7 @@ class Upstreams:
         self._last_scan: dict[str, dict[str, Any]] = {}  # what each app last said about its reading
         self._lock = threading.Lock()
         self._crosscheck_after_read = False
+        self._last_kick = 0.0  # when the cross-check was last started during a read
         self.crosschecker = crosscheck.Crosschecker()  # how each open item relates to what the other apps know; its model is set by the Atlas
 
     # ---- the token an app prints into its own page, which the atlas needs to use that app's API -------------------------
@@ -219,20 +223,32 @@ class Upstreams:
 
     @staticmethod
     def _steps(raw: Any) -> list[dict[str, Any]]:
-        """The steps of a read an app reports, checked: a number, a name, running / done / waiting, a short line and how far along it is."""
+        """The steps of a read an app reports, checked: a number, a name, what it does in a few words, running / done / waiting, a short line, how far along it is, the app being
+        worked on, and the parts of a step with their own lines and percentages."""
         if not isinstance(raw, list):
             return []
-        return [
-            {
-                "n": step["n"],
-                "name": str(step.get("name", ""))[:40],
-                "state": step["state"] if step.get("state") in ("running", "done", "waiting") else "waiting",
-                "detail": str(step.get("detail", ""))[:160],
-                "percent": _percent(step.get("percent")),
-            }
-            for step in raw[:6]
-            if isinstance(step, dict) and isinstance(step.get("n"), int) and not isinstance(step.get("n"), bool)
-        ]
+        out = []
+        for step in raw[:6]:
+            if not (isinstance(step, dict) and isinstance(step.get("n"), int) and not isinstance(step.get("n"), bool)):
+                continue
+            parts = [
+                {"name": str(p["name"])[:40], "detail": str(p.get("detail", ""))[:160], "percent": _percent(p.get("percent"))}
+                for p in (step.get("parts") or [])[:5]
+                if isinstance(p, dict) and p.get("name")
+            ]
+            out.append(
+                {
+                    "n": step["n"],
+                    "name": str(step.get("name", ""))[:40],
+                    "about": str(step.get("about", ""))[:120],
+                    "state": step["state"] if step.get("state") in ("running", "done", "waiting") else "waiting",
+                    "app": str(step.get("app", ""))[:30],
+                    "detail": str(step.get("detail", ""))[:160],
+                    "percent": _percent(step.get("percent")),
+                    "parts": parts,
+                }
+            )
+        return out
 
     @staticmethod
     def _file(raw: Any) -> dict[str, Any] | None:
@@ -360,6 +376,7 @@ class Upstreams:
             results = list(pool.map(lambda m: self._scan_one(m, start), targets))
         if start:
             self._crosscheck_after_read = True
+        self._kick_while_reading(any(r["running"] for r in results))
         if self._crosscheck_after_read and not any(r["running"] for r in results):
             self._crosscheck_after_read = False
             self.agenda(400)  # the read is done: the payments are matched to what they pay, in the background, before the read counts as finished
@@ -369,26 +386,41 @@ class Upstreams:
                 first.update(running=True, progress="Checking open items against what your other apps know…")
         reader = next((r for r in results if r.get("steps")), None)
         if reader is not None:
-            reader["steps"] = [
-                *reader["steps"],
-                self._crosscheck_step(),
-            ]  # step 5 is Atlas's own and the same for every app: open items are compared with what the other apps handed over
+            reader["steps"] = self._with_crosscheck(
+                reader["steps"]
+            )  # Atlas's own, the same for every app: open items are compared with what the other apps handed over
         modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
         return {"running": any(r["running"] for r in results), "modules": modules}
 
-    def _crosscheck_step(self) -> dict[str, Any]:
-        """Step 5, the same for every app: each open item is compared with the items the other apps handed over (listed here by kind)."""
+    def _kick_while_reading(self, running: bool) -> None:
+        """While a read goes on, the open items of the apps already finished are compared with the other apps every couple of minutes (in the background), so Finance's
+        result does not wait for the last file of the last app."""
+        now = time.monotonic()
+        if running and not self.crosschecker.working() and now - self._last_kick >= KICK_SECONDS:
+            self._last_kick = now
+            threading.Thread(target=self.agenda, args=(400,), daemon=True).start()
+
+    def _crosscheck_part(self) -> dict[str, Any]:
+        """The last part of the last step, the same for every app: each open item is compared with the items the other apps handed over (listed here by kind)."""
         done, total = self.crosschecker.done, self.crosschecker.total
         seen = ", ".join(f"{n:,} {kind}s" for kind, n in self.crosschecker.seen.most_common(4)) or "nothing yet"
         return {
-            "n": 5,
-            "name": "Checking other apps",
-            "state": "running" if self.crosschecker.working() else "done" if total or done else "waiting",
+            "name": "Check the other apps",
             "detail": f"{min(done, total):,} of {total:,} open items compared with {seen}"
             if total
             else f"no open item to compare (other apps handed over {seen})",
             "percent": 100.0 if total and done >= total else round(min(done, total) * 100 / total, 1) if total else None,
         }
+
+    def _with_crosscheck(self, steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Add the cross-check to the last step as one more part; the step's state and percentage then include it."""
+        if not steps:
+            return steps
+        *first, last = steps
+        parts = [*last["parts"], self._crosscheck_part()]
+        known = [p["percent"] for p in parts if p["percent"] is not None]
+        state = "running" if last["state"] == "running" or self.crosschecker.working() else last["state"]
+        return [*first, {**last, "parts": parts, "state": state, "percent": round(sum(known) / len(known), 1) if known else None}]
 
     # ---- the one AI model all apps share (Ollama on this computer) -----------------------------------------------------
     def ai(self, model_url: str) -> dict[str, Any]:

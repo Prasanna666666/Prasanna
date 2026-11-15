@@ -1122,7 +1122,8 @@ body.chatting .fab {
 }
 .rd-stepgrid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: start;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
 }
 .rd-step {
@@ -1194,4 +1195,31 @@ body.chatting .fab {
     .rd-stepgrid {
         grid-template-columns: 1fr;
     }
+}
+
+.rd-about {
+    color: var(--muted);
+    font-size: 13px;
+}
+.rd-parts {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+}
+.rd-part {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.rd-parthead {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+}
+.rd-part .rd-meter {
+    flex: none;
+    height: 6px;
 }

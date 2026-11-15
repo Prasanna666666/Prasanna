@@ -614,30 +614,37 @@
         steps.find((s) => s.state === 'running' && s.n > 1) ||
         steps.find((s) => s.state === 'running') ||
         steps.find((s) => s.state === 'waiting');
+    const stepParts = (parts) => {
+        const box = el('div', 'rd-parts');
+        for (const p of parts) {
+            const row = el('div', 'rd-part');
+            const head = el('div', 'rd-parthead');
+            head.append(el('span', '', p.name), el('span', 'rd-pct', pctText(p.percent)));
+            row.append(head, meter(p.percent), el('span', 'rd-detail', p.detail));
+            box.append(row);
+        }
+        return box;
+    };
+    const stepCard = (s, now) => {
+        const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
+        const head = el('div', 'rd-stepname');
+        head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
+        const percent = el('span', 'rd-pct', pctText(s.percent));
+        card.append(head, el('span', 'rd-about', s.about || ''), meter(s.percent), percent);
+        if (s.detail) card.append(el('span', 'rd-detail', s.detail));
+        if (s.parts && s.parts.length) card.append(stepParts(s.parts));
+        return card;
+    };
     const stepsBlock = (steps) => {
         if (!steps || !steps.length) return null;
         const box = el('div', 'rd-steps');
         const now = currentStep(steps);
-        box.append(
-            el(
-                'div',
-                'rd-stephead',
-                now ? `Step ${now.n} of ${steps.length} · ${now.name}` : `All ${steps.length} steps done`
-            )
-        );
+        const where = now
+            ? `Step ${now.n} of ${steps.length} · ${now.name}${now.app ? ' · ' + now.app : ''}`
+            : `All ${steps.length} steps done`;
+        box.append(el('div', 'rd-stephead', where));
         const row = el('div', 'rd-stepgrid');
-        for (const s of steps) {
-            const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
-            const head = el('div', 'rd-stepname');
-            head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
-            card.append(
-                head,
-                meter(s.percent),
-                el('span', 'rd-detail', s.detail),
-                el('span', 'rd-pct', pctText(s.percent))
-            );
-            row.append(card);
-        }
+        row.append(...steps.map((s) => stepCard(s, now)));
         box.append(row);
         return box;
     };

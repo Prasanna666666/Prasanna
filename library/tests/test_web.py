@@ -355,6 +355,7 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     ]  # named folders first, then loose files, then mail; not the one being read
     assert web._states(conn, "1=1") == {"identified": 1, "aside": 1, "waiting": 4, "unclear": 0}  # a file set aside is not counted as identified
     steps = web._steps(conn, {"phase": 2})
-    assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Identifying files", "running")
+    assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Identify", "running")
     assert steps[1]["detail"] == "1 identified · 1 set aside · 4 waiting" and steps[1]["percent"] == 33.3  # 2 of 6 have nothing more to do here
-    assert len(steps) == 4 and steps[3]["state"] == "waiting"
+    assert len(steps) == 3 and steps[2]["state"] == "waiting" and [p["name"] for p in steps[2]["parts"]] == ["Group related files", "Read each group"]
+    assert web._steps(conn, {"phase": 4, "app": "Finance"})[2]["state"] == "running"

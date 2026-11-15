@@ -489,7 +489,10 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                     out["problem"] = problem
                     conn.commit()
                     return _with_health(conn, client, model, control, out, skip=True)
-                time.sleep(GENTLE_SECONDS)  # a short rest after each model call: the computer stays responsive while many documents are read
+                if PARALLEL == 1:
+                    time.sleep(
+                        GENTLE_SECONDS
+                    )  # a short rest after each model call, only when one is asked at a time: with two in flight the model is never left idle
             out["read"] += 1
             if index % 20 == 0:
                 conn.commit()
