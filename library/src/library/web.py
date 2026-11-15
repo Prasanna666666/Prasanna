@@ -39,6 +39,9 @@ def model_client() -> tuple[Any, str]:
     return client, client.resolve(os.environ.get("LIBRARY_MODEL", llm.DEFAULT_MODEL))
 
 
+_MARKED: list[int] = []
+
+
 class State:
     """What the server remembers between requests: the Update that is running, if any."""
 
@@ -60,7 +63,8 @@ class State:
 
     def connect(self):
         conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
-        store.mark_old_files(conn)  # files sorted before the apps were declared get their marks, once
+        if not _MARKED:  # files sorted before the apps were declared get their marks, once per start (never at every request)
+            _MARKED.append(store.mark_old_files(conn))
         return conn
 
 
