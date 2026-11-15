@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -40,20 +41,34 @@ FAILED_GROUP = "could not be read"
 FINISHED = ("sorted", "skipped", FAILED, FAILED_GROUP, "group read", "kept as sorted")
 
 
+def _what_it_is(conn, name: str) -> str:
+    """What the model called the file, in its own words (its title), looked up when it is shown; the trace itself never holds what a file says."""
+    row = conn.execute("SELECT facts FROM documents WHERE name=? AND judged=1 ORDER BY id DESC LIMIT 1", (name,)).fetchone()
+    try:
+        facts = json.loads(row["facts"]) if row and row["facts"] else {}
+    except ValueError:
+        return ""
+    return str(facts.get("title") or "")[:70] if isinstance(facts, dict) else ""
+
+
 def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:
-    """The last files finished in this read, newest first, each with its result, how long it took and whether it worked (`state`: done or failed), for the panel."""
+    """The last files finished in this read, newest first, each with its result, how long it took and whether it worked (`state`: done or failed), for the panel.
+    A file that was sorted is described by its title, not by the category the apps route it by."""
     rows = conn.execute(
         f"SELECT name, step, detail, seconds FROM trace WHERE run=? AND step IN ({','.join('?' for _ in FINISHED)}) ORDER BY id DESC LIMIT ?",
         (run, *FINISHED, limit),
     )
-    return [
-        {
-            "name": r["name"],
-            "state": "failed" if r["step"] in (FAILED, FAILED_GROUP) else "done",
-            "detail": r["step"] + (f": {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else ""),
-        }
-        for r in rows
-    ]
+    out = []
+    for r in rows:
+        detail = (_what_it_is(conn, r["name"]) or r["detail"]) if r["step"] == "sorted" else r["detail"]
+        out.append(
+            {
+                "name": r["name"],
+                "state": "failed" if r["step"] in (FAILED, FAILED_GROUP) else "done",
+                "detail": r["step"] + (f": {detail}" if detail else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else ""),
+            }
+        )
+    return out
 
 
 def average_seconds(conn, run: str) -> float:

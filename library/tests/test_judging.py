@@ -156,3 +156,16 @@ def test_a_file_the_model_fails_on_shows_as_failed_with_the_reason_and_the_try(c
     [failed] = trace.finished(conn, followed.run)
     assert failed["state"] == "failed" and failed["name"] == "id card.pdf"
     assert failed["detail"].startswith("could not be sorted: the model returned nothing; it is tried again at the next read (try 1 of 3)")
+
+
+def test_a_sorted_file_is_described_by_its_own_title_not_by_the_category(conn):
+    from library import trace
+
+    conn.execute(
+        "INSERT INTO documents (sha256, name, kind, text, area, judged, facts) VALUES ('t','return.pdf','pdf','x','finance',1,?)",
+        (json.dumps({"kind": "tax", "title": "Tax assessment 2023"}),),
+    )
+    conn.commit()
+    followed = trace.Trace(conn)
+    followed.step("return.pdf", "sorted", "tax", 14.0)
+    assert [r["detail"] for r in trace.finished(conn, followed.run)] == ["sorted: Tax assessment 2023 (14 s)"]  # not "sorted, tax"
