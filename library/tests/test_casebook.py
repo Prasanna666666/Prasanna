@@ -143,3 +143,16 @@ def test_a_stop_pressed_during_the_final_step_ends_it_before_the_next_model_call
     calls = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(1) or {"title": "t", "what": "w"})
     assert store.finish_matters(conn, object(), "m", lambda: "stop") == 0 and calls == []
+
+
+def test_a_database_made_by_any_earlier_version_upgrades_without_error(tmp_path):
+    """Migrations are only ever added at the end: a database that has applied the first k steps must take the rest."""
+    from kit import db
+
+    from library import store
+
+    for k in range(1, len(store.MIGRATIONS)):
+        conn = db.connect(tmp_path / f"v{k}.db")
+        db.migrate(conn, [db.Module("library", store.MIGRATIONS[:k])])
+        db.migrate(conn, [store.MODULE])
+        assert conn.execute("SELECT COUNT(*) FROM trace").fetchone()[0] == 0

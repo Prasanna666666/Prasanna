@@ -119,6 +119,14 @@ MIGRATIONS = (
     CREATE INDEX documents_case ON documents (case_id);
     """,
     """
+    CREATE TABLE links (
+        sha_a TEXT NOT NULL,                     -- two pieces (by content) and whether reading them showed they are one matter
+        sha_b TEXT NOT NULL,
+        same INTEGER NOT NULL,
+        PRIMARY KEY (sha_a, sha_b)
+    );
+    """,
+    """
     CREATE TABLE trace (
         id INTEGER PRIMARY KEY,
         run TEXT NOT NULL,                       -- which read (when it started)
@@ -129,14 +137,6 @@ MIGRATIONS = (
         seconds REAL NOT NULL DEFAULT 0
     );
     CREATE INDEX trace_run ON trace (run, id);
-    """,
-    """
-    CREATE TABLE links (
-        sha_a TEXT NOT NULL,                     -- two pieces (by content) and whether reading them showed they are one matter
-        sha_b TEXT NOT NULL,
-        same INTEGER NOT NULL,
-        PRIMARY KEY (sha_a, sha_b)
-    );
     """,
 )
 MODULE = Module("library", MIGRATIONS)
