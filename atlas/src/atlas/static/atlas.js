@@ -633,7 +633,13 @@
         card.append(el('span', 'rd-about', s.about || ''), meter(s.percent), el('span', 'rd-pct', pctText(s.percent)));
         for (const c of s.counts || []) {
             card.append(
-                el('span', 'rd-detail', `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`)
+                el(
+                    'span',
+                    'rd-detail',
+                    c.total
+                        ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`
+                        : `no ${c.label} found`
+                )
             );
         }
         return card;

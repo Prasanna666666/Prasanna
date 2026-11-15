@@ -694,7 +694,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             every.append(line)
             # Reading takes the mails first, with all they carry, and then the documents. A number is shown only when its total is fully known and its turn has come.
             visible = (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
-            if total and (n > 1 or visible):
+            if (total or (key == "mails" and found)) and (n > 1 or visible):  # mails are always said, even when none were found
                 counts.append(line)
         done, total = sum(int(c["done"]) for c in counts), sum(int(c["total"]) for c in counts)
         everything = bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
