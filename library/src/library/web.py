@@ -476,6 +476,17 @@ def _states(conn, where: str) -> dict[str, int]:
     return {"identified": count("=1"), "aside": count("=2"), "waiting": count("=0"), "unclear": count("=3")}
 
 
+def _skipped_reasons(conn, where: str = "1=1") -> dict[str, int]:
+    """Why files were skipped: no readable text, the keyword rule (not shown to the model), or skipped before the reason was kept."""
+
+    def count(extra: str) -> int:
+        return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged=2 {extra}").fetchone()[0]
+
+    no_text = count(f"AND facts LIKE '%{store.SKIPPED_NO_TEXT}%'")
+    rule = count(f"AND facts LIKE '%{store.SKIPPED_BY_RULE}%'")
+    return {"no_text": no_text, "rule": rule, "unknown": count("") - no_text - rule}
+
+
 def _handled(states: dict[str, int]) -> int:
     """Files with nothing more to do at the identifying step: identified, or skipped."""
     return states["identified"] + states["aside"]
@@ -588,6 +599,21 @@ def _first_app_open(conn) -> tuple[str, int]:
     return area, n
 
 
+def _identify_detail(conn, states: dict[str, int]) -> str:
+    """The counts of step 2 with the real reason for each skipped group, so that "skipped" never hides that a file was simply not shown to the model."""
+    why = _skipped_reasons(conn)
+    parts = [f"{states['identified']:,} identified by the model"]
+    for key, label in (
+        ("rule", "skipped by the keyword rule (not shown to the model)"),
+        ("no_text", "skipped, no readable text"),
+        ("unknown", "skipped earlier, reason not kept"),
+    ):
+        if why[key]:
+            parts.append(f"{why[key]:,} {label}")
+    parts.append(f"{states['waiting']:,} to do")
+    return " · ".join(parts)
+
+
 def _identify_note(conn, states: dict[str, int]) -> str:
     """One plain sentence for step 2: which app the model is on and how much is left of it."""
     if not states["waiting"]:
@@ -651,7 +677,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "name": "Identify",
             "about": "Find out what each file is",
             "state": _step_state(phase == 2, not states["waiting"]),
-            "detail": f"{states['identified']:,} identified · {states['aside']:,} skipped (nothing to read) · {states['waiting']:,} to do",
+            "detail": _identify_detail(conn, states),
             "note": _identify_note(conn, states),
             "percent": _share(handled, handled + states["waiting"]),
         },

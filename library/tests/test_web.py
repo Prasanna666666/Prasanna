@@ -356,7 +356,9 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     assert web._states(conn, "1=1") == {"identified": 1, "aside": 1, "waiting": 4, "unclear": 0}  # a file skipped is not counted as identified
     steps = web._steps(conn, {"phase": 2})
     assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Identify", "running")
-    assert steps[1]["detail"] == "1 identified · 1 skipped (nothing to read) · 4 to do" and steps[1]["percent"] == 33.3  # 2 of 6 have nothing more to do here
+    assert (
+        steps[1]["detail"] == "1 identified by the model · 1 skipped earlier, reason not kept · 4 to do" and steps[1]["percent"] == 33.3
+    )  # 2 of 6 have nothing more to do here
     assert len(steps) == 3 and steps[2]["state"] == "waiting" and [p["name"] for p in steps[2]["parts"]] == ["Group related files", "Read each group"]
     assert web._steps(conn, {"phase": 4, "app": "Finance"})[2]["state"] == "running"
 
@@ -369,3 +371,17 @@ def test_each_step_says_in_one_sentence_what_it_is_on_or_waiting_for(conn):
     assert steps[1]["note"] == "Now on Finance: 2 files left"  # Finance is served first
     assert steps[2]["note"] == "Starts for Finance when its last 2 files are identified"  # why step 3 has not started
     assert web._steps(conn, {"phase": 3, "app": "Finance"})[2]["note"] == "Working on Finance"
+
+
+def test_skipped_files_are_counted_by_the_real_reason(conn):
+    from library import store
+
+    rows = (("a", store.SKIPPED_BY_RULE), ("b", store.SKIPPED_BY_RULE), ("c", store.SKIPPED_NO_TEXT), ("d", None))
+    for sha, why in rows:
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts) VALUES (?,?,?,?,?,2,?)",
+            (sha, sha, "email", "", "mail", f'{{"skipped": "{why}"}}' if why else ""),
+        )
+    conn.commit()
+    assert web._skipped_reasons(conn) == {"no_text": 1, "rule": 2, "unknown": 1}
+    assert "2 skipped by the keyword rule (not shown to the model)" in web._identify_detail(conn, web._states(conn, "1=1"))

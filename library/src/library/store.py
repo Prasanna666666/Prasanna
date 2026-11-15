@@ -373,6 +373,10 @@ def _speed_line(waiting: int, elapsed: float, calls: int) -> str:
     return f"Identifying files: {waiting:,} waiting, {each:.0f} s per file, about {_duration(waiting * each)} left"
 
 
+SKIPPED_NO_TEXT = "no readable text"
+SKIPPED_BY_RULE = "no amount with an invoice-like word"  # the keyword rule in `relevance`: such a mail or loose file is not shown to the model
+
+
 def _skippable(d) -> bool:
     """Nothing readable to ask the model about: the file stays, found by its name."""
     return bool(
@@ -467,8 +471,9 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                 _mark_ready(conn, d["sha256"], 1, exact)
                 _trace(trace, d["name"], "identified", "from its own data, no model needed")
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
-                _mark_ready(conn, d["sha256"], 2, None)
-                _trace(trace, d["name"], "skipped", "no readable text" if not d["text"].strip() else "not worth reading")
+                why = SKIPPED_NO_TEXT if not d["text"].strip() else SKIPPED_BY_RULE
+                _mark_ready(conn, d["sha256"], 2, {"skipped": why})  # the reason is kept, so what was not shown to the model can be counted and read later
+                _trace(trace, d["name"], "skipped", why)
                 out["skipped"] += 1
                 continue
             else:
