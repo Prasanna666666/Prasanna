@@ -42,11 +42,33 @@ def test_a_parser_round_says_when_it_is_busy_and_wakes_on_request(tmp_path):
     assert not (out / parser.BUSY).exists()  # idle again once the round is over
 
 
-def test_the_panel_says_how_long_one_file_takes_and_how_long_all_will_take():
+def test_the_panel_says_how_long_one_file_takes_and_how_long_what_really_goes_to_the_model_will_take():
     assert store._speed_line(1184, 0, 0) == "Sorting files"
     assert store._speed_line(1184, 140, 10) == "Sorting files: 14 s per file, about 4 h 36 min left"
-    assert store._speed_line(1000, 140, 10, skipped=30) == "Sorting files: 14 s per file, about 58 min left"  # only a quarter of the files go to the model
+    assert store._speed_line(0, 140, 10) == "Sorting files: 14 s per file, almost done"
     assert store._duration(45) == "45 s" and store._duration(600) == "10 min"
+
+
+def test_the_time_left_counts_only_the_files_that_will_really_go_to_the_model(conn):
+    count = [0]
+
+    def add(i, area, judged, text="text"):
+        count[0] += 1
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,?)", (f"{count[0]:064x}", f"{area}{i}", "pdf", text, area, judged)
+        )
+
+    for i in range(100):  # mail: 5 of 100 went to the model, the rest were skipped in an instant
+        add(i, "mail", 1 if i < 5 else 2)
+    for i in range(100):  # finance: all of them went to the model
+        add(i, "finance", 1)
+    for i in range(1000):
+        add(i, "mail", 0)  # 1000 mails waiting: about 5% of them will need the model
+    for i in range(10):
+        add(i, "finance", 0)  # 10 finance files waiting: all of them will
+    add(0, "finance", 0, text="")  # nothing to read: never the model
+    conn.commit()
+    assert store.model_work_left(conn) == 60  # 50 of the mails and the 10 finance files, not 1,011
 
 
 def test_each_file_the_model_finishes_is_saved_at_once_so_the_counts_move(tmp_path, monkeypatch):

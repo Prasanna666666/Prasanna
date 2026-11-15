@@ -371,14 +371,35 @@ def _duration(seconds: float) -> str:
     return f"{hours} h {rest // 60} min" if hours else f"{rest // 60} min" if rest >= 60 else f"{rest} s"
 
 
-def _speed_line(waiting: int, elapsed: float, calls: int, skipped: int = 0) -> str:
-    """What the person sees while the model sorts files: how long one takes and how long what is left will take. Not every file waiting goes to the model (many are skipped in an
-    instant), so the time counts only the share of waiting files that went to the model so far in this round (`calls` of `calls + skipped`)."""
+MIN_HISTORY = 20  # files of an app that must have been looked at before its own history is trusted for the time left
+
+
+def model_work_left(conn) -> int:
+    """How many of the files still waiting will really go to the model. Not all do: most mail is skipped in an instant, most documents are not. So for each app the files
+    waiting are counted by the share of that app's files that went to the model so far (its own history; the overall share for an app with too little history)."""
+    history = {
+        r["area"]: (r["sorted"] or 0, r["skipped"] or 0)
+        for r in conn.execute("SELECT area, SUM(judged=1) AS sorted, SUM(judged=2) AS skipped FROM documents WHERE judged IN (1, 2) GROUP BY area")
+    }
+    sorted_all, skipped_all = sum(s for s, _ in history.values()), sum(k for _, k in history.values())
+    overall = sorted_all / (sorted_all + skipped_all) if sorted_all + skipped_all else 1.0
+    left = 0.0
+    for r in conn.execute("SELECT area, COUNT(*) AS n FROM documents WHERE judged=0 AND TRIM(text)<>'' GROUP BY area"):
+        done, skipped = history.get(r["area"], (0, 0))
+        left += r["n"] * (done / (done + skipped) if done + skipped >= MIN_HISTORY else overall)
+    return round(left)
+
+
+def _speed_line(model_left: int, elapsed: float, calls: int) -> str:
+    """What the person sees while the model sorts files: how long one takes and how long the files that really go to the model will take at that speed."""
     if calls < 2:
         return "Sorting files"
     each = elapsed / calls
-    model_left = waiting * calls / (calls + skipped)
-    return f"Sorting files: {each:.0f} s per file, about {_duration(model_left * each)} left"
+    return (
+        f"Sorting files: {each:.0f} s per file, about {_duration(model_left * each)} left"
+        if model_left
+        else f"Sorting files: {each:.0f} s per file, almost done"
+    )
 
 
 SKIPPED_NO_TEXT = "no readable text"
@@ -490,7 +511,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                     out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
                     continue
                 if progress:
-                    progress(_speed_line(total - index + 1, time.monotonic() - began, calls, out["skipped"]))
+                    progress(_speed_line(model_work_left(conn), time.monotonic() - began, calls))
                 calls += 1
                 ahead.prefetch(chunk, position)
                 result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)
