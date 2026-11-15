@@ -73,6 +73,7 @@ def test_each_file_the_model_finishes_is_saved_at_once_so_the_counts_move(tmp_pa
             return {"content": json.dumps({"kind": "invoice", "title": "t", "what": "w", "party": "Ziggo", "total": "1,00", "currency": "EUR"})}
 
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
+    monkeypatch.setattr(store, "PARALLEL", 1)  # one at a time: each file is finished and saved before the next is asked
     store.judge_pending(conn, Model(), "fake")
     assert seen == [0, 1, 2]
 

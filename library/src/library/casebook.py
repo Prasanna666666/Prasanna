@@ -17,7 +17,11 @@ from typing import Any
 
 from kit import extract
 
-ID = re.compile(r"\b(?=[A-Za-z0-9/\-]*\d)[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b")
+from . import priority
+
+ID = re.compile(
+    r"\b(?=[A-Za-z0-9/\-]*\d)(?=[A-Za-z0-9/\-]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b"
+)  # letters and digits together (INV-20931, NL91ABNA...): a plain date or number is not an identifier
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
 MAX_CONFIRMS = 200  # pairs of files compared by the model per press of Read; the rest wait for the next press
@@ -252,7 +256,7 @@ def pieces_of(conn, ids: list[int] | None = None) -> list[dict[str, Any]]:
     """Everything read that can say something: the documents, the mails (what they say), the attachments, the photos with their text, and what medical documents print."""
     out = []
     where = f"AND id IN ({','.join('?' for _ in ids)})" if ids else ""
-    for r in conn.execute(f"SELECT id, name, sha256, text, facts FROM documents WHERE judged=1 AND (TRIM(text)<>'' OR facts<>'') {where}", ids or []):
+    for r in conn.execute(f"SELECT id, name, sha256, area, text, facts FROM documents WHERE judged=1 AND (TRIM(text)<>'' OR facts<>'') {where}", ids or []):
         facts = json.loads(r["facts"]) if r["facts"] else {}
         said = " ".join(f"{k} {v}" for k, v in facts.items() if isinstance(v, str | int | float))
         out.append(
@@ -260,6 +264,7 @@ def pieces_of(conn, ids: list[int] | None = None) -> list[dict[str, Any]]:
                 "id": r["id"],
                 "name": r["name"],
                 "sha": r["sha256"],
+                "area": r["area"],
                 "facts": facts,
                 "text": f"{r['text'] or ''} {said}\n{_health_lines(facts.get('health'))}".strip(),
             }
@@ -336,6 +341,9 @@ def rebuild(
         if h not in known:
             conn.execute("INSERT INTO cases (input_hash, members, summary, tries) VALUES (?,?,?,0)", (h, json.dumps(members), ""))
             new += 1
+    conn.executemany(
+        "UPDATE cases SET rank=? WHERE input_hash=?", [(min(priority.rank(by_id[m]["area"]) for m in members), h) for h, members in now.items()]
+    )  # the app served first sets the rank
     conn.execute("UPDATE documents SET case_id=NULL")
     for r in conn.execute("SELECT id, members FROM cases WHERE summary<>''").fetchall():
         for pid in json.loads(r["members"]):
@@ -377,10 +385,11 @@ def understand_pending(
     control: Callable[[], str] | None = None,
     progress: Callable[[str], None] | None = None,
     trace: Any = None,
+    up_to_rank: int = 99,
 ) -> int:
     """Groups not yet read: a group of related files, or a file with a date to act on, is read by the model with all its text; a lone file keeps what it was identified as.
     Respects Pause and Stop between readings; a group the model cannot make sense of is tried up to three times. Returns how many were read."""
-    rows = conn.execute("SELECT id, members FROM cases WHERE summary='' AND tries<3 ORDER BY id").fetchall()
+    rows = conn.execute("SELECT id, members FROM cases WHERE summary='' AND tries<3 AND rank<=? ORDER BY rank, id", (up_to_rank,)).fetchall()
     done = asked = 0
     for row in rows:
         while control is not None and control() == "pause":

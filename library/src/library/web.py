@@ -23,7 +23,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, flags, highlights, items, pictures, readreport, store, tools, trace, travel
+from . import changes, flags, highlights, items, pictures, priority, readreport, store, tools, trace, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -65,8 +65,6 @@ class State:
 AUTO_LIMIT = int(
     os.environ.get("ATLAS_AUTO_LIMIT", "50")
 )  # files: automatic reading only when fewer than this are waiting (and a round that starts by itself stops after this many)
-INTERPRET_EVERY_ROUNDS = 5  # every this many rounds of identifying (100 files) a small slice of interpretation runs, so it does not wait for the last file
-SLICE_PAIRS, SLICE_GROUPS = 10, 5  # what one slice does: pairs compared and groups read (a few minutes)
 JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
 
 
@@ -114,9 +112,16 @@ def _read_pictures(state: State, conn, client, model) -> None:
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
-def _interpret_slice(state: State, conn, client, model, followed: trace.Trace, identified: int, rounds: int) -> None:
-    """While files are still being identified, every few rounds a small slice of interpretation runs, so grouping and reading do not wait for the last file."""
-    if identified and rounds % INTERPRET_EVERY_ROUNDS == 0 and client is not None and model and state.control != "stop":
+def _interpret_ready_apps(state: State, conn, client, model, followed: trace.Trace, done: set[str]) -> None:
+    """The apps are served in order: as soon as every file of one app (Finance first) is read and identified, that app's groups are formed and read, while the reader is
+    already taking in the next app's files. An app is never grouped before all of its files are in: a group is right only when all its pieces are known."""
+    if client is None or not model or state.control == "stop":
+        return
+    found = _found().get("by_folder", {})
+    for area in priority.order():
+        if area in done or not store.app_ready(conn, area, found.get(area, 0)):
+            continue
+        done.add(area)
         store.finish_matters(
             conn,
             client,
@@ -124,11 +129,10 @@ def _interpret_slice(state: State, conn, client, model, followed: trace.Trace, i
             lambda: state.control,
             lambda m: state.scan.update(progress=m),
             followed,
-            SLICE_PAIRS,
-            SLICE_GROUPS,
-            lambda n: state.scan.update(phase=n),
+            phase=lambda n: state.scan.update(phase=n),
+            up_to_rank=priority.rank(area),
         )
-        state.scan["phase"] = 2  # back to identifying
+        state.scan["phase"] = 2  # back to identifying the next app
 
 
 def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
@@ -173,11 +177,10 @@ def _read_all(state: State) -> None:
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
-        rounds = 0
+        ready: set[str] = set()  # the apps whose groups have been read in this read
         while True:
             new, judged_count, judged = _one_round(conn, client, model, state, followed)
-            rounds += 1
-            _interpret_slice(state, conn, client, model, followed, judged["read"], rounds)
+            _interpret_ready_apps(state, conn, client, model, followed, ready)
             totals["new"] += new
             totals["read"] += judged["read"]
             totals["skipped"] += judged["skipped"]

@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import flags, readers, sniff
+from . import flags, priority, readers, sniff
 
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
@@ -587,11 +587,11 @@ def read_everything(a: argparse.Namespace) -> dict[str, int]:
 def _read_round(a: argparse.Namespace) -> dict[str, int]:
     if (Path(a.out) / STOP).exists():
         return {"parsed": 0, "skipped": 0, "failed": 0}
-    res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))
     extra = []
-    for name, folder in collections(a.collection):
+    for name, folder in sorted(collections(a.collection), key=lambda c: priority.rank(c[0])):  # the apps in their order: Finance is read first
         if folder.is_dir():
             extra.append(process_inbox(folder, Path(a.out), area=name))
+    res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))  # then the loose files
     if (Path(a.inbox) / "mail").is_dir():  # mail exports dropped into the inbox (.mbox, .eml, .emlx)
         extra.append(process_inbox(Path(a.inbox) / "mail", Path(a.out), area="mail"))
     if a.mail and Path(a.mail).is_dir():

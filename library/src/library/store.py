@@ -17,6 +17,7 @@ import re
 import threading
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import casebook, recognise, relevance
+from . import casebook, priority, recognise, relevance
 from .trace import Trace
 
 MIGRATIONS = (
@@ -137,6 +138,10 @@ MIGRATIONS = (
         seconds REAL NOT NULL DEFAULT 0
     );
     CREATE INDEX trace_run ON trace (run, id);
+    """,
+    """
+    ALTER TABLE cases ADD COLUMN rank INTEGER NOT NULL DEFAULT 99;   -- where its files' app comes in the order the apps are served in (see priority)
+    CREATE INDEX cases_rank ON cases (rank, id);
     """,
 )
 MODULE = Module("library", MIGRATIONS)
@@ -275,12 +280,11 @@ JUDGE_CHUNK = 100  # documents held in memory at a time: tens of thousands of ma
 
 
 # The model reaches the documents that fill the dashboards first: the folders you named (health, finance, travel ...), then loose files, and the mail last.
-PRIORITY = ("area NOT IN ('', 'mail', 'pictures')", "area=''", "area IN ('mail', 'pictures')")
 
 
 def _pending_chunks(conn):
     """Documents not yet judged, a chunk at a time, folder documents first, then loose files, then mail."""
-    for tier in PRIORITY:
+    for tier in priority.tiers():
         last = 0
         while True:
             rows = conn.execute(
@@ -295,7 +299,7 @@ def _pending_chunks(conn):
 def waiting_files(conn, current: str = "", limit: int = 5) -> list[str]:
     """The next files the model will identify, in the order they will be taken (named folders, then loose files, then mail); only files with text for the model."""
     names: list[str] = []
-    for tier in PRIORITY:
+    for tier in priority.tiers():
         rows = conn.execute(f"SELECT name FROM documents WHERE judged=0 AND kind<>'binary' AND TRIM(text)<>'' AND {tier} ORDER BY id LIMIT ?", (limit + 1,))
         names += [r["name"] for r in rows if r["name"] != current]
         if len(names) >= limit:
@@ -333,13 +337,13 @@ def _both(progress: Progress | None, trace: Trace | None, name: str) -> Progress
     return say
 
 
-def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trace | None) -> tuple[str, str]:
+def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trace | None, ahead: _Ahead) -> tuple[str, str]:
     """The model identifies one file and the result is saved at once (the counts in the panel change with every file, not every twentieth).
     Returns "ok", "unclear" (answered but unusable: counted and tried again at the next read) or "unreachable" with the reason."""
     _trace(trace, d["name"], "identifying", f"{len(d['text']):,} characters")
     started = time.monotonic()
     try:
-        facts = _understand(client, model, d, _both(progress, trace, d["name"]))
+        facts = ahead.result(d, _both(progress, trace, d["name"]))
     except extract.Unclear:
         conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
         _trace(trace, d["name"], "no usable answer", "the model's answers could not be used; tried again at the next read", time.monotonic() - started)
@@ -366,6 +370,65 @@ def _speed_line(waiting: int, elapsed: float, calls: int) -> str:
     return f"Identifying files: {waiting:,} waiting, {each:.0f} s per file, about {_duration(waiting * each)} left"
 
 
+def _skippable(d) -> bool:
+    """Nothing readable to ask the model about: the file stays, found by its name."""
+    return bool(
+        d["kind"] == "binary"
+        or not d["text"].strip()
+        or (d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"]))
+    )
+
+
+def _for_model(d) -> bool:
+    return _exact_facts(d) is None and not _skippable(d)
+
+
+PARALLEL = max(
+    1, int(os.environ.get("LIBRARY_PARALLEL", "2"))
+)  # model calls in flight at once (the model server works on them together when it is set up to: OLLAMA_NUM_PARALLEL)
+
+
+class _Ahead:
+    """The model identifies up to PARALLEL files at once: while the current file is waited for, the next ones are already being asked. A worker never touches the database or
+    the trace (they belong to the reading thread); what it says about its progress is passed on from the reading thread."""
+
+    def __init__(self, client, model: str) -> None:
+        self._client, self._model = client, model
+        self._pool = ThreadPoolExecutor(max_workers=PARALLEL, thread_name_prefix="identify")
+        self._jobs: dict[str, tuple[Future, list[str]]] = {}
+
+    def start(self, d) -> None:
+        if d["sha256"] not in self._jobs:
+            said: list[str] = []
+            self._jobs[d["sha256"]] = (self._pool.submit(_understand, self._client, self._model, d, said.append), said)
+
+    def prefetch(self, chunk: list, after: int) -> None:
+        """Start the model on the next files that need it, so that PARALLEL are in flight."""
+        started = 0
+        for d in chunk[after + 1 :]:
+            if started >= PARALLEL - 1:
+                break
+            if _for_model(d):
+                self.start(d)
+                started += 1
+
+    def result(self, d, say: Progress) -> dict:
+        """What the model made of this file (waiting for it, and passing on how far a long document has got); raises what the model raised."""
+        self.start(d)
+        future, said = self._jobs.pop(d["sha256"])
+        seen = 0
+        while True:
+            try:
+                return future.result(timeout=0.5)
+            except TimeoutError:
+                while seen < len(said):
+                    say(said[seen])
+                    seen += 1
+
+    def close(self) -> None:
+        self._pool.shutdown(wait=False, cancel_futures=True)
+
+
 def judge_pending(
     conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0, trace: Trace | None = None
 ) -> dict[str, Any]:
@@ -374,10 +437,18 @@ def judge_pending(
     forget_mail_bodies(conn)
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "unclear": 0, "problem": "", "stopped": False}
-    index = calls = 0
     began = time.monotonic()
+    ahead = _Ahead(client, model)
+    try:
+        return _judge_chunks(conn, client, model, progress, control, limit, trace, out, total, ahead, began)
+    finally:
+        ahead.close()
+
+
+def _judge_chunks(conn, client, model, progress, control, limit, trace, out, total, ahead, began) -> dict[str, Any]:
+    index = calls = 0
     for chunk in _pending_chunks(conn):
-        for d in chunk:
+        for position, d in enumerate(chunk):
             if limit and out["read"] + out["skipped"] >= limit:
                 conn.commit()
                 return out
@@ -392,14 +463,7 @@ def judge_pending(
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
                 _trace(trace, d["name"], "identified", "from its own data, no model needed")
-            elif (
-                d["kind"] == "binary"
-                or not d["text"].strip()
-                or (
-                    d["area"] in ("", "mail", "pictures")
-                    and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"])
-                )
-            ):  # nothing readable to ask the model about: it stays, found by its name
+            elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
                 _mark_ready(conn, d["sha256"], 2, None)
                 _trace(trace, d["name"], "set aside", "no readable text" if not d["text"].strip() else "not worth reading")
                 out["skipped"] += 1
@@ -412,7 +476,8 @@ def judge_pending(
                 if progress:
                     progress(_speed_line(total - index + 1, time.monotonic() - began, calls))
                 calls += 1
-                result, problem = _identify_one(conn, client, model, d, progress, trace)
+                ahead.prefetch(chunk, position)
+                result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)
                 if result == "unclear":
                     out["unclear"] += 1
                     continue
@@ -445,6 +510,7 @@ def finish_matters(
     pairs: int = casebook.MAX_CONFIRMS,
     groups: int = casebook.MAX_READ_PER_PRESS,
     phase: Callable[[int], None] | None = None,
+    up_to_rank: int = 99,
 ) -> int:
     """Interpretation: the files are grouped (comparing up to `pairs` pairs) and then up to `groups` groups are read. Done in small slices while files are still being identified,
     and in full at the end of a read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit` and carried on. Returns how many groups were read."""
@@ -455,10 +521,17 @@ def finish_matters(
     casebook.rebuild(conn, client, model, control, progress, trace, pairs)
     if phase:
         phase(4)
-    done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace)
+    done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace, up_to_rank=up_to_rank)
     forget_mail_bodies(conn)
     conn.commit()
     return done
+
+
+def app_ready(conn, area: str, found: int) -> bool:
+    """Is every file of this app read and identified? Only then can its groups be formed and read: a group is right only when all its pieces are in."""
+    pending = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0 AND area=?", (area,)).fetchone()[0]
+    read = conn.execute("SELECT COUNT(*) FROM documents WHERE area=?", (area,)).fetchone()[0]
+    return pending == 0 and read > 0 and read >= found
 
 
 def audit(conn) -> dict[str, int]:
