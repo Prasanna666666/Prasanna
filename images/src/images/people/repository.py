@@ -5,9 +5,6 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-import numpy as np
-
-from ..db import in_clause
 from ..search.textnorm import tokens
 
 
@@ -62,77 +59,3 @@ def resolve_name(conn: sqlite3.Connection, query: str) -> list[int]:
         if set(wanted) <= set(tokens(name)):
             matches.append(person_id)
     return matches
-
-
-def rename_person(conn: sqlite3.Connection, person_id: int, name: str) -> None:
-    conn.execute("UPDATE people SET name=? WHERE id=?", (name.strip() or None, person_id))
-    conn.commit()
-
-
-def hide_person(conn: sqlite3.Connection, person_id: int) -> None:
-    conn.execute("UPDATE people SET hidden=1 WHERE id=?", (person_id,))
-    conn.commit()
-
-
-def merge_people(conn: sqlite3.Connection, keep: int, merge: int) -> None:
-    if keep == merge:
-        return
-    k = conn.execute("SELECT name FROM people WHERE id=?", (keep,)).fetchone()
-    m = conn.execute("SELECT name FROM people WHERE id=?", (merge,)).fetchone()
-    if k and m and not k["name"] and m["name"]:
-        conn.execute("UPDATE people SET name=? WHERE id=?", (m["name"], keep))
-    conn.execute("UPDATE faces SET person_id=? WHERE person_id=?", (keep, merge))
-    conn.execute("DELETE FROM people WHERE id=?", (merge,))
-    conn.commit()
-
-
-def reject_face(conn: sqlite3.Connection, face_id: int) -> None:
-    """'This is not that person': detach and never auto-assign it again."""
-    conn.execute("UPDATE faces SET person_id=NULL, locked=1 WHERE id=?", (face_id,))
-    conn.commit()
-
-
-def person_item_ids(conn: sqlite3.Connection, person_ids: list[int]) -> np.ndarray:
-    """Ids of photos containing ANY of the given people (all matches, no limit)."""
-    if not person_ids:
-        return np.zeros(0, np.int64)
-    rows = conn.execute(
-        f"SELECT DISTINCT f.item_id FROM faces f JOIN items i ON i.id=f.item_id AND i.missing=0 "
-        f"WHERE f.person_id IN ({in_clause(person_ids)})",
-        person_ids,
-    ).fetchall()
-    return np.array(sorted(r[0] for r in rows), np.int64)
-
-
-def items_with_all_people(conn: sqlite3.Connection, person_ids: list[int]) -> np.ndarray:
-    """Photos in which ALL the given people appear together."""
-    if not person_ids:
-        return np.zeros(0, np.int64)
-    rows = conn.execute(
-        f"SELECT f.item_id FROM faces f JOIN items i ON i.id=f.item_id AND i.missing=0 "
-        f"WHERE f.person_id IN ({in_clause(person_ids)}) "
-        f"GROUP BY f.item_id HAVING COUNT(DISTINCT f.person_id)=?",
-        (*person_ids, len(person_ids)),
-    ).fetchall()
-    return np.array(sorted(r[0] for r in rows), np.int64)
-
-
-def faces_for_review(conn: sqlite3.Connection, person_id: int, limit: int = 24) -> list[FaceReview]:
-    """A person's faces, least typical first - the likeliest mistakes surface at the top."""
-    rows = conn.execute("SELECT id, item_id, crop, emb FROM faces WHERE person_id=?", (person_id,)).fetchall()
-    if not rows:
-        return []
-    matrix = np.vstack([np.frombuffer(r["emb"], np.float32) for r in rows])
-    centre = matrix.mean(0)
-    centre /= max(float(np.linalg.norm(centre)), 1e-9)
-    sims = matrix @ centre
-    return [FaceReview(rows[i]["id"], rows[i]["item_id"], rows[i]["crop"], float(sims[i])) for i in np.argsort(sims)[:limit]]
-
-
-def faces_in_item(conn: sqlite3.Connection, item_id: int) -> list[tuple[str | None, str]]:
-    """(crop path, person label) for each face in one photo."""
-    rows = conn.execute(
-        "SELECT f.crop, p.name, p.id AS pid FROM faces f LEFT JOIN people p ON p.id=f.person_id WHERE f.item_id=?",
-        (item_id,),
-    ).fetchall()
-    return [(r["crop"], r["name"] or (f"Person {r['pid']}" if r["pid"] else "unassigned")) for r in rows]

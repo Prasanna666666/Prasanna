@@ -29,7 +29,6 @@ from images.search.embeddings import EmbeddingIndex
 from images.search.filters import Filters, apply_filters
 from images.search.geo import GeoIndex
 from images.search.metadata import all_ids, date_ids, path_ids, place_ids, remembered
-from images.search.quick import quick_ids
 from images.search.text import search_text_ids
 from images.search.visual import VisualSearch
 
@@ -56,9 +55,6 @@ class ExecResult:
     hard: Any = (
         None  # photos that satisfy every exact requirement (place, date, person, written text), before looks are considered
     )
-
-
-CLOSEST_LIMIT = 200  # how many near matches to return when nothing fits every requirement
 
 
 @dataclass
@@ -203,20 +199,6 @@ class Executor:
         if len(ids):
             result.notes.append(f"{len(ids):,} taken within 25 km of {query} (GPS).")
         return ids
-
-    def run_relaxed(self, plan: Plan, previous_ids: np.ndarray | None = None, keep: int = 60) -> ExecResult:
-        """When nothing satisfies everything: keep every EXACT requirement (place, date, person, written text, filters), drop only what a
-        picture should look like, and rank the photos that remain by how close they come. A place, date or person is never dropped."""
-        soft = [c for c in plan.clauses if not c.exclude and tuple(c.engines) == ("visual",)]
-        hard_plan = dataclasses.replace(plan, clauses=tuple(c for c in plan.clauses if c not in soft))
-        if not soft or not (hard_plan.clauses or not hard_plan.date.is_empty or not hard_plan.filters.is_empty):
-            return ExecResult(ids=np.zeros(0, np.int64))
-        result = self._run(hard_plan, previous_ids)
-        result.hard = result.ids
-        if len(result.ids) == 0:
-            return result
-        result.ids = self._closest_in_look(result.ids, [c.query for c in soft], keep)
-        return result
 
     def _closest_in_look(self, ids: np.ndarray, queries: list[str], keep: int) -> np.ndarray:
         index, embedder = self._index_provider(), self._embedder_provider()
@@ -403,10 +385,6 @@ class Executor:
                     found.append(ids)
                     result.notes.append(f"'{word}' read as {close[0]}.")
         return np.unique(np.concatenate(found)) if found else np.zeros(0, np.int64)
-
-    def rescue(self, request: str) -> np.ndarray:
-        """Last resort when a plan finds nothing: match the request's own words against the library's data."""
-        return quick_ids(self._conn, request, self._index_provider, self._embedder_provider, self._strictness)
 
     def _engine_ids(self, engine: str, query: str, result: ExecResult) -> np.ndarray:
         try:

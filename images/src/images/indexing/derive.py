@@ -38,25 +38,6 @@ def meta_flags(record: dict) -> list[str]:
     return flags
 
 
-def derive_meta_labels(conn: sqlite3.Connection) -> int:
-    """Turn the stored metadata into searchable labels (source 'meta')."""
-    conn.execute("DELETE FROM photo_labels WHERE source='meta'")
-    rows = 0
-    batch: list[tuple[int, str]] = []
-    for item_id, data in conn.execute("SELECT item_id, data FROM file_metadata"):
-        try:
-            batch += [(item_id, flag) for flag in meta_flags(json.loads(data))]
-        except ValueError:
-            continue
-        if len(batch) >= 5000:
-            conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,1.0,'meta')", batch)
-            rows += len(batch)
-            batch = []
-    conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,1.0,'meta')", batch)
-    conn.commit()
-    return rows + len(batch)
-
-
 def build_events(conn: sqlite3.Connection, gap: timedelta = EVENT_GAP) -> int:
     """Group photos into trips/occasions: consecutive photos (by camera date) with no pause longer than `gap`. Rebuilt each time."""
     rows = conn.execute(

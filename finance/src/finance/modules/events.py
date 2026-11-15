@@ -19,14 +19,6 @@ from .. import audit, clock
 from ..db import rows
 
 MAINS = ("sports", "events", "trips", "cancellations", "others")
-SUBS = {
-    "sports": ("tickets", "travel", "food", "merchandise", "stay"),
-    "events": ("tickets", "travel", "food", "stay"),
-    "trips": ("flights", "stay", "travel", "tickets", "food and others", "insurance"),
-    "cancellations": ("tickets", "refund", "fees"),
-    "others": (),
-}
-
 MIGRATIONS = (
     """
     CREATE TABLE events (

@@ -691,11 +691,6 @@ LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready, case_id"
 HEALTH_KINDS = frozenset({"medical"})
 
 
-def _is_health(facts_json: str, area: str = "") -> bool:
-    """A medical document: the model said so, or it lies in the person's health folder (whatever the model said)."""
-    return area == "health" or (bool(facts_json) and json.loads(facts_json).get("kind") in HEALTH_KINDS)
-
-
 def proper_name(facts: dict, file_name: str, kind: str = "") -> str:
     """What a document is called on screen: its own title with who it is from, taken from what it says, never the file name it happens to have. A file name is the last resort."""
     title = str(facts.get("title") or "").strip()
@@ -938,10 +933,6 @@ def documents_between(conn, start: str, end: str, limit: int = 100) -> list[dict
         if len(out) >= limit:
             break
     return sorted(out, key=lambda d: str(d["facts"].get("start_date") or d["facts"].get("date")))
-
-
-# ---- pictures of documents: a photographed receipt or letter is read like any other document ---------------------------------------------
-PICTURE_ROOTS = ("Inbox/", "MailPictures/")  # these are read by the document reader already: only photos from the photo folder itself are added here
 
 
 def ingest_pictures(conn, engine_conn) -> int:

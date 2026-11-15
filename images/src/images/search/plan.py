@@ -105,22 +105,6 @@ PLAN_JSON_SCHEMA: dict[str, Any] = {
 }
 
 
-def plan_schema(style: str = "lean") -> dict[str, Any]:
-    """The schema the model must follow. "full" = every field forced (original). "lean" = the same checklist for the fields that
-    carry decisions (scope, match, all_photos, date, filters) but without the empty ones (message, folder_name, exclude:false,
-    date start/end): ~20% fewer tokens to write, which matters at ~19 tokens/s. Measure both with `aperture eval-plans`."""
-    if style == "full":
-        return PLAN_JSON_SCHEMA
-    import copy
-
-    lean = copy.deepcopy(PLAN_JSON_SCHEMA)
-    lean["required"] = ["intent", "scope", "match", "all_photos", "clauses", "date", "filters"]
-    lean["properties"]["clauses"]["items"]["required"] = ["engines", "query"]
-    lean["properties"]["date"]["required"] = ["year", "month", "season", "relative"]
-    lean["properties"]["filters"] = {"type": "object", "properties": _FILTER_PROPS}
-    return lean
-
-
 # --------------------------------------------------------------------------
 # Lenient coercion: never raises, never KeyErrors.
 # --------------------------------------------------------------------------
@@ -188,42 +172,4 @@ def _filters(raw: Any) -> Filters:
         near=_text(raw.get("near"), 80),
         radius_km=radius if 0 < radius <= 20000 else 0,
         color=_choice(raw.get("color"), COLORS, "none"),
-    )
-
-
-def plan_from_raw(raw: Any) -> tuple[Plan, list[str]]:
-    """Coerce whatever JSON the model produced into a valid :class:`Plan`."""
-    warnings: list[str] = []
-    if not isinstance(raw, dict):
-        return Plan(intent="clarify"), ["The model did not return a JSON object."]
-    clauses: list[Clause] = []
-    items = raw.get("clauses")
-    for entry in (items if isinstance(items, list) else [])[:MAX_CLAUSES]:
-        if not isinstance(entry, dict):
-            warnings.append("Ignored a malformed clause.")
-            continue
-        query = _text(entry.get("query"))
-        engines_raw = entry.get("engines")
-        engines = tuple(
-            dict.fromkeys(
-                e for e in (_choice(x, ENGINES, "") for x in (engines_raw if isinstance(engines_raw, list) else [])) if e
-            )
-        )
-        if not query or not engines:
-            warnings.append(f"Ignored an incomplete clause ({query or 'empty query'}).")
-            continue
-        clauses.append(Clause(engines=engines, query=query, exclude=entry.get("exclude") is True))
-    return (
-        Plan(
-            intent=_choice(raw.get("intent"), INTENTS, "clarify"),
-            clauses=tuple(clauses),
-            match=_choice(raw.get("match"), ("all", "any"), "all"),
-            date=_date_spec(raw.get("date")),
-            filters=_filters(raw.get("filters")),
-            scope=_choice(raw.get("scope"), ("library", "previous"), "library"),
-            all_photos=raw.get("all_photos") is True,
-            folder_name=_text(raw.get("folder_name"), 300),
-            message=_text(raw.get("message"), 600),
-        ),
-        warnings,
     )

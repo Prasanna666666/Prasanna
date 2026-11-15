@@ -42,14 +42,6 @@ class ProgressReporter:
             os.replace(tmp, self._file)
 
 
-def read_progress(paths: Paths) -> dict[str, Any] | None:
-    try:
-        data = json.loads(paths.progress_file.read_text())
-    except (OSError, ValueError):
-        return None
-    return data if isinstance(data, dict) else None
-
-
 def _is_aperture(pid: int) -> bool:
     import subprocess
 

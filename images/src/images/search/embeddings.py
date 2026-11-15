@@ -58,15 +58,3 @@ class EmbeddingIndex:
         if pos < len(self) and self.ids[pos] == item_id:
             return self.vectors[pos].astype(np.float32)
         return None
-
-    def most_similar(self, item_id: int, k: int = 12) -> tuple[np.ndarray, np.ndarray]:
-        """Nearest neighbours of one photo (excluding itself)."""
-        vec = self.vector_of(item_id)
-        if vec is None or len(self) < 2:
-            return np.zeros(0, np.int64), np.zeros(0, np.float32)
-        scores = self.similarity(vec)
-        scores[self.ids == item_id] = -1.0
-        k = min(k, len(self) - 1)
-        top = np.argpartition(-scores, k - 1)[:k]
-        top = top[np.argsort(-scores[top])]
-        return self.ids[top], scores[top]

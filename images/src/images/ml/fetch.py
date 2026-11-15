@@ -130,11 +130,3 @@ def fetch_geo(paths: Paths, log: Log = print) -> None:
         shutil.copyfileobj(src, dst)
     archive.unlink(missing_ok=True)
     _download(COUNTRIES_URL, countries)
-
-
-def fetch_all(paths: Paths, settings: Settings, log: Log = print) -> None:
-    paths.ensure()
-    fetch_face_models(paths, log)
-    fetch_age_model(paths, log)
-    fetch_clip(paths, settings, log)
-    fetch_geo(paths, log)

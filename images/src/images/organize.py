@@ -31,12 +31,6 @@ from images.indexing.progress import ScanLock
 from images.models import Item
 from images.safety import SafetyError, is_inside
 
-KEEP_RULES = {
-    "oldest": "Keep the oldest photo",
-    "newest": "Keep the newest photo",
-    "largest": "Keep the largest file",
-    "shortest_path": "Keep the one with the shortest path",
-}
 Progress = Callable[[int, int], None]
 
 
@@ -155,10 +149,6 @@ def resolve_move_dir(paths: Paths, settings: Settings, candidate: str | Path) ->
     if is_inside(target, paths.root.resolve()):
         raise SafetyError("That folder is Aperture's own data folder.")
     return target
-
-
-def default_move_dir(settings: Settings) -> str:
-    return settings.move_dir or str(Path(settings.photo_dir) / "Aperture - moved duplicates")
 
 
 def _free_name(taken: set[str], target: Path) -> Path:

@@ -349,7 +349,6 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "",
 
 
 MAIL_SKIP_MAILBOXES = frozenset({"junk", "junk e-mail", "spam", "trash", "deleted messages", "deleted items", "drafts"})
-MAIL_SAVE_EVERY = 200  # the list of messages already read is saved this often, so an interrupted first read carries on where it stopped
 
 
 def _in_skipped_mailbox(relative: Path) -> bool:

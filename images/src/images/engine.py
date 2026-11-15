@@ -40,10 +40,6 @@ class Engine:
         self._geo: GeoIndex | None = None
         self._geo_tried = False
 
-    def reload_settings(self) -> Settings:
-        self.settings = Settings.load(self.paths)
-        return self.settings
-
     def build_embedder(self) -> ImageEmbedder:
         from images.ml.clip import OpenClipEmbedder
 
@@ -64,14 +60,6 @@ class Engine:
                 except ServiceUnavailableError as exc:
                     self.embedder_error = str(exc)
             return self._embedder
-
-    def ready_embedder(self) -> ImageEmbedder | None:
-        """The picture-search model for a question: only if it is already loaded. Loading it takes 20 to 60 s (torch and the weights come from the
-        external drive), so a question never waits for it: it answers from everything else and the model finishes loading in the background."""
-        if self._embedder is None and not self.embedder_error and not getattr(self, "_loading", False):
-            self._loading = True
-            threading.Thread(target=self.search_embedder, name="load-search-model", daemon=True).start()
-        return self._embedder
 
     def memo(self, key: str, ttl: float, fn):
         """Remember a slow, request-independent lookup (a table scan on the external drive) for `ttl` seconds."""
@@ -154,17 +142,6 @@ class Engine:
             if conn is not None:
                 return conn
         return self.db.connect()
-
-    def _build_replica(self) -> None:
-        from images.search.replica import Replica
-
-        replica = Replica(self.paths.db)
-        try:
-            if replica.build():
-                self._replica = replica
-                replica.keep_fresh()
-        finally:
-            self._replica_tried = True
 
     def ready_geo(self) -> GeoIndex | None:
         """The place list for a question: only if already loaded (loading it took 25 s from the drive). It loads at start-up, never during a question."""

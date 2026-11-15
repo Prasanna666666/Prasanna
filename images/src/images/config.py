@@ -294,22 +294,3 @@ def _overlay(target: Any, raw: dict[str, Any]) -> None:
                 setattr(target, f.name, value)
         elif isinstance(current, str) and isinstance(value, str):
             setattr(target, f.name, value)
-
-
-def configure_environment(paths: Paths, *, online: bool = False) -> None:
-    """Keep every cache and temp file on the external drive and force the ML
-    libraries into offline mode.  Call this *before* importing torch/open_clip."""
-    env = os.environ
-    env.setdefault("HF_HOME", str(paths.models / "hf"))
-    env.setdefault("TORCH_HOME", str(paths.models / "torch"))
-    env.setdefault("MPLCONFIGDIR", str(paths.cache / "mpl"))
-    env.setdefault("TMPDIR", str(paths.tmp))
-    env.setdefault("PYTHONPYCACHEPREFIX", str(paths.cache / "pycache"))
-    env.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
-    env.setdefault("TOKENIZERS_PARALLELISM", "false")
-    env.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
-    env.setdefault("DO_NOT_TRACK", "1")
-    env.setdefault("ANONYMIZED_TELEMETRY", "False")
-    if not online:
-        for key in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_DATASETS_OFFLINE"):
-            env[key] = "1"

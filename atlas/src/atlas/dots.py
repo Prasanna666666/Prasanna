@@ -24,10 +24,6 @@ def tokens(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]{4,}", (text or "").casefold()))
 
 
-def _same_amount(a: Any, b: Any) -> bool:
-    return isinstance(a, int | float) and isinstance(b, int | float) and abs(float(a) - float(b)) < CENT
-
-
 def _names(a: dict[str, Any], b: dict[str, Any]) -> bool:
     """Do two items name the same party?"""
     return bool(tokens(a.get("party", "")) & tokens(b.get("party", "") or b.get("text", "")))

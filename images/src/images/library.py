@@ -53,19 +53,6 @@ def item_ids(
     return np.fromiter((r[0] for r in rows), np.int64)
 
 
-def years_available(conn: sqlite3.Connection) -> list[int]:
-    rows = conn.execute(
-        "SELECT DISTINCT CAST(substr(taken_at,1,4) AS INTEGER) AS y FROM items "
-        "WHERE missing=0 AND taken_at IS NOT NULL ORDER BY y DESC"
-    )
-    return [r["y"] for r in rows if r["y"]]
-
-
-def item_text(conn: sqlite3.Connection, item_id: int, limit: int = 4000) -> str:
-    row = conn.execute("SELECT substr(text, 1, ?) FROM fts WHERE rowid=?", (limit, item_id)).fetchone()
-    return row[0] if row else ""
-
-
 @dataclass(frozen=True)
 class Coverage:
     total: int

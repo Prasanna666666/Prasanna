@@ -32,16 +32,6 @@ class FileMeta:
     details: dict[str, Any] = field(default_factory=dict)
 
 
-def register_heif() -> None:
-    """Teach Pillow to open HEIC/HEIF (iPhone photos) when pillow-heif is installed."""
-    try:
-        from pillow_heif import register_heif_opener
-
-        register_heif_opener()
-    except ImportError:
-        pass
-
-
 # --------------------------------------------------------------------------
 # EXIF
 # --------------------------------------------------------------------------

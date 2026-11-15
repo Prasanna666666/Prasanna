@@ -48,17 +48,3 @@ def search_text_ids(conn: sqlite3.Connection, query: str, *, phrase: bool = Fals
     order = "ORDER BY bm25(fts)" if long_terms else "ORDER BY fts.rowid"
     sql = f"SELECT fts.rowid FROM fts JOIN items i ON i.id=fts.rowid WHERE {' AND '.join(where)} {order}"
     return np.fromiter((r[0] for r in conn.execute(sql, params)), np.int64)
-
-
-def make_snippet(text: str, terms: list[str], width: int = SNIPPET_WIDTH) -> str:
-    """Excerpt around the first hit with matches wrapped in ``\\x02 ... \\x03``."""
-    flat = re.sub(r"\s+", " ", text)
-    lowered = flat.lower()
-    hits = [lowered.find(t.lower()) for t in terms if t and t.lower() in lowered]
-    start = max(0, (min(hits) if hits else 0) - width)
-    stop = start + 2 * width + 40
-    fragment = flat[start:stop]
-    for term in sorted(set(terms), key=len, reverse=True):
-        if term:
-            fragment = re.sub(re.escape(term), lambda m: f"\x02{m.group(0)}\x03", fragment, flags=re.IGNORECASE)
-    return ("... " if start else "") + fragment + (" ..." if stop < len(flat) else "")

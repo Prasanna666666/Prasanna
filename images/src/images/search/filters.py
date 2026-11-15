@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import sqlite3
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -209,6 +209,3 @@ def apply_filters(conn: sqlite3.Connection, f: Filters, geo: GeoIndex | None) ->
     if f.near:
         ids = _restrict_near(conn, f, geo, ids, c.notes)
     return ids, c.notes
-
-
-FILTER_FIELDS = tuple(x.name for x in fields(Filters))

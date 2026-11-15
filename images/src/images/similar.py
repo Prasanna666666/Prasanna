@@ -17,12 +17,6 @@ import numpy as np
 
 from .search.embeddings import EmbeddingIndex
 
-# preset -> (cosine threshold, window in minutes)
-PRESETS: dict[str, tuple[float, float]] = {
-    "Nearly identical": (0.96, 10.0),
-    "Same scene": (0.92, 30.0),
-    "Loosely similar": (0.88, 60.0),
-}
 NEIGHBOURS = 40
 
 
