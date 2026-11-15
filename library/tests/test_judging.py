@@ -40,3 +40,9 @@ def test_a_parser_round_says_when_it_is_busy_and_wakes_on_request(tmp_path):
     inbox.mkdir()
     assert parser.main(["--inbox", str(inbox), "--out", str(out), "--once"]) == 0
     assert not (out / parser.BUSY).exists()  # idle again once the round is over
+
+
+def test_the_panel_says_how_long_one_file_takes_and_how_long_all_will_take():
+    assert store._speed_line(1184, 0, 0) == "Identifying files: 1,184 waiting"
+    assert store._speed_line(1184, 140, 10) == "Identifying files: 1,184 waiting, 14 s per file, about 4 h 36 min left"
+    assert store._duration(45) == "45 s" and store._duration(600) == "10 min"

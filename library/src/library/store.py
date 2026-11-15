@@ -293,13 +293,27 @@ def _understand(client, model: str, d) -> dict:
     return facts
 
 
+def _duration(seconds: float) -> str:
+    hours, rest = divmod(int(seconds), 3600)
+    return f"{hours} h {rest // 60} min" if hours else f"{rest // 60} min" if rest >= 60 else f"{rest} s"
+
+
+def _speed_line(waiting: int, elapsed: float, calls: int) -> str:
+    """What the person sees while the model identifies files: how many are waiting, how long one takes, and how long all of them will take at that speed."""
+    if calls < 2:
+        return f"Identifying files: {waiting:,} waiting"
+    each = elapsed / calls
+    return f"Identifying files: {waiting:,} waiting, {each:.0f} s per file, about {_duration(waiting * each)} left"
+
+
 def judge_pending(conn, client, model, progress: Progress | None = None, control: Callable[[], str] | None = None, limit: int = 0) -> dict[str, Any]:
     """Judge every document not yet judged (or `limit` of them: the caller comes back for more, so new files keep being taken in meanwhile). Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
     forget_mail_bodies(conn)
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "unclear": 0, "problem": "", "stopped": False}
-    index = 0
+    index = calls = 0
+    began = time.monotonic()
     for chunk in _pending_chunks(conn):
         for d in chunk:
             if limit and out["read"] + out["skipped"] >= limit:
@@ -331,8 +345,9 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                     out["waiting"] += 1
                     out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
                     continue
-                if progress and index % 5 == 1:
-                    progress(f"{index} read so far")  # the total is not known: more files may still be arriving
+                if progress:
+                    progress(_speed_line(total - index + 1, time.monotonic() - began, calls))
+                calls += 1
                 try:
                     facts = _understand(client, model, d)
                 except extract.Unclear:  # the model answered but could not make sense of it: not 'other', not lost: counted and tried again at the next Read
