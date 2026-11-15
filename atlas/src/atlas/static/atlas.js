@@ -736,11 +736,13 @@
     };
     // only the rows whose content changed are replaced: the buttons stay under the cursor and the scroll position stays (a full rebuild each second broke both)
     const syncAttributes = (old, node) => {
+        // the style goes through the style object: the page's security policy refuses a style written as an attribute, so the bar would keep the width it was first drawn with
+        if (old.style.cssText !== node.style.cssText) old.style.cssText = node.style.cssText;
         for (const { name, value } of [...node.attributes]) {
-            if (old.getAttribute(name) !== value) old.setAttribute(name, value); // the bar's width slides instead of jumping; a button's action follows its label
+            if (name !== 'style' && old.getAttribute(name) !== value) old.setAttribute(name, value); // a button's action follows its label
         }
         for (const { name } of [...old.attributes]) {
-            if (!node.hasAttribute(name) && name !== 'disabled') old.removeAttribute(name);
+            if (!node.hasAttribute(name) && name !== 'disabled' && name !== 'style') old.removeAttribute(name);
         }
     };
     const patchNode = (old, node) => {
@@ -783,17 +785,18 @@
         const steps = info.steps || [];
         const now = currentStep(steps);
         if (!now) return null;
-        box.append(el('b', 'rd-doing', `Step ${now.n} of ${steps.length} · ${now.doing || now.name}`));
+        // steps overlap: the reader carries on with the last files while the model is already sorting the ones it has read, so both are named
+        const earlier = steps.find((s) => s.state === 'running' && s.n < now.n);
+        const where = earlier
+            ? `Steps ${earlier.n} and ${now.n} of ${steps.length} · ${earlier.doing || earlier.name} and ${(now.doing || now.name).toLowerCase()}`
+            : `Step ${now.n} of ${steps.length} · ${now.doing || now.name}`;
+        box.append(el('b', 'rd-doing', where));
         const bar = el('div', 'rd-big');
         bar.append(meter(now.percent), el('span', 'rd-bigpct', pctText(now.percent)));
         box.append(bar);
         if (!info.file && now.note) box.append(el('span', 'rd-nowline', now.note));
-        // steps overlap: the reader carries on with the last files while the model is already sorting the ones it has read
-        const earlier = steps.find((s) => s.state === 'running' && s.n < now.n);
-        if (earlier) {
-            box.append(
-                el('span', 'rd-sub', `${earlier.doing || earlier.name} carries on at the same time: ${earlier.note}`)
-            );
+        if (earlier && earlier.note) {
+            box.append(el('span', 'rd-sub', `${earlier.name}: ${earlier.note}`));
         }
         if (info.progress) box.append(el('span', 'rd-sub', info.progress));
         return box;
