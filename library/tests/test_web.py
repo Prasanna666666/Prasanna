@@ -334,7 +334,8 @@ def test_the_file_being_read_shows_exact_progress_for_parts_and_only_an_estimate
     running = {"running": True, "run": "r1", "now_since": now - 10}
     medical = web._file_now({**running, "now": ("report.pdf", "reading part", "report.pdf: reading part 3 of 9")}, conn)
     assert medical["percent"] == 22.2 and medical["estimated"] is False  # two of nine parts are done
-    assert web._file_now({**running, "now": ("a.pdf", "sorting", "31 characters")}, conn)["percent"] is None  # nothing to go by yet: no number
+    first = web._file_now({**running, "now": ("a.pdf", "sorting", "31 characters")}, conn)
+    assert first["estimated"] is True and first["percent"] == 66.7  # no file has finished yet: 10 s of a first guess of 15 s, marked as an estimate
     conn.execute("INSERT INTO trace (run, at, name, step, detail, seconds) VALUES ('r1','12:00:00','x.pdf','sorted','invoice',20)")
     guess = web._file_now({**running, "now": ("a.pdf", "sorting", "31 characters")}, conn)
     assert guess["estimated"] is True and guess["percent"] == 50.0  # 10 s of the usual 20 s

@@ -592,7 +592,8 @@
         row.append(el('i', 'rd-mark'), text, side);
         return row;
     };
-    const filesBlock = (info) => {
+    // the files: the last ones done, the one being read with its own bar rising as it goes, and the next ones
+    const filesBlock = (info, doneCount = 5, waitCount = 5) => {
         const now = info.file
             ? [
                   fileRow(
@@ -604,14 +605,15 @@
                   ),
               ]
             : [];
-        const rows = [
-            ...(info.recent || []).map((f) => fileRow('done', f.name, f.detail, 100)).reverse(),
-            ...now,
-            ...(info.waiting || []).map((name) => fileRow('wait', name, 'waiting', 0)),
-        ];
+        const done = (info.recent || [])
+            .slice(0, doneCount)
+            .map((f) => fileRow('done', f.name, f.detail, 100))
+            .reverse();
+        const wait = (info.waiting || []).slice(0, waitCount).map((name) => fileRow('wait', name, 'waiting', 0));
+        const rows = [...done, ...now, ...wait];
         if (!rows.length) return null;
         const box = el('div', 'rd-files');
-        box.append(el('div', 'rd-label', 'Files'), ...rows);
+        box.append(...rows);
         return box;
     };
     // the steps of a read: how many there are, which is running, and how far each has got
@@ -785,8 +787,7 @@
         const bar = el('div', 'rd-big');
         bar.append(meter(now.percent), el('span', 'rd-bigpct', pctText(now.percent)));
         box.append(bar);
-        const line = info.file ? `${info.file.name} · ${info.file.step}` : now.note || '';
-        if (line) box.append(el('span', 'rd-nowline', line));
+        if (!info.file && now.note) box.append(el('span', 'rd-nowline', now.note));
         // steps overlap: the reader carries on with the last files while the model is already sorting the ones it has read
         const earlier = steps.find((s) => s.state === 'running' && s.n < now.n);
         if (earlier) {
@@ -805,7 +806,7 @@
     };
     const detailBlocks = (report, info) => {
         const parts = state.modules.flatMap((m) => (report.modules[m.id] || {}).parts || []);
-        return [stepsBlock(info.steps), filesBlock(info), totalsBlock(parts)];
+        return [stepsBlock(info.steps), totalsBlock(parts)];
     };
     const problemBlocks = (report) =>
         state.modules.flatMap((m) => (report.modules[m.id] || {}).problems || []).map((p) => noteBlock(p, true));
@@ -832,7 +833,7 @@
         } else {
             blocks.push(headlineBlock(info, running));
             if (running) {
-                blocks.push(moreButton());
+                blocks.push(filesBlock(info, 2, 3), moreButton());
                 if (scan.open) blocks.push(...detailBlocks(report, info));
             }
             blocks.push(...problemBlocks(report));
@@ -851,7 +852,7 @@
             return;
         }
         showScan(report);
-        if (report.running) scan.timer = setTimeout(followScan, 2000);
+        if (report.running) scan.timer = setTimeout(followScan, 1000);
         else refreshHealth().then(() => parse().module && render()); // the read is finished: a page of an app is drawn again; the overview redraws itself only if its data changed
     };
     const startScan = async () => {
@@ -859,7 +860,7 @@
             const reply = await fetch('/_atlas/api/scan', { method: 'POST', headers: { 'X-Atlas': '1' } });
             if (!reply.ok) return;
             showScan(await reply.json());
-            scan.timer = setTimeout(followScan, 2000);
+            scan.timer = setTimeout(followScan, 1000);
         } catch (_) {
             /* the page keeps working; the button can be pressed again */
         }

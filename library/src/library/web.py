@@ -417,6 +417,7 @@ _FILE_OF = "area || '|' || substr(name, 1, instr(name || '/', '/') - 1)"
 
 
 _CACHE: dict[str, tuple[float, Any]] = {}
+FIRST_GUESS_SECONDS = 15.0  # how long a file is guessed to take (marked with ~) until one has finished in this read
 STATUS_TTL = 3.0  # the page asks every second or so while an Update runs; counting a big library more often than this is wasted work
 
 
@@ -678,7 +679,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
     """The file being worked on: its step, the seconds so far and how far along it is. A medical document read in parts is exact (part 3 of 9 is 33%); a file that takes
-    one model call has no exact progress, so its bar is an estimate from how long files have taken in this read (`estimated`), and none at all before there is one to go by."""
+    one model call has no exact progress, so its bar is an estimate from how long files have taken in this read (`estimated`, from a first guess until one has finished)."""
     if not (s["running"] and s.get("now")):
         return None
     name, step, detail = s["now"]
@@ -688,9 +689,8 @@ def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
     if step == "reading part" and part:
         percent = round((int(part[1]) - 1) * 100 / int(part[2]), 1)
     elif step == "sorting":
-        average = trace.average_seconds(conn, s.get("run", ""))
-        if average:
-            percent, estimated = round(min(95.0, seconds * 100 / average), 1), True
+        average = trace.average_seconds(conn, s.get("run", "")) or FIRST_GUESS_SECONDS  # until one file has finished there is nothing to measure from
+        percent, estimated = round(min(95.0, seconds * 100 / average), 1), True
     return {"name": name, "step": f"{step}: {detail}" if detail else step, "percent": percent, "estimated": estimated, "seconds": seconds}
 
 

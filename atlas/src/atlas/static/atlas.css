@@ -981,14 +981,7 @@ body.chatting .fab {
     width: 100%;
     opacity: 0.18;
 }
-.rd-label {
-    margin-bottom: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--faint);
-}
+
 .rd-files {
     display: flex;
     flex-direction: column;
