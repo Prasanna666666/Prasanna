@@ -136,7 +136,12 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
     asked = time.monotonic()
     round_new = 0  # files that came in since the reader was last asked
     while True:
-        got = store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop") if parsed_dir().is_dir() else {"new": 0}
+        got = (
+            store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop", lambda name: state.scan.setdefault("taken", []).append(name))
+            if parsed_dir().is_dir()
+            else {"new": 0}
+        )
+        del state.scan.get("taken", [])[:-3]  # the last few files taken in are all the card shows
         totals["new"] += got["new"]
         totals["replaced"] += got.get("replaced", 0)
         round_new += got["new"]
@@ -203,6 +208,7 @@ def _read_all(state: State) -> None:
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
+        (parsed_dir() / ".now").unlink(missing_ok=True)
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
         problem = _take_in_all(state, conn, totals)  # step 1, completely
@@ -650,10 +656,25 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     return steps
 
 
+def _reading_now(s: dict[str, Any]) -> dict[str, Any] | None:
+    """Step 1: the file the reader says it is on (it writes the name as it starts each one), and how long it has been on it."""
+    try:
+        name = (parsed_dir() / ".now").read_text()[:200]
+    except OSError:
+        return None
+    if not name:
+        return None
+    if s.get("reading_name") != name:
+        s["reading_name"], s["reading_since"] = name, time.monotonic()
+    return {"name": name, "step": "reading the text", "percent": None, "estimated": False, "seconds": int(time.monotonic() - s["reading_since"])}
+
+
 def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
     """The file being worked on: what is being done to it, the seconds so far and how far along it is. A medical document read in parts is exact for the parts finished
     (part 3 of 9 means two are done) and, inside the part being read, an estimate from how long a model call usually takes (`estimated`), so the bar keeps moving while the
     seconds do. A file that takes one model call is that estimate alone. Until one call has finished in this read the usual time is a first guess."""
+    if s["running"] and s.get("phase") == 1:
+        return _reading_now(s)
     if not (s["running"] and s.get("now")):
         return None
     name, step, detail = s["now"]
@@ -694,7 +715,9 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "running": s["running"],
         "progress": s["progress"],
         "file": _file_now(s, conn),
-        "recent": counted["recent"],
+        "recent": [{"name": n, "state": "done", "detail": "text read"} for n in reversed(s.get("taken", []))]
+        if s["running"] and s.get("phase") == 1
+        else counted["recent"],
         "waiting": counted["waiting"],
         "steps": counted["steps"],
         "summary": s["summary"],

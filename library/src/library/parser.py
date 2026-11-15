@@ -251,6 +251,8 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
                     inner.write_bytes(content)
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
             return
+        with contextlib.suppress(OSError):
+            (out / ".now").write_text(label[:200])  # what the Documents service shows as the file being read
         res = extract_isolated(f) if isolated else extract(f)
         _write(out, digest, label, f.stat().st_size, res, area, source if depth == 0 else "")
         counts["parsed"] += 1
@@ -464,6 +466,7 @@ def main(argv: list[str] | None = None) -> int:
             res = read_everything(a)
         finally:
             (out / BUSY).unlink(missing_ok=True)
+            (out / ".now").unlink(missing_ok=True)
         (out / FAILED_FILE).write_text(json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read this round, for the report
         _FAILED.clear()
         if res["parsed"] or res["failed"]:

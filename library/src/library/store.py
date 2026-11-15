@@ -208,7 +208,7 @@ def _replace_older_versions(conn, directory: Path, source: str, sha: str) -> int
     return len(old)
 
 
-def ingest_dir(conn, directory: Path, stop=None) -> dict[str, int]:
+def ingest_dir(conn, directory: Path, stop=None, on_new: Callable[[str], None] | None = None) -> dict[str, int]:
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
     new = known = rejected = replaced = 0
     stored: list[Path] = []
@@ -234,6 +234,8 @@ def ingest_dir(conn, directory: Path, stop=None) -> dict[str, int]:
             replaced += _replace_older_versions(conn, directory, source, d["sha256"])
         new += cur.rowcount
         known += 1 - cur.rowcount
+        if cur.rowcount and on_new is not None:
+            on_new(d["name"])
         stored.append(f)
     conn.commit()
     if os.access(directory, os.W_OK):
