@@ -43,8 +43,9 @@ def test_a_parser_round_says_when_it_is_busy_and_wakes_on_request(tmp_path):
 
 
 def test_the_panel_says_how_long_one_file_takes_and_how_long_all_will_take():
-    assert store._speed_line(1184, 0, 0) == "Sorting files: 1,184 to do"
-    assert store._speed_line(1184, 140, 10) == "Sorting files: 1,184 to do, 14 s per file, about 4 h 36 min left"
+    assert store._speed_line(1184, 0, 0) == "Sorting files"
+    assert store._speed_line(1184, 140, 10) == "Sorting files: 14 s per file, about 4 h 36 min left"
+    assert store._speed_line(1000, 140, 10, skipped=30) == "Sorting files: 14 s per file, about 58 min left"  # only a quarter of the files go to the model
     assert store._duration(45) == "45 s" and store._duration(600) == "10 min"
 
 

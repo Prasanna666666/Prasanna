@@ -371,12 +371,14 @@ def _duration(seconds: float) -> str:
     return f"{hours} h {rest // 60} min" if hours else f"{rest // 60} min" if rest >= 60 else f"{rest} s"
 
 
-def _speed_line(waiting: int, elapsed: float, calls: int) -> str:
-    """What the person sees while the model identifies files: how many are waiting, how long one takes, and how long all of them will take at that speed."""
+def _speed_line(waiting: int, elapsed: float, calls: int, skipped: int = 0) -> str:
+    """What the person sees while the model sorts files: how long one takes and how long what is left will take. Not every file waiting goes to the model (many are skipped in an
+    instant), so the time counts only the share of waiting files that went to the model so far in this round (`calls` of `calls + skipped`)."""
     if calls < 2:
-        return f"Sorting files: {waiting:,} to do"
+        return "Sorting files"
     each = elapsed / calls
-    return f"Sorting files: {waiting:,} to do, {each:.0f} s per file, about {_duration(waiting * each)} left"
+    model_left = waiting * calls / (calls + skipped)
+    return f"Sorting files: {each:.0f} s per file, about {_duration(model_left * each)} left"
 
 
 SKIPPED_NO_TEXT = "no readable text"
@@ -488,7 +490,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                     out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
                     continue
                 if progress:
-                    progress(_speed_line(total - index + 1, time.monotonic() - began, calls))
+                    progress(_speed_line(total - index + 1, time.monotonic() - began, calls, out["skipped"]))
                 calls += 1
                 ahead.prefetch(chunk, position)
                 result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)

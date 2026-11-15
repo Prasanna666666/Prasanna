@@ -630,12 +630,18 @@
         }
         return box;
     };
+    // a step says only what is needed: not started, just its name; finished, its name and one count; running, everything about it
     const stepCard = (s, now) => {
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
         const head = el('div', 'rd-stepname');
         head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
-        card.append(head, el('span', 'rd-about', s.about || ''), el('span', 'rd-note-line', s.note || ''));
-        if (s.state === 'waiting' && !s.percent) return card; // not started: only what it is waiting for, no empty bars
+        card.append(head);
+        if (s.state === 'waiting' && !s.percent) return card;
+        if (s.state === 'done') {
+            if (s.detail) card.append(el('span', 'rd-detail', s.detail));
+            return card;
+        }
+        card.append(el('span', 'rd-about', s.about || ''), el('span', 'rd-note-line', s.note || ''));
         card.append(meter(s.percent), el('span', 'rd-pct', pctText(s.percent)));
         if (s.detail) card.append(el('span', 'rd-detail', s.detail));
         const parts = (s.parts || []).filter((p) => p.percent != null);
@@ -781,6 +787,13 @@
         box.append(bar);
         const line = info.file ? `${info.file.name} · ${info.file.step}` : now.note || '';
         if (line) box.append(el('span', 'rd-nowline', line));
+        // steps overlap: the reader carries on with the last files while the model is already sorting the ones it has read
+        const earlier = steps.find((s) => s.state === 'running' && s.n < now.n);
+        if (earlier) {
+            box.append(
+                el('span', 'rd-sub', `${earlier.doing || earlier.name} carries on at the same time: ${earlier.note}`)
+            );
+        }
         if (info.progress) box.append(el('span', 'rd-sub', info.progress));
         return box;
     };

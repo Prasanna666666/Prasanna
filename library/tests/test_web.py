@@ -367,7 +367,7 @@ def test_each_step_says_in_one_sentence_what_it_is_on_or_waiting_for(conn):
     conn.commit()
     steps = web._steps(conn, {"phase": 2})
     assert steps[1]["note"] == "Now on Finance: 2 files left"  # Finance is served first
-    assert steps[2]["note"] == "Starts for Finance when its last 2 files are sorted"  # why step 3 has not started
+    assert steps[2]["note"] == ""  # a step that has not started says nothing
     assert web._steps(conn, {"phase": 3, "app": "Finance"})[2]["note"] == "Working on Finance"
 
 

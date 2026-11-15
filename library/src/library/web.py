@@ -602,14 +602,9 @@ def _identify_note(conn, states: dict[str, int]) -> str:
     return f"Now on {_app_name(area)}: {n:,} files left" if n else f"{states['waiting']:,} files to do"
 
 
-def _understand_note(conn, s: dict[str, Any], all_in: bool) -> str:
-    """One plain sentence for step 3: what it is doing, or what it is waiting for. It starts for an app only when every file of that app is identified."""
-    if s.get("phase") in (3, 4):
-        return f"Working on {s.get('app') or 'an app'}"
-    if all_in:
-        return "Done"
-    area, n = _first_app_open(conn)
-    return f"Starts for {_app_name(area)} when its last {n:,} files are sorted" if n else "Nothing to group yet"
+def _understand_note(s: dict[str, Any]) -> str:
+    """One plain sentence for step 3 while it runs: which app it is on. Before it starts there is nothing to say."""
+    return f"Working on {s.get('app') or 'an app'}" if s.get("phase") in (3, 4) else ""
 
 
 def _mean(values: list[float | None]) -> float | None:
@@ -675,7 +670,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "app": s.get("app") or "",
             "parts": together,
             "detail": "",
-            "note": _understand_note(conn, s, all_in),
+            "note": _understand_note(s),
             "percent": _mean([p["percent"] for p in together]),
         },
     ]
