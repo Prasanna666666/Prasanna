@@ -46,3 +46,32 @@ def test_the_panel_says_how_long_one_file_takes_and_how_long_all_will_take():
     assert store._speed_line(1184, 0, 0) == "Identifying files: 1,184 waiting"
     assert store._speed_line(1184, 140, 10) == "Identifying files: 1,184 waiting, 14 s per file, about 4 h 36 min left"
     assert store._duration(45) == "45 s" and store._duration(600) == "10 min"
+
+
+def test_each_file_the_model_finishes_is_saved_at_once_so_the_counts_move(tmp_path, monkeypatch):
+    import json
+    import sqlite3
+
+    from kit import db
+
+    path = tmp_path / "library.db"
+    conn = db.connect(path)
+    db.migrate(conn, [store.MODULE])
+    for i in range(3):
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES (?,?,?,?,?,0)",
+            (f"{i:064x}", f"f{i}.pdf", "pdf", "Invoice from Ziggo " * 20, "finance"),
+        )
+    conn.commit()
+    seen = []
+
+    class Model:
+        def chat(self, model, messages, **kw):
+            other = sqlite3.connect(path)  # what a status question sees while the model is working on the next file
+            seen.append(other.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0])
+            other.close()
+            return {"content": json.dumps({"kind": "invoice", "title": "t", "what": "w", "party": "Ziggo", "total": "1,00", "currency": "EUR"})}
+
+    monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
+    store.judge_pending(conn, Model(), "fake")
+    assert seen == [0, 1, 2]

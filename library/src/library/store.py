@@ -352,6 +352,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                     facts = _understand(client, model, d)
                 except extract.Unclear:  # the model answered but could not make sense of it: not 'other', not lost: counted and tried again at the next Read
                     conn.execute("UPDATE documents SET judged=3 WHERE sha256=?", (d["sha256"],))
+                    conn.commit()
                     out["unclear"] += 1
                     continue
                 except RuntimeError as exc:  # the model could not be reached: nothing is marked as done
@@ -360,6 +361,7 @@ def judge_pending(conn, client, model, progress: Progress | None = None, control
                     conn.commit()
                     return _with_health(conn, client, model, control, out, skip=True)
                 _mark_ready(conn, d["sha256"], 1, facts)
+                conn.commit()  # saved at once: the counts in the panel change with every file the model finishes (a file takes seconds), not every twentieth
                 time.sleep(GENTLE_SECONDS)  # a short rest after each model call: the computer stays responsive while many documents are read
             out["read"] += 1
             if index % 20 == 0:
