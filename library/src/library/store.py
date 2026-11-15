@@ -14,6 +14,7 @@ import contextlib
 import json
 import os
 import re
+import shutil
 import sqlite3
 import threading
 import time
@@ -206,6 +207,28 @@ def _replace_older_versions(conn, directory: Path, source: str, sha: str) -> int
         with contextlib.suppress(OSError):
             (directory / ".done" / digest).unlink(missing_ok=True)
     return len(old)
+
+
+def forget_mail(conn, directory: Path) -> int:
+    """Forget every mail (and what was taken out of it) that is held here, so that mail is read again, from the mailboxes now chosen only. What is forgotten is a copy the reader
+    can make again: nothing in your mail or your folders is touched. Groups that included a forgotten file are dropped, to be made again from what remains."""
+    rows = conn.execute("SELECT id, sha256 FROM documents WHERE area='mail'").fetchall()
+    gone = {r["id"] for r in rows}
+    for r in rows:
+        with contextlib.suppress(OSError):
+            (directory / ".done" / r["sha256"]).unlink(missing_ok=True)
+    conn.execute("DELETE FROM documents WHERE area='mail'")
+    for case in conn.execute("SELECT id, members FROM cases").fetchall():
+        try:
+            members = set(json.loads(case["members"]))
+        except (ValueError, TypeError):
+            members = set()
+        if members & gone:
+            conn.execute("DELETE FROM cases WHERE id=?", (case["id"],))
+    conn.commit()
+    for name in (".mailseen-2", ".seen-2", ".attached-2"):  # what the reader remembers of having read these
+        shutil.rmtree(directory / name, ignore_errors=True)
+    return len(rows)
 
 
 def ingest_dir(conn, directory: Path, stop=None, on_new: Callable[[str], None] | None = None) -> dict[str, int]:

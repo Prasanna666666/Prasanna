@@ -46,3 +46,19 @@ def test_only_the_declared_mailboxes_are_read_and_the_rest_are_skipped(monkeypat
         assert not read(skipped)
     monkeypatch.setenv("LIBRARY_MAILBOXES", "archive")
     assert read("acc/Archive.mbox/Messages/1.emlx") and not read("acc/INBOX.mbox/Messages/1.emlx")
+
+
+def test_mail_read_before_the_mailboxes_were_chosen_is_forgotten_and_nothing_else(conn, tmp_path):
+    import json
+
+    from library import store
+
+    for i, (name, area) in enumerate((("m.eml", "mail"), ("m.eml/a.pdf", "mail"), ("keep.pdf", "finance"))):
+        conn.execute("INSERT INTO documents (sha256, name, kind, text, area) VALUES (?,?,?,?,?)", (f"{i:064x}", name, "pdf", "t", area))
+    conn.execute("INSERT INTO cases (input_hash, members, summary) VALUES ('h1', ?, ''), ('h2', ?, '')", (json.dumps([1, 3]), json.dumps([3])))
+    conn.commit()
+    (tmp_path / ".done").mkdir()
+    (tmp_path / ".done" / f"{0:064x}").touch()
+    assert store.forget_mail(conn, tmp_path) == 2
+    assert [r["name"] for r in conn.execute("SELECT name FROM documents")] == ["keep.pdf"]
+    assert [r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")] == ["h2"] and not (tmp_path / ".done" / f"{0:064x}").exists()

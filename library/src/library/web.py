@@ -113,6 +113,7 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
 
 
+MAIL_SCOPE_MARK = ".mail-scope-1"  # exists once the mail read before the mailboxes were chosen has been forgotten
 READER_START_SECONDS = 90  # how long the reader may take to pick up the request before it is called not running
 
 
@@ -207,6 +208,9 @@ def _read_all(state: State) -> None:
         followed = trace.Trace(conn, lambda name, step, detail: state.scan.update(now=(name, step, detail), now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
+        if not (parsed_dir() / MAIL_SCOPE_MARK).exists():  # mail read before only Inbox and Sent were chosen is forgotten once, then read again from those
+            store.forget_mail(conn, parsed_dir())
+            (parsed_dir() / MAIL_SCOPE_MARK).touch()
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".now").unlink(missing_ok=True)
         (parsed_dir() / ".wake").touch()
@@ -710,15 +714,14 @@ def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
 
 def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
     s = state.scan
+    reading = bool(s["running"] and s.get("phase") == 1)  # step 1 shows the one file being read, nothing about files finished or still to come
     counted = _counted(state, conn, s) if s["running"] else {"recent": [], "waiting": [], "steps": []}
     return {
         "running": s["running"],
         "progress": s["progress"],
         "file": _file_now(s, conn),
-        "recent": [{"name": n, "state": "done", "detail": "text read"} for n in reversed(s.get("taken", []))]
-        if s["running"] and s.get("phase") == 1
-        else counted["recent"],
-        "waiting": counted["waiting"],
+        "recent": [] if reading else counted["recent"],
+        "waiting": [] if reading else counted["waiting"],
         "steps": counted["steps"],
         "summary": s["summary"],
         "problems": s["problems"],
