@@ -621,7 +621,10 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     steps = []
     for n, ((name, doing, text), (where, running)) in enumerate(zip(about, stages, strict=True), 1):
         counts = []
+        mails_in = count(groups[1][2], groups[1][3], "1=1") >= (found.get("mails") or 0)
         for key, label, base, how, known in groups:
+            if key == "attachments" and not mails_in:
+                continue  # its total is known only when every mail has been opened: it starts then
             present = count(base, how, "1=1")
             total = max(present, known or 0, int(promised) if key == "attachments" and n == 1 else 0)
             if total:
