@@ -775,7 +775,7 @@
         if (readerOff) {
             blocks.push(
                 noteBlock(
-                    'The part of Atlas that reads your files is not running. Double-click the Atlas app in your Applications folder to switch it back on. Nothing is lost.',
+                    'The part of Atlas that reads your files is not answering. It may still be starting (up to 30 seconds after ./up.sh) or it has stopped: run ./up.sh again, or open the Atlas app. Nothing is lost.',
                     true
                 )
             );
