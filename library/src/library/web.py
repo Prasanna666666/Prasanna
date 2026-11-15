@@ -568,6 +568,11 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         ("attachments", "documents in mails", "area='mail' AND kind<>'email'", "COUNT(*)", None),  # known only as the mails are read
     )
 
+    # every mail says how many attachments it carried: that is how many documents in mails there are to read, whether or not they have all been taken out yet
+    promised = conn.execute(
+        "SELECT COALESCE(SUM(CASE WHEN json_valid(data) THEN json_extract(data, '$.meta.attachments') ELSE 0 END), 0) FROM documents WHERE area='mail' AND kind='email'"
+    ).fetchone()[0]
+
     def count(base: str, how: str, extra: str) -> int:
         return conn.execute(f"SELECT {how} FROM documents WHERE {base} AND ({extra})").fetchone()[0]
 
@@ -586,7 +591,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         counts = []
         for key, label, base, how, known in groups:
             present = count(base, how, "1=1")
-            total = max(present, known or 0)
+            total = max(present, known or 0, int(promised) if key == "attachments" and n == 1 else 0)
             if total:
                 counts.append({"key": key, "label": label, "done": count(base, how, where), "total": total})
         done, total = sum(int(c["done"]) for c in counts), sum(int(c["total"]) for c in counts)

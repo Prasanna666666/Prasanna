@@ -369,7 +369,11 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     assert web._states(conn, "1=1") == {"identified": 1, "aside": 1, "waiting": 4, "unclear": 0}  # a file skipped is not counted as identified
     steps = web._steps(conn, {"phase": 2})
     assert [(x["n"], x["name"], x["state"]) for x in steps][1] == (2, "Sort", "running")
-    assert {c["key"]: (c["done"], c["total"]) for c in steps[1]["counts"]} == {"documents": (1, 4), "mails": (1, 1), "attachments": (0, 1)}  # each kind of file is counted on its own
+    assert {c["key"]: (c["done"], c["total"]) for c in steps[1]["counts"]} == {
+        "documents": (1, 4),
+        "mails": (1, 1),
+        "attachments": (0, 1),
+    }  # each kind of file is counted on its own
     assert len(steps) == 3 and steps[2]["state"] == "waiting"
     assert web._steps(conn, {"phase": 4})[2]["state"] == "running"
 

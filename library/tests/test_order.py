@@ -40,6 +40,10 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn):
     conn.commit()
     sort = web._steps(conn, {"phase": 2})[1]
     assert {c["key"]: (c["done"], c["total"]) for c in sort["counts"]} == {"documents": (1, 2), "mails": (1, 1), "attachments": (0, 1)}
+    conn.execute("UPDATE documents SET data=? WHERE name='m1.eml'", ('{"meta": {"attachments": 7}}',))
+    conn.commit()
+    read = web._steps(conn, {"phase": 1})[0]
+    assert {c["key"]: c["total"] for c in read["counts"]}["attachments"] == 7  # the mail says how many it carried, even before they are all taken out
     assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
 
 
