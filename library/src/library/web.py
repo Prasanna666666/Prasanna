@@ -63,9 +63,20 @@ class State:
 
     def connect(self):
         conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
-        if not _MARKED:  # files sorted before the apps were declared get their marks, once per start (never at every request)
-            _MARKED.append(store.mark_old_files(conn))
+        if not _MARKED:  # files sorted before the apps were declared get their marks, once per start, in the background: no request ever waits for it
+            _MARKED.append(0)
+            threading.Thread(target=self._mark_old_files, name="mark-old-files", daemon=True).start()
         return conn
+
+    def _mark_old_files(self) -> None:
+        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
+        try:
+            store.mark_old_files(conn)
+        except Exception as exc:  # noqa: BLE001 - logged; it is tried again at the next start
+            log.failed("marking old files failed", exc)
+            _MARKED.clear()
+        finally:
+            conn.close()
 
 
 AUTO_LIMIT = int(
