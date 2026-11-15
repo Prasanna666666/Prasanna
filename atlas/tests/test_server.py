@@ -147,7 +147,7 @@ def test_an_app_that_is_busy_is_not_reported_as_switched_off(running, monkeypatc
 
     monkeypatch.setattr(upstreams, "_authed", slow)
     busy = running.json("/_atlas/api/scan")["modules"]["photos"]
-    assert busy["up"] is True and busy["problems"] == [] and busy["progress"] == "busy, still working…"  # the last thing it said is kept
+    assert busy["up"] is True and busy["problems"] == [] and busy["progress"] == "reading"  # the last thing it said is kept
     monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (_ for _ in ()).throw(ConnectionRefusedError()))
     assert running.json("/_atlas/api/scan")["modules"]["photos"]["up"] is False  # a refused connection really is off
 
