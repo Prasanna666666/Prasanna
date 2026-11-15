@@ -263,8 +263,7 @@ h3 {
 .apptab.active,
 .apptabs button[aria-pressed='true'],
 .item.active,
-.fab,
-.launch {
+.fab {
     background: var(--accent) !important;
     background-image: none !important;
     border-color: var(--accent) !important;
@@ -308,19 +307,12 @@ h3 {
 }
 
 /* charts and bars */
-.scol i.pos {
-    background: var(--good) !important;
-}
-.scol i.neg {
-    background: var(--bad) !important;
-}
+
 .ys-bar {
     background: var(--accent) !important;
     background-image: none !important;
 }
-.tc-date {
-    display: none;
-}
+
 .tripcard.past {
     opacity: 1 !important;
 }

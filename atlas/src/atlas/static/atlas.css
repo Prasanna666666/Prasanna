@@ -645,9 +645,7 @@ body.chatting .fab {
     color: var(--muted);
     font-size: 13.5px;
 }
-.scan-text .scan-problem {
-    color: var(--warn);
-}
+
 @media (max-width: 860px) {
     .update span {
         display: none;
