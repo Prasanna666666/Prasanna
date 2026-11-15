@@ -366,13 +366,13 @@ class Upstreams:
         if self.settler.working() and not any(r["running"] for r in results):
             first = next((r for r in results if r.get("up")), None)
             if first is not None:
-                first.update(running=True, progress="Matching payments to what they pay…")
+                first.update(running=True, progress="Checking open bills and items against your bank payments…")
         reader = next((r for r in results if r.get("steps")), None)
         if reader is not None:
             reader["steps"] = [
                 *reader["steps"],
                 self._payments_step(),
-            ]  # step 5 is Atlas's own: payments are matched to the groups of files that are still open
+            ]  # step 5 is Atlas's own: the open items that have an amount are checked against Finance's bank payments
         modules = {m.id: {"name": m.name, **r} for m, r in zip(targets, results, strict=True)}
         return {"running": any(r["running"] for r in results), "modules": modules}
 
@@ -381,9 +381,9 @@ class Upstreams:
         working = self.settler.working()
         return {
             "n": 5,
-            "name": "Matching payments",
+            "name": "Checking with Finance",
             "state": "running" if working else "done" if self.settler.total or done else "waiting",
-            "detail": f"{min(done, total):,} of {total:,} open groups matched against your payments" if total else "no open group to match",
+            "detail": f"{min(done, total):,} of {total:,} open items checked against your bank payments" if total else "no open item with an amount to check",
             "percent": 100.0 if total and done >= total else round(min(done, total) * 100 / total, 1) if total else None,
         }
 
