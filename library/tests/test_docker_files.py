@@ -114,7 +114,7 @@ def test_the_atlas_app_switches_atlas_on_when_it_is_off_and_the_panel_says_so_pl
     apps = (root / "scripts" / "make-apps.sh").read_text()
     assert "start-at-login.sh" in apps and "atlas-documents-app-1" in apps and "atlas-apps-version" in apps
     page = (root / "atlas" / "src" / "atlas" / "static" / "atlas.js").read_text()
-    assert "Reading is switched off" in page and "Double-click the Atlas app" in page
+    assert "Reading is switched off" in page and "run ./up.sh again, or open the Atlas app" in page
 
 
 def test_the_dependencies_are_installed_before_the_code_and_the_list_in_the_dockerfile_matches_the_project_files():
