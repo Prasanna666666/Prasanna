@@ -32,18 +32,18 @@ def test_a_mailbox_script_gets_its_names_as_data_and_its_limits_as_numbers():
     assert '"days": null' in applemail.build_script("a", "b", None, True) and '"days": 1,' in applemail.build_script("a", "b", -5, True)
 
 
-def test_all_mail_is_copied_by_default_mailbox_by_mailbox_and_junk_trash_and_drafts_are_skipped(tmp_path):
+def test_only_the_inbox_and_sent_are_copied_mailbox_by_mailbox_and_every_other_mailbox_is_skipped(tmp_path):
     run, calls = fake_run(
-        [("Gmail", "INBOX"), ("Gmail", "Trash"), ("Gmail", "Drafts"), ("iCloud", "Bills")],
+        [("Gmail", "INBOX"), ("Gmail", "Trash"), ("Gmail", "Drafts"), ("iCloud", "Sent Messages"), ("iCloud", "Promotions")],
         {
             ("Gmail", "INBOX"): [MSG, {"account": "Gmail", "mailbox": "INBOX", "id": "8", "source": ""}],
-            ("iCloud", "Bills"): [{**MSG, "account": "iCloud", "mailbox": "Bills", "id": "1"}],
+            ("iCloud", "Sent Messages"): [{**MSG, "account": "iCloud", "mailbox": "Sent Messages", "id": "1"}],
         },
     )
     lines: list[str] = []
     out = tmp_path / "mail"
     total = applemail.export(out, run=run, progress=lines.append)
-    assert total == {"new": 2, "already_had": 0, "skipped": 1, "mailboxes": 2}  # Trash and Drafts were never even asked for
+    assert total == {"new": 2, "already_had": 0, "skipped": 1, "mailboxes": 2}  # every other mailbox was never even asked for
     assert all("Trash" not in c.split("const P = ")[-1].split(";\n")[0] and "Drafts" not in c.split("const P = ")[-1].split(";\n")[0] for c in calls[1:])
     assert all('"only_attachments": false' in c for c in calls[1:])  # the text of an email can be the crucial information: nothing is filtered out
     files = list(out.iterdir())

@@ -1,0 +1,4 @@
+{
+  "_about": "The mailboxes that are read, by name (any language, any case, '.mbox' ignored). Only these are read; every other mailbox, such as promotions, spam, trash, drafts, archives and your own folders, is skipped. Add a name here to read that mailbox too. Set LIBRARY_MAILBOXES (comma separated) to use another list.",
+  "read": ["inbox", "postvak in", "sent", "sent messages", "sent items", "sent mail", "verzonden", "verzonden items"]
+}

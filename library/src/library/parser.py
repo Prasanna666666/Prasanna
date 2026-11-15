@@ -367,11 +367,22 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "",
     return counts
 
 
-MAIL_SKIP_MAILBOXES = frozenset({"junk", "junk e-mail", "spam", "trash", "deleted messages", "deleted items", "drafts"})
+def mailboxes_read() -> frozenset[str]:
+    """The names of the mailboxes that are read (`mailboxes.json`, or LIBRARY_MAILBOXES): everything else in the mail folder is skipped."""
+    env = os.environ.get("LIBRARY_MAILBOXES")
+    if env is not None:
+        return frozenset(n.strip().lower() for n in env.split(",") if n.strip())
+    try:
+        raw = json.loads(Path(__file__).with_name("mailboxes.json").read_text()).get("read", [])
+    except (OSError, ValueError, AttributeError):
+        raw = []
+    return frozenset(str(n).strip().lower() for n in raw)
 
 
 def _in_skipped_mailbox(relative: Path) -> bool:
-    return any(part.lower().removesuffix(".mbox") in MAIL_SKIP_MAILBOXES for part in relative.parts[:-1] if part.lower().endswith(".mbox"))
+    """A message is read only when the mailbox it lies in (the innermost folder) is one of those declared: a folder you made, promotions, archives and the rest are not."""
+    boxes = [part for part in relative.parts[:-1] if part.lower().endswith(".mbox")]
+    return not boxes or boxes[-1].lower().removesuffix(".mbox") not in mailboxes_read()
 
 
 def _save_seen(cache_file: Path, seen: dict[str, str]) -> None:
@@ -380,7 +391,7 @@ def _save_seen(cache_file: Path, seen: dict[str, str]) -> None:
 
 
 def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[str, int]:
-    """Apple Mail's own folder (read-only): every message file except Junk, Trash and Drafts, only those not read before (a message is recognised by its
+    """Apple Mail's own folder (read-only): the messages of the declared mailboxes (`mailboxes.json`: Inbox and Sent), only those not read before (a message is recognised by its
     path, size and time, so the folder is not re-read every round). Messages become documents with the area `mail`, attachments included."""
     out.mkdir(parents=True, exist_ok=True)
     root = store.resolve()
@@ -430,7 +441,11 @@ def main(argv: list[str] | None = None) -> int:
         default=[c for c in os.environ.get("LIBRARY_COLLECTIONS", "").split(",") if c],
         help="NAME=PATH: a folder you keep for one purpose (finance=/finance, health=/health), read-only; its files are always read and carry that name",
     )
-    ap.add_argument("--mail", default=os.environ.get("ATLAS_MAIL", ""), help="Apple Mail's own folder (read-only): all mail except Junk, Trash and Drafts")
+    ap.add_argument(
+        "--mail",
+        default=os.environ.get("ATLAS_MAIL", ""),
+        help="Apple Mail's own folder (read-only): only the mailboxes declared in mailboxes.json (Inbox and Sent)",
+    )
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--extract-one", metavar="FILE", help=argparse.SUPPRESS)

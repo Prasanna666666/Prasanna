@@ -5,7 +5,7 @@ for the messages, through the built-in `osascript`, and writes each one as a .em
 inbox read-only) then reads the messages, their text and their attachments, like any other document. Nothing here connects to a mail server.
 
 All mail, with no date limit, is copied (`days` is an opt-in limit), one mailbox at a time, because the text of an email is often the crucial information (a booking
-time, a payment confirmation, an appointment). Junk, Trash and Drafts are always skipped. `only_attachments` narrows it to messages with an attachment.
+time, a payment confirmation, an appointment). Only the mailboxes declared in mailboxes.json (Inbox and Sent) are read. `only_attachments` narrows it to messages with an attachment.
 Re-running adds only what is new.
 """
 
@@ -18,7 +18,6 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-SKIP_MAILBOXES = frozenset(["Junk", "Junk E-mail", "Spam", "Trash", "Deleted Messages", "Deleted Items", "Drafts"])
 MAX_MESSAGE_CHARS = 30_000_000
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
@@ -80,9 +79,11 @@ def _run(script: str, run: Runner, timeout: int) -> list:
 
 
 def list_mailboxes(run: Runner = subprocess.run) -> list[tuple[str, str]]:
-    """Every (account, mailbox) except Junk, Trash and Drafts."""
+    """Every (account, mailbox) whose name is declared in `mailboxes.json` (Inbox and Sent)."""
+    from .parser import mailboxes_read
+
     found = _run(LIST_JXA, run, 300)
-    return [(str(m["account"]), str(m["mailbox"])) for m in found if isinstance(m, dict) and m.get("mailbox") not in SKIP_MAILBOXES]
+    return [(str(m["account"]), str(m["mailbox"])) for m in found if isinstance(m, dict) and str(m.get("mailbox", "")).lower() in mailboxes_read()]
 
 
 def fetch_mailbox(account: str, mailbox: str, days: int | None = None, only_attachments: bool = False, run: Runner = subprocess.run) -> list[dict]:
