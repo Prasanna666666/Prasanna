@@ -73,7 +73,10 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     report = json.loads(body)
     assert set(report["modules"]) == {"money", "photos"} and report["running"] is True
     assert report["modules"]["money"]["progress"] == "reading" and report["modules"]["money"]["name"] == "Money"
-    assert report["modules"]["money"]["recent"] == [{"name": "old.pdf", "detail": "identified, invoice (14 s)"}]  # the malformed one is dropped
+    assert report["modules"]["money"]["recent"] == [
+        {"name": "old.pdf", "detail": "sorted, invoice (14 s)", "state": "done"},
+        {"name": "id.pdf", "detail": "could not be sorted: the model returned nothing (4 s)", "state": "failed"},
+    ]  # the malformed one is dropped; a failure keeps its state
     money = report["modules"]["money"]
     assert money["waiting"] == ["next.pdf"] and money["steps"][0]["name"] == "Sort" and money["steps"][0]["percent"] == 12.5
     last = money["steps"][-1]

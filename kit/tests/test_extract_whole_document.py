@@ -85,3 +85,33 @@ def test_a_long_medical_document_says_which_part_of_it_is_being_read():
 
     extract.medical_details(Model(), "m", "report.pdf", text, said.append)
     assert len(said) > 1 and said[0] == f"report.pdf: reading part 1 of {len(said)}"
+
+
+def test_the_model_failing_says_why_and_never_with_anything_from_the_text():
+    import pytest
+
+    class Nothing:
+        def chat(self, model, messages, **kw):
+            return {"content": ""}
+
+    class Cut:
+        def chat(self, model, messages, **kw):
+            return {"content": '{"kind": "invoice", "title": "Bank statement Jan'}
+
+    class Empty:
+        def chat(self, model, messages, **kw):
+            return {"content": "{}"}
+
+    for client, reason in (
+        (Nothing(), "the model returned nothing"),
+        (Cut(), "the model's answer was cut off or not valid"),
+        (Empty(), "the model's answer was empty"),
+    ):
+        with pytest.raises(extract.Unclear) as why:
+            extract._ask(client, "m", "system", "Bank statement of Jan Jansen", {})
+        assert str(why.value) == reason and "Jansen" not in str(why.value)
+
+
+def test_the_text_for_the_model_loses_control_characters_but_keeps_every_script():
+    dirty = "Aadhaar\x00 card\x07\n\tनाम: प्रसन्ना \udc80 Name: Prasanna\r\n"
+    assert extract.clean(dirty) == "Aadhaar card\n\tनाम: प्रसन्ना  Name: Prasanna\r\n"

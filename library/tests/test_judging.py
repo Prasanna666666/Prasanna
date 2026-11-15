@@ -137,3 +137,22 @@ def test_a_file_the_model_cannot_make_sense_of_is_not_asked_again_after_three_tr
         store.judge_pending(conn, Model(), "fake")
     assert conn.execute("SELECT judged, tries FROM documents").fetchone()[:] == (3, store.MAX_TRIES)
     assert store.retry_unclear(conn) == 0  # it stays as it is: no more model calls spent on it, and the audit still lists it
+
+
+def test_a_file_the_model_fails_on_shows_as_failed_with_the_reason_and_the_try(conn):
+    from library import trace
+
+    conn.execute(
+        "INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('a','id card.pdf','pdf','Aadhaar card text that is long enough to be sent','finance',0)"
+    )
+    conn.commit()
+
+    class Nothing:
+        def chat(self, model, messages, **kw):
+            return {"content": ""}
+
+    followed = trace.Trace(conn)
+    store.judge_pending(conn, Nothing(), "fake", trace=followed)
+    [failed] = trace.finished(conn, followed.run)
+    assert failed["state"] == "failed" and failed["name"] == "id card.pdf"
+    assert failed["detail"].startswith("could not be sorted: the model returned nothing; it is tried again at the next read (try 1 of 3)")

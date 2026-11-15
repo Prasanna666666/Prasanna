@@ -607,7 +607,9 @@
             : [];
         const done = (info.recent || [])
             .slice(0, doneCount)
-            .map((f) => fileRow('done', f.name, f.detail, 100))
+            .map((f) =>
+                f.state === 'failed' ? fileRow('fail', f.name, f.detail, null) : fileRow('done', f.name, f.detail, 100)
+            )
             .reverse();
         const wait = (info.waiting || []).slice(0, waitCount).map((name) => fileRow('wait', name, 'waiting', 0));
         const rows = [...done, ...now, ...wait];

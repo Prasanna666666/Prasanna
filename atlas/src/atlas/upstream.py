@@ -236,7 +236,11 @@ class Upstreams:
         """Files with a line each (the last ones finished), checked."""
         if not isinstance(raw, list):
             return []
-        return [{"name": str(r["name"])[:200], "detail": str(r.get("detail", ""))[:200]} for r in raw[:6] if isinstance(r, dict) and r.get("name")]
+        return [
+            {"name": str(r["name"])[:200], "detail": str(r.get("detail", ""))[:300], "state": "failed" if r.get("state") == "failed" else "done"}
+            for r in raw[:6]
+            if isinstance(r, dict) and r.get("name")
+        ]
 
     @staticmethod
     def _steps(raw: Any) -> list[dict[str, Any]]:

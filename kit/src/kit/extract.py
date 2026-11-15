@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from datetime import date
 
 from .amounts import money_from_printed
@@ -52,15 +53,29 @@ class Unclear(Exception):
 
 
 def _ask(client, model: str, system: str, text: str, schema: dict) -> dict:
+    """Ask the model twice at most. Raises Unclear with the reason (never with anything from the text): nothing came back, the answer was cut off or not valid, or it was empty."""
+    reason = "the model gave no usable answer"
     for _ in range(2):
         msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema)
+        content = str((msg or {}).get("content") or "")
+        if not content.strip():
+            reason = "the model returned nothing"
+            continue
         try:
-            data = json.loads(msg.get("content") or "")
+            data = json.loads(content)
         except ValueError:
+            reason = "the model's answer was cut off or not valid"
             continue  # once more: a small model sometimes returns a broken answer the first time
         if isinstance(data, dict) and data:
             return data
-    raise Unclear("the model gave no usable answer")
+        reason = "the model's answer was empty"
+    raise Unclear(reason)
+
+
+def clean(text: str) -> str:
+    """The text as the model should get it: without control characters and broken surrogates (a scanned ID card or a form can carry them, and they can make the model's
+    answer fail), keeping line breaks, tabs and every letter of every script."""
+    return "".join(ch for ch in text if ch in "\n\t\r" or unicodedata.category(ch) not in ("Cc", "Cs"))
 
 
 def _squash(s: str) -> str:
@@ -178,6 +193,7 @@ def classify(client, model: str, name: str, text: str) -> dict:
     """What the file is and its key facts. The model is shown the beginning and the end; every amount, date and party is then checked against the WHOLE text and dropped if the
     document does not say it. When the full question gets no usable answer, a smaller one is asked about a shorter piece. If that fails too, Unclear is raised: the
     document is never turned into 'other' because the model failed."""
+    text = clean(text)
     try:
         return _classify_fully(client, model, name, text)
     except Unclear:

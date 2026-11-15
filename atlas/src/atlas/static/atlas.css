@@ -1270,3 +1270,25 @@ body.chatting .fab {
 .rd-more:hover {
     text-decoration: underline;
 }
+
+.rd-file.fail .rd-mark {
+    display: grid;
+    place-items: center;
+    border-color: var(--warn);
+    background: var(--warn);
+    color: #fff;
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1;
+}
+.rd-file.fail .rd-mark::after {
+    content: '!';
+}
+.rd-file.fail .rd-detail {
+    color: var(--warn);
+    white-space: normal;
+}
+.rd-file.fail .rd-side {
+    display: none;
+}

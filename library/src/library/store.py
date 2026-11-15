@@ -26,7 +26,7 @@ from kit import extract, rag
 from kit.module import Module
 
 from . import casebook, priority, recognise, relevance
-from .trace import Trace
+from .trace import FAILED, Trace
 
 MIGRATIONS = (
     """
@@ -353,9 +353,10 @@ def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trac
     started = time.monotonic()
     try:
         facts = ahead.result(d, _both(progress, trace, d["name"]))
-    except extract.Unclear:
+    except extract.Unclear as why:
         conn.execute("UPDATE documents SET judged=3, tries=tries+1 WHERE sha256=?", (d["sha256"],))
-        _trace(trace, d["name"], "no usable answer", "the model's answers could not be used; tried again at the next read", time.monotonic() - started)
+        tries = conn.execute("SELECT tries FROM documents WHERE sha256=?", (d["sha256"],)).fetchone()[0]
+        _trace(trace, d["name"], FAILED, f"{why}; it is tried again at the next read (try {tries} of {MAX_TRIES})", time.monotonic() - started)
         conn.commit()
         return "unclear", ""
     except RuntimeError as exc:
@@ -589,7 +590,7 @@ def audit(conn) -> dict[str, int]:
 
 LEFT = {
     "not_identified": "files the model has not looked at yet",
-    "no_usable_answer": "files the model gave no usable answer for (tried again at the next read)",
+    "no_usable_answer": "files that could not be sorted (tried again at the next read)",
     "not_grouped": "sorted files not yet placed in a group of related files",
     "matters_not_read": "groups of related files not yet read together",
 }

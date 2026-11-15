@@ -67,7 +67,13 @@ class _Handler(BaseHTTPRequestHandler):
                 done = {
                     "running": self.app.scanning,
                     "progress": "reading" if self.app.scanning else "",
-                    "recent": [{"name": "old.pdf", "detail": "identified, invoice (14 s)"}, {"bad": 1}] if self.app.scanning else [],
+                    "recent": [
+                        {"name": "old.pdf", "detail": "sorted, invoice (14 s)"},
+                        {"name": "id.pdf", "detail": "could not be sorted: the model returned nothing (4 s)", "state": "failed"},
+                        {"bad": 1},
+                    ]
+                    if self.app.scanning
+                    else [],
                     "waiting": ["next.pdf", 5] if self.app.scanning else [],
                     "steps": [
                         {"n": 2, "name": "Sort", "state": "running", "detail": "1 sorted · 7 to do", "percent": 12.5},

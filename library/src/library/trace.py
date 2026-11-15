@@ -35,17 +35,23 @@ class Trace:
             self._now(name, step, detail)
 
 
-FINISHED = ("sorted", "skipped", "no usable answer", "group read", "kept as sorted")
+FAILED = "could not be sorted"
+FAILED_GROUP = "could not be read"
+FINISHED = ("sorted", "skipped", FAILED, FAILED_GROUP, "group read", "kept as sorted")
 
 
 def finished(conn, run: str, limit: int = 5) -> list[dict[str, str]]:
-    """The last files finished in this read, newest first, each with its result and how long it took, for the panel."""
+    """The last files finished in this read, newest first, each with its result, how long it took and whether it worked (`state`: done or failed), for the panel."""
     rows = conn.execute(
         f"SELECT name, step, detail, seconds FROM trace WHERE run=? AND step IN ({','.join('?' for _ in FINISHED)}) ORDER BY id DESC LIMIT ?",
         (run, *FINISHED, limit),
     )
     return [
-        {"name": r["name"], "detail": r["step"] + (f", {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else "")}
+        {
+            "name": r["name"],
+            "state": "failed" if r["step"] in (FAILED, FAILED_GROUP) else "done",
+            "detail": r["step"] + (f": {r['detail']}" if r["detail"] else "") + (f" ({r['seconds']:.0f} s)" if r["seconds"] >= 1 else ""),
+        }
         for r in rows
     ]
 

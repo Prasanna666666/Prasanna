@@ -18,6 +18,7 @@ from typing import Any
 from kit import extract
 
 from . import priority
+from .trace import FAILED_GROUP
 
 ID = re.compile(
     r"\b(?=[A-Za-z0-9/\-]*\d)(?=[A-Za-z0-9/\-]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b"
@@ -414,7 +415,7 @@ def understand_pending(
             except extract.Unclear:
                 conn.execute("UPDATE cases SET tries=tries+1 WHERE id=?", (row["id"],))
                 if trace is not None:
-                    trace.step(label, "no usable answer", "the group could not be read; tried again at the next read", time.monotonic() - began)
+                    trace.step(label, FAILED_GROUP, "the model gave no usable answer; it is tried again at the next read", time.monotonic() - began)
                 continue
             if trace is not None:
                 trace.step(label, "group read", f"{summary['verified']} checked statements", time.monotonic() - began)
