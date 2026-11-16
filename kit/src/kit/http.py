@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Collection
+from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
+from pathlib import Path
 from typing import Any, ClassVar
 
-from . import netguard, sign
+from . import log, netguard, sign
 
 MAX_BODY = 1_000_000
 STRICT_CSP = "default-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
@@ -80,6 +83,62 @@ class JsonHandler(BaseHTTPRequestHandler):
             return data if isinstance(data, dict) else {}
         except (ValueError, OSError):
             return {}
+
+
+class ModuleHandler(JsonHandler):
+    """The skeleton every local service of the platform is built on, written once: the checks every request passes (this computer's own names only, the platform's signature, a header only
+    this service's own page can send for anything that changes data), looking a route up and running it with its own database connection and error boundary, and serving the page's files.
+    A service sets its names (`allowed_hosts`, `write_header`, `static_dir`) and keeps only its own routes."""
+
+    state: ClassVar[Any]  # has `connect()`: a database connection for one request
+    allowed_hosts: ClassVar[Collection[str]] = ()
+    write_header: ClassVar[str] = ""  # e.g. "X-Library": a page on another site cannot send it
+    address_hint: ClassVar[str] = ""
+    static_dir: ClassVar[Path | None] = None
+
+    def _authorised(self) -> bool:
+        """A service that wants more (a password, a token) overrides this."""
+        return True
+
+    def _guard(self, writing: bool) -> bool:
+        if not host_ok(self.headers.get("Host"), self.allowed_hosts):
+            self._fail(HTTPStatus.FORBIDDEN, f"This address is not allowed. Use {self.address_hint}" if self.address_hint else "This address is not allowed.")
+            return False
+        if not self._authorised():
+            return False
+        if not self._signed():
+            self._fail(HTTPStatus.UNAUTHORIZED, "This request is not signed by the platform.")
+            return False
+        if writing:
+            origin = self.headers.get("Origin")
+            if self.headers.get(self.write_header) != "1" or (origin and not host_ok(origin.split("://", 1)[-1], self.allowed_hosts)):
+                self._fail(HTTPStatus.FORBIDDEN, "Request refused.")
+                return False
+        return True
+
+    def _run(self, routes: dict, path: str, *args: Any) -> None:
+        """Look the route up, run it with its own database connection, and turn every outcome into a response."""
+        route = routes.get(path)
+        if route is None:
+            return self._fail(HTTPStatus.NOT_FOUND, "not found")
+        conn = self.state.connect()
+        try:
+            self._json(route(self.state, conn, *args))
+        except Fail as failure:
+            self._fail(failure.status, failure.message)
+        except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
+            log.failed("request failed", exc, path=path)
+            self._fail(500, f"{type(exc).__name__}: {exc} (in {log.where(exc)})")
+        finally:
+            conn.close()
+
+    def _file(self, name: str) -> None:
+        root = (self.static_dir or Path()).resolve()
+        target = (root / name).resolve()
+        if self.static_dir is None or root not in target.parents or not target.is_file():
+            return self._fail(HTTPStatus.NOT_FOUND, "not found")
+        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        self._send(200, target.read_bytes(), f"{ctype}; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ctype)
 
 
 def call_local(base: str, method: str, path: str, header: str, unavailable: str, timeout: int = 60) -> dict[str, Any]:

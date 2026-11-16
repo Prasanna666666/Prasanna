@@ -11,7 +11,6 @@ import hashlib
 import hmac
 import json
 import logging
-import mimetypes
 import os
 import threading
 import time
@@ -22,7 +21,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from kit import consent, llm, log, netguard, sign
-from kit.http import Fail, JsonHandler, host_ok
+from kit.http import Fail, ModuleHandler, host_ok
 
 from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
 from .modules import ALL, money
@@ -285,11 +284,15 @@ def _refusals_this_minute(state: State) -> float:
     return now
 
 
-class _Handler(JsonHandler):
+class _Handler(ModuleHandler):
     """Plumbing only: security checks, files, and handing each API route to its function in the tables above."""
 
     state: ClassVar[State]
     server_version = "Finance"
+    allowed_hosts = ALLOWED_HOSTS
+    write_header = "X-Finance"
+    address_hint = "http://127.0.0.1:8501"
+    static_dir = STATIC
     csp = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
 
     # ---- plumbing ---------------------------------------------------------------------------------------------
@@ -317,39 +320,6 @@ class _Handler(JsonHandler):
             self._send(401, _login_page(), "text/html; charset=utf-8")
         return False
 
-    def _guard(self, writing: bool) -> bool:
-        host = self.headers.get("Host", "")
-        if not host_ok(host, ALLOWED_HOSTS):
-            self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8501")
-            return False
-        if not self._authorised():
-            return False
-        if not self._signed():
-            self._fail(HTTPStatus.UNAUTHORIZED, "This request is not signed by the platform.")
-            return False
-        if writing:
-            origin = self.headers.get("Origin")
-            if self.headers.get("X-Finance") != "1" or (origin and not host_ok(origin.split("://", 1)[-1], ALLOWED_HOSTS)):
-                self._fail(HTTPStatus.FORBIDDEN, "Request refused.")
-                return False
-        return True
-
-    def _run_api(self, routes: dict, path: str, *args) -> None:
-        """Look the route up, run it with its own database connection, and turn every outcome into a response."""
-        route = routes.get(path)
-        if route is None:
-            return self._fail(HTTPStatus.NOT_FOUND, "not found")
-        conn = self.state.connect()
-        try:
-            self._json(route(self.state, conn, *args))
-        except Fail as failure:
-            self._fail(failure.status, failure.message)
-        except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
-            log.failed("request failed", exc, path=path)
-            self._fail(500, f"{type(exc).__name__}: {exc}")
-        finally:
-            conn.close()
-
     # ---- GET --------------------------------------------------------------------------------------------------
     def do_GET(self) -> None:
         path, _, query = self.path.partition("?")
@@ -371,7 +341,7 @@ class _Handler(JsonHandler):
         if path.startswith("/static/"):
             return self._file(path[len("/static/") :])
         if path.startswith("/api/"):
-            return self._run_api(GET_ROUTES, path, {k: v[0] for k, v in urllib.parse.parse_qs(query).items() if v})
+            return self._run(GET_ROUTES, path, {k: v[0] for k, v in urllib.parse.parse_qs(query).items() if v})
         self._fail(HTTPStatus.NOT_FOUND, "not found")
 
     def _report(self, year: str) -> None:
@@ -382,13 +352,6 @@ class _Handler(JsonHandler):
             self._send(200, report.year_report(conn, year).encode(), "text/html; charset=utf-8")
         finally:
             conn.close()
-
-    def _file(self, name: str) -> None:
-        target = (STATIC / name).resolve()
-        if STATIC.resolve() not in target.parents or not target.is_file():
-            return self._fail(HTTPStatus.NOT_FOUND, "not found")
-        ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-        self._send(200, target.read_bytes(), f"{ctype}; charset=utf-8" if ctype.startswith("text/") or ctype.endswith("javascript") else ctype)
 
     # ---- POST -------------------------------------------------------------------------------------------------
     def _login(self) -> None:
@@ -415,7 +378,7 @@ class _Handler(JsonHandler):
             return self._login()
         if not self._guard(True):
             return
-        self._run_api(POST_ROUTES, path, self._body())
+        self._run(POST_ROUTES, path, self._body())
 
 
 def make_handler(state: State) -> type[_Handler]:

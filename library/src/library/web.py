@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from kit import db, llm, log, netguard, sign
-from kit.http import Fail, JsonHandler, host_ok
+from kit.http import Fail, ModuleHandler
 
 from . import apps, changes, concepts, flags, highlights, items, pictures, readreport, store, tools, trace, travel
 
@@ -1017,38 +1017,13 @@ POST_ROUTES = {
 }
 
 
-class _Handler(JsonHandler):
+class _Handler(ModuleHandler):
     state: ClassVar[State]
     server_version = "Documents"
-
-    def _guard(self, writing: bool) -> bool:
-        if not host_ok(self.headers.get("Host"), ALLOWED_HOSTS):
-            self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed. Use http://127.0.0.1:8502")
-            return False
-        if not self._signed():
-            self._fail(HTTPStatus.UNAUTHORIZED, "This request is not signed by the platform.")
-            return False
-        if writing:
-            origin = self.headers.get("Origin")
-            if self.headers.get("X-Library") != "1" or (origin and not host_ok(origin.split("://", 1)[-1], ALLOWED_HOSTS)):
-                self._fail(HTTPStatus.FORBIDDEN, "Request refused.")
-                return False
-        return True
-
-    def _run(self, routes: dict, path: str, arg: dict) -> None:
-        route = routes.get(path)
-        if route is None:
-            return self._fail(HTTPStatus.NOT_FOUND, "not found")
-        conn = self.state.connect()
-        try:
-            self._json(route(self.state, conn, arg))
-        except Fail as failure:
-            self._fail(failure.status, failure.message)
-        except Exception as exc:  # noqa: BLE001 - the error boundary of a request: report it, log it, keep serving
-            log.failed("request failed", exc, path=path)
-            self._fail(500, f"{type(exc).__name__}: {exc} (in {log.where(exc)})")
-        finally:
-            conn.close()
+    allowed_hosts = ALLOWED_HOSTS
+    write_header = "X-Library"
+    address_hint = "http://127.0.0.1:8502"
+    static_dir = STATIC
 
     def do_GET(self) -> None:
         path, _, query = self.path.partition("?")
@@ -1086,13 +1061,6 @@ class _Handler(JsonHandler):
         if found is None:
             return self._fail(HTTPStatus.NOT_FOUND, "not found")
         self._send(200, found.read_bytes(), "image/jpeg")
-
-    def _file(self, name: str) -> None:
-        target = (STATIC / name).resolve()
-        if STATIC.resolve() not in target.parents or not target.is_file():
-            return self._fail(HTTPStatus.NOT_FOUND, "not found")
-        kinds = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml"}
-        self._send(200, target.read_bytes(), kinds.get(target.suffix, "application/octet-stream"))
 
 
 def make_handler(state: State) -> type[_Handler]:
