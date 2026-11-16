@@ -197,8 +197,10 @@ class Upstreams:
         detail = (f": {kind.group(0)}" if kind else "") + (f" in {place.group(1)}" if place else "")
         return f"{module.name} answered with an error (HTTP {status}{detail})"
 
-    def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
-        down = {
+    @staticmethod
+    def _unreachable(module: Module) -> dict[str, Any]:
+        """What the panel shows for an app that did not answer: nothing running, nothing known, and why."""
+        return {
             "up": False,
             "running": False,
             "progress": "",
@@ -214,22 +216,10 @@ class Upstreams:
             "paused": False,
             "stopping": False,
         }
-        try:
-            if start:
-                self._authed(module, "POST", module.scan, SCAN_SECONDS)
-            status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
-            raw = json.loads(body) if status == HTTPStatus.OK else None
-            if status != HTTPStatus.OK:
-                return {**down, "up": True, "problems": [self._why_not(module, status, body)]}  # the app is there: it said no, and why is shown
-        except TimeoutError:
-            # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
-            last = self._last_scan.get(module.id)
-            return last if last else {**down, "up": True, "problems": []}  # the same words as before: a busy answer must not flip the text back and forth
-        except (OSError, http.client.HTTPException, ValueError):
-            return down
-        if not isinstance(raw, dict):
-            return {**down, "up": True, "problems": [f"{module.name} gave an answer Atlas could not read"]}
-        report = {
+
+    def _report_from(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """What the panel shows for an app that answered: only plain, bounded values, whatever the app sent."""
+        return {
             "up": True,
             "running": bool(raw.get("running")),
             "progress": str(raw.get("progress", ""))[:200],
@@ -247,6 +237,25 @@ class Upstreams:
             "paused": raw.get("paused") is True,
             "stopping": raw.get("stopping") is True,
         }
+
+    def _scan_one(self, module: Module, start: bool) -> dict[str, Any]:
+        down = self._unreachable(module)
+        try:
+            if start:
+                self._authed(module, "POST", module.scan, SCAN_SECONDS)
+            status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
+            raw = json.loads(body) if status == HTTPStatus.OK else None
+            if status != HTTPStatus.OK:
+                return {**down, "up": True, "problems": [self._why_not(module, status, body)]}  # the app is there: it said no, and why is shown
+        except TimeoutError:
+            # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
+            last = self._last_scan.get(module.id)
+            return last if last else {**down, "up": True, "problems": []}  # the same words as before: a busy answer must not flip the text back and forth
+        except (OSError, http.client.HTTPException, ValueError):
+            return down
+        if not isinstance(raw, dict):
+            return {**down, "up": True, "problems": [f"{module.name} gave an answer Atlas could not read"]}
+        report = self._report_from(raw)
         self._last_scan[module.id] = report
         return report
 
