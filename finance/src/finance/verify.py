@@ -15,15 +15,12 @@ from collections import Counter
 from datetime import date, timedelta
 
 from kit.amounts import money_from_printed
+from kit.text import squash
 
 from . import clock, concepts, tables
 from . import currency as currencies
 from .findings import Finding, Read
 from .statements import Txn
-
-
-def _squash(s: str) -> str:
-    return re.sub(r"\s+", "", s)
 
 
 def signature(txns: list[Txn]) -> list[tuple]:
@@ -35,10 +32,10 @@ def totals_prover(layout: tables.Layout, text: str, txns: list[Txn], subject: st
     """Previous/opening balance + the transactions must equal the new/closing balance, both quoted as printed. Works without a running balance (credit cards)."""
     if not layout.opening_text or not layout.closing_text:
         return None, False
-    haystack = _squash(text)
+    haystack = squash(text)
     values = []
     for printed in (layout.opening_text, layout.closing_text):
-        minor = money_from_printed(printed) if _squash(printed) in haystack else None
+        minor = money_from_printed(printed) if squash(printed) in haystack else None
         if minor is None:
             return Finding("totals prover", "warn", subject, "the printed opening/closing balance could not be found in the document"), False
         values.append(minor)
@@ -144,7 +141,7 @@ def read_table_statement(client, model: str, name: str, data: dict, text: str) -
     parsed = tables.parse_table(table, layout)
     r.txns, r.issues = parsed.txns, list(parsed.issues)
     r.opening, r.closing, r.proofs = parsed.opening, parsed.closing, list(parsed.proofs)
-    r.account = layout.account if layout.account and _squash(layout.account) in _squash(text) else ""  # an account number counts only if it is really printed
+    r.account = layout.account if layout.account and squash(layout.account) in squash(text) else ""  # an account number counts only if it is really printed
     r.currency = currencies.detect(text + " " + " ".join(c.text for line in table for c in line))
     r.findings.append(
         Finding("currency", "ok", name, f"the statement is in {r.currency}")

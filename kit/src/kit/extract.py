@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import json
 import re
-import unicodedata
 from datetime import date
 
 from .amounts import money_from_printed
+from .text import clean, squash
 
 MONEY_FIELDS = ("total", "vat", "gross", "net", "tax", "pension", "holiday_pay")
 _STR = {"type": ["string", "null"]}
@@ -87,19 +87,9 @@ def _ask(client, model: str, system: str, text: str, schema: dict, max_tokens: i
     raise Unclear(reason)
 
 
-def clean(text: str) -> str:
-    """The text as the model should get it: without control characters and broken surrogates (a scanned ID card or a form can carry them, and they can make the model's
-    answer fail), keeping line breaks, tabs and every letter of every script."""
-    return "".join(ch for ch in text if ch in "\n\t\r" or unicodedata.category(ch) not in ("Cc", "Cs"))
-
-
-def _squash(s: str) -> str:
-    return re.sub(r"\s+", "", s)
-
-
 def verify_amounts(info: dict, text: str) -> dict:
     """Keep an amount only if it appears in the document exactly as quoted; replace the quote by the number read from it."""
-    haystack = _squash(text)
+    haystack = squash(text)
     checked = dict(info)
     dropped = []
     for f in MONEY_FIELDS:
@@ -107,7 +97,7 @@ def verify_amounts(info: dict, text: str) -> dict:
         if quoted in (None, ""):
             checked[f] = None
             continue
-        minor = money_from_printed(str(quoted)) if _squash(str(quoted)) in haystack else None
+        minor = money_from_printed(str(quoted)) if squash(str(quoted)) in haystack else None
         checked[f] = minor / 100 if minor is not None else None
         if minor is None:
             dropped.append(f)
@@ -183,11 +173,11 @@ def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, st
     checked["kind"] = str(checked.get("kind") or "").strip()[:60]
     checked["apps"] = [a for a in (checked.get("apps") or []) if a in (apps or {})]
     party = str(checked.get("party") or "").strip()
-    if party and _squash(party.lower()) not in _squash(text.lower()):
+    if party and squash(party.lower()) not in squash(text.lower()):
         checked["party"] = ""  # a name the document does not contain is the model's invention
-    whole = _squash(text.lower())
+    whole = squash(text.lower())
     given = checked.get("entities") if isinstance(checked.get("entities"), list) else []
-    checked["entities"] = list(dict.fromkeys(str(e).strip() for e in given if str(e).strip() and _squash(str(e).lower()) in whole))[
+    checked["entities"] = list(dict.fromkeys(str(e).strip() for e in given if str(e).strip() and squash(str(e).lower()) in whole))[
         :8
     ]  # only what the file really says
     return checked
@@ -271,7 +261,7 @@ _NUMBER = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 def _printed(text_lower: str, squashed_lower: str, quoted: str) -> bool:
     quoted = quoted.strip().lower()
-    return bool(quoted) and (quoted in text_lower or _squash(quoted) in squashed_lower)
+    return bool(quoted) and (quoted in text_lower or squash(quoted) in squashed_lower)
 
 
 WINDOW, OVERLAP, MAX_WINDOWS = 5500, 500, 12
@@ -287,7 +277,7 @@ def _windows(text: str) -> list[str]:
 
 def _health_window(client, model: str, name: str, body: str) -> dict:
     data = _ask(client, model, HEALTH_PROMPT, f"File name: {name}\n\n{body}", HEALTH_SCHEMA)
-    lower, squashed = body.lower(), _squash(body.lower())
+    lower, squashed = body.lower(), squash(body.lower())
     values = []
     for v in (data.get("values") or [])[:MAX_VALUES]:
         if not isinstance(v, dict):

@@ -12,6 +12,7 @@ from datetime import date, timedelta
 
 from kit import extract
 from kit.module import INT, Module, N, S, Tool
+from kit.text import day
 
 from .. import (
     audit,
@@ -356,10 +357,8 @@ def _store(conn, d, txns, learned, account: str = "", currency: str = "") -> int
 
 
 def _day(value) -> str | None:
-    try:
-        return date.fromisoformat(str(value)[:10]).isoformat()
-    except (ValueError, TypeError):
-        return None
+    found = day(value)
+    return found.isoformat() if found else None
 
 
 def _money(value) -> int | None:

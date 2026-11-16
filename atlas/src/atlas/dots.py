@@ -8,15 +8,10 @@ import re
 from datetime import date, timedelta
 from typing import Any
 
+from kit.text import day
+
 KEEP_PAST_DAYS = 30
 CENT = 0.005
-
-
-def _day(value: Any) -> date | None:
-    try:
-        return date.fromisoformat(str(value or ""))
-    except ValueError:
-        return None
 
 
 def tokens(text: str) -> set[str]:
@@ -30,10 +25,10 @@ def _names(a: dict[str, Any], b: dict[str, Any]) -> bool:
 
 
 def _cost(trip: dict[str, Any], payments: list[dict[str, Any]], now: date) -> float | None:
-    start, end = _day(trip.get("date")), _day(trip.get("end"))
+    start, end = day(trip.get("date")), day(trip.get("end"))
     if start is None or end is None or start > now:
         return None
-    spent = [float(p["amount"]) for p in payments if p.get("direction") == "expense" and (w := _day(p.get("date"))) and start <= w <= end]
+    spent = [float(p["amount"]) for p in payments if p.get("direction") == "expense" and (w := day(p.get("date"))) and start <= w <= end]
     return round(sum(spent), 2) if spent else None
 
 
@@ -49,7 +44,7 @@ def _matter_events(it: dict[str, Any], paid: dict[str, Any] | None, now: date, l
     if paid and paid.get("relation") == "full":
         left_out["settled"] += 1
         return []
-    if not _day(it.get("due")):
+    if not day(it.get("due")):
         return []
     part = (
         f"part paid {paid['amount']:,.2f} on {paid['date']}"
@@ -77,7 +72,7 @@ def agenda(items: list[dict[str, Any]], today: str, days: int = 60, settled: dic
     """The events worth showing: each matter's next step and each trip, once, in its true state."""
     docs = [i for i in items if i.get("src") == "documents"]
     payments = [i for i in items if i.get("kind") == "payment"]
-    now = _day(today)
+    now = day(today)
     if now is None:
         return {"events": [], "left_out": {}}
     start, stop = now - timedelta(days=KEEP_PAST_DAYS), now + timedelta(days=days)
@@ -92,7 +87,7 @@ def agenda(items: list[dict[str, Any]], today: str, days: int = 60, settled: dic
             else []
         )
         for key, e in made:
-            when, end = _day(e["date"]), _day(e["end"])
+            when, end = day(e["date"]), day(e["end"])
             if when is None or end is None or end < start or when > stop:
                 continue
             found.setdefault(key, {**e, "days": (when - now).days, "ended": end < now})
@@ -106,7 +101,7 @@ def ics(events: list[dict[str, Any]]) -> str:
     for e in events:
         uid = hashlib.sha256(f"{e['type']}|{e['date']}|{e['title']}".encode()).hexdigest()[:24]
         first = e["date"].replace("-", "")
-        after = ((_day(e["end"]) or _day(e["date"]) or date(2000, 1, 1)) + timedelta(days=1)).strftime("%Y%m%d")
+        after = ((day(e["end"]) or day(e["date"]) or date(2000, 1, 1)) + timedelta(days=1)).strftime("%Y%m%d")
         summary = "".join(c for c in e["title"] if c not in ",;\n\r\\")[:120]
         lines += [
             "BEGIN:VEVENT",

@@ -10,8 +10,10 @@ import json
 import re
 import threading
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any
+
+from kit.text import day
 
 WINDOW_BEFORE, WINDOW_AFTER, MAX_CANDIDATES = 60, 90, 25
 CENT = 0.005
@@ -25,13 +27,6 @@ PROMPT = (
     "belongs to it. For a payment: full if it pays all of it, part if it pays only a part. For anything else that is about the same thing: related. none if no item belongs to it. "
     "Give the number of the item and copy from that item the exact words that show it belongs. Never guess."
 )
-
-
-def _day(value: Any) -> date | None:
-    try:
-        return date.fromisoformat(str(value or ""))
-    except ValueError:
-        return None
 
 
 def number(value: Any) -> float | None:
@@ -58,13 +53,13 @@ def _text(item: dict[str, Any]) -> str:
 
 def _around(matter: dict[str, Any], others: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The items of every other app near the matter's dates, the closest first. (Income is not something a bill is paid with.)"""
-    days = [d for x in (matter.get("due"), *(i.get("value") for i in matter.get("dates", []))) if (d := _day(x))]
+    days = [d for x in (matter.get("due"), *(i.get("value") for i in matter.get("dates", []))) if (d := day(x))]
     if not days:
         return []
     lo, hi = min(days) - timedelta(days=WINDOW_BEFORE), max(days) + timedelta(days=WINDOW_AFTER)
-    near = [o for o in others if o.get("direction") != "income" and (w := _day(o.get("date"))) and lo <= w <= hi]
+    near = [o for o in others if o.get("direction") != "income" and (w := day(o.get("date"))) and lo <= w <= hi]
     mid = min(days)
-    return sorted(near, key=lambda o: abs(((_day(o["date"]) or mid) - mid).days))[:MAX_CANDIDATES]
+    return sorted(near, key=lambda o: abs(((day(o["date"]) or mid) - mid).days))[:MAX_CANDIDATES]
 
 
 def key_of(matter: dict[str, Any]) -> str:
