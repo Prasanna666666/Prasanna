@@ -27,7 +27,7 @@ def day(value: Any) -> date | None:
         return None
 
 
-def json_object(raw: Any) -> dict:
+def json_object(raw: Any) -> dict[str, Any]:
     """The object a stored JSON text holds, or an empty one when there is none or it is not valid."""
     try:
         found = json.loads(raw) if raw else {}

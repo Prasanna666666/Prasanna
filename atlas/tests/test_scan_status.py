@@ -67,6 +67,26 @@ def test_a_very_large_answer_is_read_whole(app):
     assert _report(app("big"))["up"] is True  # an 8 MB cap used to cut it off and call the app switched off
 
 
+def test_an_answer_over_the_limit_is_refused_as_too_large_never_used_in_part(app, monkeypatch):
+    monkeypatch.setenv("ATLAS_MAX_ANSWER_BYTES", "1000000")  # the 9 MB answer is over this
+    report = _report(app("big"))
+    assert report["up"] is True and "too large" in report["problems"][0] and "1 MB" in report["problems"][0]
+    assert report["running"] is False and report["steps"] == []
+
+
+def test_an_answer_exactly_at_the_limit_is_read_and_one_byte_over_is_not(app, monkeypatch):
+    ok_size = len(json.dumps({"running": False, "steps": [], "problems": []}).encode())
+    monkeypatch.setenv("ATLAS_MAX_ANSWER_BYTES", str(ok_size))
+    assert _report(app("ok"))["up"] is True and not _report(app("ok"))["problems"]
+    monkeypatch.setenv("ATLAS_MAX_ANSWER_BYTES", str(ok_size - 1))
+    assert "too large" in _report(app("ok"))["problems"][0]
+
+
+def test_a_bad_limit_setting_falls_back_to_the_default(app, monkeypatch):
+    monkeypatch.setenv("ATLAS_MAX_ANSWER_BYTES", "lots")
+    assert _report(app("ok"))["up"] is True
+
+
 def test_a_closed_connection_is_said_in_plain_words(app):
     report = _report(app("close"))
     assert report["up"] is False and "closed the connection" in report["problems"][0]

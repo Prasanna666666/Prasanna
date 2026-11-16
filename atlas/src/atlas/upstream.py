@@ -27,7 +27,14 @@ HEALTH_CACHE_SECONDS = 4.0
 MAX_RESULTS_PER_MODULE = 8
 SCAN_SECONDS = 6.0
 ASK_SECONDS = 60.0
-MAX_BODY = 500_000_000  # an answer is read whole: a cut-off answer would be unreadable
+MAX_BODY = 500_000_000  # the most an app's answer Atlas reads whole; ATLAS_MAX_ANSWER_BYTES changes it. A bigger answer is refused as too large, never cut off and read as if complete
+BYTES_PER_MEGABYTE = 1_000_000
+
+
+class AnswerTooLarge(ValueError):
+    """An app's answer is bigger than Atlas reads at once. It is reported as such; a part of it is never used."""
+
+
 MAX_PERCENT = 100
 MIN_QUERY_CHARS = 2  # a search shorter than this is not sent to the apps
 SOON_DAYS = 30  # events within this many days are "soon"
@@ -44,6 +51,19 @@ def _plain_failure(why: Exception) -> str:
     return "could not be reached (no answer)"
 
 
+def _answer_limit() -> int:
+    """The most bytes of one answer that are read: ATLAS_MAX_ANSWER_BYTES when it is a positive whole number, otherwise MAX_BODY."""
+    given = os.environ.get("ATLAS_MAX_ANSWER_BYTES", "")
+    return int(given) if given.isdigit() and int(given) > 0 else MAX_BODY
+
+
+def _unreadable_answer(why: ValueError) -> str:
+    """What is wrong with an answer that arrived but cannot be used, in plain words."""
+    if isinstance(why, AnswerTooLarge):
+        return f"gave an answer too large for Atlas to read whole (over {why.args[0] // BYTES_PER_MEGABYTE} MB)"
+    return "answered with something Atlas could not read"
+
+
 def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict[str, str] | None = None, body: bytes = b"") -> tuple[int, bytes, str]:
     host, _, port = module.netloc.partition(":")
     conn = http.client.HTTPConnection(host, int(port or 80), timeout=timeout)
@@ -55,7 +75,11 @@ def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict
     try:
         conn.request(method, path, headers=headers, body=body or None)
         response = conn.getresponse()
-        return response.status, response.read(MAX_BODY), response.getheader("Content-Type", "")
+        limit = _answer_limit()
+        body_bytes = response.read(limit + 1)  # one byte more than allowed: that is how a too-large answer is told from one that fits exactly
+        if len(body_bytes) > limit:
+            raise AnswerTooLarge(limit)
+        return response.status, body_bytes, response.getheader("Content-Type", "")
     finally:
         conn.close()
 
@@ -263,8 +287,8 @@ class Upstreams:
             # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
             last = self._last_scan.get(module.id)
             return last if last else {**down, "up": True, "problems": []}  # the same words as before: a busy answer must not flip the text back and forth
-        except ValueError:  # the app is there, but what it said could not be read
-            return {**down, "up": True, "problems": [f"{module.name} answered with something Atlas could not read"]}
+        except ValueError as unreadable:  # the app is there, but what it said was too large or could not be read
+            return {**down, "up": True, "problems": [f"{module.name} {_unreadable_answer(unreadable)}"]}
         except (OSError, http.client.HTTPException) as why:
             return {**down, "problems": [f"{module.name} {_plain_failure(why)}"]}
         if not isinstance(raw, dict):
