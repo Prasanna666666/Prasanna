@@ -342,6 +342,24 @@ def checkpoint(out: Path) -> bool:
     return (out / STOP).exists()
 
 
+_PROGRESS = {
+    "documents": 0,
+    "mails": 0,
+}  # files gone through in this round, by what they are (every file counts once it has been looked at: read, already known, left out or unreadable)
+
+
+def _progress_add(out: Path, area: str, n: int) -> None:
+    _PROGRESS["mails" if area == "mail" else "documents"] += n
+    _write_progress(out)
+
+
+def _write_progress(out: Path) -> None:
+    with contextlib.suppress(OSError):
+        tmp = out / ".progress.tmp"
+        tmp.write_text(json.dumps(_PROGRESS))
+        os.replace(tmp, out / ".progress")
+
+
 def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool, source_of=None) -> dict[str, int]:
     """Read these files at the same time (each in its own child process); the totals of what happened."""
     total = {"parsed": 0, "skipped": 0, "failed": 0}
@@ -357,6 +375,7 @@ def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: boo
         for counts in pool.map(one, files):
             for k, v in counts.items():
                 total[k] += v
+    _progress_add(out, area, len(files))
     return total
 
 
@@ -448,6 +467,7 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
         seen = {}
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
     todo: list[tuple[Path, str, str]] = []
+    counted_before = 0  # messages already read in an earlier round: gone through, nothing to do
     # looked at one by one (not sorted first), so Pause and Stop are heard during the walk
     for seen_files, f in enumerate(root.rglob("*.emlx"), 1):
         if seen_files % CHECK_EVERY == 0:
@@ -461,8 +481,15 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
             continue
         stat = f.stat()
         stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
-        if seen.get(str(inside)) != stamp:
+        if seen.get(str(inside)) == f"bulk:{stamp}":
+            continue  # a newsletter, promotion or mailing list: not among the mails to read
+        if seen.get(str(inside)) == stamp:
+            counted_before += 1
+        elif is_bulk_mail(f):
+            seen[str(inside)] = f"bulk:{stamp}"
+        else:
             todo.append((f, str(inside), stamp))
+    _progress_add(out, "mail", counted_before)
     for i in range(
         0, len(todo), BATCH
     ):  # a batch at a time, several messages at once; what is done is remembered after each batch, so an interrupted first read carries on
@@ -693,6 +720,8 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
         return {"parsed": 0, "skipped": 0, "failed": 0}
     mails: list[dict[str, int]] = []
     documents: list[dict[str, int]] = []
+    _PROGRESS.update(documents=0, mails=0)
+    _write_progress(out)
     _now(out, "Mail", "looking for new messages")
     if (Path(a.inbox) / "mail").is_dir():  # the mail first, with everything it carries (mail exports dropped into the inbox: .mbox, .eml, .emlx)
         mails.append(_stage(out, "mail in the inbox", process_inbox, Path(a.inbox) / "mail", out, area="mail"))
@@ -705,12 +734,7 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
     _now(out, "Your other files", "looking for new files")
     documents.append(_stage(out, "the inbox", process_inbox, Path(a.inbox), out, skip_folders=frozenset({"mail"})))  # then the loose files
     add = lambda parts: {k: sum(part[k] for part in parts) for k in ("parsed", "skipped", "failed")}  # noqa: E731
-    # what became of the files it counted, so the card can account for every one: how many were left out, how many could not be read
-    (out / ROUND_FILE).write_text(json.dumps({"mails": add(mails), "documents": add(documents)}))
     return add(mails + documents)
-
-
-ROUND_FILE = ".round"
 
 
 def _wait_for_next_round(out: Path) -> None:

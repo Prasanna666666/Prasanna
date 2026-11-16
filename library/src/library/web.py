@@ -466,11 +466,11 @@ def _found() -> dict[str, Any]:
         return {}
 
 
-def _round() -> dict[str, dict[str, int]]:
-    """What became of the files the reader counted in its last round: how many it left out (empty, too large) and how many it could not read, for the mails and for the documents."""
+def _gone_through() -> dict[str, int]:
+    """How many of the counted files and mails the reader has gone through in this round: each counts once it has been looked at, whether it was read, was already known (a copy, or read before) or was left out."""
     try:
-        data = json.loads((parsed_dir() / ".round").read_text())
-        return {k: {"skipped": int(v["skipped"]), "failed": int(v["failed"])} for k, v in data.items() if k in ("mails", "documents") and isinstance(v, dict)}
+        data = json.loads((parsed_dir() / ".progress").read_text())
+        return {k: int(data[k]) for k in ("documents", "mails")}
     except (OSError, ValueError, KeyError, TypeError):
         return {}
 
@@ -669,15 +669,12 @@ def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _unaccounted(key: str, counted: int, held: int, left_out: dict[str, dict[str, int]]) -> str:
-    """Every file the reader counted is accounted for: held as a document, left out, unreadable, or a copy of another file (identical content is one document)."""
-    gone = counted - held
-    if gone <= 0 or key not in left_out:
-        return ""
-    skipped, failed = left_out[key]["skipped"], left_out[key]["failed"]
-    copies = max(0, gone - skipped - failed)
-    parts = [f"{n:,} {what}" for n, what in ((copies, "identical to another file"), (skipped, "left out"), (failed, "unreadable")) if n]
-    return f"{gone:,} not added: " + ", ".join(parts) if parts else ""
+def _done_count(n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any]) -> int:
+    if (s.get("phase") or 1) < n:
+        return 0  # a step that has not begun has done nothing, whatever state the files are already in
+    if n == 1 and key != "attachments":
+        return total if taken_in else min(total, max(held["present"], gone_through.get(key, 0)))
+    return held[where]
 
 
 def _tally(conn) -> dict[str, dict[str, int]]:
@@ -725,7 +722,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         ("understood", s.get("phase") in (3, 4)),
     )
     steps = []
-    left_out = _round()
+    gone_through = _gone_through()
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         mails_in = bool(found) and tally["mails"]["present"] >= (found.get("mails") or 0)
@@ -736,20 +733,16 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         }  # a total is known when it has been counted: by the reader, or from the mails once all are opened
         counts, every = [], []
         for key, label in labels.items():
-            # Once step 1 is over everything the reader could take in is in (messages with the same content are one, files that cannot be read never arrive), so the totals are what is held.
-            # Step 1 counts against everything the reader counted (so nothing silently drops out: what was not added is said). Sorting and grouping work on what is held.
+            # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.
             total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" else 0) if n == 1 else tally[key]["present"]
             # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
             known_now = taken_in or total_known[key]
             line = {
                 "key": key,
                 "label": label,
-                "done": tally[key][where]
-                if (s.get("phase") or 1) >= n
-                else 0,  # a step that has not begun has done nothing, whatever state the files are already in
+                "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s),
                 "total": total,
                 "known": known_now,
-                "note": _unaccounted(key, total, tally[key]["present"], left_out) if n == 1 and taken_in else "",
             }
             every.append(line)
             counts.append(line)

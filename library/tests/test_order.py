@@ -140,14 +140,14 @@ def test_a_step_that_has_not_begun_shows_nothing_done(conn, monkeypatch):
     assert {c["key"]: c["done"] for c in web._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
 
 
-def test_what_the_reader_counted_but_did_not_add_is_accounted_for_file_by_file(conn, monkeypatch, tmp_path):
+def test_step_one_counts_every_file_the_reader_has_gone_through_and_ends_on_the_exact_count(conn, monkeypatch):
     from library import web
 
     monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0})
-    monkeypatch.setattr(web, "_round", lambda: {"documents": {"skipped": 2, "failed": 3}, "mails": {"skipped": 0, "failed": 0}})
+    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 7})
     for i in range(4):
         _add(conn, f"f{i}.pdf", "finance", judged=1)
     conn.commit()
-    line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
-    assert (line["done"], line["total"]) == (4, 10)  # the exact count is kept, never shrunk to what is held
-    assert line["note"] == "6 not added: 1 identical to another file, 2 left out, 3 unreadable"
+    line = lambda phase: next(c for c in web._steps(conn, {"phase": phase})[0]["counts"] if c["key"] == "documents")  # noqa: E731
+    assert (line(1)["done"], line(1)["total"]) == (7, 10)  # copies and left-out files are gone through too
+    assert (line(2)["done"], line(2)["total"]) == (10, 10)  # and when the step is over it is exactly the count
