@@ -235,6 +235,7 @@ def _read_all(state: State) -> None:
         (parsed_dir() / ".found").unlink(
             missing_ok=True
         )  # the counts of the last read are not this read's: the reader counts again, and until it has, the card says counting
+        (parsed_dir() / ".progress").unlink(missing_ok=True)  # and how far the reader had got
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
         problem = _take_in_all(state, conn, totals)  # step 1, completely

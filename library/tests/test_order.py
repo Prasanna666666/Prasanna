@@ -187,3 +187,15 @@ def test_many_files_of_a_kind_about_no_app_are_suggested_as_a_new_app_and_can_be
     assert "circuit-design" in apps.names() and store.category_suggestions(conn) == []  # the files belong to the app now
     assert len(store.list_documents(conn, app="circuit-design", limit=100)) == 25
     assert store.create_app_for_kind(conn, "circuit design")["ok"] is False  # not twice
+
+
+def test_a_round_is_complete_only_when_the_reader_has_gone_through_everything_it_counted(monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 4, "attachments": 2})
+    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 7, "mails": 4, "attachments": 2})
+    assert not web._round_complete()  # three documents never came: the reader stopped short, so sorting must not start yet
+    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 10, "mails": 4, "attachments": 2})
+    assert web._round_complete()
+    monkeypatch.setattr(web, "_gone_through", dict)
+    assert web._round_complete()  # nothing to compare with: the read is not held
