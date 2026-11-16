@@ -68,9 +68,7 @@ def _ticket(doc: dict) -> dict[str, Any]:
 
 
 def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
-    """One trip: its tickets and bookings, other documents dated in those days, the amounts the tickets and bookings print (added up per currency, exactly), and photos."""
-    window_start = (date.fromisoformat(start) - timedelta(days=1)).isoformat()
-    window_end = (date.fromisoformat(end) + timedelta(days=1)).isoformat()
+    """One trip: its tickets and bookings, documents that belong with them (the same matter), the amounts the tickets and bookings print (added up per currency, exactly), and photos."""
     booked = [
         _ticket(d)
         for d in store.trip_documents(conn)
@@ -78,7 +76,7 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
         and _overlaps(str(d["facts"].get("start_date") or "9"), str(d["facts"].get("end_date") or d["facts"].get("start_date") or "0"), start, end)
     ]
     booked_ids = {t["id"] for t in booked}
-    others = [
+    others = [  # what grouping put together with the trip's tickets and bookings (the same matter), not whatever happens to be dated in those days
         {
             "id": d["id"],
             "name": d["name"],
@@ -86,8 +84,8 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
             "title": d["title"],
             "date": str(d["facts"].get("date") or d["facts"].get("start_date") or ""),
         }
-        for d in store.documents_between(conn, window_start, window_end, limit=60)
-        if d["id"] not in booked_ids and not store.is_trip_document(d)
+        for d in store.documents_of_the_same_matter(conn, sorted(booked_ids))
+        if not store.is_trip_document(d)
     ]
     minor: dict[str, int] = {}
     for t in booked:

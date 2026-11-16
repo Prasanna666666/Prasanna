@@ -1298,6 +1298,18 @@ def _trip(docs: list[dict]) -> dict:
     return {"place": docs[0]["place"], "start": min(d["start"] for d in docs), "end": max(d["end"] for d in docs), "documents": len(docs)}
 
 
+def documents_of_the_same_matter(conn, ids: list[int], limit: int = 60) -> list[dict]:
+    """The documents that grouping put together with these ones (the same matter): a hotel invoice with the booking it belongs to. Not those that merely have a date nearby."""
+    if not ids:
+        return []
+    marks = ",".join("?" for _ in ids)
+    rows = conn.execute(
+        f"SELECT {LIST_COLUMNS} FROM documents WHERE case_id IN (SELECT case_id FROM documents WHERE id IN ({marks}) AND case_id IS NOT NULL) AND id NOT IN ({marks}) AND kind<>'email' ORDER BY ready LIMIT ?",
+        (*ids, *ids, limit),
+    )
+    return [_as_document(r) for r in rows]
+
+
 def documents_between(conn, start: str, end: str, limit: int = 100) -> list[dict]:
     """Every recognised document dated within the window (its own date, or the dates of a ticket or booking), oldest first."""
     out: list[dict] = []

@@ -286,3 +286,23 @@ def test_no_result_is_dropped_a_small_problem_is_put_right_and_a_damaged_one_is_
         "the result of reading it contained characters that could not be decoded",
         "the result of reading it was damaged",
     ]
+
+
+def test_a_trip_shows_what_grouping_put_with_it_not_whatever_is_dated_in_those_days(conn):
+    import json
+
+    from library import travel
+
+    def add(i, name, kind, apps, facts, case):
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts, ready, case_id) VALUES (?,?,?,?,?,1,?,?,?)",
+            (f"{i:064x}", name, "pdf", "t", "", json.dumps({"kind": kind, "apps": apps, "title": name, **facts}), i + 1, case),
+        )
+
+    conn.execute("INSERT INTO cases (input_hash, members, summary) VALUES ('h', '[]', '')")
+    add(1, "flight.pdf", "flight ticket", ["travel"], {"place": "India", "start_date": "2026-01-12", "end_date": "2026-01-30"}, 1)
+    add(2, "hotel invoice.pdf", "invoice", ["finance"], {"date": "2026-02-20"}, 1)  # the same matter, dated later: it belongs with the trip
+    add(3, "payslip.pdf", "payslip", ["finance"], {"date": "2026-01-20"}, None)  # only dated inside the trip: it does not
+    conn.commit()
+    shown = [d["name"] for d in travel.detail(conn, None, "India", "2026-01-12", "2026-01-30")["other_documents"]]
+    assert shown == ["hotel invoice.pdf"]

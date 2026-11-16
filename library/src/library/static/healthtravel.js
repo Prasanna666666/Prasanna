@@ -457,7 +457,7 @@
             );
         }
         if (t.other_documents.length) {
-            page.push(section('Other documents from these days'));
+            page.push(section('Documents that belong with this trip'));
             t.other_documents.forEach((d) => page.push(card(d.title, `${d.kind} · ${d.date}`, () => openDoc(d.id))));
         }
         page.push(await packingBlock(t));
