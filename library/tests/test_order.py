@@ -249,20 +249,40 @@ def test_the_documents_are_shown_as_soon_as_they_are_counted_while_the_mail_is_s
     assert counts == {"mails": False, "attachments": False, "documents": True}
 
 
-def test_a_result_the_service_will_not_take_in_is_counted_as_unread_and_named_not_called_a_copy(conn, tmp_path, monkeypatch):
+def test_no_result_is_dropped_a_small_problem_is_put_right_and_a_damaged_one_is_read_again(conn, tmp_path):
     import json
 
-    from library import store, web
+    from library import store
 
-    big = {"schema": 1, "sha256": "a" * 64, "kind": "pdf", "name": "huge.pdf", "text": "x" * (store.MAX_TEXT + 1), "area": "finance"}
-    odd = {"schema": 1, "sha256": "b" * 64, "kind": "video", "name": "film.mov", "text": "t"}
-    for d in (big, odd):
-        (tmp_path / f"{d['sha256']}.json").write_text(json.dumps(d))
+    def result(sha, **over):
+        return {"schema": 1, "sha256": sha * 64, "kind": "pdf", "name": "ok.pdf", "text": "t", **over}
+
+    odd = {
+        "a": result("a", text="x" * (store.MAX_TEXT + 1), name="huge.pdf"),
+        "b": result("b", kind="video", name="film.mov"),
+        "c": result("c", name="  "),
+        "d": result("d", name="n" * 300),
+        "e": result("e", schema=2, name="future.pdf"),
+        "f": result("f", sha256="f" * 63 + "0", name="wrong id.pdf"),
+    }
+    for sha, d in odd.items():
+        (tmp_path / f"{sha * 64}.json").write_text(json.dumps(d))
+    (tmp_path / ".done").mkdir()
+    for sha in "98":
+        (tmp_path / ".done" / (sha * 64)).touch()
+    (tmp_path / f"{'9' * 64}.json").write_text("{not json")
+    (tmp_path / f"{'8' * 64}.json").write_bytes(b'{"name": "\xff"}')
     said: list[tuple[str, str, str]] = []
     got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: said.append(a))
-    assert got["rejected"] == 2 and got["new"] == 0
-    assert sorted(said) == [("film.mov", "a kind of file Atlas does not keep", "documents"), ("huge.pdf", "too much text to keep", "documents")]
-    assert not list(tmp_path.glob("*.json"))  # their readable copies are removed: they are not looked at again
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 5, "mails": 0, "attachments": 0})
-    line = next(c for c in web._steps(conn, {"phase": 2, "rejected": {"documents": 2}})[0]["counts"] if c["key"] == "documents")
-    assert line["unread"] == 2 and line["copies"] == 3  # 5 counted, none held, 2 could not be taken in: the other 3 are not unexplained copies
+    assert got["new"] == 6  # all six are kept, put right
+    rows = {r["name"]: r for r in conn.execute("SELECT name, kind, length(text) AS n, data FROM documents")}
+    assert (
+        rows["huge.pdf"]["n"] == store.MAX_TEXT and "limits_hit" in rows["huge.pdf"]["data"]
+    )  # cut, and said to be cut, so it is read again if the limit is lifted
+    assert rows["film.mov"]["kind"] == "binary" and any(n.startswith("unnamed file") for n in rows) and any(len(n) == 255 for n in rows)
+    # the two that are not results at all are removed with their marks, so the reader reads those files again; they are said
+    assert got["rejected"] == 2 and not (tmp_path / ".done" / ("9" * 64)).exists() and not (tmp_path / ".done" / ("8" * 64)).exists()
+    assert sorted(why for _, why, _ in said) == [
+        "the result of reading it contained characters that could not be decoded",
+        "the result of reading it was damaged",
+    ]

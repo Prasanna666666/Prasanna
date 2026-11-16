@@ -265,18 +265,53 @@ def forget_stale_reads(conn, directory: Path, better_engine: str = "") -> int:
     return _forget(conn, directory, where, args)
 
 
-def _why_rejected(f: Path, d: Any) -> tuple[str, str, str]:
-    """For a result the service would not take in: its name, the reason in plain words, and which count it belongs to (documents, mails, attachments)."""
-    name = d["name"][:120] if isinstance(d, dict) and isinstance(d.get("name"), str) and d["name"] else f.stem[:20]
-    if not isinstance(d, dict):
-        return name, "the result of reading it could not be used", "documents"
-    if isinstance(d.get("text"), str) and len(d["text"]) > MAX_TEXT:
-        reason = "too much text to keep"
-    elif d.get("kind") not in FILE_KINDS:
-        reason = "a kind of file Atlas does not keep"
-    else:
-        reason = "the result of reading it could not be used"
-    group = ("mails" if d.get("kind") == "email" else "attachments") if d.get("area") == "mail" else "documents"
+def _repaired(d: Any, stem: str) -> dict | None:
+    """A result the reader wrote that is not quite in the form Atlas keeps is put right, not refused: no name, a name or a location that is too long, a kind Atlas has no word for, too much
+    text, a version of the form it does not know. Only a result that is not a result at all (or whose file name is not a content identifier) cannot be put right."""
+    if not isinstance(d, dict) or not _SHA.match(stem):
+        return None
+    fixed = dict(d)
+    fixed["schema"], fixed["sha256"] = 1, stem
+    name = fixed.get("name") if isinstance(fixed.get("name"), str) else ""
+    fixed["name"] = (name.strip() or f"unnamed file {stem[:8]}")[:255]
+    if fixed.get("kind") not in FILE_KINDS:
+        fixed["kind"] = "binary"
+    text = fixed.get("text") if isinstance(fixed.get("text"), str) else ""
+    if len(text) > MAX_TEXT:
+        meta = fixed.get("meta") if isinstance(fixed.get("meta"), dict) else {}
+        fixed["meta"] = {**meta, "limits_hit": [*meta.get("limits_hit", []), "text"]}
+        text = text[:MAX_TEXT]
+    fixed["text"] = text
+    if isinstance(fixed.get("source"), str):
+        fixed["source"] = fixed["source"][:600]
+    elif fixed.get("source") is not None:
+        fixed["source"] = None
+    return fixed if _valid(fixed, stem) else None
+
+
+def _why_rejected(f: Path, d: Any, error: Exception | None = None) -> tuple[str, str, str]:
+    """For a result the service would not take in: its name, the exact reason in plain words, and which count it belongs to (documents, mails, attachments)."""
+    named = isinstance(d, dict) and isinstance(d.get("name"), str) and d["name"].strip()
+    name = d["name"][:120] if named else f.stem[:20]
+    checks = (
+        (isinstance(error, UnicodeDecodeError), "the result of reading it contained characters that could not be decoded"),
+        (isinstance(error, json.JSONDecodeError), "the result of reading it was damaged"),
+        (not isinstance(d, dict), "the result of reading it was not in the form Atlas expects"),
+        (isinstance(d, dict) and d.get("schema") != 1, "it was read by a version of the reader that Atlas does not know"),
+        (isinstance(d, dict) and not named, "it has no name"),
+        (isinstance(d, dict) and isinstance(d.get("name"), str) and len(d["name"]) > 255, "its name is too long"),
+        (
+            isinstance(d, dict) and not (isinstance(d.get("sha256"), str) and _SHA.match(d["sha256"]) and f.stem == d["sha256"]),
+            "its identifier does not match its content",
+        ),
+        (isinstance(d, dict) and d.get("kind") not in FILE_KINDS, "a kind of file Atlas does not keep"),
+        (isinstance(d, dict) and not isinstance(d.get("text"), str), "it has no readable text"),
+        (isinstance(d, dict) and isinstance(d.get("text"), str) and len(d["text"]) > MAX_TEXT, "too much text to keep"),
+        (isinstance(d, dict) and isinstance(d.get("source"), str) and len(d["source"]) > 600, "its location is too long to record"),
+    )
+    reason = next((why for failed, why in checks if failed), "the result of reading it could not be used")
+    area = d.get("area") if isinstance(d, dict) else ""
+    group = ("mails" if isinstance(d, dict) and d.get("kind") == "email" else "attachments") if area == "mail" else "documents"
     return name, reason, group
 
 
@@ -289,18 +324,25 @@ def ingest_dir(
     for looked, f in enumerate(sorted(directory.resolve().glob("*.json")), 1):
         if stop is not None and looked % 100 == 0 and stop():
             break  # Stop: what is taken in so far stays, the rest waits for the next read
+        d = None
         try:
             if f.is_symlink() or f.stat().st_size > MAX_JSON:
                 raise ValueError("symlink or too large")
-            d = json.loads(f.read_text(encoding="utf-8"))
-            if not _valid(d, f.stem):
+            raw = json.loads(f.read_text(encoding="utf-8"))
+            d = _repaired(raw, f.stem)
+            if d is None:
                 raise ValueError("schema")
-        except (ValueError, OSError):
+        except FileNotFoundError:
+            continue  # taken away while it was being looked at: it is looked at again next time
+        except (ValueError, OSError) as error:
             rejected += 1
-            if on_rejected is not None:  # said, never just dropped: it is listed as unread, and its readable copy is removed so it is not looked at again
-                on_rejected(*_why_rejected(f, locals().get("d")))
-                with contextlib.suppress(OSError):
-                    f.unlink()
+            with contextlib.suppress(
+                OSError
+            ):  # a result that cannot be used at all is removed with its mark, so the reader reads the file again at the next round
+                f.unlink()
+                (directory / ".done" / f.stem).unlink(missing_ok=True)
+            if on_rejected is not None:
+                on_rejected(*_why_rejected(f, locals().get("raw"), error))
             continue
         area = d["area"] if isinstance(d.get("area"), str) and (d["area"] == "mail" or _COLLECTION.match(d["area"])) else ""
         source = d.get("source") or ""
