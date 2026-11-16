@@ -686,13 +686,16 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     steps = []
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         mails_in = bool(found) and tally["mails"]["present"] >= (found.get("mails") or 0)
-        attached_in = mails_in and tally["attachments"]["present"] >= promised
+        total_known = {
+            "documents": bool(found),
+            "mails": bool(found),
+            "attachments": mails_in,
+        }  # a total is known when it has been counted: by the reader, or from the mails once all are opened
         counts, every = [], []
         for key, label in labels.items():
             total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" and n == 1 else 0)
-            # Each of the three is always listed. Its number is given only when its total is fully known: the mails and the documents are counted by the reader before it reads
-            # (the documents are only listed once the mails with all they carry are in); the documents in mails only once every mail is opened.
-            known_now = n > 1 or (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
+            # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
+            known_now = n > 1 or total_known[key]
             line = {
                 "key": key,
                 "label": label,

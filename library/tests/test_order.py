@@ -46,10 +46,11 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
     conn.commit()
     read = web._steps(conn, {"phase": 1})[0]
     assert {c["key"]: c["total"] for c in read["counts"] if c["known"]} == {
+        "documents": 2,
         "mails": 1,
         "attachments": 7,
-    }  # the documents get their number only when the mails and all they carry are in
-    assert [c["key"] for c in read["counts"]] == ["documents", "mails", "attachments"]  # but all three are always listed
+    }  # each gives its number as soon as its total is known
+    assert [c["key"] for c in read["counts"]] == ["documents", "mails", "attachments"]  # all three are always listed alike
     assert web._steps(conn, {"phase": 2})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
     assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
 
