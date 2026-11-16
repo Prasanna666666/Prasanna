@@ -32,7 +32,7 @@ def test_finance_files_are_taken_before_health_files_and_before_loose_files_and_
 def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, monkeypatch):
     from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 1})
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 1, "attachments": 0})
     monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 1})
 
     _add(conn, "a.pdf", "finance", judged=1)
@@ -226,7 +226,7 @@ def test_the_files_that_could_not_be_read_are_listed_with_the_reason(tmp_path, m
     from library import web
 
     monkeypatch.setattr(web, "parsed_dir", lambda: tmp_path)
-    (tmp_path / ".failed.json").write_text(json.dumps(["a.pdf: this PDF is password-protected", "big.zip: too large to read"]))
+    (tmp_path / ".unread-files").write_text(json.dumps(["a.pdf: this PDF is password-protected", "big.zip: too large to read"]))
     assert web._unread_files() == ["a.pdf: this PDF is password-protected", "big.zip: too large to read"]
 
 
@@ -239,3 +239,11 @@ def test_the_number_of_documents_is_the_same_in_every_step_once_the_reading_is_o
     conn.commit()
     totals = [next(c for c in step["counts"] if c["key"] == "documents")["total"] for step in web._steps(conn, {"phase": 4})]
     assert totals == [5, 5, 5]
+
+
+def test_the_documents_are_shown_as_soon_as_they_are_counted_while_the_mail_is_still_being_counted(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 7})  # the reader writes each total as soon as it has it
+    counts = {c["key"]: c["known"] for c in web._steps(conn, {"phase": 1})[0]["counts"]}
+    assert counts == {"mails": False, "attachments": False, "documents": True}

@@ -213,6 +213,12 @@ def _mail_scope() -> str:
     return hashlib.sha256(rules.encode()).hexdigest()[:16]
 
 
+def _forget_last_read() -> None:
+    """The last read's counts, progress, current file and unreadable files are not this read's: the reader counts again, and until it has the card says counting."""
+    for name in (".now", ".found", ".progress", ".unread-files"):
+        (parsed_dir() / name).unlink(missing_ok=True)
+
+
 def _read_all(state: State) -> None:
     """Update, in three strict stages: everything is read, then everything is sorted, then everything is understood. One press does all of it (and the last stage is bounded; the end of a read says what is left)."""
     conn = state.connect()
@@ -244,11 +250,7 @@ def _read_all(state: State) -> None:
             engine_mark.write_text(engine)
         store.mark_old_files(conn)  # files sorted before the apps were declared get their marks (on this connection: no other writer is at work meanwhile)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
-        (parsed_dir() / ".now").unlink(missing_ok=True)
-        (parsed_dir() / ".found").unlink(
-            missing_ok=True
-        )  # the counts of the last read are not this read's: the reader counts again, and until it has, the card says counting
-        (parsed_dir() / ".progress").unlink(missing_ok=True)  # and how far the reader had got
+        _forget_last_read()
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
         problem = _take_in_all(state, conn, totals)  # step 1, completely
@@ -455,17 +457,18 @@ def _get_status(state: State, conn, query: dict[str, str]) -> dict:
 
 
 def _found() -> dict[str, Any]:
-    """The full number of files and mails the reader found in its folders (it counts at the start of every round)."""
+    """What the reader has counted so far in its folders: each total is there as soon as it is known (the documents first, then the mails and what they carry)."""
     try:
         data = json.loads((parsed_dir() / ".found").read_text())
-        return {
-            "documents": int(data["documents"]),
-            "mails": int(data["mails"]),
-            "attachments": int(data.get("attachments") or 0),
+        found: dict[str, Any] = {
             "mail_connected": data.get("mail_connected") is True,
             "by_folder": {str(k)[:20]: int(v) for k, v in (data.get("by_folder") or {}).items()},
         }
-    except (OSError, ValueError, KeyError, TypeError):
+        for key in ("documents", "mails", "attachments"):
+            if key in data:
+                found[key] = int(data[key])
+        return found
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return {}
 
 
@@ -488,7 +491,7 @@ def _gone_through() -> dict[str, int]:
 def _unread_files() -> list[str]:
     """The files (and mails) the reader could not read in its last round, each with the reason: the reader writes them down, the card names them."""
     try:
-        raw = json.loads((parsed_dir() / ".failed.json").read_text())
+        raw = json.loads((parsed_dir() / ".unread-files").read_text())
     except (OSError, ValueError):
         return []
     return [str(item)[:220] for item in raw[:50]] if isinstance(raw, list) else []
@@ -774,9 +777,9 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         total_known = {
-            "documents": bool(found),
-            "mails": bool(found),
-            "attachments": bool(found),
+            "documents": "documents" in found,
+            "mails": "mails" in found,
+            "attachments": "attachments" in found,
         }  # all three are counted by the reader before it reads; the third also grows, up to what the mails say they carried, as mails are opened
         counts, every = [], []
         for key, label in (

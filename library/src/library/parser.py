@@ -379,6 +379,9 @@ def _write_progress(out: Path) -> None:
         tmp = out / ".progress.tmp"
         tmp.write_text(json.dumps({**_PROGRESS, "unread": _UNREAD}))
         os.replace(tmp, out / ".progress")
+        failed = out / ".unread-files.tmp"
+        failed.write_text(json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read so far, for the card
+        os.replace(failed, out / ".unread-files")
 
 
 def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool, source_of=None, group: str = "") -> dict[str, int]:
@@ -778,39 +781,37 @@ def unread_report(roots: list[tuple[str, Path]], out: Path) -> dict[str, Any]:
     return {"counts": counts, "examples": examples}
 
 
+def _put_found(out: Path, data: dict) -> None:
+    tmp = out / f"{FOUND_FILE}.tmp"
+    tmp.write_text(json.dumps(data))
+    os.replace(tmp, out / FOUND_FILE)
+
+
 def write_found(a: argparse.Namespace) -> None:
-    """Count what is there before reading it: files in the inbox and collections, and mail. The app shows these as the totals."""
+    """Count what is there before reading it: files in the inbox and collections, and mail. The app shows each total as soon as it is known (the documents first: counting a big
+    mailbox takes minutes)."""
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
+    connected = bool(a.mail and Path(a.mail).is_dir())
     try:
         by_folder = {"inbox": _supported(Path(a.inbox), skip=frozenset({"mail"}), out=out)}
         for name, folder in collections(a.collection):
             by_folder[name] = by_folder.get(name, 0) + (_supported(folder, out=out) if folder.is_dir() else 0)  # several folders of one category add up
-        documents = sum(by_folder.values())
+        found: dict = {"documents": sum(by_folder.values()), "mail_connected": connected, "by_folder": by_folder}
+        _put_found(out, found)  # the documents are known: they are shown while the mail is still being counted
         mails = _supported(Path(a.inbox) / "mail", out=out) if (Path(a.inbox) / "mail").is_dir() else 0
         attachments = 0
-        if a.mail and Path(a.mail).is_dir():
+        if connected:
             idx = mail_index(Path(a.mail), out)
             mails += idx.mails
             attachments = len(idx.attachments)
+        found.update(mails=mails, attachments=attachments)
+        _put_found(out, found)
         roots = [("inbox", Path(a.inbox))] + [(name, folder) for name, folder in collections(a.collection) if folder.is_dir()]
-        unread = unread_report([(n, r) for n, r in roots if r.is_dir()], out)
+        found["unread"] = unread_report([(n, r) for n, r in roots if r.is_dir()], out)
     except Halted:
-        return  # stopped while counting: nothing is written, nothing is read
-    tmp = out / f"{FOUND_FILE}.tmp"
-    tmp.write_text(
-        json.dumps(
-            {
-                "documents": documents,
-                "mails": mails,
-                "attachments": attachments,
-                "mail_connected": bool(a.mail and Path(a.mail).is_dir()),
-                "by_folder": by_folder,
-                "unread": unread,
-            }
-        )
-    )
-    os.replace(tmp, out / FOUND_FILE)
+        return  # stopped while counting: nothing more is written, nothing is read
+    _put_found(out, found)
 
 
 def read_everything(a: argparse.Namespace) -> dict[str, int]:
