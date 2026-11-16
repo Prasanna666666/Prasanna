@@ -231,7 +231,9 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         kind = sniff.kind_of(f)
     except (OSError, ValueError):
         kind = "binary"
-    if size > (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES):
+    if size > (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES) or _is_bulk_message(
+        f, kind, area, depth
+    ):  # too big, or a newsletter, promotion or mailing list
         counts["skipped"] += 1
         return
     digest = _identity(f, kind, area)
@@ -382,6 +384,41 @@ def mailboxes_read() -> frozenset[str]:
     except (OSError, ValueError, AttributeError):
         raw = []
     return frozenset(str(n).strip().lower() for n in raw)
+
+
+def _bulk_headers() -> dict[str, str]:
+    """The headers that mark bulk mail (newsletters, promotions, mailing lists), as declared in `mailboxes.json`: header name to the words that count ('' = any value)."""
+    try:
+        raw = json.loads(Path(__file__).with_name("mailboxes.json").read_text()).get("bulk", {})
+    except (OSError, ValueError, AttributeError):
+        raw = {}
+    return {str(k).lower(): str(v).lower() for k, v in raw.items()} if isinstance(raw, dict) else {}
+
+
+def is_bulk_mail(path: Path) -> bool:
+    """Does this message carry a header that marks it as bulk mail? Only its headers are read."""
+    import email.parser
+
+    wanted = _bulk_headers()
+    if not wanted:
+        return False
+    try:
+        with path.open("rb") as f:
+            raw = f.read(65536)
+    except OSError:
+        return False
+    if path.suffix.lower() == ".emlx" or sniff.is_emlx(raw[:64]):
+        raw = raw.partition(b"\n")[2]  # the first line of an Apple Mail file is the length of the message
+    head = email.parser.BytesParser().parsebytes(raw, headersonly=True)
+    for name, words in wanted.items():
+        value = str(head.get(name, "")).lower()
+        if value and (not words or any(w in value for w in words.split())):
+            return True
+    return False
+
+
+def _is_bulk_message(f: Path, kind: str, area: str, depth: int) -> bool:
+    return kind == "email" and area == "mail" and depth < 2 and is_bulk_mail(f)
 
 
 def _in_skipped_mailbox(relative: Path) -> bool:
@@ -544,7 +581,7 @@ def _supported(root: Path, skip: frozenset[str] = frozenset(), only_emlx: bool =
         if f.name.startswith(".") or f.is_symlink() or not f.is_file() or f.name.lower() in SKIP_NAMES:
             continue
         relative = f.relative_to(root.resolve())
-        if relative.parts[0] in skip or (only_emlx and (f.suffix.lower() != ".emlx" or _in_skipped_mailbox(relative))):
+        if relative.parts[0] in skip or (only_emlx and (f.suffix.lower() != ".emlx" or _in_skipped_mailbox(relative) or is_bulk_mail(f))):
             continue
         size = f.stat().st_size
         total += 0 < size <= (MBOX_MAX_BYTES if f.suffix.lower() == ".mbox" else MAX_BYTES)

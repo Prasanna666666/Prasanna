@@ -1,4 +1,23 @@
 {
-  "_about": "The mailboxes that are read, by name (any language, any case, '.mbox' ignored). Only these are read; every other mailbox, such as promotions, spam, trash, drafts, archives and your own folders, is skipped. Add a name here to read that mailbox too. Set LIBRARY_MAILBOXES (comma separated) to use another list.",
-  "read": ["inbox", "postvak in", "sent", "sent messages", "sent items", "sent mail", "verzonden", "verzonden items"]
+  "_about": "The mailboxes that are read, by name (any language, any case, '.mbox' ignored): every other mailbox, such as spam, trash, drafts and your own folders, is skipped. Gmail keeps all mail in one mailbox, 'All Mail', and shows Inbox and Sent as views of it: it is read, and mail that carries one of the `bulk` headers below (newsletters, promotions, mailing lists) is skipped. Add a name or a header here to change what is read. Set LIBRARY_MAILBOXES (comma separated) to use another list.",
+  "read": [
+    "inbox",
+    "postvak in",
+    "sent",
+    "sent messages",
+    "sent items",
+    "sent mail",
+    "verzonden",
+    "verzonden items",
+    "all mail",
+    "alle e-mail",
+    "alle berichten",
+    "all messages"
+  ],
+  "bulk": {
+    "list-unsubscribe": "",
+    "precedence": "bulk list junk",
+    "x-spam-flag": "yes",
+    "auto-submitted": "auto-generated"
+  }
 }

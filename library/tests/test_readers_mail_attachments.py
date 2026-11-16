@@ -35,13 +35,16 @@ def test_only_the_declared_mailboxes_are_read_and_the_rest_are_skipped(monkeypat
         read("acc/INBOX.mbox/Data/Messages/1.emlx")
         and read("acc/Sent Messages.mbox/Data/Messages/2.emlx")
         and read("acc/[Gmail].mbox/Sent Mail.mbox/Messages/3.emlx")
+        and read("acc/[Gmail].mbox/All Mail.mbox/Messages/4.emlx")
     )
     for skipped in (
         "acc/Promotions.mbox/Messages/1.emlx",
         "acc/Junk.mbox/Messages/1.emlx",
         "acc/INBOX.mbox/Newsletters.mbox/Messages/1.emlx",
         "acc/Archive.mbox/Messages/1.emlx",
-        "acc/[Gmail].mbox/All Mail.mbox/Messages/1.emlx",
+        "acc/Bin.mbox/Messages/1.emlx",
+        "acc/Outbox.mbox/Messages/1.emlx",
+        "acc/[Gmail].mbox/Spam.mbox/Messages/1.emlx",
     ):
         assert not read(skipped)
     monkeypatch.setenv("LIBRARY_MAILBOXES", "archive")
@@ -92,3 +95,19 @@ def test_stop_ends_a_wait_for_the_model_at_once_and_an_answer_that_comes_is_pass
     gate.set()
     assert time.monotonic() - began < 5  # not the 30 s the model would have taken
     assert store.StoppableModel(Slow(), lambda: False).chat("m", []) == {"content": "late"}
+
+
+def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):
+    from library import parser
+
+    def put(path, headers):
+        f = tmp_path / path
+        f.parent.mkdir(parents=True, exist_ok=True)
+        body = (headers + "\nSubject: x\n\nhello").encode()
+        f.write_bytes(str(len(body)).encode() + b"\n" + body)
+
+    put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/1.emlx", "From: a@example.org")
+    put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/2.emlx", "From: n@example.org\nList-Unsubscribe: <mailto:x@example.org>")
+    put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/3.emlx", "From: n@example.org\nPrecedence: bulk")
+    put("V10/A/[Gmail].mbox/Spam.mbox/U/Data/Messages/4.emlx", "From: a@example.org")
+    assert parser._supported(tmp_path, only_emlx=True) == 1
