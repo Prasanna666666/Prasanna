@@ -846,8 +846,8 @@
             );
         } else {
             blocks.push(headlineBlock(info, running));
-            if (running) blocks.push(stepsBlock(info.steps), unreadBlock(info), nowBlock(info));
-            blocks.push(...problemBlocks(report));
+            if (running) blocks.push(stepsBlock(info.steps), nowBlock(info));
+            blocks.push(unreadBlock(info), ...problemBlocks(report));
         }
         patchChildren(panel, blocks.filter(Boolean));
         panel.hidden = !!parse().module; // the reading card belongs to the overview: every other page is its app's own, with nothing of the read above it

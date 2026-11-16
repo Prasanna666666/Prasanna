@@ -880,7 +880,7 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "recent": [] if reading else counted["recent"],
         "waiting": [] if reading else counted["waiting"],
         "steps": counted["steps"],
-        "unread_files": _unread_files() if s["running"] else [],
+        "unread_files": _unread_files(),  # what the last round could not read stays on the card after the read, until a round reads it
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],

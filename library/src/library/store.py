@@ -510,7 +510,8 @@ def _skippable(d) -> bool:
         return True
     if d["kind"] == "email" and _attachment_count(d) > 0:
         return False  # its attachments are read, and what the mail says about them (who sent it, when it is due) is what makes them mean something
-    return d["area"] in ("", "mail", "pictures") and not relevance.worth_reading(d["name"], "email" if d["area"] == "pictures" else d["kind"], d["text"])
+    # The keyword gate exists to keep thousands of newsletters away from a small model: it applies to the text of an email and to the words read from a picture, never to a file or an attachment
+    return (d["kind"] == "email" or d["area"] == "pictures") and not relevance.worth_reading(d["name"], "email", d["text"])
 
 
 def _for_model(d) -> bool:
