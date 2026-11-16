@@ -733,12 +733,11 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     gone_through = _gone_through()
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
-        mails_in = bool(found) and gone_through.get("mails", 0) >= (found.get("mails") or 0)  # every mail has been gone through: what they carry is all known
         total_known = {
             "documents": bool(found),
             "mails": bool(found),
-            "attachments": mails_in,
-        }  # a total is known when it has been counted: by the reader, or (for what is inside the messages) once every mail has been gone through
+            "attachments": bool(found),
+        }  # all three are counted by the reader before it reads; the third also grows, up to what the mails say they carried, as mails are opened
         counts, every = [], []
         for key, label in labels.items():
             # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.

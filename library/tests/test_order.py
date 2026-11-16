@@ -154,14 +154,10 @@ def test_step_one_counts_every_file_the_reader_has_gone_through_and_ends_on_the_
     assert (line(2)["done"], line(2)["total"]) == (10, 10)  # and when the step is over it is exactly the count
 
 
-def test_documents_in_mails_are_known_once_every_mail_has_been_gone_through_even_if_some_were_copies(conn, monkeypatch):
+def test_all_three_counts_are_known_as_soon_as_the_reader_has_counted(conn, monkeypatch):
     from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 0, "mails": 5})
-    _add(conn, "m1.eml", "mail", judged=1)  # five counted, one held: the others are copies of it
-    conn.execute("UPDATE documents SET kind='email' WHERE name='m1.eml'")
-    conn.commit()
-    monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 4})
-    assert not next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "attachments")["known"]
-    monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 5})
-    assert next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "attachments")["known"]
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 3, "mails": 5, "attachments": 2})
+    monkeypatch.setattr(web, "_gone_through", dict)
+    counts = {c["key"]: (c["known"], c["total"]) for c in web._steps(conn, {"phase": 1})[0]["counts"]}
+    assert counts == {"documents": (True, 3), "mails": (True, 5), "attachments": (True, 2)}
