@@ -16,6 +16,7 @@ from collections.abc import Callable
 from typing import Any
 
 from kit import extract
+from kit.groups import Groups
 
 from . import priority
 from .trace import FAILED_GROUP
@@ -76,26 +77,19 @@ def _by_mail(pieces: list[dict[str, Any]]) -> dict[str, list[int]]:
 def link(pieces: list[dict[str, Any]], verdict: Callable[[int, int], bool | None]) -> tuple[list[list[int]], set[int]]:
     """Groups of pieces that belong together, and the pieces whose links are still undecided. Two pieces are joined only if they are of the same mail or
     `verdict` confirms them (True), never on a guess; None means not yet decided, and those pieces are held back rather than shown on a guess."""
-    parent = {p["id"]: p["id"] for p in pieces}
-
-    def find(x: int) -> int:
-        while parent[x] != x:
-            parent[x] = parent[parent[x]]
-            x = parent[x]
-        return x
-
+    together = Groups(p["id"] for p in pieces)
     undecided: set[int] = set()
     for a, b, same in candidates(pieces):
-        if find(a) == find(b):
+        if together.same(a, b):
             continue
         said = True if same else verdict(a, b)
         if said is None:
             undecided.update((a, b))
         elif said:
-            parent[find(a)] = find(b)
+            together.join(a, b)
     groups: dict[int, list[int]] = defaultdict(list)
     for p in pieces:
-        groups[find(p["id"])].append(p["id"])
+        groups[together.find(p["id"])].append(p["id"])
     return [sorted(g) for g in groups.values() if not undecided.intersection(g)], undecided
 
 

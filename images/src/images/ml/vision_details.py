@@ -25,14 +25,6 @@ def to_box(rect: tuple[float, float, float, float]) -> tuple[float, float, float
     return (round(x, 4), round(1.0 - (y + h), 4), round(x + w, 4), round(1.0 - y, 4))
 
 
-def vision_available() -> bool:
-    try:
-        import Vision  # noqa: F401
-    except ImportError:
-        return False
-    return True
-
-
 class VisionDetails:
     MIN_LABEL_CONFIDENCE = 0.15
 

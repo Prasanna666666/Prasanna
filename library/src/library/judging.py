@@ -12,6 +12,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 from kit import extract
+from kit.text import json_object
 
 from . import apps, casebook, priority, recognise, relevance, store
 from .trace import FAILED, Trace
@@ -50,10 +51,7 @@ def forget_mail_bodies(conn) -> int:
 
 
 def _data(d) -> dict:
-    try:
-        return json.loads(d["data"]) if d["data"] else {}
-    except ValueError:
-        return {}
+    return json_object(d["data"])
 
 
 def _attachment_count(d) -> int:

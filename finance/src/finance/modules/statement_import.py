@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass, field
 
 from kit import extract
-from kit.text import day
+from kit.text import day, json_object
 
 from .. import (
     audit,
@@ -233,10 +233,7 @@ def _pending_documents(conn) -> list:
 
 
 def _document_data(d) -> dict:
-    try:
-        return json.loads(d["data"]) if d["data"] else {}
-    except ValueError:
-        return {}
+    return json_object(d["data"])
 
 
 def _import_rates_file(conn, d, data: dict, run: _Run) -> None:

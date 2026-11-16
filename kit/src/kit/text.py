@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from datetime import date
@@ -24,3 +25,12 @@ def day(value: Any) -> date | None:
         return date.fromisoformat(str(value or "")[:10])
     except ValueError:
         return None
+
+
+def json_object(raw: Any) -> dict:
+    """The object a stored JSON text holds, or an empty one when there is none or it is not valid."""
+    try:
+        found = json.loads(raw) if raw else {}
+    except ValueError:
+        return {}
+    return found if isinstance(found, dict) else {}

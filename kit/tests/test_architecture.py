@@ -53,3 +53,17 @@ def test_no_page_decides_by_a_word_the_model_used_for_a_kind_of_file():
                 if JS_DECIDES_BY_A_WORD.search(line):
                     found.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()[:110]}")
     assert not found, "a page decides by a kind word, not by a concept:\n" + "\n".join(found)
+
+
+def test_no_function_is_copied_between_two_files():
+    """Code that is written twice drifts apart: a function of more than three lines with the same body in two places belongs in the common layer."""
+    import ast
+    from collections import defaultdict
+
+    seen: dict[str, list[str]] = defaultdict(list)
+    for path in ROOT.glob("*/src/**/*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef) and node.end_lineno - node.lineno > 3 and node.name != "__init__":
+                seen[ast.dump(ast.Module(body=node.body, type_ignores=[]))].append(f"{path.relative_to(ROOT)}:{node.name}")
+    copies = [v for v in seen.values() if len(v) > 1]
+    assert not copies, f"the same function body is written in more than one place: {copies}"

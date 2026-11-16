@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass
 
 import numpy as np
+from kit.groups import Groups
 
 from ..db import meta_set
 
@@ -72,18 +73,11 @@ def greedy_cluster(embeddings: np.ndarray, threshold: float, refine: int = 2) ->
     np.add.at(centroids, labels, embeddings)
     centroids = _normalize_rows(centroids)
     if 1 < k <= 8000:  # merge clusters that are really the same person
-        parent = list(range(k))
-
-        def find(x: int) -> int:
-            while parent[x] != x:
-                parent[x] = parent[parent[x]]
-                x = parent[x]
-            return x
-
+        same_person = Groups(range(k))
         similarity = centroids @ centroids.T
         for a, b in zip(*np.where(np.triu(similarity >= threshold + 0.05, 1)), strict=True):
-            parent[find(int(a))] = find(int(b))
-        labels = np.array([find(int(x)) for x in labels])
+            same_person.join(int(a), int(b))
+        labels = np.array([same_person.find(int(x)) for x in labels])
     _, labels = np.unique(labels, return_inverse=True)
     return labels
 
