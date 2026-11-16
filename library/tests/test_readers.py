@@ -111,7 +111,7 @@ def test_the_passwords_file_is_never_read_as_a_document(tmp_path):
     (fin / "passwords.txt").write_text("secret\n")
     (fin / "note.txt").write_text("hello")
     r = parser.process_inbox(fin, out, isolated=False)
-    assert r["parsed"] == 1 and r["skipped"] == 1
+    assert r["parsed"] == 1 and r["skipped"] == 0  # the passwords file is not a document: it is neither read nor counted
     assert "secret" not in "".join(p.read_text() for p in out.glob("*.json"))
 
 

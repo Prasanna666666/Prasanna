@@ -119,10 +119,10 @@ READER_START_SECONDS = 90  # how long the reader may take to pick up the request
 
 def _round_complete() -> bool:
     """Has the reader gone through every file, mail and attachment it counted? (Each counts once it has been looked at: read, already known, left out or unreadable, so a complete round always reaches the count.)"""
-    found, gone = _found(), _gone_through()
+    found, gone, unread = _found(), _gone_through(), _unread()
     if not found or not gone:
         return True  # nothing to compare with: do not hold the read
-    return all(gone.get(key, 0) >= int(found.get(key) or 0) for key in ("documents", "mails", "attachments"))
+    return all(gone.get(key, 0) + unread.get(key, 0) >= int(found.get(key) or 0) for key in ("documents", "mails", "attachments"))
 
 
 def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
@@ -456,12 +456,28 @@ def _found() -> dict[str, Any]:
         return {}
 
 
-def _gone_through() -> dict[str, int]:
-    """How many of the counted files and mails the reader has gone through in this round: each counts once it has been looked at, whether it was read, was already known (a copy, or read before) or was left out."""
+def _progress() -> dict[str, Any]:
     try:
-        data = json.loads((parsed_dir() / ".progress").read_text())
-        return {k: int(data[k]) for k in ("documents", "mails")}
-    except (OSError, ValueError, KeyError, TypeError):
+        return json.loads((parsed_dir() / ".progress").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _gone_through() -> dict[str, int]:
+    """How many of the counted files, mails and attachments the reader has read fully and successfully in this round (a file read before, or identical to one read, counts: it is read)."""
+    data = _progress()
+    try:
+        return {k: int(data[k]) for k in ("documents", "mails", "attachments")}
+    except (KeyError, TypeError, ValueError):
+        return {}
+
+
+def _unread() -> dict[str, int]:
+    """How many it could not read: failed, or too large. They are said, never counted as read."""
+    raw = _progress().get("unread")
+    try:
+        return {k: int(raw[k]) for k in ("documents", "mails", "attachments")} if isinstance(raw, dict) else {}
+    except (KeyError, TypeError, ValueError):
         return {}
 
 
@@ -659,11 +675,16 @@ def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _done_count(n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any]) -> int:
+def _done_count(
+    n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any], unread: dict[str, int]
+) -> int:
     if (s.get("phase") or 1) < n:
         return 0  # a step that has not begun has done nothing, whatever state the files are already in
     if n == 1:
-        return total if taken_in else min(total, max(held["present"], gone_through.get(key, 0)))
+        read = gone_through.get(key, 0)
+        if taken_in:
+            return max(0, total - unread.get(key, 0)) if gone_through else total  # everything counted was read, except what could not be
+        return min(total, max(held["present"], read))
     return held[where]
 
 
@@ -713,6 +734,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     )
     steps = []
     gone_through = _gone_through()
+    unread = _unread()
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         total_known = {
@@ -729,7 +751,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             line = {
                 "key": key,
                 "label": label,
-                "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s),
+                "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s, unread),
+                "unread": unread.get(key, 0) if n == 1 else 0,
                 "total": total,
                 "known": known_now,
             }

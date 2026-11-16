@@ -666,7 +666,12 @@
         steps.find((s) => s.state === 'running') ||
         steps.find((s) => s.state === 'waiting');
     const countText = (c) =>
-        !c.known ? 'counting…' : c.total ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()}` : 'none found';
+        !c.known
+            ? 'counting…'
+            : c.total
+              ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()}` +
+                (c.unread ? ` · ${c.unread.toLocaleString()} could not be read` : '')
+              : 'none found';
     // a step: its name, what it does, how far it is, and its three counts (documents, mails, documents in mails), all alike
     const stepCard = (s, now) => {
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));

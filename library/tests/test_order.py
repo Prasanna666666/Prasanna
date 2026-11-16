@@ -210,3 +210,14 @@ def test_step_one_shows_every_count_complete_when_the_reader_has_gone_through_ev
     conn.commit()
     lines = web._steps(conn, {"phase": 2})[0]
     assert all(c["done"] == c["total"] for c in lines["counts"]) and lines["state"] == "done"
+
+
+def test_a_file_that_could_not_be_read_is_never_counted_as_read_and_is_said(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 8, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(web, "_unread", lambda: {"documents": 2, "mails": 0, "attachments": 0})
+    assert web._round_complete()  # every counted file was read, or could not be
+    line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
+    assert (line["done"], line["total"], line["unread"]) == (8, 10, 2)  # 8 read fully, 2 could not be: never "10 of 10"

@@ -342,6 +342,7 @@ def checkpoint(out: Path) -> bool:
     return (out / STOP).exists()
 
 
+_UNREAD = {"documents": 0, "mails": 0, "attachments": 0}  # files and mails this round that could not be read (failed, or too large)
 _PROGRESS = {
     "documents": 0,
     "mails": 0,
@@ -349,15 +350,17 @@ _PROGRESS = {
 }  # files gone through in this round, by what they are (every file counts once it has been looked at: read, already known, left out or unreadable)
 
 
-def _progress_add(out: Path, area: str, n: int, group: str = "") -> None:
-    _PROGRESS[group or ("mails" if area == "mail" else "documents")] += n
+def _progress_add(out: Path, area: str, n: int, group: str = "", unread: int = 0) -> None:
+    key = group or ("mails" if area == "mail" else "documents")
+    _PROGRESS[key] += n
+    _UNREAD[key] += unread
     _write_progress(out)
 
 
 def _write_progress(out: Path) -> None:
     with contextlib.suppress(OSError):
         tmp = out / ".progress.tmp"
-        tmp.write_text(json.dumps(_PROGRESS))
+        tmp.write_text(json.dumps({**_PROGRESS, "unread": _UNREAD}))
         os.replace(tmp, out / ".progress")
 
 
@@ -372,11 +375,15 @@ def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: boo
         _process(f, label_of(f), out, area, isolated, counts, 0, source_of(f) if source_of else "")
         return counts
 
+    unread = 0
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         for counts in pool.map(one, files):
             for k, v in counts.items():
                 total[k] += v
-    _progress_add(out, area, len(files), group)
+            unread += bool(
+                counts["failed"] or counts["skipped"]
+            )  # a file counts as read only when it was read fully, without anything failing or being left out
+    _progress_add(out, area, len(files) - unread, group, unread)
     return total
 
 
@@ -388,7 +395,13 @@ def process_inbox(inbox: Path, out: Path, isolated: bool = True, area: str = "",
     files = [
         f
         for f in sorted(root.rglob("*"))
-        if f.is_file() and not f.is_symlink() and root in f.resolve().parents and f.relative_to(root).parts[0] not in skip_folders
+        if f.is_file()
+        and not f.is_symlink()
+        and not f.name.startswith(".")
+        and f.name.lower() not in SKIP_NAMES
+        and root in f.resolve().parents
+        and f.relative_to(root).parts[0] not in skip_folders
+        and f.stat().st_size > 0
     ]
     for i in range(0, len(files), BATCH):
         for k, v in _read_batch(files[i : i + BATCH], lambda f: f.name, out, area, isolated, lambda f: f"{root}|{f.relative_to(root)}").items():
@@ -705,7 +718,7 @@ def _supported(root: Path, skip: frozenset[str] = frozenset(), only_emlx: bool =
         if relative.parts[0] in skip or (only_emlx and (f.suffix.lower() != ".emlx" or _in_skipped_mailbox(relative) or is_bulk_mail(f))):
             continue
         size = f.stat().st_size
-        total += 0 < size <= (MBOX_MAX_BYTES if f.suffix.lower() == ".mbox" else MAX_BYTES)
+        total += size > 0  # a file too large to read is counted too: it will be said to be unread, not left out of the count
     return total
 
 
@@ -815,6 +828,7 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
     mails: list[dict[str, int]] = []
     documents: list[dict[str, int]] = []
     _PROGRESS.update(documents=0, mails=0, attachments=0)
+    _UNREAD.update(documents=0, mails=0, attachments=0)
     _MAIL_INDEX.clear()
     _VETTED.clear()
     _write_progress(out)
