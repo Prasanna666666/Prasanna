@@ -13,10 +13,11 @@ def today(monkeypatch):
     monkeypatch.setattr(clock, "today", lambda: date(2026, 12, 15))
 
 
-def test_a_bonus_is_recognised_as_its_own_kind_of_income():
-    for note in ("Acme BV Bonus 2026", "Gratificatie december", "13e maand uitbetaling", "Winstdeling Acme"):
-        assert categorize.by_rules(note, "income") == "bonus", note
-    assert categorize.by_rules("Acme BV Salaris", "income") != "bonus"
+def test_a_bonus_is_its_own_kind_of_income_when_the_model_says_so():
+    decided = {"acme bv bonus": "bonus", "acme bv salaris": "salary"}
+    assert categorize.categorise("Acme BV Bonus 2026", "income", decided=decided) == "bonus"
+    assert categorize.categorise("Acme BV Salaris", "income", decided=decided) == "salary"
+    assert categorize.categorise("Acme BV Bonus 2026", "income") == "income"  # until it has been asked
 
 
 def test_income_is_split_into_salary_bonus_and_other_by_month_and_year(conn):

@@ -1,7 +1,7 @@
-"""Sort transactions into categories. Rules first (instant, free, predictable), your own corrections next, the local model last.
+"""Sort transactions into categories. Your own corrections first, then what the local model decided about the merchant (once: the answer is remembered), else 'other'.
 
-Nothing here uses the network. The local model (when asked) sees only a short merchant name, never amounts or dates, and may only
-answer with a category from the fixed list below.
+Nothing here uses the network. The local model sees only a short merchant name, never amounts or dates, and may only answer with a category from
+`categories.json`, where each category has a plain description. There are no merchant or word lists: a new merchant needs no edit anywhere.
 """
 
 from __future__ import annotations
@@ -11,12 +11,13 @@ import re
 from pathlib import Path
 
 _DATA = json.loads((Path(__file__).parent / "categories.json").read_text(encoding="utf-8"))
-CATEGORIES: tuple[str, ...] = tuple(_DATA["categories"])
-# (category, words) from categories.json. A word matches whole-word, case-insensitive. Order matters: the first matching rule wins.
-RULES: tuple[tuple[str, tuple[str, ...]], ...] = tuple((r["category"], tuple(r["words"])) for r in _DATA["rules"])
+CATEGORY_ABOUT: dict[str, str] = {c["name"]: c["about"] for c in _DATA["categories"]}
+CATEGORIES: tuple[str, ...] = tuple(CATEGORY_ABOUT)
 ROUTINE: tuple[str, ...] = tuple(_DATA["routine"])
 NOT_INCOME: frozenset[str] = frozenset(_DATA["income_never"])  # money coming in from a shop is a refund, not a purchase
-_COMPILED = [(cat, re.compile(r"(?<![a-z0-9])(?:" + "|".join(re.escape(w.strip()) for w in words) + r")(?![a-z0-9])", re.IGNORECASE)) for cat, words in RULES]
+MERCHANTS_PER_ASK = 40  # merchant names put to the model in one question
+MERCHANTS_PER_RUN = 200  # the most merchants decided in one run, commonest first; the rest wait for the next
+
 
 _NOISE = re.compile(
     r"\b(upi|imps|neft|rtgs|pos|ach|nach|ecs|atm|ref|txn|payment|paid|to|from|by|via|debit|credit|card|purchase|dr|cr|ib|mb|mobile|"
@@ -35,25 +36,25 @@ def merchant(desc: str) -> str:
     return " ".join(words)
 
 
-def by_rules(desc: str, kind: str) -> str | None:
-    for category, pattern in _COMPILED:
-        if pattern.search(desc):
-            if kind == "income" and category in NOT_INCOME:
-                continue
-            return category
-    return None
-
-
-def categorise(desc: str, kind: str, learned: dict[str, str] | None = None) -> str:
-    """Your own earlier choice for this merchant wins; then the built-in rules; else 'income'/'other'."""
+def categorise(desc: str, kind: str, learned: dict[str, str] | None = None, decided: dict[str, str] | None = None) -> str:
+    """Your own earlier choice for this merchant wins; then what the model decided about it; else 'income' or 'other' until the model has been asked."""
     m = merchant(desc)
     if learned and m and m in learned:
         return learned[m]
-    return by_rules(desc, kind) or ("income" if kind == "income" else "other")
+    found = decided.get(m) if decided and m else None
+    if found and not (kind == "income" and found in NOT_INCOME):
+        return found
+    return "income" if kind == "income" else "other"
 
 
 def learned_rules(conn) -> dict[str, str]:
+    """The person's own corrections: merchant -> category."""
     return {r["merchant"]: r["category"] for r in conn.execute("SELECT merchant, category FROM merchant_rules")}
+
+
+def model_decisions(conn) -> dict[str, str]:
+    """What the model decided about each merchant it was asked about: merchant -> category."""
+    return {r["merchant"]: r["category"] for r in conn.execute("SELECT merchant, category FROM merchant_categories")}
 
 
 def teach(conn, desc: str, category: str) -> str:
@@ -71,15 +72,16 @@ def teach(conn, desc: str, category: str) -> str:
 
 
 def model_categories(client, model: str, names: list[str]) -> dict[str, str]:
-    """Ask the local model to place merchant names (only names) into the fixed category list."""
+    """Ask the local model to place merchant names (only names) into the category list, each with its plain description."""
+    listed = "\n".join(f"- {name}: {about}" for name, about in CATEGORY_ABOUT.items())
     msg = client.chat(
         model,
         [
             {
                 "role": "system",
-                "content": "Put each merchant into exactly one category from this list: "
-                + ", ".join(CATEGORIES)
-                + '. Reply with only a JSON object mapping each merchant to its category, e.g. {"swiggy": "food"}. Use "other" if unsure.',
+                "content": "Put each merchant into exactly one of these categories:\n"
+                + listed
+                + '\nReply with only a JSON object mapping each merchant to its category, e.g. {"some shop": "shopping"}. Use "other" if unsure.',
             },
             {"role": "user", "content": json.dumps(names)},
         ],
@@ -92,20 +94,32 @@ def model_categories(client, model: str, names: list[str]) -> dict[str, str]:
     return {k: v.lower() for k, v in found.items() if k in names and isinstance(v, str) and v.lower() in CATEGORIES}
 
 
-def recategorise_with_model(conn, client, model: str, batch: int = 40) -> int:
-    """Use the local model on the merchants the rules could not place. Returns how many transactions were updated."""
-    pending: dict[str, list[int]] = {}
-    for r in conn.execute("SELECT id, note FROM transactions WHERE category='other' AND auto=1"):
+def recategorise_with_model(conn, client, model: str, batch: int = MERCHANTS_PER_ASK) -> int:
+    """Ask the local model about every merchant nobody has decided yet (once each: the answer is remembered), and give its payments that category.
+    Returns how many transactions were updated."""
+    asked = set(model_decisions(conn)) | set(learned_rules(conn))
+    pending: dict[str, int] = {}
+    for r in conn.execute("SELECT note FROM transactions WHERE category IN ('other','income') AND auto=1"):
         m = merchant(r["note"])
-        if m:
-            pending.setdefault(m, []).append(r["id"])
-    names = sorted(pending, key=lambda n: -len(pending[n]))[:200]
-    updated = 0
+        if m and m not in asked:
+            pending[m] = pending.get(m, 0) + 1
+    names = sorted(pending, key=lambda n: -pending[n])[:MERCHANTS_PER_RUN]
     for i in range(0, len(names), batch):
         for name, category in model_categories(client, model, names[i : i + batch]).items():
-            if category != "other":
-                for tid in pending[name]:
-                    conn.execute("UPDATE transactions SET category=? WHERE id=?", (category, tid))
-                updated += len(pending[name])
+            conn.execute("INSERT OR REPLACE INTO merchant_categories (merchant, category) VALUES (?,?)", (name, category))
+    conn.commit()
+    return apply_decisions(conn)
+
+
+def apply_decisions(conn) -> int:
+    """Give every automatically sorted payment the category the model decided for its merchant (never against the person's own corrections)."""
+    decided, corrected = model_decisions(conn), learned_rules(conn)
+    updated = 0
+    for r in conn.execute("SELECT id, note, kind FROM transactions WHERE category IN ('other','income') AND auto=1").fetchall():
+        m = merchant(r["note"])
+        category = decided.get(m) if m not in corrected else None
+        if category and category != "other" and not (r["kind"] == "income" and category in NOT_INCOME):
+            conn.execute("UPDATE transactions SET category=? WHERE id=?", (category, r["id"]))
+            updated += 1
     conn.commit()
     return updated

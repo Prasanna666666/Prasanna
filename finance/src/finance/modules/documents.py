@@ -8,7 +8,7 @@ import re
 
 from kit.module import Module
 
-from ..tagging import rule_tags
+from ..tagging import people_tags
 
 MIGRATIONS = (
     """
@@ -50,7 +50,9 @@ def store_from_library(conn, doc: dict) -> int:
     ):
         return 0
     people = [dict(r) for r in conn.execute("SELECT name FROM people")]
-    tags = ",".join(rule_tags(f"{doc['name']} {doc['text'][:5000]}", people))
+    tags = ",".join(
+        sorted({*people_tags(f"{doc['name']} {doc['text'][:5000]}", people), *map(str, doc["facts"].get("apps") or [])})
+    )  # the people named, and the apps the model found the document to be about
     area = doc["area"] if doc.get("area") in ("finance", "mail") else ""
     facts = json.dumps(doc["facts"]) if doc["facts"] else ""
     known = conn.execute("SELECT 1 FROM documents WHERE sha256=?", (doc["sha256"],)).fetchone() is not None

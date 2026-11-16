@@ -261,7 +261,7 @@ def _post_notes_tag(state: State, conn, body: dict) -> dict:
         client, model = client_and_model(conn)
         return {"ok": True, "tagged": tagging.autotag_notes(conn, client, model)}
     except RuntimeError:
-        return {"ok": True, "tagged": tagging.autotag_notes(conn), "note": "The model was not available: rules only."}
+        return {"ok": True, "tagged": tagging.autotag_notes(conn), "note": "The model was not available: only the people in the notes were tagged."}
 
 
 def _post_notes_import(state: State, conn, body: dict) -> dict:

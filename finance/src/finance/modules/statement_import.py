@@ -28,6 +28,7 @@ from ..findings import Finding, Read
 
 # ---- statements -------------------------------------------------------------------------------------------------------
 def _store(conn, d, txns, learned, account: str = "", currency: str = "") -> int:
+    decided = categorize.model_decisions(conn)  # what the model decided about each merchant before
     new = 0
     scope = re.sub(r"[^A-Za-z0-9]", "", account).upper()
     for ref, t in statements.with_references(txns, scope):
@@ -37,7 +38,7 @@ def _store(conn, d, txns, learned, account: str = "", currency: str = "") -> int
                 t.day,
                 t.amount_minor,
                 t.kind,
-                categorize.categorise(t.desc, t.kind, learned),
+                categorize.categorise(t.desc, t.kind, learned, decided),
                 t.desc[:300],
                 ref,
                 d["name"][:200],
@@ -310,12 +311,14 @@ def _after_import(conn, client, model, progress, run: _Run) -> None:
     """Convert to euros, run every cross-check, then let the model sort new merchants and group trips (it sees only names)."""
     rates.convert_all(conn)  # every payment in euros at the rate of its own day
     verify.run_cross_checks(conn)  # payslips vs bank, invoices vs bank, continuity, plausibility: every time, on everything
-    if client is None or not model or not run.added:
+    if client is None or not model:
         return
     try:
-        categorize.recategorise_with_model(conn, client, model)
+        categorize.recategorise_with_model(conn, client, model)  # only merchants nobody has decided yet are asked about: nothing new, no question
     except RuntimeError as exc:
         run.problems.append(f"Imported, but the merchants could not be sorted by the model: {exc}")
+    if not run.added:
+        return
     try:
         from . import events
 

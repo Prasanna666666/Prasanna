@@ -131,6 +131,9 @@ MIGRATIONS = (
     CREATE INDEX IF NOT EXISTS finance_docs_concept ON finance_docs(concept, doc_date);
     CREATE TABLE IF NOT EXISTS kind_concepts (kind TEXT PRIMARY KEY, concept TEXT NOT NULL);
     """,
+    """
+    CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEXT PRIMARY KEY, category TEXT NOT NULL);  -- what the model decided about each merchant, once
+    """,
 )
 
 

@@ -26,7 +26,7 @@ Apps never import each other: they talk over HTTP (`/api/documents?app=…`). `k
 
 ## Words live in data, not in code
 
-What a spending category or a note tag is known by (merchant names, words) is in `finance/src/finance/categories.json` and `tags.json`, with the list of routine categories. Teaching Finance a new merchant is an edit of that file, not of code. The person's own corrections come before it and the local model decides what it does not cover. Small helpers every layer needs (`squash`, `clean`, `day`) are in `kit.text`; the request checks, error boundary and file serving of every service are in `kit.http.ModuleHandler`.
+What a spending category or a note tag *is* (its name and a plain description) is in `finance/src/finance/categories.json` and `tags.json`, with the list of routine categories. There are no merchant or word lists: the local model puts each merchant into a category once (the answer is remembered in `merchant_categories`), the person's own corrections come first, and a merchant nobody has decided yet is "other". Small helpers every layer needs (`squash`, `clean`, `day`) are in `kit.text`; the request checks, error boundary and file serving of every service are in `kit.http.ModuleHandler`.
 
 ## How the Documents service is divided
 

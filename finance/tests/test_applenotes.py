@@ -50,8 +50,8 @@ def test_import_roundtrip_dedupes_and_updates(conn, tmp_path):
     assert an.import_dir(conn, out) == {"new": 0, "updated": 0, "unchanged": 2, "skipped": 0}
     got = {n["title"]: n for n in notes.search_notes(conn, {})}
     sg = got["Packing list - Singapore"]
-    assert sg["tags"] == "documents,travel,trips" and sg["created"] == "2024-03-01 09:00:00"
-    assert "ramesh" in got["Evil name: x"]["tags"] and "health" in got["Evil name: x"]["tags"]
+    assert sg["tags"] == "trips" and sg["created"] == "2024-03-01 09:00:00"
+    assert "ramesh" in got["Evil name: x"]["tags"]  # the person named; topics come from the model
     # a change in Notes updates the existing row; user-set tags survive
     notes.update_note(conn, {"id": sg["id"], "tags": "mine"})
     changed = [{**FAKE[0], "html": "<div>new text</div>"}]

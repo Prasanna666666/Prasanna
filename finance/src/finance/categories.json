@@ -1,349 +1,102 @@
 {
- "about": "What each spending category is known by. A word matches a whole word in a payment description, first matching rule wins; the person's own corrections come before these and the local model decides what none of them cover. Edit this file to teach a new merchant or word: no code changes.",
+ "about": "The spending categories and what each means. The local model puts each merchant name into one of them (once per merchant: the answer is remembered); the person's own corrections come first. No merchant or word lists: a new merchant needs no edit here.",
  "categories": [
-  "groceries",
-  "food",
-  "transport",
-  "fuel",
-  "shopping",
-  "utilities",
-  "rent",
-  "emi",
-  "insurance",
-  "medical",
-  "education",
-  "travel",
-  "entertainment",
-  "subscriptions",
-  "cash",
-  "investments",
-  "transfers",
-  "fees",
-  "salary",
-  "bonus",
-  "interest",
-  "refund",
-  "income",
-  "other"
- ],
- "rules": [
   {
-   "category": "salary",
-   "words": [
-    "salary",
-    "payroll",
-    "sal credit"
-   ]
+   "name": "groceries",
+   "about": "food and household shopping at supermarkets, grocers, markets and delivery of groceries"
   },
   {
-   "category": "bonus",
-   "words": [
-    "bonus",
-    "gratificatie",
-    "13e maand",
-    "dertiende maand",
-    "eindejaarsuitkering",
-    "winstdeling",
-    "tantieme"
-   ]
+   "name": "food",
+   "about": "eating and drinking out or ordered in: restaurants, cafes, takeaway, food delivery"
   },
   {
-   "category": "interest",
-   "words": [
-    "interest",
-    "int.pd",
-    "int pd",
-    "int cr"
-   ]
+   "name": "transport",
+   "about": "getting around: public transport, taxis and ride apps, trains, parking, tolls"
   },
   {
-   "category": "refund",
-   "words": [
-    "refund",
-    "reversal",
-    "cashback",
-    "chargeback"
-   ]
+   "name": "fuel",
+   "about": "petrol, diesel or charging for a vehicle"
   },
   {
-   "category": "emi",
-   "words": [
-    "emi",
-    "loan",
-    "nach",
-    "ecs",
-    "installment",
-    "instalment"
-   ]
+   "name": "shopping",
+   "about": "things bought for yourself or the home that are not food: clothes, electronics, furniture, online shops"
   },
   {
-   "category": "rent",
-   "words": [
-    "rent",
-    "landlord",
-    "nobroker"
-   ]
+   "name": "utilities",
+   "about": "electricity, gas, water, internet, phone and TV bills"
   },
   {
-   "category": "insurance",
-   "words": [
-    "insurance",
-    "lic",
-    "premium",
-    "policybazaar",
-    "hdfc life",
-    "star health",
-    "icici pru"
-   ]
+   "name": "rent",
+   "about": "rent paid for a home or office"
   },
   {
-   "category": "investments",
-   "words": [
-    "zerodha",
-    "groww",
-    "upstox",
-    "mutual fund",
-    "sip",
-    "nps",
-    "ppf",
-    "coin",
-    "kuvera",
-    "smallcase"
-   ]
+   "name": "emi",
+   "about": "loan and instalment repayments"
   },
   {
-   "category": "subscriptions",
-   "words": [
-    "netflix",
-    "spotify",
-    "prime video",
-    "hotstar",
-    "youtube",
-    "apple.com",
-    "google play",
-    "icloud",
-    "linkedin",
-    "openai",
-    "chatgpt",
-    "notion",
-    "dropbox",
-    "jio cinema",
-    "sonyliv",
-    "zee5"
-   ]
+   "name": "insurance",
+   "about": "insurance premiums of any kind"
   },
   {
-   "category": "utilities",
-   "words": [
-    "electricity",
-    "bescom",
-    "tneb",
-    "msedcl",
-    "water",
-    "gas",
-    "broadband",
-    "airtel",
-    "jio",
-    "vodafone",
-    "vi ",
-    "bsnl",
-    "recharge",
-    "dth",
-    "tata play",
-    "act fibernet",
-    "postpaid",
-    "prepaid"
-   ]
+   "name": "medical",
+   "about": "doctors, hospitals, pharmacies, tests, dental and other health costs"
   },
   {
-   "category": "fuel",
-   "words": [
-    "petrol",
-    "diesel",
-    "hpcl",
-    "bpcl",
-    "iocl",
-    "indian oil",
-    "shell",
-    "fuel"
-   ]
+   "name": "education",
+   "about": "school, college, courses, tuition, books for study"
   },
   {
-   "category": "transport",
-   "words": [
-    "uber",
-    "ola",
-    "rapido",
-    "metro",
-    "irctc",
-    "redbus",
-    "fastag",
-    "parking",
-    "toll",
-    "namma yatri"
-   ]
+   "name": "travel",
+   "about": "flights, hotels, holiday bookings and other trip costs"
   },
   {
-   "category": "travel",
-   "words": [
-    "makemytrip",
-    "goibibo",
-    "cleartrip",
-    "indigo",
-    "air india",
-    "vistara",
-    "airbnb",
-    "booking.com",
-    "oyo",
-    "hotel",
-    "yatra"
-   ]
+   "name": "entertainment",
+   "about": "cinema, games, events, hobbies and leisure"
   },
   {
-   "category": "groceries",
-   "words": [
-    "bigbasket",
-    "blinkit",
-    "zepto",
-    "dmart",
-    "d mart",
-    "grofers",
-    "instamart",
-    "reliance fresh",
-    "more retail",
-    "nature's basket",
-    "grocery",
-    "supermarket",
-    "vegetable",
-    "milk",
-    "kirana"
-   ]
+   "name": "subscriptions",
+   "about": "recurring digital or media subscriptions and memberships"
   },
   {
-   "category": "food",
-   "words": [
-    "swiggy",
-    "zomato",
-    "restaurant",
-    "cafe",
-    "coffee",
-    "starbucks",
-    "dominos",
-    "domino",
-    "mcdonald",
-    "kfc",
-    "pizza",
-    "biryani",
-    "bakery",
-    "eatfit",
-    "dining",
-    "food"
-   ]
+   "name": "cash",
+   "about": "cash withdrawals"
   },
   {
-   "category": "medical",
-   "words": [
-    "pharmacy",
-    "apollo",
-    "medplus",
-    "1mg",
-    "netmeds",
-    "hospital",
-    "clinic",
-    "diagnostic",
-    "lab",
-    "doctor",
-    "medical",
-    "dental",
-    "pharmeasy"
-   ]
+   "name": "investments",
+   "about": "money put into investments, funds, shares or pensions"
   },
   {
-   "category": "education",
-   "words": [
-    "school",
-    "college",
-    "tuition",
-    "course",
-    "udemy",
-    "coursera",
-    "byju",
-    "unacademy",
-    "university",
-    "exam",
-    "fees"
-   ]
+   "name": "transfers",
+   "about": "money moved between the person's own accounts"
   },
   {
-   "category": "entertainment",
-   "words": [
-    "bookmyshow",
-    "pvr",
-    "inox",
-    "cinema",
-    "movie",
-    "game",
-    "steam",
-    "playstation"
-   ]
+   "name": "fees",
+   "about": "bank charges, taxes, penalties and service fees"
   },
   {
-   "category": "shopping",
-   "words": [
-    "amazon",
-    "flipkart",
-    "myntra",
-    "ajio",
-    "nykaa",
-    "meesho",
-    "croma",
-    "decathlon",
-    "ikea",
-    "lifestyle",
-    "westside",
-    "mall"
-   ]
+   "name": "salary",
+   "about": "pay from an employer"
   },
   {
-   "category": "cash",
-   "words": [
-    "atm",
-    "cash withdrawal",
-    "cash wdl",
-    "nfs",
-    "cwdr"
-   ]
+   "name": "bonus",
+   "about": "a bonus, 13th month or other extra pay from an employer"
   },
   {
-   "category": "fees",
-   "words": [
-    "charges",
-    "gst",
-    "annual fee",
-    "sms charges",
-    "penalty",
-    "late fee",
-    "service charge"
-   ]
+   "name": "interest",
+   "about": "interest earned on savings or deposits"
   },
   {
-   "category": "transfers",
-   "words": [
-    "self transfer",
-    "own account",
-    "self trf",
-    "sweep in",
-    "sweep out"
-   ]
+   "name": "refund",
+   "about": "money returned for something bought, a reversal or cashback"
+  },
+  {
+   "name": "income",
+   "about": "other money received that is none of the above"
+  },
+  {
+   "name": "other",
+   "about": "anything that does not clearly belong to another category"
   }
- ],
- "income_never": [
-  "groceries",
-  "food",
-  "shopping",
-  "transport",
-  "fuel",
-  "cash"
  ],
  "routine": [
   "rent",
@@ -361,5 +114,13 @@
   "medical",
   "education",
   "subscriptions"
+ ],
+ "income_never": [
+  "groceries",
+  "food",
+  "shopping",
+  "transport",
+  "fuel",
+  "cash"
  ]
 }

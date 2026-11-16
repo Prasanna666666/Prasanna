@@ -149,7 +149,7 @@ def _ts(iso: str) -> str | None:
 
 # --------------------------------------------------------------------------- import
 def import_dir(conn, directory: Path) -> dict[str, int]:
-    from .tagging import rule_tags
+    from .tagging import people_tags
 
     people = [dict(r) for r in conn.execute("SELECT name FROM people")]
     new = updated = unchanged = skipped = 0
@@ -173,7 +173,7 @@ def import_dir(conn, directory: Path) -> dict[str, int]:
                 )
                 updated += 1
             continue
-        tags = set(rule_tags(f"{n.get('title', '')} {n['body']}", people))
+        tags = set(people_tags(f"{n.get('title', '')} {n['body']}", people))
         if n.get("folder"):
             tags.add(slug(n["folder"], "unfiled"))
         conn.execute(

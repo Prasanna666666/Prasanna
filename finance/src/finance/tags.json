@@ -1,5 +1,5 @@
 {
- "about": "What a note's tag is known by (whole words, case-insensitive). The model may only choose from `vocab`.",
+ "about": "The tags a note can get. The person's own tags and the names of the people in the note come first; the local model chooses from this list for the rest.",
  "vocab": [
   "health",
   "family",
@@ -11,96 +11,5 @@
   "shopping",
   "learning",
   "documents"
- ],
- "rules": {
-  "health": [
-   "doctor",
-   "medicine",
-   "tablet",
-   "bp",
-   "sugar",
-   "diabetes",
-   "hospital",
-   "prescription",
-   "dose",
-   "checkup",
-   "check-up",
-   "appointment",
-   "blood",
-   "clinic",
-   "dentist"
-  ],
-  "money": [
-   "rent",
-   "bill",
-   "bank",
-   "salary",
-   "invoice",
-   "emi",
-   "loan",
-   "tax",
-   "insurance",
-   "payment",
-   "budget",
-   "rupees",
-   "refund"
-  ],
-  "home": [
-   "repair",
-   "plumber",
-   "electrician",
-   "warranty",
-   "appliance",
-   "ac",
-   "fridge",
-   "landlord",
-   "maintenance"
-  ],
-  "travel": [
-   "flight",
-   "ticket",
-   "hotel",
-   "trip",
-   "passport",
-   "visa",
-   "train",
-   "booking"
-  ],
-  "shopping": [
-   "buy",
-   "grocery",
-   "groceries",
-   "order",
-   "shopping"
-  ],
-  "work": [
-   "meeting",
-   "project",
-   "client",
-   "deadline",
-   "office",
-   "boss"
-  ],
-  "learning": [
-   "course",
-   "book",
-   "read",
-   "learn",
-   "study"
-  ],
-  "documents": [
-   "aadhaar",
-   "pan",
-   "passport",
-   "license",
-   "certificate",
-   "policy number"
-  ],
-  "ideas": [
-   "idea",
-   "maybe",
-   "someday",
-   "what if"
-  ]
- }
+ ]
 }

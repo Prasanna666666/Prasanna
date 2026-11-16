@@ -115,7 +115,7 @@ def _tag(conn, rest: list[str]) -> int:
         client = llm.OllamaClient()
         n = tagging.autotag_notes(conn, client, _model(conn, client))
     except RuntimeError:
-        n = tagging.autotag_notes(conn)  # model unavailable: rules only
+        n = tagging.autotag_notes(conn)  # model unavailable: people only
     print(f"tagged {n} note(s)")
     return 0
 

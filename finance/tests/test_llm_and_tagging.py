@@ -5,14 +5,14 @@ from finance import tagging
 from finance.modules import notes, people
 
 
-def test_rule_tags_and_people(conn):
+def test_people_are_tagged_without_a_model_and_topics_only_by_the_model(conn):
     people.add_person(conn, {"name": "Ramesh Kumar", "relation": "father"})
     notes.add_note(conn, {"body": "Ramesh BP tablet after breakfast, doctor visit Friday"})
     notes.add_note(conn, {"body": "random thought", "tags": "mine"})
     notes.add_note(conn, {"body": "zzz"})
     assert tagging.autotag_notes(conn) == 1
     got = {n["body"][:6]: n["tags"] for n in notes.search_notes(conn, {})}
-    assert got["Ramesh"] == "family,health,ramesh"
+    assert got["Ramesh"] == "family,ramesh"  # the person is known from the people list; what the note is about is the model's call
     assert got["random"] == "mine"  # user tags are never overwritten
 
 

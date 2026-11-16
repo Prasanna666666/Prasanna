@@ -269,10 +269,11 @@ def test_files_outside_the_finance_folder_are_never_imported(conn, tmp_path):
     assert r["new_transactions"] == 0 and conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0
 
 
-def test_categories_rules_then_your_corrections(conn, tmp_path):
-    assert categorize.categorise("UPI-SWIGGY-swiggy@icici-4567", "expense") == "food"
-    assert categorize.categorise("SELF TRANSFER TO SAVINGS", "expense") == "transfers"
-    assert categorize.categorise("RANDOM SHOP 1234", "expense") == "other"
+def test_a_merchant_is_other_until_the_model_decides_and_your_corrections_win(conn, tmp_path):
+    assert categorize.categorise("UPI-SWIGGY-swiggy@icici-4567", "expense") == "other"  # no word lists: nothing is known about it yet
+    assert categorize.categorise("UPI-SWIGGY-swiggy@icici-4567", "expense", decided={"swiggy": "food"}) == "food"
+    assert categorize.categorise("UPI-SWIGGY-swiggy@icici-4567", "expense", {"swiggy": "shopping"}, {"swiggy": "food"}) == "shopping"  # yours first
+    assert categorize.categorise("Swiggy refund", "income", decided={"swiggy refund": "food"}) == "income"  # money in from a shop is not a purchase
     assert categorize.merchant("UPI-SWIGGY-swiggy@icici-4567-Order") == "swiggy"
     _load(conn, tmp_path, "oct.pdf", [HEAD, ["01-10-2026", "Kiran Stores Utrecht", "3,00", "", ""]])
     run(conn)
@@ -293,6 +294,25 @@ def test_the_model_can_place_the_merchants_the_rules_miss(conn, tmp_path):
             return {"content": '{"kiran stores utrecht": "groceries", "invented": "food"}'}
 
     assert categorize.recategorise_with_model(conn, Categoriser(), "fake") == 1
+    assert categorize.model_decisions(conn) == {"kiran stores utrecht": "groceries"}  # remembered, and "invented" (not asked about) is not kept
+
+
+def test_the_model_is_asked_about_a_merchant_only_once(conn, tmp_path):
+    _load(conn, tmp_path, "oct.pdf", [HEAD, ["01-10-2026", "Kiran Stores Utrecht", "3,00", "", ""]])
+    run(conn)
+    asked = []
+
+    class Categoriser:
+        def chat(self, model, messages, **kw):
+            asked.append(messages[-1]["content"])
+            return {"content": '{"kiran stores utrecht": "groceries"}'}
+
+    categorize.recategorise_with_model(conn, Categoriser(), "fake")
+    categorize.recategorise_with_model(conn, Categoriser(), "fake")
+    _load(conn, tmp_path, "nov.pdf", [HEAD, ["01-11-2026", "Kiran Stores Utrecht", "4,00", "", ""]])
+    run(conn)  # a new payment to the same merchant is sorted from what was decided, without asking again
+    assert len(asked) == 1
+    assert {r["category"] for r in conn.execute("SELECT category FROM transactions")} == {"groceries"}
 
 
 def test_views_top_merchants_trend_and_recurring(conn, tmp_path):
@@ -302,6 +322,14 @@ def test_views_top_merchants_trend_and_recurring(conn, tmp_path):
     rows.append(["20-10-2026", "SELF TRANSFER TO SAVINGS", "10.000,00", "", ""])
     _load(conn, tmp_path, "q.pdf", rows)
     run(conn)
+
+    class Categoriser:  # the model decides what each merchant is; nothing in the code knows a shop
+        def chat(self, model, messages, **kw):
+            names = __import__("json").loads(messages[-1]["content"])
+            kinds = {"netflix": "subscriptions", "swiggy": "food", "self transfer": "transfers"}
+            return {"content": __import__("json").dumps({n: next((c for w, c in kinds.items() if w in n), "other") for n in names})}
+
+    categorize.recategorise_with_model(conn, Categoriser(), "fake")
     assert reports.top_merchants(conn, {"month": "2026-10"})[0]["spent"] == 649.0
     assert [r["month"] for r in reports.monthly_trend(conn, {"months": 12})] == ["2026-07", "2026-08", "2026-09", "2026-10"]
     names = [r["merchant"] for r in reports.recurring_payments(conn)]
