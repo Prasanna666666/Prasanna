@@ -11,7 +11,8 @@ from http.server import ThreadingHTTPServer
 import pytest
 from kit import db
 
-from library import parser, store, web
+from library import appstate, parser, reading, scanstatus, store, web
+from library.appstate import State
 
 
 def _emlx(path, headers, body="Please find the document attached."):
@@ -50,7 +51,7 @@ def library(tmp_path, monkeypatch):
     monkeypatch.setenv("ATLAS_HOME", str(home))
     monkeypatch.setenv("ATLAS_PARSED", str(parsed))
     monkeypatch.setenv("LIBRARY_GENTLE_SECONDS", "0")
-    monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
+    monkeypatch.setattr(reading, "SETTLE_SECONDS", 0.05)
     monkeypatch.setattr(parser, "GENTLE_SECONDS", 0)
     monkeypatch.setattr(parser, "ROUND_SECONDS", 0)
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
@@ -84,12 +85,12 @@ class FakeModel:
 
 def _run_read(tmp_path, inbox, parsed, mail, monkeypatch):
     model = FakeModel(parsed)
-    monkeypatch.setattr(web, "model_client", lambda: (model, "fake"))
+    monkeypatch.setattr(appstate, "model_client", lambda: (model, "fake"))
     reader = threading.Thread(
         target=parser.main, args=(["--inbox", str(inbox), "--out", str(parsed), "--mail", str(mail), "--watch"],), daemon=True
     )  # the reader waits for the request, as in the real setup
     reader.start()
-    state = web.State()
+    state = State()
     conn = state.connect()
     db.migrate(conn, [store.MODULE])
     conn.close()
@@ -106,7 +107,7 @@ def _scan(httpd):
 
 def _press(state, httpd):
     """Press Read; returns the last status of the read itself (with its steps) and what the card says once it has finished (the unread files)."""
-    assert web.start_scan(state)
+    assert reading.start_scan(state)
     last = {}
     for _ in range(600):
         time.sleep(0.05)
@@ -142,7 +143,7 @@ def test_the_whole_read_keeps_every_promise(library, monkeypatch):
     assert not conn.execute("SELECT name FROM documents WHERE judged=1 AND case_id IS NULL AND kind<>'email'").fetchall()
 
     # The card: the documents have one number in every step, and each line accounts for every counted file
-    steps = web._steps(conn, {"phase": 4})  # the numbers as the card works them out at the end (the status itself reuses them for a few seconds)
+    steps = scanstatus._steps(conn, {"phase": 4})  # the numbers as the card works them out at the end (the status itself reuses them for a few seconds)
     totals = {s["n"]: next(c for c in s["counts"] if c["key"] == "documents")["total"] for s in steps}
     assert len(set(totals.values())) == 1, totals
     for line in steps[0]["counts"]:

@@ -1,0 +1,451 @@
+"""Where an Update stands, in the words the person knows: the steps, the counts, the time left."""
+
+from __future__ import annotations
+
+import json
+import re
+import threading
+import time
+from typing import Any
+
+from kit import log
+
+from . import appstate, judging, pictures, readreport, store, trace
+from .appstate import State
+
+
+def _get_status(state: State, conn, query: dict[str, str]) -> dict:
+    return _cached("status", lambda c: {**store.counts(c), "kinds": store.by_kind(c)}, state, conn)
+
+
+def _found() -> dict[str, Any]:
+    """What the reader has counted so far in its folders: each total is there as soon as it is known (the documents first, then the mails and what they carry)."""
+    try:
+        data = json.loads((appstate.parsed_dir() / ".found").read_text())
+        found: dict[str, Any] = {
+            "mail_connected": data.get("mail_connected") is True,
+            "by_folder": {str(k)[:20]: int(v) for k, v in (data.get("by_folder") or {}).items()},
+        }
+        for key in ("documents", "mails", "attachments"):
+            if key in data:
+                found[key] = int(data[key])
+        return found
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+
+
+def _progress() -> dict[str, Any]:
+    try:
+        return json.loads((appstate.parsed_dir() / ".progress").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _gone_through() -> dict[str, int]:
+    """How many of the counted files, mails and attachments the reader has read fully and successfully in this round (a file read before, or identical to one read, counts: it is read)."""
+    data = _progress()
+    try:
+        return {k: int(data[k]) for k in ("documents", "mails", "attachments")}
+    except (KeyError, TypeError, ValueError):
+        return {}
+
+
+def _unread_files() -> list[str]:
+    """The files (and mails) the reader could not read in its last round, each with the reason: the reader writes them down, the card names them."""
+    try:
+        raw = json.loads((appstate.parsed_dir() / ".unread-files").read_text())
+    except (OSError, ValueError):
+        return []
+    return [str(item)[:220] for item in raw[:50]] if isinstance(raw, list) else []
+
+
+def _unread() -> dict[str, int]:
+    """How many it could not read: failed, or too large. They are said, never counted as read."""
+    raw = _progress().get("unread")
+    try:
+        return {k: int(raw[k]) for k in ("documents", "mails", "attachments")} if isinstance(raw, dict) else {}
+    except (KeyError, TypeError, ValueError):
+        return {}
+
+
+def _row(name: str, read: int, total: int | None, noun: str) -> dict[str, Any]:
+    """One line of the Update, in files (or mails), the way the person counts them: "12 of 36 files" while reading, "36 files" when done."""
+    if total is not None and read < total:
+        return {"name": name, "detail": f"{read:,} of {total:,} {noun}"}
+    return {"name": name, "detail": f"{max(read, total or 0):,} {noun}"}
+
+
+# One file can become many documents (an archive, a mail with attachments), so files are counted by the name of the file they came from.
+_FILE_OF = "area || '|' || substr(name, 1, instr(name || '/', '/') - 1)"
+
+
+_CACHE: dict[str, tuple[float, Any]] = {}
+FIRST_GUESS_SECONDS = 15.0  # how long a file is guessed to take (marked with ~) until one has finished in this read
+STATUS_TTL = 3.0  # the page asks every second or so while an Update runs; counting a big library more often than this is wasted work
+
+
+_REFRESHING: set[str] = set()
+_REFRESH_LOCK = threading.Lock()
+
+
+def _cached(key: str, make, state: State | None = None, conn=None, first=None):
+    """The answer of `make(conn)`, reused for a few seconds. When the answer is older than that it is still given at once, and brought up to date in the background
+    (on its own connection): a status question never waits for the database, however busy a big read keeps it. Only the very first time is it worked out on the spot."""
+    now = time.monotonic()
+    hit = _CACHE.get(key)
+    if hit and now - hit[0] < STATUS_TTL:
+        return hit[1]
+    if hit and state is not None:
+        with _REFRESH_LOCK:
+            if key not in _REFRESHING:
+                _REFRESHING.add(key)
+                threading.Thread(target=_refresh, args=(key, make, state), name=f"refresh-{key}", daemon=True).start()
+        return hit[1]
+    if first is not None and state is not None:  # nothing known yet: say what can be said at once, and work the numbers out in the background
+        with _REFRESH_LOCK:
+            if key not in _REFRESHING:
+                _REFRESHING.add(key)
+                threading.Thread(target=_refresh, args=(key, make, state), name=f"refresh-{key}", daemon=True).start()
+        return first
+    value = make(conn)
+    _CACHE[key] = (now, value)
+    return value
+
+
+def _refresh(key: str, make, state: State) -> None:
+    conn = state.connect()
+    try:
+        _CACHE[key] = (time.monotonic(), make(conn))
+    except Exception as exc:  # noqa: BLE001 - the old answer stays; it is tried again at the next question
+        log.failed("status refresh failed", exc, key=key)
+    finally:
+        conn.close()
+        with _REFRESH_LOCK:
+            _REFRESHING.discard(key)
+
+
+def _parts(state: State, conn) -> list[dict[str, Any]]:
+    """What the Update shows: Documents, Photos and Mails, each as a number of files the person can check."""
+    return _cached("parts", lambda c: _parts_now(state, c), state, conn)
+
+
+def _percent(part: int, whole: int) -> str:
+    """Whole numbers from 10% up, one decimal below (so 17 of 1,201 reads 1.4%, never a misleading 0% or 1%); 100% only when it really is."""
+    if not whole:
+        return "0%"
+    value = part * 100 / whole
+    return "100%" if part == whole else f"{value:.1f}%" if value < 10 else f"{min(value, 99):.0f}%"
+
+
+def _states(conn, where: str) -> dict[str, int]:
+    """Files by what has happened to them: identified by the model, skipped (nothing to read in them), waiting for the model, or no usable answer yet."""
+
+    def count(judged: str) -> int:
+        return conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE {where} AND judged{judged}").fetchone()[0]
+
+    return {"identified": count("=1"), "aside": count("=2"), "waiting": count("=0"), "unclear": count("=3")}
+
+
+def _need_share(states: dict[str, int]) -> float:
+    """How far the files that need the model have got (sorted of sorted, to do and could not be sorted); skipped files are not part of it."""
+    return _share(states["identified"], states["identified"] + states["waiting"] + states["unclear"])
+
+
+def _share(part: int, whole: int) -> float:
+    """How much of the whole is done, 0 to 100; 100 only when it really is all of it."""
+    return 0.0 if not whole else 100.0 if part >= whole else round(min(part * 100 / whole, 99.9), 1)
+
+
+def _understood(conn, where: str) -> str:
+    """What has happened to the files so far, in plain counts: identified by the model, skipped (nothing to read), waiting, no usable answer."""
+    s = _states(conn, where)
+    if not any(s.values()):
+        return ""
+    line = f" · {s['identified']:,} sorted"
+    for key, label in (("waiting", "to do"), ("unclear", "could not be sorted"), ("aside", "skipped")):
+        line += f" · {s[key]:,} {label}" if s[key] else ""
+    return line
+
+
+def _parts_now(state: State, conn) -> list[dict[str, Any]]:
+    found = _found()
+    files = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
+    mails = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area='mail'").fetchone()[0]
+    mail_row = _row("Mails", mails, found.get("mails"), "mails")
+    if found and not found.get("mail_connected") and not mails and not found.get("mails"):
+        mail_row = {"name": "Mails", "detail": "not connected: Apple Mail was not given to Atlas (see the README, Mail)"}
+    docs_row = _row("Documents", files, found.get("documents"), "files")
+    docs_row["detail"] += _understood(conn, "area NOT IN ('mail','pictures')")
+    docs_row["percent"] = _need_share(_states(conn, "area NOT IN ('mail','pictures')"))
+    if mail_row.get("detail", "").find("not connected") < 0:
+        mail_row["detail"] += _understood(conn, "area='mail'")
+        mail_row["percent"] = _need_share(_states(conn, "area='mail'"))
+    shares = [
+        f"{'Other' if k == 'inbox' else k.capitalize()} {v:,}" for k, v in found.get("by_folder", {}).items() if v
+    ]  # where the number comes from; empty folders are left out
+    if len(shares) > 1:
+        docs_row["detail"] += " · " + " · ".join(shares)
+    not_read = sum(readreport.unread_counts().values())
+    if not_read:
+        docs_row["detail"] += f" · {not_read:,} not read (ask Atlas why)"
+    rows = [docs_row, mail_row]
+    engine = state.engine()
+    if engine is None:
+        rows.insert(1, {"name": "Photos", "detail": "not connected: the photo drive was not found when Documents started"})
+    else:
+        c = pictures.counts(engine)
+        rows.insert(1, {**_row("Photos", c["indexed"], c["pictures"], "photos"), "percent": _share(c["indexed"], c["pictures"])})
+    return rows
+
+
+def _control(state: State, action: str) -> dict:
+    """Pause, resume or stop the Update that is running: the reader and the model both wait or end at their next safe point; nothing already read is lost."""
+    if not state.scan["running"]:
+        return {"ok": False, "error": "nothing is being read right now"}
+    appstate.parsed_dir().mkdir(parents=True, exist_ok=True)
+    pause, stop = appstate.parsed_dir() / ".pause", appstate.parsed_dir() / ".stop"
+    if action == "pause":
+        pause.touch()
+    elif action == "resume":
+        pause.unlink(missing_ok=True)
+    else:
+        stop.touch()
+        pause.unlink(missing_ok=True)
+    state.control = {"pause": "pause", "resume": "run", "stop": "stop"}[action]
+    return {"ok": True, "control": state.control}
+
+
+def backlog(conn) -> int:
+    """Files known to be waiting: documents read but not understood yet, plus what the last count found beyond what is already stored (0 when there has been no count)."""
+    found = _found()
+    stored = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail','pictures')").fetchone()[0]
+    stored_mail = conn.execute(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area='mail'").fetchone()[0]
+    unread = max(0, found.get("documents", 0) - stored) + max(0, found.get("mails", 0) - stored_mail)
+    return unread + store.counts(conn)["waiting"]
+
+
+def _step_state(running: bool, done: bool) -> str:
+    return "running" if running else "done" if done else "waiting"
+
+
+SORT_ORDER = (
+    "documents",
+    "mails",
+    "attachments",
+)  # sorting and grouping: the files in your folders first, then the mail and what it carries (the reader takes the mail first)
+STEP_WORDS = (
+    ("Read", "Reading files", "Get the text out of every file"),
+    ("Sort", "Sorting files", "Find out what each file is"),
+    ("Group", "Grouping related files", "Put files about the same thing together and read them as one"),
+)
+
+
+def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
+    """The three steps with no numbers yet: shown at once while the counts are being worked out, so the card is never empty."""
+    phase = s.get("phase")
+    running = [phase == 1 or (appstate.parsed_dir() / ".busy").exists(), phase == 2, phase in (3, 4)]
+    return [
+        {"n": n, "name": name, "doing": doing, "about": text, "state": "running" if running[n - 1] else "waiting", "counts": [], "detail": "", "percent": 0.0}
+        for n, (name, doing, text) in enumerate(STEP_WORDS, 1)
+    ]
+
+
+def _copies(n: int, taken_in: bool, total: int, held: int, unread: int) -> int:
+    """Counted files that are the same as another one (a logo in a hundred mails is one document): once the reading is over every counted file is held, copied or unreadable."""
+    return max(0, total - held - unread) if n == 1 and taken_in else 0
+
+
+def _done_count(
+    n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any], unread: dict[str, int]
+) -> int:
+    if (s.get("phase") or 1) < n:
+        return 0  # a step that has not begun has done nothing, whatever state the files are already in
+    if n == 1:
+        return (
+            min(total, max(held["present"], gone_through.get(key, 0))) if not taken_in else min(total, held["present"])
+        )  # what is held: each different document once
+    return held[where]
+
+
+def _tally(conn) -> dict[str, dict[str, int]]:
+    """How far the files have got, in one pass over the database: for the documents (files in the folders, counted by the file they came from), the mails and the documents in mails,
+    how many are in, sorted and understood, and how many attachments the mails say they carried."""
+    out = {g: {"present": 0, "sorted": 0, "understood": 0, "promised": 0} for g in ("documents", "mails", "attachments")}
+    rows = conn.execute(
+        f"""SELECT g, COUNT(DISTINCT f) AS present,
+                   COUNT(DISTINCT CASE WHEN judged IN (1, 2) THEN f END) AS sorted,
+                   COUNT(DISTINCT CASE WHEN judged=2 OR (judged=1 AND case_id IS NOT NULL) THEN f END) AS understood,
+                   COALESCE(SUM(promised), 0) AS promised
+            FROM (SELECT CASE WHEN area='mail' AND kind='email' THEN 'mails' WHEN area='mail' THEN 'attachments' ELSE 'documents' END AS g,
+                         CASE WHEN area='mail' THEN CAST(id AS TEXT) ELSE {_FILE_OF} END AS f, judged, case_id, promised
+                  FROM documents WHERE area<>'pictures')
+            GROUP BY g"""
+    )
+    for r in rows:
+        out[r["g"]] = {k: int(r[k]) for k in ("present", "sorted", "understood", "promised")}
+    out["attachments"]["promised"] = out["mails"]["promised"]  # carried by the mails
+    return out
+
+
+def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
+    """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Group: related
+    files are connected and read together. Each step counts three things apart, the way the person knows them: the documents (files in the folders), the mails, and the documents
+    inside mails. A step is done when all of them are."""
+    found = _found()
+    tally = _tally(conn)
+    promised = tally["attachments"][
+        "promised"
+    ]  # every mail says how many attachments it carried: that is how many documents in mails there are to read, taken out yet or not
+    labels = {
+        "mails": "mails",
+        "attachments": "documents in mails",
+        "documents": "documents",
+    }  # in the order they are read: the mails, what they carry, then the documents
+    known = {
+        "documents": found.get("documents"),
+        "mails": found.get("mails"),
+        "attachments": found.get("attachments"),
+    }  # the reader counts all three before it starts: the attachments Mail keeps as files of their own, and (as the mails are opened) those inside the messages
+    stages = (
+        ("present", (appstate.parsed_dir() / ".busy").exists() or s.get("phase") == 1),
+        ("sorted", s.get("phase") == 2),
+        ("understood", s.get("phase") in (3, 4)),
+    )
+    steps = []
+    gone_through = _gone_through()
+    unread = _unread()
+    for group, n in (s.get("rejected") or {}).items():
+        unread[group] = unread.get(group, 0) + n  # results the service would not take in are not read either
+    mails_read = bool(found) and gone_through.get("mails", 0) + unread.get("mails", 0) >= int(found.get("mails") or 0)
+    gone_through = {
+        **gone_through,
+        "attachments": gone_through.get("attachments", 0) + (promised if mails_read else 0),
+    }  # the ones inside the messages are read with their mail
+    taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
+    for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
+        total_known = {
+            "documents": "documents" in found,
+            "mails": "mails" in found,
+            "attachments": "attachments" in found,
+        }  # all three are counted by the reader before it reads; the third also grows, up to what the mails say they carried, as mails are opened
+        counts, every = [], []
+        for key, label in (
+            labels.items() if n == 1 else sorted(labels.items(), key=lambda kv: SORT_ORDER.index(kv[0]))
+        ):  # each step lists them in the order it works through them
+            # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.
+            if n == 1 and key == "attachments":
+                total = max(tally[key]["present"], (known[key] or 0) + promised)  # the ones Mail keeps as files of their own, plus the ones inside the messages
+            else:
+                total = max(tally[key]["present"], known[key] or 0) if n == 1 else tally[key]["present"]
+            # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
+            known_now = taken_in or total_known[key]
+            held = tally[key]["present"]
+            copies = _copies(n, taken_in, total, held, unread.get(key, 0))
+            if n == 1 and taken_in:
+                total = held  # once the reading is over there is one number for the documents: the different ones held, the same in every step (the counted files that are copies or unreadable are said beside it)
+            line = {
+                "key": key,
+                "label": label,
+                "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s, unread),
+                "unread": unread.get(key, 0) if n == 1 else 0,
+                "copies": copies,
+                "total": total,
+                "known": known_now,
+            }
+            every.append(line)
+            if n == 1 or (s.get("phase") or 1) >= n:  # a step that has not begun shows no numbers: they would only disagree with the step still running
+                counts.append(line)
+        shown = [c for c in counts if c["known"]]
+        done, total = sum(int(c["done"]) for c in shown), sum(int(c["total"]) for c in shown)
+        everything = (n == 1 and taken_in) or (
+            bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
+        )
+        steps.append(
+            {
+                "n": n,
+                "name": name,
+                "doing": doing,
+                "about": text,
+                "state": _step_state(running, everything),
+                "counts": counts,
+                "detail": "",
+                "percent": _share(done, total),
+            }
+        )
+    return steps
+
+
+def _reading_now(s: dict[str, Any]) -> dict[str, Any] | None:
+    """Step 1: the file the reader says it is on (it writes the name as it starts each one), and how long it has been on it."""
+    try:
+        name, _, step = (appstate.parsed_dir() / ".now").read_text()[:400].partition("\n")
+    except OSError:
+        return None
+    if not name:
+        return None
+    step = step.strip() or "reading the text"
+    if s.get("reading_name") != name:
+        s["reading_name"], s["reading_since"] = name, time.monotonic()
+    return {"name": name, "step": step, "percent": None, "estimated": False, "seconds": int(time.monotonic() - s["reading_since"])}
+
+
+def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
+    """The file being worked on: what is being done to it, the seconds so far and how far along it is. A medical document read in parts is exact for the parts finished
+    (part 3 of 9 means two are done) and, inside the part being read, an estimate from how long a model call usually takes (`estimated`), so the bar keeps moving while the
+    seconds do. A file that takes one model call is that estimate alone. Until one call has finished in this read the usual time is a first guess."""
+    if s["running"] and s.get("phase") == 1:
+        return _reading_now(s)
+    if not (s["running"] and s.get("now")):
+        return None
+    name, step, detail = s["now"]
+    seconds = int(time.monotonic() - s.get("now_since", time.monotonic()))
+    percent, estimated, doing = None, False, step
+    if step in ("sorting", "reading part"):
+        usual = trace.average_seconds(conn, s.get("run", "")) or FIRST_GUESS_SECONDS
+        inside = min(0.95, seconds / usual)  # how far through the call being waited for, never quite done
+        part = re.search(r"part (\d+) of (\d+)", detail)
+        if step == "reading part" and part:
+            percent = round(((int(part[1]) - 1) + inside) * 100 / int(part[2]), 1)
+            doing = detail  # "reading part 1 of 2"
+        else:
+            percent = round(inside * 100, 1)
+        estimated = True
+    return {"name": name, "step": doing, "percent": percent, "estimated": estimated, "seconds": seconds}
+
+
+def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
+    """The parts of the status that count through the whole database (the steps, the files waiting, the files just done). Like every count here they are reused for a few seconds and
+    brought up to date in the background: a status question must never wait for the database, however big it is or busy a read keeps it."""
+    snapshot = {key: s.get(key) for key in ("phase", "run", "now")} | {"rejected": dict(s.get("rejected") or {})}
+
+    def make(c) -> dict[str, Any]:
+        return {
+            "steps": _steps(c, snapshot),
+            "waiting": judging.waiting_files(c, (snapshot.get("now") or ("",))[0]),
+            "recent": trace.finished(c, snapshot.get("run") or ""),
+        }
+
+    return _cached(f"counted:{snapshot['phase']}", make, state, conn, first={"steps": _steps_for_now(snapshot), "waiting": [], "recent": []})
+
+
+def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
+    s = state.scan
+    reading = bool(s["running"] and s.get("phase") == 1)  # step 1 shows the one file being read, nothing about files finished or still to come
+    counted = _counted(state, conn, s) if s["running"] else {"recent": [], "waiting": [], "steps": []}
+    return {
+        "running": s["running"],
+        "progress": s["progress"],
+        "file": _file_now(s, conn),
+        "recent": [] if reading else counted["recent"],
+        "waiting": [] if reading else counted["waiting"],
+        "steps": counted["steps"],
+        "unread_files": [*_unread_files(), *(s.get("rejected_files") or [])][
+            :50
+        ],  # what the last round could not read stays on the card after the read, until a round reads it
+        "summary": s["summary"],
+        "problems": s["problems"],
+        "needs_check": [],
+        "parts": _parts(state, conn),
+        "paused": bool(s["running"] and state.control == "pause"),
+        "stopping": bool(s["running"] and state.control == "stop"),
+    }

@@ -3,7 +3,7 @@
 import email.message
 import email.policy
 
-from library import judging, readers
+from library import judging, readers, reading
 
 
 def test_every_attachment_of_a_mail_is_found_nested_unnamed_repeated_and_forwarded():
@@ -112,13 +112,12 @@ def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):
 
 
 def test_the_rules_for_which_mail_is_read_have_a_fingerprint_that_changes_with_them(monkeypatch):
-    from library import web
 
     monkeypatch.delenv("LIBRARY_MAILBOXES", raising=False)
-    first = web._mail_scope()
-    assert first == web._mail_scope()
+    first = reading._mail_scope()
+    assert first == reading._mail_scope()
     monkeypatch.setenv("LIBRARY_MAILBOXES", "archive")
-    assert web._mail_scope() != first
+    assert reading._mail_scope() != first
 
 
 def test_attachments_apple_mail_keeps_beside_its_messages_are_found_and_read(tmp_path):

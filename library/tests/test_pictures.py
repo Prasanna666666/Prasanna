@@ -13,7 +13,8 @@ from images.indexing.pipeline import STAGE_OCR, Services
 from kit import db
 from PIL import Image
 
-from library import indexer, judging, pictures, store, web
+from library import appstate, indexer, judging, pictures, reading, store, web
+from library.appstate import State
 from tests.test_web import call, post
 
 
@@ -68,12 +69,12 @@ def test_text_in_pictures_joins_the_documents_in_one_search(drive, tmp_path):
 def test_the_service_serves_the_pictures_api_and_update_waits_for_the_indexer(drive, tmp_path, monkeypatch):
     monkeypatch.setenv("ATLAS_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("ATLAS_PARSED", str(tmp_path / "parsed"))
-    monkeypatch.setattr(web, "SETTLE_SECONDS", 0.05)
-    monkeypatch.setattr(web, "READER_START_SECONDS", 0.2)  # no reader runs in these tests
-    monkeypatch.setattr(web, "model_client", lambda: (None, ""))
+    monkeypatch.setattr(reading, "SETTLE_SECONDS", 0.05)
+    monkeypatch.setattr(reading, "READER_START_SECONDS", 0.2)  # no reader runs in these tests
+    monkeypatch.setattr(appstate, "model_client", lambda: (None, ""))
     monkeypatch.setattr(pictures, "wait_for_scan", lambda engine, progress, **kw: indexer.run_once(engine))  # the sealed indexer, run in-process
     (tmp_path / "home").mkdir()
-    state = web.State()
+    state = State()
     state._engine = engine_with_fake_models()
     c = state.connect()
     db.migrate(c, [store.MODULE])

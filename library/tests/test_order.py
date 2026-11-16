@@ -1,7 +1,7 @@
 import json
 import threading
 
-from library import apps, casebook, judging, priority, store
+from library import apps, appstate, casebook, judging, priority, reading, scanstatus, store
 
 
 def test_the_apps_are_served_in_their_order_with_loose_files_and_mail_last(monkeypatch):
@@ -30,10 +30,9 @@ def test_finance_files_are_taken_before_health_files_and_before_loose_files_and_
 
 
 def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 1, "attachments": 0})
-    monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 1})
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 2, "mails": 1, "attachments": 0})
+    monkeypatch.setattr(scanstatus, "_gone_through", lambda: {"mails": 1})
 
     _add(conn, "a.pdf", "finance", judged=1)
     _add(conn, "b.pdf", "finance", judged=0)
@@ -41,18 +40,18 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
     conn.execute("UPDATE documents SET kind='email' WHERE name='m1.eml'")
     _add(conn, "m1.eml/bill.pdf", "mail", judged=0)
     conn.commit()
-    sort = web._steps(conn, {"phase": 2})[1]
+    sort = scanstatus._steps(conn, {"phase": 2})[1]
     assert {c["key"]: (c["done"], c["total"]) for c in sort["counts"]} == {"documents": (1, 2), "mails": (1, 1), "attachments": (0, 1)}
     conn.execute("UPDATE documents SET promised=7 WHERE name='m1.eml'")
     conn.commit()
-    read = web._steps(conn, {"phase": 1})[0]
+    read = scanstatus._steps(conn, {"phase": 1})[0]
     assert {c["key"]: c["total"] for c in read["counts"] if c["known"]} == {
         "documents": 2,
         "mails": 1,
         "attachments": 7,
     }  # each gives its number as soon as its total is known
     assert [c["key"] for c in read["counts"]] == ["mails", "attachments", "documents"]  # all three are always listed alike, in the order they are read
-    assert web._steps(conn, {"phase": 1})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
+    assert scanstatus._steps(conn, {"phase": 1})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
     assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]  # sorting takes the documents first
 
 
@@ -120,33 +119,32 @@ def test_the_apps_and_their_words_come_from_the_file_not_from_the_code(tmp_path,
 
 
 def test_once_step_one_is_over_it_is_done_and_the_totals_are_what_is_held(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 5, "mails": 3})  # more counted than there are: some are copies of each other, some cannot be read
+    monkeypatch.setattr(
+        scanstatus, "_found", lambda: {"documents": 5, "mails": 3}
+    )  # more counted than there are: some are copies of each other, some cannot be read
     _add(conn, "a.pdf", "finance", judged=1)
     conn.commit()
-    steps = web._steps(conn, {"phase": 2})
+    steps = scanstatus._steps(conn, {"phase": 2})
     assert steps[0]["state"] == "done" and all(c["known"] for c in steps[0]["counts"])
     assert {c["key"]: c["total"] for c in steps[1]["counts"]}["documents"] == 1
 
 
 def test_a_step_that_has_not_begun_shows_nothing_done(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 0})
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 2, "mails": 0})
     _add(conn, "a.pdf", "finance", judged=2)  # skipped: it counts as sorted and as grouped the moment sorting begins, not before
     conn.commit()
-    steps = web._steps(conn, {"phase": 1})
+    steps = scanstatus._steps(conn, {"phase": 1})
     assert steps[1]["counts"] == [] and steps[2]["counts"] == []  # a step that has not begun shows no numbers at all
-    assert {c["key"]: c["done"] for c in web._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
+    assert {c["key"]: c["done"] for c in scanstatus._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
 
 
 def test_all_three_counts_are_known_as_soon_as_the_reader_has_counted(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 3, "mails": 5, "attachments": 2})
-    monkeypatch.setattr(web, "_gone_through", dict)
-    counts = {c["key"]: (c["known"], c["total"]) for c in web._steps(conn, {"phase": 1})[0]["counts"]}
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 3, "mails": 5, "attachments": 2})
+    monkeypatch.setattr(scanstatus, "_gone_through", dict)
+    counts = {c["key"]: (c["known"], c["total"]) for c in scanstatus._steps(conn, {"phase": 1})[0]["counts"]}
     assert counts == {"documents": (True, 3), "mails": (True, 5), "attachments": (True, 2)}
 
 
@@ -177,75 +175,68 @@ def test_many_files_of_a_kind_about_no_app_are_suggested_as_a_new_app_and_can_be
 
 
 def test_a_round_is_complete_only_when_the_reader_has_gone_through_everything_it_counted(monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 4, "attachments": 2})
-    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 7, "mails": 4, "attachments": 2})
-    assert not web._round_complete()  # three documents never came: the reader stopped short, so sorting must not start yet
-    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 10, "mails": 4, "attachments": 2})
-    assert web._round_complete()
-    monkeypatch.setattr(web, "_gone_through", dict)
-    assert web._round_complete()  # nothing to compare with: the read is not held
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 10, "mails": 4, "attachments": 2})
+    monkeypatch.setattr(scanstatus, "_gone_through", lambda: {"documents": 7, "mails": 4, "attachments": 2})
+    assert not reading._round_complete()  # three documents never came: the reader stopped short, so sorting must not start yet
+    monkeypatch.setattr(scanstatus, "_gone_through", lambda: {"documents": 10, "mails": 4, "attachments": 2})
+    assert reading._round_complete()
+    monkeypatch.setattr(scanstatus, "_gone_through", dict)
+    assert reading._round_complete()  # nothing to compare with: the read is not held
 
 
 def test_each_step_lists_the_counts_in_the_order_it_works_through_them(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 1, "mails": 1, "attachments": 1})
-    steps = web._steps(conn, {"phase": 4})
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 1, "mails": 1, "attachments": 1})
+    steps = scanstatus._steps(conn, {"phase": 4})
     assert [c["key"] for c in steps[0]["counts"]] == ["mails", "attachments", "documents"]  # reading takes the mail first
     assert [c["key"] for c in steps[1]["counts"]] == ["documents", "mails", "attachments"]  # sorting takes the documents first
     assert [c["key"] for c in steps[2]["counts"]] == ["documents", "mails", "attachments"]
 
 
 def test_every_counted_file_is_accounted_for_as_read_identical_to_one_read_or_unreadable(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0, "attachments": 0})
-    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 8, "mails": 0, "attachments": 0})
-    monkeypatch.setattr(web, "_unread", lambda: {"documents": 2, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 10, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(scanstatus, "_gone_through", lambda: {"documents": 8, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(scanstatus, "_unread", lambda: {"documents": 2, "mails": 0, "attachments": 0})
     for i in range(6):
         _add(conn, f"f{i}.pdf", "finance", judged=1)  # six different documents held
     conn.commit()
-    assert web._round_complete()  # every counted file was read, or could not be
-    line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
+    assert reading._round_complete()  # every counted file was read, or could not be
+    line = next(c for c in scanstatus._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
     assert (line["done"], line["total"], line["copies"], line["unread"]) == (
         6,
         6,
         2,
         2,
     )  # one number for the documents (6), the same in every step; 6 + 2 identical + 2 unreadable = the 10 counted, said beside it
-    assert web._steps(conn, {"phase": 2})[0]["state"] == "done"
-    live = next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "documents")
+    assert scanstatus._steps(conn, {"phase": 2})[0]["state"] == "done"
+    live = next(c for c in scanstatus._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "documents")
     assert live["copies"] == 0  # until the reading is over nothing can be called a copy
 
 
 def test_the_files_that_could_not_be_read_are_listed_with_the_reason(tmp_path, monkeypatch):
     import json
 
-    from library import web
-
-    monkeypatch.setattr(web, "parsed_dir", lambda: tmp_path)
+    monkeypatch.setattr(appstate, "parsed_dir", lambda: tmp_path)
     (tmp_path / ".unread-files").write_text(json.dumps(["a.pdf: this PDF is password-protected", "big.zip: too large to read"]))
-    assert web._unread_files() == ["a.pdf: this PDF is password-protected", "big.zip: too large to read"]
+    assert scanstatus._unread_files() == ["a.pdf: this PDF is password-protected", "big.zip: too large to read"]
 
 
 def test_the_number_of_documents_is_the_same_in_every_step_once_the_reading_is_over(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 9, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 9, "mails": 0, "attachments": 0})
     for i in range(5):
         _add(conn, f"f{i}.pdf", "finance", judged=0)
     conn.commit()
-    totals = [next(c for c in step["counts"] if c["key"] == "documents")["total"] for step in web._steps(conn, {"phase": 4})]
+    totals = [next(c for c in step["counts"] if c["key"] == "documents")["total"] for step in scanstatus._steps(conn, {"phase": 4})]
     assert totals == [5, 5, 5]
 
 
 def test_the_documents_are_shown_as_soon_as_they_are_counted_while_the_mail_is_still_being_counted(conn, monkeypatch):
-    from library import web
 
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 7})  # the reader writes each total as soon as it has it
-    counts = {c["key"]: c["known"] for c in web._steps(conn, {"phase": 1})[0]["counts"]}
+    monkeypatch.setattr(scanstatus, "_found", lambda: {"documents": 7})  # the reader writes each total as soon as it has it
+    counts = {c["key"]: c["known"] for c in scanstatus._steps(conn, {"phase": 1})[0]["counts"]}
     assert counts == {"mails": False, "attachments": False, "documents": True}
 
 
