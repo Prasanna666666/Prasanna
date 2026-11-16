@@ -1,0 +1,50 @@
+# Defect register
+
+Every defect found in this review round, who found it, how it was verified, and what changed. "Found by": **R1** = the ChatGPT review, **R2** = the Gemini audit prompt, **S** = found by the author while doing the work (including by taking the screenshots). Severity: P0 (wrong money or exposed data), P1 (silent loss or broken gate), P2 (risk or inconsistency), UI.
+
+Status words are literal: **Fixed** = changed and covered by a test that fails without the change; **Open** = not fixed; **Not reproduced**.
+
+## Fixed
+
+| ID | Sev | Defect | Found by | Evidence it was real | Fix (commit) | Test |
+|---|---|---|---|---|---|---|
+| D-01 | P0 | Money converted with `round(float(x)*100)`: 1.005 became 100 (and 12.345 → 1234) | R1 | `grep` of about a dozen call sites; arithmetic reproduced | One `kit.money` (Decimal, one rounding, half away from zero) on every input path (`934dd51`) | `finance/tests/test_money_exact.py` |
+| D-02 | P0 | Converting a plain database left the plain file beside the encrypted one, verified only by counting tables | R1 | Code and docstring (`kit/db.py` kept `<name>.unencrypted`); Images test asserted it | Verify by content before and after the swap, then overwrite and delete; keep only with `ATLAS_KEEP_PLAINTEXT=1`; interrupted conversions finished or undone (`24d9a95`) | `kit/tests/test_db_safety.py` (10), `images/tests/test_engine.py` |
+| D-03 | P1 | Kit migrations ran `executescript(step)` then recorded the version separately: a failure halfway left a changed schema with the old version | R1 | Code reading; `executescript` commits and runs statements in autocommit | Each step plus its version note in one `BEGIN IMMEDIATE` transaction, statement by statement, rollback on error (`24d9a95`). Images already wrapped steps in `BEGIN…COMMIT`; it now also rolls back a half-run step | `kit/tests/test_db_safety.py`, `images/tests/test_engine.py` |
+| D-04 | P1 | `date` and `due_date` of a document were stored as the model said, without checking the document writes them | R1 | `verify_trip_fields` covered only trip dates | `verify_dates`: real calendar date and written in the document; model quotes the line, kept as source; due before date dropped; unverified → unknown (`43620a9`) | `kit/tests/test_extract_whole_document.py` |
+| D-05 | P1 | Medical reader stopped after 12 windows (≈ 60,500 characters), 60 values and 30 medicines per window, 240/60 final caps, text cut to 80/40 characters; a failing window aborted the whole document | R1 | Constants in `kit/extract.py`; a 100,000-character test lost everything after the 12th piece | No caps; pieces start and end at line breaks; unreadable piece read in halves; what still cannot be read is reported as `complete: false` with part, characters and pages; older results re-read once (`43620a9`) | same file (9 tests), `library/tests/test_health_travel.py` |
+| D-06 | P1 | Library limits split between `limits.json` and constants in `store.py`/`sniff.py` (`MAX_JSON`, `MAX_TEXT`, `MAX_NAME`, `MAX_SOURCE`, `MAX_PROMISED`, JSON detection size, a literal 255) | R1 | grep; changing `limits.json` did not change them | All read from `limits.json` when used and in the fingerprint; a cut name or source is now recorded like a cut text (`37786f7`) | `library/tests/test_limits_config.py` (7) |
+| D-07 | P2 | An upstream answer over `MAX_BODY` was cut at the limit and then failed as "unreadable" | R1 | Reproduced with a server answering 9 MB and a 1 MB limit: wrong message, not lost data | Refused as too large with its size in plain words; `ATLAS_MAX_ANSWER_BYTES` (`cf32bac`) | `atlas/tests/test_scan_status.py` (below / at / above) |
+| D-08 | P1 | CI would fail: Finance and Library tests import PyYAML (not in `dev`); Images CI installed kit without SQLCipher; Pillow ≥ 13 cannot install on Python 3.10 | R1 | Last three GitHub runs on `atlas` are red (`gh`/API); Pillow resolution reproduced for 3.10 | PyYAML in `dev`; Images CI installs `kit[secure]`; Python 3.11 is the minimum everywhere (Docker already runs 3.12) (`2101dbc`) | clean-venv runs on 3.11 |
+| D-09 | P1 | With a clean install, mypy flagged Pillow variable rebinding (`img = img.convert(...)`) in 3 files, and `kit/text.py` had an untyped `dict` that Atlas's mypy run reported | S | clean 3.11 venv; Atlas mypy run | variables renamed; `dict[str, Any]` (`2101dbc`, `cf32bac`) | mypy |
+| D-10 | P2 | The assistant could call every writing Finance tool at once (only deletes needed the owner's words). A fooled model could change money records with no confirmation and no trail | R1 (as "prompt injection") | Code reading: `_post_tool` ran any tool but deletes. **No real model was shown to be steered** — conditional risk | Classification of all 80 tools; nine money-record tools only prepared, confirmed by the owner's own next short yes, once, within 10 minutes, audit trail (`596e937`) | `finance/tests/test_assistant_changes.py` (14), `atlas/tests/test_assistant_safety.py` (8) |
+| D-11 | P2 | Atlas picked the first installed `ministral*` model, or the first installed model of any kind | R1 | Code reading | `ATLAS_MODEL` (default `ministral-3:3b`), same family rule as Finance, no substitute; fixed seed; local-host check in the client (`596e937`) | `atlas/tests/test_assistant_safety.py` |
+| D-12 | **P0-UI** | **Every `.card` and `.stat` on every page of every app was `display: none`.** Finance's dashboard showed a greeting and an empty page; Documents tiles were hidden | S (screenshots) | Computed style in a real browser; blame: commit `3c53b30` (14 Nov, "dead Health styles removed") deleted the declaration block of the surfaces rule and left its selectors merged into the `display:none` rule | Rule restored (`50f384d`) | `kit/tests/test_design.py` (fails on the broken CSS, verified); `scripts/check-pages.js` reports 11 hidden surfaces on the broken CSS |
+| D-13 | UI | The busiest day of the spending calendar failed WCAG contrast (white-ish text on mid-accent). Hidden until D-12 was fixed | S (axe) | axe `color-contrast` | darkest cells use the accent with white text (`50f384d`) | `check-pages.js` |
+| D-14 | P1 | `atlas/tests/test_assistant_safety.py` imported `tests.test_assistant`, which only works under `python -m pytest`; CI's `pytest -q` would have failed collection | S | clean-venv run | import fixed (`50f384d`) | `pytest -q` in a clean venv |
+| D-15 | P1 | The page check (`check-pages.js`) opened Documents' pages standalone, where they only say "These pages belong inside Atlas", so Documents, Health and Travel were never really checked; and it could not see hidden cards | S | screenshot of the stub page | Atlas routes are checked with the apps inside it (axe in each frame) and a hidden-surface check (`50f384d`) | the script itself |
+
+## An admission
+
+Two earlier statements of mine were wrong and are corrected here, because reviewers should not rely on them: the commit message of `c2a7728` said "screenshots before and after are identical", and the earlier sessions said the browser check was clean. D-12 existed from 14 Nov, those checks could not see it (axe finds nothing in a page whose cards are hidden), and no screenshot was compared in that commit. Treat the earlier "axe clean" claims as void; the present result (`PROBLEMS 0`) is the first one that covers visible content.
+
+## Open
+
+| ID | Sev | Issue | Why open | Suggested next step |
+|---|---|---|---|---|
+| O-1 | P2 | Every currency is stored in hundredths. JPY (0 decimals) and KWD/BHD (3) are not modelled; `kit.money.to_minor(value, digits)` exists but nothing passes digits | Needs a decision on schema (per-currency exponent) | `currencies.json` with exponent; migrate stored values |
+| O-2 | P2 | A `.unencrypted` file left by an older version is not touched | Deleting a plaintext file the owner may rely on needs the owner | A one-off `finance`/`up.sh` command that verifies and offers to remove it |
+| O-3 | P2 | Three places choose the model (Atlas `ATLAS_MODEL`, Finance setting, Documents `LIBRARY_MODEL`) | Larger refactor | One shared setting read by all three |
+| O-4 | P2 | Atlas answer limit default is 500 MB and the answer is read into memory: on an 8 GB Mac one such answer is a real memory risk | The owner asked for no limits; this is a conflict between that and 8 GB | Lower default or stream to disk; reviewers' view wanted |
+| O-5 | — | Reading speed, OCR, and 3B-model sorting quality on a real library; `finance categorise --measure` has no corrections to measure against yet | Needs the owner's Mac and data | Run on the Mac, report counts |
+| O-6 | P2 | Which of several dates is the invoice date and which the due date cannot be told by code without word lists; the quoted line makes it checkable by the person, not by code | Inherent to the no-word-lists rule | Show the source line in the UI next to each date |
+| O-7 | P2 | Routine writes (tasks, notes, people, event creation, statement import) run at once | A choice (low stakes, easy to undo), not an oversight | Reviewers may ask for confirmation here too |
+| O-8 | P2 | `kit/consent.py` holds word lists (yes / delete / undo in English and Dutch) in code, against the no-hardcoding rule | They gate the owner's own words; moving them to data needs a design for languages | Move to `kit/consent.json`; add languages |
+| O-9 | UI | See `ui-review.md`: gradients on the Travel hero despite "no gradients"; mixed decimal separators in Health; floating Ask button covers content on phones; "1 reports" | Found by screenshots; not yet changed | Reviewer comments first |
+| O-10 | — | Real-model prompt-injection resistance not demonstrated | Needs a real model and a test corpus | Red-team corpus run on the Mac, kept out of CI |
+
+## Not reproduced
+
+- A cloud endpoint reaching the model: Atlas already refused non-private `ATLAS_MODEL_URL` at start-up; the client check is defence in depth.
+- Silent data loss from the 500 MB read: the result was a wrong error message, not lost data (D-07).
+- A model steering the assistant from a document: no demonstration either way (O-10).
