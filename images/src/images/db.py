@@ -317,7 +317,11 @@ class Database:
     def _migrate(self, conn: sqlite3.Connection) -> None:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
         for number, script in enumerate(MIGRATIONS[version:], start=version + 1):
-            conn.executescript("BEGIN;\n" + script + f"\nPRAGMA user_version={number};\nCOMMIT;")
+            try:
+                conn.executescript("BEGIN;\n" + script + f"\nPRAGMA user_version={number};\nCOMMIT;")
+            except sqlite3.Error:
+                conn.rollback()  # a step that stopped half way leaves its transaction open: undo it so the version still says where it stopped
+                raise
         _ensure_fts(conn)
 
 

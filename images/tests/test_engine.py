@@ -44,7 +44,7 @@ def test_the_index_is_encrypted_with_a_key_and_an_old_plain_index_is_converted_o
     secured.close()
     with __import__("pytest").raises(sqlite3.DatabaseError):
         sqlite3.connect(paths.db).execute("SELECT count(*) FROM sqlite_master").fetchone()  # no longer readable without the key
-    assert paths.db.with_name(paths.db.name + ".unencrypted").is_file()  # the old file is kept until you delete it
+    assert not paths.db.with_name(paths.db.name + ".unencrypted").exists()  # no plain-text copy is left behind
 
 
 def test_pictures_from_more_than_one_folder_are_indexed_together(paths):
@@ -64,3 +64,23 @@ def test_pictures_from_more_than_one_folder_are_indexed_together(paths):
     Scanner(engine.paths, engine.settings, engine.db, lambda stage: Services()).run()
     names = sorted(r[0] for r in engine.db.connect().execute("SELECT rel_path FROM items WHERE missing=0"))
     assert names == ["Inbox/attachment.png", "red.jpg"]  # a file from the other folder is named by that folder
+
+
+def test_a_migration_step_that_fails_halfway_leaves_the_index_at_its_old_version(paths, monkeypatch):
+    import sqlite3
+
+    import pytest
+
+    from images import db as images_db
+
+    database = images_db.Database(paths.db)
+    conn = database.connect()
+    before = conn.execute("PRAGMA user_version").fetchone()[0]
+    monkeypatch.setattr(
+        images_db, "MIGRATIONS", [*images_db.MIGRATIONS, "CREATE TABLE half (id INTEGER);\nINSERT INTO nowhere VALUES (1);"]
+    )
+    with pytest.raises(sqlite3.Error):
+        database._migrate(conn)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == before
+    assert conn.execute("SELECT count(*) FROM sqlite_master WHERE name='half'").fetchone()[0] == 0
+    assert not conn.in_transaction
