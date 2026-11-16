@@ -99,6 +99,14 @@ def call_local(base: str, method: str, path: str, header: str, unavailable: str,
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
             data = json.loads(response.read())
+    except urllib.error.HTTPError as exc:  # it answered, with an error: it is running
+        raise RuntimeError(f"The service is running but answered with an error (HTTP {exc.code}).") from exc
+    except TimeoutError as exc:
+        raise RuntimeError(f"The service is running but did not answer within {timeout} seconds: it is busy. Try again in a minute.") from exc
     except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise RuntimeError(unavailable) from exc
+        if isinstance(getattr(exc, "reason", None), TimeoutError):
+            raise RuntimeError(f"The service is running but did not answer within {timeout} seconds: it is busy. Try again in a minute.") from exc
+        if isinstance(exc, ValueError):
+            raise RuntimeError("The service answered with something that is not valid.") from exc
+        raise RuntimeError(unavailable) from exc  # it could not be reached at all
     return data if isinstance(data, dict) else {}
