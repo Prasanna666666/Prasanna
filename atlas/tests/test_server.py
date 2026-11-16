@@ -261,3 +261,14 @@ def test_suggested_categories_are_listed_trimmed_and_an_app_is_made_only_from_th
     assert refused[0] == 403 and running.apps["money"].accepted == []  # another website cannot create an app
     ok = running.request("POST", "/_atlas/api/suggestions/accept", host, body, {"Origin": f"http://{host}", "X-Atlas": "1"})
     assert ok[0] == 200 and json.loads(ok[2])["ok"] is True and running.apps["money"].accepted == [{"kind": "circuit design"}]
+
+
+def test_every_script_and_stylesheet_in_the_static_folder_is_served_with_its_type():
+    """A page that loads a script the server answers as plain text is blocked by the browser: every .js and .css next to the page needs its type."""
+    from pathlib import Path
+
+    from atlas import server
+
+    for f in (Path(server.__file__).parent / "static").iterdir():
+        if f.suffix in (".js", ".css"):
+            assert f.name in server.STATIC_TYPES, f"{f.name} is not served with a type"

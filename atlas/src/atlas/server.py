@@ -25,6 +25,7 @@ STATIC_TYPES = {
     "atlas.css": "text/css; charset=utf-8",
     "design.css": "text/css; charset=utf-8",
     "atlas.js": "text/javascript; charset=utf-8",
+    "common.js": "text/javascript; charset=utf-8",
     "icon.svg": "image/svg+xml",
 }
 MAX_CHAT_BODY = 32_000

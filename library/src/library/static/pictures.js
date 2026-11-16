@@ -1,14 +1,7 @@
 'use strict';
 /* The pictures side of the page: the library by date, trips, places and people. All text is added with textContent. */
 (() => {
-    const $ = (s) => document.querySelector(s);
-    const el = (tag, cls, text) => {
-        const e = document.createElement(tag);
-        if (cls) e.className = cls;
-        if (text != null) e.textContent = text;
-        return e;
-    };
-    const getJson = async (path) => (await fetch(path, { headers: { Accept: 'application/json' } })).json();
+    const { el, $, getJson } = window.UI;
     const browse = async (page, params = {}) =>
         (await getJson('/api/pictures/browse?' + new URLSearchParams({ page, ...params }))).page;
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

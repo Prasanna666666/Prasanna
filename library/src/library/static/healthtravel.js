@@ -1,14 +1,7 @@
 'use strict';
 /* The Health and Travel apps. Everything shown is copied from the person's own documents; all text is added with textContent. */
 (() => {
-    const $ = (s) => document.querySelector(s);
-    const el = (tag, cls, text) => {
-        const e = document.createElement(tag);
-        if (cls) e.className = cls;
-        if (text != null) e.textContent = text;
-        return e;
-    };
-    const getJson = async (path) => (await fetch(path, { headers: { Accept: 'application/json' } })).json();
+    const { el, $, getJson } = window.UI;
     const host = () => $('#page-apps');
     const go = (path, params) => {
         const qs = new URLSearchParams(

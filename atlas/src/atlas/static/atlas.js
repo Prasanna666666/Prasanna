@@ -3,12 +3,7 @@
     'use strict';
     const $ = (selector) => document.querySelector(selector);
     const SVG = 'http://www.w3.org/2000/svg';
-    const el = (tag, cls, text) => {
-        const node = document.createElement(tag);
-        if (cls) node.className = cls;
-        if (text != null) node.textContent = text;
-        return node;
-    };
+    const { el } = window.UI;
     const icon = (path) => {
         const svg = document.createElementNS(SVG, 'svg');
         const shape = document.createElementNS(SVG, 'path');

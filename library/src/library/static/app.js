@@ -2,18 +2,13 @@
 /* The shell of the Documents service's pages. Atlas shows them inside its own frame: Health, Travel and Photos each draw their own page (healthtravel.js, pictures.js,
    changes.js); this file routes between them, shows one document, and gives them their tab bar. Opened on its own it only points to Atlas. */
 (() => {
-    const $ = (s) => document.querySelector(s);
     const EMBEDDED = window.parent !== window;
 
-    const api = (path) => fetch(path, { headers: { Accept: 'application/json' } }).then((r) => r.json());
-    const el = (tag, props, ...kids) => {
-        const n = Object.assign(document.createElement(tag), props || {});
-        n.append(...kids);
-        return n;
-    };
+    const { $, getJson } = window.UI;
+    const el = window.UI.h;
     // the tab bar at the top of an app's page: [[page, label], ...]; the Atlas menu lists the apps, the tabs are inside each one
     window.AppTabs = (items, current) => {
-        const nav = el('nav', { className: 'apptabs' });
+        const nav = el('nav', { class: 'apptabs' });
         for (const [id, label] of items) {
             const b = el('button', { type: 'button' }, label);
             b.setAttribute('aria-pressed', String(id === current));
@@ -41,12 +36,12 @@
 
     // one document: what it says, named by what it says
     async function openDoc(id) {
-        const d = await api(`/api/document?id=${encodeURIComponent(id)}`);
-        const forget = el('button', { className: 'pill', type: 'button' }, 'Forget this document');
+        const d = await getJson(`/api/document?id=${encodeURIComponent(id)}`);
+        const forget = el('button', { class: 'pill', type: 'button' }, 'Forget this document');
         forget.addEventListener('click', () => forgetDoc(id));
         $('#doc').replaceChildren(
             el('h2', {}, d.title || d.facts?.title || d.name || 'Document'),
-            el('p', { className: 'muted' }, d.name ? `${d.name} · ${d.kind}` : ''),
+            el('p', { class: 'muted' }, d.name ? `${d.name} · ${d.kind}` : ''),
             el('pre', {}, (d.text || '').slice(0, 20000)),
             forget
         );
@@ -79,7 +74,7 @@
                 return $('#page-pictures').replaceChildren(
                     el(
                         'div',
-                        { className: 'empty' },
+                        { class: 'empty' },
                         'Photos are not connected. The photo drive was not found when Atlas started. Connect it and start Atlas again.'
                     )
                 );
@@ -111,7 +106,7 @@
         });
         toParent({ type: 'ready' });
     }
-    api('/api/pictures/status')
+    getJson('/api/pictures/status')
         .then((r) => {
             withPictures = r.ok !== false && r.pictures !== undefined;
         })

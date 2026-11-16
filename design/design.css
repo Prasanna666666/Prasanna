@@ -5,7 +5,7 @@
     --fg: #12151c;
     --ink: #12151c;
     --muted: #5d6572;
-    --faint: #8a929e;
+    --faint: #636b78;
     --line: #e5e7eb;
     --line-strong: #d4d8de;
     --card: #ffffff;
@@ -37,7 +37,7 @@
     --fg: #e8eaee;
     --ink: #e8eaee;
     --muted: #9aa1ad;
-    --faint: #6b7280;
+    --faint: #8a929e;
     --line: #23272e;
     --line-strong: #323841;
     --card: #15181d;
@@ -66,7 +66,7 @@
         --fg: #e8eaee;
         --ink: #e8eaee;
         --muted: #9aa1ad;
-        --faint: #6b7280;
+        --faint: #8a929e;
         --line: #23272e;
         --line-strong: #323841;
         --card: #15181d;
@@ -1103,4 +1103,20 @@ main {
 .held-row span {
     color: var(--muted);
     text-align: right;
+}
+
+/* Keyboard users always see where they are, and people who ask for less motion get none. */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }

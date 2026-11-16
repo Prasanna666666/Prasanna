@@ -1,14 +1,7 @@
 'use strict';
 /* The Changes page and the confirmation window. Nothing that writes to your files happens without you pressing Confirm here. All text is added with textContent. */
 (() => {
-    const $ = (s) => document.querySelector(s);
-    const el = (tag, cls, text) => {
-        const e = document.createElement(tag);
-        if (cls) e.className = cls;
-        if (text != null) e.textContent = text;
-        return e;
-    };
-    const getJson = async (path) => (await fetch(path, { headers: { Accept: 'application/json' } })).json();
+    const { el, $, getJson } = window.UI;
     const post = async (path, body) =>
         (
             await fetch(path, {
