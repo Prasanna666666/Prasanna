@@ -44,13 +44,29 @@ def test_without_a_running_helper_the_usual_reader_is_used(tmp_path, monkeypatch
     assert readers.apple_ocr(b"x") is None  # the sign of life is old: the helper has stopped
 
 
-def test_old_scans_are_read_again_and_nothing_else_is_forgotten(conn, tmp_path):
+def test_what_was_read_under_other_limits_or_a_worse_engine_is_read_again_by_itself(conn, tmp_path):
     import json
 
-    from library import store
+    from library import limits, store
 
-    for i, (name, data) in enumerate((("scan.pdf", {"meta": {"ocr_pages": 3}}), ("text.pdf", {"meta": {"pages": 2}}), ("note.txt", {}))):
-        conn.execute("INSERT INTO documents (sha256, name, kind, text, area, data) VALUES (?,?,?,?,?,?)", (f"{i:064x}", name, "pdf", "t", "", json.dumps(data)))
+    now = limits.version()
+    rows = (
+        ("cut under old limits.pdf", "t", {"meta": {"limits_hit": ["ocr"], "limits_version": "old"}}),
+        ("cut under the limits in force.pdf", "t", {"meta": {"limits_hit": ["ocr"], "limits_version": now}}),
+        ("never cut.pdf", "t", {"meta": {"limits_hit": [], "limits_version": "old"}}),
+        ("read before versions existed, cut.pdf", "t", {"meta": {"ocr_cut_short": True}}),
+        ("scan by the old engine.pdf", "t", {"meta": {"ocr_pages": 2, "ocr_engine": "tesseract", "limits_hit": [], "limits_version": now}}),
+        ("scan by the better engine.pdf", "t", {"meta": {"ocr_pages": 2, "ocr_engine": "apple", "limits_hit": [], "limits_version": now}}),
+    )
+    for i, (name, text, data) in enumerate(rows):
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, data) VALUES (?,?,?,?,?,?)", (f"{i:064x}", name, "pdf", text, "", json.dumps(data))
+        )
     conn.commit()
-    assert store.forget_scanned(conn, tmp_path) == 1
-    assert sorted(r["name"] for r in conn.execute("SELECT name FROM documents")) == ["note.txt", "text.pdf"]
+    assert store.forget_stale_reads(conn, tmp_path) == 2  # no better engine: only what limits left something out of
+    assert store.forget_stale_reads(conn, tmp_path, "apple") == 1  # the better engine appears: the scan read by another one
+    assert sorted(r["name"] for r in conn.execute("SELECT name FROM documents")) == [
+        "cut under the limits in force.pdf",
+        "never cut.pdf",
+        "scan by the better engine.pdf",
+    ]

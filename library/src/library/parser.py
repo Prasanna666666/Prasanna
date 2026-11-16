@@ -29,13 +29,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import flags, priority, readers, sniff
+from . import flags, limits, priority, readers, sniff
 
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
 MBOX_MAX_BYTES = 64 * 1024 * 1024 * 1024  # a whole mailbox export can be large; each message inside is still capped
-MAX_TEXT = 50_000_000  # no practical limit: a document's text is kept whole
-MAX_PAGES = 100_000
+MAX_TEXT = limits.get("max_text_chars")
+MAX_PAGES = limits.get("max_pages")
 MAX_CSV_ROWS = 200_000
 MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
 MAX_CELL = 300
@@ -101,8 +101,22 @@ PARSERS: dict[str, Callable[[Path], dict]] = {
 
 
 def extract(path: Path) -> dict:
-    """In-process extraction with the reader for this kind of file. Called only inside the limited subprocess (or by tests)."""
-    return PARSERS[sniff.kind_of(path)](path)
+    """In-process extraction with the reader for this kind of file. Called only inside the limited subprocess (or by tests). The result records which limits cut something out of it and the
+    version of the limits it was read under, and which text recognition read its scanned pages, so that a change of limits (or a better engine) finds what must be read again."""
+    res = PARSERS[sniff.kind_of(path)](path)
+    meta = res.setdefault("meta", {}) if isinstance(res.get("meta", {}), dict) else {}
+    data = res.get("data") or {}
+    hit = []
+    if meta.get("ocr_cut_short"):
+        hit.append("ocr")
+    if len(res.get("text", "")) >= MAX_TEXT:
+        hit.append("text")
+    if any(isinstance(data.get(k), list) and len(data[k]) >= readers.MAX_ROWS for k in ("lines", "table", "rows")):
+        hit.append("rows")
+    meta["limits_hit"], meta["limits_version"] = hit, limits.version()
+    if meta.get("ocr_pages"):
+        meta["ocr_engine"] = readers.ocr_engine_used()
+    return res
 
 
 _table_lines = readers.table_lines

@@ -35,11 +35,14 @@ from html.parser import HTMLParser
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-MAX_ROWS = 5_000_000  # no practical limit: no row of a sheet or table is left out
+from . import limits
+
+MAX_ROWS = limits.get("max_rows")
+LINE_CHARS = limits.get("line_chars")
 MAX_CELL = 300
 OCR_DPI = 250
-MAX_OCR_PAGES = 100_000  # every scanned page is read
-OCR_BUDGET_S = 10**9  # and no time limit cuts the reading of a long scan short
+MAX_OCR_PAGES = limits.get("max_ocr_pages")
+OCR_BUDGET_S = limits.get("ocr_budget_seconds")
 SECOND_OPINION_PAGES = 60  # a longer document (lecture notes, a book) is read once: a second and third reading of hundreds of pages only costs time
 SECOND_OPINION_S = 60  # an engine that takes longer than this is left out, never waited for
 # reading a scan takes as long as it takes, but one file never holds up the rest for more than this: the pages reached so far are kept
@@ -136,11 +139,22 @@ def apple_ocr(png: bytes) -> str | None:
     return None
 
 
+_ENGINE: list[str] = [
+    "tesseract"
+]  # which text recognition read the last page: recorded with the document, so a better one can be used later without a code change
+
+
+def ocr_engine_used() -> str:
+    return _ENGINE[0]
+
+
 def run_tesseract(png: bytes) -> str:
     """The word table (boxes) for one page image: from Apple's text recognition when it is running, else Tesseract. Replaced in tests."""
     apple = apple_ocr(png)
     if apple is not None and len(apple.splitlines()) > 1:
+        _ENGINE[0] = "apple"
         return apple
+    _ENGINE[0] = "tesseract"
     langs = ocr_languages()
     if not langs:
         raise RuntimeError("Tesseract is not installed in the parser image")
@@ -204,7 +218,7 @@ def read_pdf(path: Path, passwords: list[str] | None = None) -> dict:
                 meta["partial"] = True
                 meta["ocr_cut_short"] = True
             meta["ocr_confidence"] = round(sum(confs) / len(confs), 1) if confs else 0.0
-    data = {"lines": [clean(x, 5000) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}
+    data = {"lines": [clean(x, LINE_CHARS) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]}
     if (
         not meta.get("ocr_pages") and meta["pages"] <= SECOND_OPINION_PAGES
     ):  # a real text layer: read it with other, independent engines too, so the readings can be compared
@@ -281,7 +295,7 @@ def read_image(path: Path) -> dict:
         "kind": "image",
         "text": clean("\n".join(lines)),
         "meta": {"ocr_pages": 1, "ocr_confidence": round(conf, 1), "width": width},
-        "data": {"lines": [clean(x, 5000) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]},
+        "data": {"lines": [clean(x, LINE_CHARS) for x in lines[:MAX_ROWS]], "table": table[:MAX_ROWS]},
     }
 
 
@@ -463,7 +477,7 @@ def read_html_text(html: str) -> dict:
         "kind": "html",
         "text": clean(text),
         "meta": {},
-        "data": {"lines": [clean(x, 5000) for x in text.splitlines()[:MAX_ROWS]], **({"rows": p.rows[:MAX_ROWS]} if p.rows else {})},
+        "data": {"lines": [clean(x, LINE_CHARS) for x in text.splitlines()[:MAX_ROWS]], **({"rows": p.rows[:MAX_ROWS]} if p.rows else {})},
     }
 
 
@@ -533,7 +547,7 @@ def read_message(msg: email.message.EmailMessage) -> tuple[dict, list[tuple[str,
         "kind": "email",
         "text": full,
         "meta": {"subject": clean(str(msg.get("Subject", "")), 200), "message_id": clean(str(msg.get("Message-ID", "")), 200), "attachments": len(attachments)},
-        "data": {"lines": [clean(x, 5000) for x in full.splitlines()[:MAX_ROWS]]},
+        "data": {"lines": [clean(x, LINE_CHARS) for x in full.splitlines()[:MAX_ROWS]]},
     }, attachments
 
 
@@ -586,7 +600,7 @@ def read_json(path: Path) -> dict:
         "kind": "json",
         "text": clean(text),
         "meta": {},
-        "data": {"lines": [clean(x, 5000) for x in text.splitlines()[:MAX_ROWS]], **({"rows": rows} if rows else {})},
+        "data": {"lines": [clean(x, LINE_CHARS) for x in text.splitlines()[:MAX_ROWS]], **({"rows": rows} if rows else {})},
     }
 
 

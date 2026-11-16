@@ -1,0 +1,9 @@
+{
+  "_about": "The limits of reading, in one place. A document that was read with something left out because of one of these (it records which) is read again, by itself, when you change the numbers here. Large numbers mean nothing is left out.",
+  "max_ocr_pages": 100000,
+  "ocr_budget_seconds": 1000000000,
+  "max_rows": 5000000,
+  "max_text_chars": 50000000,
+  "max_pages": 100000,
+  "line_chars": 5000
+}

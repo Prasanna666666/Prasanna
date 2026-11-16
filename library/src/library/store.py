@@ -27,7 +27,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import apps, casebook, priority, recognise, relevance
+from . import apps, casebook, limits, priority, recognise, relevance
 from .trace import FAILED, Trace
 
 MIGRATIONS = (
@@ -223,15 +223,15 @@ def _replace_older_versions(conn, directory: Path, source: str, sha: str) -> int
     return len(old)
 
 
-def _forget(conn, directory: Path, where: str) -> int:
+def _forget(conn, directory: Path, where: str, args: tuple = ()) -> int:
     """Forget the documents that match `where`, so that they are read again. What is forgotten is a copy the reader can make again: nothing in your mail or your folders is touched.
     Groups that included a forgotten file are dropped, to be made again from what remains."""
-    rows = conn.execute(f"SELECT id, sha256 FROM documents WHERE {where}").fetchall()
+    rows = conn.execute(f"SELECT id, sha256 FROM documents WHERE {where}", args).fetchall()
     gone = {r["id"] for r in rows}
     for r in rows:
         with contextlib.suppress(OSError):
             (directory / ".done" / r["sha256"]).unlink(missing_ok=True)
-    conn.execute(f"DELETE FROM documents WHERE {where}")
+    conn.execute(f"DELETE FROM documents WHERE {where}", args)
     for case in conn.execute("SELECT id, members FROM cases").fetchall():
         try:
             members = set(json.loads(case["members"]))
@@ -250,9 +250,19 @@ def forget_mail(conn, directory: Path) -> int:
     return _forget(conn, directory, "area='mail'")
 
 
-def forget_scanned(conn, directory: Path) -> int:
-    """Forget the documents that were read from scanned pages, so that they are read again with a better text recognition. Everything else is kept."""
-    return _forget(conn, directory, "json_valid(data) AND json_extract(data, '$.meta.ocr_pages') > 0")
+def forget_stale_reads(conn, directory: Path, better_engine: str = "") -> int:
+    """Forget what was read with something left out under limits that have since changed (each document records the version of the limits it was read under and which of them cut it),
+    and, when a better text recognition is available (`better_engine`), the scanned documents that were read with another one: they are read again, whole. Nothing is named in code:
+    change `limits.json`, or start the better engine, and this finds them."""
+    where = (
+        "(json_valid(data) AND json_array_length(COALESCE(json_extract(data, '$.meta.limits_hit'), '[]')) > 0 AND COALESCE(json_extract(data, '$.meta.limits_version'), '') <> ?)"
+        " OR (json_valid(data) AND json_extract(data, '$.meta.limits_version') IS NULL AND (json_extract(data, '$.meta.ocr_cut_short') = 1 OR length(text) >= 1990000))"
+    )
+    args: tuple = (limits.version(),)
+    if better_engine:
+        where += " OR (json_valid(data) AND json_extract(data, '$.meta.ocr_pages') > 0 AND COALESCE(json_extract(data, '$.meta.ocr_engine'), '') <> ?)"
+        args += (better_engine,)
+    return _forget(conn, directory, where, args)
 
 
 def _why_rejected(f: Path, d: Any) -> tuple[str, str, str]:

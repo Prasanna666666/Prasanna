@@ -232,6 +232,20 @@ def _forget_last_read() -> None:
         (parsed_dir() / name).unlink(missing_ok=True)
 
 
+def _forget_what_was_read_under_other_rules(conn) -> None:
+    """What was read under rules that have since changed is forgotten and read again, once per change: the mail under other rules for which mail is read, the scanned pages when Apple's
+    text recognition becomes available, and what had something left out under the old limits."""
+    scope, marker = _mail_scope(), parsed_dir() / MAIL_SCOPE_MARK
+    if not marker.exists() or marker.read_text() != scope:
+        store.forget_mail(conn, parsed_dir())
+        marker.write_text(scope)
+    engine_file = parsed_dir() / ".ocr-engine"
+    engine = engine_file.read_text().strip() if engine_file.exists() else ""
+    store.forget_stale_reads(
+        conn, parsed_dir(), engine if engine == "apple" else ""
+    )  # whatever was read under other limits, or with a worse text recognition, is read again
+
+
 def _read_all(state: State) -> None:
     """Update, in three strict stages: everything is read, then everything is sorted, then everything is understood. One press does all of it (and the last stage is bounded; the end of a read says what is left)."""
     conn = state.connect()
@@ -247,20 +261,7 @@ def _read_all(state: State) -> None:
         followed = trace.Trace(conn, lambda name, step, detail: state.scan.update(now=(name, step, detail), now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
-        scope = _mail_scope()
-        marker = parsed_dir() / MAIL_SCOPE_MARK
-        if (
-            not marker.exists() or marker.read_text() != scope
-        ):  # the rules for which mail is read changed (or never applied): mail read under other rules is forgotten and read again
-            store.forget_mail(conn, parsed_dir())
-            marker.write_text(scope)
-        engine = (parsed_dir() / ".ocr-engine").read_text().strip() if (parsed_dir() / ".ocr-engine").exists() else ""
-        engine_mark = parsed_dir() / ".ocr-read-with"
-        if (
-            engine == "apple" and not engine_mark.exists()
-        ):  # scanned pages were read with the old reader: once Apple's text recognition is running they are read again with it
-            store.forget_scanned(conn, parsed_dir())
-            engine_mark.write_text(engine)
+        _forget_what_was_read_under_other_rules(conn)
         store.mark_old_files(conn)  # files sorted before the apps were declared get their marks (on this connection: no other writer is at work meanwhile)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         _forget_last_read()
