@@ -25,6 +25,8 @@ _NOISE = re.compile(
     r"hdfcbank|sbi|axis|upiqr)\b",
     re.IGNORECASE,
 )
+MEASURE_LIMIT = 200  # merchants you corrected that the model is tested on
+MEASURE_SHOWN = 20  # disagreements listed
 
 
 def merchant(desc: str) -> str:
@@ -74,6 +76,11 @@ def teach(conn, desc: str, category: str) -> str:
 def model_categories(client, model: str, names: list[str]) -> dict[str, str]:
     """Ask the local model to place merchant names (only names) into the category list, each with its plain description."""
     listed = "\n".join(f"- {name}: {about}" for name, about in CATEGORY_ABOUT.items())
+    schema = {  # the model can only answer with a listed category for every name asked about
+        "type": "object",
+        "properties": {name: {"type": "string", "enum": list(CATEGORIES)} for name in names},
+        "required": list(names),
+    }
     msg = client.chat(
         model,
         [
@@ -85,6 +92,8 @@ def model_categories(client, model: str, names: list[str]) -> dict[str, str]:
             },
             {"role": "user", "content": json.dumps(names)},
         ],
+        schema=schema,
+        max_tokens=40 * max(1, len(names)),
     )
     m = re.search(r"\{.*\}", msg.get("content") or "", re.DOTALL)
     try:
@@ -123,3 +132,16 @@ def apply_decisions(conn) -> int:
             updated += 1
     conn.commit()
     return updated
+
+
+def measure(conn, client, model: str, limit: int = MEASURE_LIMIT) -> dict:
+    """How often the model agrees with you: it is asked about merchants you have corrected (your answer is the truth) and nothing is stored. Shows on this computer only."""
+    mine = dict(list(learned_rules(conn).items())[:limit])
+    if not mine:
+        return {"tested": 0, "agree": 0, "disagreements": []}
+    answers: dict[str, str] = {}
+    names = list(mine)
+    for i in range(0, len(names), MERCHANTS_PER_ASK):
+        answers.update(model_categories(client, model, names[i : i + MERCHANTS_PER_ASK]))
+    wrong = [{"merchant": m, "yours": mine[m], "model": answers.get(m, "")} for m in names if answers.get(m) != mine[m]]
+    return {"tested": len(names), "agree": len(names) - len(wrong), "disagreements": wrong[:MEASURE_SHOWN]}

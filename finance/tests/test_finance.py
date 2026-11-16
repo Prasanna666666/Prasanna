@@ -42,7 +42,7 @@ class FakeModel:
     def __init__(self, layout=None, fail_after=None, kind=None):
         self.layout, self.calls, self.fail_after, self.kind = layout or LAYOUT, 0, fail_after, kind
 
-    def chat(self, model, messages, tools=None, schema=None, num_ctx=4096):
+    def chat(self, model, messages, tools=None, schema=None, num_ctx=4096, max_tokens=None):
         self.calls += 1
         if self.fail_after is not None and self.calls > self.fail_after:
             raise RuntimeError("Cannot reach the local model server")
@@ -398,3 +398,21 @@ def test_a_document_handed_over_again_takes_the_new_facts(conn):
     assert documents.store_from_library(conn, first) == 1
     assert documents.store_from_library(conn, {**first, "facts": {"kind": "bank statement"}}) == 0  # not new
     assert json.loads(conn.execute("SELECT facts FROM documents").fetchone()[0])["kind"] == "bank statement"
+
+
+def test_the_model_is_tested_against_your_own_corrections_and_forced_to_a_listed_category(conn):
+    seen = []
+
+    class Categoriser:
+        def chat(self, model, messages, schema=None, **kw):
+            seen.append(schema)
+            return {"content": json.dumps({"kiran stores": "groceries", "acme cafe": "shopping"})}
+
+    reports.set_category(conn, {"merchant": "Kiran Stores", "category": "groceries"})
+    reports.set_category(conn, {"merchant": "Acme Cafe", "category": "food"})
+    found = categorize.measure(conn, Categoriser(), "fake")
+    assert found["tested"] == 2 and found["agree"] == 1
+    assert found["disagreements"] == [{"merchant": "acme cafe", "yours": "food", "model": "shopping"}]
+    assert set(seen[0]["properties"]["kiran stores"]["enum"]) == set(categorize.CATEGORIES)  # only a listed category can come back
+    assert seen[0]["required"] == ["kiran stores", "acme cafe"]
+    assert categorize.model_decisions(conn) == {}  # measuring stores nothing

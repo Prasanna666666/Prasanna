@@ -150,3 +150,14 @@ def test_when_the_larger_questions_fail_the_smallest_one_still_sorts_the_file():
     got = extract.classify(model, "m", "a.vhd", "entity adder is port ( a : in bit ); " * 30)
     assert got["kind"] == "circuit design" and got["partial"] is True
     assert model.sizes[-1] == 2  # the last look asked only for the kind and the apps
+
+
+def test_the_model_also_sees_the_lines_with_figures_from_the_middle_of_a_long_document():
+    filler = "\n".join(f"line {i} of ordinary words and nothing else" for i in range(400))
+    middle = filler + "\nTotal to pay 1.234,56 EUR\nDue date 2026-03-15\n" + filler
+    text = "Invoice start\n" + "x " * 2000 + middle + "\n" + "y " * 1000 + "\nend of the document"
+    shown = extract.sample_of(text)
+    assert "1.234,56" in shown and "2026-03-15" in shown  # neither at the start nor at the end, yet shown
+    assert len(shown) < extract.HEAD_CHARS + extract.TAIL_CHARS + extract.MIDDLE_CHARS + 50
+    assert extract.sample_of("short") == "short"
+    assert "line 7 of ordinary words" not in extract.key_passages(filler)  # lines without figures are left out

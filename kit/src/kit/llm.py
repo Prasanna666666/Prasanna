@@ -18,6 +18,7 @@ from . import netguard
 # the build sandbox; resolve() also accepts a single installed model whose name starts with "ministral".
 DEFAULT_MODEL = "ministral-3:3b"
 MIN_TIME_LEFT_SECONDS = 0.5  # less than this left of the time allowed: stop instead of starting a call
+SEED = 7  # a fixed seed: the same file gets the same answer every time
 
 
 def is_local_host(name: str) -> bool:
@@ -108,7 +109,7 @@ class OllamaClient:
             "messages": messages,
             "stream": False,
             "keep_alive": KEEP,
-            "options": {"temperature": 0.0 if schema else 0.2, "num_ctx": num_ctx, "num_predict": max_tokens or (600 if schema else 350)},
+            "options": {"temperature": 0.0 if schema else 0.2, "seed": SEED, "num_ctx": num_ctx, "num_predict": max_tokens or (600 if schema else 350)},
         }
         if schema:
             body["format"] = schema

@@ -18,7 +18,7 @@ def test_people_are_tagged_without_a_model_and_topics_only_by_the_model(conn):
 
 def test_model_tags_limited_to_vocabulary(conn):
     class M:
-        def chat(self, model, messages, tools=None):
+        def chat(self, model, messages, tools=None, **kw):
             return {"content": 'Sure! ["travel", "hacked", "ideas"]'}
 
     notes.add_note(conn, {"body": "zzz"})

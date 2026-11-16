@@ -32,6 +32,7 @@ def people_tags(text: str, people: list[dict]) -> list[str]:
 
 
 def model_tags(client, model: str, text: str) -> list[str]:
+    schema = {"type": "array", "items": {"type": "string", "enum": list(VOCAB)}, "maxItems": MAX_TAGS}  # only listed tags can come back
     msg = client.chat(
         model,
         [
@@ -43,6 +44,8 @@ def model_tags(client, model: str, text: str) -> list[str]:
             },
             {"role": "user", "content": text[:NOTE_CHARS]},
         ],
+        schema=schema,
+        max_tokens=60,
     )
     m = re.search(r"\[.*?\]", msg.get("content") or "", re.DOTALL)
     try:

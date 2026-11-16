@@ -101,6 +101,12 @@ def _categorise(conn, rest: list[str]) -> int:  # the local model places merchan
     from . import categorize
 
     client = llm.OllamaClient()
+    if "--measure" in rest:  # how often the model agrees with your own corrections (nothing is stored)
+        found = categorize.measure(conn, client, _model(conn, client))
+        print(f"{found['agree']} of {found['tested']} of your corrections agree with the model")
+        for d in found["disagreements"]:
+            print(f"  {d['merchant']}: you said {d['yours']}, the model said {d['model'] or '(nothing)'}")
+        return 0
     print("updated", categorize.recategorise_with_model(conn, client, _model(conn, client)), "transactions")
     return 0
 

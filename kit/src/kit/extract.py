@@ -160,13 +160,37 @@ def verify_trip_fields(info: dict, text: str) -> dict:
 
 
 HEAD_CHARS, TAIL_CHARS = 3000, 1500
+MIDDLE_CHARS = 1500  # the most that is added from the middle of a long document
+_AMOUNT = re.compile(r"\d[\d.,' ]*[.,]\d{2}\b")  # a number with two decimals: an amount, however the document writes it
+
+
+def key_passages(middle: str, budget: int = MIDDLE_CHARS) -> str:
+    """From the middle of a long document, the lines code finds carry figures (an amount or a date), each with the line before and after, in order, up to `budget` characters.
+    Which lines they are is decided by their shape, never by words: the model then also sees totals and dates that are neither at the start nor at the end."""
+    lines = middle.splitlines()
+    wanted: set[int] = set()
+    for i, line in enumerate(lines):
+        if _AMOUNT.search(line) or dates_in(line):
+            wanted.update(j for j in (i - 1, i, i + 1) if 0 <= j < len(lines))
+    out, used = [], 0
+    for i in sorted(wanted):
+        piece = lines[i].strip()[:200]
+        if not piece:
+            continue
+        if used + len(piece) + 1 > budget:
+            break
+        out.append(piece)
+        used += len(piece) + 1
+    return "\n".join(out)
 
 
 def sample_of(text: str) -> str:
-    """What the model is shown of a long document: its beginning (who, what, when) and its end (totals, signatures, due dates), not only the first pages."""
+    """What the model is shown of a long document: its beginning (who, what, when), its end (totals, signatures, due dates) and, from the middle, the lines that carry figures."""
     if len(text) <= HEAD_CHARS + TAIL_CHARS:
         return text
-    return text[:HEAD_CHARS] + "\n[...]\n" + text[-TAIL_CHARS:]
+    middle = key_passages(text[HEAD_CHARS:-TAIL_CHARS])
+    gap = "\n[...]\n"
+    return text[:HEAD_CHARS] + gap + (middle + gap if middle else "") + text[-TAIL_CHARS:]
 
 
 def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
