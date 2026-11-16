@@ -28,6 +28,10 @@ FACT_FIELDS = {
     "start_date": {"type": "string"},  # a stay or trip: departure or check-in, YYYY-MM-DD
     "end_date": {"type": "string"},  # return, arrival or check-out, YYYY-MM-DD
     "place": {"type": "string"},  # where to: the destination or the hotel's city
+    "entities": {
+        "type": "array",
+        "items": {"type": "string"},
+    },  # the distinctive things the file is about, as written: people, organisations, places, reference numbers, products
     **dict.fromkeys(MONEY_FIELDS, _STR),  # each amount exactly as printed in the document, e.g. "3.500,00"
 }
 
@@ -47,7 +51,8 @@ def kind_prompt(apps: dict[str, str] | None) -> str:
     return (
         "You read the start of a personal document. It may be in any language. Say what it is in a few words, as a person would name it (kind)."
         + marks
-        + "Then give: title (a few words), summary (one short sentence), party (who it is from or to), date and due_date as YYYY-MM-DD, reference (any reference or case "
+        + "Then give: title (a few words), summary (one short sentence), party (who it is from or to), entities (at most eight distinctive things the file is about, each exactly as written: "
+        "people, organisations, places, reference numbers, products), date and due_date as YYYY-MM-DD, reference (any reference or case "
         'number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example "3.500,00"): '
         "total (the main amount) and vat, and where the document states them period (the month or year it covers) and gross, net, tax, pension, holiday_pay. For a stay or trip "
         "also give start_date and end_date as YYYY-MM-DD and place (the destination), only as printed. Leave out or use null what is not there. Never invent or recalculate."
@@ -180,6 +185,11 @@ def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, st
     party = str(checked.get("party") or "").strip()
     if party and _squash(party.lower()) not in _squash(text.lower()):
         checked["party"] = ""  # a name the document does not contain is the model's invention
+    whole = _squash(text.lower())
+    given = checked.get("entities") if isinstance(checked.get("entities"), list) else []
+    checked["entities"] = list(dict.fromkeys(str(e).strip() for e in given if str(e).strip() and _squash(str(e).lower()) in whole))[
+        :8
+    ]  # only what the file really says
     return checked
 
 

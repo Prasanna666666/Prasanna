@@ -24,7 +24,6 @@ ID = re.compile(
     r"\b(?=[A-Za-z0-9/\-]*\d)(?=[A-Za-z0-9/\-]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b"
 )  # letters and digits together (INV-20931, NL91ABNA...): a plain date or number is not an identifier
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
-FACT_LINKS = ("place", "party", "reference")  # the facts the model gave (never a kind of document) that can bring two files to the model's attention together
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
 MAX_GROUP_TRIES = 3  # how often the model is asked to read one group before its files are kept as they were sorted
 MAX_CONFIRMS = 1_000_000  # pairs of files compared by the model: no practical limit, a press does them all
@@ -46,10 +45,12 @@ def _shared(pieces: list[dict[str, Any]]) -> set[tuple[int, int]]:
     for p in pieces:
         for v in _rare_values(f"{p['name']} {p['text']}"):
             index[v].append(p["id"])
-        for key in FACT_LINKS:  # what the model itself found in the file (where it is to, who it is from, its reference): files that share one of these, when few do, are shown to the model together
-            value = " ".join(str(p.get("facts", {}).get(key) or "").lower().split())
+        for entity in (
+            p.get("facts", {}).get("entities") or []
+        ):  # what the model found the file to be about, of any kind: files that share one of these, when few do, are shown to the model together
+            value = " ".join(str(entity).lower().split())
             if len(value) >= 3:
-                index[f"{key}:{value}"].append(p["id"])
+                index[f"entity:{value}"].append(p["id"])
     return {(a, b) for ids in index.values() if 2 <= len(ids) <= RARE for i, a in enumerate(ids) for b in ids[i + 1 :]}
 
 
