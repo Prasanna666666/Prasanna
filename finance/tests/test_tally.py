@@ -1,7 +1,7 @@
 """Everything must tally: currencies apart, transfers matched, statements vs stored payments, reports vs the raw ledger."""
 
 from finance import currency, db, verify
-from finance.modules import documents, events, money
+from finance.modules import documents, events, money, statement_import
 from tests.test_standards import MT940
 
 
@@ -37,7 +37,7 @@ def test_a_payment_with_no_recorded_currency_counts_as_the_main_currency(conn):
 
 def test_an_mt940_statement_stores_its_currency_and_account(conn, tmp_path):
     documents.store_from_library(conn, {"sha256": "ab" * 32, "name": "abn.sta", "file_kind": "text", "text": MT940, "area": "finance", "data": "", "facts": {}})
-    money.import_statements(conn)
+    statement_import.import_statements(conn)
     assert {r[0] for r in conn.execute("SELECT currency FROM transactions")} == {"EUR"}
     assert {r[0] for r in conn.execute("SELECT account FROM transactions")} == {"NL00ABNA0123456789"}
 

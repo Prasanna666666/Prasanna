@@ -2,7 +2,7 @@
 
 from kit import extract
 
-from finance.modules import money
+from finance.modules import statement_import
 from tests.test_finance import FakeModel, _load
 
 
@@ -39,8 +39,8 @@ def test_travel_documents_lists_trips_from_tickets(tmp_path, conn):
     }
     facts = extract.verify_trip_fields(extract.verify_amounts(said, text), text)  # as the Documents service verifies it
     _load(conn, tmp_path, "flight-ticket-mail-003", text=text, area="mail", kind="email", facts=facts)
-    money.import_statements(conn, client=FakeModel(), model="fake")
-    rows = money.travel_documents(conn, {"place": "delhi", "year": "2026"})
+    statement_import.import_statements(conn, client=FakeModel(), model="fake")
+    rows = statement_import.travel_documents(conn, {"place": "delhi", "year": "2026"})
     assert len(rows) == 1 and rows[0]["start_date"] == "2026-01-12" and rows[0]["total"] == 480.0
 
 
@@ -48,6 +48,6 @@ def test_a_document_the_service_already_described_needs_no_model_here(tmp_path, 
     facts = {"kind": "invoice", "title": "Internet", "party": "Ziggo", "date": "2026-10-03", "total": "60.5", "currency": "EUR"}
     _load(conn, tmp_path, "ziggo-invoice-handed-over-01", text="FACTUUR Ziggo 60,50", facts=facts)
     model = FakeModel()
-    r = money.import_statements(conn, client=None, model=None)
+    r = statement_import.import_statements(conn, client=None, model=None)
     assert r["problems"] == [] and model.calls == 0
     assert conn.execute("SELECT party FROM finance_docs").fetchone()["party"] == "Ziggo"

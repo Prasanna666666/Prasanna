@@ -6,7 +6,7 @@ import urllib.parse
 
 import pytest
 from finance import library_client
-from finance.modules import ALL, money
+from finance.modules import ALL, statement_import
 from kit import db
 
 from library import judging, parser, store
@@ -82,7 +82,7 @@ def test_a_scanned_statement_goes_from_the_reader_through_the_service_to_a_verif
     fetch = library_over_http(conn)
     assert library_client.pull(finance, fetch) == {"new": 1, "known": 0}
     assert library_client.pull(finance, fetch) == {"new": 0, "known": 0}  # the second time there is nothing new
-    r = money.import_statements(finance, client=Model(), model="fake")
+    r = statement_import.import_statements(finance, client=Model(), model="fake")
     assert r["new_transactions"] == 2 and r["needs_check"] == []
 
 

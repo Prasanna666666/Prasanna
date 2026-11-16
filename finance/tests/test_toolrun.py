@@ -1,7 +1,7 @@
 """Running one tool for the one assistant: arguments are coerced, failures come back as data, and a few tools are off limits."""
 
 from finance import toolrun
-from finance.modules import money, tasks
+from finance.modules import money, reports, tasks
 
 
 def test_string_numbers_are_coerced(conn):
@@ -28,7 +28,7 @@ def test_no_assistant_may_delete_an_imported_payment():
 
 def test_the_weekly_summary_reports_only_what_the_books_hold(conn):
     money.add_transaction(conn, {"amount": 12.5, "category": "food"})
-    out = money.weekly_summary(conn, {"days": 7})
+    out = reports.weekly_summary(conn, {"days": 7})
     assert out["changed"]["new_payments"] == 1 and out["changed"]["spent"] == 12.5
     assert out["needs_a_check"]["files"] == [] and "due_next_14_days" in out
     assert not toolrun.run_tool(conn, "weekly_summary", {"days": "3"})[1]

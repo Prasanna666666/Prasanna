@@ -4,7 +4,7 @@ import json
 from datetime import date, timedelta
 
 from finance import tables, verify
-from finance.modules import documents, money
+from finance.modules import documents, reports, statement_import
 from tests.test_standards import CAMT, MT940
 
 LAYOUT = {
@@ -149,7 +149,7 @@ def _ingest(conn, tmp_path, name, text, data=None):
 
 def test_mt940_and_camt053_are_imported_exactly_without_any_model(conn, tmp_path):
     _ingest(conn, tmp_path, "abn-2026-10.sta", MT940)
-    r = money.import_statements(conn)  # no model at all
+    r = statement_import.import_statements(conn)  # no model at all
     assert r["new_transactions"] == 3 and r["needs_check"] == [] and r["problems"] == []
     f = conn.execute("SELECT * FROM statement_files").fetchone()
     assert (f["status"], f["account"], f["period_start"], f["period_end"], f["opening_minor"], f["closing_minor"]) == (
@@ -161,13 +161,13 @@ def test_mt940_and_camt053_are_imported_exactly_without_any_model(conn, tmp_path
         372655,
     )
     _ingest(conn, tmp_path, "abn-again.xml", CAMT)  # the same period as camt.053: the same three payments, nothing added twice
-    r2 = money.import_statements(conn)
+    r2 = statement_import.import_statements(conn)
     assert r2["new_transactions"] == 0 and r2["already_had"] == 3
 
 
 def test_a_standard_statement_that_does_not_add_up_is_not_imported(conn, tmp_path):
     _ingest(conn, tmp_path, "abn-bad.sta", MT940.replace("D1100,00N", "D1100,01N"))
-    r = money.import_statements(conn)
+    r = statement_import.import_statements(conn)
     assert r["new_transactions"] == 0 and r["needs_check"][0]["file"] == "abn-bad.sta"
     assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0
 
@@ -223,5 +223,5 @@ def test_the_report_counts_what_every_agent_concluded(conn):
     conn.execute("INSERT INTO payslips VALUES ('a','loon.pdf','2026-10',450000,318000,0,0,0)")
     tx(conn, "2026-10-02", 100)
     verify.run_cross_checks(conn)
-    report = money.verification_report(conn)
+    report = reports.verification_report(conn)
     assert report["summary"]["payslip ↔ bank"]["warn"] == 1 and any(p["level"] == "warn" for p in report["problems"]) and report["passed"] >= 1

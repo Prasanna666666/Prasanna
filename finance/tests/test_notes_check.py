@@ -1,7 +1,7 @@
 """Your own calculations in your notes are checked for arithmetic and against the app. The note is the example from the brief."""
 
 from finance import notes_check, verify
-from finance.modules import events, money, notes
+from finance.modules import events, money, notes, reports
 
 NOTE = """Asian games 2026
 Tickets: 634.1
@@ -72,5 +72,5 @@ def test_a_line_missing_on_either_side_is_reported(conn):
 def test_the_notes_agents_run_with_every_import_and_show_in_the_report(conn):
     notes.add_note(conn, {"title": "Trips", "body": NOTE.replace("Total: 96.46", "Total: 96.47")})
     verify.run_cross_checks(conn)
-    report = money.verification_report(conn)
+    report = reports.verification_report(conn)
     assert report["summary"]["notes arithmetic"] == {"ok": 2, "warn": 0, "fail": 1}

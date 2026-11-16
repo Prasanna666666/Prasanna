@@ -24,7 +24,7 @@ from kit import consent, llm, log, netguard, sign
 from kit.http import Fail, ModuleHandler, host_ok
 
 from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
-from .modules import ALL, money
+from .modules import ALL, money, reports, statement_import
 from .modules import tools as registry
 from .modules.today import briefing_for
 
@@ -109,7 +109,7 @@ def start_import(state: State) -> bool:
                 log.failed("model unavailable for the import", exc)
                 state.importing["error"] = "The local model is not running. Start Ollama and try again."
                 return
-            result = money.import_statements(conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
+            result = statement_import.import_statements(conn, client=client, model=model, progress=lambda m: state.importing.update(progress=m))
             result["problems"] = [*problems, *result.get("problems", [])]
             state.importing["result"] = result
         except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
@@ -130,7 +130,7 @@ def _get_home(state: State, conn, query: dict[str, str]) -> dict:
         "currency": db.display_currency(conn),
         "view": db.view_currency(conn),
         "briefing": briefing_for(conn, clock.today()),
-        "trend": money.monthly_trend(conn, {"months": 6}),
+        "trend": reports.monthly_trend(conn, {"months": 6}),
         "upcoming": insight.upcoming_payments(conn, {"days": 21})[:4],
     }
 

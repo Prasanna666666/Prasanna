@@ -8,7 +8,7 @@ from kit import extract
 from kit.amounts import money_from_printed
 
 from finance import categorize, db, tables
-from finance.modules import documents, money
+from finance.modules import documents, money, reports, statement_import
 
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
 HEAD = ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
@@ -97,7 +97,7 @@ def _load(conn, tmp_path, name, rows=None, text=None, area="finance", cols=COLS,
 
 
 def run(conn, model=None, **kw):
-    return money.import_statements(conn, client=model or FakeModel(), model="fake", **kw)
+    return statement_import.import_statements(conn, client=model or FakeModel(), model="fake", **kw)
 
 
 def read(rows, layout=None):
@@ -218,7 +218,7 @@ def test_a_file_that_fails_its_proof_adds_nothing_to_your_totals_and_says_why(co
     r = run(conn)
     assert r["new_transactions"] == 0 and r["needs_check"][0]["file"] == "broken.pdf"
     assert conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0] == 0
-    assert money.files_to_check(conn)[0]["status"] == "needs_check" and "do not add up" in money.files_to_check(conn)[0]["issues"]
+    assert reports.files_to_check(conn)[0]["status"] == "needs_check" and "do not add up" in reports.files_to_check(conn)[0]["issues"]
 
 
 def test_a_layout_nobody_can_understand_is_refused_not_guessed(conn, tmp_path):
@@ -237,7 +237,7 @@ def test_a_payslip_is_read_from_its_printed_figures_and_not_a_bank_transaction(c
     )
     r = run(conn)
     assert r["payslips"] == 1 and r["new_transactions"] == 0
-    slip = money.list_payslips(conn)[0]
+    slip = reports.list_payslips(conn)[0]
     assert (slip["period"], slip["gross"], slip["tax"], slip["pension"], slip["holiday"], slip["net"]) == ("2026-10", 3500.0, 812.4, 175.0, 280.0, 2512.6)
 
 
@@ -252,13 +252,13 @@ def test_invoices_are_filed_with_verified_totals(conn, tmp_path):
     _load(conn, tmp_path, "factuur.pdf", None, text="FACTUUR Ziggo oktober totaal 60,50 waarvan btw 10,50")
     r = run(conn)
     assert r["files"] == 1 and r["new_transactions"] == 0 and r["needs_check"] == []
-    inv = money.finance_documents(conn, {"kind": "invoice", "apps": ["finance"]})[0]
+    inv = statement_import.finance_documents(conn, {"kind": "invoice", "apps": ["finance"]})[0]
     assert (inv["party"], inv["total"], inv["vat"]) == ("Ziggo", 60.5, 10.5)
 
 
 def test_without_the_model_nothing_is_imported_and_you_are_told(conn, tmp_path):
     _load(conn, tmp_path, "a.pdf", GOOD)
-    r = money.import_statements(conn)
+    r = statement_import.import_statements(conn)
     assert r["new_transactions"] == 0 and "Ollama" in r["problems"][0]
     assert conn.execute("SELECT COUNT(*) FROM statement_files").fetchone()[0] == 0
 
@@ -278,9 +278,9 @@ def test_categories_rules_then_your_corrections(conn, tmp_path):
     run(conn)
     assert (
         conn.execute("SELECT category FROM transactions").fetchone()["category"] == "other"
-        and money.uncategorised(conn)[0]["merchant"] == "kiran stores utrecht"
+        and reports.uncategorised(conn)[0]["merchant"] == "kiran stores utrecht"
     )
-    money.set_category(conn, {"merchant": "Kiran Stores Utrecht", "category": "groceries"})
+    reports.set_category(conn, {"merchant": "Kiran Stores Utrecht", "category": "groceries"})
     assert conn.execute("SELECT category FROM transactions").fetchone()["category"] == "groceries" and categorize.learned_rules(conn)
 
 
@@ -302,9 +302,9 @@ def test_views_top_merchants_trend_and_recurring(conn, tmp_path):
     rows.append(["20-10-2026", "SELF TRANSFER TO SAVINGS", "10.000,00", "", ""])
     _load(conn, tmp_path, "q.pdf", rows)
     run(conn)
-    assert money.top_merchants(conn, {"month": "2026-10"})[0]["spent"] == 649.0
-    assert [r["month"] for r in money.monthly_trend(conn, {"months": 12})] == ["2026-07", "2026-08", "2026-09", "2026-10"]
-    names = [r["merchant"] for r in money.recurring_payments(conn)]
+    assert reports.top_merchants(conn, {"month": "2026-10"})[0]["spent"] == 649.0
+    assert [r["month"] for r in reports.monthly_trend(conn, {"months": 12})] == ["2026-07", "2026-08", "2026-09", "2026-10"]
+    names = [r["merchant"] for r in reports.recurring_payments(conn)]
     assert any("netflix" in n for n in names) and any("swiggy" in n for n in names)
     assert money.summary(conn, {"month": "2026-10"})["spent"] == 1049.0
 
@@ -344,7 +344,7 @@ def test_files_left_out_are_tried_again_once_after_the_reading_improves(conn, tm
     _load(conn, tmp_path, "left-out-statement-2025-02.pdf", GOOD)
     run(conn, FakeModel(layout={**LAYOUT, "roles": ["date"]}))  # a model that misreads the columns: the file is left out
     assert conn.execute("SELECT status FROM statement_files").fetchone()["status"] == "needs_check"
-    db.set_setting(conn, "reader_version", money.READER_VERSION)
+    db.set_setting(conn, "reader_version", statement_import.READER_VERSION)
     assert run(conn)["files"] == 0  # same version: not read again on every press
     db.set_setting(conn, "reader_version", "older")
     assert run(conn)["files"] == 1 and conn.execute("SELECT status FROM statement_files").fetchone()["status"] != "needs_check"

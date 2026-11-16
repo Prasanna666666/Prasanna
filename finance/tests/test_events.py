@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from finance.modules import events, money
+from finance.modules import events, money, statement_import
 
 
 def pay(conn, day, amount, note, kind="expense", category="other"):
@@ -151,7 +151,7 @@ def test_reading_the_files_also_groups_the_payments_into_trips_and_events_withou
     table = [[[cols[i][0], cols[i][1], c] for i, c in enumerate(r) if c] for r in rows]
     doc = {"sha256": "cd" * 32, "name": "ing.pdf", "file_kind": "pdf", "text": "Datum", "area": "finance", "data": json.dumps({"table": table}), "facts": {}}
     documents.store_from_library(conn, doc)
-    r = money.import_statements(conn, client=Model(), model="fake")
+    r = statement_import.import_statements(conn, client=Model(), model="fake")
     assert r["new_transactions"] == 3 and r["problems"] == [] and r["needs_check"] == []
     ev = events.list_events(conn)
     assert [e["name"] for e in ev] == ["Asian Games 2026"] and ev[0]["total"] == 1813.41  # found on its own; the groceries stayed day to day

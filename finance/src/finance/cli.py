@@ -71,7 +71,7 @@ def _brief(conn, rest: list[str]) -> int:
 
 def _import_statements(conn, rest: list[str]) -> int:  # takes what the Documents service read and turns the finance files into transactions
     from . import library_client
-    from .modules import money
+    from .modules import statement_import
 
     if library_client.base_url():
         print("Documents:", library_client.update(lambda m: print(" ", m, flush=True)) or "read")
@@ -85,14 +85,14 @@ def _import_statements(conn, rest: list[str]) -> int:  # takes what the Document
     except RuntimeError as exc:
         print(f"The local model is not available ({exc}). Statements are read by the local model, so nothing was imported.")
         client = model = None
-    print(money.import_statements(conn, client=client, model=model, progress=lambda m: print(" ", m, flush=True)))
+    print(statement_import.import_statements(conn, client=client, model=model, progress=lambda m: print(" ", m, flush=True)))
     return 0
 
 
 def _statement_report(conn, rest: list[str]) -> int:  # what Finance made of each finance file; shows counts only, never content
-    from .modules import money
+    from .modules import reports
 
-    for r in money.statement_report(conn):
+    for r in reports.statement_report(conn):
         print(r)
     return 0
 
