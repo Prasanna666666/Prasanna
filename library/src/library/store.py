@@ -260,7 +260,7 @@ def forget_stale_reads(conn, directory: Path, better_engine: str = "") -> int:
     )
     args: tuple = (limits.version(),)
     if better_engine:
-        where += " OR (json_valid(data) AND json_extract(data, '$.meta.ocr_pages') > 0 AND COALESCE(json_extract(data, '$.meta.ocr_engine'), '') <> ?)"
+        where += " OR (json_valid(data) AND json_extract(data, '$.meta.ocr_pages') > 0 AND length(text) >= 80 AND COALESCE(json_extract(data, '$.meta.ocr_engine'), '') <> ?)"  # only where the old reader found real text: a logo with no words gains nothing
         args += (better_engine,)
     return _forget(conn, directory, where, args)
 

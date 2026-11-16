@@ -55,7 +55,8 @@ def test_what_was_read_under_other_limits_or_a_worse_engine_is_read_again_by_its
         ("cut under the limits in force.pdf", "t", {"meta": {"limits_hit": ["ocr"], "limits_version": now}}),
         ("never cut.pdf", "t", {"meta": {"limits_hit": [], "limits_version": "old"}}),
         ("read before versions existed, cut.pdf", "t", {"meta": {"ocr_cut_short": True}}),
-        ("scan by the old engine.pdf", "t", {"meta": {"ocr_pages": 2, "ocr_engine": "tesseract", "limits_hit": [], "limits_version": now}}),
+        ("scan by the old engine.pdf", "words " * 30, {"meta": {"ocr_pages": 2, "ocr_engine": "tesseract", "limits_hit": [], "limits_version": now}}),
+        ("a logo with no words.png", "x", {"meta": {"ocr_pages": 1, "limits_hit": [], "limits_version": now}}),
         ("scan by the better engine.pdf", "t", {"meta": {"ocr_pages": 2, "ocr_engine": "apple", "limits_hit": [], "limits_version": now}}),
     )
     for i, (name, text, data) in enumerate(rows):
@@ -66,6 +67,7 @@ def test_what_was_read_under_other_limits_or_a_worse_engine_is_read_again_by_its
     assert store.forget_stale_reads(conn, tmp_path) == 2  # no better engine: only what limits left something out of
     assert store.forget_stale_reads(conn, tmp_path, "apple") == 1  # the better engine appears: the scan read by another one
     assert sorted(r["name"] for r in conn.execute("SELECT name FROM documents")) == [
+        "a logo with no words.png",
         "cut under the limits in force.pdf",
         "never cut.pdf",
         "scan by the better engine.pdf",
