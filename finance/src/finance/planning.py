@@ -13,6 +13,8 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
+from kit import money as kit_money
+
 from . import clock, concepts, dates, insight, proof
 from .db import get_setting
 
@@ -176,7 +178,7 @@ def insurances(conn, a=None):
 # ---- goals ------------------------------------------------------------------------------------------------------------------------
 def add_goal(conn, a):
     name = str(a.get("name", "")).strip()
-    amount = round(float(a["target"]) * 100)
+    amount = kit_money.to_minor(a["target"])
     if not name or amount <= 0:
         raise ValueError("a goal needs a name and a positive target")
     by = a.get("by")

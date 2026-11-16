@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from kit import money as kit_money
+
 
 @dataclass(frozen=True)
 class Payslip:
@@ -21,7 +23,7 @@ def from_model(info: dict) -> Payslip | None:
 
     def minor(key: str) -> int | None:
         v = info.get(key)
-        return round(abs(float(v)) * 100) if isinstance(v, (int, float)) and not isinstance(v, bool) and v else None
+        return kit_money.to_minor(abs(kit_money.as_decimal(v))) if isinstance(v, (int, float)) and not isinstance(v, bool) and v else None
 
     gross, net = minor("gross"), minor("net")
     if not gross or not net or net > gross:

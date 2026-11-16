@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from kit import money as kit_money
+
 from . import categorize, insight
 from .db import get_setting
 
@@ -37,10 +39,10 @@ def _where(a: dict) -> tuple[str, list]:
         args.append(a["event"])
     if a.get("min_amount") is not None:
         where.append("t.amount_minor>=?")
-        args.append(round(float(a["min_amount"]) * 100))
+        args.append(kit_money.to_minor(a["min_amount"]))
     if a.get("max_amount") is not None:
         where.append("t.amount_minor<=?")
-        args.append(round(float(a["max_amount"]) * 100))
+        args.append(kit_money.to_minor(a["max_amount"]))
     return (" WHERE " + " AND ".join(where)) if where else "", args
 
 

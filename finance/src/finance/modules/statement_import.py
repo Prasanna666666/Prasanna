@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass, field
 
 from kit import extract
+from kit import money as kit_money
 from kit.text import day, json_object
 
 from .. import (
@@ -58,7 +59,7 @@ def _day(value) -> str | None:
 
 
 def _money(value) -> int | None:
-    return round(abs(float(value)) * 100) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    return kit_money.to_minor(abs(kit_money.as_decimal(value))) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _remember_doc(conn, d, info) -> None:

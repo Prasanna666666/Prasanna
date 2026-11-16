@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from kit import money as kit_money
+
 from . import clock, insight, rates
 from .db import get_setting
 
@@ -22,14 +24,14 @@ def add_holding(conn, a):
     if kind not in KINDS or not name:
         raise ValueError("a holding needs a name and a kind: investment, asset or debt")
     if a.get("units") is not None and a.get("price") is not None:
-        value = round(float(a["units"]) * float(a["price"]) * 100)
+        value = kit_money.total_to_minor(a["units"], a["price"])
     elif a.get("value") is not None:
-        value = round(float(a["value"]) * 100)
+        value = kit_money.to_minor(a["value"])
     else:
         raise ValueError("give a value, or units and a price")
     if value < 0:
         raise ValueError("a value cannot be negative: debts are entered as a positive amount owed")
-    cost = None if a.get("cost") is None else round(float(a["cost"]) * 100)
+    cost = None if a.get("cost") is None else kit_money.to_minor(a["cost"])
     if cost is not None and cost < 0:
         raise ValueError("the amount paid in cannot be negative")
     as_of = str(a.get("as_of") or clock.today().isoformat())
@@ -37,7 +39,7 @@ def add_holding(conn, a):
     currency = str(a.get("currency") or _main(conn)).upper()[:5]
     cur = conn.execute(
         "INSERT INTO holdings (name, kind, value_minor, units, price_minor, currency, as_of, cost_minor) VALUES (?,?,?,?,?,?,?,?)",
-        (name[:80], kind, value, a.get("units"), round(float(a["price"]) * 100) if a.get("price") is not None else None, currency, as_of, cost),
+        (name[:80], kind, value, a.get("units"), kit_money.to_minor(a["price"]) if a.get("price") is not None else None, currency, as_of, cost),
     )
     conn.commit()
     return {"id": cur.lastrowid, "name": name, "kind": kind, "value": value / 100, "currency": currency, "as_of": as_of}
@@ -49,17 +51,17 @@ def update_holding(conn, a):
     if row is None:
         raise ValueError("no such holding")
     if a.get("units") is not None and a.get("price") is not None:
-        value, units, price = round(float(a["units"]) * float(a["price"]) * 100), a["units"], round(float(a["price"]) * 100)
+        value, units, price = kit_money.total_to_minor(a["units"], a["price"]), a["units"], kit_money.to_minor(a["price"])
     elif a.get("price") is not None and row["units"] is not None:
-        units, price = row["units"], round(float(a["price"]) * 100)
-        value = round(units * price)
+        units, price = row["units"], kit_money.to_minor(a["price"])
+        value = kit_money.scale_minor(units, price)
     elif a.get("value") is not None:
-        value, units, price = round(float(a["value"]) * 100), row["units"], row["price_minor"]
+        value, units, price = kit_money.to_minor(a["value"]), row["units"], row["price_minor"]
     elif a.get("cost") is not None:  # only what was paid in changes
         value, units, price = row["value_minor"], row["units"], row["price_minor"]
     else:
         raise ValueError("give a new value, price or amount paid in")
-    cost = row["cost_minor"] if a.get("cost") is None else round(float(a["cost"]) * 100)
+    cost = row["cost_minor"] if a.get("cost") is None else kit_money.to_minor(a["cost"])
     conn.execute(
         "UPDATE holdings SET value_minor=?, units=?, price_minor=?, cost_minor=?, as_of=? WHERE id=?",
         (value, units, price, cost, a.get("as_of") or clock.today().isoformat(), a["id"]),

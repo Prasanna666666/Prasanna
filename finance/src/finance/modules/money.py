@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from kit import money as kit_money
 from kit.module import INT, Module, N, S, Tool
 
 from .. import (
@@ -137,8 +138,8 @@ MIGRATIONS = (
 )
 
 
-def to_minor(x: float) -> int:
-    return round(float(x) * 100)
+def to_minor(x: object) -> int:
+    return kit_money.to_minor(x)
 
 
 def currency(conn) -> str:
@@ -174,7 +175,7 @@ def list_transactions(conn, a):
     for col, op, key in (("t.amount_minor", ">=", "min_amount"), ("t.amount_minor", "<=", "max_amount")):
         if a.get(key) is not None:
             where.append(f"{col} {op} ?")
-            args.append(round(float(a[key]) * 100))
+            args.append(kit_money.to_minor(a[key]))
     sql = (
         "SELECT t.id, t.day, t.kind, t.category, t.note, t.amount_minor/100.0 AS amount, t.native_minor/100.0 AS original, "
         "COALESCE(NULLIF(t.currency,''), (SELECT COALESCE((SELECT value FROM settings WHERE key='currency'),'EUR'))) AS currency, t.event_id, t.sub, e.name AS event "
