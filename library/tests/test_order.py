@@ -306,3 +306,22 @@ def test_a_trip_shows_what_grouping_put_with_it_not_whatever_is_dated_in_those_d
     conn.commit()
     shown = [d["name"] for d in travel.detail(conn, None, "India", "2026-01-12", "2026-01-30")["other_documents"]]
     assert shown == ["hotel invoice.pdf"]
+
+
+def test_files_that_share_what_the_model_found_in_them_are_shown_to_it_together_and_unrelated_ones_are_not():
+    from library import casebook
+
+    def piece(i, name, **facts):
+        return {"id": i, "name": name, "text": "words", "facts": facts, "sha": str(i), "area": ""}
+
+    pieces = [
+        piece(1, "flight.pdf", place="Delhi", party="Air India"),
+        piece(2, "hotel.pdf", place="Delhi", party="Hotel Delhi"),
+        piece(3, "taxi.pdf", place="Delhi"),
+        piece(4, "payslip.pdf", party="Employer BV"),
+        *[piece(10 + i, f"bill{i}.pdf", party="Ziggo") for i in range(6)],  # a supplier with many bills says nothing about which belong together
+    ]
+    pairs = {(a, b) for a, b, _ in casebook.candidates(pieces)}
+    assert {(1, 2), (1, 3), (2, 3)} <= pairs  # the trip: the same place
+    assert not any(4 in p for p in pairs)  # the payslip shares nothing with them
+    assert not any(a >= 10 and b >= 10 for a, b in pairs)  # six bills from one supplier are not one matter
