@@ -27,7 +27,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import apps, casebook, priority, recognise, relevance, similar
+from . import apps, casebook, priority, recognise, relevance
 from .trace import FAILED, Trace
 
 MIGRATIONS = (
@@ -165,7 +165,7 @@ MIGRATIONS = (
     ALTER TABLE documents ADD COLUMN promised INTEGER NOT NULL DEFAULT 0;   -- for a mail: how many attachments it says it carried (so the number of documents in mails is known before they are all taken out)
     """,
     """
-    ALTER TABLE documents ADD COLUMN sig TEXT;   -- a fingerprint of the words of a document the model found to be about none of the apps (see similar)
+    ALTER TABLE documents ADD COLUMN sig TEXT;   -- (not used any more)
     CREATE TABLE sigs (doc_id INTEGER NOT NULL, band INTEGER NOT NULL, h INTEGER NOT NULL);
     CREATE INDEX sigs_lookup ON sigs (band, h);
     """,
@@ -388,14 +388,9 @@ def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
 
 def _understand(client, model: str, d, progress: Progress | None = None) -> dict:
     """What the model makes of one document: what it is and its key facts, and for a medical document the lab values and medicines the document itself prints."""
-    declared = apps.describe()
-    facts = extract.classify_short(client, model, d["name"], d["text"], declared)  # the quick question first: what is it, and which apps is it about
-    if not (facts.get("apps") or d["area"] in declared):
-        return facts  # about none of the apps: nothing more is asked of the model
-    full = extract.classify(
-        client, model, d["name"], d["text"], declared
-    )  # about an app: the details that app needs (amounts, dates, parties), checked against the whole text
-    facts = {**full, "apps": sorted({*full.get("apps", []), *facts.get("apps", [])})}
+    facts = extract.classify(
+        client, model, d["name"], d["text"], apps.describe()
+    )  # every file gets the full reading: what it is, which apps it is about, and its details checked against the text
     readers = {
         apps.reading(name) for name in [*facts.get("apps", []), d["area"]]
     }  # an app can ask for an extra reading of its files (a folder named after the app counts too)
@@ -438,10 +433,6 @@ def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trac
     except RuntimeError as exc:
         return "unreachable", str(exc)
     _mark_ready(conn, d["sha256"], 1, facts)
-    if not facts.get("apps") and d["kind"] != "email" and (sig := similar.signature(d["text"])):
-        similar.remember(
-            conn, conn.execute("SELECT id FROM documents WHERE sha256=?", (d["sha256"],)).fetchone()[0], sig
-        )  # the next one that reads like it is not asked
     _trace(trace, d["name"], "sorted", f"{facts.get('kind', 'other')}", time.monotonic() - started)
     conn.commit()
     return "ok", ""
@@ -511,21 +502,6 @@ def mark_old_files(conn) -> int:
             conn.commit()  # in small steps: the database is never held for long, so a read that writes at the same time is not kept waiting
     conn.commit()
     return len(rows)
-
-
-def _reads_like(conn, d) -> tuple[dict, str] | None:
-    """The answer to give a document that reads like one already sorted as about none of the apps, and the name of that one; None when no document reads like it."""
-    if d["kind"] == "email" or not d["text"].strip():
-        return None
-    sig = similar.signature(d["text"])
-    found = similar.nearest(conn, sig) if sig else None
-    if found is None:
-        return None
-    row = conn.execute("SELECT name, facts FROM documents WHERE id=?", (found[0],)).fetchone()
-    facts = json.loads(row["facts"]) if row and row["facts"] else None
-    if not facts or facts.get("apps"):
-        return None
-    return {"kind": facts.get("kind", ""), "title": facts.get("title", ""), "apps": [], "inherited": True}, row["name"]
 
 
 def _skippable(d) -> bool:
@@ -654,11 +630,6 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
                 _trace(trace, d["name"], "sorted", str(exact.get("kind", "")))  # shown by its title, like every other file
-            elif (
-                kin := _reads_like(conn, d)
-            ) is not None:  # it reads almost exactly like a document the model already found to be about none of the apps: the same answer, no model call
-                _mark_ready(conn, d["sha256"], 1, kin[0])
-                _trace(trace, d["name"], "sorted", f"{kin[0].get('kind', '')}, reads like {kin[1]}")
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
                 why = _why_skipped(d)
                 _mark_ready(conn, d["sha256"], 2, {"skipped": why})  # the reason is kept, so what was not shown to the model can be counted and read later
@@ -673,7 +644,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                 if progress:
                     progress(_speed_line(model_work_left(conn), time.monotonic() - began, calls))
                 calls += 1
-                ahead.prefetch(chunk, position, lambda doc: _reads_like(conn, doc) is not None)
+                ahead.prefetch(chunk, position)
                 result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)
                 if result == "stopped":
                     out["stopped"] = True
@@ -1273,3 +1244,35 @@ def ingest_pictures(conn, engine_conn) -> int:
         added += cur.rowcount
     conn.commit()
     return added
+
+
+def category_suggestions(conn, threshold: int | None = None) -> list[dict[str, Any]]:
+    """The kinds of file the model found that are about none of the apps and are many enough to deserve an app: [{kind, count, examples}], the biggest first."""
+    limit = threshold if threshold is not None else apps.threshold()
+    rows = conn.execute(
+        "SELECT LOWER(TRIM(fact_kind)) AS kind, COUNT(*) AS n FROM documents WHERE judged=1 AND TRIM(COALESCE(fact_kind, ''))<>'' AND COALESCE(fact_apps, '||') IN ('||', '') "
+        "GROUP BY LOWER(TRIM(fact_kind)) HAVING n>? ORDER BY n DESC LIMIT 20",
+        (limit,),
+    ).fetchall()
+    out = []
+    for r in rows:
+        names = [e["name"] for e in conn.execute("SELECT name FROM documents WHERE judged=1 AND LOWER(TRIM(fact_kind))=? ORDER BY id LIMIT 3", (r["kind"],))]
+        out.append({"kind": r["kind"], "count": r["n"], "examples": names})
+    return out
+
+
+def create_app_for_kind(conn, kind: str) -> dict[str, Any]:
+    """Make an app for a kind of file: its name and words come from the kind, and the files of that kind that are about no app are marked for it. The model marks new files for it from now on."""
+    kind = " ".join(kind.lower().split())[:60]
+    name = re.sub(r"[^a-z0-9]+", "-", kind).strip("-")[:30]
+    if not kind or not name:
+        return {"ok": False, "error": "that is not a kind"}
+    if name in apps.names():
+        return {"ok": False, "error": "there is an app with that name already"}
+    apps.add_user_app(name, f"{kind}: files like these", kind)
+    marked = conn.execute(
+        "UPDATE documents SET facts=json_set(facts, '$.apps', json(?)) WHERE judged=1 AND LOWER(TRIM(COALESCE(fact_kind, '')))=? AND COALESCE(fact_apps, '||') IN ('||', '')",
+        (json.dumps([name]), kind),
+    ).rowcount
+    conn.commit()
+    return {"ok": True, "app": name, "files": marked}

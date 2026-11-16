@@ -377,6 +377,39 @@ class Upstreams:
             found["calendar"] = self._calendar_card()
         return {"cards": found, "builds": builds}
 
+    def suggestions(self) -> dict[str, Any]:
+        """The new categories the apps suggest (kinds of file that fit no app and are many): each with the app that suggested it. An app that is down just has none."""
+        found: list[dict[str, Any]] = []
+        for module in (m for m in self.modules.values() if m.categories):
+            try:
+                status, body = self._authed(module, "GET", module.categories, HEALTH_SECONDS * 2)
+                raw = json.loads(body).get("suggestions", []) if status == 200 else []
+            except (OSError, http.client.HTTPException, ValueError, AttributeError):
+                continue
+            found += [
+                {
+                    "module": module.id,
+                    "kind": str(s["kind"])[:60],
+                    "count": s["count"],
+                    "examples": [str(n)[:60] for n in (s.get("examples") or [])[:3]],
+                }
+                for s in raw
+                if isinstance(s, dict) and isinstance(s.get("kind"), str) and isinstance(s.get("count"), int) and not isinstance(s.get("count"), bool)
+            ]
+        return {"suggestions": found[:20]}
+
+    def accept(self, module_id: str, kind: str) -> dict[str, Any]:
+        """Make an app for a suggested category, in the app that suggested it."""
+        module = self.modules.get(module_id)
+        if module is None or not module.categories or not kind.strip():
+            return {"ok": False, "error": "no such suggestion"}
+        try:
+            status, body, _ = self._authed_full(module, "POST", module.categories, 30, json.dumps({"kind": kind[:60]}).encode())
+            raw = json.loads(body) if status == 200 else {}
+        except (OSError, http.client.HTTPException, ValueError):
+            return {"ok": False, "error": "the app did not answer"}
+        return {"ok": raw.get("ok") is True, "error": str(raw.get("error", ""))[:100]}
+
     def auto(self) -> dict[str, Any]:
         """The idle check on this computer asks every app that can read by itself to do so. Each app decides for itself whether the amount waiting is small enough
         (the Documents service reads automatically only when fewer than 50 files are waiting); one that cannot, or is down, is simply left out."""

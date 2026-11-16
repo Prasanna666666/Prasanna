@@ -162,6 +162,15 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
         self._json(self.atlas.upstreams.control(action))
 
+    def _accept_suggestion(self) -> None:
+        if not _scan_allowed(self, self.atlas):
+            return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 2000)) or b"{}")
+        except ValueError:
+            body = {}
+        self._json(self.atlas.upstreams.accept(str(body.get("module", ""))[:30], str(body.get("kind", ""))))
+
     def _auto_read(self) -> None:
         if not _scan_allowed(self, self.atlas):
             return self._send(HTTPStatus.FORBIDDEN, b"refused", "text/plain; charset=utf-8")
@@ -206,6 +215,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/_atlas/api/chat": self._chat,
             "/_atlas/api/scan": self._start_scan,
             "/_atlas/api/auto": self._auto_read,
+            "/_atlas/api/suggestions/accept": self._accept_suggestion,
             "/_atlas/api/scan/pause": lambda: self._control_scan("pause"),
             "/_atlas/api/scan/resume": lambda: self._control_scan("resume"),
             "/_atlas/api/scan/stop": lambda: self._control_scan("stop"),
@@ -228,6 +238,7 @@ class _Handler(BaseHTTPRequestHandler):
             "/_atlas/api/health": lambda _q: self._json(atlas.upstreams.health()),
             "/_atlas/api/scan": lambda _q: self._json(atlas.upstreams.scan()),
             "/_atlas/api/home": lambda _q: self._json(atlas.upstreams.home()),
+            "/_atlas/api/suggestions": lambda _q: self._json(atlas.upstreams.suggestions()),
             "/_atlas/api/agenda": lambda _q: self._json(atlas.upstreams.agenda()),
             "/_atlas/api/ai": lambda _q: self._json(atlas.upstreams.ai(atlas.model_url)),
             "/_atlas/api/search": lambda q: self._json({"results": atlas.upstreams.search((q.get("q") or [""])[0][:200])}),

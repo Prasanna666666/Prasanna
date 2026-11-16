@@ -161,3 +161,29 @@ def test_all_three_counts_are_known_as_soon_as_the_reader_has_counted(conn, monk
     monkeypatch.setattr(web, "_gone_through", dict)
     counts = {c["key"]: (c["known"], c["total"]) for c in web._steps(conn, {"phase": 1})[0]["counts"]}
     assert counts == {"documents": (True, 3), "mails": (True, 5), "attachments": (True, 2)}
+
+
+def test_many_files_of_a_kind_about_no_app_are_suggested_as_a_new_app_and_can_become_one(conn, tmp_path, monkeypatch):
+    import json
+
+    from library import apps
+
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    for i in range(25):
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts, ready) VALUES (?,?,?,?,?,1,?,?)",
+            (f"{i:064x}", f"c{i}.vhd", "text", "t", "", json.dumps({"kind": "Circuit design", "apps": []}), i + 1),
+        )
+    for i in range(5):  # too few to suggest
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts) VALUES (?,?,?,?,?,1,?)",
+            (f"f{i:063x}", f"n{i}.txt", "text", "t", "", json.dumps({"kind": "Course notes", "apps": []})),
+        )
+    conn.commit()
+    suggested = store.category_suggestions(conn)
+    assert [(s["kind"], s["count"]) for s in suggested] == [("circuit design", 25)] and len(suggested[0]["examples"]) == 3
+    made = store.create_app_for_kind(conn, "Circuit design")
+    assert made == {"ok": True, "app": "circuit-design", "files": 25}
+    assert "circuit-design" in apps.names() and store.category_suggestions(conn) == []  # the files belong to the app now
+    assert len(store.list_documents(conn, app="circuit-design", limit=100)) == 25
+    assert store.create_app_for_kind(conn, "circuit design")["ok"] is False  # not twice

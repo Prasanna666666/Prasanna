@@ -22,5 +22,6 @@
   "tool": "/api/tool",
   "hidden": true,
   "highlights": "/api/highlights?app=documents",
+  "categories": "/api/suggestions",
   "items": "/api/items"
 }

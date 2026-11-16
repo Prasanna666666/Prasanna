@@ -294,6 +294,49 @@
         return line;
     };
 
+    // categories of file that fit no app and are many: one button makes an app for one (nothing is created without it)
+    const showSuggestions = async (box) => {
+        let found = [];
+        try {
+            found = (await (await fetch('/_atlas/api/suggestions')).json()).suggestions || [];
+        } catch (_) {
+            return;
+        }
+        if (!found.length) return;
+        box.replaceChildren(el('h2', '', 'New categories'));
+        for (const s of found) {
+            const row = el('div', 'suggest-row');
+            const words = el('div', 'suggest-words');
+            words.append(
+                el('b', '', `${s.kind} · ${s.count.toLocaleString()} files`),
+                el('span', 'suggest-eg', s.examples.join(', '))
+            );
+            const button = el('button', 'rd-btn', 'Create an app');
+            button.type = 'button';
+            button.addEventListener('click', async () => {
+                button.disabled = true;
+                try {
+                    const reply = await fetch('/_atlas/api/suggestions/accept', {
+                        method: 'POST',
+                        headers: { 'X-Atlas': '1', 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ module: s.module, kind: s.kind }),
+                    });
+                    const done = await reply.json();
+                    if (done.ok) row.remove();
+                    else button.textContent = done.error || 'Could not';
+                } catch (_) {
+                    button.textContent = 'Could not';
+                } finally {
+                    button.disabled = false;
+                    if (!box.querySelector('.suggest-row')) box.hidden = true;
+                }
+            });
+            row.append(words, button);
+            box.append(row);
+        }
+        box.hidden = false;
+    };
+
     const renderDashboard = () => {
         const wrap = el('div', 'dash');
         const hour = new Date().getHours();
@@ -320,7 +363,10 @@
             asks.append(chip);
         }
         const board = el('div', 'board');
-        wrap.append(asks, board);
+        const suggest = el('section', 'suggest');
+        suggest.hidden = true;
+        wrap.append(asks, suggest, board);
+        showSuggestions(suggest);
         fetch('/_atlas/api/home')
             .then((r) => r.text())
             .then((raw) => {

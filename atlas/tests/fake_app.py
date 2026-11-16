@@ -53,6 +53,10 @@ class _Handler(BaseHTTPRequestHandler):
                         {"results": [{"title": "Lisbon", "subtitle": "14 photos", "kind": "place", "link": "#/library?place=Lisbon"}, {"nope": 1}]}
                     ).encode(),
                 )
+        elif path == "/api/suggestions":
+            self._reply(
+                200, json.dumps({"suggestions": [{"kind": "circuit design", "count": 25, "examples": ["a.vhd", "b.vhd"], "private": "x"}, {"bad": 1}]}).encode()
+            )
         elif path == "/api/photo/1/thumb":
             if self.app.token and self.headers.get("X-App-Token") != self.app.token:
                 self._reply(403, b"no")
@@ -122,6 +126,10 @@ class _Handler(BaseHTTPRequestHandler):
         self.app.asked.append(body)
         self._reply(200, json.dumps(self.app.tool_results.get(body["name"], {"ok": True, "data": {"echo": body["name"]}})).encode())
 
+    def _post_suggestion(self) -> None:
+        self.app.accepted.append(json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}"))
+        self._reply(200, b'{"ok": true}')
+
     def _post_model_chat(self) -> None:
         """The fake doubles as the model: it answers with the next message of its script (text and/or tool calls)."""
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
@@ -136,10 +144,9 @@ class _Handler(BaseHTTPRequestHandler):
         self._reply(200, json.dumps({"message": {"role": "assistant", **message}}).encode())
 
     def do_POST(self) -> None:
-        if self.path == "/api/tool":
-            return self._post_tool()
-        if self.path == "/api/chat":
-            return self._post_model_chat()
+        simple = {"/api/tool": self._post_tool, "/api/chat": self._post_model_chat, "/api/suggestions": self._post_suggestion}
+        if self.path in simple:
+            return simple[self.path]()
         if self.path == "/api/scan/auto":
             self._reply(200, b'{"started": false, "reason": "large", "waiting": 70, "limit": 50, "private": "x"}')
             return
@@ -165,6 +172,7 @@ class FakeApp:
         self.seen: list[dict[str, str]] = []
         self.scanning = False
         self.asked: list[dict[str, object]] = []
+        self.accepted: list[dict[str, object]] = []  # categories the person turned into an app
         self.tools: list[dict[str, object]] = []  # what this part offers the assistant
         self.tool_results: dict[str, dict[str, object]] = {}  # what each tool returns when it is run
         self.model_reply = "fake model reply"

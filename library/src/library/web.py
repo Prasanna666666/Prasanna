@@ -23,7 +23,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import changes, flags, highlights, items, pictures, readreport, store, tools, trace, travel
+from . import apps, changes, flags, highlights, items, pictures, readreport, store, tools, trace, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -882,7 +882,18 @@ def _get_highlights(state: State, conn, query: dict[str, str]) -> dict:
     return found
 
 
+def _get_suggestions(state: State, conn, query: dict[str, str]) -> dict:
+    """/api/suggestions: the kinds of file that are about none of the apps and are many enough (`suggest_after`) to deserve an app of their own."""
+    return {"threshold": apps.threshold(), "suggestions": store.category_suggestions(conn)}
+
+
+def _post_app(state: State, conn, body: dict) -> dict:
+    """POST /api/suggestions {kind}: create an app for a kind of file from the suggestions (the only way an app is added without editing apps.json yourself)."""
+    return store.create_app_for_kind(conn, str(body.get("kind", "")))
+
+
 GET_ROUTES = {
+    "/api/suggestions": _get_suggestions,
     "/api/health": lambda state, conn, query: {"ok": True, "build": os.environ.get("ATLAS_BUILD", "unknown")[:12]},
     "/api/search": _get_search,
     "/api/documents": _get_documents,
@@ -910,6 +921,7 @@ GET_ROUTES = {
     "/api/items": _get_items,
 }
 POST_ROUTES = {
+    "/api/suggestions": _post_app,
     "/api/tool": _post_tool,
     "/api/change/confirm": _post_confirm,
     "/api/change/cancel": _post_cancel,

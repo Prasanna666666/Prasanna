@@ -54,6 +54,9 @@ class Module:
     items: str = ""  # optional: where the app hands over its facts as plain dated items, for Atlas to join across apps (GET -> {items: [...]})
     native: bool = False  # Atlas draws this app's page itself (it needs what several apps know)
     highlights: str = ""  # optional: where the app gives its card for the home page (GET -> {headline, sub, items, ...})
+    categories: str = (
+        ""  # optional: where the app suggests new categories of file (GET -> {suggestions: [{kind, count, examples}]}; POST {kind} makes an app for one)
+    )
     hidden: bool = False  # works for the chat, the search and the Update, but is not an app of its own in the menu
     auth: Auth | None = None
     headers: tuple[tuple[str, str], ...] = ()  # fixed headers on Atlas's own calls (an app's change-protection header, for example)
@@ -134,6 +137,7 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         search=str(raw.get("search", "")),
         scan=str(raw.get("scan", "")),
         highlights=str(raw.get("highlights", "")),
+        categories=str(raw.get("categories", "")),
         items=str(raw.get("items", "")),
         native=raw.get("native") is True,
         tools=str(raw.get("tools", "")),

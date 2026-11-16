@@ -246,3 +246,16 @@ def test_a_refusal_or_an_error_is_not_reported_as_switched_off_and_says_what_hap
     assert (broken["up"] is True and broken["problems"] == ["Photos answered with an error (HTTP 500)"]) or "HTTP 500" in broken["problems"][0]
     monkeypatch.setattr(upstreams, "_authed", lambda *a, **k: (_ for _ in ()).throw(ConnectionRefusedError()))
     assert running.json("/_atlas/api/scan")["modules"]["photos"]["up"] is False  # only a refused connection really is "not running"
+
+
+def test_suggested_categories_are_listed_trimmed_and_an_app_is_made_only_from_the_page(running):
+    listed = running.json("/_atlas/api/suggestions")
+    assert listed == {
+        "suggestions": [{"module": "money", "kind": "circuit design", "count": 25, "examples": ["a.vhd", "b.vhd"]}]
+    }  # the malformed one and the extra field are dropped
+    body = json.dumps({"module": "money", "kind": "circuit design"}).encode()
+    host = f"atlas.localhost:{running.port}"
+    refused = running.request("POST", "/_atlas/api/suggestions/accept", host, body, {"Origin": "http://elsewhere.example", "X-Atlas": "1"})
+    assert refused[0] == 403 and running.apps["money"].accepted == []  # another website cannot create an app
+    ok = running.request("POST", "/_atlas/api/suggestions/accept", host, body, {"Origin": f"http://{host}", "X-Atlas": "1"})
+    assert ok[0] == 200 and json.loads(ok[2])["ok"] is True and running.apps["money"].accepted == [{"kind": "circuit design"}]

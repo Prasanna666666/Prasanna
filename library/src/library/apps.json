@@ -1,5 +1,6 @@
 {
   "_about": "What each app is about, in words. The model marks a file with the apps it is about; each app takes the files marked for it; the apps are served in this order; `reads` names the extra reading an app's files get; and a mail is shown to the model only when it has an amount of money together with one of an app's terms. Add an app, a language or a word here: nothing in the code names an app or a kind of document.",
+  "suggest_after": 20,
   "apps": [
     {
       "name": "finance",

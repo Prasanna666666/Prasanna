@@ -4,6 +4,7 @@ the apps it is about, the order here is the order the apps are served in, and th
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -26,20 +27,40 @@ def _path() -> Path:
     return Path(os.environ.get("LIBRARY_APPS", str(PACKAGED)))
 
 
+def user_path() -> Path:
+    """The apps you created yourself (from the suggestions): kept beside the database, never in the program's own files."""
+    return Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "apps.user.json"
+
+
+def _raw(path: Path) -> list:
+    try:
+        raw = json.loads(path.read_text()).get("apps", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return raw if isinstance(raw, list) else []
+
+
+def threshold() -> int:
+    """How many files must share a kind, and be about none of the apps, before an app is suggested for them (`suggest_after` in apps.json)."""
+    try:
+        return max(1, int(json.loads(_path().read_text()).get("suggest_after", 20)))
+    except (OSError, ValueError, AttributeError, TypeError):
+        return 20
+
+
 def load() -> list[App]:
-    """The declared apps, in the order they are served in (read again when the file changes)."""
+    """The declared apps, in the order they are served in, then the ones you created (read again when a file changes)."""
     path = _path()
     try:
         stamp = path.stat().st_mtime
     except OSError:
         return []
+    with contextlib.suppress(OSError):
+        stamp += user_path().stat().st_mtime
     hit = _CACHE.get(str(path))
     if hit and hit[0] == stamp:
         return hit[1]
-    try:
-        raw = json.loads(path.read_text()).get("apps", [])
-    except (OSError, ValueError, AttributeError):
-        raw = []
+    raw = [*_raw(path), *_raw(user_path())]
     found = [
         App(
             name=re.sub(r"[^a-z0-9_-]", "", str(a["name"]).lower()),  # the names go into queries
@@ -83,3 +104,11 @@ def matching(text: str) -> list[str]:
     """The apps whose declared words appear in this text (for what a recogniser calls a file: no app is named in the code)."""
     words = set(re.findall(r"[^\W\d_]+", text.lower()))
     return [a.name for a in load() if a.terms & words]
+
+
+def add_user_app(name: str, about: str, terms: str) -> None:
+    """Create an app: it is added to the file of your own apps and is served after the declared ones."""
+    mine = _raw(user_path())
+    mine.append({"name": name, "about": about, "terms": terms})
+    user_path().parent.mkdir(parents=True, exist_ok=True)
+    user_path().write_text(json.dumps({"apps": mine}, indent=2))
