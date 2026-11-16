@@ -12,10 +12,17 @@ from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 
 REPORTING = "EUR"
 MAX_AGE_DAYS = 7  # weekends and bank holidays have no ECB rate: the last published one is used, up to a week back
+MIN_ECB_COLUMNS = 4  # the ECB file has a date and at least three currencies
 
 
 def looks_like_ecb(rows) -> bool:
-    return bool(rows) and isinstance(rows[0], list) and len(rows[0]) > 3 and str(rows[0][0]).strip() == "Date" and "USD" in [str(c).strip() for c in rows[0]]
+    return (
+        bool(rows)
+        and isinstance(rows[0], list)
+        and len(rows[0]) >= MIN_ECB_COLUMNS
+        and str(rows[0][0]).strip() == "Date"
+        and "USD" in [str(c).strip() for c in rows[0]]
+    )
 
 
 def parse_ecb(rows: list[list]) -> list[tuple[str, str, str]]:

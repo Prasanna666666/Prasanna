@@ -22,6 +22,7 @@ from .findings import Finding
 MARKS = "✅✔✓☑✔️"
 AMOUNT_LINE = re.compile(r"^(?P<label>[^:=\n]{1,60}?)\s*[:=]\s*(?P<amt>[-−–]?\s*(?:€|EUR|₹|Rs\.?)?\s*\d[\d.,]*)\s*(?:EUR|€)?\s*$", re.IGNORECASE)
 TOTAL = re.compile(r"^(total|totaal|sum|grand total|net)\b", re.IGNORECASE)
+MIN_MATCH_SCORE = 0.85  # a note matches a payment when it is at least this alike
 
 
 @dataclass
@@ -104,7 +105,7 @@ def _match(name: str, events: list[dict]) -> dict | None:
         s = difflib.SequenceMatcher(None, key, e["name"].lower()).ratio()
         if s > score:
             best, score = e, s
-    return best if score >= 0.85 else None
+    return best if score >= MIN_MATCH_SCORE else None
 
 
 def notes_vs_app(conn) -> list[Finding]:

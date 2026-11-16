@@ -14,6 +14,8 @@ from decimal import Decimal, InvalidOperation
 
 from .statements import Txn
 
+YEAR_SLIP_DAYS = 200  # a day this far from its value date has the wrong year
+
 
 @dataclass
 class Statement:
@@ -81,9 +83,9 @@ def _mt940_booking_day(value_date: date, month_day: str | None) -> date:
         day = date(value_date.year, int(month_day[:2]), int(month_day[2:]))
     except ValueError:
         return value_date
-    if (day - value_date).days > 200:
+    if (day - value_date).days > YEAR_SLIP_DAYS:
         return day.replace(year=value_date.year - 1)
-    if (value_date - day).days > 200:
+    if (value_date - day).days > YEAR_SLIP_DAYS:
         return day.replace(year=value_date.year + 1)
     return day
 

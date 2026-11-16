@@ -7,6 +7,8 @@ from typing import Any
 from . import categorize, insight
 from .db import get_setting
 
+MIN_QUERY_CHARS = 2  # a search shorter than this finds nothing
+
 
 def _like(text: str) -> str:
     return "%" + str(text).replace("\\", "").replace("%", "").replace("_", "") + "%"
@@ -115,7 +117,7 @@ def payment_detail(conn, a):
 def search_all(conn, a):
     """One box for everything: payments, shops and payees, documents, people, notes and tasks that match the words. A few of each, most relevant first."""
     q = str(a.get("query", "")).strip()
-    if len(q) < 2:
+    if len(q) < MIN_QUERY_CHARS:
         return {"query": q, "payments": [], "merchants": [], "documents": [], "people": [], "notes": [], "tasks": []}
     like = _like(q)
     payments = [

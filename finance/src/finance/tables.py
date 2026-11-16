@@ -18,6 +18,7 @@ from decimal import Decimal, InvalidOperation
 
 from kit import extract
 from kit.amounts import CURRENCY
+from kit.units import MONTHS_IN_YEAR
 
 from .statements import Txn
 
@@ -53,6 +54,11 @@ LAYOUT_PROMPT = (
     "balance and a closing balance (or previous and new balance), give each EXACTLY AS PRINTED as text, otherwise null; balance_is_amount_owed = true for a "
     "credit card statement (the balance is what you owe). account = the account or card number exactly as printed, or null."
 )
+MIN_CELLS_PER_LINE = 2
+CELL_PARTS = 3  # a stored cell is [from, to, text]
+MIN_MONTH_PREFIX = 3  # a month name is recognised by its first letters: at least this many
+FIRST_YEAR = 1990  # dates before this year are not statement dates
+LAST_YEAR = 2100
 
 
 @dataclass(frozen=True)
@@ -97,7 +103,7 @@ def table_from_text(lines: list[str]) -> list[list[Cell]]:
     out = []
     for line in lines:
         parts = [part.strip() for part in re.split(r"\t|\s{2,}", line) if part.strip()]
-        if len(parts) >= 2:
+        if len(parts) >= MIN_CELLS_PER_LINE:
             out.append([Cell(i * 100.0, i * 100.0 + 99, part) for i, part in enumerate(parts)])
     return out
 
@@ -107,7 +113,7 @@ def table_from_data(data: dict) -> list[list[Cell]]:
     if isinstance(data.get("table"), list) and data["table"]:
         out = []
         for line in data["table"]:
-            cells = [Cell(float(c[0]), float(c[1]), str(c[2])) for c in line if isinstance(c, list) and len(c) == 3]
+            cells = [Cell(float(c[0]), float(c[1]), str(c[2])) for c in line if isinstance(c, list) and len(c) == CELL_PARTS]
             if cells:
                 out.append(cells)
         return out
@@ -197,14 +203,14 @@ def _build_layout(d: dict, roles: list[str]) -> Layout:
 
 def parse_date(text: str, layout: Layout) -> str | None:
     s = " ".join(text.replace(",", " ").split()).strip(" .")
-    if len(layout.month_names) == 12:
+    if len(layout.month_names) == MONTHS_IN_YEAR:
         english = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
         full = "%B" in layout.date_format
 
         def swap(m: re.Match) -> str:
             word = m.group(0).lower().rstrip(".")
             for i, name in enumerate(layout.month_names):
-                if word == name.rstrip(".") or (len(word) >= 3 and name.startswith(word)):
+                if word == name.rstrip(".") or (len(word) >= MIN_MONTH_PREFIX and name.startswith(word)):
                     return english[i] if full else english[i][:3]
             return m.group(0)
 
@@ -214,7 +220,7 @@ def parse_date(text: str, layout: Layout) -> str | None:
         d = datetime.strptime(s, fmt).date()
     except ValueError:
         return None
-    return d.isoformat() if 1990 <= d.year <= 2100 else None
+    return d.isoformat() if FIRST_YEAR <= d.year <= LAST_YEAR else None
 
 
 def parse_money(text: str, layout: Layout) -> tuple[int, str | None] | None:

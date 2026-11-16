@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from html import escape
 
+from kit.units import MONTHS_IN_YEAR
+
 from . import planning, proof, wealth
 
 
@@ -60,7 +62,7 @@ def year_report(conn, year: str) -> str:
                     ]
                 ],
             )
-            + (f"<p class=muted>Covers {y['months']} month(s) of data.</p>" if y["months"] < 12 else "")
+            + (f"<p class=muted>Covers {y['months']} month(s) of data.</p>" if y["months"] < MONTHS_IN_YEAR else "")
         )
     parts.append(
         "<h2>Month by month</h2>"

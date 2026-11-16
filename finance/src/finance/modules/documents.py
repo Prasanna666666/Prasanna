@@ -34,6 +34,7 @@ MIGRATIONS = (
 KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json"}
 MAX_JSON = 30_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
+MAX_NAME_CHARS = 255  # a file name longer than this is refused
 
 
 def store_from_library(conn, doc: dict) -> int:
@@ -42,7 +43,7 @@ def store_from_library(conn, doc: dict) -> int:
         isinstance(doc.get("sha256"), str)
         and _SHA.match(doc["sha256"])
         and isinstance(doc.get("name"), str)
-        and 0 < len(doc["name"]) <= 255
+        and 0 < len(doc["name"]) <= MAX_NAME_CHARS
         and doc.get("file_kind") in KINDS
         and isinstance(doc.get("text"), str)
         and isinstance(doc.get("facts"), dict)

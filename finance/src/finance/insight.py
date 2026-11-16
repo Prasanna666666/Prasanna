@@ -14,9 +14,30 @@ import statistics
 from collections import defaultdict
 from datetime import date, timedelta
 
-from . import audit, backup, canary, categorize, clock, concepts, rates, tables
+from kit.units import MONTHS_IN_YEAR
+
+from . import audit, backup, canary, categorize, clock, concepts, dates, rates, tables
 from .db import get_setting
 from .findings import Finding
+
+MIN_SUBSET_WORDS = 2  # merchant names: one is the other if it has this many words in common...
+MIN_SUBSET_LETTERS = 5  # ...or one word this long
+SAME_NAME_RATIO = 0.9  # ...or they are this alike
+MIN_PAYMENTS_FOR_SERIES = 3  # a series needs this many payments to be called recurring
+MONTHLY_GAP_DAYS = (25, 35)  # days between payments of a monthly one
+SAME_AMOUNT_TOLERANCE = 0.15  # amounts within this share of the middle one count as the same
+SAME_AMOUNT_SHARE = 0.7  # a series is regular when this share of its amounts are the same
+PRICE_CHANGE_RATIO = 0.03  # a price that moved by more than this share has changed
+PRICE_CHANGE_FLOOR = 5  # ...and by at least this much
+DUPLICATE_DAYS = 2  # the same payment twice within this many days is a duplicate
+MIN_PAYMENTS_FOR_OUTLIERS = 6
+OUTLIER_DAYS = 60  # only payments this recent are called unusual
+OUTLIER_SPREADS = 5  # unusual: more than this many typical spreads above the middle
+OUTLIER_SPREAD_SHARE = 0.05
+OUTLIER_FACTOR = 1.5  # ...and at least this many times the middle
+OUTLIER_MINIMUM = 2500  # ...and at least this much (in cents)
+RATES_STALE_DAYS = 7  # exchange rates older than this are said to be out of date
+OCR_MIN_CONFIDENCE = 85
 
 
 def _main(conn) -> str:
@@ -56,8 +77,8 @@ def merchant_aliases(conn) -> list[Finding]:
         for c in canon:
             ct = set(c.split())
             small, big = (toks, ct) if len(toks) <= len(ct) else (ct, toks)
-            subset = small <= big and (len(small) >= 2 or (small and max(len(t) for t in small) >= 5))
-            if subset or difflib.SequenceMatcher(None, name, c).ratio() >= 0.9:
+            subset = small <= big and (len(small) >= MIN_SUBSET_WORDS or (small and max(len(t) for t in small) >= MIN_SUBSET_LETTERS))
+            if subset or difflib.SequenceMatcher(None, name, c).ratio() >= SAME_NAME_RATIO:
                 match = c
                 break
         if match:
@@ -71,6 +92,21 @@ def merchant_aliases(conn) -> list[Finding]:
 
 
 # ---- regular payments: forecast and price changes ----------------------------------------------------------------------------
+def monthly_gap(items: list[tuple[str, int]]) -> int | None:
+    """The usual number of days between the payments of a monthly one (about a month, about the same amount each time), or None when the series is not one."""
+    if len(items) < MIN_PAYMENTS_FOR_SERIES:
+        return None
+    days = [_d(d) for d, _ in items]
+    gaps = [(b - a).days for a, b in itertools.pairwise(days) if (b - a).days > 0]
+    amounts = [x for _, x in items]
+    mid = statistics.median(amounts)
+    same = sum(abs(x - mid) <= SAME_AMOUNT_TOLERANCE * mid for x in amounts)
+    low, high = MONTHLY_GAP_DAYS
+    if gaps and low <= statistics.median(gaps) <= high and same >= SAME_AMOUNT_SHARE * len(amounts):
+        return round(statistics.median(gaps))
+    return None
+
+
 def _recurring(conn) -> list[dict]:
     main, al = _main(conn), _aliases(conn)
     by: dict[tuple[str, str], list[tuple[str, int]]] = defaultdict(list)
@@ -84,14 +120,9 @@ def _recurring(conn) -> list[dict]:
             by[(r["cur"], m)].append((r["day"], r["amount_minor"]))
     out = []
     for (cur, m), items in by.items():
-        if len(items) < 3:
-            continue
-        days = [_d(d) for d, _ in items]
-        gaps = [(b - a).days for a, b in itertools.pairwise(days) if (b - a).days > 0]
-        amounts = [x for _, x in items]
-        mid = statistics.median(amounts)
-        if gaps and 25 <= statistics.median(gaps) <= 35 and sum(abs(x - mid) <= 0.15 * mid for x in amounts) >= 0.7 * len(amounts):
-            out.append({"cur": cur, "merchant": m, "items": items, "gap": round(statistics.median(gaps))})
+        gap = monthly_gap(items)
+        if gap:
+            out.append({"cur": cur, "merchant": m, "items": items, "gap": gap})
     return out
 
 
@@ -101,7 +132,7 @@ def price_changes(conn) -> list[Finding]:
         amounts = [a for _, a in g["items"]]
         before = statistics.median(amounts[-4:-1])
         last = amounts[-1]
-        if before and abs(last - before) / before > 0.03 and abs(last - before) >= 5:
+        if before and abs(last - before) / before > PRICE_CHANGE_RATIO and abs(last - before) >= PRICE_CHANGE_FLOOR:
             pct = (last - before) / before * 100
             out.append(
                 Finding(
@@ -150,7 +181,7 @@ def duplicate_payments(conn) -> list[Finding]:
             and name
             and last["name"] == name
             and last["key"] == (r["account"], r["cur"], r["amount_minor"])
-            and 0 <= (_d(r["day"]) - _d(last["day"])).days <= 2
+            and 0 <= (_d(r["day"]) - _d(last["day"])).days <= DUPLICATE_DAYS
         ):
             out.append(
                 (
@@ -184,13 +215,18 @@ def unusual_payments(conn, today: date | None = None) -> list[Finding]:
             by[(r["cur"], m)].append((r["day"], r["amount_minor"]))
     out = []
     for (cur, m), items in by.items():
-        if len(items) < 6:
+        if len(items) < MIN_PAYMENTS_FOR_OUTLIERS:
             continue
         vals = [a for _, a in items]
         med = statistics.median(vals)
         mad = statistics.median([abs(v - med) for v in vals])
         for day, amt in items:
-            if (today - _d(day)).days <= 60 and amt > med + 5 * max(mad, 0.05 * med) and amt >= 1.5 * med and amt >= 2500:
+            if (
+                (today - _d(day)).days <= OUTLIER_DAYS
+                and amt > med + OUTLIER_SPREADS * max(mad, OUTLIER_SPREAD_SHARE * med)
+                and amt >= OUTLIER_FACTOR * med
+                and amt >= OUTLIER_MINIMUM
+            ):
                 out.append(Finding("unusual payments", "warn", m, f"{m}: {_money(amt)} {cur} on {day} is much more than the usual {_money(round(med))}"))
     return out[:8]
 
@@ -256,7 +292,7 @@ def net_worth(conn, a=None):
     cur_month = date.fromisoformat(months[0] + "-01")
     while cur_month <= end:
         total, complete = 0, True
-        limit = (date(cur_month.year + (cur_month.month == 12), cur_month.month % 12 + 1, 1) - timedelta(days=1)).isoformat()
+        limit = (date(*dates.next_month(cur_month.year, cur_month.month), 1) - timedelta(days=1)).isoformat()
         for items in by_acc.values():
             upto = [i for i in items if i[0] <= limit]
             if upto:
@@ -349,7 +385,8 @@ def year_end(conn) -> list[Finding]:
                 "year-end",
                 "ok",
                 d["name"],
-                f"annual statement {year} matches its {len(slips)} payslip(s)" + ("" if len(slips) == 12 else f" (only {len(slips)} of 12 months)"),
+                f"annual statement {year} matches its {len(slips)} payslip(s)"
+                + ("" if len(slips) == MONTHS_IN_YEAR else f" (only {len(slips)} of {MONTHS_IN_YEAR} months)"),
             )
         )
     return out
@@ -383,7 +420,7 @@ def rate_freshness(conn) -> list[Finding]:
         return [
             Finding("exchange rates", "warn", "rates", "there are payments in other currencies but no exchange rates are loaded (run ./scripts/fetch-rates.sh)")
         ]
-    if (_d(foreign[1]) - _d(newest)).days > 7:
+    if (_d(foreign[1]) - _d(newest)).days > RATES_STALE_DAYS:
         return [
             Finding(
                 "exchange rates",
@@ -405,7 +442,7 @@ def scan_quality(conn) -> list[Finding]:
             continue
         if meta.get("ocr_pages"):
             pages += meta["ocr_pages"]
-            if meta.get("ocr_confidence", 100) < 85:
+            if meta.get("ocr_confidence", 100) < OCR_MIN_CONFIDENCE:
                 weak.append((d["name"], meta["ocr_confidence"]))
             if meta.get("ocr_disagreements"):
                 out.append(Finding("scan quality", "warn", d["name"], f"two readings of this scan disagree on {meta['ocr_disagreements']} figure(s): check it"))

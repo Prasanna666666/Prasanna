@@ -13,8 +13,20 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
-from . import clock, concepts, insight, proof
+from . import clock, concepts, dates, insight, proof
 from .db import get_setting
+
+MIN_MONTHS_FOR_TREND = 3  # fewer months of history than this say nothing about a trend
+MIN_MONTHS_FOR_RATE = 6  # a savings rate needs this many months
+NET_CHANGE_RATIO = 0.03  # a month whose net moved by more than this share is said to have changed
+STALE_DAYS = 60  # a series whose newest entry is older than this has stopped
+GAP_DAYS = 75  # rates or documents more than this far behind are out of date
+LOW_SAVINGS_PERCENT = 10
+SPIKE_FLOOR = 50  # a month must exceed this before it can be called a spike
+SPIKE_RATIO = 1.3  # ... and exceed the average of the months before by this factor
+OVERDUE_DAYS = 30  # a payment this many days past due is no longer shown as due
+MIN_NAME_CHARS = 3
+PRIOR_MONTHS = 3  # a spike is compared with the average of this many months before
 
 
 def _currency(conn) -> str:
@@ -225,7 +237,7 @@ def forecast(conn, a=None):
     """The next months if things carry on as they have: the middle (median) of your last six months' income and spending. An ESTIMATE, labelled as such, never advice."""
     ahead = max(1, min(int((a or {}).get("months", 6)), 24))
     months = _months(conn)[-6:]
-    if len(months) < 3:
+    if len(months) < MIN_MONTHS_FOR_TREND:
         return {"currency": _currency(conn), "estimate": True, "months": [], "note": "At least three months of data are needed for an estimate."}
     income = statistics.median(m["income"] for m in months)
     spent = statistics.median(m["spent"] for m in months)
@@ -233,7 +245,7 @@ def forecast(conn, a=None):
     y, m = int(months[-1]["month"][:4]), int(months[-1]["month"][5:])
     series = []
     for _ in range(ahead):
-        y, m = y + (m == 12), m % 12 + 1
+        y, m = dates.next_month(y, m)
         balance = None if balance is None else balance + income - spent
         series.append(
             {"month": f"{y}-{m:02d}", "income": round(income, 2), "spent": round(spent, 2), "balance": None if balance is None else round(balance, 2)}
@@ -253,7 +265,7 @@ def timeline(conn, a=None):
     items: list[dict] = []
     slips = conn.execute("SELECT period, net_minor FROM payslips WHERE period<>'' ORDER BY period").fetchall()
     for prev, cur in itertools.pairwise(slips):
-        if prev["net_minor"] and abs(cur["net_minor"] - prev["net_minor"]) / prev["net_minor"] >= 0.03:
+        if prev["net_minor"] and abs(cur["net_minor"] - prev["net_minor"]) / prev["net_minor"] >= NET_CHANGE_RATIO:
             items.append(
                 {
                     "date": cur["period"] + "-01",
@@ -268,10 +280,10 @@ def timeline(conn, a=None):
     for g in insight._recurring(conn):
         first, last = g["items"][0][0], g["items"][-1][0]
         if (
-            oldest and (date.fromisoformat(first) - date.fromisoformat(oldest)).days > 60
+            oldest and (date.fromisoformat(first) - date.fromisoformat(oldest)).days > STALE_DAYS
         ):  # one that is there from the first month of data began earlier: that date is unknown
             items.append({"date": first, "what": f"{g['merchant'].title()} started ({g['items'][0][1] / 100:,.2f} a month)"})
-        if newest and (date.fromisoformat(newest) - date.fromisoformat(last)).days > 75:
+        if newest and (date.fromisoformat(newest) - date.fromisoformat(last)).days > GAP_DAYS:
             items.append({"date": last, "what": f"{g['merchant'].title()} stopped"})
     for r in conn.execute(
         "SELECT substr(day,1,4) AS y, day, note, MAX(amount_minor) AS amount FROM ledger WHERE kind='expense' AND category<>'transfers' AND event_id IS NULL GROUP BY y"
@@ -286,7 +298,7 @@ def suggestions(conn, a=None):
     out: list[dict] = []
     months = _months(conn)
     last12 = months[-12:]
-    if len(last12) >= 6:
+    if len(last12) >= MIN_MONTHS_FOR_RATE:
         income, spent = sum(m["income"] for m in last12), sum(m["spent"] - m["invested"] for m in last12)  # money put into investments is saved, not spent
         if income > 0:
             rate = (income - spent) / income * 100
@@ -297,7 +309,7 @@ def suggestions(conn, a=None):
                         "text": f"In the last {len(last12)} months you spent {spent - income:,.2f} more than came in ({spent:,.2f} spent, {income:,.2f} in).",
                     }
                 )
-            elif rate < 10:
+            elif rate < LOW_SAVINGS_PERCENT:
                 out.append(
                     {
                         "topic": "savings rate",
@@ -323,7 +335,7 @@ def suggestions(conn, a=None):
     for cat, per in by.items():
         before = [v for k, v in sorted(per.items()) if k < latest][-3:]
         now = per.get(latest, 0)
-        if len(before) == 3 and now >= 50 and now > 1.3 * statistics.mean(before):
+        if len(before) == PRIOR_MONTHS and now >= SPIKE_FLOOR and now > SPIKE_RATIO * statistics.mean(before):
             out.append(
                 {
                     "topic": cat,
@@ -364,8 +376,6 @@ def money_detective(conn, a=None):
 # ---- budgets, bills, tax, merchants ------------------------------------------------------------------------------------------------
 def budget_progress(conn, a=None):
     """Each monthly budget against what was spent in that category in the month (money in a trip or event is not counted: it is one-time)."""
-    from . import dates
-
     month = (a or {}).get("month") or (conn.execute("SELECT MAX(substr(day,1,7)) FROM ledger").fetchone()[0] or clock.today().strftime("%Y-%m"))
     start, end = dates.month_bounds(month)
     spent = {
@@ -402,7 +412,7 @@ def bills_due(conn, a=None):
         args,
     ):
         due = date.fromisoformat(d["due_date"])
-        if (due - today).days > days or (today - due).days > 30:
+        if (due - today).days > days or (today - due).days > OVERDUE_DAYS:
             continue
         paid = conn.execute(
             "SELECT 1 FROM transactions WHERE kind='expense' AND amount_minor=? AND day>=? LIMIT 1",
@@ -503,7 +513,7 @@ def family_money(conn, a=None):
     ledger = conn.execute("SELECT day, kind, amount_minor, note FROM ledger WHERE category<>'transfers' AND event_id IS NULL AND source<>'derived'").fetchall()
     for p in conn.execute("SELECT id, name, relation FROM people ORDER BY name"):
         name = p["name"].strip()
-        if len(name) < 3:
+        if len(name) < MIN_NAME_CHARS:
             continue
         pattern = re.compile(r"(?<!\w)" + re.escape(name.lower()) + r"(?!\w)")
         mine = [r for r in ledger if pattern.search((r["note"] or "").lower())]
@@ -553,7 +563,7 @@ def _months_between(start: str, end: str) -> list[str]:
     out = []
     while f"{y:04d}-{m:02d}" <= end[:7]:
         out.append(f"{y:04d}-{m:02d}")
-        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+        y, m = dates.next_month(y, m)
     return out
 
 

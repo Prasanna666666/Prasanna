@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import itertools
 import statistics
 from collections import defaultdict
 from datetime import timedelta
@@ -13,6 +12,7 @@ from .. import (
     clock,
     dates,
     db,
+    insight,
     planning,
     verify,
 )
@@ -156,13 +156,8 @@ def recurring_payments(conn, a=None):
             by[m].append((r["day"], r["amount_minor"]))
     found = []
     for m, items in by.items():
-        if len(items) < 3:
-            continue
-        days = [dates.parse(d) for d, _ in items]
-        gaps = [(b - a_).days for a_, b in itertools.pairwise(days) if (b - a_).days > 0]
-        amounts = [x for _, x in items]
-        mid = statistics.median(amounts)
-        if gaps and 25 <= statistics.median(gaps) <= 35 and sum(abs(x - mid) <= 0.15 * mid for x in amounts) >= 0.7 * len(amounts):
+        if insight.monthly_gap(items):
+            mid = statistics.median(x for _, x in items)
             found.append({"merchant": m, "typical_amount": round(mid / 100, 2), "times": len(items), "last": items[-1][0], "per_month": round(mid / 100, 2)})
     return sorted(found, key=lambda x: -x["typical_amount"])
 

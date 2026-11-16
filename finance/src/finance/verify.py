@@ -17,10 +17,15 @@ from datetime import date, timedelta
 from kit.amounts import money_from_printed
 from kit.text import squash
 
-from . import clock, concepts, tables
+from . import clock, concepts, dates, tables
 from . import currency as currencies
 from .findings import Finding, Read
 from .statements import Txn
+
+MIN_SAMPLE_ROWS = 3  # a layout is judged from at least this many rows
+TRANSFER_DAYS = 3  # the two halves of a transfer are booked at most this many days apart
+STATEMENT_GAP_DAYS = 5  # two statements this close are one chain
+GAP_SHORT_DAYS = 5
 
 
 def signature(txns: list[Txn]) -> list[tuple]:
@@ -53,7 +58,7 @@ def second_reader(client, model: str, table: list[list[tables.Cell]], first_layo
     start = first_layout.header_line
     middle = max(start + 1, len(table) // 2)
     sample = ([table[start]] if start >= 0 else []) + table[middle : middle + 35]
-    if len(sample) < 3:
+    if len(sample) < MIN_SAMPLE_ROWS:
         return Finding("second reader", "warn", subject, "the file is too short for a second, independent reading")
     again = tables.infer_layout(client, model, sample)
     if again is None:
@@ -195,7 +200,7 @@ def payslip_vs_bank(conn) -> list[Finding]:
     for p in conn.execute("SELECT name, period, net_minor FROM payslips WHERE period<>'' ORDER BY period"):
         year, month = int(p["period"][:4]), int(p["period"][5:7])
         start = date(year, month, 1).isoformat()
-        end = _shift((date(year + (month == 12), month % 12 + 1, 1)).isoformat(), 10)
+        end = _shift((date(*dates.next_month(year, month), 1)).isoformat(), 10)
         hit = conn.execute(
             "SELECT 1 FROM transactions WHERE kind='income' AND amount_minor=? AND day>=? AND day<=? AND event_id IS NULL", (p["net_minor"], start, end)
         ).fetchone()
@@ -241,7 +246,7 @@ def continuity(conn) -> list[Finding]:
         )
         for a, b in itertools.pairwise(files):
             gap = (date.fromisoformat(b["period_start"]) - date.fromisoformat(a["period_end"])).days
-            if gap > 5:
+            if gap > STATEMENT_GAP_DAYS:
                 out.append(Finding("continuity", "warn", acc, f"no statement between {a['period_end']} and {b['period_start']}"))
             elif a["closing_minor"] is not None and b["opening_minor"] is not None:
                 same = a["closing_minor"] == b["opening_minor"]
@@ -309,8 +314,8 @@ def link_transfers(conn) -> list[Finding]:
 
     paired = ambiguous = 0
     for outs, ins in groups.values():
-        near_out = {o["id"]: [i for i in ins if i["account"] != o["account"] and gap(o, i) <= 3] for o in outs}
-        near_in = {i["id"]: [o for o in outs if o["account"] != i["account"] and gap(o, i) <= 3] for i in ins}
+        near_out = {o["id"]: [i for i in ins if i["account"] != o["account"] and gap(o, i) <= TRANSFER_DAYS] for o in outs}
+        near_in = {i["id"]: [o for o in outs if o["account"] != i["account"] and gap(o, i) <= TRANSFER_DAYS] for i in ins}
         for o in outs:
             c = near_out[o["id"]]
             if len(c) == 1 and len(near_in[c[0]["id"]]) == 1:
@@ -378,7 +383,7 @@ def _link_across_currencies(conn, main: str, tolerance: float = 0.06) -> tuple[i
         return (
             o["cur"] != i["cur"]
             and o["account"] != i["account"]
-            and gap(o, i) <= 3
+            and gap(o, i) <= TRANSFER_DAYS
             and abs(o["eur_minor"] - i["eur_minor"]) <= tolerance * max(o["eur_minor"], i["eur_minor"])
         )
 
@@ -456,7 +461,7 @@ def account_ledger(conn) -> list[Finding]:
             if (
                 chains
                 and chains[-1][-1]["closing_minor"] == f["opening_minor"]
-                and (date.fromisoformat(f["period_start"]) - date.fromisoformat(chains[-1][-1]["period_end"])).days <= 5
+                and (date.fromisoformat(f["period_start"]) - date.fromisoformat(chains[-1][-1]["period_end"])).days <= STATEMENT_GAP_DAYS
             ):
                 chains[-1].append(f)
             else:
@@ -506,7 +511,8 @@ def tally_month(conn, m: str) -> str | None:
 
 def _next_month(m: str) -> str:
     y, mo = int(m[:4]), int(m[5:7])
-    return f"{y + (mo == 12)}-{mo % 12 + 1:02d}-01"
+    ny, nm = dates.next_month(y, mo)
+    return f"{ny}-{nm:02d}-01"
 
 
 def tally(conn) -> list[Finding]:

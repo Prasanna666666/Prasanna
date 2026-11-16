@@ -22,6 +22,7 @@ from typing import Any, ClassVar
 
 from kit import consent, llm, log, netguard, sign
 from kit.http import Fail, ModuleHandler, host_ok
+from kit.units import YEAR_DIGITS
 
 from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
 from .modules import ALL, money, reports, statement_import
@@ -35,6 +36,8 @@ ALLOWED_HOSTS = {
     "[::1]",
     "finance.localhost",
 }  # *.localhost always means this computer (RFC 6761): a name that is easy to remember
+REFUSAL_WINDOW_SECONDS = 60  # refusals are counted over this long
+MAX_REFUSALS = 10  # more refusals than this in the window and the answer is "too many attempts"
 
 
 class State:
@@ -280,7 +283,7 @@ POST_ROUTES = {
 def _refusals_this_minute(state: State) -> float:
     """Forget refusals older than a minute; returns now."""
     now = time.monotonic()
-    state.refused[:] = [t for t in state.refused if now - t < 60]
+    state.refused[:] = [t for t in state.refused if now - t < REFUSAL_WINDOW_SECONDS]
     return now
 
 
@@ -314,8 +317,8 @@ class _Handler(ModuleHandler):
             return True
         log.event("request refused: no valid token", level=logging.WARNING)
         self.state.refused.append(now)
-        if len(self.state.refused) > 10:
-            self._send(429, b'{"ok": false, "error": "Too many attempts. Wait a minute."}')
+        if len(self.state.refused) > MAX_REFUSALS:
+            self._send(HTTPStatus.TOO_MANY_REQUESTS, b'{"ok": false, "error": "Too many attempts. Wait a minute."}')
         else:
             self._send(401, _login_page(), "text/html; charset=utf-8")
         return False
@@ -345,7 +348,7 @@ class _Handler(ModuleHandler):
         self._fail(HTTPStatus.NOT_FOUND, "not found")
 
     def _report(self, year: str) -> None:
-        if not (year.isdigit() and len(year) == 4):
+        if not (year.isdigit() and len(year) == YEAR_DIGITS):
             return self._fail(HTTPStatus.NOT_FOUND, "not found")
         conn = self.state.connect()
         try:
@@ -359,8 +362,8 @@ class _Handler(ModuleHandler):
         if not host_ok(self.headers.get("Host"), ALLOWED_HOSTS):
             return self._fail(HTTPStatus.FORBIDDEN, "This address is not allowed.")
         now = _refusals_this_minute(self.state)
-        if len(self.state.refused) > 10:
-            return self._send(429, b"Too many attempts. Wait a minute.", "text/plain; charset=utf-8")
+        if len(self.state.refused) > MAX_REFUSALS:
+            return self._send(HTTPStatus.TOO_MANY_REQUESTS, b"Too many attempts. Wait a minute.", "text/plain; charset=utf-8")
         try:
             size = min(int(self.headers.get("Content-Length", "0")), 2000)
         except ValueError:

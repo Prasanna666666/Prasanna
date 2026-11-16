@@ -5,15 +5,22 @@ from __future__ import annotations
 import calendar
 from datetime import date, datetime, timedelta
 
+from kit.units import MONTHS_IN_YEAR
+
 
 def parse(value: str) -> date:
     """Accept 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM' and return the date part."""
     return datetime.fromisoformat(value.strip()).date() if "T" in value else date.fromisoformat(value.strip())
 
 
+def next_month(year: int, month: int) -> tuple[int, int]:
+    """The month after (year, month)."""
+    return (year + 1, 1) if month == MONTHS_IN_YEAR else (year, month + 1)
+
+
 def add_months(d: date, n: int) -> date:
     m = d.month - 1 + n
-    y, m = d.year + m // 12, m % 12 + 1
+    y, m = d.year + m // MONTHS_IN_YEAR, m % MONTHS_IN_YEAR + 1
     return d.replace(year=y, month=m, day=min(d.day, calendar.monthrange(y, m)[1]))
 
 
@@ -26,7 +33,7 @@ def next_occurrence(due: str, recurrence: str) -> str | None:
         "daily": d + timedelta(days=1),
         "weekly": d + timedelta(weeks=1),
         "monthly": add_months(d, 1),
-        "yearly": add_months(d, 12),
+        "yearly": add_months(d, MONTHS_IN_YEAR),
     }.get(recurrence)
     if nd is None:
         raise ValueError(f"unknown recurrence: {recurrence}")

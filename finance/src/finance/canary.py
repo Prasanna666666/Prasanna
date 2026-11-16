@@ -18,6 +18,10 @@ SAMPLE = [
     ["26-10-2026", "Huur", "1.100,00", "", "3.726,55"],
 ]
 COLS = [(0, 60), (70, 200), (210, 260), (270, 320), (330, 400)]
+MT940_AMOUNT_MINOR = 1000
+EUROPEAN_PRINTED = ("3.500,00", 350000)
+ENGLISH_PRINTED = ("1,234.56", 123456)
+RATE_CHECK = (900000, "90.5", 9945)  # (amount in cents, rate, expected euro cents)
 
 
 def _layout() -> tables.Layout:
@@ -38,20 +42,20 @@ def run() -> list[Finding]:
     if p.status != "verified" or sorted((t.day, t.amount_minor, t.kind) for t in p.txns) != want:
         problems.append("a known statement is no longer read exactly")
     rev = tables.parse_table(_table([SAMPLE[0], *SAMPLE[1:][::-1]]), _layout())
-    if rev.status != "verified" or len(rev.txns) != 3:
+    if rev.status != "verified" or len(rev.txns) != len(want):
         problems.append("a newest-first statement is no longer read exactly")
     bad = [list(r) for r in SAMPLE]
     bad[3][4] = "4.826,56"
     if tables.parse_table(_table(bad), _layout()).status != "needs_check":
         problems.append("a statement with one wrong cent is no longer caught")
     (s,) = standards.read_mt940(MT940)
-    if s.status != "verified" or len(s.txns) != 1 or s.txns[0].amount_minor != 1000:
+    if s.status != "verified" or len(s.txns) != 1 or s.txns[0].amount_minor != MT940_AMOUNT_MINOR:
         problems.append("an MT940 sample is no longer read exactly")
-    if money_from_printed("3.500,00") != 350000 or money_from_printed("1,234.56") != 123456:
+    if any(money_from_printed(text) != minor for text, minor in (EUROPEAN_PRINTED, ENGLISH_PRINTED)):
         problems.append("amounts are no longer read correctly")
     from decimal import Decimal
 
-    if rates.to_eur(900000, Decimal("90.5")) != 9945:
+    if rates.to_eur(RATE_CHECK[0], Decimal(RATE_CHECK[1])) != RATE_CHECK[2]:
         problems.append("currency conversion no longer gives the right answer")
     if problems:
         return [Finding("self-test", "fail", "readers", "; ".join(problems))]
