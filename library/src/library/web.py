@@ -701,6 +701,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         ("understood", s.get("phase") in (3, 4)),
     )
     steps = []
+    taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         mails_in = bool(found) and tally["mails"]["present"] >= (found.get("mails") or 0)
         total_known = {
@@ -710,13 +711,16 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         }  # a total is known when it has been counted: by the reader, or from the mails once all are opened
         counts, every = [], []
         for key, label in labels.items():
-            total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" and n == 1 else 0)
+            # Once step 1 is over everything the reader could take in is in (messages with the same content are one, files that cannot be read never arrive), so the totals are what is held.
+            total = tally[key]["present"] if taken_in else max(tally[key]["present"], known[key] or 0, promised if key == "attachments" and n == 1 else 0)
             # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
-            known_now = n > 1 or total_known[key]
+            known_now = taken_in or total_known[key]
             line = {
                 "key": key,
                 "label": label,
-                "done": tally[key][where],
+                "done": tally[key][where]
+                if (s.get("phase") or 1) >= n
+                else 0,  # a step that has not begun has done nothing, whatever state the files are already in
                 "total": total,
                 "known": known_now,
             }
@@ -724,7 +728,9 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             counts.append(line)
         shown = [c for c in counts if c["known"]]
         done, total = sum(int(c["done"]) for c in shown), sum(int(c["total"]) for c in shown)
-        everything = bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
+        everything = (n == 1 and taken_in) or (
+            bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
+        )
         steps.append(
             {
                 "n": n,

@@ -51,7 +51,7 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
         "attachments": 7,
     }  # each gives its number as soon as its total is known
     assert [c["key"] for c in read["counts"]] == ["documents", "mails", "attachments"]  # all three are always listed alike
-    assert web._steps(conn, {"phase": 2})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
+    assert web._steps(conn, {"phase": 1})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
     assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
 
 
@@ -116,3 +116,25 @@ def test_the_apps_and_their_words_come_from_the_file_not_from_the_code(tmp_path,
     assert priority.order() == ["garden", "pets"] and apps.describe() == {"garden": "the garden", "pets": "the pets"}
     assert relevance.worth_reading("m.eml", "email", "Your tulips order: 12,50 euro")  # a word an app declares
     assert not relevance.worth_reading("m.eml", "email", "Your invoice: 12,50 euro")  # "invoice" is in no declared app here: no word is in the code
+
+
+def test_once_step_one_is_over_it_is_done_and_the_totals_are_what_is_held(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 5, "mails": 3})  # more counted than there are: some are copies of each other, some cannot be read
+    _add(conn, "a.pdf", "finance", judged=1)
+    conn.commit()
+    steps = web._steps(conn, {"phase": 2})
+    assert steps[0]["state"] == "done" and all(c["known"] for c in steps[0]["counts"])
+    assert {c["key"]: c["total"] for c in steps[1]["counts"]}["documents"] == 1
+
+
+def test_a_step_that_has_not_begun_shows_nothing_done(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 0})
+    _add(conn, "a.pdf", "finance", judged=2)  # skipped: it counts as sorted and as grouped the moment sorting begins, not before
+    conn.commit()
+    steps = web._steps(conn, {"phase": 1})
+    assert [c["done"] for c in steps[1]["counts"]] == [0, 0, 0] and [c["done"] for c in steps[2]["counts"]] == [0, 0, 0]
+    assert {c["key"]: c["done"] for c in web._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
