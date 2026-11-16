@@ -295,10 +295,8 @@ def _normal(account: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", account or "").upper()
 
 
-def link_transfers(conn) -> list[Finding]:
-    """Money moved between your OWN accounts leaves one and arrives in the other: the two payments are matched exactly (same amount, same currency,
-    opposite directions, different accounts, within three days, and each the other's only candidate) and kept out of spending and income on both sides."""
-    main = _main_currency(conn)
+def _pair_transfers(conn, main: str) -> int:
+    """Match the two halves of each transfer within one currency and mark both; returns how many possible transfers had more than one candidate and were left alone."""
     rows = list(
         conn.execute(
             "SELECT id, day, amount_minor, kind, account, COALESCE(NULLIF(currency,''), ?) AS cur FROM transactions WHERE account<>'' AND transfer_id IS NULL AND event_id IS NULL",
@@ -309,22 +307,21 @@ def link_transfers(conn) -> list[Finding]:
     for r in rows:
         groups.setdefault((r["cur"], r["amount_minor"]), ([], []))[0 if r["kind"] == "expense" else 1].append(r)
 
-    def gap(a, b):
-        return abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)
-
-    paired = ambiguous = 0
+    ambiguous = 0
     for outs, ins in groups.values():
-        near_out = {o["id"]: [i for i in ins if i["account"] != o["account"] and gap(o, i) <= TRANSFER_DAYS] for o in outs}
-        near_in = {i["id"]: [o for o in outs if o["account"] != i["account"] and gap(o, i) <= TRANSFER_DAYS] for i in ins}
+        near_out = {o["id"]: [i for i in ins if i["account"] != o["account"] and _day_gap(o, i) <= TRANSFER_DAYS] for o in outs}
+        near_in = {i["id"]: [o for o in outs if o["account"] != i["account"] and _day_gap(o, i) <= TRANSFER_DAYS] for i in ins}
         for o in outs:
             c = near_out[o["id"]]
             if len(c) == 1 and len(near_in[c[0]["id"]]) == 1:
                 conn.execute("UPDATE transactions SET transfer_id=?, category='transfers', auto=1 WHERE id IN (?,?)", (o["id"], o["id"], c[0]["id"]))
-                paired += 1
             elif c:
                 ambiguous += 1
     conn.commit()
-    cost, fx_pairs = _link_across_currencies(conn, main)
+    return ambiguous
+
+
+def _transfer_findings(conn, ambiguous: int, cost: int, fx_pairs: int) -> list[Finding]:
     out = []
     total = conn.execute("SELECT COUNT(*) FROM transactions WHERE transfer_id IS NOT NULL").fetchone()[0] // 2
     if total:
@@ -362,6 +359,44 @@ def link_transfers(conn) -> list[Finding]:
     return out
 
 
+def link_transfers(conn) -> list[Finding]:
+    """Money moved between your OWN accounts leaves one and arrives in the other: the two payments are matched exactly (same amount, same currency,
+    opposite directions, different accounts, within three days, and each the other's only candidate) and kept out of spending and income on both sides."""
+    main = _main_currency(conn)
+    ambiguous = _pair_transfers(conn, main)
+    cost, fx_pairs = _link_across_currencies(conn, main)
+    return _transfer_findings(conn, ambiguous, cost, fx_pairs)
+
+
+def _day_gap(a, b) -> int:
+    """Days between the days of two payments."""
+    return abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)
+
+
+def _record_conversion(conn, o, i) -> int:
+    """Mark a sent and a received payment as the two halves of one currency conversion and, when they differ, book the difference as a cost (or a gain) of its own. Returns it in euro cents."""
+    cost = o["eur_minor"] - i["eur_minor"]
+    conn.execute("UPDATE transactions SET transfer_id=?, category='transfers', auto=1 WHERE id IN (?,?)", (o["id"], o["id"], i["id"]))
+    if i["cur"] == "EUR":  # the real rate the money moved at: units of the sent currency per euro received
+        conn.execute("UPDATE transactions SET rate=?, rate_source='transfer' WHERE id=?", (f"{o['amount_minor'] / i['amount_minor']:.4f}", o["id"]))
+    if cost:
+        conn.execute(
+            "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, auto, currency, account, eur_minor, rate, rate_source) "
+            "VALUES (?,?,?,?,?,?,'derived',1,'EUR',?,?,'1','transfer')",
+            (
+                o["day"],
+                abs(cost),
+                "expense" if cost > 0 else "income",
+                "fees" if cost > 0 else "income",
+                "Currency conversion cost (fee and spread)" if cost > 0 else "Currency conversion gain",
+                f"fx:{o['id']}:{i['id']}",
+                o["account"],
+                abs(cost),
+            ),
+        )
+    return cost
+
+
 def _link_across_currencies(conn, main: str, tolerance: float = 0.06) -> tuple[int, int]:
     """Money sent from an account in one currency and received in another: the euro values must be close (a fee and a spread explain the gap), the days
     within three, and each the other's only candidate. The cost = what was sent, valued at the day's reference rate, minus what arrived, becomes an
@@ -376,14 +411,11 @@ def _link_across_currencies(conn, main: str, tolerance: float = 0.06) -> tuple[i
     outs = [r for r in rows if r["kind"] == "expense"]
     ins = [r for r in rows if r["kind"] == "income"]
 
-    def gap(a, b):
-        return abs((date.fromisoformat(a["day"]) - date.fromisoformat(b["day"])).days)
-
     def near(o, i):
         return (
             o["cur"] != i["cur"]
             and o["account"] != i["account"]
-            and gap(o, i) <= TRANSFER_DAYS
+            and _day_gap(o, i) <= TRANSFER_DAYS
             and abs(o["eur_minor"] - i["eur_minor"]) <= tolerance * max(o["eur_minor"], i["eur_minor"])
         )
 
@@ -391,26 +423,7 @@ def _link_across_currencies(conn, main: str, tolerance: float = 0.06) -> tuple[i
     for o in outs:
         c = [i for i in ins if near(o, i)]
         if len(c) == 1 and len([x for x in outs if near(x, c[0])]) == 1:
-            i = c[0]
-            cost = o["eur_minor"] - i["eur_minor"]
-            conn.execute("UPDATE transactions SET transfer_id=?, category='transfers', auto=1 WHERE id IN (?,?)", (o["id"], o["id"], i["id"]))
-            if i["cur"] == "EUR":  # the real rate the money moved at: units of the sent currency per euro received
-                conn.execute("UPDATE transactions SET rate=?, rate_source='transfer' WHERE id=?", (f"{o['amount_minor'] / i['amount_minor']:.4f}", o["id"]))
-            if cost:
-                conn.execute(
-                    "INSERT OR IGNORE INTO transactions (day, amount_minor, kind, category, note, ref, source, auto, currency, account, eur_minor, rate, rate_source) "
-                    "VALUES (?,?,?,?,?,?,'derived',1,'EUR',?,?,'1','transfer')",
-                    (
-                        o["day"],
-                        abs(cost),
-                        "expense" if cost > 0 else "income",
-                        "fees" if cost > 0 else "income",
-                        "Currency conversion cost (fee and spread)" if cost > 0 else "Currency conversion gain",
-                        f"fx:{o['id']}:{i['id']}",
-                        o["account"],
-                        abs(cost),
-                    ),
-                )
+            cost = _record_conversion(conn, o, c[0])
             total_cost += cost
             pairs += 1
     conn.commit()

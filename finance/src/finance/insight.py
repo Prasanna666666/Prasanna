@@ -490,6 +490,31 @@ def _files(by_file: dict[str, list[int]]) -> list[dict]:
     return [{"file": f, "payments": n, "total": t / 100} for f, (n, t) in ordered]
 
 
+BIG_PAYMENT_SHARE = 0.1  # a payment above this share of the month's spending is looked at on its own
+LOOK_AT_PAYMENTS = 40  # only the biggest payments of the month are examined for what they might really be
+
+
+def _suspects(rows: list, total: int) -> list[dict]:
+    """Payments that may be something other than spending: a card bill or a transfer to own money, a balance read as a payment, the same amount twice in a day, or one very big one."""
+    seen: dict[tuple, int] = defaultdict(int)
+    suspects = []
+    for r in rows:
+        seen[(r["day"], r["amount_minor"])] += 1
+    for r in rows[:LOOK_AT_PAYMENTS]:
+        why = []
+        if OWN_MONEY.search(r["note"] or ""):
+            why.append("looks like a card bill, savings, investment or loan payment: is the other account's statement loaded?")
+        if r["balance_minor"] is not None and r["balance_minor"] == r["amount_minor"]:
+            why.append("the amount equals the balance printed on that line: possibly a balance read as a payment")
+        if seen[(r["day"], r["amount_minor"])] > 1:
+            why.append("another payment of exactly this amount on the same day")
+        if r["amount_minor"] >= BIG_PAYMENT_SHARE * max(total, 1) and not why and r["event_id"] is None:
+            why.append("on its own more than a tenth of the month")
+        if why:
+            suspects.append({"day": r["day"], "amount": r["amount_minor"] / 100, "note": (r["note"] or "")[:50], "file": r["source"], "why": why})
+    return suspects
+
+
 def month_breakdown(conn, a=None):
     """Where a month's spending comes from: by statement file, by category, trips and events apart, the biggest payments, and the ones that look like
     something other than spending (a card bill, a savings or investment transfer, a figure that is really a balance, the same payment twice)."""
@@ -508,22 +533,7 @@ def month_breakdown(conn, a=None):
     for r in rows:
         by_file[r["source"] or "(no file)"][0] += 1
         by_file[r["source"] or "(no file)"][1] += r["amount_minor"]
-    seen: dict[tuple, int] = defaultdict(int)
-    suspects = []
-    for r in rows:
-        seen[(r["day"], r["amount_minor"])] += 1
-    for r in rows[:40]:
-        why = []
-        if OWN_MONEY.search(r["note"] or ""):
-            why.append("looks like a card bill, savings, investment or loan payment: is the other account's statement loaded?")
-        if r["balance_minor"] is not None and r["balance_minor"] == r["amount_minor"]:
-            why.append("the amount equals the balance printed on that line: possibly a balance read as a payment")
-        if seen[(r["day"], r["amount_minor"])] > 1:
-            why.append("another payment of exactly this amount on the same day")
-        if r["amount_minor"] >= 0.1 * max(total, 1) and not why and r["event_id"] is None:
-            why.append("on its own more than a tenth of the month")
-        if why:
-            suspects.append({"day": r["day"], "amount": r["amount_minor"] / 100, "note": (r["note"] or "")[:50], "file": r["source"], "why": why})
+    suspects = _suspects(rows, total)
     return {
         "month": month,
         "total": total / 100,

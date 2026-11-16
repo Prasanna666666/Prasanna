@@ -293,66 +293,89 @@ def timeline(conn, a=None):
 
 
 # ---- things worth a look: suggestions and the detective --------------------------------------------------------------------------------
-def suggestions(conn, a=None):
-    """Plain rules applied to your own figures. Each says what it saw and the numbers it used; none is financial advice and none comes from a model."""
+BUFFER_MONTHS = 3  # an account that covers fewer months of usual spending is called thin
+FIXED_COST_SHARE = 0.5  # regular payments above this share of a typical month's income are said to be high
+
+
+def _savings_suggestions(conn, last12: list[dict]) -> list[dict]:
+    """The savings rate over the last months, and how many months the accounts would cover."""
     out: list[dict] = []
-    months = _months(conn)
-    last12 = months[-12:]
-    if len(last12) >= MIN_MONTHS_FOR_RATE:
-        income, spent = sum(m["income"] for m in last12), sum(m["spent"] - m["invested"] for m in last12)  # money put into investments is saved, not spent
-        if income > 0:
-            rate = (income - spent) / income * 100
-            if rate < 0:
-                out.append(
-                    {
-                        "topic": "savings rate",
-                        "text": f"In the last {len(last12)} months you spent {spent - income:,.2f} more than came in ({spent:,.2f} spent, {income:,.2f} in).",
-                    }
-                )
-            elif rate < LOW_SAVINGS_PERCENT:
-                out.append(
-                    {
-                        "topic": "savings rate",
-                        "text": f"In the last {len(last12)} months you kept {rate:.0f}% of what came in ({income - spent:,.2f} of {income:,.2f}). Many people aim for 10-20%.",
-                    }
-                )
-        avg = spent / len(last12)
-        have = _saved_now(conn)
-        if have is not None and avg > 0 and have < 3 * avg:
+    income, spent = sum(m["income"] for m in last12), sum(m["spent"] - m["invested"] for m in last12)  # money put into investments is saved, not spent
+    if income > 0:
+        rate = (income - spent) / income * 100
+        if rate < 0:
             out.append(
                 {
-                    "topic": "buffer",
-                    "text": f"Your accounts hold {have:,.2f}, which covers {have / avg:.1f} months of your usual spending of {avg:,.2f}. A common rule of thumb is 3-6 months.",
+                    "topic": "savings rate",
+                    "text": f"In the last {len(last12)} months you spent {spent - income:,.2f} more than came in ({spent:,.2f} spent, {income:,.2f} in).",
                 }
             )
+        elif rate < LOW_SAVINGS_PERCENT:
+            out.append(
+                {
+                    "topic": "savings rate",
+                    "text": f"In the last {len(last12)} months you kept {rate:.0f}% of what came in ({income - spent:,.2f} of {income:,.2f}). Many people aim for 10-20%.",
+                }
+            )
+    avg = spent / len(last12)
+    have = _saved_now(conn)
+    if have is not None and avg > 0 and have < BUFFER_MONTHS * avg:
+        out.append(
+            {
+                "topic": "buffer",
+                "text": f"Your accounts hold {have:,.2f}, which covers {have / avg:.1f} months of your usual spending of {avg:,.2f}. A common rule of thumb is 3-6 months.",
+            }
+        )
+    return out
+
+
+def _category_spikes(conn, latest: str) -> list[dict]:
+    """Categories where the latest month is far above the average of the months before it."""
     rows = conn.execute(
         "SELECT substr(day,1,7) AS m, category, SUM(amount_minor) AS t FROM ledger WHERE kind='expense' AND category<>'transfers' AND event_id IS NULL GROUP BY m, category"
     ).fetchall()
     by: dict[str, dict[str, float]] = defaultdict(dict)
     for r in rows:
         by[r["category"]][r["m"]] = r["t"] / 100
-    latest = months[-1]["month"] if months else ""
+    out = []
     for cat, per in by.items():
-        before = [v for k, v in sorted(per.items()) if k < latest][-3:]
+        before = [v for k, v in sorted(per.items()) if k < latest][-PRIOR_MONTHS:]
         now = per.get(latest, 0)
         if len(before) == PRIOR_MONTHS and now >= SPIKE_FLOOR and now > SPIKE_RATIO * statistics.mean(before):
+            usual = statistics.mean(before)
             out.append(
                 {
                     "topic": cat,
-                    "text": f"{cat.title()} was {now:,.2f} in {latest}, {now / statistics.mean(before) * 100 - 100:.0f}% above the average of the three months before ({statistics.mean(before):,.2f}).",
+                    "text": f"{cat.title()} was {now:,.2f} in {latest}, {now / usual * 100 - 100:.0f}% above the average of the three months before ({usual:,.2f}).",
                 }
             )
+    return out
+
+
+def _fixed_costs(conn, last12: list[dict]) -> list[dict]:
+    """The regular payments as a share of a typical month's income."""
     regular = insight._recurring(conn)
-    if regular:
-        total = sum(statistics.median(x for _, x in g["items"][-3:]) for g in regular) / 100
-        income = statistics.median(m["income"] for m in last12) if last12 else 0
-        if income and total > 0.5 * income:
-            out.append(
-                {
-                    "topic": "fixed costs",
-                    "text": f"Your regular payments come to about {total:,.2f} a month, {total / income * 100:.0f}% of a typical month's income ({income:,.2f}).",
-                }
-            )
+    if not regular:
+        return []
+    total = sum(statistics.median(x for _, x in g["items"][-3:]) for g in regular) / 100
+    income = statistics.median(m["income"] for m in last12) if last12 else 0
+    if income and total > FIXED_COST_SHARE * income:
+        return [
+            {
+                "topic": "fixed costs",
+                "text": f"Your regular payments come to about {total:,.2f} a month, {total / income * 100:.0f}% of a typical month's income ({income:,.2f}).",
+            }
+        ]
+    return []
+
+
+def suggestions(conn, a=None):
+    """Plain rules applied to your own figures. Each says what it saw and the numbers it used; none is financial advice and none comes from a model."""
+    months = _months(conn)
+    last12 = months[-12:]
+    out = _savings_suggestions(conn, last12) if len(last12) >= MIN_MONTHS_FOR_RATE else []
+    out += _category_spikes(conn, months[-1]["month"] if months else "")
+    out += _fixed_costs(conn, last12)
     return {"currency": _currency(conn), "items": out, "note": "Rules applied to your own figures: observations, not advice."}
 
 
@@ -567,9 +590,8 @@ def _months_between(start: str, end: str) -> list[str]:
     return out
 
 
-def totals_check(conn, a=None):
-    """Where money in and money out could be missing or wrongly counted: which months each account has statements for, what every category adds up to
-    (including what was left out as transfers or as refunds linked to a trip), how many payments are uncategorised, and what the savings figures are made of."""
+def _account_coverage(conn) -> list[dict]:
+    """For each account: how many statements, how many are proven, and which months between the first and the last have none."""
     accounts = []
     for r in conn.execute(
         "SELECT account, COUNT(*) AS n, SUM(status='verified') AS verified, SUM(status IN ('needs_check','unverified')) AS unproven, MIN(period_start) AS first, MAX(period_end) AS last "
@@ -594,7 +616,12 @@ def totals_check(conn, a=None):
                 "months_without_a_statement": gaps,
             }
         )
-    categories = {
+    return accounts
+
+
+def _category_totals(conn) -> dict[str, list[dict]]:
+    """What every category adds up to, for money in and money out."""
+    return {
         kind: [
             {"category": r["category"] or "(none)", "payments": r["n"], "total": round(r["t"] / 100, 2)}
             for r in conn.execute(
@@ -604,7 +631,11 @@ def totals_check(conn, a=None):
         ]
         for kind in ("income", "expense")
     }
-    left_out = {
+
+
+def _left_out(conn) -> dict[str, dict]:
+    """What is not counted as income or spending: transfers between own accounts, refunds linked to a trip, and payments with no category yet."""
+    return {
         name: {"payments": n or 0, "total": round((t or 0) / 100, 2)}
         for name, (n, t) in {
             "transfers_in": tuple(conn.execute("SELECT COUNT(*), SUM(amount_minor) FROM ledger WHERE kind='income' AND category='transfers'").fetchone()),
@@ -617,8 +648,12 @@ def totals_check(conn, a=None):
             ),
         }.items()
     }
-    months = _months(conn)[-12:]
-    income, spent, invested = sum(m["income"] for m in months), sum(m["spent"] for m in months), sum(m["invested"] for m in months)
+
+
+TRANSFER_SHARE_WARNING = 0.3  # more than this share of all money in set aside as transfers is probably a mis-sorted salary
+
+
+def _totals_warnings(accounts: list[dict], categories: dict[str, list[dict]], left_out: dict[str, dict]) -> list[str]:
     warnings = []
     for acct in accounts:
         if acct["months_without_a_statement"]:
@@ -628,12 +663,24 @@ def totals_check(conn, a=None):
         if acct["not_proven"]:
             warnings.append(f"Account {acct['account']}: {acct['not_proven']} statement(s) could not be proven and are not counted.")
     money_in = sum(c["total"] for c in categories["income"])
-    if money_in and left_out["transfers_in"]["total"] > 0.3 * money_in:
+    if money_in and left_out["transfers_in"]["total"] > TRANSFER_SHARE_WARNING * money_in:
         warnings.append(
-            "More than 30% of all money in was set aside as transfers between your own accounts, so it is not counted as income. If that includes your salary, it is mis-sorted."
+            f"More than {TRANSFER_SHARE_WARNING:.0%} of all money in was set aside as transfers between your own accounts, so it is not counted as income. If that includes your salary, it is mis-sorted."
         )
     if left_out["uncategorised"]["payments"]:
         warnings.append(f"{left_out['uncategorised']['payments']} payment(s) have no category yet.")
+    return warnings
+
+
+def totals_check(conn, a=None):
+    """Where money in and money out could be missing or wrongly counted: which months each account has statements for, what every category adds up to
+    (including what was left out as transfers or as refunds linked to a trip), how many payments are uncategorised, and what the savings figures are made of."""
+    accounts = _account_coverage(conn)
+    categories = _category_totals(conn)
+    left_out = _left_out(conn)
+    months = _months(conn)[-12:]
+    income, spent, invested = sum(m["income"] for m in months), sum(m["spent"] for m in months), sum(m["invested"] for m in months)
+    warnings = _totals_warnings(accounts, categories, left_out)
     return {
         "currency": _currency(conn),
         "accounts": accounts,

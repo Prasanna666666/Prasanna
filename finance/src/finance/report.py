@@ -22,12 +22,58 @@ def _table(head: list[str], rows: list[list[str]]) -> str:
     return f"<table><thead><tr>{th}</tr></thead><tbody>{body}</tbody></table>"
 
 
+PAGE_STYLE = (
+    "body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111}h1{margin:0 0 .2rem}h2{margin:1.6rem 0 .4rem;font-size:1.1rem}"
+    "table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #ddd}th{color:#555;font-weight:600}"
+    ".muted{color:#666}.warn{background:#fff4e5;border:1px solid #f0c36d;padding:.6rem .8rem;border-radius:8px}@media print{body{margin:0}}"
+)
+
+
+def _section_year(y: dict, cur: str) -> str:
+    row = [
+        _m(y["salary"], cur),
+        _m(y["income"], cur),
+        _m(y["spent"], cur),
+        _m(y["saved"], cur),
+        "" if y["savings_rate"] is None else f"{y['savings_rate']}%",
+        _m(y["interest"], cur),
+        _m(y["invested"], cur),
+        _m(y["insurance"], cur),
+    ]
+    head = ["Salary", "Money in", "Spent", "Saved", "Kept", "Interest", "Invested", "Insurance"]
+    short = f"<p class=muted>Covers {y['months']} month(s) of data.</p>" if y["months"] < MONTHS_IN_YEAR else ""
+    return "<h2>The year</h2>" + _table(head, [row]) + short
+
+
+def _section_months(months: list[dict], cur: str) -> str:
+    rows = [[m["month"], _m(m["income"], cur), _m(m["spent"], cur), _m(m["income"] - m["spent"], cur)] for m in months]
+    return "<h2>Month by month</h2>" + _table(["Month", "Money in", "Spent", "Saved"], rows)
+
+
+def _section_invested(inv: dict, year: str, cur: str) -> str:
+    paid = [[_m(i["contributed"], cur)] for i in inv["contributed_by_year"] if i["year"] == year]
+    note = f"<p class=muted>{escape(inv['note'])}</p>" if inv["note"] else ""
+    return "<h2>Invested</h2>" + _table(["Paid in"], paid) + note
+
+
+def _section_interest(interest: list[dict], cur: str) -> str:
+    rows = [
+        ["…" + i["account"], _m(i["interest"], cur), _m(i["average_balance"], cur), "" if i["rate_percent"] is None else f"{i['rate_percent']}%"]
+        for i in interest
+    ]
+    return "<h2>Interest</h2>" + _table(["Account", "Interest", "Average balance", "Estimated rate"], rows)
+
+
+def _section_wealth(nw: dict, cur: str) -> str:
+    head = ["Accounts (proven)", "Investments (typed)", "Assets (typed)", "Debts (typed)", "Net worth"]
+    row = [_m(nw["accounts"], cur), _m(nw["investments"], cur), _m(nw["assets"], cur), _m(nw["debts"], cur), _m(nw["net_worth"], cur)]
+    return "<h2>What you own and owe (now)</h2>" + _table(head, [row])
+
+
 def year_report(conn, year: str) -> str:
     cur = planning._currency(conn)
-    years = {y["year"]: y for y in planning.yearly_overview(conn)["years"]}
-    y = years.get(year)
+    y = {r["year"]: r for r in planning.yearly_overview(conn)["years"]}.get(year)
     months = [r for r in planning._months(conn) if r["month"].startswith(year)]
-    tax = planning.tax_summary(conn, {"year": year})
     ins = planning.insurances(conn)
     inv = planning.investments(conn)
     interest = [r for r in planning.interest(conn)["by_year"] if r["year"] == year]
@@ -37,73 +83,25 @@ def year_report(conn, year: str) -> str:
         (year,),
     ).fetchall()
     nw = wealth.wealth_summary(conn)
+    warn = (
+        "<p class=warn>These months are not fully proven: " + ", ".join(escape(m) for m in unproven) + ". Check them before relying on this report.</p>"
+        if unproven
+        else ""
+    )
     parts = [
         f"<h1>Finance · {escape(year)}</h1>",
         "<p class=muted>Prepared on this computer from your own statements and documents. Facts and arithmetic only: not tax or financial advice.</p>",
-        "<p class=warn>These months are not fully proven: " + ", ".join(escape(m) for m in unproven) + ". Check them before relying on this report.</p>"
-        if unproven
-        else "",
+        warn,
+        _section_year(y, cur) if y else "",
+        _section_months(months, cur),
+        "<h2>Where it went</h2>" + _table(["Category", "Spent"], [[c["category"].title(), _m(c["t"], cur)] for c in categories]),
+        "<h2>Tax checklist</h2>" + _table(["Item", "Amount"], _tax_rows(planning.tax_summary(conn, {"year": year}), cur)),
+        "<h2>Insurance paid</h2>" + _table(["Insurer", "Paid"], [[i["insurer"], _m(i["paid"], cur)] for i in ins["paid"] if i["year"] == year]),
+        _section_invested(inv, year, cur),
+        _section_interest(interest, cur) if interest else "",
+        _section_wealth(nw, cur) if nw["net_worth"] is not None else "",
     ]
-    if y:
-        parts.append(
-            "<h2>The year</h2>"
-            + _table(
-                ["Salary", "Money in", "Spent", "Saved", "Kept", "Interest", "Invested", "Insurance"],
-                [
-                    [
-                        _m(y["salary"], cur),
-                        _m(y["income"], cur),
-                        _m(y["spent"], cur),
-                        _m(y["saved"], cur),
-                        "" if y["savings_rate"] is None else f"{y['savings_rate']}%",
-                        _m(y["interest"], cur),
-                        _m(y["invested"], cur),
-                        _m(y["insurance"], cur),
-                    ]
-                ],
-            )
-            + (f"<p class=muted>Covers {y['months']} month(s) of data.</p>" if y["months"] < MONTHS_IN_YEAR else "")
-        )
-    parts.append(
-        "<h2>Month by month</h2>"
-        + _table(
-            ["Month", "Money in", "Spent", "Saved"],
-            [[m["month"], _m(m["income"], cur), _m(m["spent"], cur), _m(m["income"] - m["spent"], cur)] for m in months],
-        )
-    )
-    parts.append("<h2>Where it went</h2>" + _table(["Category", "Spent"], [[c["category"].title(), _m(c["t"], cur)] for c in categories]))
-    parts.append("<h2>Tax checklist</h2>" + _table(["Item", "Amount"], _tax_rows(tax, cur)))
-    parts.append("<h2>Insurance paid</h2>" + _table(["Insurer", "Paid"], [[i["insurer"], _m(i["paid"], cur)] for i in ins["paid"] if i["year"] == year]))
-    parts.append(
-        "<h2>Invested</h2>"
-        + _table(["Paid in"], [[_m(i["contributed"], cur)] for i in inv["contributed_by_year"] if i["year"] == year])
-        + (f"<p class=muted>{escape(inv['note'])}</p>" if inv["note"] else "")
-    )
-    if interest:
-        parts.append(
-            "<h2>Interest</h2>"
-            + _table(
-                ["Account", "Interest", "Average balance", "Estimated rate"],
-                [
-                    ["…" + i["account"], _m(i["interest"], cur), _m(i["average_balance"], cur), "" if i["rate_percent"] is None else f"{i['rate_percent']}%"]
-                    for i in interest
-                ],
-            )
-        )
-    if nw["net_worth"] is not None:
-        parts.append(
-            "<h2>What you own and owe (now)</h2>"
-            + _table(
-                ["Accounts (proven)", "Investments (typed)", "Assets (typed)", "Debts (typed)", "Net worth"],
-                [[_m(nw["accounts"], cur), _m(nw["investments"], cur), _m(nw["assets"], cur), _m(nw["debts"], cur), _m(nw["net_worth"], cur)]],
-            )
-        )
-    style = (
-        "body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:2rem auto;padding:0 1rem;color:#111}h1{margin:0 0 .2rem}h2{margin:1.6rem 0 .4rem;font-size:1.1rem}"
-        "table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #ddd}th{color:#555;font-weight:600}"
-        ".muted{color:#666}.warn{background:#fff4e5;border:1px solid #f0c36d;padding:.6rem .8rem;border-radius:8px}@media print{body{margin:0}}"
-    )
-    return f"<!doctype html><meta charset=utf-8><title>Finance {escape(year)}</title><style>{style}</style>" + "".join(parts)
+    return f"<!doctype html><meta charset=utf-8><title>Finance {escape(year)}</title><style>{PAGE_STYLE}</style>" + "".join(parts)
 
 
 def _tax_rows(t: dict, cur: str) -> list[list[str]]:
