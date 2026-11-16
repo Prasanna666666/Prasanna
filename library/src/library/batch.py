@@ -12,7 +12,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from . import bulkmail, control, extraction, flags, readers, sniff
@@ -29,7 +29,7 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, 
         "sha256": digest,
         "name": extraction.clean(label)[:255],
         "bytes": size,
-        "parsed_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "parsed_at": datetime.now(UTC).isoformat(timespec="seconds"),
         **({"area": area} if area else {}),
         **({"source": source[:600]} if source else {}),  # where the file lies, so a newer version of the same file replaces the older one
         **res,

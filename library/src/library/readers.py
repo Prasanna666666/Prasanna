@@ -294,8 +294,8 @@ def read_image(path: Path) -> dict:
         import pillow_heif
 
         pillow_heif.register_heif_opener()
-    with Image.open(path) as im:
-        im = ImageOps.exif_transpose(im).convert("RGB")
+    with Image.open(path) as opened:
+        im = ImageOps.exif_transpose(opened).convert("RGB")
         buf = io.BytesIO()
         im.save(buf, "PNG")
         width = im.width

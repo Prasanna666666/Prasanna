@@ -6,13 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "finance"
 version = "0.1.0"
 description = "Private personal assistant: tasks, notes, money, family - one local database, one chat"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []  # and the shared kit (../kit): pip install -e ../kit
 
 [project.optional-dependencies]
 ui = []  # kept so older install commands still work; the interface needs no extra packages
 secure = ["sqlcipher3-binary>=0.5"]
-dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.5", "mypy>=1.10", "pyyaml>=6"]  # pyyaml: the tests read the compose files
 
 [project.scripts]
 finance = "finance.cli:main"
@@ -29,7 +29,7 @@ pythonpath = ["src", "../kit/src"]
 
 [tool.ruff]
 line-length = 160
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["build"]
 
 [tool.ruff.lint]
@@ -63,7 +63,7 @@ max-statements = 50
 "tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
 check_untyped_defs = true

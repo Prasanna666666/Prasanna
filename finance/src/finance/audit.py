@@ -4,7 +4,7 @@ If any past entry is changed or removed, the chain no longer verifies and the ch
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from kit import log
 
@@ -18,7 +18,7 @@ def record(conn, action: str, detail: str = "") -> None:
     try:
         last = conn.execute("SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()
         prev = last[0] if last else ""
-        at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        at = datetime.now(UTC).isoformat(timespec="seconds")
         detail = detail[:300]
         conn.execute("INSERT INTO audit_log (at, action, detail, prev, hash) VALUES (?,?,?,?,?)", (at, action, detail, prev, _seal(prev, at, action, detail)))
         conn.commit()

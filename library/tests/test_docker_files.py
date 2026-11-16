@@ -118,9 +118,8 @@ def test_the_atlas_app_switches_atlas_on_when_it_is_off_and_the_panel_says_so_pl
 
 
 def test_the_dependencies_are_installed_before_the_code_and_the_list_in_the_dockerfile_matches_the_project_files():
-    from pathlib import Path
-
     import tomllib
+    from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
     dockerfile = (root / "library" / "Dockerfile").read_text()

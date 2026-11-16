@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "images"
 version = "1.5.0"
 description = "The picture engine every app shares: reading a picture (EXIF, places, text, faces, CLIP, labels), the index, and search over it"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = ["numpy>=1.24", "pillow>=13", "pillow-heif>=0.16", "pymupdf>=1.24"]  # and the shared kit (../kit)
 
 [project.optional-dependencies]
@@ -26,7 +26,7 @@ pythonpath = ["src", "tests", "../kit/src"]
 
 [tool.ruff]
 line-length = 130
-target-version = "py310"
+target-version = "py311"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -52,7 +52,7 @@ max-positional-args = 7
 "tests/*" = ["S", "B"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = false
 check_untyped_defs = true

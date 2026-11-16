@@ -61,10 +61,10 @@ def analyze_gray(gray: np.ndarray) -> Metrics:
 
 def analyze_file(path: Path) -> Metrics | None:
     try:
-        with Image.open(path) as img:
-            img = img.convert("L")
-            img.thumbnail((ANALYSIS_SIDE, ANALYSIS_SIDE), Image.Resampling.LANCZOS)
-            return analyze_gray(np.asarray(img))
+        with Image.open(path) as opened:
+            gray = opened.convert("L")
+            gray.thumbnail((ANALYSIS_SIDE, ANALYSIS_SIDE), Image.Resampling.LANCZOS)
+            return analyze_gray(np.asarray(gray))
     except (OSError, ValueError):
         return None
 

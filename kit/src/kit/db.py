@@ -6,7 +6,7 @@ import os
 import sqlite3
 import zlib
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .module import Module
@@ -265,7 +265,7 @@ def _copy_before_upgrade(conn: sqlite3.Connection) -> Path | None:
         return None
     folder = Path(file).parent / "backups"
     folder.mkdir(parents=True, exist_ok=True)
-    target = folder / f"before-upgrade-{datetime.now(timezone.utc):%Y%m%dT%H%M%S}.db"
+    target = folder / f"before-upgrade-{datetime.now(UTC):%Y%m%dT%H%M%S}.db"
     copy = connect(target)
     try:
         conn.backup(copy)

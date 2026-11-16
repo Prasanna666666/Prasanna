@@ -6,13 +6,13 @@ build-backend = "setuptools.build_meta"
 name = "library"
 version = "0.1.0"
 description = "Documents: the one reader and store for every file and mail; other apps ask it for what is relevant to them"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
 secure = ["sqlcipher3-binary>=0.5"]
 parse = ["pymupdf>=1.24", "pdfplumber>=0.11", "openpyxl>=3.1", "pillow>=13", "pillow-heif>=0.16"]
-dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10"]
+dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "pyyaml>=6"]  # pyyaml: the tests read the compose files
 
 [project.scripts]
 library = "library.cli:main"
@@ -31,7 +31,7 @@ pythonpath = ["src", "../kit/src", "../finance/src"]   # the kit is shared; ../f
 
 [tool.ruff]
 line-length = 160
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
@@ -54,7 +54,7 @@ max-statements = 50
 "tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 ignore_missing_imports = true
 warn_unused_ignores = true
 check_untyped_defs = true

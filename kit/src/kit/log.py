@@ -9,7 +9,7 @@ import logging
 import logging.handlers
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _NAME = "finance"
@@ -18,7 +18,7 @@ _NAME = "finance"
 class _Json(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         entry = {
-            "at": datetime.fromtimestamp(record.created, timezone.utc).isoformat(timespec="seconds"),
+            "at": datetime.fromtimestamp(record.created, UTC).isoformat(timespec="seconds"),
             "level": record.levelname.lower(),
             "event": record.getMessage(),
         }

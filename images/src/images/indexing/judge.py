@@ -66,8 +66,8 @@ MIN_TAG_CHARS = 3  # a shorter tag is dropped
 def shrink(jpeg: bytes) -> bytes:
     from PIL import Image
 
-    with Image.open(io.BytesIO(jpeg)) as image:
-        image = image.convert("RGB")
+    with Image.open(io.BytesIO(jpeg)) as opened:
+        image = opened.convert("RGB")
         image.thumbnail((MODEL_SIDE, MODEL_SIDE))
         out = io.BytesIO()
         image.save(out, "JPEG", quality=85)
