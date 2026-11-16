@@ -21,7 +21,8 @@ from pathlib import Path
 from . import batch, control, extraction, readers, rounds
 
 
-def main(argv: list[str] | None = None) -> int:
+def _arguments() -> argparse.ArgumentParser:
+    """The command line: where to read, where to write, and the modes (watch, once, check one file)."""
     ap = argparse.ArgumentParser(prog="library-parser")
     ap.add_argument("--inbox", default=os.environ.get("ATLAS_INBOX", str(Path.home() / "AtlasInbox")))
     ap.add_argument("--out", default=os.environ.get("ATLAS_PARSED", str(Path.home() / "AtlasParsed")))
@@ -47,7 +48,32 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help="read every file (or an even sample of N) without storing anything and print what came out, by kind of file",
     )
-    a = ap.parse_args(argv)
+    return ap
+
+
+def _one_round(a: argparse.Namespace, out: Path) -> dict:
+    """One round of reading: wait for the person's request when watching, read everything, leave what could not be read for the report."""
+    out.mkdir(parents=True, exist_ok=True)
+    with contextlib.suppress(OSError):
+        (out / ".ocr-engine").write_text(
+            "apple" if readers.apple_ocr_running() else "tesseract"
+        )  # which text recognition the pages are read with: the Documents service re-reads old scans once it is Apple's
+    if a.watch:
+        rounds._wait_for_next_round(out)  # nothing is read until the person asks (so starting the computer never starts a big read)
+    (out / control.STOP).unlink(missing_ok=True)
+    (out / rounds.BUSY).touch()  # tells the Documents service that more may still be coming
+    try:
+        res = rounds.read_everything(a)
+    finally:
+        (out / rounds.BUSY).unlink(missing_ok=True)
+        (out / ".now").unlink(missing_ok=True)
+    (out / rounds.FAILED_FILE).write_text(json.dumps(batch._FAILED[: batch.MAX_FAILED]))  # what could not be read this round, for the report
+    batch._FAILED.clear()
+    return res
+
+
+def main(argv: list[str] | None = None) -> int:
+    a = _arguments().parse_args(argv)
     if a.check is not None:
         from . import selfcheck
 
@@ -62,22 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     with contextlib.suppress(OSError):
         os.nice(10)  # reading is never more important than what the person is doing; the children inherit this
     while True:
-        out.mkdir(parents=True, exist_ok=True)
-        with contextlib.suppress(OSError):
-            (out / ".ocr-engine").write_text(
-                "apple" if readers.apple_ocr_running() else "tesseract"
-            )  # which text recognition the pages are read with: the Documents service re-reads old scans once it is Apple's
-        if a.watch:
-            rounds._wait_for_next_round(out)  # nothing is read until the person asks (so starting the computer never starts a big read)
-        (out / control.STOP).unlink(missing_ok=True)
-        (out / rounds.BUSY).touch()  # tells the Documents service that more may still be coming
-        try:
-            res = rounds.read_everything(a)
-        finally:
-            (out / rounds.BUSY).unlink(missing_ok=True)
-            (out / ".now").unlink(missing_ok=True)
-        (out / rounds.FAILED_FILE).write_text(json.dumps(batch._FAILED[: batch.MAX_FAILED]))  # what could not be read this round, for the report
-        batch._FAILED.clear()
+        res = _one_round(a, out)
         if res["parsed"] or res["failed"]:
             print(res, flush=True)
         if not a.watch:

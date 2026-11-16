@@ -339,6 +339,31 @@ def judge_pending(
         ahead.close()
 
 
+def _ask_model(conn, client, model, hooks: Hooks, this: _Pass, where: tuple, calls: int) -> str:
+    """Ask the model about one document. Says what came of it: "" (answered), "waiting" (no model to ask), "unclear" (no usable answer), "stopped" (the person pressed Stop) or "unreachable"."""
+    chunk, position, d = where
+    out = this.out
+    if client is None or not model:
+        out["waiting"] += 1
+        out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
+        return "waiting"
+    if hooks.progress:
+        hooks.progress(_speed_line(model_work_left(conn), time.monotonic() - this.began, calls))
+    this.ahead.prefetch(chunk, position)
+    result, problem = _identify_one(conn, client, model, d, hooks.progress, hooks.trace, this.ahead)
+    if result == "unreachable":
+        out["problem"] = problem
+    if result == "unclear":
+        out["unclear"] += 1
+    if result in ("stopped", "unclear", "unreachable"):
+        return result
+    if PARALLEL == 1:
+        time.sleep(
+            store.GENTLE_SECONDS
+        )  # a short rest after each model call, only when one is asked at a time: with two in flight the model is never left idle
+    return ""
+
+
 @dataclass
 class _Pass:
     """One pass over the waiting files: what it has done so far, how many there were, the model call that runs ahead, and when it began."""
@@ -376,32 +401,20 @@ def _judge_chunks(conn, client, model, hooks: Hooks, limit: int, this: _Pass) ->
                 out["skipped"] += 1
                 continue
             else:
-                if client is None or not model:
-                    out["waiting"] += 1
-                    out["problem"] = "The local model is not running, so new files cannot be read yet. Start Ollama and press Read new files again."
+                step = _ask_model(conn, client, model, hooks, this, (chunk, position, d), calls)
+                if step != "waiting":
+                    calls += 1  # a call to the model was made
+                if step in ("waiting", "unclear"):
                     continue
-                if progress:
-                    progress(_speed_line(model_work_left(conn), time.monotonic() - began, calls))
-                calls += 1
-                ahead.prefetch(chunk, position)
-                result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)
-                if result == "stopped":
+                if step == "stopped":
                     out["stopped"] = True
                     out["waiting"] = total - index + 1
                     conn.commit()
                     return out
-                if result == "unclear":
-                    out["unclear"] += 1
-                    continue
-                if result == "unreachable":  # the model could not be reached: nothing is marked as done
+                if step == "unreachable":  # the model could not be reached: nothing is marked as done
                     out["waiting"] = total - index + 1
-                    out["problem"] = problem
                     conn.commit()
                     return _with_health(conn, client, model, control, out, skip=True)
-                if PARALLEL == 1:
-                    time.sleep(
-                        store.GENTLE_SECONDS
-                    )  # a short rest after each model call, only when one is asked at a time: with two in flight the model is never left idle
             out["read"] += 1
             if index % 20 == 0:
                 conn.commit()

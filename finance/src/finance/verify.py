@@ -131,28 +131,33 @@ def _why_no_table(data: dict, text: str) -> str:
     return "text was read but no columns of figures: the statement may be laid out as plain paragraphs"
 
 
+def _layout_not_understood(name: str, why: str) -> Read:
+    """The result for a statement whose layout could not be understood: no payments, and the plain reason."""
+    r = Read()
+    r.issues = [f"it could not be read as a list of payments: {tables.plain_layout_reason(why)}"]
+    r.findings.append(Finding("layout reader", "fail", name, r.issues[0]))
+    return r
+
+
+def _currency_finding(name: str, currency: str) -> Finding:
+    if currency:
+        return Finding("currency", "ok", name, f"the statement is in {currency}")
+    return Finding("currency", "warn", name, "the statement does not clearly say which currency it is in; the main currency was assumed")
+
+
 def read_table_statement(client, model: str, name: str, data: dict, text: str) -> Read:
     """A PDF or CSV statement: layout by the model, figures by code, then every agent has its say."""
     r = Read()
     table = tables.table_from_data(data)
     layout, why = tables.infer_layout_why(client, model, table)
     if layout is None:
-        if not table:
-            why += f" ({_why_no_table(data, text)})"
-        reason = tables.plain_layout_reason(why)
-        r.issues = [f"it could not be read as a list of payments: {reason}"]
-        r.findings.append(Finding("layout reader", "fail", name, r.issues[0]))
-        return r
+        return _layout_not_understood(name, why if table else why + f" ({_why_no_table(data, text)})")
     parsed = tables.parse_table(table, layout)
     r.txns, r.issues = parsed.txns, list(parsed.issues)
     r.opening, r.closing, r.proofs = parsed.opening, parsed.closing, list(parsed.proofs)
     r.account = layout.account if layout.account and squash(layout.account) in squash(text) else ""  # an account number counts only if it is really printed
     r.currency = currencies.detect(text + " " + " ".join(c.text for line in table for c in line))
-    r.findings.append(
-        Finding("currency", "ok", name, f"the statement is in {r.currency}")
-        if r.currency
-        else Finding("currency", "warn", name, "the statement does not clearly say which currency it is in; the main currency was assumed")
-    )
+    r.findings.append(_currency_finding(name, r.currency))
     if r.txns:
         days = sorted(t.day for t in r.txns)
         r.first, r.last = days[0], days[-1]

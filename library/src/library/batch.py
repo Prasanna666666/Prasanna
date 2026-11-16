@@ -117,11 +117,46 @@ def _too_large(size: int, kind: str, label: str, counts: dict[str, int]) -> bool
     return True
 
 
-def _process(f: Path, label: str, where: Where, depth: int = 0, source: str = "") -> None:
-    """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
-    out, area, isolated, counts = where.out, where.area, where.isolated, where.counts
+def _claim(digest: str) -> bool:
+    """Files read at the same moment with the same content: only the first one reads it."""
+    with _CLAIM_LOCK:
+        if digest in _CLAIMED:
+            return False
+        _CLAIMED.add(digest)
+    return True
+
+
+def _open_package(f: Path, label: str, where: Where, depth: int) -> None:
+    """An archive, e-book or Pages file: every member is processed as a file of its own."""
     import tempfile
 
+    members = readers.zip_members(f)
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, content in members:
+            inner = Path(tmp) / name
+            inner.write_bytes(content)
+            _process(inner, f"{label}/{name}", where, depth + 1)
+
+
+def _read_one(f: Path, label: str, kind: str, digest: str, where: Where, depth: int, source: str) -> None:
+    """Read one file into the plain shape and write what was found; a mail then has its attachments taken out."""
+    _now(where.out, label)
+    res = (
+        extraction.extract_isolated(f) if where.isolated and kind != "email" else extraction.extract(f)
+    )  # a mail is plain text parsed by the standard library, inside this sealed container: a sealed child per message would take a thousand times longer
+    _write(where.out, digest, label, f.stat().st_size, res, where.area, source if depth == 0 else "")
+    where.counts["parsed"] += 1
+    if _BUDGET["left"] is not None:
+        _BUDGET["left"] -= 1
+    if depth and where.area == "mail" and res["kind"] == "image":
+        keep_picture(f)
+    if kind == "email" and depth < MAIL_DEPTH:
+        _process_attachments(f, label, where, depth, digest)
+
+
+def _process(f: Path, label: str, where: Where, depth: int = 0, source: str = "") -> None:
+    """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
+    out, area, counts = where.out, where.area, where.counts
     size = f.stat().st_size
     if f.name.lower() in extraction.SKIP_NAMES or size == 0 or size > extraction.MBOX_MAX_BYTES:
         counts["skipped"] += 1
@@ -137,34 +172,17 @@ def _process(f: Path, label: str, where: Where, depth: int = 0, source: str = ""
         if kind == "email" and depth < MAIL_DEPTH and not (out / ATTACHED / digest).exists():
             _process_attachments(f, label, where, depth, digest)  # a mail read before its attachments were all taken out: once more, for those
         return
-    with _CLAIM_LOCK:  # files read at the same moment with the same content: only the first one reads it
-        if digest in _CLAIMED:
-            return
-        _CLAIMED.add(digest)
+    if not _claim(digest):
+        return
     try:
         if kind == "mbox" and depth == 0:
             _process_mailbox(f, label, where, digest)
-            return
-        if kind == "zip" and depth < control.MAX_NESTING:  # a package (an archive, an e-book, an Apple Pages or Keynote file): its members are read one by one
-            members = readers.zip_members(f)
-            with tempfile.TemporaryDirectory() as tmp:
-                for name, content in members:
-                    inner = Path(tmp) / name
-                    inner.write_bytes(content)
-                    _process(inner, f"{label}/{name}", where, depth + 1)
-            return
-        _now(out, label)
-        res = (
-            extraction.extract_isolated(f) if isolated and kind != "email" else extraction.extract(f)
-        )  # a mail is plain text parsed by the standard library, inside this sealed container: a sealed child per message would take a thousand times longer
-        _write(out, digest, label, f.stat().st_size, res, area, source if depth == 0 else "")
-        counts["parsed"] += 1
-        if _BUDGET["left"] is not None:
-            _BUDGET["left"] -= 1
-        if depth and area == "mail" and res["kind"] == "image":
-            keep_picture(f)
-        if kind == "email" and depth < MAIL_DEPTH:
-            _process_attachments(f, label, where, depth, digest)
+        elif (
+            kind == "zip" and depth < control.MAX_NESTING
+        ):  # a package (an archive, an e-book, an Apple Pages or Keynote file): its members are read one by one
+            _open_package(f, label, where, depth)
+        else:
+            _read_one(f, label, kind, digest, where, depth, source)
     except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
