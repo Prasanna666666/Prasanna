@@ -348,8 +348,8 @@ _PROGRESS = {
 }  # files gone through in this round, by what they are (every file counts once it has been looked at: read, already known, left out or unreadable)
 
 
-def _progress_add(out: Path, area: str, n: int) -> None:
-    _PROGRESS["mails" if area == "mail" else "documents"] += n
+def _progress_add(out: Path, area: str, n: int, group: str = "") -> None:
+    _PROGRESS[group or ("mails" if area == "mail" else "documents")] += n
     _write_progress(out)
 
 
@@ -360,7 +360,7 @@ def _write_progress(out: Path) -> None:
         os.replace(tmp, out / ".progress")
 
 
-def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool, source_of=None) -> dict[str, int]:
+def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: bool, source_of=None, group: str = "") -> dict[str, int]:
     """Read these files at the same time (each in its own child process); the totals of what happened."""
     total = {"parsed": 0, "skipped": 0, "failed": 0}
     with _CLAIM_LOCK:
@@ -375,7 +375,7 @@ def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: boo
         for counts in pool.map(one, files):
             for k, v in counts.items():
                 total[k] += v
-    _progress_add(out, area, len(files))
+    _progress_add(out, area, len(files), group)
     return total
 
 
@@ -453,6 +453,61 @@ def _in_skipped_mailbox(relative: Path) -> bool:
 def _save_seen(cache_file: Path, seen: dict[str, str]) -> None:
     cache_file.parent.mkdir(parents=True, exist_ok=True)
     cache_file.write_text(json.dumps(seen))
+
+
+def _stored_attachments(root: Path, out: Path | None = None) -> list[tuple[Path, str]]:
+    """The attachments Apple Mail keeps as files of their own beside the messages (`.../Attachments/<message>/<part>/<file>`), of the mailboxes that are read and of messages that
+    are not bulk mail: as (file, path inside the Mail folder)."""
+    found: list[tuple[Path, str]] = []
+    resolved = root.resolve()
+    for seen, f in enumerate(resolved.rglob("*"), 1):
+        if out is not None and seen % CHECK_EVERY == 0 and halted(out):
+            raise Halted
+        if f.name.startswith(".") or f.is_symlink() or "Attachments" not in f.parts or not f.is_file():
+            continue
+        inside = f.relative_to(resolved)
+        parts = inside.parts
+        if len(parts) < 3 or _in_skipped_mailbox(inside) or f.stat().st_size == 0:
+            continue
+        at = parts.index("Attachments")
+        message = parts[at + 1] if len(parts) > at + 2 else ""
+        base = resolved.joinpath(*parts[:at])
+        owner = next((c for c in (base / "Messages" / f"{message}.emlx", base / "Messages" / f"{message}.partial.emlx") if c.exists()), None)
+        if owner is not None and is_bulk_mail(owner):
+            continue  # an attachment of a newsletter or promotion
+        found.append((f, str(inside)))
+    return found
+
+
+def process_mail_attachments(store: Path, out: Path, isolated: bool = True) -> dict[str, int]:
+    """The attachments Apple Mail keeps beside the messages are read as documents of the mail (the ones not read before)."""
+    out.mkdir(parents=True, exist_ok=True)
+    root = store.resolve()
+    cache_file = out / ".mailseen-2" / (hashlib.sha256(("attachments" + str(root)).encode()).hexdigest()[:16] + ".json")
+    try:
+        seen: dict[str, str] = json.loads(cache_file.read_text()) if cache_file.exists() else {}
+    except (OSError, ValueError):
+        seen = {}
+    counts = {"parsed": 0, "skipped": 0, "failed": 0}
+    todo = []
+    gone = 0
+    for f, relative in _stored_attachments(root, out):
+        stamp = f"{f.stat().st_size}:{int(f.stat().st_mtime)}"
+        if seen.get(relative) == stamp:
+            gone += 1
+        else:
+            todo.append((f, relative, stamp))
+    _progress_add(out, "mail", gone, "attachments")
+    for i in range(0, len(todo), BATCH):
+        batch = todo[i : i + BATCH]
+        for k, v in _read_batch([f for f, _, _ in batch], lambda f: "/".join(f.parts[-3:]), out, "mail", isolated, group="attachments").items():
+            counts[k] += v
+        for _f, relative, stamp in batch:
+            seen[relative] = stamp
+        _save_seen(cache_file, seen)
+        if checkpoint(out):
+            break
+    return counts
 
 
 def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[str, int]:
@@ -668,8 +723,10 @@ def write_found(a: argparse.Namespace) -> None:
             by_folder[name] = by_folder.get(name, 0) + (_supported(folder, out=out) if folder.is_dir() else 0)  # several folders of one category add up
         documents = sum(by_folder.values())
         mails = _supported(Path(a.inbox) / "mail", out=out) if (Path(a.inbox) / "mail").is_dir() else 0
+        attachments = 0
         if a.mail and Path(a.mail).is_dir():
             mails += _supported(Path(a.mail), only_emlx=True, out=out)
+            attachments = len(_stored_attachments(Path(a.mail), out))
         roots = [("inbox", Path(a.inbox))] + [(name, folder) for name, folder in collections(a.collection) if folder.is_dir()]
         unread = unread_report([(n, r) for n, r in roots if r.is_dir()], out)
     except Halted:
@@ -680,6 +737,7 @@ def write_found(a: argparse.Namespace) -> None:
             {
                 "documents": documents,
                 "mails": mails,
+                "attachments": attachments,
                 "mail_connected": bool(a.mail and Path(a.mail).is_dir()),
                 "by_folder": by_folder,
                 "unread": unread,
@@ -720,13 +778,14 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
         return {"parsed": 0, "skipped": 0, "failed": 0}
     mails: list[dict[str, int]] = []
     documents: list[dict[str, int]] = []
-    _PROGRESS.update(documents=0, mails=0)
+    _PROGRESS.update(documents=0, mails=0, attachments=0)
     _write_progress(out)
     _now(out, "Mail", "looking for new messages")
     if (Path(a.inbox) / "mail").is_dir():  # the mail first, with everything it carries (mail exports dropped into the inbox: .mbox, .eml, .emlx)
         mails.append(_stage(out, "mail in the inbox", process_inbox, Path(a.inbox) / "mail", out, area="mail"))
     if a.mail and Path(a.mail).is_dir():
         mails.append(_stage(out, "the Mail folder", process_mail_store, Path(a.mail), out))
+        mails.append(_stage(out, "the attachments in the Mail folder", process_mail_attachments, Path(a.mail), out))
     for name, folder in sorted(collections(a.collection), key=lambda c: priority.rank(c[0])):  # then the documents, the apps in their order
         if folder.is_dir():
             _now(out, folder.name or name, "looking for new files")

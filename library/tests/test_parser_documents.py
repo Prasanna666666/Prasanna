@@ -186,6 +186,7 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
     assert json.loads((tmp_path / "out" / ".found").read_text()) == {
         "documents": 3,  # skip.xyz is counted too: no file is turned away for its ending
         "mails": 1,
+        "attachments": 0,
         "mail_connected": False,
         "by_folder": {"inbox": 3},
         "unread": {"counts": {}, "examples": {}},

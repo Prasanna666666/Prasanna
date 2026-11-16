@@ -459,6 +459,7 @@ def _found() -> dict[str, Any]:
         return {
             "documents": int(data["documents"]),
             "mails": int(data["mails"]),
+            "attachments": int(data.get("attachments") or 0),
             "mail_connected": data.get("mail_connected") is True,
             "by_folder": {str(k)[:20]: int(v) for k, v in (data.get("by_folder") or {}).items()},
         }
@@ -714,8 +715,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     known = {
         "documents": found.get("documents"),
         "mails": found.get("mails"),
-        "attachments": None,
-    }  # the reader counts the first two before it starts; the third only as the mails are opened
+        "attachments": found.get("attachments"),
+    }  # the reader counts all three before it starts: the attachments Mail keeps as files of their own, and (as the mails are opened) those inside the messages
     stages = (
         ("present", (parsed_dir() / ".busy").exists() or s.get("phase") == 1),
         ("sorted", s.get("phase") == 2),
@@ -730,7 +731,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "documents": bool(found),
             "mails": bool(found),
             "attachments": mails_in,
-        }  # a total is known when it has been counted: by the reader, or from the mails once all are opened
+        }  # a total is known when it has been counted: by the reader, or (for what is inside the messages) once every mail has been gone through
         counts, every = [], []
         for key, label in labels.items():
             # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.

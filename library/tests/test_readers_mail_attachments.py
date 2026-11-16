@@ -121,3 +121,25 @@ def test_the_rules_for_which_mail_is_read_have_a_fingerprint_that_changes_with_t
     assert first == web._mail_scope()
     monkeypatch.setenv("LIBRARY_MAILBOXES", "archive")
     assert web._mail_scope() != first
+
+
+def test_attachments_apple_mail_keeps_beside_its_messages_are_found_and_read(tmp_path):
+    import json
+
+    from library import parser
+
+    box = tmp_path / "V10/A/[Gmail].mbox/All Mail.mbox/U/Data/1/Messages"
+    att = tmp_path / "V10/A/[Gmail].mbox/All Mail.mbox/U/Data/1/Attachments"
+    spam = tmp_path / "V10/A/[Gmail].mbox/Spam.mbox/U/Data/1/Attachments/9/1"
+    for folder in (box, att / "5/1", att / "6/1", spam):
+        folder.mkdir(parents=True)
+    for number, headers in (("5", "From: a@example.org"), ("6", "From: n@example.org\nList-Unsubscribe: <x>")):
+        body = (headers + "\nSubject: x\n\nhello").encode()
+        (box / f"{number}.partial.emlx").write_bytes(str(len(body)).encode() + b"\n" + body)
+    (att / "5/1/report.txt").write_text("Quarterly report with some words in it. " * 5)
+    (att / "6/1/offer.txt").write_text("Special offer. " * 10)  # belongs to a newsletter
+    (spam / "x.txt").write_text("spam " * 20)  # a mailbox that is not read
+    assert [relative.rsplit("/", 1)[-1] for _, relative in parser._stored_attachments(tmp_path)] == ["report.txt"]
+    out = tmp_path / "out"
+    assert parser.process_mail_attachments(tmp_path, out, isolated=False)["parsed"] == 1
+    assert [json.loads(p.read_text())["name"] for p in out.glob("*.json")] == ["5/1/report.txt"]
