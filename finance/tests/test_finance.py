@@ -224,7 +224,7 @@ def test_a_file_that_fails_its_proof_adds_nothing_to_your_totals_and_says_why(co
 def test_a_layout_nobody_can_understand_is_refused_not_guessed(conn, tmp_path):
     _load(conn, tmp_path, "odd.pdf", GOOD)
     r = run(conn, FakeModel(layout={"header_line": 50, "roles": [], "date_format": "", "decimal": "."}))
-    assert r["new_transactions"] == 0 and "could not be understood" in r["needs_check"][0]["issues"][0]
+    assert r["new_transactions"] == 0 and "could not be read as a list of payments" in r["needs_check"][0]["issues"][0]
 
 
 def test_a_payslip_is_read_from_its_printed_figures_and_not_a_bank_transaction(conn, tmp_path):

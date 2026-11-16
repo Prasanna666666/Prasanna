@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
+from kit import extract
 from kit.amounts import CURRENCY
 
 from .statements import Txn
@@ -400,3 +401,32 @@ def _prove(rows: list[dict], issues: list[str]) -> tuple[list[Txn], str, int, in
     if issues:
         return out, "needs_check", matched, opening, closing
     return (out, "verified", matched, opening, closing) if matched >= 1 else (out, "unverified", 0, None, None)
+
+
+_MONEY_CELL = re.compile(r"^[-+(]?\s*[€$£₹]?\s*\d{1,3}(?:[.,\s]\d{3})*[.,]\d{2}\s*[)-]?\s*(?:EUR|USD|GBP|INR|Cr|Dr)?$", re.IGNORECASE)
+
+
+def looks_like_payment_list(data: dict, at_least: int = 1) -> bool:
+    """Does this file hold a list of dated payments? Judged by what is in it (lines that have a date and an amount), never by what anyone called the file: a letter, a yearly overview
+    or a list without dates is not a statement and is not read as one."""
+    table = table_from_data(data)
+    lines = 0
+    for line in table:
+        cells = [c.text.strip() for c in line if c.text.strip()]
+        if any(extract.dates_in(c) for c in cells) and any(_MONEY_CELL.match(c) for c in cells):
+            lines += 1
+            if lines >= at_least:
+                return True
+    return False
+
+
+def plain_layout_reason(why: str) -> str:
+    """The reason a layout could not be worked out, in plain words (the original is a message for the model, not for you)."""
+    low = why.lower()
+    if "date column" in low or "date_format" in low:
+        return "it has no column of dates, so it is not a list of payments"
+    if "debit, credit or amount" in low:
+        return "it has no column of amounts"
+    if "no table" in low or "not a layout" in low:
+        return "no table of lines could be found in it"
+    return "the model could not work out which column is which"

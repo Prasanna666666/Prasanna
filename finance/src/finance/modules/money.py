@@ -543,7 +543,9 @@ def _read_document(conn, d, data: dict, client, model, progress, position: tuple
     _remember_doc(conn, d, out.info)
     if out.info["kind"] == "payslip":
         out.slip = payslips.from_model(out.info)
-    elif out.info["kind"] == "bank_statement" and own:
+    elif own and tables.looks_like_payment_list(
+        data
+    ):  # a statement is what holds a list of dated payments: judged by the content, not by what the file was called
         if progress:
             progress(f"Reading file {position[0]} of {position[1]}")
         out.read = verify.read_table_statement(client, model, d["name"], data, d["text"])
@@ -581,7 +583,7 @@ def _record_document(conn, d, out: _Outcome, learned, run: _Run) -> None:
     run.files += 1
     run.added += new
     run.duplicates += len(txns) - new
-    if not txns and out.slip is None and out.info.get("kind") == "bank_statement" and status != "needs_check":
+    if not txns and out.slip is None and rd is not None and status != "needs_check":
         run.empty.append(d["name"])
     conn.commit()
 
@@ -608,9 +610,7 @@ def _needs_model(d) -> bool:
     """Only a statement's layout (or a document nobody has described yet) needs the model here; the exact bank standards and described documents do not."""
     if d["area"] == "finance" and standards.sniff(d["text"]):
         return False
-    if d["facts"]:
-        return json.loads(d["facts"]).get("kind") == "bank_statement"
-    return True
+    return d["area"] == "finance" and tables.looks_like_payment_list(_document_data(d))  # only a list of dated payments needs its layout worked out
 
 
 def import_statements(conn, a=None, client=None, model=None, progress=None):
@@ -659,7 +659,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
 
 
 FAIL_FAST = 3  # this many files in a row whose layout could not be understood: stop, do not go through all of them to find out
-LAYOUT_FAILED = "the layout of this file could not be understood"
+LAYOUT_FAILED = "it could not be read as a list of payments"
 
 
 def _layout_failed(out: _Outcome) -> bool:

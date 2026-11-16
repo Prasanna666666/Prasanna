@@ -137,7 +137,8 @@ def read_table_statement(client, model: str, name: str, data: dict, text: str) -
     if layout is None:
         if not table:
             why += f" ({_why_no_table(data, text)})"
-        r.issues = [f"the layout of this file could not be understood: {why}"]
+        reason = tables.plain_layout_reason(why)
+        r.issues = [f"it could not be read as a list of payments: {reason}"]
         r.findings.append(Finding("layout reader", "fail", name, r.issues[0]))
         return r
     parsed = tables.parse_table(table, layout)
