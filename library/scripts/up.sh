@@ -21,7 +21,12 @@ export ATLAS_DB_KEY="$KEY"
 source ../scripts/platform-key.sh
 ../scripts/folders-compose.sh docker-compose.folders.yml   # your category folders and any extra folders listed in ~/AtlasFolders.txt, read-only
 FILES=(-f docker-compose.yml -f docker-compose.folders.yml)
-if scripts/apple-ocr.sh start; then FILES+=(-f docker-compose.ocr.yml); fi   # scanned pages are read on the Mac's own chip when it can (sandboxed, memory only); otherwise as before
+export ATLAS_OCR_DIR="$HOME/.atlas/ocr"
+if scripts/apple-ocr.sh start; then
+  # only used when Docker can really mount it: Atlas always starts, with or without Apple's text recognition
+  if docker run --rm --entrypoint ls -v "$ATLAS_OCR_DIR:/ocr" alpine/socat:1.8.0.0 /ocr >/dev/null 2>&1; then FILES+=(-f docker-compose.ocr.yml)
+  else echo "Apple text recognition: Docker cannot use its memory disk, so scanned pages are read with the usual reader."; scripts/apple-ocr.sh stop; fi
+fi   # scanned pages are read on the Mac's own chip when it can (sandboxed, memory only); otherwise as before
 [ -d "${ATLAS_MAIL_DIR:-$HOME/Library/Mail}" ] && [ "${ATLAS_NO_MAIL:-}" != 1 ] && FILES+=(-f docker-compose.mail.yml)   # the Update button also reads Apple Mail (ATLAS_NO_MAIL=1 to turn off)
 DRIVE="${APERTURE_HOST_DRIVE:-}"   # the drive that holds the photos: named by you, or the first connected drive that has a Photos folder and the picture models (Aperture/models)
 if [ -z "$DRIVE" ]; then

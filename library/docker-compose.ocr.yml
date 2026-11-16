@@ -3,4 +3,4 @@ services:
   parser:
     environment: {LIBRARY_OCR_DIR: /ocr}
     volumes:
-      - /Volumes/AtlasOCR:/ocr
+      - ${ATLAS_OCR_DIR:?set by ./scripts/up.sh}:/ocr

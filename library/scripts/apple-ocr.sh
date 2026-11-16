@@ -5,10 +5,11 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BIN="$HOME/.atlas/atlas-ocr"
 PIDFILE="$HOME/.atlas/atlas-ocr.pid"
-MOUNT=/Volumes/AtlasOCR
+MOUNT="$HOME/.atlas/ocr"   # inside your home folder: Docker always shares it (a new disk under /Volumes is not seen by Docker)
 stop() {
   [ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null; rm -f "$PIDFILE"
-  [ -d "$MOUNT" ] && hdiutil detach "$MOUNT" -force >/dev/null 2>&1
+  DEVICE="$(mount | awk -v m="$MOUNT" '$3==m {print $1}')"
+  [ -n "$DEVICE" ] && { diskutil unmount force "$MOUNT" >/dev/null 2>&1; hdiutil detach "$DEVICE" -force >/dev/null 2>&1; }
   return 0
 }
 case "${1:-}" in
@@ -21,8 +22,9 @@ case "${1:-}" in
       swiftc -O "$HERE/atlas-ocr.swift" -o "$BIN" 2>"$HOME/.atlas/atlas-ocr.build.log" || { echo "Apple text recognition: could not be built (see ~/.atlas/atlas-ocr.build.log)."; exit 1; }
     fi
     stop
+    mkdir -p "$MOUNT"
     DEV="$(hdiutil attach -nomount ram://524288 2>/dev/null | awk '{print $1}')"   # 256 MB, in memory only
-    [ -n "$DEV" ] && diskutil erasevolume HFS+ AtlasOCR "$DEV" >/dev/null 2>&1 || { echo "Apple text recognition: could not make its memory disk."; exit 1; }
+    [ -n "$DEV" ] && newfs_hfs -v AtlasOCR "$DEV" >/dev/null 2>&1 && diskutil mount -mountPoint "$MOUNT" "$DEV" >/dev/null 2>&1 || { echo "Apple text recognition: could not make its memory disk."; [ -n "$DEV" ] && hdiutil detach "$DEV" -force >/dev/null 2>&1; exit 1; }
     nohup sandbox-exec -D "DIR=$MOUNT" -f "$HERE/atlas-ocr.sb" "$BIN" "$MOUNT" >"$HOME/.atlas/atlas-ocr.log" 2>&1 &
     echo $! >"$PIDFILE"
     sleep 2
