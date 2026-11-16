@@ -689,7 +689,11 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     promised = tally["attachments"][
         "promised"
     ]  # every mail says how many attachments it carried: that is how many documents in mails there are to read, taken out yet or not
-    labels = {"documents": "documents", "mails": "mails", "attachments": "documents in mails"}
+    labels = {
+        "mails": "mails",
+        "attachments": "documents in mails",
+        "documents": "documents",
+    }  # in the order they are read: the mails, what they carry, then the documents
     known = {
         "documents": found.get("documents"),
         "mails": found.get("mails"),

@@ -50,9 +50,9 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
         "mails": 1,
         "attachments": 7,
     }  # each gives its number as soon as its total is known
-    assert [c["key"] for c in read["counts"]] == ["documents", "mails", "attachments"]  # all three are always listed alike
+    assert [c["key"] for c in read["counts"]] == ["mails", "attachments", "documents"]  # all three are always listed alike, in the order they are read
     assert web._steps(conn, {"phase": 1})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
-    assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]
+    assert [c["label"] for c in sort["counts"]] == ["mails", "documents in mails", "documents"]
 
 
 def test_the_groups_of_the_app_served_first_are_read_first(conn, monkeypatch):
