@@ -660,20 +660,6 @@
         }
         return row;
     };
-    // files the model could not make sense of: named, with the reason
-    const failedBlock = (info) => {
-        const failed = (info.recent || []).filter((f) => f.state === 'failed').slice(0, 3);
-        if (!failed.length) return null;
-        const box = el('div', 'rd-failed');
-        for (const f of failed) {
-            const row = el('div', 'rd-nowrow');
-            const text = el('div', 'rd-nowtext');
-            text.append(el('b', 'rd-name', f.name), el('span', 'rd-detail', f.detail));
-            row.append(el('i', 'rd-dot'), text);
-            box.append(row);
-        }
-        return box;
-    };
     // the steps of a read: which one is running, and how far each has got
     const currentStep = (steps) =>
         steps.find((s) => s.state === 'running' && s.n > 1) ||
@@ -845,7 +831,7 @@
             );
         } else {
             blocks.push(headlineBlock(info, running));
-            if (running) blocks.push(stepsBlock(info.steps), nowBlock(info), failedBlock(info));
+            if (running) blocks.push(stepsBlock(info.steps), nowBlock(info));
             blocks.push(...problemBlocks(report));
         }
         patchChildren(panel, blocks.filter(Boolean));

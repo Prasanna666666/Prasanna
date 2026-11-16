@@ -1145,18 +1145,6 @@ body.chatting .fab {
     gap: 10px;
     width: min(220px, 36%);
 }
-.rd-failed {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.rd-failed .rd-nowrow {
-    border-color: var(--warn);
-}
-.rd-failed .rd-dot {
-    background: var(--warn);
-    animation: none;
-}
 .rd-note {
     padding: 12px 14px;
     border-radius: 12px;

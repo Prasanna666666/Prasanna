@@ -59,10 +59,12 @@ class Unclear(Exception):
 
 
 def _ask(client, model: str, system: str, text: str, schema: dict, max_tokens: int | None = None) -> dict:
-    """Ask the model twice at most. Raises Unclear with the reason (never with anything from the text): nothing came back, the answer was cut off or not valid, or it was empty."""
+    """Ask the model twice at most. Raises Unclear with the reason (never with anything from the text): nothing came back, the answer was cut off or not valid, or it was empty.
+    An answer that was cut off is asked for again with room for a longer one, not with the same limit that cut it off."""
     reason = "the model gave no usable answer"
-    for _ in range(2):
-        extra = {"max_tokens": max_tokens} if max_tokens else {}  # a short answer is capped: the model stops as soon as it has said it
+    room = max_tokens
+    for attempt in range(2):
+        extra = {"max_tokens": room} if room else {}  # a short answer is capped: the model stops as soon as it has said it
         msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema, **extra)
         content = str((msg or {}).get("content") or "")
         if not content.strip():
@@ -72,7 +74,8 @@ def _ask(client, model: str, system: str, text: str, schema: dict, max_tokens: i
             data = json.loads(content)
         except ValueError:
             reason = "the model's answer was cut off or not valid"
-            continue  # once more: a small model sometimes returns a broken answer the first time
+            room = (room or 600) * 2 if attempt == 0 else room  # once more, with twice the room
+            continue
         if isinstance(data, dict) and data:
             return data
         reason = "the model's answer was empty"
