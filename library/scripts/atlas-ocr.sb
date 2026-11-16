@@ -1,0 +1,6 @@
+(version 1)
+(allow default)
+; No network at all, and nothing may be written except into the scratch folder (and the system's own temporary places that Vision needs).
+(deny network*)
+(deny file-write*)
+(allow file-write* (subpath (param "DIR")) (subpath "/private/var/folders") (literal "/dev/null") (literal "/dev/dtracehelper"))

@@ -11,6 +11,7 @@ This runs only inside the parser container (no network); everything here is boun
 
 from __future__ import annotations
 
+import contextlib
 import email
 import email.parser
 import email.policy
@@ -18,11 +19,13 @@ import io
 import json
 import mailbox
 import math
+import os
 import re
 import shutil
 import subprocess
 import sys
 import time
+import uuid
 import zipfile
 from collections.abc import Iterator
 from datetime import date, datetime
@@ -92,8 +95,43 @@ def ocr_languages() -> str:
     return "+".join(wanted) or ("eng" if "eng" in listed else "")
 
 
+OCR_WAIT_S = 60  # how long a page waits for Apple's text recognition before the usual reader takes it
+
+
+def apple_ocr(png: bytes) -> str | None:
+    """The word table for one page from Apple's text recognition on the Mac's own chip, or None when it is not running (then the usual reader is used). The page goes into a memory
+    disk shared with a sandboxed helper (no network, writes only there) and is removed as soon as it is answered: it is never on a real disk."""
+    folder = os.environ.get("LIBRARY_OCR_DIR", "")
+    if not folder or not os.path.isdir(folder):
+        return None
+    try:
+        if time.time() - os.stat(os.path.join(folder, "alive")).st_mtime > 5:
+            return None  # the helper is not running
+        name = uuid.uuid4().hex
+        picture, answer = os.path.join(folder, name + ".png"), os.path.join(folder, name + ".tsv")
+        with open(picture + ".part", "wb") as f:
+            f.write(png)
+        os.replace(picture + ".part", picture)
+        deadline = time.time() + OCR_WAIT_S
+        while time.time() < deadline:
+            if os.path.exists(answer):
+                with open(answer, encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+                os.remove(answer)
+                return text
+            time.sleep(0.02)
+        with contextlib.suppress(OSError):
+            os.remove(picture)
+    except OSError:
+        return None
+    return None
+
+
 def run_tesseract(png: bytes) -> str:
-    """Tesseract's TSV (word boxes) for one page image. Replaced in tests."""
+    """The word table (boxes) for one page image: from Apple's text recognition when it is running, else Tesseract. Replaced in tests."""
+    apple = apple_ocr(png)
+    if apple is not None and len(apple.splitlines()) > 1:
+        return apple
     langs = ocr_languages()
     if not langs:
         raise RuntimeError("Tesseract is not installed in the parser image")

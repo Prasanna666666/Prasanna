@@ -1,0 +1,6 @@
+# Added by ./scripts/up.sh only while Apple's text recognition is running: the reader hands scanned pages to it through a memory disk (never a real disk).
+services:
+  parser:
+    environment: {LIBRARY_OCR_DIR: /ocr}
+    volumes:
+      - /Volumes/AtlasOCR:/ocr
