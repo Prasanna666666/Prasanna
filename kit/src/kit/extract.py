@@ -197,6 +197,15 @@ def _classify_briefly(client, model: str, name: str, text: str, apps: dict[str, 
     }  # a partial reading: no amounts or dates are kept without the full one
 
 
+def _classify_tiny(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
+    """The smallest question: only what it is (and the apps), about the first lines of the file. Used when the larger questions got no usable answer."""
+    schema = kind_schema(apps)
+    schema = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k in ("kind", "apps")}}
+    prompt = kind_prompt(apps).split(" Then give:")[0] + " Nothing else."
+    data = _ask(client, model, prompt, f"File name: {name}\n\n{text[:600]}", schema, max_tokens=60)
+    return {"kind": str(data.get("kind") or "").strip()[:60], "title": "", "apps": [a for a in (data.get("apps") or []) if a in (apps or {})], "partial": True}
+
+
 def classify(client, model: str, name: str, text: str, apps: dict[str, str] | None = None) -> dict:
     """What the file is, in the model's own words, which of the declared `apps` it is about, and its key facts. The model is shown the beginning and the end; every amount, date and
     party is then checked against the WHOLE text and dropped if the document does not say it. When the full question gets no usable answer, a smaller one is asked about a shorter
@@ -205,7 +214,11 @@ def classify(client, model: str, name: str, text: str, apps: dict[str, str] | No
     try:
         return _classify_fully(client, model, name, text, apps)
     except Unclear:
+        pass
+    try:
         return _classify_briefly(client, model, name, text, apps)
+    except Unclear:
+        return _classify_tiny(client, model, name, text, apps)  # the last, smallest look: only a few lines of the file and a few words of answer
 
 
 # ---- health: lab values and medicines, only what the document itself prints -------------------------------------------------------------------

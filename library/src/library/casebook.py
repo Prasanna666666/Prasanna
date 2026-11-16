@@ -25,6 +25,7 @@ ID = re.compile(
 )  # letters and digits together (INV-20931, NL91ABNA...): a plain date or number is not an identifier
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
+MAX_GROUP_TRIES = 3  # how often the model is asked to read one group before its files are kept as they were sorted
 MAX_CONFIRMS = 1_000_000  # pairs of files compared by the model: no practical limit, a press does them all
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
@@ -378,6 +379,19 @@ def _needs_model(members: list[dict[str, Any]]) -> bool:
     return len(members) > 1 or any(members[0]["facts"].get(k) for k in ACT_DATES)
 
 
+def _group_failed(conn, case_id: int, members: list[dict], label: str, trace: Any, began: float) -> dict | None:
+    """The model could not read this group. It is asked again at the next read; asked enough times, its files keep what was found when each was sorted and are grouped without a summary."""
+    conn.execute("UPDATE cases SET tries=tries+1 WHERE id=?", (case_id,))
+    tries = conn.execute("SELECT tries FROM cases WHERE id=?", (case_id,)).fetchone()[0]
+    if tries < MAX_GROUP_TRIES:
+        if trace is not None:
+            trace.step(label, FAILED_GROUP, "the model gave no usable answer; it is tried again at the next read", time.monotonic() - began)
+        return None
+    if trace is not None:
+        trace.step(label, "kept as sorted", "the model gave no usable answer for the group", time.monotonic() - began)
+    return _alone(members[0])
+
+
 def understand_pending(
     conn,
     client: Any,
@@ -412,12 +426,12 @@ def understand_pending(
             try:
                 summary = synthesize(client, model, members)
             except extract.Unclear:
-                conn.execute("UPDATE cases SET tries=tries+1 WHERE id=?", (row["id"],))
+                summary = _group_failed(conn, row["id"], members, label, trace, began)
+                if summary is None:
+                    continue
+            else:
                 if trace is not None:
-                    trace.step(label, FAILED_GROUP, "the model gave no usable answer; it is tried again at the next read", time.monotonic() - began)
-                continue
-            if trace is not None:
-                trace.step(label, "group read", f"{summary['verified']} checked statements", time.monotonic() - began)
+                    trace.step(label, "group read", f"{summary['verified']} checked statements", time.monotonic() - began)
         else:
             summary = _alone(members[0])
             if trace is not None:

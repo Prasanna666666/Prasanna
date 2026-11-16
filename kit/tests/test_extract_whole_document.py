@@ -133,3 +133,20 @@ def test_the_model_describes_the_file_freely_and_marks_only_the_apps_that_are_de
     assert "wallet: money and payments" in seen["prompt"] and "garden: the garden" in seen["prompt"]
     for word in ("invoice", "payslip", "bank_statement", "medical", "ticket"):
         assert word not in seen["prompt"]  # no kind of document is named in the question
+
+
+def test_when_the_larger_questions_fail_the_smallest_one_still_sorts_the_file():
+    class Stubborn:
+        def __init__(self):
+            self.sizes = []
+
+        def chat(self, model, messages, schema=None, **kw):
+            self.sizes.append(len(schema["properties"]))
+            if len(schema["properties"]) > 2:
+                return {"content": "{cut off"}  # the full and the brief question fail
+            return {"content": json.dumps({"kind": "circuit design"})}
+
+    model = Stubborn()
+    got = extract.classify(model, "m", "a.vhd", "entity adder is port ( a : in bit ); " * 30)
+    assert got["kind"] == "circuit design" and got["partial"] is True
+    assert model.sizes[-1] == 2  # the last look asked only for the kind and the apps

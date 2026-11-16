@@ -161,9 +161,10 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
             time.sleep(SETTLE_SECONDS)
 
 
-def _sort_all(state: State, conn, client, model, followed: trace.Trace, totals: dict[str, int]) -> str:
-    """Step 2, completely: the model sorts every file that needs it, in the order the apps are served in, until none is left. Returns what went wrong, if anything."""
-    state.scan["phase"] = 2
+MAX_SORT_PASSES = 3  # how often files the model could not make sense of are asked again, before grouping starts
+
+
+def _sort_pass(state: State, conn, client, model, followed: trace.Trace, totals: dict[str, int]) -> str:
     problem = ""
     while state.control != "stop":
         judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
@@ -172,6 +173,18 @@ def _sort_all(state: State, conn, client, model, followed: trace.Trace, totals: 
         problem = judged["problem"] or problem
         if judged["stopped"] or not (judged["read"] + judged["skipped"]):
             break
+    return problem
+
+
+def _sort_all(state: State, conn, client, model, followed: trace.Trace, totals: dict[str, int]) -> str:
+    """Step 2, completely: the model sorts every file that needs it, in the order the apps are served in, until none is left. A file the model could not make sense of is asked again
+    (a smaller question each time) before grouping starts, not only at the next press. Returns what went wrong, if anything."""
+    state.scan["phase"] = 2
+    problem = _sort_pass(state, conn, client, model, followed, totals)
+    for _ in range(MAX_SORT_PASSES - 1):
+        if state.control == "stop" or problem or not store.retry_unclear(conn):
+            break
+        problem = _sort_pass(state, conn, client, model, followed, totals)
     return problem
 
 
