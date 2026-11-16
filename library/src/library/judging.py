@@ -375,8 +375,8 @@ class _Pass:
 
 
 def _judge_chunks(conn, client, model, hooks: Hooks, limit: int, this: _Pass) -> dict[str, Any]:
-    out, total, ahead, began = this.out, this.total, this.ahead, this.began
-    control, progress, trace = hooks.control, hooks.progress, hooks.trace
+    out, total = this.out, this.total
+    control, trace = hooks.control, hooks.trace
     index = calls = 0
     for chunk in _pending_chunks(conn):
         for position, d in enumerate(chunk):
