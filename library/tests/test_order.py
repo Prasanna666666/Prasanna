@@ -247,3 +247,22 @@ def test_the_documents_are_shown_as_soon_as_they_are_counted_while_the_mail_is_s
     monkeypatch.setattr(web, "_found", lambda: {"documents": 7})  # the reader writes each total as soon as it has it
     counts = {c["key"]: c["known"] for c in web._steps(conn, {"phase": 1})[0]["counts"]}
     assert counts == {"mails": False, "attachments": False, "documents": True}
+
+
+def test_a_result_the_service_will_not_take_in_is_counted_as_unread_and_named_not_called_a_copy(conn, tmp_path, monkeypatch):
+    import json
+
+    from library import store, web
+
+    big = {"schema": 1, "sha256": "a" * 64, "kind": "pdf", "name": "huge.pdf", "text": "x" * (store.MAX_TEXT + 1), "area": "finance"}
+    odd = {"schema": 1, "sha256": "b" * 64, "kind": "video", "name": "film.mov", "text": "t"}
+    for d in (big, odd):
+        (tmp_path / f"{d['sha256']}.json").write_text(json.dumps(d))
+    said: list[tuple[str, str, str]] = []
+    got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: said.append(a))
+    assert got["rejected"] == 2 and got["new"] == 0
+    assert sorted(said) == [("film.mov", "a kind of file Atlas does not keep", "documents"), ("huge.pdf", "too much text to keep", "documents")]
+    assert not list(tmp_path.glob("*.json"))  # their readable copies are removed: they are not looked at again
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 5, "mails": 0, "attachments": 0})
+    line = next(c for c in web._steps(conn, {"phase": 2, "rejected": {"documents": 2}})[0]["counts"] if c["key"] == "documents")
+    assert line["unread"] == 2 and line["copies"] == 3  # 5 counted, none held, 2 could not be taken in: the other 3 are not unexplained copies

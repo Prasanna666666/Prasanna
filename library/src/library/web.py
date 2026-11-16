@@ -125,6 +125,13 @@ def _round_complete() -> bool:
     return all(gone.get(key, 0) + unread.get(key, 0) >= int(found.get(key) or 0) for key in ("documents", "mails", "attachments"))
 
 
+def _note_rejected(state: State, name: str, why: str, group: str) -> None:
+    """A result the service would not take in is counted as not read, in the group it belongs to, and named with the reason."""
+    rejected = state.scan.setdefault("rejected", {})
+    rejected[group] = rejected.get(group, 0) + 1
+    state.scan.setdefault("rejected_files", []).append(f"{name}: {why}")
+
+
 def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
     """Step 1, completely: everything the reader produces is taken in until the reader has picked the request up, finished its round and nothing new arrives. Nothing is sorted meanwhile.
     Returns what went wrong, if anything (the reader never picked the request up)."""
@@ -133,7 +140,13 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
     retries, last_gone = 0, 0  # how often the reader was asked again because its round stopped short, and how far it had got
     while True:
         got = (
-            store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop", lambda name: state.scan.setdefault("taken", []).append(name))
+            store.ingest_dir(
+                conn,
+                parsed_dir(),
+                lambda: state.control == "stop",
+                lambda name: state.scan.setdefault("taken", []).append(name),
+                lambda name, why, group: _note_rejected(state, name, why, group),
+            )
             if parsed_dir().is_dir()
             else {"new": 0}
         )
@@ -251,6 +264,7 @@ def _read_all(state: State) -> None:
         store.mark_old_files(conn)  # files sorted before the apps were declared get their marks (on this connection: no other writer is at work meanwhile)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         _forget_last_read()
+        state.scan.update(rejected={}, rejected_files=[])  # what the service itself would not take in is counted afresh
         (parsed_dir() / ".wake").touch()
         time.sleep(SETTLE_SECONDS)
         problem = _take_in_all(state, conn, totals)  # step 1, completely
@@ -769,6 +783,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     steps = []
     gone_through = _gone_through()
     unread = _unread()
+    for group, n in (s.get("rejected") or {}).items():
+        unread[group] = unread.get(group, 0) + n  # results the service would not take in are not read either
     mails_read = bool(found) and gone_through.get("mails", 0) + unread.get("mails", 0) >= int(found.get("mails") or 0)
     gone_through = {
         **gone_through,
@@ -869,7 +885,7 @@ def _file_now(s: dict[str, Any], conn) -> dict[str, Any] | None:
 def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
     """The parts of the status that count through the whole database (the steps, the files waiting, the files just done). Like every count here they are reused for a few seconds and
     brought up to date in the background: a status question must never wait for the database, however big it is or busy a read keeps it."""
-    snapshot = {key: s.get(key) for key in ("phase", "run", "now")}
+    snapshot = {key: s.get(key) for key in ("phase", "run", "now")} | {"rejected": dict(s.get("rejected") or {})}
 
     def make(c) -> dict[str, Any]:
         return {
@@ -892,7 +908,9 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "recent": [] if reading else counted["recent"],
         "waiting": [] if reading else counted["waiting"],
         "steps": counted["steps"],
-        "unread_files": _unread_files(),  # what the last round could not read stays on the card after the read, until a round reads it
+        "unread_files": [*_unread_files(), *(s.get("rejected_files") or [])][
+            :50
+        ],  # what the last round could not read stays on the card after the read, until a round reads it
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],

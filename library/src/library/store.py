@@ -255,7 +255,24 @@ def forget_scanned(conn, directory: Path) -> int:
     return _forget(conn, directory, "json_valid(data) AND json_extract(data, '$.meta.ocr_pages') > 0")
 
 
-def ingest_dir(conn, directory: Path, stop=None, on_new: Callable[[str], None] | None = None) -> dict[str, int]:
+def _why_rejected(f: Path, d: Any) -> tuple[str, str, str]:
+    """For a result the service would not take in: its name, the reason in plain words, and which count it belongs to (documents, mails, attachments)."""
+    name = d["name"][:120] if isinstance(d, dict) and isinstance(d.get("name"), str) and d["name"] else f.stem[:20]
+    if not isinstance(d, dict):
+        return name, "the result of reading it could not be used", "documents"
+    if isinstance(d.get("text"), str) and len(d["text"]) > MAX_TEXT:
+        reason = "too much text to keep"
+    elif d.get("kind") not in FILE_KINDS:
+        reason = "a kind of file Atlas does not keep"
+    else:
+        reason = "the result of reading it could not be used"
+    group = ("mails" if d.get("kind") == "email" else "attachments") if d.get("area") == "mail" else "documents"
+    return name, reason, group
+
+
+def ingest_dir(
+    conn, directory: Path, stop=None, on_new: Callable[[str], None] | None = None, on_rejected: Callable[[str, str, str], None] | None = None
+) -> dict[str, int]:
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
     new = known = rejected = replaced = 0
     stored: list[Path] = []
@@ -270,6 +287,10 @@ def ingest_dir(conn, directory: Path, stop=None, on_new: Callable[[str], None] |
                 raise ValueError("schema")
         except (ValueError, OSError):
             rejected += 1
+            if on_rejected is not None:  # said, never just dropped: it is listed as unread, and its readable copy is removed so it is not looked at again
+                on_rejected(*_why_rejected(f, locals().get("d")))
+                with contextlib.suppress(OSError):
+                    f.unlink()
             continue
         area = d["area"] if isinstance(d.get("area"), str) and (d["area"] == "mail" or _COLLECTION.match(d["area"])) else ""
         source = d.get("source") or ""
