@@ -634,6 +634,10 @@ def main(argv: list[str] | None = None) -> int:
         os.nice(10)  # reading is never more important than what the person is doing; the children inherit this
     while True:
         out.mkdir(parents=True, exist_ok=True)
+        with contextlib.suppress(OSError):
+            (out / ".ocr-engine").write_text(
+                "apple" if readers.apple_ocr_running() else "tesseract"
+            )  # which text recognition the pages are read with: the Documents service re-reads old scans once it is Apple's
         if a.watch:
             _wait_for_next_round(out)  # nothing is read until the person asks (so starting the computer never starts a big read)
         (out / STOP).unlink(missing_ok=True)

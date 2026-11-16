@@ -42,3 +42,15 @@ def test_without_a_running_helper_the_usual_reader_is_used(tmp_path, monkeypatch
 
     os.utime(tmp_path / "alive", (old, old))
     assert readers.apple_ocr(b"x") is None  # the sign of life is old: the helper has stopped
+
+
+def test_old_scans_are_read_again_and_nothing_else_is_forgotten(conn, tmp_path):
+    import json
+
+    from library import store
+
+    for i, (name, data) in enumerate((("scan.pdf", {"meta": {"ocr_pages": 3}}), ("text.pdf", {"meta": {"pages": 2}}), ("note.txt", {}))):
+        conn.execute("INSERT INTO documents (sha256, name, kind, text, area, data) VALUES (?,?,?,?,?,?)", (f"{i:064x}", name, "pdf", "t", "", json.dumps(data)))
+    conn.commit()
+    assert store.forget_scanned(conn, tmp_path) == 1
+    assert sorted(r["name"] for r in conn.execute("SELECT name FROM documents")) == ["note.txt", "text.pdf"]

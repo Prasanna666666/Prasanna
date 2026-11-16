@@ -98,6 +98,15 @@ def ocr_languages() -> str:
 OCR_WAIT_S = 60  # how long a page waits for Apple's text recognition before the usual reader takes it
 
 
+def apple_ocr_running() -> bool:
+    """Is Apple's text recognition (its sandboxed helper on the Mac) running and shared with this reader?"""
+    folder = os.environ.get("LIBRARY_OCR_DIR", "")
+    try:
+        return bool(folder) and time.time() - os.stat(os.path.join(folder, "alive")).st_mtime <= 5
+    except OSError:
+        return False
+
+
 def apple_ocr(png: bytes) -> str | None:
     """The word table for one page from Apple's text recognition on the Mac's own chip, or None when it is not running (then the usual reader is used). The page goes into a memory
     disk shared with a sandboxed helper (no network, writes only there) and is removed as soon as it is answered: it is never on a real disk."""

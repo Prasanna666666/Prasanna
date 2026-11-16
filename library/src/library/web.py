@@ -242,6 +242,13 @@ def _read_all(state: State) -> None:
         ):  # the rules for which mail is read changed (or never applied): mail read under other rules is forgotten and read again
             store.forget_mail(conn, parsed_dir())
             marker.write_text(scope)
+        engine = (parsed_dir() / ".ocr-engine").read_text().strip() if (parsed_dir() / ".ocr-engine").exists() else ""
+        engine_mark = parsed_dir() / ".ocr-read-with"
+        if (
+            engine == "apple" and not engine_mark.exists()
+        ):  # scanned pages were read with the old reader: once Apple's text recognition is running they are read again with it
+            store.forget_scanned(conn, parsed_dir())
+            engine_mark.write_text(engine)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".now").unlink(missing_ok=True)
         (parsed_dir() / ".found").unlink(
