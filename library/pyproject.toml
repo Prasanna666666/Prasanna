@@ -23,7 +23,7 @@ library-indexer = "library.indexer:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-library = ["static/*", "apps.json", "mailboxes.json", "limits.json"]
+library = ["static/*", "apps.json", "mailboxes.json", "limits.json", "concepts.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

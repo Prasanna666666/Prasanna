@@ -13,7 +13,26 @@ from datetime import date, timedelta
 from kit import extract
 from kit.module import INT, Module, N, S, Tool
 
-from .. import audit, browse, canary, categorize, clock, dates, db, insight, payslips, planning, proof, rates, standards, statements, tables, verify, wealth
+from .. import (
+    audit,
+    browse,
+    canary,
+    categorize,
+    clock,
+    concepts,
+    dates,
+    db,
+    insight,
+    payslips,
+    planning,
+    proof,
+    rates,
+    standards,
+    statements,
+    tables,
+    verify,
+    wealth,
+)
 from ..db import get_setting, rows
 from ..findings import Finding, Read
 
@@ -121,6 +140,11 @@ MIGRATIONS = (
     ALTER TABLE finance_docs ADD COLUMN end_date TEXT;
     ALTER TABLE finance_docs ADD COLUMN place TEXT NOT NULL DEFAULT '';          -- where to
     CREATE TABLE IF NOT EXISTS mail_skipped (sha256 TEXT PRIMARY KEY);           -- mail documents not worth asking the model about, so they are judged once
+    """,
+    """
+    ALTER TABLE finance_docs ADD COLUMN concept TEXT NOT NULL DEFAULT '';        -- what the kind means to Finance (see concepts.py): the queries ask for this, not for the model's words
+    CREATE INDEX IF NOT EXISTS finance_docs_concept ON finance_docs(concept, doc_date);
+    CREATE TABLE IF NOT EXISTS kind_concepts (kind TEXT PRIMARY KEY, concept TEXT NOT NULL);
     """,
 )
 
@@ -347,7 +371,7 @@ def _remember_doc(conn, d, info) -> None:
     period = str(info.get("period") or "")
     conn.execute(
         "INSERT OR REPLACE INTO finance_docs (sha256, name, kind, title, summary, party, doc_date, due_date, reference, total_minor, vat_minor, currency, "
-        "gross_minor, tax_minor, net_minor, period, start_date, end_date, place) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "gross_minor, tax_minor, net_minor, period, start_date, end_date, place, concept) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             d["sha256"],
             d["name"],
@@ -368,13 +392,15 @@ def _remember_doc(conn, d, info) -> None:
             _day(info.get("start_date")),
             _day(info.get("end_date")),
             str(info.get("place") or "")[:80],
+            concepts.of(conn, info.get("kind", "other")),
         ),
     )
 
 
 def travel_documents(conn, a=None):
     """Tickets and bookings found in your files and mail: where to, from when to when (as the document itself writes them), and what they cost."""
-    where, args = ["kind IN ('ticket','booking')"], []
+    sql, concept_args = concepts.clause("ticket", "booking")
+    where, args = [sql], list(concept_args)
     if (a or {}).get("place"):
         where.append("place LIKE ?")
         args.append(f"%{str(a['place'])[:60]}%")
@@ -395,10 +421,10 @@ def finance_documents(conn, a=None):
     """Finance files by what they are (invoice, receipt, payslip, tax, insurance, contract ...) with who/when/how much."""
     a = a or {}
     where, args = [], []
-    for key, col in (("kind", "kind"),):
-        if a.get(key):
-            where.append(f"{col}=?")
-            args.append(a[key])
+    if a.get("kind"):  # a concept of Finance ("invoice"), or the model's own word for the file
+        asked = " ".join(str(a["kind"]).lower().replace("_", " ").split())
+        where.append("(concept=? OR kind=? OR kind=?)")
+        args += [asked, asked, str(a["kind"])]
     if a.get("party"):
         where.append("(party LIKE ? OR title LIKE ? OR name LIKE ?)")
         args += [f"%{a['party']}%"] * 3
@@ -409,7 +435,7 @@ def finance_documents(conn, a=None):
             where.append(f"doc_date {op} ?")
             args.append(a[key])
     sql = (
-        "SELECT kind, title, party, doc_date AS date, due_date, reference, total_minor/100.0 AS total, vat_minor/100.0 AS vat, currency, summary, name "
+        "SELECT kind, concept, title, party, doc_date AS date, due_date, reference, total_minor/100.0 AS total, vat_minor/100.0 AS vat, currency, summary, name "
         "FROM finance_docs" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY doc_date DESC, name LIMIT ?"
     )
     return rows(conn.execute(sql, [*args, int(a.get("limit", 50))]))
@@ -419,7 +445,8 @@ def finance_document_totals(conn, a=None):
     """Totals of invoices / receipts / insurance ... by kind, month or who it is from."""
     a = a or {}
     group = {"month": "substr(doc_date,1,7)", "party": "party", "kind": "kind"}.get(a.get("by", "kind"), "kind")
-    where, args = ["total_minor IS NOT NULL", "kind NOT IN ('bank_statement','payslip')"], []
+    sql, concept_args = concepts.clause("bank statement", "payslip", negate=True)
+    where, args = ["total_minor IS NOT NULL", sql], list(concept_args)
     if a.get("kind"):
         where.append("kind=?")
         args.append(a["kind"])
@@ -541,7 +568,7 @@ def _read_document(conn, d, data: dict, client, model, progress, position: tuple
         json.loads(d["facts"]) if d["facts"] else extract.classify(client, model, d["name"], d["text"])
     )  # the Documents service has usually said it already
     _remember_doc(conn, d, out.info)
-    if out.info["kind"] == "payslip":
+    if concepts.of(conn, out.info.get("kind")) == "payslip":
         out.slip = payslips.from_model(out.info)
     elif own and tables.looks_like_payment_list(
         data
@@ -619,6 +646,7 @@ def import_statements(conn, a=None, client=None, model=None, progress=None):
     Bank standards (MT940, camt.053) are read exactly, without a model. Other statements: the local model only describes the layout, code reads every
     figure, and verifier agents (balances, totals, a second independent reading) must all agree. A file that fails is not counted. Without the model,
     only the exact standards can be imported (a guess at a layout could silently give wrong numbers)."""
+    concepts.resolve(conn, client, model)  # what each kind of file means to Finance (the model decides once per kind)
     _retry_left_out_files(conn)
     learned = categorize.learned_rules(conn)
     run = _Run()
@@ -923,7 +951,7 @@ MODULE = Module(
             "Find invoices, receipts, tax letters, insurance, contracts and other finance files, with who/when/how much. "
             "Filter by kind, party (who it is from) and dates.",
             {
-                "kind": S("invoice, receipt, payslip, tax, insurance, contract, bank_statement or other"),
+                "kind": S("what the file is, in a word or two (" + ", ".join(concepts.CONCEPTS) + ")"),
                 "party": S("Name, or part of it"),
                 "since": S("YYYY-MM-DD"),
                 "until": S("YYYY-MM-DD"),

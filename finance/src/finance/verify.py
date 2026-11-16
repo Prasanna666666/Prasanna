@@ -16,7 +16,7 @@ from datetime import date, timedelta
 
 from kit.amounts import money_from_printed
 
-from . import clock, tables
+from . import clock, concepts, tables
 from . import currency as currencies
 from .findings import Finding, Read
 from .statements import Txn
@@ -213,8 +213,9 @@ def documents_vs_bank(conn) -> list[Finding]:
     """An invoice or receipt total should appear as a payment of exactly that amount, from a few days before its date to two months after."""
     out = []
     covered = _months_with_transactions(conn)
+    sql, args = concepts.clause("invoice", "receipt", "ticket", "booking")
     for d in conn.execute(
-        "SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('invoice','receipt','ticket','booking') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"
+        f"SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE {sql} AND total_minor IS NOT NULL AND doc_date IS NOT NULL", args
     ):
         hit = conn.execute(
             "SELECT 1 FROM transactions WHERE kind='expense' AND amount_minor=? AND day>=? AND day<=?",

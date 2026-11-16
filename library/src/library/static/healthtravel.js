@@ -250,8 +250,8 @@
     const tripFacts = (detail) => {
         const facts = el('div', 'hero-facts');
         const tickets = detail.tickets || [];
-        const flights = tickets.filter((x) => x.kind === 'ticket').length;
-        const stays = tickets.filter((x) => x.kind === 'booking').length;
+        const flights = tickets.filter((x) => x.concept === 'ticket').length;
+        const stays = tickets.filter((x) => x.concept === 'stay').length;
         if (flights) facts.append(el('span', '', `✈ ${flights} ticket${flights === 1 ? '' : 's'}`));
         if (stays) facts.append(el('span', '', `⌂ ${stays} booking${stays === 1 ? '' : 's'}`));
         for (const [cur, amount] of Object.entries(detail.booked_totals || {})) {

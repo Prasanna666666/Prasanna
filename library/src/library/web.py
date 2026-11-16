@@ -23,7 +23,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, JsonHandler, host_ok
 
-from . import apps, changes, flags, highlights, items, pictures, readreport, store, tools, trace, travel
+from . import apps, changes, concepts, flags, highlights, items, pictures, readreport, store, tools, trace, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -272,6 +272,9 @@ def _read_all(state: State) -> None:
         problem = _sort_all(state, conn, client, model, followed, totals) or problem  # then step 2, completely
         if client is not None and state.control != "stop":
             store.name_kinds(conn, client, model, lambda: state.control)  # the kinds get a few plain names before grouping
+            concepts.resolve(
+                conn, client, model, lambda: state.control
+            )  # and each plain name is decided once: which concept it means to the parts that show files
         if _summarise(state, conn, totals):
             _read_pictures(state, conn, client, model)
             _finish(state, conn, client, model, followed)

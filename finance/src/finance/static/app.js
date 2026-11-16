@@ -888,7 +888,7 @@
     function buildAttention(dueSoon, checks, det) {
         return [
             ...dueSoon.items
-                .filter((x) => x.kind === 'invoice')
+                .filter((x) => x.concept === 'invoice')
                 .slice(0, 2)
                 .map((x) => ({
                     k: 'bill',
@@ -1276,7 +1276,7 @@
                           )
                       )
                     : null;
-            const other = docs.filter((d) => !['bank_statement', 'payslip'].includes(d.kind));
+            const other = docs.filter((d) => !['bank statement', 'payslip'].includes(d.concept));
             const docCard = buildDocCard(docs, docTotals, other, KIND);
             // ---- day to day: category tiles; tap one to see its payments
 

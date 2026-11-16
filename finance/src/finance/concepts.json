@@ -1,0 +1,13 @@
+{
+  "_about": "What Finance means by the kinds of file it works with. The model names each file freely; it decides once, for each name, which of these it means (or none). Add or change a concept here, with a plain description: nothing in the code lists kinds of document.",
+  "bank statement": "a list of payments in and out of a bank or card account over a period",
+  "payslip": "the statement of one salary payment: gross pay, deductions, net pay",
+  "invoice": "a request for payment: what is owed, to whom and by when",
+  "receipt": "proof that something was paid",
+  "tax": "a document from a tax authority, or about a tax return or tax paid",
+  "insurance": "an insurance policy, a premium notice or a claim",
+  "contract": "an agreement between parties: a lease, a job, a subscription, a loan",
+  "ticket": "a ticket or boarding pass for travel or an event",
+  "booking": "a reservation or booking confirmation: hotel, flight, rental, event",
+  "annual statement": "a yearly overview of income, tax withheld and similar totals"
+}

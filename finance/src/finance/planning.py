@@ -13,7 +13,7 @@ from collections import defaultdict
 from datetime import date
 from typing import Any
 
-from . import clock, insight, proof
+from . import clock, concepts, insight, proof
 from .db import get_setting
 
 
@@ -145,7 +145,10 @@ def insurances(conn, a=None):
     """Each insurance: what the documents say it costs, and what was actually paid per year."""
     docs = [
         dict(r)
-        for r in conn.execute("SELECT name, party, doc_date, total_minor/100.0 AS amount FROM finance_docs WHERE kind='insurance' ORDER BY doc_date DESC")
+        for r in conn.execute(
+            f"SELECT name, party, doc_date, total_minor/100.0 AS amount FROM finance_docs WHERE {concepts.clause('insurance')[0]} ORDER BY doc_date DESC",
+            concepts.clause("insurance")[1],
+        )
     ]
     paid: dict[tuple[str, str], float] = defaultdict(float)
     for r in conn.execute("SELECT substr(day,1,4) AS y, note, amount_minor FROM ledger WHERE kind='expense' AND category='insurance'"):
@@ -393,8 +396,10 @@ def bills_due(conn, a=None):
     days = int((a or {}).get("days", 45))
     today = clock.today()
     bills = []
+    sql, args = concepts.clause("invoice")
     for d in conn.execute(
-        "SELECT name, party, due_date, doc_date, total_minor FROM finance_docs WHERE kind='invoice' AND due_date IS NOT NULL AND total_minor IS NOT NULL ORDER BY due_date"
+        f"SELECT name, party, due_date, doc_date, total_minor FROM finance_docs WHERE {sql} AND due_date IS NOT NULL AND total_minor IS NOT NULL ORDER BY due_date",
+        args,
     ):
         due = date.fromisoformat(d["due_date"])
         if (due - today).days > days or (today - due).days > 30:
@@ -419,9 +424,10 @@ def tax_summary(conn, a=None):
     """The facts a tax return asks for, for one year, from your documents and statements: income, tax already paid, interest, investments, insurance, assessments
     and the balance of your accounts on 1 January. Facts only: not tax advice, and not a return."""
     year = str((a or {}).get("year") or (conn.execute("SELECT MAX(substr(day,1,4)) FROM transactions").fetchone()[0] or clock.today().year))
+    sql, args = concepts.clause("annual statement")
     annual = conn.execute(
-        "SELECT gross_minor, tax_minor, net_minor FROM finance_docs WHERE kind='annual_statement' AND period LIKE ? ORDER BY doc_date DESC LIMIT 1",
-        (year + "%",),
+        f"SELECT gross_minor, tax_minor, net_minor FROM finance_docs WHERE {sql} AND period LIKE ? ORDER BY doc_date DESC LIMIT 1",
+        (*args, year + "%"),
     ).fetchone()
     slips = conn.execute(
         "SELECT COUNT(*) AS n, SUM(gross_minor) AS gross, SUM(tax_minor) AS tax, SUM(net_minor) AS net, SUM(pension_minor) AS pension FROM payslips WHERE period LIKE ?",
@@ -439,8 +445,8 @@ def tax_summary(conn, a=None):
     letters = [
         dict(r)
         for r in conn.execute(
-            "SELECT name, party, doc_date AS date, total_minor/100.0 AS amount FROM finance_docs WHERE kind='tax' AND doc_date LIKE ? ORDER BY doc_date",
-            (year + "%",),
+            f"SELECT name, party, doc_date AS date, total_minor/100.0 AS amount FROM finance_docs WHERE {concepts.clause('tax')[0]} AND doc_date LIKE ? ORDER BY doc_date",
+            (*concepts.clause("tax")[1], year + "%"),
         )
     ]
     return {

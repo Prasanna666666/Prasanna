@@ -14,7 +14,7 @@ import statistics
 from collections import defaultdict
 from datetime import date, timedelta
 
-from . import audit, backup, canary, categorize, clock, rates, tables
+from . import audit, backup, canary, categorize, clock, concepts, rates, tables
 from .db import get_setting
 from .findings import Finding
 
@@ -287,7 +287,10 @@ def _covered(conn) -> set[str]:
 def tax_letters(conn) -> list[Finding]:
     """A tax letter's amount should appear as a payment (or a refund received) within about three months of its date."""
     out, covered = [], _covered(conn)
-    for d in conn.execute("SELECT name, party, doc_date, total_minor FROM finance_docs WHERE kind='tax' AND total_minor IS NOT NULL AND doc_date IS NOT NULL"):
+    sql, args = concepts.clause("tax")
+    for d in conn.execute(
+        f"SELECT name, party, doc_date, total_minor FROM finance_docs WHERE {sql} AND total_minor IS NOT NULL AND doc_date IS NOT NULL", args
+    ):
         lo, hi = (_d(d["doc_date"]) - timedelta(days=5)).isoformat(), (_d(d["doc_date"]) + timedelta(days=90)).isoformat()
         hit = conn.execute("SELECT kind, day FROM transactions WHERE amount_minor=? AND day>=? AND day<=? LIMIT 1", (d["total_minor"], lo, hi)).fetchone()
         label = f"tax letter {d['party'] or d['name']}"
@@ -305,8 +308,9 @@ def tax_letters(conn) -> list[Finding]:
 def insurance_contracts(conn) -> list[Finding]:
     """An insurance premium or contract amount should appear as payments (the amount, or a twelfth of it, within 1%)."""
     out, covered = [], _covered(conn)
+    sql, args = concepts.clause("insurance", "contract")
     for d in conn.execute(
-        "SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE kind IN ('insurance','contract') AND total_minor IS NOT NULL AND doc_date IS NOT NULL"
+        f"SELECT name, kind, party, doc_date, total_minor FROM finance_docs WHERE {sql} AND total_minor IS NOT NULL AND doc_date IS NOT NULL", args
     ):
         t = d["total_minor"]
         hit = conn.execute(
@@ -324,7 +328,8 @@ def insurance_contracts(conn) -> list[Finding]:
 def year_end(conn) -> list[Finding]:
     """Your annual income statement must match the sum of that year's payslips: gross, tax and net."""
     out = []
-    for d in conn.execute("SELECT name, period, gross_minor, tax_minor, net_minor FROM finance_docs WHERE kind='annual_statement' AND period<>''"):
+    sql, args = concepts.clause("annual statement")
+    for d in conn.execute(f"SELECT name, period, gross_minor, tax_minor, net_minor FROM finance_docs WHERE {sql} AND period<>''", args):
         year = d["period"][:4]
         slips = list(conn.execute("SELECT gross_minor, tax_minor, net_minor FROM payslips WHERE period LIKE ?", (f"{year}-%",)))
         if not slips:
@@ -353,13 +358,15 @@ def year_end(conn) -> list[Finding]:
 def vat_agent(conn) -> list[Finding]:
     """VAT on invoices and receipts must be less than the total; the VAT per year is added up for you."""
     out = []
+    sql, args = concepts.clause("invoice", "receipt")
     bad = conn.execute(
-        "SELECT name FROM finance_docs WHERE kind IN ('invoice','receipt') AND vat_minor IS NOT NULL AND total_minor IS NOT NULL AND vat_minor>total_minor"
+        f"SELECT name FROM finance_docs WHERE {sql} AND vat_minor IS NOT NULL AND total_minor IS NOT NULL AND vat_minor>total_minor", args
     ).fetchall()
     for b in bad:
         out.append(Finding("VAT", "fail", b["name"], "the VAT is larger than the total"))
     for r in conn.execute(
-        "SELECT substr(doc_date,1,4) AS year, COUNT(*) AS n, SUM(vat_minor) AS vat FROM finance_docs WHERE kind IN ('invoice','receipt') AND vat_minor IS NOT NULL AND doc_date IS NOT NULL GROUP BY 1"
+        f"SELECT substr(doc_date,1,4) AS year, COUNT(*) AS n, SUM(vat_minor) AS vat FROM finance_docs WHERE {sql} AND vat_minor IS NOT NULL AND doc_date IS NOT NULL GROUP BY 1",
+        args,
     ):
         out.append(Finding("VAT", "ok", r["year"], f"VAT in {r['year']}: {_money(r['vat'])} on {r['n']} document(s)"))
     return out

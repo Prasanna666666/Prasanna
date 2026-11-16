@@ -356,3 +356,22 @@ def test_the_many_wordings_of_a_kind_get_one_plain_name_and_the_apps_see_that_na
     assert {d["facts"]["kind"] for d in docs} == {"bank statement", "invoice"}
     again = store.list_documents(conn, app="finance", since=0, limit=100)
     assert min(d["ready"] for d in again) > 5  # handed to the apps again, so they show the plain names
+
+
+def test_a_trips_tickets_and_stays_are_told_apart_by_the_concept_the_model_decided_not_by_a_word(conn):
+    import json
+
+    from library import concepts, travel
+
+    conn.execute("INSERT INTO kind_names (kind, name) VALUES ('boarding pass', 'boarding pass'), ('hotelbevestiging', 'hotel confirmation')")
+    for i, (name, kind, apps_) in enumerate((("flight.pdf", "boarding pass", ["travel"]), ("hotel.pdf", "hotel confirmation", ["travel"]))):
+        facts = {"kind": kind, "apps": apps_, "title": name, "place": "Delhi", "start_date": "2026-01-12", "end_date": "2026-01-30"}
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts, ready) VALUES (?,?,?,?,?,1,?,?)",
+            (f"{i:064x}", name, "pdf", "t", "", json.dumps(facts), i + 1),
+        )
+    conn.execute("INSERT INTO kind_concepts (kind, concept) VALUES ('boarding pass', 'ticket'), ('hotel confirmation', 'stay')")
+    conn.commit()
+    assert concepts.of(conn, "hotel confirmation") == "stay"
+    detail = travel.detail(conn, None, "Delhi", "2026-01-12", "2026-01-30")
+    assert sorted((t["name"], t["concept"]) for t in detail["tickets"]) == [("flight.pdf", "ticket"), ("hotel.pdf", "stay")]

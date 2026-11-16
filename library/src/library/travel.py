@@ -9,7 +9,7 @@ import hashlib
 from datetime import date, timedelta
 from typing import Any
 
-from . import pictures, store
+from . import concepts, pictures, store
 
 PHOTO_TRIP_MIN = 5  # a run of photos with a place counts as a trip only from this many
 
@@ -51,9 +51,10 @@ def trips(conn, engine, today: str) -> list[dict[str, Any]]:
     return upcoming + past
 
 
-def _ticket(doc: dict) -> dict[str, Any]:
+def _ticket(doc: dict, concept: str = "") -> dict[str, Any]:
     f = doc["facts"]
     return {
+        "concept": concept,
         "id": doc["id"],
         "name": doc["name"],
         "kind": doc["kind"],
@@ -70,7 +71,7 @@ def _ticket(doc: dict) -> dict[str, Any]:
 def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
     """One trip: its tickets and bookings, documents that belong with them (the same matter), the amounts the tickets and bookings print (added up per currency, exactly), and photos."""
     booked = [
-        _ticket(d)
+        _ticket(d, concepts.of(conn, d["kind"]))
         for d in store.trip_documents(conn)
         if place.casefold() in str(d["facts"].get("place") or "").casefold()
         and _overlaps(str(d["facts"].get("start_date") or "9"), str(d["facts"].get("end_date") or d["facts"].get("start_date") or "0"), start, end)

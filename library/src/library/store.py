@@ -172,6 +172,9 @@ MIGRATIONS = (
     """
     CREATE TABLE kind_names (kind TEXT PRIMARY KEY, name TEXT NOT NULL);   -- the plain name the model gave to each name it had given files: "Bank statement (Dutch)" and "Rekeningafschrift" become "bank statement"
     """,
+    """
+    CREATE TABLE IF NOT EXISTS kind_concepts (kind TEXT PRIMARY KEY, concept TEXT NOT NULL);   -- what a plain kind means to the part that shows it (see concepts)
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}

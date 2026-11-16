@@ -1,0 +1,5 @@
+{
+  "_about": "What the Travel part of Documents means by the kinds of file it shows. The model names each file freely; it decides once, for each name, which of these it means (or none). Add a concept here with a plain description: nothing in the code lists kinds of document.",
+  "ticket": "a ticket or boarding pass for travel or an event",
+  "stay": "a booking or reservation of a place to stay, or of something to rent"
+}
