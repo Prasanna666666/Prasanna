@@ -1226,3 +1226,7 @@ body.chatting .fab {
     color: var(--warn);
     text-align: right;
 }
+
+.asks {
+    margin-bottom: 20px;
+}
