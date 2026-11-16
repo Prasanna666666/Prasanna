@@ -906,9 +906,10 @@ body.chatting .fab {
     white-space: nowrap;
 }
 
+/* ---- the reading card: a title with Pause and Stop, one overall bar, the three steps side by side with their counts, and the file being worked on ---- */
 .rd-top {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
 }
 .rd-words {
@@ -919,11 +920,9 @@ body.chatting .fab {
 }
 .rd-title {
     font-size: 17px;
-    font-weight: 650;
-}
-.rd-sub {
-    color: var(--muted);
-    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--fg);
 }
 .rd-actions {
     display: flex;
@@ -934,9 +933,9 @@ body.chatting .fab {
 .rd-btn {
     border: 1px solid var(--line-strong);
     background: var(--surface);
-    color: var(--ink);
+    color: var(--fg);
     border-radius: 999px;
-    padding: 6px 16px;
+    padding: 7px 18px;
     font: inherit;
     font-size: 13px;
     font-weight: 600;
@@ -966,167 +965,69 @@ body.chatting .fab {
     min-width: 40px;
     height: 8px;
     border-radius: 999px;
-    background: var(--surface-2);
+    background: var(--line);
     overflow: hidden;
 }
-
 .rd-fill {
     height: 100%;
     width: 0;
     border-radius: 999px;
-    background: linear-gradient(90deg, var(--a1), var(--accent-2));
-    transition: width 1.2s linear;
+    background: linear-gradient(90deg, var(--a1), var(--a2));
+    transition: width 1s linear;
 }
 .rd-meter.unknown .rd-fill {
     width: 100%;
-    opacity: 0.18;
+    opacity: 0.2;
 }
 
-.rd-files {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-.rd-file {
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) minmax(150px, 34%);
-    align-items: center;
-    gap: 12px;
-    padding: 9px 10px;
-    border-radius: 12px;
-}
-.rd-file.now {
-    background: var(--accent-soft);
-}
-.rd-file.wait {
-    opacity: 0.6;
-}
-.rd-mark {
-    box-sizing: border-box;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid var(--line-strong);
-}
-.rd-file.done .rd-mark {
-    display: grid;
-    place-items: center;
-    background: var(--good);
-    border-color: var(--good);
-    color: #fff;
-    font-size: 11px;
-    font-style: normal;
-    line-height: 1;
-}
-.rd-file.done .rd-mark::after {
-    content: '\2713';
-}
-.rd-file.now .rd-mark {
-    border-color: var(--a1);
-    background: radial-gradient(circle, var(--a1) 38%, transparent 42%);
-}
-.rd-text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-.rd-name {
-    overflow: hidden;
-    font-weight: 600;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.rd-detail {
-    overflow: hidden;
-    color: var(--muted);
-    font-size: 13px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.rd-side {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.rd-pct {
-    min-width: 44px;
-    text-align: right;
-    font-size: 13px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--muted);
-}
-.rd-totals {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 10px;
-}
-.rd-total {
+.rd-headline {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--surface);
 }
-.rd-total .rd-meter {
-    flex: none;
+.rd-doing {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
 }
-.rd-total .rd-detail {
-    white-space: normal;
-}
-.rd-thead {
+.rd-big {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
+    gap: 14px;
 }
-.rd-note {
-    padding: 8px 12px;
-    border-radius: 10px;
-    background: var(--surface-2);
-    color: var(--warn);
-    font-size: 13.5px;
+.rd-big .rd-meter {
+    height: 12px;
 }
-.rd-note.bad {
-    color: var(--bad);
+.rd-bigpct {
+    min-width: 52px;
+    text-align: right;
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
 }
-@media (max-width: 720px) {
-    .scan {
-        margin: 12px 12px 0;
-        padding: 14px;
-    }
-    .rd-file {
-        grid-template-columns: 22px minmax(0, 1fr);
-    }
-    .rd-side {
-        grid-column: 2;
-    }
-}
-
-.rd-steps {
-    display: grid;
-    gap: 12px;
+.rd-summary {
+    color: var(--muted);
+    font-size: 14px;
 }
 
 .rd-stepgrid {
     display: grid;
-    align-items: start;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
 }
 .rd-step {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 12px;
+    padding: 14px 16px;
+    border-radius: 16px;
     border: 1px solid var(--line);
-    border-radius: 14px;
     background: var(--surface);
 }
 .rd-step.current {
     border-color: var(--a1);
-    background: var(--accent-soft);
+    background: var(--soft);
 }
 .rd-step.waiting {
     opacity: 0.6;
@@ -1134,28 +1035,25 @@ body.chatting .fab {
 .rd-stepname {
     display: flex;
     align-items: center;
-    gap: 8px;
-    min-width: 0;
+    gap: 10px;
 }
 .rd-stepname b {
-    overflow: hidden;
-    font-size: 13.5px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--fg);
 }
 .rd-stepmark {
-    display: grid;
     flex: none;
+    display: grid;
     place-items: center;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    border: 2px solid var(--line-strong);
-    box-sizing: border-box;
-    font-size: 11px;
+    border: 1.5px solid var(--line-strong);
+    color: var(--muted);
+    font-size: 12px;
     font-style: normal;
     font-weight: 700;
-    color: var(--muted);
 }
 .rd-step.running .rd-stepmark {
     border-color: var(--a1);
@@ -1165,130 +1063,119 @@ body.chatting .fab {
 .rd-step.done .rd-stepmark {
     border-color: var(--good);
     background: var(--good);
+    color: #fff;
 }
 .rd-step.done .rd-stepmark::after {
     content: '\2713';
-    color: #fff;
+}
+.rd-about {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
 }
 .rd-step .rd-meter {
     flex: none;
 }
-.rd-step .rd-detail {
-    white-space: normal;
-}
-.rd-step .rd-pct {
-    min-width: 0;
-    text-align: left;
-}
-@media (max-width: 900px) {
-    .rd-stepgrid {
-        grid-template-columns: 1fr;
-    }
-}
-
-.rd-about {
+.rd-pct {
+    font-size: 12.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
     color: var(--muted);
-    font-size: 13px;
 }
-.rd-parts {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding-top: 6px;
-    border-top: 1px solid var(--line);
-}
-.rd-part {
+.rd-counts {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    margin-top: 2px;
 }
-.rd-parthead {
+.rd-count {
     display: flex;
     justify-content: space-between;
-    font-size: 13px;
-    font-weight: 600;
-}
-.rd-part .rd-meter {
-    flex: none;
-    height: 6px;
-}
-
-.rd-note-line {
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--ink);
-}
-.rd-note-line:empty {
-    display: none;
-}
-
-.rd-headline {
-    display: flex;
-    flex-direction: column;
     gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
 }
-.rd-doing {
-    font-size: 15px;
+.rd-count b {
     font-weight: 650;
-    color: var(--a1);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    white-space: nowrap;
 }
-.rd-big {
+
+.rd-nowrow {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
 }
-.rd-big .rd-meter {
-    height: 14px;
+.rd-dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--a1);
+    animation: rd-pulse 1.4s ease-in-out infinite;
 }
-.rd-bigpct {
-    min-width: 72px;
-    text-align: right;
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums;
+@keyframes rd-pulse {
+    50% {
+        opacity: 0.3;
+    }
 }
-.rd-nowline {
+.rd-nowtext {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+.rd-name {
     font-size: 14px;
-    color: var(--ink);
-}
-.rd-summary {
-    color: var(--muted);
-    font-size: 14px;
-}
-.rd-more {
-    align-self: flex-start;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--a1);
-    font: inherit;
-    font-size: 13.5px;
     font-weight: 600;
-    cursor: pointer;
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.rd-more:hover {
-    text-decoration: underline;
+.rd-detail {
+    font-size: 12.5px;
+    color: var(--muted);
 }
-
-.rd-file.fail .rd-mark {
-    display: grid;
-    place-items: center;
+.rd-nowside {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: min(220px, 36%);
+}
+.rd-failed {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.rd-failed .rd-nowrow {
     border-color: var(--warn);
+}
+.rd-failed .rd-dot {
     background: var(--warn);
-    color: #fff;
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 700;
-    line-height: 1;
+    animation: none;
 }
-.rd-file.fail .rd-mark::after {
-    content: '!';
+.rd-note {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 13.5px;
 }
-.rd-file.fail .rd-detail {
+.rd-note.bad {
     color: var(--warn);
-    white-space: normal;
+    border: 1px solid var(--warn);
 }
-.rd-file.fail .rd-side {
-    display: none;
+@media (max-width: 860px) {
+    .rd-stepgrid {
+        grid-template-columns: 1fr;
+    }
+    .rd-nowside {
+        display: none;
+    }
 }

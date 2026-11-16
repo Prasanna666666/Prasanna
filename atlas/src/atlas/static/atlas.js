@@ -567,7 +567,7 @@
     }
 
     // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
-    const scan = { timer: null, hide: null, open: false };
+    const scan = { timer: null, hide: null };
     // ---- the reading card: one overall bar, one row per file (done, being read, waiting), and the totals; part of the page, redrawn only where something changed
     // never "100%" before it is all done (99.8 reads 99%), and never "0%" shown as a guess
     const pctText = (p, estimated) => {
@@ -583,77 +583,73 @@
         track.append(fill);
         return track;
     };
-    const fileRow = (kind, name, detail, percent, estimated) => {
-        const row = el('div', 'rd-file ' + kind);
-        const text = el('div', 'rd-text');
-        text.append(el('b', 'rd-name', name), el('span', 'rd-detail', detail));
-        const side = el('div', 'rd-side');
-        side.append(meter(percent), el('span', 'rd-pct', pctText(percent, estimated)));
-        row.append(el('i', 'rd-mark'), text, side);
+    // the one file being worked on, with how long it has been on it
+    const nowBlock = (info) => {
+        if (!info.file) return null;
+        const row = el('div', 'rd-nowrow');
+        const text = el('div', 'rd-nowtext');
+        text.append(
+            el('b', 'rd-name', info.file.name),
+            el('span', 'rd-detail', `${info.file.step} · ${info.file.seconds} s`)
+        );
+        row.append(el('i', 'rd-dot'), text);
+        if (info.file.percent != null) {
+            const side = el('div', 'rd-nowside');
+            side.append(
+                meter(info.file.percent),
+                el('span', 'rd-pct', pctText(info.file.percent, info.file.estimated))
+            );
+            row.append(side);
+        }
         return row;
     };
-    // the files: the last ones done, the one being read with its own bar rising as it goes, and the next ones
-    const filesBlock = (info, doneCount = 5, waitCount = 5) => {
-        const now = info.file
-            ? [
-                  fileRow(
-                      'now',
-                      info.file.name,
-                      `${info.file.step} · ${info.file.seconds} s`,
-                      info.file.percent,
-                      info.file.estimated
-                  ),
-              ]
-            : [];
-        const done = (info.recent || [])
-            .slice(0, doneCount)
-            .map((f) =>
-                f.state === 'failed' ? fileRow('fail', f.name, f.detail, null) : fileRow('done', f.name, f.detail, 100)
-            )
-            .reverse();
-        const wait = (info.waiting || []).slice(0, waitCount).map((name) => fileRow('wait', name, 'waiting', 0));
-        const rows = [...done, ...now, ...wait];
-        if (!rows.length) return null;
-        const box = el('div', 'rd-files');
-        box.append(...rows);
+    // files the model could not make sense of: named, with the reason
+    const failedBlock = (info) => {
+        const failed = (info.recent || []).filter((f) => f.state === 'failed').slice(0, 3);
+        if (!failed.length) return null;
+        const box = el('div', 'rd-failed');
+        for (const f of failed) {
+            const row = el('div', 'rd-nowrow');
+            const text = el('div', 'rd-nowtext');
+            text.append(el('b', 'rd-name', f.name), el('span', 'rd-detail', f.detail));
+            row.append(el('i', 'rd-dot'), text);
+            box.append(row);
+        }
         return box;
     };
-    // the steps of a read: how many there are, which is running, and how far each has got
+    // the steps of a read: which one is running, and how far each has got
     const currentStep = (steps) =>
         steps.find((s) => s.state === 'running' && s.n > 1) ||
         steps.find((s) => s.state === 'running') ||
         steps.find((s) => s.state === 'waiting');
-    // a step: its name, what it does, how far it is, and how many of the files that is; a step that has not started shows only its name
+    const countText = (c) =>
+        !c.known ? 'counting…' : c.total ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()}` : 'none found';
+    // a step: its name, what it does, how far it is, and its three counts (documents, mails, documents in mails), all alike
     const stepCard = (s, now) => {
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
         const head = el('div', 'rd-stepname');
         head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
-        card.append(head);
-        if (s.state === 'waiting' && !s.percent) return card;
-        card.append(el('span', 'rd-about', s.about || ''), meter(s.percent), el('span', 'rd-pct', pctText(s.percent)));
+        card.append(
+            head,
+            el('span', 'rd-about', s.about || ''),
+            meter(s.percent),
+            el('span', 'rd-pct', pctText(s.percent))
+        );
+        const counts = el('div', 'rd-counts');
         for (const c of s.counts || []) {
-            card.append(
-                el(
-                    'span',
-                    'rd-detail',
-                    !c.known
-                        ? `${c.label}: counting…`
-                        : c.total
-                          ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`
-                          : `no ${c.label} found`
-                )
-            );
+            const line = el('div', 'rd-count');
+            line.append(el('span', '', c.label), el('b', '', countText(c)));
+            counts.append(line);
         }
+        if (counts.children.length) card.append(counts);
         return card;
     };
     const stepsBlock = (steps) => {
         if (!steps || !steps.length) return null;
         const now = currentStep(steps);
-        const row = el('div', 'rd-stepgrid');
-        row.append(...steps.map((s) => stepCard(s, now)));
-        const box = el('div', 'rd-steps');
-        box.append(row);
-        return box;
+        const grid = el('div', 'rd-stepgrid');
+        grid.append(...steps.map((s) => stepCard(s, now)));
+        return grid;
     };
     const noteBlock = (text, bad = false) => el('div', 'rd-note' + (bad ? ' bad' : ''), text);
     // Pause, Resume and Stop: the button only says which action it stands for (as data), so a button that stays in place when its label changes from Pause to Resume
@@ -665,12 +661,6 @@
         return b;
     };
     const pressControl = async (e) => {
-        if (e.target.closest('.rd-more')) {
-            scan.open = !scan.open;
-            scan.sig = ''; // draw again even though the report has not changed
-            if (scan.last) showScan(scan.last);
-            return;
-        }
         const b = e.target.closest('.rd-btn');
         if (!b || b.disabled) return;
         b.disabled = true;
@@ -772,16 +762,8 @@
         const bar = el('div', 'rd-big');
         bar.append(meter(now.percent), el('span', 'rd-bigpct', pctText(now.percent)));
         box.append(bar);
-        if (info.progress) box.append(el('span', 'rd-sub', info.progress));
         return box;
     };
-    const moreButton = () => {
-        const b = el('button', 'rd-more', scan.open ? 'Hide details' : 'Show details');
-        b.type = 'button';
-        b.dataset.toggle = 'details';
-        return b;
-    };
-    const detailBlocks = (info) => [stepsBlock(info.steps)];
     const problemBlocks = (report) =>
         state.modules.flatMap((m) => (report.modules[m.id] || {}).problems || []).map((p) => noteBlock(p, true));
     const showScan = (report) => {
@@ -806,10 +788,7 @@
             );
         } else {
             blocks.push(headlineBlock(info, running));
-            if (running) {
-                blocks.push(filesBlock(info, 2, 3), moreButton());
-                if (scan.open) blocks.push(...detailBlocks(info));
-            }
+            if (running) blocks.push(stepsBlock(info.steps), nowBlock(info), failedBlock(info));
             blocks.push(...problemBlocks(report));
         }
         patchChildren(panel, blocks.filter(Boolean));
