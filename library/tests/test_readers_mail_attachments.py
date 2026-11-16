@@ -110,7 +110,7 @@ def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):
     put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/2.emlx", "From: n@example.org\nList-Unsubscribe: <mailto:x@example.org>")
     put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/3.emlx", "From: n@example.org\nPrecedence: bulk")
     put("V10/A/[Gmail].mbox/Spam.mbox/U/Data/Messages/4.emlx", "From: a@example.org")
-    assert parser.mail_index(tmp_path, tmp_path / 'out').mails == 1
+    assert parser.mail_index(tmp_path, tmp_path / "out").mails == 1
 
 
 def test_the_rules_for_which_mail_is_read_have_a_fingerprint_that_changes_with_them(monkeypatch):

@@ -345,6 +345,7 @@ def checkpoint(out: Path) -> bool:
 _PROGRESS = {
     "documents": 0,
     "mails": 0,
+    "attachments": 0,
 }  # files gone through in this round, by what they are (every file counts once it has been looked at: read, already known, left out or unreadable)
 
 
