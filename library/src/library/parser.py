@@ -312,8 +312,8 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
 
 
 WORKERS = max(
-    1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", str(max(2, os.cpu_count() or 2)))), 12)
-)  # files read at the same time (as many as there are CPUs), each in its own sealed child process
+    1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", str(max(2, min(os.cpu_count() or 2, 4))))), 12)
+)  # files read at the same time (up to four: the rest of the Mac stays free), each in its own sealed child process
 BATCH = 50  # files per batch: a pause or stop takes effect within one batch
 
 
@@ -630,6 +630,8 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
         return 0
     out = Path(a.out)
+    with contextlib.suppress(OSError):
+        os.nice(10)  # reading is never more important than what the person is doing; the children inherit this
     while True:
         out.mkdir(parents=True, exist_ok=True)
         if a.watch:

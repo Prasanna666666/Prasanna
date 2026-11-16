@@ -30,7 +30,7 @@ services:
       - library-parsed:/parsed
     mem_limit: 3g
     pids_limit: 512
-    cpus: 8.0   # reading is the slow part and runs on its own before sorting starts: it may use most of the Mac (the Docker Desktop CPU limit still applies)
+    cpus: 4.0   # reading may use half of an 8-core Mac: it is quick, and the other half stays free so the Mac stays responsive (the Docker Desktop CPU limit still applies)
 
   app:
     <<: *hardened
