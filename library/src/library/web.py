@@ -768,12 +768,16 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" else 0) if n == 1 else tally[key]["present"]
             # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
             known_now = taken_in or total_known[key]
+            held = tally[key]["present"]
+            copies = _copies(n, taken_in, total, held, unread.get(key, 0))
+            if n == 1 and taken_in:
+                total = held  # once the reading is over there is one number for the documents: the different ones held, the same in every step (the counted files that are copies or unreadable are said beside it)
             line = {
                 "key": key,
                 "label": label,
                 "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s, unread),
                 "unread": unread.get(key, 0) if n == 1 else 0,
-                "copies": _copies(n, taken_in, total, tally[key]["present"], unread.get(key, 0)),
+                "copies": copies,
                 "total": total,
                 "known": known_now,
             }

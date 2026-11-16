@@ -209,7 +209,12 @@ def test_every_counted_file_is_accounted_for_as_read_identical_to_one_read_or_un
     conn.commit()
     assert web._round_complete()  # every counted file was read, or could not be
     line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
-    assert (line["done"], line["total"], line["copies"], line["unread"]) == (6, 10, 2, 2)  # 6 + 2 identical + 2 unreadable = the 10 counted: nothing is hidden
+    assert (line["done"], line["total"], line["copies"], line["unread"]) == (
+        6,
+        6,
+        2,
+        2,
+    )  # one number for the documents (6), the same in every step; 6 + 2 identical + 2 unreadable = the 10 counted, said beside it
     assert web._steps(conn, {"phase": 2})[0]["state"] == "done"
     live = next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "documents")
     assert live["copies"] == 0  # until the reading is over nothing can be called a copy
@@ -223,3 +228,14 @@ def test_the_files_that_could_not_be_read_are_listed_with_the_reason(tmp_path, m
     monkeypatch.setattr(web, "parsed_dir", lambda: tmp_path)
     (tmp_path / ".failed.json").write_text(json.dumps(["a.pdf: this PDF is password-protected", "big.zip: too large to read"]))
     assert web._unread_files() == ["a.pdf: this PDF is password-protected", "big.zip: too large to read"]
+
+
+def test_the_number_of_documents_is_the_same_in_every_step_once_the_reading_is_over(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 9, "mails": 0, "attachments": 0})
+    for i in range(5):
+        _add(conn, f"f{i}.pdf", "finance", judged=0)
+    conn.commit()
+    totals = [next(c for c in step["counts"] if c["key"] == "documents")["total"] for step in web._steps(conn, {"phase": 2})]
+    assert totals == [5, 5, 5]
