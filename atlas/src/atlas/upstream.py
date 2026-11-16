@@ -68,7 +68,10 @@ KICK_SECONDS = 120.0  # how often a read in progress starts the cross-check for 
 
 def _counts(raw: object) -> list[dict[str, Any]]:
     """What a step has counted, in the words the person knows (documents, mails, documents in mails): only a label and two whole numbers."""
-    ok = lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 0  # noqa: E731
+
+    def ok(v: Any) -> bool:
+        return isinstance(v, int) and not isinstance(v, bool) and v >= 0
+
     return [
         {
             "label": str(c["label"])[:30],

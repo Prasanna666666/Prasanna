@@ -278,18 +278,22 @@ def _repaired(d: Any, stem: str) -> dict | None:
         return None
     fixed = dict(d)
     fixed["schema"], fixed["sha256"] = 1, stem
-    name = fixed.get("name") if isinstance(fixed.get("name"), str) else ""
+    given_name = fixed.get("name")
+    name = given_name if isinstance(given_name, str) else ""
     fixed["name"] = (name.strip() or f"unnamed file {stem[:8]}")[:255]
     if fixed.get("kind") not in FILE_KINDS:
         fixed["kind"] = "binary"
-    text = fixed.get("text") if isinstance(fixed.get("text"), str) else ""
+    given_text = fixed.get("text")
+    text = given_text if isinstance(given_text, str) else ""
     if len(text) > MAX_TEXT:
-        meta = fixed.get("meta") if isinstance(fixed.get("meta"), dict) else {}
+        given_meta = fixed.get("meta")
+        meta = given_meta if isinstance(given_meta, dict) else {}
         fixed["meta"] = {**meta, "limits_hit": [*meta.get("limits_hit", []), "text"]}
         text = text[:MAX_TEXT]
     fixed["text"] = text
-    if isinstance(fixed.get("source"), str):
-        fixed["source"] = fixed["source"][:600]
+    source = fixed.get("source")
+    if isinstance(source, str):
+        fixed["source"] = source[:600]
     elif fixed.get("source") is not None:
         fixed["source"] = None
     return fixed if _valid(fixed, stem) else None

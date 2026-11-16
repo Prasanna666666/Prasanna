@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import email
+import email.message
 import email.parser
 import email.policy
 import io
@@ -510,7 +511,8 @@ def _attachments_of(msg: email.message.EmailMessage, body) -> list[tuple[str, by
             continue  # the other form of the text (plain next to html), not a document
         if kind == "message/rfc822":
             inner = part.get_payload()
-            data = inner[0].as_bytes() if inner and hasattr(inner[0], "as_bytes") else b""
+            first = inner[0] if isinstance(inner, list) and inner else None
+            data = first.as_bytes() if isinstance(first, email.message.Message) else b""
             name = name or "forwarded message.eml"
         else:
             try:

@@ -432,9 +432,10 @@ def understand_pending(
             try:
                 summary = synthesize(client, model, members)
             except extract.Unclear:
-                summary = _group_failed(conn, row["id"], members, label, trace, began)
-                if summary is None:
+                failed = _group_failed(conn, row["id"], members, label, trace, began)
+                if failed is None:
                     continue
+                summary = failed
             else:
                 if trace is not None:
                     trace.step(label, "group read", f"{summary['verified']} checked statements", time.monotonic() - began)

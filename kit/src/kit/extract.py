@@ -176,7 +176,8 @@ def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, st
     if party and squash(party.lower()) not in squash(text.lower()):
         checked["party"] = ""  # a name the document does not contain is the model's invention
     whole = squash(text.lower())
-    given = checked.get("entities") if isinstance(checked.get("entities"), list) else []
+    listed = checked.get("entities")
+    given = listed if isinstance(listed, list) else []
     checked["entities"] = list(dict.fromkeys(str(e).strip() for e in given if str(e).strip() and squash(str(e).lower()) in whole))[
         :8
     ]  # only what the file really says
