@@ -835,9 +835,11 @@
         const paused = Object.values(report.modules).some((m) => m.paused);
         const blocks = [topRow(scanTitle(report, readerOff, running), running, paused, panel)];
         if (readerOff) {
+            const why = (reader.find((r) => r.up === false) || {}).problems?.[0];
             blocks.push(
                 noteBlock(
-                    'The part of Atlas that reads your files is not answering. It may still be starting (up to 30 seconds after ./up.sh) or it has stopped: run ./up.sh again, or open the Atlas app. Nothing is lost.',
+                    'The part of Atlas that reads your files is not answering. It may still be starting (up to 30 seconds after ./up.sh) or it has stopped: run ./up.sh again, or open the Atlas app. Nothing is lost.' +
+                        (why ? ` (${why})` : ''),
                     true
                 )
             );

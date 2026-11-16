@@ -7,6 +7,7 @@ import http.client
 import json
 import os
 import re
+import socket
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -26,10 +27,21 @@ HEALTH_CACHE_SECONDS = 4.0
 MAX_RESULTS_PER_MODULE = 8
 SCAN_SECONDS = 6.0
 ASK_SECONDS = 60.0
-MAX_BODY = 8_000_000
+MAX_BODY = 500_000_000  # an answer is read whole: a cut-off answer would be unreadable
 MAX_PERCENT = 100
 MIN_QUERY_CHARS = 2  # a search shorter than this is not sent to the apps
 SOON_DAYS = 30  # events within this many days are "soon"
+
+
+def _plain_failure(why: Exception) -> str:
+    """Why a call to an app failed, in words a person can use (no code, no file names)."""
+    if isinstance(why, ConnectionRefusedError):
+        return "refused the connection (it is not listening yet, or has stopped)"
+    if isinstance(why, ConnectionResetError | http.client.RemoteDisconnected | http.client.IncompleteRead):
+        return "closed the connection before it finished answering"
+    if isinstance(why, socket.gaierror):
+        return "could not be found on this computer's network"
+    return "could not be reached (no answer)"
 
 
 def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict[str, str] | None = None, body: bytes = b"") -> tuple[int, bytes, str]:
@@ -251,8 +263,10 @@ class Upstreams:
             # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
             last = self._last_scan.get(module.id)
             return last if last else {**down, "up": True, "problems": []}  # the same words as before: a busy answer must not flip the text back and forth
-        except (OSError, http.client.HTTPException, ValueError):
-            return down
+        except ValueError:  # the app is there, but what it said could not be read
+            return {**down, "up": True, "problems": [f"{module.name} answered with something Atlas could not read"]}
+        except (OSError, http.client.HTTPException) as why:
+            return {**down, "problems": [f"{module.name} {_plain_failure(why)}"]}
         if not isinstance(raw, dict):
             return {**down, "up": True, "problems": [f"{module.name} gave an answer Atlas could not read"]}
         report = self._report_from(raw)

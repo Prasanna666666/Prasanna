@@ -100,7 +100,7 @@ def test_another_website_cannot_start_an_update(running):
 def test_an_app_that_is_down_is_reported_and_does_not_stop_the_others(running):
     running.apps["money"].close()
     report = json.loads(start_update(running)[2])
-    assert report["modules"]["money"]["up"] is False and "could not be reached" in report["modules"]["money"]["problems"][0]
+    assert report["modules"]["money"]["up"] is False and "refused the connection" in report["modules"]["money"]["problems"][0]
     assert report["modules"]["photos"]["up"] is True and running.apps["photos"].scanning
 
 
