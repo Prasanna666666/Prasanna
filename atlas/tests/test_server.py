@@ -79,7 +79,9 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     ]  # the malformed one is dropped; a failure keeps its state
     money = report["modules"]["money"]
     assert money["waiting"] == ["next.pdf"] and money["steps"][0]["name"] == "Sort" and money["steps"][0]["percent"] == 12.5
-    assert money["steps"][0]["counts"] == [{"label": "documents", "done": 1, "total": 8, "known": True}]  # a count that is not whole numbers is dropped
+    assert money["steps"][0]["counts"] == [
+        {"label": "documents", "done": 1, "total": 8, "known": True, "note": ""}
+    ]  # a count that is not whole numbers is dropped
     assert money["steps"][-1]["n"] == 3 and money["steps"][-1]["percent"] == 0.0
     assert report["modules"]["money"]["file"] == {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}
     assert running.apps["money"].scanning and running.apps["photos"].scanning  # the app's own change-protection header and token were supplied for it

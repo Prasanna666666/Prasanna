@@ -651,6 +651,7 @@
             const line = el('div', 'rd-count');
             line.append(el('span', '', c.label), el('b', '', countText(c)));
             counts.append(line);
+            if (c.note) counts.append(el('div', 'rd-countnote', c.note));
         }
         if (counts.children.length) card.append(counts);
         return card;

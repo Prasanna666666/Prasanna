@@ -70,7 +70,7 @@ def _counts(raw: object) -> list[dict[str, Any]]:
     """What a step has counted, in the words the person knows (documents, mails, documents in mails): only a label and two whole numbers."""
     ok = lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 0  # noqa: E731
     return [
-        {"label": str(c["label"])[:30], "done": c["done"], "total": c["total"], "known": c.get("known") is not False}
+        {"label": str(c["label"])[:30], "done": c["done"], "total": c["total"], "known": c.get("known") is not False, "note": str(c.get("note", ""))[:200]}
         for c in (raw if isinstance(raw, list) else [])[:5]
         if isinstance(c, dict) and isinstance(c.get("label"), str) and ok(c.get("done")) and ok(c.get("total"))
     ]

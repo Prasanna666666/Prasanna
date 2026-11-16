@@ -466,6 +466,15 @@ def _found() -> dict[str, Any]:
         return {}
 
 
+def _round() -> dict[str, dict[str, int]]:
+    """What became of the files the reader counted in its last round: how many it left out (empty, too large) and how many it could not read, for the mails and for the documents."""
+    try:
+        data = json.loads((parsed_dir() / ".round").read_text())
+        return {k: {"skipped": int(v["skipped"]), "failed": int(v["failed"])} for k, v in data.items() if k in ("mails", "documents") and isinstance(v, dict)}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
 def _row(name: str, read: int, total: int | None, noun: str) -> dict[str, Any]:
     """One line of the Update, in files (or mails), the way the person counts them: "12 of 36 files" while reading, "36 files" when done."""
     if total is not None and read < total:
@@ -660,6 +669,17 @@ def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _unaccounted(key: str, counted: int, held: int, left_out: dict[str, dict[str, int]]) -> str:
+    """Every file the reader counted is accounted for: held as a document, left out, unreadable, or a copy of another file (identical content is one document)."""
+    gone = counted - held
+    if gone <= 0 or key not in left_out:
+        return ""
+    skipped, failed = left_out[key]["skipped"], left_out[key]["failed"]
+    copies = max(0, gone - skipped - failed)
+    parts = [f"{n:,} {what}" for n, what in ((copies, "identical to another file"), (skipped, "left out"), (failed, "unreadable")) if n]
+    return f"{gone:,} not added: " + ", ".join(parts) if parts else ""
+
+
 def _tally(conn) -> dict[str, dict[str, int]]:
     """How far the files have got, in one pass over the database: for the documents (files in the folders, counted by the file they came from), the mails and the documents in mails,
     how many are in, sorted and understood, and how many attachments the mails say they carried."""
@@ -705,6 +725,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         ("understood", s.get("phase") in (3, 4)),
     )
     steps = []
+    left_out = _round()
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         mails_in = bool(found) and tally["mails"]["present"] >= (found.get("mails") or 0)
@@ -716,7 +737,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         counts, every = [], []
         for key, label in labels.items():
             # Once step 1 is over everything the reader could take in is in (messages with the same content are one, files that cannot be read never arrive), so the totals are what is held.
-            total = tally[key]["present"] if taken_in else max(tally[key]["present"], known[key] or 0, promised if key == "attachments" and n == 1 else 0)
+            # Step 1 counts against everything the reader counted (so nothing silently drops out: what was not added is said). Sorting and grouping work on what is held.
+            total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" else 0) if n == 1 else tally[key]["present"]
             # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
             known_now = taken_in or total_known[key]
             line = {
@@ -727,6 +749,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
                 else 0,  # a step that has not begun has done nothing, whatever state the files are already in
                 "total": total,
                 "known": known_now,
+                "note": _unaccounted(key, total, tally[key]["present"], left_out) if n == 1 and taken_in else "",
             }
             every.append(line)
             counts.append(line)

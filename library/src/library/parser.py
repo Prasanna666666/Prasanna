@@ -691,19 +691,26 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
     out = Path(a.out)
     if (out / STOP).exists():
         return {"parsed": 0, "skipped": 0, "failed": 0}
-    parts = []
+    mails: list[dict[str, int]] = []
+    documents: list[dict[str, int]] = []
     _now(out, "Mail", "looking for new messages")
     if (Path(a.inbox) / "mail").is_dir():  # the mail first, with everything it carries (mail exports dropped into the inbox: .mbox, .eml, .emlx)
-        parts.append(_stage(out, "mail in the inbox", process_inbox, Path(a.inbox) / "mail", out, area="mail"))
+        mails.append(_stage(out, "mail in the inbox", process_inbox, Path(a.inbox) / "mail", out, area="mail"))
     if a.mail and Path(a.mail).is_dir():
-        parts.append(_stage(out, "the Mail folder", process_mail_store, Path(a.mail), out))
+        mails.append(_stage(out, "the Mail folder", process_mail_store, Path(a.mail), out))
     for name, folder in sorted(collections(a.collection), key=lambda c: priority.rank(c[0])):  # then the documents, the apps in their order
         if folder.is_dir():
             _now(out, folder.name or name, "looking for new files")
-            parts.append(_stage(out, f"the {name} folder", process_inbox, folder, out, area=name))
+            documents.append(_stage(out, f"the {name} folder", process_inbox, folder, out, area=name))
     _now(out, "Your other files", "looking for new files")
-    parts.append(_stage(out, "the inbox", process_inbox, Path(a.inbox), out, skip_folders=frozenset({"mail"})))  # then the loose files
-    return {k: sum(part[k] for part in parts) for k in ("parsed", "skipped", "failed")}
+    documents.append(_stage(out, "the inbox", process_inbox, Path(a.inbox), out, skip_folders=frozenset({"mail"})))  # then the loose files
+    add = lambda parts: {k: sum(part[k] for part in parts) for k in ("parsed", "skipped", "failed")}  # noqa: E731
+    # what became of the files it counted, so the card can account for every one: how many were left out, how many could not be read
+    (out / ROUND_FILE).write_text(json.dumps({"mails": add(mails), "documents": add(documents)}))
+    return add(mails + documents)
+
+
+ROUND_FILE = ".round"
 
 
 def _wait_for_next_round(out: Path) -> None:

@@ -1176,3 +1176,8 @@ body.chatting .fab {
         display: none;
     }
 }
+.rd-countnote {
+    margin: -1px 0 3px;
+    font-size: 12px;
+    color: var(--muted);
+}

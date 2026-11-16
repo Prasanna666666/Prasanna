@@ -138,3 +138,16 @@ def test_a_step_that_has_not_begun_shows_nothing_done(conn, monkeypatch):
     steps = web._steps(conn, {"phase": 1})
     assert [c["done"] for c in steps[1]["counts"]] == [0, 0, 0] and [c["done"] for c in steps[2]["counts"]] == [0, 0, 0]
     assert {c["key"]: c["done"] for c in web._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
+
+
+def test_what_the_reader_counted_but_did_not_add_is_accounted_for_file_by_file(conn, monkeypatch, tmp_path):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0})
+    monkeypatch.setattr(web, "_round", lambda: {"documents": {"skipped": 2, "failed": 3}, "mails": {"skipped": 0, "failed": 0}})
+    for i in range(4):
+        _add(conn, f"f{i}.pdf", "finance", judged=1)
+    conn.commit()
+    line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
+    assert (line["done"], line["total"]) == (4, 10)  # the exact count is kept, never shrunk to what is held
+    assert line["note"] == "6 not added: 1 identical to another file, 2 left out, 3 unreadable"
