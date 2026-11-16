@@ -137,7 +137,7 @@ def test_a_step_that_has_not_begun_shows_nothing_done(conn, monkeypatch):
     _add(conn, "a.pdf", "finance", judged=2)  # skipped: it counts as sorted and as grouped the moment sorting begins, not before
     conn.commit()
     steps = web._steps(conn, {"phase": 1})
-    assert [c["done"] for c in steps[1]["counts"]] == [0, 0, 0] and [c["done"] for c in steps[2]["counts"]] == [0, 0, 0]
+    assert steps[1]["counts"] == [] and steps[2]["counts"] == []  # a step that has not begun shows no numbers at all
     assert {c["key"]: c["done"] for c in web._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
 
 
@@ -192,7 +192,7 @@ def test_each_step_lists_the_counts_in_the_order_it_works_through_them(conn, mon
     from library import web
 
     monkeypatch.setattr(web, "_found", lambda: {"documents": 1, "mails": 1, "attachments": 1})
-    steps = web._steps(conn, {"phase": 2})
+    steps = web._steps(conn, {"phase": 4})
     assert [c["key"] for c in steps[0]["counts"]] == ["mails", "attachments", "documents"]  # reading takes the mail first
     assert [c["key"] for c in steps[1]["counts"]] == ["documents", "mails", "attachments"]  # sorting takes the documents first
     assert [c["key"] for c in steps[2]["counts"]] == ["documents", "mails", "attachments"]
@@ -237,5 +237,5 @@ def test_the_number_of_documents_is_the_same_in_every_step_once_the_reading_is_o
     for i in range(5):
         _add(conn, f"f{i}.pdf", "finance", judged=0)
     conn.commit()
-    totals = [next(c for c in step["counts"] if c["key"] == "documents")["total"] for step in web._steps(conn, {"phase": 2})]
+    totals = [next(c for c in step["counts"] if c["key"] == "documents")["total"] for step in web._steps(conn, {"phase": 4})]
     assert totals == [5, 5, 5]
