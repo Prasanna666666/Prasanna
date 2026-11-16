@@ -199,3 +199,14 @@ def test_a_round_is_complete_only_when_the_reader_has_gone_through_everything_it
     assert web._round_complete()
     monkeypatch.setattr(web, "_gone_through", dict)
     assert web._round_complete()  # nothing to compare with: the read is not held
+
+
+def test_step_one_shows_every_count_complete_when_the_reader_has_gone_through_everything(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 3, "mails": 2, "attachments": 10})
+    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 3, "mails": 2, "attachments": 10})
+    _add(conn, "a.pdf", "finance", judged=1)  # one document held: the other attachments are copies of it or could not be read
+    conn.commit()
+    lines = web._steps(conn, {"phase": 2})[0]
+    assert all(c["done"] == c["total"] for c in lines["counts"]) and lines["state"] == "done"

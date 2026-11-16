@@ -662,7 +662,7 @@ def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
 def _done_count(n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any]) -> int:
     if (s.get("phase") or 1) < n:
         return 0  # a step that has not begun has done nothing, whatever state the files are already in
-    if n == 1 and key != "attachments":
+    if n == 1:
         return total if taken_in else min(total, max(held["present"], gone_through.get(key, 0)))
     return held[where]
 
