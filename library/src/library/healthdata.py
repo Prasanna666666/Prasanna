@@ -41,6 +41,7 @@ def health_funnel(conn) -> dict[str, int]:
         "found": count(),
         "understood": len(docs),
         "with_values": sum(1 for d in docs if d["health"].get("values")),
+        "read_in_part": sum(1 for d in docs if d["health"] and not d["health"].get("complete")),
         "waiting_for_the_model": count(" AND judged=0"),
         "not_understood": count(" AND judged=3"),
         "no_readable_text": count(" AND TRIM(text)='' AND kind<>'email'"),
@@ -59,6 +60,8 @@ def health_documents(conn) -> dict[str, Any]:
             "values": len(d["health"].get("values") or []),
             "medicines": len(d["health"].get("medicines") or []),
             "follow_up": d["health"].get("follow_up"),
+            "complete": bool(d["health"].get("complete")),
+            "not_read": d["health"].get("unprocessed") or [],
         }
         for d in reversed(_medical_documents(conn))
         if d["file_kind"] != "email"  # the documents, never a whole email

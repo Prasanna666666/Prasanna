@@ -46,16 +46,92 @@ def test_a_broken_answer_is_asked_again_once_and_then_it_is_unclear_never_other(
         extract.classify(Model({}), "m", "f.pdf", "text")
 
 
-def test_lab_values_far_into_a_long_report_are_read_too_and_a_row_seen_twice_is_kept_once():
-    first = "Uitslag bloedonderzoek. Hemoglobine 8,4 mmol/L 7,5 - 10,0\n" + "toelichting " * 700
-    second = "Glucose 6,4 mmol/L 4,0 - 6,0\nHemoglobine 8,4 mmol/L 7,5 - 10,0\n"
-    text = first + second
-    assert len(text) > extract.WINDOW
+def test_lab_values_far_into_a_long_report_are_read_too_and_a_row_in_the_overlap_is_kept_once():
+    filler = "toelichting " * 420  # 5040 characters
+    row = "Hemoglobine 8,4 mmol/L 7,5 - 10,0\n"  # printed across the boundary of the first two pieces: both pieces see it
+    text = "Uitslag bloedonderzoek.\n" + filler + row + filler + "Glucose 6,4 mmol/L 4,0 - 6,0\n"
+    assert extract.WINDOW - extract.OVERLAP < text.index(row) < extract.WINDOW
     hb = {"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L", "range": "7,5 - 10,0"}
     glucose = {"test": "Glucose", "value": "6,4", "unit": "mmol/L", "range": "4,0 - 6,0"}
-    model = Model({"values": [hb]}, {"values": [glucose, hb]})
+    model = Model({"values": [hb]}, {"values": [hb, glucose]})
     got = extract.medical_details(model, "m", "b.pdf", text)
-    assert sorted(v["test"] for v in got["values"]) == ["Glucose", "Hemoglobine"]  # the second piece's value is not lost, the repeated one is not doubled
+    assert sorted(v["test"] for v in got["values"]) == ["Glucose", "Hemoglobine"]
+    assert got["complete"] is True and got["unprocessed"] == []
+
+
+def test_the_same_test_printed_twice_far_apart_is_two_rows():
+    hb = {"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L", "range": "7,5 - 10,0"}
+    line = "Hemoglobine 8,4 mmol/L 7,5 - 10,0\n"
+    text = line + "toelichting " * 1500 + line
+    got = extract.medical_details(Model({"values": [hb]}), "m", "b.pdf", text)
+    assert [v["test"] for v in got["values"]].count("Hemoglobine") == 2
+
+
+def test_a_very_long_report_is_read_to_the_end_with_no_cap_on_values_or_medicines():
+    lines = [f"Test{i:04d} {i:04d},5 mmol/L" for i in range(300)]
+    meds = [f"Medicijn{i:04d} {i:04d} mg" for i in range(80)]
+    text = "\n".join(lines + meds)
+    wanted = {
+        "values": [{"test": f"Test{i:04d}", "value": f"{i:04d},5", "unit": "mmol/L"} for i in range(300)],
+        "medicines": [{"name": f"Medicijn{i:04d}", "dose": f"{i:04d} mg"} for i in range(80)],
+    }
+    got = extract.medical_details(Model(wanted), "m", "big.pdf", text)
+    assert len(got["values"]) == 300 and len(got["medicines"]) == 80 and got["complete"] is True
+
+
+def test_more_than_twelve_pieces_are_all_read():
+    text = "Hemoglobine 8,4 mmol/L\n" + "toelichting " * 9000  # about 108,000 characters: more than twelve pieces
+    model = Model({"values": []})
+    got = extract.medical_details(model, "m", "long.pdf", text)
+    assert len(model.shown) == len(extract._windows(text)) > 12
+    assert got["complete"] is True
+
+
+def test_exact_printed_text_is_never_shortened():
+    long_name = "Een zeer lange testnaam " * 8
+    text = f"{long_name} 8,4 mmol/L"
+    got = extract.medical_details(Model({"values": [{"test": long_name.strip(), "value": "8,4", "unit": "mmol/L"}]}), "m", "x", text)
+    assert got["values"][0]["test"] == long_name.strip()
+
+
+def test_a_piece_the_model_cannot_read_is_reported_and_the_rest_is_still_read():
+    class FailsOnce:
+        def __init__(self):
+            self.calls = 0
+
+        def chat(self, model, messages, **kw):
+            self.calls += 1
+            body = messages[-1]["content"]
+            if "FAILHERE" in body and len(body) > 2 * extract.WINDOW // 5:
+                return {"content": ""}
+            return {"content": json.dumps({"values": [{"test": "Glucose", "value": "6,4"}]})}
+
+    text = "Glucose 6,4 mmol/L\n" + "x " * 2600 + "FAILHERE\n" + "x " * 2600 + "\f" + "y " * 6000
+    got = extract.medical_details(FailsOnce(), "m", "p.pdf", text)
+    assert [v["test"] for v in got["values"]] == ["Glucose"], "what the good pieces held was kept"
+    assert got["complete"] is False and got["unprocessed"]
+    failed = got["unprocessed"][0]
+    assert failed["from_character"] <= text.index("FAILHERE") < failed["to_character"] and "returned nothing" in failed["reason"]
+
+
+def test_what_is_not_processed_is_named_with_part_and_page_and_never_called_complete():
+    text = ("page one " * 300 + "\f") * 4
+    got = extract.medical_details(Model({"values": []}), "m", "p.pdf", text, max_parts=1)
+    assert got["complete"] is False
+    assert got["unprocessed"] and got["unprocessed"][0]["part"] == 2 and got["unprocessed"][0]["of"] == len(extract._windows(text))
+    assert {"from_character", "to_character", "from_page", "to_page", "reason"} <= set(got["unprocessed"][0])
+
+
+def test_a_piece_that_fails_as_a_whole_is_read_in_halves():
+    class OnlyHalves:
+        def chat(self, model, messages, **kw):
+            if len(messages[-1]["content"]) > 4000:
+                return {"content": ""}
+            return {"content": json.dumps({"values": [{"test": "Glucose", "value": "6,4"}]})}
+
+    text = "Glucose 6,4 mmol/L " + "toelichting " * 400
+    got = extract.medical_details(OnlyHalves(), "m", "h.pdf", text)
+    assert got["complete"] is True and got["values"]
 
 
 def test_a_document_the_full_question_failed_on_gets_a_second_look_with_a_smaller_question():
@@ -161,3 +237,64 @@ def test_the_model_also_sees_the_lines_with_figures_from_the_middle_of_a_long_do
     assert len(shown) < extract.HEAD_CHARS + extract.TAIL_CHARS + extract.MIDDLE_CHARS + 50
     assert extract.sample_of("short") == "short"
     assert "line 7 of ordinary words" not in extract.key_passages(filler)  # lines without figures are left out
+
+
+class _Said:
+    def __init__(self, data):
+        self.data = data
+
+    def chat(self, model, messages, **kw):
+        return {"content": json.dumps(self.data)}
+
+
+INVOICE = "Factuur 2026-03-02\nFactuurdatum: 2 maart 2026\nBetaal uiterlijk 16 maart 2026\nTotaal 12,50"
+
+
+def test_a_date_is_kept_only_if_the_document_writes_it_and_its_source_line_is_kept():
+    info = {"date": "2026-03-02", "date_quote": "Factuurdatum: 2 maart 2026", "due_date": "2026-03-16", "due_date_quote": "Betaal uiterlijk 16 maart 2026"}
+    got = extract.verify_dates(info, INVOICE)
+    assert (got["date"], got["due_date"]) == ("2026-03-02", "2026-03-16")
+    assert got["date_source"] == "Factuurdatum: 2 maart 2026" and got["due_date_source"] == "Betaal uiterlijk 16 maart 2026"
+    assert "date_quote" not in got
+
+
+@pytest.mark.parametrize("model_said", ["2026-04-30", "2026-02-30", "2026-13-01", "02/03/2026", "yesterday", "", None, 20260302])
+def test_a_date_the_document_does_not_write_or_that_is_not_a_calendar_date_is_unknown(model_said):
+    got = extract.verify_dates({"date": model_said, "due_date": model_said}, INVOICE)
+    assert got["date"] is None and got["due_date"] is None
+
+
+def test_a_valid_looking_date_with_a_wrong_quote_is_kept_without_a_source():
+    got = extract.verify_dates({"date": "2026-03-02", "date_quote": "Datum 1 januari"}, INVOICE)
+    assert got["date"] == "2026-03-02" and got["date_source"] == ""
+
+
+def test_a_due_date_before_the_date_is_dropped():
+    text = "Datum 16 maart 2026. Vervaldatum 2 maart 2026."
+    got = extract.verify_dates({"date": "2026-03-16", "due_date": "2026-03-02"}, text)
+    assert got["date"] == "2026-03-16" and got["due_date"] is None
+
+
+@pytest.mark.parametrize(
+    ("text", "iso"),
+    [
+        ("12-01-2026", "2026-01-12"),
+        ("12.01.2026", "2026-01-12"),
+        ("12 januari 2026", "2026-01-12"),
+        ("January 12, 2026", "2026-01-12"),
+        ("12th Jan 2026", "2026-01-12"),
+        ("1 mrt 2026", "2026-03-01"),
+    ],
+)
+def test_dutch_english_and_numeric_dates_are_all_read(text, iso):
+    assert extract.verify_dates({"date": iso}, f"Datum: {text}")["date"] == iso
+
+
+def test_numbers_are_day_first_so_the_other_reading_is_not_accepted():
+    assert extract.verify_dates({"date": "2026-01-02"}, "Datum 01/02/2026")["date"] is None  # 1 February, not 2 January: the model's other reading is unknown
+
+
+def test_the_classifier_returns_only_verified_dates():
+    said = {"kind": "invoice", "title": "T", "date": "2026-03-02", "due_date": "2027-01-01", "apps": []}
+    got = extract.classify(_Said(said), "m", "f.pdf", INVOICE)
+    assert got["date"] == "2026-03-02" and got["due_date"] is None

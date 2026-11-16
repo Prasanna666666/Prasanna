@@ -453,3 +453,32 @@ def test_a_folder_inside_one_already_read_is_not_read_twice(tmp_path):
     icloud, text, said = _found(tmp_path, "Personal/Health", "Personal/Travel", "Finance/Others")
     assert said.count("Atlas will read") == 2 and f"{icloud / 'Personal'} as personal" in said and f"{icloud / 'Finance'} as finance" in said
     assert "Personal/Health" not in text and "Finance/Others" not in text  # the parent already covers them: the same files are not read under two kinds
+
+
+def test_a_medical_document_read_in_part_says_so_and_is_read_again(lib):
+    lib.add("deel.pdf", "medical", text="Hemoglobine 8,4 mmol/L", title="Deel", date="2025-01-01")
+    state = {"fail": True}
+
+    class Model:
+        def chat(self, model, messages, schema=None, **kw):
+            if state["fail"]:
+                return {"content": ""}
+            return {"content": json.dumps({"values": [{"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L"}]})}
+
+    assert judging.fill_health_details(lib.conn, Model(), "m") == 1
+    document = healthdata.health_documents(lib.conn)["documents"][0]
+    assert document["complete"] is False and document["not_read"]
+    assert healthdata.health_funnel(lib.conn)["read_in_part"] == 1
+    state["fail"] = False
+    assert judging.fill_health_details(lib.conn, Model(), "m") == 1
+    assert healthdata.health_documents(lib.conn)["documents"][0]["complete"] is True
+
+
+def test_a_medical_reading_made_before_completeness_was_recorded_is_read_again(lib):
+    lib.add("oud.pdf", "medical", text="Hemoglobine 8,4 mmol/L", title="Old", date="2025-01-01", health={"values": [], "medicines": [], "follow_up": None})
+
+    class Model:
+        def chat(self, model, messages, schema=None, **kw):
+            return {"content": json.dumps({"values": [{"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L"}]})}
+
+    assert judging.fill_health_details(lib.conn, Model(), "m") == 1

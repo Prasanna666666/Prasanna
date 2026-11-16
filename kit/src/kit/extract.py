@@ -21,7 +21,9 @@ FACT_FIELDS = {
     "summary": {"type": "string"},
     "party": {"type": "string"},  # who it is from / to: the shop, supplier, employer, insurer, tax office, hospital ...
     "date": {"type": "string"},
+    "date_quote": {"type": "string"},  # the words of the document that carry the date, exactly as printed
     "due_date": {"type": "string"},
+    "due_date_quote": {"type": "string"},  # the words of the document that carry the due date, exactly as printed
     "reference": {"type": "string"},  # an invoice / policy / case number
     "currency": {"type": "string"},
     "period": {"type": "string"},  # the month or year a statement or slip covers
@@ -54,7 +56,7 @@ def kind_prompt(apps: dict[str, str] | None) -> str:
         "You read the start of a personal document. It may be in any language. Say what it is in a few words, as a person would name it (kind)."
         + marks
         + "Then give: title (a few words), summary (one short sentence), party (who it is from or to), entities (at most eight distinctive things the file is about, each exactly as written: "
-        "people, organisations, places, reference numbers, products), date and due_date as YYYY-MM-DD, reference (any reference or case "
+        "people, organisations, places, reference numbers, products), date and due_date as YYYY-MM-DD (each with the words of the document that carry it, as date_quote and due_date_quote), reference (any reference or case "
         'number), currency (EUR, INR ...). Give each amount EXACTLY AS PRINTED in the document, as text, character for character (for example "3.500,00"): '
         "total (the main amount) and vat, and where the document states them period (the month or year it covers) and gross, net, tax, pension, holiday_pay. For a stay or trip "
         "also give start_date and end_date as YYYY-MM-DD and place (the destination), only as printed. Leave out or use null what is not there. Never invent or recalculate."
@@ -145,6 +147,34 @@ def dates_in(text: str) -> set[str]:
     return found
 
 
+def _written_date(value: object, written: set[str]) -> str | None:
+    """The date as YYYY-MM-DD if it is a real calendar date that the document itself writes; otherwise None (unknown, never a guess)."""
+    text = str(value or "").strip()
+    try:
+        date.fromisoformat(text)
+    except ValueError:
+        return None
+    return text if text in written else None
+
+
+def verify_dates(info: dict, text: str) -> dict:
+    """The document's date and due date are kept only if the document writes them (any layout, English or Dutch) and a due date is not before the date. The line that carries each is kept as its source
+    when the model quoted it correctly; an unverified date becomes None, so it is unknown rather than a guess."""
+    checked = dict(info)
+    written = dates_in(text)
+    squashed = squash(text.lower())
+    for field in ("date", "due_date"):
+        found = _written_date(info.get(field), written)
+        quote = str(info.get(f"{field}_quote") or "").strip()
+        checked[field] = found
+        carried = bool(found) and bool(quote) and squash(quote.lower()) in squashed and found in dates_in(quote)
+        checked[f"{field}_source"] = quote[:200] if carried else ""
+        checked.pop(f"{field}_quote", None)
+    if checked["date"] and checked["due_date"] and checked["due_date"] < checked["date"]:
+        checked["due_date"], checked["due_date_source"] = None, ""
+    return checked
+
+
 def verify_trip_fields(info: dict, text: str) -> dict:
     """A ticket's or booking's dates and place are kept only if the document itself says them: the dates must be written in it, the end not before the start."""
     checked = dict(info)
@@ -195,7 +225,7 @@ def sample_of(text: str) -> str:
 
 def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
     data = _ask(client, model, kind_prompt(apps), f"File name: {name}\n\n{sample_of(text)}", kind_schema(apps))
-    checked = verify_trip_fields(verify_amounts(data, text), text)
+    checked = verify_trip_fields(verify_dates(verify_amounts(data, text), text), text)
     checked["kind"] = str(checked.get("kind") or "").strip()[:60]
     checked["apps"] = [a for a in (checked.get("apps") or []) if a in (apps or {})]
     party = str(checked.get("party") or "").strip()
@@ -289,7 +319,6 @@ HEALTH_PROMPT = (
     "document prints one. List every prescribed medicine: name as printed, dose and duration as printed. If the document states a follow-up or next appointment date, "
     "give it as YYYY-MM-DD. Copy only what is written. Never interpret, diagnose, estimate, convert or invent anything; leave out what is not there."
 )
-MAX_VALUES, MAX_MEDICINES = 60, 30
 _NUMBER = re.compile(r"^-?\d+(?:[.,]\d+)?$")
 
 
@@ -298,22 +327,47 @@ def _printed(text_lower: str, squashed_lower: str, quoted: str) -> bool:
     return bool(quoted) and (quoted in text_lower or squash(quoted) in squashed_lower)
 
 
-WINDOW, OVERLAP, MAX_WINDOWS = 5500, 500, 12
+WINDOW, OVERLAP, MIN_SPLIT, LOOKAROUND = 5500, 500, 1500, 300
 
 
-def _windows(text: str) -> list[str]:
-    """The whole document in pieces the model can hold, each overlapping the one before so a row is never cut in two."""
+def _line_start(text: str, pos: int) -> int:
+    """`pos` moved back to the start of its line (or word, when the text has no line breaks nearby), so a row is not begun in the middle."""
+    for mark in ("\n", " "):
+        found = text.rfind(mark, max(0, pos - LOOKAROUND), pos)
+        if found >= 0:
+            return found + 1
+    return pos
+
+
+def _line_end(text: str, pos: int) -> int:
+    """`pos` moved forward to the end of its line (or word), so a row is not cut off in the middle."""
+    if pos >= len(text):
+        return len(text)
+    for mark in ("\n", " "):
+        found = text.find(mark, pos, pos + LOOKAROUND)
+        if found >= 0:
+            return found + 1
+    return pos
+
+
+def _windows(text: str) -> list[tuple[int, str]]:
+    """The whole document in pieces the model can hold (with where each starts). Pieces begin and end at line breaks and overlap the one before, so a row is never cut in two. There is no cap on how many."""
     if len(text) <= WINDOW:
-        return [text]
-    step = WINDOW - OVERLAP
-    return [text[i : i + WINDOW] for i in range(0, min(len(text), step * MAX_WINDOWS), step)]
+        return [(0, text)]
+    parts, start = [], 0
+    while True:
+        end = _line_end(text, min(len(text), start + WINDOW))
+        parts.append((start, text[start:end]))
+        if end >= len(text):
+            return parts
+        start = _line_start(text, end - OVERLAP)
 
 
 def _health_window(client, model: str, name: str, body: str) -> dict:
     data = _ask(client, model, HEALTH_PROMPT, f"File name: {name}\n\n{body}", HEALTH_SCHEMA)
     lower, squashed = body.lower(), squash(body.lower())
     values = []
-    for v in (data.get("values") or [])[:MAX_VALUES]:
+    for v in data.get("values") or []:
         if not isinstance(v, dict):
             continue
         test, result = str(v.get("test") or "").strip(), str(v.get("value") or "").strip()
@@ -322,15 +376,15 @@ def _health_window(client, model: str, name: str, body: str) -> dict:
         unit, rng = str(v.get("unit") or "").strip(), str(v.get("range") or "").strip()
         values.append(
             {
-                "test": test[:80],
-                "value": result[:40],
+                "test": test,
+                "value": result,
                 "number": float(result.replace(",", ".")) if _NUMBER.match(result) else None,
-                "unit": unit[:30] if _printed(lower, squashed, unit) else "",
-                "range": rng[:40] if _printed(lower, squashed, rng) else "",
+                "unit": unit if _printed(lower, squashed, unit) else "",
+                "range": rng if _printed(lower, squashed, rng) else "",
             }
         )
     medicines = []
-    for m in (data.get("medicines") or [])[:MAX_MEDICINES]:
+    for m in data.get("medicines") or []:
         if not isinstance(m, dict):
             continue
         med = str(m.get("name") or "").strip()
@@ -338,33 +392,85 @@ def _health_window(client, model: str, name: str, body: str) -> dict:
             continue
         dose, duration = str(m.get("dose") or "").strip(), str(m.get("duration") or "").strip()
         medicines.append(
-            {
-                "name": med[:80],
-                "dose": dose[:60] if _printed(lower, squashed, dose) else "",
-                "duration": duration[:60] if _printed(lower, squashed, duration) else "",
-            }
+            {"name": med, "dose": dose if _printed(lower, squashed, dose) else "", "duration": duration if _printed(lower, squashed, duration) else ""}
         )
     follow_up = str(data.get("follow_up") or "")
     return {"values": values, "medicines": medicines, "follow_up": follow_up if follow_up in dates_in(body) else None}
 
 
-def medical_details(client, model: str, name: str, text: str, progress=None) -> dict:
-    """Lab values and medicines of a medical document, read over the WHOLE document (a long report is read in overlapping pieces, not cut off after the first pages).
-    The model quotes; code keeps a value only when its test name, its result, its unit and its range are printed in the piece it came from, a date only when it is written
-    there, and reads the number from the printed result itself. Nothing is interpreted. The same row seen in two pieces is kept once."""
+def _value_key(v: dict) -> tuple:
+    return (v["test"].lower(), v["value"], v["unit"], v["range"])
+
+
+def _medicine_key(m: dict) -> tuple:
+    return (m["name"].lower(), m["dose"], m["duration"])
+
+
+EMPTY_READING: dict = {"values": [], "medicines": [], "follow_up": None}
+
+
+def _read_piece(client, model: str, name: str, body: str) -> tuple[dict, list[tuple[int, int, str]]]:
+    """One piece, and the stretches of it nobody could read (offset, length, why). If the model cannot answer for a piece it is cut in two (overlapping) and each half is read, down to a
+    small size; what was read from the good halves is kept, and only the stretch that still fails is reported."""
+    try:
+        return _health_window(client, model, name, body), []
+    except Unclear as why:
+        if len(body) <= MIN_SPLIT * 2:
+            return EMPTY_READING, [(0, len(body), str(why))]
+    half = len(body) // 2
+    first, lost_first = _read_piece(client, model, name, body[: half + OVERLAP])
+    second, lost_second = _read_piece(client, model, name, body[half:])
+    seen = {_value_key(v) for v in first["values"]}
+    meds = {_medicine_key(m) for m in first["medicines"]}
+    shared = body[half : half + OVERLAP]
+    merged = {
+        "values": first["values"] + [v for v in second["values"] if not (_value_key(v) in seen and _printed_in(shared, v))],
+        "medicines": first["medicines"] + [m for m in second["medicines"] if not (_medicine_key(m) in meds and _printed_in(shared, m))],
+        "follow_up": first["follow_up"] or second["follow_up"],
+    }
+    return merged, lost_first + [(half + offset, length, why) for offset, length, why in lost_second]
+
+
+def _printed_in(region: str, row: dict) -> bool:
+    """True if the row's own words (test and result, or the medicine's name) are printed inside `region`: it was in the overlap, so the piece before saw it too."""
+    lower, squashed = region.lower(), squash(region.lower())
+    words = (row["test"], row["value"]) if "test" in row else (row["name"],)
+    return all(_printed(lower, squashed, w) for w in words)
+
+
+def _section(text: str, start: int, end: int, number: int, count: int, why: str) -> dict:
+    """Which part of the document was not read, in words a person can use: part number, characters and (when the text has page breaks) pages."""
+    out: dict = {"part": number, "of": count, "from_character": start, "to_character": end, "reason": why}
+    if "\f" in text:
+        out["from_page"], out["to_page"] = text.count("\f", 0, start) + 1, text.count("\f", 0, max(start, end - 1)) + 1
+    return out
+
+
+def medical_details(client, model: str, name: str, text: str, progress=None, max_parts: int | None = None) -> dict:
+    """Lab values and medicines of a medical document, read over the WHOLE document in overlapping pieces; nothing is capped. The model quotes; code keeps a value only when its test
+    name, result, unit and range are printed in the piece it came from, and a date only when it is written there. Text is kept exactly as printed. Nothing is interpreted.
+    A row that is in the overlap of two pieces is kept once; the same test with the same result printed twice elsewhere is two rows.
+    `complete` is true only if every piece was read; otherwise `unprocessed` says which parts were not (the model could not answer for them, or `max_parts` stopped the reading)."""
     values: list[dict] = []
     medicines: list[dict] = []
     follow_up = None
+    unprocessed: list[dict] = []
     parts = _windows(text)
-    for n, body in enumerate(parts, 1):
+    before: dict = {"values": [], "medicines": []}
+    previous_end = 0
+    for n, (start, body) in enumerate(parts, 1):
+        if max_parts is not None and n > max_parts:
+            unprocessed.append(_section(text, start, start + len(body), n, len(parts), "stopped at the limit set for this reading"))
+            continue
         if progress:
             progress(f"{name}: reading part {n} of {len(parts)}")
-        got = _health_window(client, model, name, body)
-        for v in got["values"]:
-            if not any((v["test"].lower(), v["value"], v["unit"]) == (o["test"].lower(), o["value"], o["unit"]) for o in values):
-                values.append(v)
-        for m in got["medicines"]:
-            if not any(m["name"].lower() == o["name"].lower() for o in medicines):
-                medicines.append(m)
+        got, lost = _read_piece(client, model, name, body)
+        unprocessed += [_section(text, start + offset, start + offset + length, n, len(parts), why) for offset, length, why in lost]
+        head = body[: max(0, previous_end - start)]  # what the piece before also saw
+        previous_end = start + len(body)
+        seen_values, seen_medicines = {_value_key(v) for v in before["values"]}, {_medicine_key(m) for m in before["medicines"]}
+        values += [v for v in got["values"] if not (head and _value_key(v) in seen_values and _printed_in(head, v))]
+        medicines += [m for m in got["medicines"] if not (head and _medicine_key(m) in seen_medicines and _printed_in(head, m))]
         follow_up = follow_up or got["follow_up"]
-    return {"values": values[: MAX_VALUES * 4], "medicines": medicines[: MAX_MEDICINES * 2], "follow_up": follow_up}
+        before = got
+    return {"values": values, "medicines": medicines, "follow_up": follow_up, "complete": not unprocessed, "unprocessed": unprocessed}

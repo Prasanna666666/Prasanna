@@ -457,10 +457,10 @@ def _apps_clause(names: list[str]) -> tuple[str, list[str]]:
 
 
 def fill_health_details(conn, client, model, control: Callable[[], str] | None = None) -> int:
-    """Medical documents judged before lab values and medicines were read get them now (one model call each); returns how many."""
+    """Medical documents judged before lab values and medicines were read, read by the older capped reader, or read only in part get them (again) now; returns how many."""
     clause, args = _apps_clause(apps.with_reading("medical"))
     rows = conn.execute(
-        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND {clause} AND facts<>'' AND json_extract(facts, '$.health') IS NULL",
+        f"SELECT sha256, name, text, facts FROM documents WHERE judged=1 AND {clause} AND facts<>'' AND COALESCE(json_extract(facts, '$.health.complete'), 0) = 0",
         args,
     ).fetchall()
     done = 0
