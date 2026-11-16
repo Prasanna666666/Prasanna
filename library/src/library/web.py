@@ -443,6 +443,7 @@ def _found() -> dict[str, Any]:
             "documents": int(data["documents"]),
             "mails": int(data["mails"]),
             "mail_connected": data.get("mail_connected") is True,
+            "mailboxes": {str(k)[:40]: int(v) for k, v in list((data.get("mailboxes") or {}).items())[:8]},
             "by_folder": {str(k)[:20]: int(v) for k, v in (data.get("by_folder") or {}).items()},
         }
     except (OSError, ValueError, KeyError, TypeError):
@@ -643,6 +644,18 @@ def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _why_no_mail(found: dict[str, Any]) -> str:
+    """When no mail was found: why, in words, from what the reader saw."""
+    if not found:
+        return ""
+    if not found.get("mail_connected"):
+        return "the Mail folder is not reachable from Atlas (Docker needs Full Disk Access)"
+    boxes = found.get("mailboxes") or {}
+    if not boxes:
+        return "the Mail folder holds no messages"
+    return "only Inbox and Sent are read; Mail has: " + ", ".join(f"{name} ({n:,})" for name, n in boxes.items())
+
+
 def _tally(conn) -> dict[str, dict[str, int]]:
     """How far the files have got, in one pass over the database: for the documents (files in the folders, counted by the file they came from), the mails and the documents in mails,
     how many are in, sorted and understood, and how many attachments the mails say they carried."""
@@ -693,7 +706,14 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             # Each of the three is always listed. Its number is given only when its total is fully known: the mails and the documents are counted by the reader before it reads
             # (the documents are only listed once the mails with all they carry are in); the documents in mails only once every mail is opened.
             known_now = n > 1 or (key == "mails" and bool(found)) or (key == "attachments" and mails_in) or (key == "documents" and attached_in)
-            line = {"key": key, "label": label, "done": tally[key][where], "total": total, "known": known_now}
+            line = {
+                "key": key,
+                "label": label,
+                "done": tally[key][where],
+                "total": total,
+                "known": known_now,
+                "note": _why_no_mail(found) if key == "mails" and not total else "",
+            }
             every.append(line)
             counts.append(line)
         shown = [c for c in counts if c["known"]]

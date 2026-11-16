@@ -551,6 +551,18 @@ def _supported(root: Path, skip: frozenset[str] = frozenset(), only_emlx: bool =
     return total
 
 
+def mailbox_names(root: Path, out: Path | None = None, top: int = 8) -> dict[str, int]:
+    """Which mailboxes the mail folder holds (the name of the innermost mailbox folder, and how many messages): for saying why no mail was found. Names of folders only."""
+    names: dict[str, int] = {}
+    for seen, f in enumerate(root.resolve().rglob("*.emlx"), 1):
+        if out is not None and seen % CHECK_EVERY == 0 and halted(out):
+            raise Halted
+        boxes = [part for part in f.relative_to(root.resolve()).parts[:-1] if part.lower().endswith(".mbox")]
+        key = boxes[-1][: -len(".mbox")][:40] if boxes else "(no mailbox)"
+        names[key] = names.get(key, 0) + 1
+    return dict(sorted(names.items(), key=lambda kv: -kv[1])[:top])
+
+
 FOUND_FILE = ".found"
 FAILED_FILE = ".failed.json"
 
@@ -602,13 +614,23 @@ def write_found(a: argparse.Namespace) -> None:
         mails = _supported(Path(a.inbox) / "mail", out=out) if (Path(a.inbox) / "mail").is_dir() else 0
         if a.mail and Path(a.mail).is_dir():
             mails += _supported(Path(a.mail), only_emlx=True, out=out)
+        mailboxes = mailbox_names(Path(a.mail), out) if a.mail and Path(a.mail).is_dir() and not mails else {}
         roots = [("inbox", Path(a.inbox))] + [(name, folder) for name, folder in collections(a.collection) if folder.is_dir()]
         unread = unread_report([(n, r) for n, r in roots if r.is_dir()], out)
     except Halted:
         return  # stopped while counting: nothing is written, nothing is read
     tmp = out / f"{FOUND_FILE}.tmp"
     tmp.write_text(
-        json.dumps({"documents": documents, "mails": mails, "mail_connected": bool(a.mail and Path(a.mail).is_dir()), "by_folder": by_folder, "unread": unread})
+        json.dumps(
+            {
+                "documents": documents,
+                "mails": mails,
+                "mail_connected": bool(a.mail and Path(a.mail).is_dir()),
+                "by_folder": by_folder,
+                "unread": unread,
+                "mailboxes": mailboxes,
+            }
+        )
     )
     os.replace(tmp, out / FOUND_FILE)
 
