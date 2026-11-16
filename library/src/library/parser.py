@@ -675,24 +675,35 @@ def read_everything(a: argparse.Namespace) -> dict[str, int]:
         counting.join()
 
 
+def _stage(out: Path, what: str, fn, *args, **kwargs) -> dict[str, int]:
+    """One part of a round (the mail, a folder, the loose files). If it fails as a whole, that is counted and said, and the other parts are still read: nothing after it is lost."""
+    try:
+        return fn(*args, **kwargs)
+    except Exception as e:  # noqa: BLE001 - one part failing must never stop the others
+        print(f"FAILED {what}: {type(e).__name__}", file=sys.stderr, flush=True)
+        with _CLAIM_LOCK:
+            if len(_FAILED) < MAX_FAILED:
+                _FAILED.append(f"{what}: {type(e).__name__}")
+        return {"parsed": 0, "skipped": 0, "failed": 1}
+
+
 def _read_round(a: argparse.Namespace) -> dict[str, int]:
-    if (Path(a.out) / STOP).exists():
+    out = Path(a.out)
+    if (out / STOP).exists():
         return {"parsed": 0, "skipped": 0, "failed": 0}
-    extra = []
-    _now(Path(a.out), "Mail", "looking for new messages")
+    parts = []
+    _now(out, "Mail", "looking for new messages")
     if (Path(a.inbox) / "mail").is_dir():  # the mail first, with everything it carries (mail exports dropped into the inbox: .mbox, .eml, .emlx)
-        extra.append(process_inbox(Path(a.inbox) / "mail", Path(a.out), area="mail"))
+        parts.append(_stage(out, "mail in the inbox", process_inbox, Path(a.inbox) / "mail", out, area="mail"))
     if a.mail and Path(a.mail).is_dir():
-        extra.append(process_mail_store(Path(a.mail), Path(a.out)))
+        parts.append(_stage(out, "the Mail folder", process_mail_store, Path(a.mail), out))
     for name, folder in sorted(collections(a.collection), key=lambda c: priority.rank(c[0])):  # then the documents, the apps in their order
         if folder.is_dir():
-            _now(Path(a.out), folder.name or name, "looking for new files")
-            extra.append(process_inbox(folder, Path(a.out), area=name))
-    _now(Path(a.out), "Your other files", "looking for new files")
-    res = process_inbox(Path(a.inbox), Path(a.out), skip_folders=frozenset({"mail"}))  # then the loose files
-    for more in extra:
-        res = {k: res[k] + more[k] for k in res}
-    return res
+            _now(out, folder.name or name, "looking for new files")
+            parts.append(_stage(out, f"the {name} folder", process_inbox, folder, out, area=name))
+    _now(out, "Your other files", "looking for new files")
+    parts.append(_stage(out, "the inbox", process_inbox, Path(a.inbox), out, skip_folders=frozenset({"mail"})))  # then the loose files
+    return {k: sum(part[k] for part in parts) for k in ("parsed", "skipped", "failed")}
 
 
 def _wait_for_next_round(out: Path) -> None:
