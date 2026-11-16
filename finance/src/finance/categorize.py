@@ -8,143 +8,14 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
-CATEGORIES = (
-    "groceries",
-    "food",
-    "transport",
-    "fuel",
-    "shopping",
-    "utilities",
-    "rent",
-    "emi",
-    "insurance",
-    "medical",
-    "education",
-    "travel",
-    "entertainment",
-    "subscriptions",
-    "cash",
-    "investments",
-    "transfers",
-    "fees",
-    "salary",
-    "bonus",
-    "interest",
-    "refund",
-    "income",
-    "other",
-)
-
-# (category, words). A word matches whole-word, case-insensitive. Order matters: the first matching rule wins.
-RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("salary", ("salary", "payroll", "sal credit")),
-    ("bonus", ("bonus", "gratificatie", "13e maand", "dertiende maand", "eindejaarsuitkering", "winstdeling", "tantieme")),
-    ("interest", ("interest", "int.pd", "int pd", "int cr")),
-    ("refund", ("refund", "reversal", "cashback", "chargeback")),
-    ("emi", ("emi", "loan", "nach", "ecs", "installment", "instalment")),
-    ("rent", ("rent", "landlord", "nobroker")),
-    ("insurance", ("insurance", "lic", "premium", "policybazaar", "hdfc life", "star health", "icici pru")),
-    ("investments", ("zerodha", "groww", "upstox", "mutual fund", "sip", "nps", "ppf", "coin", "kuvera", "smallcase")),
-    (
-        "subscriptions",
-        (
-            "netflix",
-            "spotify",
-            "prime video",
-            "hotstar",
-            "youtube",
-            "apple.com",
-            "google play",
-            "icloud",
-            "linkedin",
-            "openai",
-            "chatgpt",
-            "notion",
-            "dropbox",
-            "jio cinema",
-            "sonyliv",
-            "zee5",
-        ),
-    ),
-    (
-        "utilities",
-        (
-            "electricity",
-            "bescom",
-            "tneb",
-            "msedcl",
-            "water",
-            "gas",
-            "broadband",
-            "airtel",
-            "jio",
-            "vodafone",
-            "vi ",
-            "bsnl",
-            "recharge",
-            "dth",
-            "tata play",
-            "act fibernet",
-            "postpaid",
-            "prepaid",
-        ),
-    ),
-    ("fuel", ("petrol", "diesel", "hpcl", "bpcl", "iocl", "indian oil", "shell", "fuel")),
-    ("transport", ("uber", "ola", "rapido", "metro", "irctc", "redbus", "fastag", "parking", "toll", "namma yatri")),
-    ("travel", ("makemytrip", "goibibo", "cleartrip", "indigo", "air india", "vistara", "airbnb", "booking.com", "oyo", "hotel", "yatra")),
-    (
-        "groceries",
-        (
-            "bigbasket",
-            "blinkit",
-            "zepto",
-            "dmart",
-            "d mart",
-            "grofers",
-            "instamart",
-            "reliance fresh",
-            "more retail",
-            "nature's basket",
-            "grocery",
-            "supermarket",
-            "vegetable",
-            "milk",
-            "kirana",
-        ),
-    ),
-    (
-        "food",
-        (
-            "swiggy",
-            "zomato",
-            "restaurant",
-            "cafe",
-            "coffee",
-            "starbucks",
-            "dominos",
-            "domino",
-            "mcdonald",
-            "kfc",
-            "pizza",
-            "biryani",
-            "bakery",
-            "eatfit",
-            "dining",
-            "food",
-        ),
-    ),
-    ("medical", ("pharmacy", "apollo", "medplus", "1mg", "netmeds", "hospital", "clinic", "diagnostic", "lab", "doctor", "medical", "dental", "pharmeasy")),
-    ("education", ("school", "college", "tuition", "course", "udemy", "coursera", "byju", "unacademy", "university", "exam", "fees")),
-    ("entertainment", ("bookmyshow", "pvr", "inox", "cinema", "movie", "game", "steam", "playstation")),
-    ("shopping", ("amazon", "flipkart", "myntra", "ajio", "nykaa", "meesho", "croma", "decathlon", "ikea", "lifestyle", "westside", "mall")),
-    ("cash", ("atm", "cash withdrawal", "cash wdl", "nfs", "cwdr")),
-    ("fees", ("charges", "gst", "annual fee", "sms charges", "penalty", "late fee", "service charge")),
-    (
-        "transfers",
-        ("self transfer", "own account", "self trf", "sweep in", "sweep out"),
-    ),  # only money moved between your OWN accounts; UPI/NEFT to others is spending
-)
+_DATA = json.loads((Path(__file__).parent / "categories.json").read_text(encoding="utf-8"))
+CATEGORIES: tuple[str, ...] = tuple(_DATA["categories"])
+# (category, words) from categories.json. A word matches whole-word, case-insensitive. Order matters: the first matching rule wins.
+RULES: tuple[tuple[str, tuple[str, ...]], ...] = tuple((r["category"], tuple(r["words"])) for r in _DATA["rules"])
+ROUTINE: tuple[str, ...] = tuple(_DATA["routine"])
+NOT_INCOME: frozenset[str] = frozenset(_DATA["income_never"])  # money coming in from a shop is a refund, not a purchase
 _COMPILED = [(cat, re.compile(r"(?<![a-z0-9])(?:" + "|".join(re.escape(w.strip()) for w in words) + r")(?![a-z0-9])", re.IGNORECASE)) for cat, words in RULES]
 
 _NOISE = re.compile(
@@ -167,8 +38,8 @@ def merchant(desc: str) -> str:
 def by_rules(desc: str, kind: str) -> str | None:
     for category, pattern in _COMPILED:
         if pattern.search(desc):
-            if kind == "income" and category in ("groceries", "food", "shopping", "transport", "fuel", "cash"):
-                continue  # money coming in from a shop is a refund, not a purchase
+            if kind == "income" and category in NOT_INCOME:
+                continue
             return category
     return None
 

@@ -23,3 +23,7 @@ Apps never import each other: they talk over HTTP (`/api/documents?app=…`). `k
 1. Declare it in `library/src/library/apps.json` (name, what it is about, optional words).
 2. If it needs to tell kinds of file apart, add its `concepts.json` and use `kit.concepts.Concepts`.
 3. Ask the Documents layer for its files over HTTP. Do not read files yourself and do not re-describe them.
+
+## Words live in data, not in code
+
+What a spending category or a note tag is known by (merchant names, words) is in `finance/src/finance/categories.json` and `tags.json`, with the list of routine categories. Teaching Finance a new merchant is an edit of that file, not of code. The person's own corrections come before it and the local model decides what it does not cover. Small helpers every layer needs (`squash`, `clean`, `day`) are in `kit.text`; the request checks, error boundary and file serving of every service are in `kit.http.ModuleHandler`.

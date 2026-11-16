@@ -1,0 +1,365 @@
+{
+ "about": "What each spending category is known by. A word matches a whole word in a payment description, first matching rule wins; the person's own corrections come before these and the local model decides what none of them cover. Edit this file to teach a new merchant or word: no code changes.",
+ "categories": [
+  "groceries",
+  "food",
+  "transport",
+  "fuel",
+  "shopping",
+  "utilities",
+  "rent",
+  "emi",
+  "insurance",
+  "medical",
+  "education",
+  "travel",
+  "entertainment",
+  "subscriptions",
+  "cash",
+  "investments",
+  "transfers",
+  "fees",
+  "salary",
+  "bonus",
+  "interest",
+  "refund",
+  "income",
+  "other"
+ ],
+ "rules": [
+  {
+   "category": "salary",
+   "words": [
+    "salary",
+    "payroll",
+    "sal credit"
+   ]
+  },
+  {
+   "category": "bonus",
+   "words": [
+    "bonus",
+    "gratificatie",
+    "13e maand",
+    "dertiende maand",
+    "eindejaarsuitkering",
+    "winstdeling",
+    "tantieme"
+   ]
+  },
+  {
+   "category": "interest",
+   "words": [
+    "interest",
+    "int.pd",
+    "int pd",
+    "int cr"
+   ]
+  },
+  {
+   "category": "refund",
+   "words": [
+    "refund",
+    "reversal",
+    "cashback",
+    "chargeback"
+   ]
+  },
+  {
+   "category": "emi",
+   "words": [
+    "emi",
+    "loan",
+    "nach",
+    "ecs",
+    "installment",
+    "instalment"
+   ]
+  },
+  {
+   "category": "rent",
+   "words": [
+    "rent",
+    "landlord",
+    "nobroker"
+   ]
+  },
+  {
+   "category": "insurance",
+   "words": [
+    "insurance",
+    "lic",
+    "premium",
+    "policybazaar",
+    "hdfc life",
+    "star health",
+    "icici pru"
+   ]
+  },
+  {
+   "category": "investments",
+   "words": [
+    "zerodha",
+    "groww",
+    "upstox",
+    "mutual fund",
+    "sip",
+    "nps",
+    "ppf",
+    "coin",
+    "kuvera",
+    "smallcase"
+   ]
+  },
+  {
+   "category": "subscriptions",
+   "words": [
+    "netflix",
+    "spotify",
+    "prime video",
+    "hotstar",
+    "youtube",
+    "apple.com",
+    "google play",
+    "icloud",
+    "linkedin",
+    "openai",
+    "chatgpt",
+    "notion",
+    "dropbox",
+    "jio cinema",
+    "sonyliv",
+    "zee5"
+   ]
+  },
+  {
+   "category": "utilities",
+   "words": [
+    "electricity",
+    "bescom",
+    "tneb",
+    "msedcl",
+    "water",
+    "gas",
+    "broadband",
+    "airtel",
+    "jio",
+    "vodafone",
+    "vi ",
+    "bsnl",
+    "recharge",
+    "dth",
+    "tata play",
+    "act fibernet",
+    "postpaid",
+    "prepaid"
+   ]
+  },
+  {
+   "category": "fuel",
+   "words": [
+    "petrol",
+    "diesel",
+    "hpcl",
+    "bpcl",
+    "iocl",
+    "indian oil",
+    "shell",
+    "fuel"
+   ]
+  },
+  {
+   "category": "transport",
+   "words": [
+    "uber",
+    "ola",
+    "rapido",
+    "metro",
+    "irctc",
+    "redbus",
+    "fastag",
+    "parking",
+    "toll",
+    "namma yatri"
+   ]
+  },
+  {
+   "category": "travel",
+   "words": [
+    "makemytrip",
+    "goibibo",
+    "cleartrip",
+    "indigo",
+    "air india",
+    "vistara",
+    "airbnb",
+    "booking.com",
+    "oyo",
+    "hotel",
+    "yatra"
+   ]
+  },
+  {
+   "category": "groceries",
+   "words": [
+    "bigbasket",
+    "blinkit",
+    "zepto",
+    "dmart",
+    "d mart",
+    "grofers",
+    "instamart",
+    "reliance fresh",
+    "more retail",
+    "nature's basket",
+    "grocery",
+    "supermarket",
+    "vegetable",
+    "milk",
+    "kirana"
+   ]
+  },
+  {
+   "category": "food",
+   "words": [
+    "swiggy",
+    "zomato",
+    "restaurant",
+    "cafe",
+    "coffee",
+    "starbucks",
+    "dominos",
+    "domino",
+    "mcdonald",
+    "kfc",
+    "pizza",
+    "biryani",
+    "bakery",
+    "eatfit",
+    "dining",
+    "food"
+   ]
+  },
+  {
+   "category": "medical",
+   "words": [
+    "pharmacy",
+    "apollo",
+    "medplus",
+    "1mg",
+    "netmeds",
+    "hospital",
+    "clinic",
+    "diagnostic",
+    "lab",
+    "doctor",
+    "medical",
+    "dental",
+    "pharmeasy"
+   ]
+  },
+  {
+   "category": "education",
+   "words": [
+    "school",
+    "college",
+    "tuition",
+    "course",
+    "udemy",
+    "coursera",
+    "byju",
+    "unacademy",
+    "university",
+    "exam",
+    "fees"
+   ]
+  },
+  {
+   "category": "entertainment",
+   "words": [
+    "bookmyshow",
+    "pvr",
+    "inox",
+    "cinema",
+    "movie",
+    "game",
+    "steam",
+    "playstation"
+   ]
+  },
+  {
+   "category": "shopping",
+   "words": [
+    "amazon",
+    "flipkart",
+    "myntra",
+    "ajio",
+    "nykaa",
+    "meesho",
+    "croma",
+    "decathlon",
+    "ikea",
+    "lifestyle",
+    "westside",
+    "mall"
+   ]
+  },
+  {
+   "category": "cash",
+   "words": [
+    "atm",
+    "cash withdrawal",
+    "cash wdl",
+    "nfs",
+    "cwdr"
+   ]
+  },
+  {
+   "category": "fees",
+   "words": [
+    "charges",
+    "gst",
+    "annual fee",
+    "sms charges",
+    "penalty",
+    "late fee",
+    "service charge"
+   ]
+  },
+  {
+   "category": "transfers",
+   "words": [
+    "self transfer",
+    "own account",
+    "self trf",
+    "sweep in",
+    "sweep out"
+   ]
+  }
+ ],
+ "income_never": [
+  "groceries",
+  "food",
+  "shopping",
+  "transport",
+  "fuel",
+  "cash"
+ ],
+ "routine": [
+  "rent",
+  "emi",
+  "insurance",
+  "utilities",
+  "salary",
+  "interest",
+  "groceries",
+  "fuel",
+  "cash",
+  "fees",
+  "transfers",
+  "investments",
+  "medical",
+  "education",
+  "subscriptions"
+ ]
+}

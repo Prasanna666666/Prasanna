@@ -15,7 +15,7 @@ import re
 
 from kit.module import INT, Module, S, Tool
 
-from .. import audit, clock
+from .. import audit, categorize, clock
 from ..db import rows
 
 MAINS = ("sports", "events", "trips", "cancellations", "others")
@@ -217,23 +217,7 @@ def daily_by_category(conn, a=None):
 
 
 # ---- the model proposes groups -------------------------------------------------------------------------------------------
-ROUTINE = (
-    "rent",
-    "emi",
-    "insurance",
-    "utilities",
-    "salary",
-    "interest",
-    "groceries",
-    "fuel",
-    "cash",
-    "fees",
-    "transfers",
-    "investments",
-    "medical",
-    "education",
-    "subscriptions",
-)
+ROUTINE = categorize.ROUTINE  # the spending categories that come back regularly (categories.json), so they are not proposed as events
 SCHEMA = {
     "type": "object",
     "properties": {

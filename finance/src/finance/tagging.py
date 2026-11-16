@@ -8,36 +8,11 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
-VOCAB = ("health", "family", "money", "home", "work", "travel", "ideas", "shopping", "learning", "documents")
-
-RULES: dict[str, tuple[str, ...]] = {
-    "health": (
-        "doctor",
-        "medicine",
-        "tablet",
-        "bp",
-        "sugar",
-        "diabetes",
-        "hospital",
-        "prescription",
-        "dose",
-        "checkup",
-        "check-up",
-        "appointment",
-        "blood",
-        "clinic",
-        "dentist",
-    ),
-    "money": ("rent", "bill", "bank", "salary", "invoice", "emi", "loan", "tax", "insurance", "payment", "budget", "rupees", "refund"),
-    "home": ("repair", "plumber", "electrician", "warranty", "appliance", "ac", "fridge", "landlord", "maintenance"),
-    "travel": ("flight", "ticket", "hotel", "trip", "passport", "visa", "train", "booking"),
-    "shopping": ("buy", "grocery", "groceries", "order", "shopping"),
-    "work": ("meeting", "project", "client", "deadline", "office", "boss"),
-    "learning": ("course", "book", "read", "learn", "study"),
-    "documents": ("aadhaar", "pan", "passport", "license", "certificate", "policy number"),
-    "ideas": ("idea", "maybe", "someday", "what if"),
-}
+_DATA = json.loads((Path(__file__).parent / "tags.json").read_text(encoding="utf-8"))
+VOCAB: tuple[str, ...] = tuple(_DATA["vocab"])
+RULES: dict[str, tuple[str, ...]] = {tag: tuple(words) for tag, words in _DATA["rules"].items()}
 
 
 def _has(text: str, word: str) -> bool:

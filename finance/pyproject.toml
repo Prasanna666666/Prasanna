@@ -21,7 +21,7 @@ finance = "finance.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-finance = ["static/*", "concepts.json"]
+finance = ["static/*", "concepts.json", "categories.json", "tags.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
