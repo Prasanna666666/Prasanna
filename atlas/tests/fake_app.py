@@ -126,6 +126,11 @@ class _Handler(BaseHTTPRequestHandler):
         self.app.asked.append(body)
         self._reply(200, json.dumps(self.app.tool_results.get(body["name"], {"ok": True, "data": {"echo": body["name"]}})).encode())
 
+    def _post_confirm(self) -> None:
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+        self.app.confirmed.append(body)
+        self._reply(200, json.dumps(self.app.confirm_result).encode())
+
     def _post_suggestion(self) -> None:
         self.app.accepted.append(json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}"))
         self._reply(200, b'{"ok": true}')
@@ -144,7 +149,12 @@ class _Handler(BaseHTTPRequestHandler):
         self._reply(200, json.dumps({"message": {"role": "assistant", **message}}).encode())
 
     def do_POST(self) -> None:
-        simple = {"/api/tool": self._post_tool, "/api/chat": self._post_model_chat, "/api/suggestions": self._post_suggestion}
+        simple = {
+            "/api/tool": self._post_tool,
+            "/api/chat": self._post_model_chat,
+            "/api/suggestions": self._post_suggestion,
+            "/api/confirm": self._post_confirm,
+        }
         if self.path in simple:
             return simple[self.path]()
         if self.path == "/api/scan/auto":
@@ -175,6 +185,8 @@ class FakeApp:
         self.accepted: list[dict[str, object]] = []  # categories the person turned into an app
         self.tools: list[dict[str, object]] = []  # what this part offers the assistant
         self.tool_results: dict[str, dict[str, object]] = {}  # what each tool returns when it is run
+        self.confirmed: list[dict[str, object]] = []  # what the person's messages passed on to this part for a waiting change
+        self.confirm_result: dict[str, object] = {"ok": True, "done": False}
         self.model_reply = "fake model reply"
         self.pick_extra: dict = {}  # more of what the fake model says when choosing, for example {"wants_to_see": True}
         self.pick_when_required: list[str] | None = None

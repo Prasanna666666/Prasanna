@@ -10,5 +10,13 @@ AFFIRM = re.compile(r"\b(yes|yep|yeah|ok|okay|confirm|confirmed|go ahead|do it|p
 UNDO = re.compile(r"\b(undo|put (it|them) back|restore|revert|bring (it|them) back|terug|herstel)\b")
 
 
+MAX_CONFIRMING_WORDS = 6  # a yes is short: a long message that happens to contain "ok" is a new question, not a confirmation
+
+
 def says(pattern: re.Pattern[str], text: str) -> bool:
     return bool(pattern.search(text.lower()))
+
+
+def confirms(text: str) -> bool:
+    """True when the person's own message is a short yes. Only what the person typed is ever passed here: a document, a mail or a tool result never is."""
+    return says(AFFIRM, text) and len(text.split()) <= MAX_CONFIRMING_WORDS and not says(DELETE, text)

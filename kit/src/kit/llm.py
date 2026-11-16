@@ -21,6 +21,26 @@ MIN_TIME_LEFT_SECONDS = 0.5  # less than this left of the time allowed: stop ins
 SEED = 7  # a fixed seed: the same file gets the same answer every time
 
 
+def pick_installed(names: list[str], preferred: str) -> tuple[str, str]:
+    """(the model to use, "") or ("", why not). The configured model if it is installed; else the one installed model of the same family; never some other installed model, so a
+    different model is never used by surprise."""
+    have = set(names) | {n.removesuffix(":latest") for n in names}
+    if preferred in have:
+        return preferred, ""
+    family = preferred.split(":", maxsplit=1)[0].split("-", maxsplit=1)[0].lower()
+    same_family = [n for n in names if n.lower().startswith(family)]
+    if len(same_family) == 1:
+        return same_family[0], ""
+    if same_family:
+        return "", f"Several {preferred.split(':', maxsplit=1)[0]} models are installed ({', '.join(same_family)}): pick one in Settings."
+    return "", f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). Run:  ollama pull {preferred}"
+
+
+def configured_model() -> str:
+    """The model every part is meant to use: ATLAS_MODEL, otherwise the default."""
+    return os.environ.get("ATLAS_MODEL", "").strip() or DEFAULT_MODEL
+
+
 def is_local_host(name: str) -> bool:
     """True only for this computer or its private network: loopback, a private IP, localhost, or a docker-style `.internal` / `ollama` name.
     The model server is never allowed to be anywhere else, so what you type can never be sent over the internet."""
@@ -78,16 +98,10 @@ class OllamaClient:
 
     def resolve(self, preferred: str) -> str:
         """The configured model if installed; else the one installed Ministral model; else a helpful error."""
-        names = self.installed()
-        have = set(names) | {n.removesuffix(":latest") for n in names}
-        if preferred in have:
-            return preferred
-        same_family = [n for n in names if n.lower().startswith(preferred.split(":", maxsplit=1)[0].split("-", maxsplit=1)[0].lower())]
-        if len(same_family) == 1:
-            return same_family[0]
-        if same_family:
-            raise RuntimeError(f"Several {preferred.split(':', maxsplit=1)[0]} models are installed ({', '.join(same_family)}): pick one in Settings.")
-        raise RuntimeError(f"Model {preferred!r} is not installed (installed: {', '.join(names) or 'none'}). Run:  ollama pull {preferred}")
+        chosen, why = pick_installed(self.installed(), preferred)
+        if why:
+            raise RuntimeError(why)
+        return chosen
 
     def warm(self, model: str) -> None:
         """Load the model into memory now (so the first message does not wait for it). Failures are ignored: it is only a head start."""

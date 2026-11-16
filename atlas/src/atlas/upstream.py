@@ -10,12 +10,14 @@ import re
 import socket
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from http import HTTPStatus
 from typing import Any
 from urllib.parse import quote, urlsplit
 
+from kit import consent
 from kit.sign import sign
 
 from . import crosscheck, dots
@@ -563,6 +565,28 @@ class Upstreams:
         items = [i for i in (self._item(module, x) for x in (raw.get("items") or [])[:24]) if i]
         notes = [str(n)[:300] for n in (raw.get("notes") or [])][:3]
         return {"ok": bool(raw.get("ok", True)), "data": raw.get("data"), "error": str(raw.get("error", ""))[:300], "items": items, "notes": notes}
+
+    def confirm_changes(self, text: str) -> list[str]:
+        """The person's own message goes to every part that can hold a change waiting for their yes. Returns plain sentences for the changes that were made (or could not be), which is
+        nothing unless the message is a short yes and something was waiting. Only what the person typed is ever sent here; the model and the documents cannot reach this."""
+        if not consent.confirms(text):
+            return []
+        turn = uuid.uuid4().hex
+        said: list[str] = []
+        for module in (m for m in self.modules.values() if m.confirm):
+            payload = json.dumps({"user_text": text, "turn": turn}).encode()
+            try:
+                status, body, _ = self._authed_full(module, "POST", module.confirm, ASK_SECONDS, payload)
+                raw = json.loads(body)
+            except (OSError, http.client.HTTPException, ValueError):
+                continue
+            if status != HTTPStatus.OK or not isinstance(raw, dict):
+                continue
+            if raw.get("done") is True:
+                said.append(f"Done: {str(raw.get('summary', ''))[:300]}")
+            elif raw.get("failed") is True:
+                said.append(f"{module.name} could not make the change: {str(raw.get('summary', ''))[:300]}")
+        return said
 
     @staticmethod
     def _item(module: Module, item: Any) -> dict[str, str] | None:

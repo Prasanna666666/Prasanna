@@ -24,7 +24,7 @@ from kit import consent, llm, log, netguard, sign
 from kit.http import Fail, ModuleHandler, host_ok
 from kit.units import YEAR_DIGITS
 
-from . import answers, applenotes, browse, clock, db, insight, library_client, report, tagging, toolrun
+from . import answers, applenotes, browse, changes, clock, db, insight, library_client, report, tagging, toolrun
 from .modules import ALL, money, reports, statement_import
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -215,6 +215,7 @@ GET_ROUTES = {
     "/api/items": _get_items,
     "/api/status": _get_status,
     "/api/tools": _get_tools,
+    "/api/changes": lambda state, conn, query: {"changes": changes.history(conn)},
     "/api/settings": _get_settings,
     "/api/import": lambda state, conn, query: {"ok": True, **state.importing},
 }
@@ -229,6 +230,8 @@ def _post_tool(state: State, conn, body: dict) -> dict:
     if name.startswith("delete_") and not consent.says(consent.DELETE, str(body.get("user_text", ""))):
         return {"ok": False, "data": None, "error": "refused: deleting needs you to ask for it in your own words"}
     args = body.get("args") or {}
+    if name in toolrun.CONSEQUENTIAL:  # decided here, in code: the assistant prepares it, the person's own next message confirms it (see changes.py)
+        return changes.stage(conn, name, args, str(body.get("turn", "")), str(body.get("user_text", "")))
     out, error = toolrun.run_tool(conn, name, args)
     data = json.loads(out)
     if error:
@@ -241,6 +244,11 @@ def _post_tool(state: State, conn, body: dict) -> dict:
             "error": "I can't give you that figure with confidence: " + problems[0] + ". Open Money > Files to see what needs a check.",
         }
     return {"ok": True, "data": data, "error": "", "notes": notes}
+
+
+def _post_confirm(state: State, conn, body: dict) -> dict:
+    """The person's own message, passed on by Atlas: if it is a short yes and a change is waiting from an earlier question, that change is made (once)."""
+    return changes.confirm(conn, str(body.get("user_text", "")), str(body.get("turn", "")))
 
 
 def _post_settings(state: State, conn, body: dict) -> dict:
@@ -273,6 +281,7 @@ def _post_notes_import(state: State, conn, body: dict) -> dict:
 POST_ROUTES = {
     "/api/scan": lambda state, conn, body: {"ok": True, "started": start_import(state)},
     "/api/tool": _post_tool,
+    "/api/confirm": _post_confirm,
     "/api/import": lambda state, conn, body: {"ok": True, "started": start_import(state)},
     "/api/settings": _post_settings,
     "/api/notes/tag": _post_notes_tag,

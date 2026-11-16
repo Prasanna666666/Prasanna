@@ -49,6 +49,7 @@ class Module:
     scan: str = ""  # optional: a path that reads everything new (GET = status, POST = start)
     tools: str = ""  # optional: where the part lists its tools for the one assistant (GET -> {tools: [{name, description, parameters}]})
     tool: str = ""  # optional: where the assistant runs one of them (POST {name, args, user_text} -> {ok, data, error, items})
+    confirm: str = ""  # optional: where the part is told the person's own message, so a change it prepared for them is made when it is a yes (POST {user_text, turn} -> {done, summary})
     media: str = ""  # optional: the only path prefix Atlas may fetch pictures from for this app (thumbnails in chat answers)
     home: str = ""
     items: str = ""  # optional: where the app hands over its facts as plain dated items, for Atlas to join across apps (GET -> {items: [...]})
@@ -142,6 +143,7 @@ def parse(raw: dict[str, Any], where: str) -> Module:
         native=raw.get("native") is True,
         tools=str(raw.get("tools", "")),
         tool=str(raw.get("tool", "")),
+        confirm=str(raw.get("confirm", "")),
         media=str(raw.get("media", "")),
         headers=tuple((str(k), str(v)) for k, v in (raw.get("headers") or {}).items()),
         home=str(raw.get("home", "")),

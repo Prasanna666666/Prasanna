@@ -20,5 +20,6 @@
   "tools": "/api/tools",
   "tool": "/api/tool",
   "highlights": "/api/highlights",
-  "items": "/api/items"
+  "items": "/api/items",
+  "confirm": "/api/confirm"
 }

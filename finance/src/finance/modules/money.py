@@ -135,6 +135,21 @@ MIGRATIONS = (
     """
     CREATE TABLE IF NOT EXISTS merchant_categories (merchant TEXT PRIMARY KEY, category TEXT NOT NULL);  -- what the model decided about each merchant, once
     """,
+    """
+    CREATE TABLE IF NOT EXISTS assistant_changes (   -- changes the assistant proposed to the money records, and what became of each (the audit trail)
+        id INTEGER PRIMARY KEY,
+        tool TEXT NOT NULL,
+        args TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        turn TEXT NOT NULL,                          -- the question it was prepared in: it cannot be confirmed in the same one
+        asked TEXT NOT NULL DEFAULT '',              -- the person's own words when it was prepared
+        created TEXT NOT NULL,
+        decided TEXT,
+        state TEXT NOT NULL DEFAULT 'waiting',       -- waiting, running, done, failed, superseded, expired
+        outcome TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS assistant_changes_state ON assistant_changes(state, id);
+    """,
 )
 
 

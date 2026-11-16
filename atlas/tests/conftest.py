@@ -63,6 +63,7 @@ def running(tmp_path: Path) -> Iterator[Running]:
                 scan="/api/scan",
                 tools="/api/tools",
                 tool="/api/tool",
+                confirm="/api/confirm",
                 categories="/api/suggestions",
                 headers={"X-Fake": "1"},
             )
