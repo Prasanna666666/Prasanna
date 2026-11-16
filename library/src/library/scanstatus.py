@@ -6,6 +6,7 @@ import json
 import re
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from kit import log
@@ -287,31 +288,32 @@ def _tally(conn) -> dict[str, dict[str, int]]:
     return out
 
 
-def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
-    """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Group: related
-    files are connected and read together. Each step counts three things apart, the way the person knows them: the documents (files in the folders), the mails, and the documents
-    inside mails. A step is done when all of them are."""
+@dataclass
+class _Context:
+    """What every count of every step is worked out from, gathered once per request."""
+
+    s: dict[str, Any]
+    found: dict[str, Any]
+    tally: dict[str, dict[str, int]]
+    promised: int  # every mail says how many attachments it carried: that is how many documents in mails there are to read, taken out yet or not
+    known: dict[str, Any]  # what the reader counted before it started, per group
+    gone_through: dict[str, int]
+    unread: dict[str, int]
+    taken_in: bool  # step 1 is over
+
+
+LABELS = {
+    "mails": "mails",
+    "attachments": "documents in mails",
+    "documents": "documents",
+}  # in the order they are read: the mails, what they carry, then the documents
+
+
+def _context(conn, s: dict[str, Any]) -> _Context:
     found = _found()
     tally = _tally(conn)
-    promised = tally["attachments"][
-        "promised"
-    ]  # every mail says how many attachments it carried: that is how many documents in mails there are to read, taken out yet or not
-    labels = {
-        "mails": "mails",
-        "attachments": "documents in mails",
-        "documents": "documents",
-    }  # in the order they are read: the mails, what they carry, then the documents
-    known = {
-        "documents": found.get("documents"),
-        "mails": found.get("mails"),
-        "attachments": found.get("attachments"),
-    }  # the reader counts all three before it starts: the attachments Mail keeps as files of their own, and (as the mails are opened) those inside the messages
-    stages = (
-        ("present", (appstate.parsed_dir() / ".busy").exists() or s.get("phase") == 1),
-        ("sorted", s.get("phase") == 2),
-        ("understood", s.get("phase") in (3, 4)),
-    )
-    steps = []
+    promised = tally["attachments"]["promised"]
+    known = {key: found.get(key) for key in LABELS}  # the reader counts all three before it starts
     gone_through = _gone_through()
     unread = _unread()
     for group, n in (s.get("rejected") or {}).items():
@@ -321,58 +323,66 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
         **gone_through,
         "attachments": gone_through.get("attachments", 0) + (promised if mails_read else 0),
     }  # the ones inside the messages are read with their mail
-    taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
-    for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
-        total_known = {
-            "documents": "documents" in found,
-            "mails": "mails" in found,
-            "attachments": "attachments" in found,
-        }  # all three are counted by the reader before it reads; the third also grows, up to what the mails say they carried, as mails are opened
-        counts, every = [], []
-        for key, label in (
-            labels.items() if n == 1 else sorted(labels.items(), key=lambda kv: SORT_ORDER.index(kv[0]))
-        ):  # each step lists them in the order it works through them
-            # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.
-            if n == 1 and key == "attachments":
-                total = max(tally[key]["present"], (known[key] or 0) + promised)  # the ones Mail keeps as files of their own, plus the ones inside the messages
-            else:
-                total = max(tally[key]["present"], known[key] or 0) if n == 1 else tally[key]["present"]
-            # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
-            known_now = taken_in or total_known[key]
-            held = tally[key]["present"]
-            copies = _copies(n, taken_in, total, held, unread.get(key, 0))
-            if n == 1 and taken_in:
-                total = held  # once the reading is over there is one number for the documents: the different ones held, the same in every step (the counted files that are copies or unreadable are said beside it)
-            line = {
-                "key": key,
-                "label": label,
-                "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s, unread),
-                "unread": unread.get(key, 0) if n == 1 else 0,
-                "copies": copies,
-                "total": total,
-                "known": known_now,
-            }
-            every.append(line)
-            if n == 1 or (s.get("phase") or 1) >= n:  # a step that has not begun shows no numbers: they would only disagree with the step still running
-                counts.append(line)
-        shown = [c for c in counts if c["known"]]
-        done, total = sum(int(c["done"]) for c in shown), sum(int(c["total"]) for c in shown)
-        everything = (n == 1 and taken_in) or (
-            bool(sum(int(c["total"]) for c in every)) and all(int(c["done"]) >= int(c["total"]) for c in every if c["total"])
-        )
-        steps.append(
-            {
-                "n": n,
-                "name": name,
-                "doing": doing,
-                "about": text,
-                "state": _step_state(running, everything),
-                "counts": counts,
-                "detail": "",
-                "percent": _share(done, total),
-            }
-        )
-    return steps
+    return _Context(s, found, tally, promised, known, gone_through, unread, (s.get("phase") or 0) >= 2)
+
+
+def _count_line(c: _Context, n: int, key: str, label: str, where: str) -> dict[str, Any]:
+    """One count of one step. Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held."""
+    held = c.tally[key]["present"]
+    total = held  # sorting and grouping count what is held
+    if n == 1:
+        counted = (c.known[key] or 0) + (
+            c.promised if key == "attachments" else 0
+        )  # for the documents in mails: those Mail keeps as files of their own, plus the ones inside the messages
+        total = max(held, counted)
+    copies = _copies(n, c.taken_in, total, held, c.unread.get(key, 0))
+    if n == 1 and c.taken_in:
+        total = held  # once the reading is over there is one number for the documents: the different ones held, the same in every step (copies and unreadable files are said beside it)
+    return {
+        "key": key,
+        "label": label,
+        "done": _done_count(n, key, c.tally[key], where, total, c.taken_in, c.gone_through, c.s, c.unread),
+        "unread": c.unread.get(key, 0) if n == 1 else 0,
+        "copies": copies,
+        "total": total,
+        "known": c.taken_in or key in c.found,  # each gives its number as soon as its total is known; until then it says it is counting
+    }
+
+
+def _step(c: _Context, n: int, words: tuple[str, str, str], where: str, running: bool) -> dict[str, Any]:
+    name, doing, text = words
+    items = (
+        LABELS.items() if n == 1 else sorted(LABELS.items(), key=lambda kv: SORT_ORDER.index(kv[0]))
+    )  # each step lists them in the order it works through them
+    every = [_count_line(c, n, key, label, where) for key, label in items]
+    begun = n == 1 or (c.s.get("phase") or 1) >= n  # a step that has not begun shows no numbers: they would only disagree with the step still running
+    counts = every if begun else []
+    shown = [x for x in counts if x["known"]]
+    done, total = sum(int(x["done"]) for x in shown), sum(int(x["total"]) for x in shown)
+    everything = (n == 1 and c.taken_in) or (bool(sum(int(x["total"]) for x in every)) and all(int(x["done"]) >= int(x["total"]) for x in every if x["total"]))
+    return {
+        "n": n,
+        "name": name,
+        "doing": doing,
+        "about": text,
+        "state": _step_state(running, everything),
+        "counts": counts,
+        "detail": "",
+        "percent": _share(done, total),
+    }
+
+
+def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
+    """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Group: related
+    files are connected and read together. Each step counts three things apart, the way the person knows them: the documents (files in the folders), the mails, and the documents
+    inside mails. A step is done when all of them are."""
+    c = _context(conn, s)
+    stages = (
+        ("present", (appstate.parsed_dir() / ".busy").exists() or s.get("phase") == 1),
+        ("sorted", s.get("phase") == 2),
+        ("understood", s.get("phase") in (3, 4)),
+    )
+    return [_step(c, n, words, where, running) for n, (words, (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1)]
 
 
 def _reading_now(s: dict[str, Any]) -> dict[str, Any] | None:
