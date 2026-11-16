@@ -189,7 +189,6 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
         "mail_connected": False,
         "by_folder": {"inbox": 3},
         "unread": {"counts": {}, "examples": {}},
-        "mailboxes": {},
     }
 
 

@@ -640,7 +640,7 @@
                         ? `${c.label}: counting…`
                         : c.total
                           ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()} ${c.label}`
-                          : `no ${c.label} found${c.note ? ` (${c.note})` : ''}`
+                          : `no ${c.label} found`
                 )
             );
         }
