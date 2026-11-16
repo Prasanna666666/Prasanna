@@ -477,10 +477,12 @@ def mark_old_files(conn) -> int:
         ).fetchall()
     except sqlite3.OperationalError:  # the database is not made yet
         return 0
-    for r in rows:
+    for n, r in enumerate(rows, 1):
         facts = json.loads(r["facts"])
         facts["apps"] = apps.matching(str(facts.get("kind", "")))
         conn.execute("UPDATE documents SET facts=? WHERE id=?", (json.dumps(facts), r["id"]))
+        if n % 200 == 0:
+            conn.commit()  # in small steps: the database is never held for long, so a read that writes at the same time is not kept waiting
     conn.commit()
     return len(rows)
 

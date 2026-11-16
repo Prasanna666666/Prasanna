@@ -62,14 +62,14 @@ class State:
         return pictures.text_sources(engine) if engine is not None else None
 
     def connect(self):
-        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
+        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db", timeout=60)
         if not _MARKED:  # files sorted before the apps were declared get their marks, once per start, in the background: no request ever waits for it
             _MARKED.append(0)
             threading.Thread(target=self._mark_old_files, name="mark-old-files", daemon=True).start()
         return conn
 
     def _mark_old_files(self) -> None:
-        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db")
+        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db", timeout=60)
         try:
             store.mark_old_files(conn)
         except Exception as exc:  # noqa: BLE001 - logged; it is tried again at the next start
