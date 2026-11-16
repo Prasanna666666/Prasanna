@@ -36,7 +36,7 @@ One private personal app for one owner, running on their own Mac. It reads their
 | R-Q5 | **No limits on what is kept.** Mail is kept whole; every limit lives in `limits.json` with effectively unlimited defaults; a cut is recorded and the file is read again when the limit changes. | `library/tests/test_limits_config.py` |
 | R-Q6 | **Nothing is silently lost or half-done.** Incomplete reads say what was not read; migrations are all-or-nothing and can be retried. | `kit/tests/test_db_safety.py`, `test_extract_whole_document.py` |
 | R-Q7 | **Honest and plain UI.** No code or error text on screen; one-line plain answers; WCAG 2.1 AA in both themes; keyboard focus visible. | `kit/tests/test_design.py`, `scripts/check-pages.js` (axe) |
-| R-Q8 | **No hardcoded words.** Categories, kinds, thresholds and limits are data or decided by the model. (Known exception: `kit/consent.py` word lists for the owner's own yes/delete words — see D-17.) | `kit/tests/test_architecture.py` (kind words) |
+| R-Q8 | **No hardcoded words.** Categories, kinds, thresholds and limits are data or decided by the model. (Known exception: `kit/consent.py` word lists for the owner's own yes/delete words — see O-8.) | `kit/tests/test_architecture.py` (kind words) |
 | R-Q9 | **Maintainable.** Layers enforced by test; functions ≤ 50 lines; ruff limits (args ≤ 7, branches ≤ 15, complexity ≤ 15, no magic values); mypy; prettier. | CI |
 | R-Q10 | **The AI never edits its own source.** | design (read-only tools); not separately tested |
 

@@ -108,6 +108,25 @@ h3 {
 /* surfaces: white, thin border, almost no shadow */
 .card,
 .stat,
+.labtile,
+.medcard,
+.tripcard,
+.yearstrip,
+.hero,
+.healthhero,
+.travelhero,
+.hero-next,
+.panel,
+.drawer,
+.palette,
+.popover {
+    background: var(--card) !important;
+    background-image: none !important;
+    border: 1px solid var(--line) !important;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow) !important;
+    color: var(--ink);
+}
 .card::before,
 .card::after,
 .hero::before,
@@ -536,6 +555,10 @@ main {
 }
 .heat-cell[style*='--level:0.'] {
     color: var(--ink);
+}
+.heat-cell.heat-top {
+    color: #fff;
+    background: var(--accent);
 }
 .shopbars {
     display: flex;
