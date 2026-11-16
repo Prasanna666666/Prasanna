@@ -113,20 +113,16 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
 
 
 MAIL_SCOPE_MARK = ".mail-scope"  # holds the rules the mail held here was read under
+MAX_READER_ROUNDS = 5  # how often a round that stopped short is asked for again
 READER_START_SECONDS = 90  # how long the reader may take to pick up the request before it is called not running
 
 
-def _all_taken(conn) -> bool:
-    """Is everything the reader found in the folders, and everything the mails say they carried, in? (Files that cannot be read never arrive: the caller stops asking when a round brings nothing.)"""
-    found = _found()
-    one = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
-    documents = one(f"SELECT COUNT(DISTINCT {_FILE_OF}) FROM documents WHERE area NOT IN ('mail', 'pictures')")
-    mails = one("SELECT COUNT(*) FROM documents WHERE area='mail' AND kind='email'")
-    promised = one(
-        "SELECT COALESCE(SUM(CASE WHEN json_valid(data) THEN json_extract(data, '$.meta.attachments') ELSE 0 END), 0) FROM documents WHERE area='mail' AND kind='email'"
-    )
-    attached = one("SELECT COUNT(*) FROM documents WHERE area='mail' AND kind<>'email'")
-    return documents >= (found.get("documents") or 0) and mails >= (found.get("mails") or 0) and attached >= promised
+def _round_complete() -> bool:
+    """Has the reader gone through every file, mail and attachment it counted? (Each counts once it has been looked at: read, already known, left out or unreadable, so a complete round always reaches the count.)"""
+    found, gone = _found(), _gone_through()
+    if not found or not gone:
+        return True  # nothing to compare with: do not hold the read
+    return all(gone.get(key, 0) >= int(found.get(key) or 0) for key in ("documents", "mails", "attachments"))
 
 
 def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
@@ -134,7 +130,7 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
     Returns what went wrong, if anything (the reader never picked the request up)."""
     state.scan["phase"] = 1
     asked = time.monotonic()
-    round_new = 0  # files that came in since the reader was last asked
+    retries, last_gone = 0, 0  # how often the reader was asked again because its round stopped short, and how far it had got
     while True:
         got = (
             store.ingest_dir(conn, parsed_dir(), lambda: state.control == "stop", lambda name: state.scan.setdefault("taken", []).append(name))
@@ -144,7 +140,6 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
         del state.scan.get("taken", [])[:-3]  # the last few files taken in are all the card shows
         totals["new"] += got["new"]
         totals["replaced"] += got.get("replaced", 0)
-        round_new += got["new"]
         busy = (parsed_dir() / ".busy").exists()
         waiting = (parsed_dir() / ".wake").exists()  # the reader has not yet started the round that was asked for
         if state.control == "stop":
@@ -152,10 +147,11 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
         if waiting and not busy and time.monotonic() - asked > READER_START_SECONDS:
             return "" if totals["new"] else "The part of Documents that reads your files did not start"
         if not busy and not waiting and not got["new"]:
-            if round_new and not _all_taken(
-                conn
-            ):  # the reader stopped before everything it counted was in: it is asked again, for as long as a round still brings something
-                round_new = 0
+            gone = sum(_gone_through().values())
+            if (
+                not _round_complete() and retries < MAX_READER_ROUNDS and gone > last_gone
+            ):  # the round stopped before it had gone through everything it counted: it is asked again, while it still gets further
+                retries, last_gone = retries + 1, gone
                 (parsed_dir() / ".wake").touch()
                 asked = time.monotonic()
                 continue
