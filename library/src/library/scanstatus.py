@@ -14,6 +14,8 @@ from kit import log
 from . import appstate, judging, pictures, readreport, store, trace
 from .appstate import State
 
+PERCENT_ONE_DECIMAL_BELOW = 10  # below this a percentage is shown with one decimal
+
 
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     return _cached("status", lambda c: {**store.counts(c), "kinds": store.by_kind(c)}, state, conn)
@@ -135,7 +137,7 @@ def _percent(part: int, whole: int) -> str:
     if not whole:
         return "0%"
     value = part * 100 / whole
-    return "100%" if part == whole else f"{value:.1f}%" if value < 10 else f"{min(value, 99):.0f}%"
+    return "100%" if part == whole else f"{value:.1f}%" if value < PERCENT_ONE_DECIMAL_BELOW else f"{min(value, 99):.0f}%"
 
 
 def _states(conn, where: str) -> dict[str, int]:
@@ -244,7 +246,11 @@ STEP_WORDS = (
 def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
     """The three steps with no numbers yet: shown at once while the counts are being worked out, so the card is never empty."""
     phase = s.get("phase")
-    running = [phase == 1 or (appstate.parsed_dir() / ".busy").exists(), phase == 2, phase in (3, 4)]
+    running = [
+        phase == appstate.PHASE_READ or (appstate.parsed_dir() / ".busy").exists(),
+        phase == appstate.PHASE_SORT,
+        phase in (appstate.PHASE_GROUP, appstate.PHASE_FINISH),
+    ]
     return [
         {"n": n, "name": name, "doing": doing, "about": text, "state": "running" if running[n - 1] else "waiting", "counts": [], "detail": "", "percent": 0.0}
         for n, (name, doing, text) in enumerate(STEP_WORDS, 1)
@@ -323,7 +329,7 @@ def _context(conn, s: dict[str, Any]) -> _Context:
         **gone_through,
         "attachments": gone_through.get("attachments", 0) + (promised if mails_read else 0),
     }  # the ones inside the messages are read with their mail
-    return _Context(s, found, tally, promised, known, gone_through, unread, (s.get("phase") or 0) >= 2)
+    return _Context(s, found, tally, promised, known, gone_through, unread, (s.get("phase") or 0) >= appstate.PHASE_SORT)
 
 
 def _count_line(c: _Context, n: int, key: str, label: str, where: str) -> dict[str, Any]:
@@ -379,7 +385,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     c = _context(conn, s)
     stages = (
         ("present", (appstate.parsed_dir() / ".busy").exists() or s.get("phase") == 1),
-        ("sorted", s.get("phase") == 2),
+        ("sorted", s.get("phase") == appstate.PHASE_SORT),
         ("understood", s.get("phase") in (3, 4)),
     )
     return [_step(c, n, words, where, running) for n, (words, (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1)]

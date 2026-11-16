@@ -30,6 +30,8 @@ MAX_GROUP_TRIES = 3  # how often the model is asked to read one group before its
 MAX_CONFIRMS = 1_000_000  # pairs of files compared by the model: no practical limit, a press does them all
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
+MIN_ENTITY_CHARS = 3  # an entity or a quote shorter than this proves nothing
+PAIR = 2  # a group needs at least this many files to link any
 
 
 def _rare_values(text: str) -> set[str]:
@@ -50,9 +52,9 @@ def _shared(pieces: list[dict[str, Any]]) -> set[tuple[int, int]]:
             p.get("facts", {}).get("entities") or []
         ):  # what the model found the file to be about, of any kind: files that share one of these, when few do, are shown to the model together
             value = " ".join(str(entity).lower().split())
-            if len(value) >= 3:
+            if len(value) >= MIN_ENTITY_CHARS:
                 index[f"entity:{value}"].append(p["id"])
-    return {(a, b) for ids in index.values() if 2 <= len(ids) <= RARE for i, a in enumerate(ids) for b in ids[i + 1 :]}
+    return {(a, b) for ids in index.values() if PAIR <= len(ids) <= RARE for i, a in enumerate(ids) for b in ids[i + 1 :]}
 
 
 def candidates(pieces: list[dict[str, Any]]) -> list[tuple[int, int, bool]]:
@@ -118,7 +120,7 @@ def _norm(text: str) -> str:
 
 def _quoted(quote: Any, text: str) -> bool:
     q = _norm(str(quote or ""))
-    return len(q) >= 3 and q in _norm(text)
+    return len(q) >= MIN_ENTITY_CHARS and q in _norm(text)
 
 
 SCHEMA: dict[str, Any] = {

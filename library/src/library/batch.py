@@ -134,7 +134,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         if kind == "mbox" and depth == 0:
             _process_mailbox(f, label, out, area, isolated, counts, digest)
             return
-        if kind == "zip" and depth < 2:  # a package (an archive, an e-book, an Apple Pages or Keynote file): its members are read one by one
+        if kind == "zip" and depth < control.MAX_NESTING:  # a package (an archive, an e-book, an Apple Pages or Keynote file): its members are read one by one
             members = readers.zip_members(f)
             with tempfile.TemporaryDirectory() as tmp:
                 for name, content in members:

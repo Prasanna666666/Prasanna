@@ -184,6 +184,7 @@ Progress = Callable[[str], None]
 MAX_NAME = 255  # characters of a file name that are kept
 MAX_SOURCE = 600  # characters of where a file came from that are kept
 MAX_PROMISED = 10_000  # attachments a mail may say it carried: more is a mistake
+JUDGED_FAILED = 3  # judged = 3: the model could not make sense of it yet
 
 
 def _valid(d: Any, stem: str) -> bool:
@@ -423,7 +424,7 @@ def held_back(conn, area: str = "", kinds: list[str] | None = None, limit: int =
             continue
         if r["judged"] == 0:
             why = "waiting for the model"
-        elif r["judged"] == 3:
+        elif r["judged"] == JUDGED_FAILED:
             why = "the model could not make sense of it yet"
         elif r["case_id"] is None:
             why = "being read together with everything that belongs with it"

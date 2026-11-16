@@ -34,6 +34,8 @@ FACT_FIELDS = {
     },  # the distinctive things the file is about, as written: people, organisations, places, reference numbers, products
     **dict.fromkeys(MONEY_FIELDS, _STR),  # each amount exactly as printed in the document, e.g. "3.500,00"
 }
+TINY_HEAD_CHARS = 1200  # the brief look at a document: its start, ...
+TINY_TAIL_CHARS = 400  # ... and its end
 
 
 def kind_schema(apps: dict[str, str] | None) -> dict:
@@ -189,7 +191,14 @@ def _classify_briefly(client, model: str, name: str, text: str, apps: dict[str, 
     schema = kind_schema(apps)
     schema = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k in ("kind", "title", "apps")}}
     prompt = kind_prompt(apps).split(" Then give:")[0] + " Then give a short title. Nothing else."
-    data = _ask(client, model, prompt, f"File name: {name}\n\n{text[:1200]}\n[...]\n{text[-400:] if len(text) > 1600 else ''}", schema, max_tokens=160)
+    data = _ask(
+        client,
+        model,
+        prompt,
+        f"File name: {name}\n\n{text[:TINY_HEAD_CHARS]}\n[...]\n{text[-TINY_TAIL_CHARS:] if len(text) > TINY_HEAD_CHARS + TINY_TAIL_CHARS else ''}",
+        schema,
+        max_tokens=160,
+    )
     return {
         "kind": str(data.get("kind") or "").strip()[:60],
         "title": str(data.get("title") or "")[:120],

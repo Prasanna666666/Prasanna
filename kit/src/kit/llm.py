@@ -17,6 +17,7 @@ from . import netguard
 # The ONLY model Finance uses (disk space is limited: one model, no fallbacks). The exact tag could not be verified from
 # the build sandbox; resolve() also accepts a single installed model whose name starts with "ministral".
 DEFAULT_MODEL = "ministral-3:3b"
+MIN_TIME_LEFT_SECONDS = 0.5  # less than this left of the time allowed: stop instead of starting a call
 
 
 def is_local_host(name: str) -> bool:
@@ -59,7 +60,7 @@ class OllamaClient:
         req = urllib.request.Request(f"{self.base}{path}", data, {"Content-Type": "application/json"})
         if self.deadline is not None:
             left = self.deadline - time.monotonic()
-            if left <= 0.5:
+            if left <= MIN_TIME_LEFT_SECONDS:
                 raise Slow("out of time")
             timeout = min(timeout, left)
         try:

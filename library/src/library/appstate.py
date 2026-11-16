@@ -11,6 +11,11 @@ from kit import db, llm
 
 from . import pictures
 
+PHASE_READ = 1  # an Update goes through four phases: taking the files in,
+PHASE_SORT = 2  # sorting them,
+PHASE_GROUP = 3  # grouping the ones that belong together,
+PHASE_FINISH = 4  # and writing what each group says
+
 
 def parsed_dir() -> Path:
     return Path(os.environ.get("ATLAS_PARSED", Path.home() / "AtlasParsed"))

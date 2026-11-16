@@ -14,6 +14,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from http import HTTPStatus
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -38,13 +39,14 @@ TOOLS_CACHED_SECONDS = 60.0
 KEEP_LOADED = KEEP  # the same value every app sends, so the model server never reloads the model because two parts disagree
 NUM_CTX = 4096  # the apps send the same value; a different one makes the model server reload the model every time
 SEPARATOR = "__"
+HISTORY_ENTRY_PARTS = 2  # a remembered turn is [who, text]
 
 
 def clean_history(raw: Any) -> list[list[str]]:
     """The last few turns as [role, text] pairs; anything else is dropped."""
     turns: list[list[str]] = []
     for entry in raw if isinstance(raw, list) else []:
-        if isinstance(entry, (list, tuple)) and len(entry) == 2 and entry[0] in ("user", "assistant") and isinstance(entry[1], str):
+        if isinstance(entry, (list, tuple)) and len(entry) == HISTORY_ENTRY_PARTS and entry[0] in ("user", "assistant") and isinstance(entry[1], str):
             turns.append([entry[0], entry[1][:MAX_TEXT]])
     return turns[-MAX_TURNS:]
 
@@ -64,7 +66,7 @@ class ModelClient:
             conn.request(method, path, body=payload, headers={"Host": f"127.0.0.1:{parts.port or 11434}", "Content-Type": "application/json"})
             response = conn.getresponse()
             data = response.read(2_000_000)
-            return json.loads(data) if response.status == 200 else None
+            return json.loads(data) if response.status == HTTPStatus.OK else None
         except (OSError, http.client.HTTPException, ValueError):
             return None
         finally:

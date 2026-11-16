@@ -11,6 +11,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from http import HTTPStatus
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -26,6 +27,9 @@ MAX_RESULTS_PER_MODULE = 8
 SCAN_SECONDS = 6.0
 ASK_SECONDS = 60.0
 MAX_BODY = 8_000_000
+MAX_PERCENT = 100
+MIN_QUERY_CHARS = 2  # a search shorter than this is not sent to the apps
+SOON_DAYS = 30  # events within this many days are "soon"
 
 
 def _call(module: Module, method: str, path: str, timeout: float, *, extra: dict[str, str] | None = None, body: bytes = b"") -> tuple[int, bytes, str]:
@@ -60,7 +64,7 @@ def _build_of(body: bytes) -> str:
 
 def _percent(value: Any) -> float | None:
     """A percentage from an app, kept only if it is a number from 0 to 100."""
-    return round(float(value), 1) if isinstance(value, int | float) and not isinstance(value, bool) and 0 <= value <= 100 else None
+    return round(float(value), 1) if isinstance(value, int | float) and not isinstance(value, bool) and 0 <= value <= MAX_PERCENT else None
 
 
 KICK_SECONDS = 120.0  # how often a read in progress starts the cross-check for the apps already done
@@ -105,7 +109,9 @@ class Upstreams:
             if not refresh and module.id in self._tokens:
                 return self._tokens[module.id]
         status, page = _get(module, "/", HEALTH_SECONDS)
-        found = re.search(rf'<meta name="{re.escape(module.auth.meta)}" content="([^"]+)"', page.decode("utf-8", "replace")) if status == 200 else None
+        found = (
+            re.search(rf'<meta name="{re.escape(module.auth.meta)}" content="([^"]+)"', page.decode("utf-8", "replace")) if status == HTTPStatus.OK else None
+        )
         token = found.group(1) if found else ""
         with self._lock:
             self._tokens[module.id] = token
@@ -115,7 +121,7 @@ class Upstreams:
         if module.auth is None:
             return _call(module, method, path, timeout, body=body)
         result = _call(module, method, path, timeout, extra={module.auth.header: self._token(module)}, body=body)
-        if result[0] == 403:  # the app was restarted and printed a new token
+        if result[0] == HTTPStatus.FORBIDDEN:  # the app was restarted and printed a new token
             result = _call(module, method, path, timeout, extra={module.auth.header: self._token(module, refresh=True)}, body=body)
         return result
 
@@ -131,7 +137,7 @@ class Upstreams:
         started = time.perf_counter()
         try:
             status, body = _get(module, module.health, HEALTH_SECONDS)
-            up = 200 <= status < 300
+            up = HTTPStatus.OK <= status < HTTPStatus.MULTIPLE_CHOICES
         except (OSError, http.client.HTTPException):
             up, body = False, b""
         return {"up": up, "ms": round((time.perf_counter() - started) * 1000), "build": _build_of(body)}
@@ -149,7 +155,7 @@ class Upstreams:
     def _search_one(self, module: Module, query: str) -> list[dict[str, Any]]:
         try:
             status, body = self._authed_get(module, f"{module.search}?q={quote(query)}", SEARCH_SECONDS)
-            raw = json.loads(body).get("results", []) if status == 200 else []
+            raw = json.loads(body).get("results", []) if status == HTTPStatus.OK else []
         except (OSError, http.client.HTTPException, ValueError, AttributeError):
             return []
         found = []
@@ -169,7 +175,7 @@ class Upstreams:
     def search(self, query: str) -> list[dict[str, Any]]:
         """What every searchable app finds, app by app in menu order; an app that is down or slow simply adds nothing."""
         targets = [m for m in self.modules.values() if m.search]
-        if not targets or len(query.strip()) < 2:
+        if not targets or len(query.strip()) < MIN_QUERY_CHARS:
             return []
         with ThreadPoolExecutor(max_workers=len(targets)) as pool:
             lists = list(pool.map(lambda m: self._search_one(m, query), targets))
@@ -212,8 +218,8 @@ class Upstreams:
             if start:
                 self._authed(module, "POST", module.scan, SCAN_SECONDS)
             status, body = self._authed(module, "GET", module.scan, SCAN_SECONDS)
-            raw = json.loads(body) if status == 200 else None
-            if status != 200:
+            raw = json.loads(body) if status == HTTPStatus.OK else None
+            if status != HTTPStatus.OK:
                 return {**down, "up": True, "problems": [self._why_not(module, status, body)]}  # the app is there: it said no, and why is shown
         except TimeoutError:
             # it did not answer in time: busy with a big job, not switched off. The last thing it said is kept, so the panel does not flicker to "switched off"
@@ -329,7 +335,7 @@ class Upstreams:
     def _calendar_card(self) -> dict[str, Any]:
         """The calendar card of the home page, from the joined agenda (not from one app's own list)."""
         joined = self.agenda(60)
-        soon = [e for e in joined["events"] if e["days"] <= 30][:5]
+        soon = [e for e in joined["events"] if e["days"] <= SOON_DAYS][:5]
         label = {"overdue": "overdue", "open": ""}
         return {
             "headline": f"{len(soon)} coming up" if soon else "Nothing dated yet",
@@ -355,7 +361,7 @@ class Upstreams:
         def one(module: Module) -> list[dict[str, Any]]:
             try:
                 status, body = self._authed(module, "GET", module.items, HEALTH_SECONDS * 4)
-                raw = json.loads(body).get("items", []) if status == 200 else []
+                raw = json.loads(body).get("items", []) if status == HTTPStatus.OK else []
             except (OSError, http.client.HTTPException, ValueError, AttributeError):
                 return []
             return [i for i in raw if isinstance(i, dict)][:6000]
@@ -376,7 +382,7 @@ class Upstreams:
         def one(module: Module) -> dict[str, Any] | None:
             try:
                 status, body = self._authed(module, "GET", module.highlights, HEALTH_SECONDS * 2)
-                return self._card(json.loads(body)) if status == 200 else None
+                return self._card(json.loads(body)) if status == HTTPStatus.OK else None
             except (OSError, http.client.HTTPException, ValueError):
                 return None
 
@@ -397,7 +403,7 @@ class Upstreams:
         for module in (m for m in self.modules.values() if m.categories):
             try:
                 status, body = self._authed(module, "GET", module.categories, HEALTH_SECONDS * 2)
-                raw = json.loads(body).get("suggestions", []) if status == 200 else []
+                raw = json.loads(body).get("suggestions", []) if status == HTTPStatus.OK else []
             except (OSError, http.client.HTTPException, ValueError, AttributeError):
                 continue
             found += [
@@ -419,7 +425,7 @@ class Upstreams:
             return {"ok": False, "error": "no such suggestion"}
         try:
             status, body, _ = self._authed_full(module, "POST", module.categories, 30, json.dumps({"kind": kind[:60]}).encode())
-            raw = json.loads(body) if status == 200 else {}
+            raw = json.loads(body) if status == HTTPStatus.OK else {}
         except (OSError, http.client.HTTPException, ValueError):
             return {"ok": False, "error": "the app did not answer"}
         return {"ok": raw.get("ok") is True, "error": str(raw.get("error", ""))[:100]}
@@ -431,7 +437,7 @@ class Upstreams:
         for module in (m for m in self.modules.values() if m.scan):
             with contextlib.suppress(OSError, http.client.HTTPException, ValueError):
                 status, body = self._authed(module, "POST", f"{module.scan}/auto", SCAN_SECONDS)
-                if status == 200 and isinstance(reply := json.loads(body), dict):
+                if status == HTTPStatus.OK and isinstance(reply := json.loads(body), dict):
                     answers[module.id] = {k: reply[k] for k in ("started", "reason", "waiting", "limit") if k in reply}
         return {"modules": answers}
 
@@ -472,10 +478,10 @@ class Upstreams:
         probe = Module(id="model", name="AI model", upstream=model_url, host=f"127.0.0.1:{parts.port or 11434}")
         try:
             status, body = _get(probe, "/api/tags", HEALTH_SECONDS)
-            models = [str(m.get("name", "")) for m in json.loads(body).get("models", []) if isinstance(m, dict)] if status == 200 else []
+            models = [str(m.get("name", "")) for m in json.loads(body).get("models", []) if isinstance(m, dict)] if status == HTTPStatus.OK else []
         except (OSError, http.client.HTTPException, ValueError, AttributeError):
             return {"configured": True, "up": False, "models": []}
-        return {"configured": True, "up": status == 200, "models": [m for m in models if m][:8]}
+        return {"configured": True, "up": status == HTTPStatus.OK, "models": [m for m in models if m][:8]}
 
     # ---- the single chat: one question to one app, and a picture from an app ------------------------------------------
     def tool_specs(self, module: Module) -> list[dict[str, Any]]:
@@ -487,7 +493,7 @@ class Upstreams:
             raw = json.loads(body)
         except (OSError, http.client.HTTPException, ValueError):
             return []
-        found = raw.get("tools") if status == 200 and isinstance(raw, dict) else None
+        found = raw.get("tools") if status == HTTPStatus.OK and isinstance(raw, dict) else None
         return [
             t
             for t in (found or [])
@@ -502,7 +508,7 @@ class Upstreams:
             raw = json.loads(body)
         except (OSError, http.client.HTTPException, ValueError):
             return {"ok": False, "error": f"{module.name} is not running"}
-        if status != 200 or not isinstance(raw, dict):
+        if status != HTTPStatus.OK or not isinstance(raw, dict):
             return {
                 "ok": False,
                 "error": str(raw.get("error", f"{module.name} could not do that"))[:300] if isinstance(raw, dict) else f"{module.name} could not do that",

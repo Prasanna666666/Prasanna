@@ -18,6 +18,13 @@ _MAIL_HEADERS = ("received:", "message-id:", "mime-version:", "return-path:", "x
 
 
 MAX_JSON_BYTES = 5_000_000  # a file this small that starts like JSON is checked to be JSON
+UTF8_CHARACTER_BYTES = 3  # the most bytes of a character cut by the end of what was read
+MIN_PRINTABLE_RATIO = 0.9  # text is text when this much of it can be printed
+MIN_HEADER_LINES = 3  # a mail starts with at least this many header lines
+HEADER_SAMPLE_CHARS = 600
+MIN_DELIMITED_LINES = 2
+CSV_COLUMNS_SURE = 2  # this many delimiters in a line make it a table by themselves
+CSV_LINES_SURE = 3  # this many lines of the same shape make it a table
 
 
 def head_of(path: Path) -> bytes:
@@ -48,11 +55,13 @@ def decode_text(raw: bytes) -> str | None:
         text = raw.decode("utf-8")
     except UnicodeDecodeError:
         try:
-            text = raw[:-3].decode("utf-8") if len(raw) > 3 else raw.decode("utf-8")  # a multi-byte character cut by the end of what was read
+            text = (
+                raw[:-UTF8_CHARACTER_BYTES].decode("utf-8") if len(raw) > UTF8_CHARACTER_BYTES else raw.decode("utf-8")
+            )  # a multi-byte character cut by the end of what was read
         except UnicodeDecodeError:
             text = raw.decode("cp1252", "replace")
     printable = sum(1 for c in text if c.isprintable() or c in "\n\r\t")
-    return text if text and printable / len(text) >= 0.9 else None
+    return text if text and printable / len(text) >= MIN_PRINTABLE_RATIO else None
 
 
 def _zip_kind(path: Path) -> str:
@@ -85,7 +94,7 @@ def _text_kind(text: str, path: Path, head: bytes) -> str:
     if (
         _HEADER_LINE.match(sample)
         and any(h in first_lines for h in (*_MAIL_HEADERS, "from:", "subject:", "date:"))
-        and len(_HEADER_LINE.findall(sample[:600])) >= 3
+        and len(_HEADER_LINE.findall(sample[:HEADER_SAMPLE_CHARS])) >= MIN_HEADER_LINES
     ):
         return "email"
     if sample[:1] in "{[" and path.stat().st_size <= MAX_JSON_BYTES:
@@ -96,11 +105,11 @@ def _text_kind(text: str, path: Path, head: bytes) -> str:
             pass
     lines = [ln for ln in sample.splitlines() if ln.strip()][:10]
     hinted = path.suffix.lower() in (".csv", ".tsv")  # the ending only tips the balance: the contents must have delimiters too
-    if len(lines) >= 2:
+    if len(lines) >= MIN_DELIMITED_LINES:
         for delimiter in (",", ";", "\t"):
             counts = [ln.count(delimiter) for ln in lines]
             same = sum(1 for c in counts if c == counts[0]) >= 0.8 * len(counts)
-            if counts[0] >= 1 and same and (counts[0] >= 2 or hinted or len(lines) >= 3):
+            if counts[0] >= 1 and same and (counts[0] >= CSV_COLUMNS_SURE or hinted or len(lines) >= CSV_LINES_SURE):
                 return "csv"
     return "text"
 

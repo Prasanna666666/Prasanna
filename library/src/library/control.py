@@ -15,6 +15,7 @@ STOP = ".stop"  # while it exists the round in progress ends at the next safe po
 GENTLE_SECONDS = float(
     os.environ.get("LIBRARY_GENTLE_SECONDS", "0")
 )  # a short rest after every batch, so the computer stays responsive while a big mailbox is read
+MAX_NESTING = 2  # how deep a package inside a package inside a mail is opened
 
 
 class Halted(Exception):

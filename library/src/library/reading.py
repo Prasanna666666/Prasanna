@@ -85,7 +85,7 @@ def _note_rejected(state: State, name: str, why: str, group: str) -> None:
 def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
     """Step 1, completely: everything the reader produces is taken in until the reader has picked the request up, finished its round and nothing new arrives. Nothing is sorted meanwhile.
     Returns what went wrong, if anything (the reader never picked the request up)."""
-    state.scan["phase"] = 1
+    state.scan["phase"] = appstate.PHASE_READ
     asked = time.monotonic()
     retries, last_gone = 0, 0  # how often the reader was asked again because its round stopped short, and how far it had got
     while True:
@@ -142,7 +142,7 @@ def _sort_pass(state: State, conn, client, model, followed: trace.Trace, totals:
 def _sort_all(state: State, conn, client, model, followed: trace.Trace, totals: dict[str, int]) -> str:
     """Step 2, completely: the model sorts every file that needs it, in the order the apps are served in, until none is left. A file the model could not make sense of is asked again
     (a smaller question each time) before grouping starts, not only at the next press. Returns what went wrong, if anything."""
-    state.scan["phase"] = 2
+    state.scan["phase"] = appstate.PHASE_SORT
     problem = _sort_pass(state, conn, client, model, followed, totals)
     for _ in range(MAX_SORT_PASSES - 1):
         if state.control == "stop" or problem or not store.retry_unclear(conn):

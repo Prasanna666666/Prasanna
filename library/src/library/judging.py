@@ -13,12 +13,14 @@ from typing import Any
 
 from kit import extract
 from kit.text import json_object
+from kit.units import SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
-from . import apps, casebook, priority, recognise, relevance, store
+from . import apps, appstate, casebook, priority, recognise, relevance, store
 from .trace import FAILED, Trace
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
 MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never its body (the owner's call: see docs/decisions.md)
+MIN_CALLS_FOR_SPEED = 2  # the speed of the model is quoted only after this many answers
 
 
 def _mail_summary(facts: dict | None) -> str:
@@ -162,8 +164,8 @@ def _identify_one(conn, client, model, d, progress: store.Progress | None, trace
 
 
 def _duration(seconds: float) -> str:
-    hours, rest = divmod(int(seconds), 3600)
-    return f"{hours} h {rest // 60} min" if hours else f"{rest // 60} min" if rest >= 60 else f"{rest} s"
+    hours, rest = divmod(int(seconds), SECONDS_PER_HOUR)
+    return f"{hours} h {rest // SECONDS_PER_MINUTE} min" if hours else f"{rest // SECONDS_PER_MINUTE} min" if rest >= SECONDS_PER_MINUTE else f"{rest} s"
 
 
 MIN_HISTORY = 20  # files of an app that must have been looked at before its own history is trusted for the time left
@@ -187,7 +189,7 @@ def model_work_left(conn) -> int:
 
 def _speed_line(model_left: int, elapsed: float, calls: int) -> str:
     """What the person sees while the model sorts files: how long one takes and how long the files that really go to the model will take at that speed."""
-    if calls < 2:
+    if calls < MIN_CALLS_FOR_SPEED:
         return "Sorting files"
     each = elapsed / calls
     return (
@@ -414,12 +416,12 @@ def finish_matters(
     """Interpretation: the files are grouped (comparing up to `pairs` pairs) and then up to `groups` groups are read. Done in small slices while files are still being identified,
     and in full at the end of a read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit` and carried on. Returns how many groups were read."""
     if phase:
-        phase(3)
+        phase(appstate.PHASE_GROUP)
     if progress:
         progress("Finding which files belong together…")
     casebook.rebuild(conn, client, model, control, progress, trace, pairs)
     if phase:
-        phase(4)
+        phase(appstate.PHASE_FINISH)
     done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace)
     forget_mail_bodies(conn)
     conn.commit()

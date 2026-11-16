@@ -14,11 +14,13 @@ import json
 import statistics
 import sys
 import time
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 DEFAULT_CASES = Path(__file__).resolve().parents[2] / "eval" / "cases.json"
+SLOW_SECONDS = 30  # an answer slower than this is listed as slow
 
 
 def load_cases(path: Path) -> list[dict[str, Any]]:
@@ -59,7 +61,7 @@ def ask(base_url: str, case: dict[str, Any]) -> tuple[dict[str, Any] | None, flo
         )
         response = conn.getresponse()
         data = json.loads(response.read())
-        reply = data if response.status == 200 and isinstance(data, dict) else None
+        reply = data if response.status == HTTPStatus.OK and isinstance(data, dict) else None
     except (OSError, http.client.HTTPException, ValueError):
         reply = None
     finally:
@@ -115,7 +117,7 @@ def print_report(rows: list[dict[str, Any]], results: list[dict[str, Any]]) -> N
     for r in results:
         if not r["ok"]:
             print(f"\n  MISSED (level {r['level']}): {r['text']}\n     expected {r['expected']}\n     got      {r['got']}")
-    slow = [r for r in results if r["seconds"] > 30]
+    slow = [r for r in results if r["seconds"] > SLOW_SECONDS]
     if slow:
         print(f"\n  Over 30 seconds ({len(slow)}):")
         for r in slow:
@@ -133,7 +135,7 @@ def unreachable(base_url: str) -> str:
         return f"nothing answers on 127.0.0.1:{parts.port or 8000} ({exc.__class__.__name__}). Is the app running? Start the apps: finance/scripts/up.sh, library/scripts/up.sh, then atlas/up.sh"
     finally:
         conn.close()
-    return "" if status < 500 else f"Atlas answered with an error (HTTP {status}). Look at its log: docker compose logs"
+    return "" if status < HTTPStatus.INTERNAL_SERVER_ERROR else f"Atlas answered with an error (HTTP {status}). Look at its log: docker compose logs"
 
 
 def main(argv: list[str] | None = None) -> int:

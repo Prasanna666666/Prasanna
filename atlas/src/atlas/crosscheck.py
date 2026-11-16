@@ -27,6 +27,7 @@ PROMPT = (
     "belongs to it. For a payment: full if it pays all of it, part if it pays only a part. For anything else that is about the same thing: related. none if no item belongs to it. "
     "Give the number of the item and copy from that item the exact words that show it belongs. Never guess."
 )
+MIN_QUOTE_CHARS = 3  # a quote shorter than this proves nothing
 
 
 def number(value: Any) -> float | None:
@@ -89,7 +90,7 @@ def judge(pick: Callable[..., dict[str, Any] | None], matter: dict[str, Any], ot
         return {"relation": "none"}
     item = near[n - 1]
     quote = _norm(data.get("quote"))
-    if len(quote) < 3 or quote not in _norm(_text(item)):
+    if len(quote) < MIN_QUOTE_CHARS or quote not in _norm(_text(item)):
         return {"relation": "none"}  # no real words of the item to show it belongs: not accepted
     base = {"kind": item.get("kind", "item"), "title": _text(item)[:80], "date": item.get("date", "")}
     if item.get("kind") != "payment" or not isinstance(item.get("amount"), int | float):

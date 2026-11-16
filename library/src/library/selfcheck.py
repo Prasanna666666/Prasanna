@@ -12,6 +12,7 @@ from . import extraction, sniff
 
 EXAMPLES = 3
 ENOUGH_TEXT = 20  # characters: less than this is "no text"
+MIN_TABLE_ROWS = 3  # a table of fewer rows is not worth saying
 
 
 def outcome(path: Path, timeout: int) -> tuple[str, str]:
@@ -28,7 +29,7 @@ def outcome(path: Path, timeout: int) -> tuple[str, str]:
     data = res.get("data") or {}
     if meta.get("ocr_pages"):
         return kind, "scan (read by character recognition)" + (", cut short" if meta.get("ocr_cut_short") else "")
-    if isinstance(data.get("table"), list) and len(data["table"]) >= 3:
+    if isinstance(data.get("table"), list) and len(data["table"]) >= MIN_TABLE_ROWS:
         return kind, "text with a table"
     if len((res.get("text") or "").strip()) >= ENOUGH_TEXT:
         return kind, "text"

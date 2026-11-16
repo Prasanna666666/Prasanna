@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from . import sniff
+from . import control, sniff
 
 
 def mailboxes_read() -> frozenset[str]:
@@ -53,7 +53,7 @@ def is_bulk_mail(path: Path) -> bool:
 
 
 def _is_bulk_message(f: Path, kind: str, area: str, depth: int) -> bool:
-    return kind == "email" and area == "mail" and depth < 2 and str(f) not in _VETTED and is_bulk_mail(f)
+    return kind == "email" and area == "mail" and depth < control.MAX_NESTING and str(f) not in _VETTED and is_bulk_mail(f)
 
 
 def _in_skipped_mailbox(relative: Path) -> bool:

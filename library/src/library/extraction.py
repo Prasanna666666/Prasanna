@@ -45,6 +45,8 @@ SKIP_NAMES = {"passwords.txt", ".passwords"}  # the passwords for protected PDFs
 
 
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+MIN_SAMPLE_LINES = 2  # a delimited text needs at least this many lines to be recognised
+MIN_COLUMNS = 2  # a delimited line has at least this many separators
 
 
 def clean(text: str) -> str:
@@ -145,11 +147,11 @@ def load_passwords() -> list[str]:
 def _delimited_rows(text: str) -> list[list[str]]:
     """Rows of a plain delimited text file, or [] if it does not look like one (the first lines must split into the same number of columns)."""
     head = [ln for ln in text.splitlines()[:8] if ln.strip()]
-    if len(head) < 2:
+    if len(head) < MIN_SAMPLE_LINES:
         return []
     for delimiter in ("\t", ";", ","):
         counts = {ln.count(delimiter) for ln in head[:5]}
-        if len(counts) == 1 and counts != {0} and next(iter(counts)) >= 2:
+        if len(counts) == 1 and counts != {0} and next(iter(counts)) >= MIN_COLUMNS:
             reader = csv.reader(text.splitlines(), delimiter=delimiter)
             return [[clean(c)[:MAX_CELL] for c in r][:60] for _, r in zip(range(MAX_DATA_ROWS), reader, strict=False)]
     return []

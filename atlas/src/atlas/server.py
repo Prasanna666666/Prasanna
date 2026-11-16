@@ -154,7 +154,7 @@ class _Handler(BaseHTTPRequestHandler):
         if module is None:
             return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
         status, data, ctype = self.atlas.upstreams.media(module, "/" + path)
-        if status != 200 or not ctype.startswith("image/"):
+        if status != HTTPStatus.OK or not ctype.startswith("image/"):
             return self._send(HTTPStatus.NOT_FOUND, b"not found", "text/plain; charset=utf-8")
         self._send(200, data, ctype, {"Cache-Control": "private, max-age=3600"})
 

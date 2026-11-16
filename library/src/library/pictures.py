@@ -24,6 +24,7 @@ from images.library import items_by_ids
 from images.search.dates import DateSpec
 from images.search.executor import Executor
 from images.search.plan import Clause, Plan
+from kit.units import MONTHS_IN_YEAR, YEAR_DIGITS
 
 Progress = Callable[[str], None]
 WAKE, STATUS = "pictures-scan.wake", "pictures-scan.status.json"
@@ -115,8 +116,8 @@ def find_ids(engine: Engine, args: dict[str, Any]) -> list[int]:
         clauses.append(Clause(("person",), str(args["person"]).strip()[:100]))
     year, month = str(args.get("year", "")), str(args.get("month", ""))
     when = DateSpec(
-        year=int(year) if year.isdigit() and len(year) == 4 else 0,
-        month=int(month) if month.isdigit() and 1 <= int(month) <= 12 else 0,
+        year=int(year) if year.isdigit() and len(year) == YEAR_DIGITS else 0,
+        month=int(month) if month.isdigit() and 1 <= int(month) <= MONTHS_IN_YEAR else 0,
         start=str(args.get("from", ""))[:10],
         end=str(args.get("to", ""))[:10],
     )

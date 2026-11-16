@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import re
 
+MIN_RATE_COLUMNS = 4  # a table of exchange rates has a date and at least three currencies
+
 
 def bank_standard(text: str) -> str | None:
     """`mt940` (SWIFT) or `camt053` (ISO 20022 XML) when the text is one of those, else None."""
@@ -23,7 +25,7 @@ def exchange_rate_file(rows: object) -> bool:
         bool(rows)
         and isinstance(rows, list)
         and isinstance(rows[0], list)
-        and len(rows[0]) > 3
+        and len(rows[0]) >= MIN_RATE_COLUMNS
         and str(rows[0][0]).strip() == "Date"
         and "USD" in [str(c).strip() for c in rows[0]]
     )

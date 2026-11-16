@@ -53,6 +53,13 @@ MAX_READ_BYTES = 20_000_000  # the most that is read of one file or of one part 
 MAX_PART_BYTES = 5_000_000  # the most that is read of one small member of an archive
 
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+SAME_LINE_POINTS = 3  # words whose height differs by less than this are on one line
+ALIVE_SECONDS = 5  # the recogniser is alive if it touched its marker this recently
+TESSERACT_COLUMNS = 12  # columns of a line of tesseract output
+MIN_WORDS_FOR_TEXT_LAYER = 3  # a page with fewer words has no text layer: it is a scan
+MIN_WORDY_RATIO = 0.7  # a run of characters is words when this much is letters
+MIN_WORDY_WORDS = 2
+MIN_BINARY_TEXT_CHARS = 40  # fewer readable characters than this in a binary file mean no text
 
 
 def clean(text: str, limit: int = 2_000_000) -> str:
@@ -66,7 +73,7 @@ def table_lines(words: list, gap: float = 7.0) -> list[list[list]]:
     lines: list[list[tuple[float, float, str]]] = []
     last_y = None
     for y, x0, x1, text in items:
-        if last_y is None or abs(y - last_y) > 3:
+        if last_y is None or abs(y - last_y) > SAME_LINE_POINTS:
             lines.append([])
             last_y = y
         lines[-1].append((x0, x1, text))
@@ -109,7 +116,7 @@ def apple_ocr_running() -> bool:
     """Is Apple's text recognition (its sandboxed helper on the Mac) running and shared with this reader?"""
     folder = os.environ.get("LIBRARY_OCR_DIR", "")
     try:
-        return bool(folder) and time.time() - os.stat(os.path.join(folder, "alive")).st_mtime <= 5
+        return bool(folder) and time.time() - os.stat(os.path.join(folder, "alive")).st_mtime <= ALIVE_SECONDS
     except OSError:
         return False
 
@@ -121,7 +128,7 @@ def apple_ocr(png: bytes) -> str | None:
     if not folder or not os.path.isdir(folder):
         return None
     try:
-        if time.time() - os.stat(os.path.join(folder, "alive")).st_mtime > 5:
+        if time.time() - os.stat(os.path.join(folder, "alive")).st_mtime > ALIVE_SECONDS:
             return None  # the helper is not running
         name = uuid.uuid4().hex
         picture, answer = os.path.join(folder, name + ".png"), os.path.join(folder, name + ".tsv")
@@ -173,7 +180,7 @@ def ocr_words(png: bytes, scale: float) -> tuple[list[tuple], float]:
     words, confs = [], []
     for line in run_tesseract(png).splitlines()[1:]:
         p = line.split("\t")
-        if len(p) < 12 or not p[11].strip():
+        if len(p) < TESSERACT_COLUMNS or not p[TESSERACT_COLUMNS - 1].strip():
             continue
         try:
             left, top, w, h, conf = float(p[6]), float(p[7]), float(p[8]), float(p[9]), float(p[10])
@@ -205,9 +212,9 @@ def read_pdf(path: Path, passwords: list[str] | None = None) -> dict:
             page = doc[i]
             words = page.get_text("words")
             text = page.get_text()
-            if len(words) < 3 and ocr_pages < MAX_OCR_PAGES and time.monotonic() - began > OCR_BUDGET_S:
+            if len(words) < MIN_WORDS_FOR_TEXT_LAYER and ocr_pages < MAX_OCR_PAGES and time.monotonic() - began > OCR_BUDGET_S:
                 cut_short = True  # out of time for this file: the pages not yet read stay unread, and it says so
-            elif len(words) < 3 and ocr_pages < MAX_OCR_PAGES:  # no text layer: a scan. Read it.
+            elif len(words) < MIN_WORDS_FOR_TEXT_LAYER and ocr_pages < MAX_OCR_PAGES:  # no text layer: a scan. Read it.
                 pix = page.get_pixmap(dpi=OCR_DPI)
                 words, conf = ocr_words(pix.tobytes("png"), OCR_DPI / 72)
                 text = "\n".join(visual_lines(words))
@@ -429,9 +436,14 @@ def read_binary(path: Path) -> dict:
     Nothing is interpreted. A file with no words keeps only its name."""
     raw = path.read_bytes()[:MAX_READ_BYTES]
     runs = [m.group().decode("latin-1") for m in _WORDS.finditer(raw)] + [m.group().decode("utf-16-le", "ignore") for m in _WORDS16.finditer(raw)]
-    wordy = [r.strip() for r in runs if sum(c.isalpha() or c == " " for c in r) / len(r) >= 0.7 and len(r.split()) >= 2]
+    wordy = [r.strip() for r in runs if sum(c.isalpha() or c == " " for c in r) / len(r) >= MIN_WORDY_RATIO and len(r.split()) >= MIN_WORDY_WORDS]
     text = "\n".join(dict.fromkeys(wordy))[:200_000]
-    return {"kind": "binary", "text": clean(text) if len(text) >= 40 else "", "meta": {"partial": True, "no_text": len(text) < 40}, "data": {}}
+    return {
+        "kind": "binary",
+        "text": clean(text) if len(text) >= MIN_BINARY_TEXT_CHARS else "",
+        "meta": {"partial": True, "no_text": len(text) < MIN_BINARY_TEXT_CHARS},
+        "data": {},
+    }
 
 
 class _Html(HTMLParser):

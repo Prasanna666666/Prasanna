@@ -72,6 +72,8 @@ STOP = {
     "your",
     "our",
 }
+MIN_WORD_CHARS = 3  # a shorter word is not searched for
+MIN_STEM_CHARS = 4  # a word is cut back to its stem only while this much is left
 
 
 def _fts(conn) -> bool:
@@ -154,7 +156,7 @@ def terms(question: str) -> list[str]:
     seen, out = set(), []
     for raw in WORD.findall(question.lower()):
         w = raw.strip(".,'-")
-        if len(w) >= 3 and w not in STOP and w not in seen:
+        if len(w) >= MIN_WORD_CHARS and w not in STOP and w not in seen:
             seen.add(w)
             out.append(w)
     return out[:12]
@@ -166,7 +168,7 @@ RRF_K = 60  # reciprocal-rank fusion: how quickly a lower rank stops counting
 def _stem(word: str) -> str:
     """A rough stem for English and Dutch endings, so "invoices" and "invoiced" both look for "invoic"."""
     for ending in ("ing", "ed", "es", "en", "s", "e"):
-        if word.endswith(ending) and len(word) - len(ending) >= 4:
+        if word.endswith(ending) and len(word) - len(ending) >= MIN_STEM_CHARS:
             return word[: -len(ending)]
     return word
 
@@ -177,7 +179,7 @@ def _match_query(words: list[str]) -> str:
     for raw in words:
         w = raw.replace('"', "")
         stem = _stem(w)
-        parts.append(f'"{stem}"*' if len(stem) >= 4 else f'"{w}"')
+        parts.append(f'"{stem}"*' if len(stem) >= MIN_STEM_CHARS else f'"{w}"')
     return " OR ".join(parts)
 
 
