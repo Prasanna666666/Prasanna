@@ -312,8 +312,8 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
 
 
 WORKERS = max(
-    1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", str(max(2, min(os.cpu_count() or 2, 4))))), 8)
-)  # files read at the same time, each in its own sealed child process
+    1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", str(max(2, os.cpu_count() or 2)))), 12)
+)  # files read at the same time (as many as there are CPUs), each in its own sealed child process
 BATCH = 50  # files per batch: a pause or stop takes effect within one batch
 
 
@@ -630,8 +630,6 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.write(json.dumps(extract(Path(a.extract_one)), ensure_ascii=False))
         return 0
     out = Path(a.out)
-    with contextlib.suppress(OSError):
-        os.nice(10)  # reading is never more important than what the person is doing; the children inherit this
     while True:
         out.mkdir(parents=True, exist_ok=True)
         if a.watch:
@@ -654,7 +652,7 @@ def main(argv: list[str] | None = None) -> int:
 PAUSE = ".pause"  # while it exists the reader waits where it is; remove it and it carries on
 STOP = ".stop"  # while it exists the round in progress ends at the next safe point
 GENTLE_SECONDS = float(
-    os.environ.get("LIBRARY_GENTLE_SECONDS", "0.2")
+    os.environ.get("LIBRARY_GENTLE_SECONDS", "0")
 )  # a short rest after every batch, so the computer stays responsive while a big mailbox is read
 BUSY = ".busy"  # exists while a round is running
 WAKE = ".wake"  # the Documents service touches it when you press Read new files: start a round now

@@ -179,6 +179,11 @@ def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, st
     return checked
 
 
+def classify_short(client, model: str, name: str, text: str, apps: dict[str, str] | None = None) -> dict:
+    """The quick question: what is it, a title, and which declared apps it is about. A short question about a short piece, so the answer is a few words: seconds, not a minute."""
+    return _classify_briefly(client, model, name, clean(text), apps)
+
+
 def _classify_briefly(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
     """The second look: a much smaller question (only what it is, a title and the apps), about a shorter piece, for a file the full question got no usable answer for."""
     schema = kind_schema(apps)

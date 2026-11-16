@@ -28,9 +28,9 @@ services:
       - ${HOME}/AtlasInbox:/inbox:ro
       - ${ATLAS_FINANCE_DIR:-${HOME}/AtlasFinance}:/collections/finance:ro   # your bank statements and finance files
       - library-parsed:/parsed
-    mem_limit: 1g
-    pids_limit: 128
-    cpus: 3.0   # reading is the slow part and runs on its own before sorting starts: it may use most of the Mac (the Docker Desktop CPU limit still applies)
+    mem_limit: 3g
+    pids_limit: 512
+    cpus: 8.0   # reading is the slow part and runs on its own before sorting starts: it may use most of the Mac (the Docker Desktop CPU limit still applies)
 
   app:
     <<: *hardened

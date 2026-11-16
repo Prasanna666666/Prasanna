@@ -27,7 +27,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import apps, casebook, priority, recognise, relevance
+from . import apps, casebook, priority, recognise, relevance, similar
 from .trace import FAILED, Trace
 
 MIGRATIONS = (
@@ -163,6 +163,11 @@ MIGRATIONS = (
     """,
     """
     ALTER TABLE documents ADD COLUMN promised INTEGER NOT NULL DEFAULT 0;   -- for a mail: how many attachments it says it carried (so the number of documents in mails is known before they are all taken out)
+    """,
+    """
+    ALTER TABLE documents ADD COLUMN sig TEXT;   -- a fingerprint of the words of a document the model found to be about none of the apps (see similar)
+    CREATE TABLE sigs (doc_id INTEGER NOT NULL, band INTEGER NOT NULL, h INTEGER NOT NULL);
+    CREATE INDEX sigs_lookup ON sigs (band, h);
     """,
 )
 MODULE = Module("library", MIGRATIONS)
@@ -373,7 +378,14 @@ def _wait_while_paused(conn, control: Callable[[], str] | None) -> None:
 
 def _understand(client, model: str, d, progress: Progress | None = None) -> dict:
     """What the model makes of one document: what it is and its key facts, and for a medical document the lab values and medicines the document itself prints."""
-    facts = extract.classify(client, model, d["name"], d["text"], apps.describe())
+    declared = apps.describe()
+    facts = extract.classify_short(client, model, d["name"], d["text"], declared)  # the quick question first: what is it, and which apps is it about
+    if not (facts.get("apps") or d["area"] in declared):
+        return facts  # about none of the apps: nothing more is asked of the model
+    full = extract.classify(
+        client, model, d["name"], d["text"], declared
+    )  # about an app: the details that app needs (amounts, dates, parties), checked against the whole text
+    facts = {**full, "apps": sorted({*full.get("apps", []), *facts.get("apps", [])})}
     readers = {
         apps.reading(name) for name in [*facts.get("apps", []), d["area"]]
     }  # an app can ask for an extra reading of its files (a folder named after the app counts too)
@@ -416,6 +428,10 @@ def _identify_one(conn, client, model, d, progress: Progress | None, trace: Trac
     except RuntimeError as exc:
         return "unreachable", str(exc)
     _mark_ready(conn, d["sha256"], 1, facts)
+    if not facts.get("apps") and d["kind"] != "email" and (sig := similar.signature(d["text"])):
+        similar.remember(
+            conn, conn.execute("SELECT id FROM documents WHERE sha256=?", (d["sha256"],)).fetchone()[0], sig
+        )  # the next one that reads like it is not asked
     _trace(trace, d["name"], "sorted", f"{facts.get('kind', 'other')}", time.monotonic() - started)
     conn.commit()
     return "ok", ""
@@ -487,6 +503,21 @@ def mark_old_files(conn) -> int:
     return len(rows)
 
 
+def _reads_like(conn, d) -> tuple[dict, str] | None:
+    """The answer to give a document that reads like one already sorted as about none of the apps, and the name of that one; None when no document reads like it."""
+    if d["kind"] == "email" or not d["text"].strip():
+        return None
+    sig = similar.signature(d["text"])
+    found = similar.nearest(conn, sig) if sig else None
+    if found is None:
+        return None
+    row = conn.execute("SELECT name, facts FROM documents WHERE id=?", (found[0],)).fetchone()
+    facts = json.loads(row["facts"]) if row and row["facts"] else None
+    if not facts or facts.get("apps"):
+        return None
+    return {"kind": facts.get("kind", ""), "title": facts.get("title", ""), "apps": [], "inherited": True}, row["name"]
+
+
 def _skippable(d) -> bool:
     """Nothing readable to ask the model about: the file stays, found by its name."""
     if d["kind"] == "binary" or not d["text"].strip():
@@ -552,13 +583,13 @@ class _Ahead:
             said: list[str] = []
             self._jobs[d["sha256"]] = (self._pool.submit(_understand, self._client, self._model, d, said.append), said)
 
-    def prefetch(self, chunk: list, after: int) -> None:
-        """Start the model on the next files that need it, so that PARALLEL are in flight."""
+    def prefetch(self, chunk: list, after: int, skip: Callable[[Any], bool] | None = None) -> None:
+        """Start the model on the next files that need it, so that PARALLEL are in flight (not on those that `skip` says will not need it)."""
         started = 0
         for d in chunk[after + 1 :]:
             if started >= PARALLEL - 1:
                 break
-            if _for_model(d):
+            if _for_model(d) and not (skip and skip(d)):
                 self.start(d)
                 started += 1
 
@@ -613,6 +644,11 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
             if exact is not None:
                 _mark_ready(conn, d["sha256"], 1, exact)
                 _trace(trace, d["name"], "sorted", str(exact.get("kind", "")))  # shown by its title, like every other file
+            elif (
+                kin := _reads_like(conn, d)
+            ) is not None:  # it reads almost exactly like a document the model already found to be about none of the apps: the same answer, no model call
+                _mark_ready(conn, d["sha256"], 1, kin[0])
+                _trace(trace, d["name"], "sorted", f"{kin[0].get('kind', '')}, reads like {kin[1]}")
             elif _skippable(d):  # nothing readable to ask the model about: it stays, found by its name
                 why = _why_skipped(d)
                 _mark_ready(conn, d["sha256"], 2, {"skipped": why})  # the reason is kept, so what was not shown to the model can be counted and read later
@@ -627,7 +663,7 @@ def _judge_chunks(conn, client, model, progress, control, limit, trace, out, tot
                 if progress:
                     progress(_speed_line(model_work_left(conn), time.monotonic() - began, calls))
                 calls += 1
-                ahead.prefetch(chunk, position)
+                ahead.prefetch(chunk, position, lambda doc: _reads_like(conn, doc) is not None)
                 result, problem = _identify_one(conn, client, model, d, progress, trace, ahead)
                 if result == "stopped":
                     out["stopped"] = True
@@ -935,7 +971,7 @@ def health_followups(conn, today: str) -> dict[str, Any]:
 
 
 # ---- asking: what any app can take -------------------------------------------------------------------------------------------
-GENTLE_SECONDS = float(os.environ.get("LIBRARY_GENTLE_SECONDS", "0.5"))
+GENTLE_SECONDS = float(os.environ.get("LIBRARY_GENTLE_SECONDS", "0"))
 LIST_COLUMNS = "id, sha256, name, kind, area, parsed_at, facts, ready, case_id"
 
 

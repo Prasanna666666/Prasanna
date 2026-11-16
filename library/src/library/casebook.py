@@ -25,7 +25,7 @@ ID = re.compile(
 )  # letters and digits together (INV-20931, NL91ABNA...): a plain date or number is not an identifier
 AMOUNT = re.compile(r"\b\d{1,3}(?:[.,]\d{3})*[.,]\d{2}\b")
 RARE = 4  # a value that appears in more pieces than this says nothing about which pieces belong together
-MAX_CONFIRMS = 200  # pairs of files compared by the model per press of Read; the rest wait for the next press
+MAX_CONFIRMS = 1_000_000  # pairs of files compared by the model: no practical limit, a press does them all
 OVERLAP = 300
 BATCH_CHARS = 6000  # what one model call reads; a matter bigger than this is read in several calls, nothing is cut
 
@@ -354,7 +354,7 @@ def rebuild(
 
 
 ACT_DATES = ("due_date", "start_date", "end_date")  # a file with a date to act on needs its status read by the model
-MAX_READ_PER_PRESS = 100  # model readings of groups per press of Read; the audit says how many are left
+MAX_READ_PER_PRESS = 1_000_000  # model readings of groups: no practical limit, a press reads them all
 
 
 def _alone(piece: dict[str, Any]) -> dict[str, Any]:

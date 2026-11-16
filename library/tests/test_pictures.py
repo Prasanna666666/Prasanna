@@ -156,7 +156,11 @@ def test_a_photographed_receipt_becomes_a_document_that_is_judged_like_any_other
 
     class Model:
         def chat(self, model, messages, **kw):
-            return {"content": json.dumps({"kind": "receipt", "title": "Albert Heijn", "party": "Albert Heijn", "total": "23,45", "currency": "EUR"})}
+            return {
+                "content": json.dumps(
+                    {"kind": "receipt", "apps": ["finance"], "title": "Albert Heijn", "party": "Albert Heijn", "total": "23,45", "currency": "EUR"}
+                )
+            }
 
     assert store.judge_pending(conn, Model(), "fake")["read"] == 1
     [doc] = store.list_documents(conn, ["receipt"])
