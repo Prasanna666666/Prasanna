@@ -9,7 +9,7 @@ import time
 
 from kit import log
 
-from . import appstate, concepts, flags, judging, pictures, scanstatus, store, trace
+from . import appstate, bulkmail, concepts, flags, judging, pictures, scanstatus, store, trace
 from .appstate import State
 
 SETTLE_SECONDS = 3
@@ -170,9 +170,7 @@ def _mail_scope() -> str:
     """A fingerprint of the rules for which mail is read (`mailboxes.json`, or LIBRARY_MAILBOXES): when it changes, the mail read under the old rules is forgotten."""
     import hashlib
 
-    from . import parser
-
-    rules = json.dumps([sorted(parser.mailboxes_read()), sorted(parser._bulk_headers().items())])
+    rules = json.dumps([sorted(bulkmail.mailboxes_read()), sorted(bulkmail._bulk_headers().items())])
     return hashlib.sha256(rules.encode()).hexdigest()[:16]
 
 

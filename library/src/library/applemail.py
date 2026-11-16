@@ -80,7 +80,7 @@ def _run(script: str, run: Runner, timeout: int) -> list:
 
 def list_mailboxes(run: Runner = subprocess.run) -> list[tuple[str, str]]:
     """Every (account, mailbox) whose name is declared in `mailboxes.json` (Inbox and Sent)."""
-    from .parser import mailboxes_read
+    from .bulkmail import mailboxes_read
 
     found = _run(LIST_JXA, run, 300)
     return [(str(m["account"]), str(m["mailbox"])) for m in found if isinstance(m, dict) and str(m.get("mailbox", "")).lower() in mailboxes_read()]

@@ -9,7 +9,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 from kit import db
 
-from library import appstate, judging, parser, reading, scanstatus, store, web
+from library import appstate, batch, judging, reading, scanstatus, store, web
 from library.appstate import State
 
 
@@ -84,7 +84,7 @@ def test_one_update_reads_judges_and_serves_everything(server):
     inbox = tmp / "in"
     inbox.mkdir()
     (inbox / "hotel.txt").write_text("FACTUUR Hotel Delhi 12-01-2026 totaal 480,00 EUR betaling ontvangen")
-    parser.process_inbox(inbox, tmp / "parsed", isolated=False)
+    batch.process_inbox(inbox, tmp / "parsed", isolated=False)
     assert post(port, "/api/scan", {})[1]["started"] is True
     for _ in range(100):
         state = call(port, "GET", "/api/scan")[1]

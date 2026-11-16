@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 from kit import db
 
-from library import appstate, parser, reading, scanstatus, store, web
+from library import appstate, control, parser, reading, rounds, scanstatus, store, web
 from library.appstate import State
 
 
@@ -52,8 +52,8 @@ def library(tmp_path, monkeypatch):
     monkeypatch.setenv("ATLAS_PARSED", str(parsed))
     monkeypatch.setenv("LIBRARY_GENTLE_SECONDS", "0")
     monkeypatch.setattr(reading, "SETTLE_SECONDS", 0.05)
-    monkeypatch.setattr(parser, "GENTLE_SECONDS", 0)
-    monkeypatch.setattr(parser, "ROUND_SECONDS", 0)
+    monkeypatch.setattr(control, "GENTLE_SECONDS", 0)
+    monkeypatch.setattr(rounds, "ROUND_SECONDS", 0)
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
     return tmp_path, inbox, parsed, mail
 

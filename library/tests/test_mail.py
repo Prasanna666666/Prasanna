@@ -7,7 +7,7 @@ from email.message import EmailMessage
 
 import pytest
 
-from library import parser, readers, store, tools
+from library import batch, readers, store, tools
 
 
 def message(subject, body, attach=None, to="me@example.com"):
@@ -55,7 +55,7 @@ def test_a_mailbox_export_becomes_one_document_per_message_and_per_attachment(tm
             message("Vliegtickets", "Uw tickets naar Bengaluru.", {"ticket.txt": b"Flight KL 879 AMS-BLR 12 Jan 2026"}),
         ],
     )
-    counts = parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    counts = batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     docs = documents(tmp_path / "out")
     assert counts["failed"] == 0 and len(docs) == 4
     names = sorted(docs)
@@ -72,10 +72,10 @@ def test_a_mailbox_export_becomes_one_document_per_message_and_per_attachment(tm
 def test_a_mailbox_already_read_is_not_read_again_but_new_mail_in_a_new_export_is(tmp_path):
     (tmp_path / "in").mkdir()
     write_mbox(tmp_path / "in" / "a.mbox", [message("One", "first")])
-    assert parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)["parsed"] == 1
-    assert parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)["parsed"] == 0  # same file: nothing to do
+    assert batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)["parsed"] == 1
+    assert batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)["parsed"] == 0  # same file: nothing to do
     write_mbox(tmp_path / "in" / "b.mbox", [message("One", "first"), message("Two", "second")])
-    assert parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)["parsed"] == 1  # the message already seen is skipped, the new one read
+    assert batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)["parsed"] == 1  # the message already seen is skipped, the new one read
     assert len(documents(tmp_path / "out")) == 2
 
 
@@ -83,7 +83,7 @@ def test_apple_mails_own_files_are_read(tmp_path):
     raw = bytes(message("Polis", "Uw autoverzekering, eigen risico 250 euro."))
     (tmp_path / "in").mkdir()
     (tmp_path / "in" / "1234.emlx").write_bytes(str(len(raw)).encode() + b"\n" + raw + b'\n<?xml version="1.0"?><plist version="1.0"><dict/></plist>\n')
-    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     docs = documents(tmp_path / "out")
     assert list(docs) == ["1234.emlx"] and "eigen risico 250 euro" in docs["1234.emlx"]["text"] and docs["1234.emlx"]["kind"] == "email"
 
@@ -92,7 +92,7 @@ def test_a_broken_mail_file_fails_only_itself(tmp_path):
     (tmp_path / "in").mkdir()
     (tmp_path / "in" / "bad.emlx").write_bytes(b"not a length\nrubbish")
     (tmp_path / "in" / "good.eml").write_bytes(bytes(message("Fine", "all good")))
-    counts = parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    counts = batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     assert counts["failed"] == 1 and counts["parsed"] == 1
     with pytest.raises(ValueError, match="Apple Mail"):
         readers.read_emlx(tmp_path / "in" / "bad.emlx")
@@ -127,7 +127,7 @@ def test_a_ticket_that_arrived_by_email_can_be_found_and_shown_when_asked_for(tm
             message("Nieuwsbrief", "Aanbiedingen deze week."),
         ],
     )
-    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     store.ingest_dir(conn, tmp_path / "out")
     items = find(conn, "show me the flight tickets")
     titles = [i["title"] for i in items]
@@ -144,7 +144,7 @@ def test_information_that_is_only_in_the_text_of_an_email_is_found_too(tmp_path,
             message("Betaling", "Wij hebben uw betaling van 62,50 ontvangen."),
         ],
     )
-    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     store.ingest_dir(conn, tmp_path / "out")
     assert find(conn, "show me the email about my flight") == []  # an English question, a Dutch email: the words alone do not meet
     flight = find(conn, "show me the email about my flight", ["vlucht", "reservering"])  # the model supplies the Dutch phrasings
@@ -163,13 +163,13 @@ def test_a_picture_in_a_mail_is_also_kept_as_a_file_for_the_picture_engine(tmp_p
     write_mbox(tmp_path / "in" / "all.mbox", [message("Photo of the receipt", "See the picture.", {"receipt.png": png.getvalue()})])
     kept = tmp_path / "kept"
     monkeypatch.setenv("LIBRARY_PICTURES_IN", str(kept))
-    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False, area="mail")
+    batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False, area="mail")
     files = list(kept.iterdir())
     assert (
         len(files) == 1 and files[0].suffix == ".png" and files[0].read_bytes() == png.getvalue()
     )  # named by its content: the same picture twice is kept once
-    parser.process_inbox(tmp_path / "in", tmp_path / "out2", isolated=False, area="mail")
+    batch.process_inbox(tmp_path / "in", tmp_path / "out2", isolated=False, area="mail")
     assert len(list(kept.iterdir())) == 1
     monkeypatch.delenv("LIBRARY_PICTURES_IN")
-    parser.process_inbox(tmp_path / "in", tmp_path / "out3", isolated=False, area="mail")
+    batch.process_inbox(tmp_path / "in", tmp_path / "out3", isolated=False, area="mail")
     assert len(list(kept.iterdir())) == 1  # without the folder set, nothing is kept

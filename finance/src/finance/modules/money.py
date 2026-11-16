@@ -511,9 +511,7 @@ MODULE = Module(
         Tool("suggestions", "Things worth a look, from rules applied to your own figures.", {}, planning.suggestions),
         Tool("money_detective", "Everything odd in one list: double charges, price changes, large or unclear payments.", {}, planning.money_detective),
         Tool("net_worth", "The balance of every account in euros, month by month, from your proven statements.", {}, insight.net_worth),
-        Tool(
-            "agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, reports.agent_list
-        ),
+        Tool("agent_list", "All the agents that read, prove and cross-check your data, and whether each one is built or planned.", {}, reports.agent_list),
         Tool(
             "verification_report",
             "What each verifier agent checked (balances, totals, second reading, payslip vs bank, invoice vs bank, continuity): counts, warnings and failures.",
@@ -556,9 +554,7 @@ MODULE = Module(
             {"month": S("YYYY-MM")},
             income_summary,
         ),
-        Tool(
-            "monthly_trend", "Spent, income and net for each of the last N months.", {"months": N("How many months, default 6")}, reports.monthly_trend
-        ),
+        Tool("monthly_trend", "Spent, income and net for each of the last N months.", {"months": N("How many months, default 6")}, reports.monthly_trend),
         Tool(
             "recurring_payments",
             "Subscriptions, rent, EMIs and bills: payments that repeat about monthly for a similar amount.",

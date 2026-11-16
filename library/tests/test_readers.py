@@ -8,7 +8,7 @@ import pymupdf
 import pytest
 from PIL import Image
 
-from library import parser, readers, sniff
+from library import batch, extraction, readers, sniff
 
 HEAD = ["Datum", "Omschrijving", "Af", "Bij", "Saldo"]
 ROWS = [
@@ -69,21 +69,21 @@ def cells(res):
 
 def test_a_text_pdf_gives_positioned_cells_and_plain_text(tmp_path):
     text_pdf(tmp_path / "a.pdf")
-    res = parser.extract(tmp_path / "a.pdf")
+    res = extraction.extract(tmp_path / "a.pdf")
     assert res["kind"] == "pdf" and "Albert Heijn" in res["text"] and cells(res)[2] == ["02-10-2026", "Albert Heijn", "23,45", "1.976,55"]
     assert "ocr_pages" not in res["meta"]
 
 
 def test_a_scanned_pdf_is_read_with_ocr_into_the_same_shape(tmp_path, fake_ocr):
     scanned_pdf(tmp_path / "scan.pdf")
-    res = parser.extract(tmp_path / "scan.pdf")
+    res = extraction.extract(tmp_path / "scan.pdf")
     assert res["meta"]["ocr_pages"] == 1 and 90 <= res["meta"]["ocr_confidence"] <= 93
     assert cells(res)[3] == ["25-10-2026", "Salaris", "2.850,00", "4.826,55"] and "Salaris" in res["text"]
 
 
 def test_a_photo_or_screenshot_of_a_statement_is_read_the_same_way(tmp_path, fake_ocr):
     Image.new("RGB", (800, 1000), "white").save(tmp_path / "photo.jpg")
-    res = parser.extract(tmp_path / "photo.jpg")
+    res = extraction.extract(tmp_path / "photo.jpg")
     assert res["kind"] == "image" and res["meta"]["ocr_pages"] == 1 and cells(res)[1][1] == "Opening"
 
 
@@ -91,17 +91,17 @@ def test_a_scan_without_tesseract_fails_clearly_instead_of_returning_nothing(tmp
     scanned_pdf(tmp_path / "scan.pdf")
     monkeypatch.setattr(readers, "ocr_languages", lambda: "")
     with pytest.raises(RuntimeError, match="Tesseract"):
-        parser.extract(tmp_path / "scan.pdf")
+        extraction.extract(tmp_path / "scan.pdf")
 
 
 def test_a_password_protected_pdf_opens_with_the_password_from_passwords_txt_and_not_without(tmp_path, monkeypatch):
     text_pdf(tmp_path / "locked.pdf", password="geheim123")
     monkeypatch.delenv("ATLAS_FINANCE", raising=False)
     with pytest.raises(ValueError, match="password-protected"):
-        parser.extract(tmp_path / "locked.pdf")
+        extraction.extract(tmp_path / "locked.pdf")
     (tmp_path / "passwords.txt").write_text("fout\ngeheim123\n")
     monkeypatch.setenv("ATLAS_PASSWORDS_FILE", str(tmp_path / "passwords.txt"))
-    res = parser.extract(tmp_path / "locked.pdf")
+    res = extraction.extract(tmp_path / "locked.pdf")
     assert res["meta"].get("unlocked") and "Albert Heijn" in res["text"]
 
 
@@ -110,7 +110,7 @@ def test_the_passwords_file_is_never_read_as_a_document(tmp_path):
     fin.mkdir()
     (fin / "passwords.txt").write_text("secret\n")
     (fin / "note.txt").write_text("hello")
-    r = parser.process_inbox(fin, out, isolated=False)
+    r = batch.process_inbox(fin, out, isolated=False)
     assert r["parsed"] == 1 and r["skipped"] == 0  # the passwords file is not a document: it is neither read nor counted
     assert "secret" not in "".join(p.read_text() for p in out.glob("*.json"))
 
@@ -123,7 +123,7 @@ def test_spreadsheets_word_files_web_pages_and_json_all_give_rows_and_text(tmp_p
     for row in [["Datum", "Bedrag"], ["2026-10-01", 23.45], ["2026-10-02", 1000]]:
         ws.append(row)
     wb.save(tmp_path / "s.xlsx")
-    sheet = parser.extract(tmp_path / "s.xlsx")
+    sheet = extraction.extract(tmp_path / "s.xlsx")
     assert sheet["kind"] == "sheet" and sheet["data"]["rows"] == [["Datum", "Bedrag"], ["2026-10-01", "23.45"], ["2026-10-02", "1000"]]
 
     w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -133,22 +133,22 @@ def test_spreadsheets_word_files_web_pages_and_json_all_give_rows_and_text(tmp_p
     )
     with zipfile.ZipFile(tmp_path / "d.docx", "w") as z:
         z.writestr("word/document.xml", xml)
-    doc = parser.extract(tmp_path / "d.docx")
+    doc = extraction.extract(tmp_path / "d.docx")
     assert "Factuur Ziggo" in doc["text"] and doc["data"]["rows"] == [["Totaal", "60,50"]]
 
     (tmp_path / "p.html").write_text("<html><body><p>Hallo</p><table><tr><td>Totaal</td><td>9,99</td></tr></table><script>evil()</script></body></html>")
-    page = parser.extract(tmp_path / "p.html")
+    page = extraction.extract(tmp_path / "p.html")
     assert page["data"]["rows"] == [["Totaal", "9,99"]] and "evil" not in page["text"] and "Hallo" in page["text"]
 
     (tmp_path / "t.json").write_text(json.dumps([{"date": "2026-10-01", "amount": 5}, {"date": "2026-10-02", "amount": 7}]))
-    assert parser.extract(tmp_path / "t.json")["data"]["rows"] == [["date", "amount"], ["2026-10-01", "5"], ["2026-10-02", "7"]]
+    assert extraction.extract(tmp_path / "t.json")["data"]["rows"] == [["date", "amount"], ["2026-10-01", "5"], ["2026-10-02", "7"]]
 
 
 def test_a_docx_with_xml_entities_is_refused(tmp_path):
     with zipfile.ZipFile(tmp_path / "evil.docx", "w") as z:
         z.writestr("word/document.xml", '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY a "aaaa">]><document/>')
     with pytest.raises(ValueError, match="unsafe"):
-        parser.extract(tmp_path / "evil.docx")
+        extraction.extract(tmp_path / "evil.docx")
 
 
 def test_an_email_and_its_attachment_each_become_a_document(tmp_path):
@@ -160,7 +160,7 @@ def test_an_email_and_its_attachment_each_become_a_document(tmp_path):
     m.add_attachment(b"Factuur Ziggo totaal 60,50", maintype="text", subtype="plain", filename="factuur.txt")
     (tmp_path / "in").mkdir()
     (tmp_path / "in" / "mail.eml").write_bytes(bytes(m))
-    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     docs = [json.loads(p.read_text()) for p in (tmp_path / "out").glob("*.json")]
     assert sorted(d["name"] for d in docs) == ["mail.eml", "mail.eml/factuur.txt"]
     assert any("Uw factuur" in d["text"] for d in docs) and any("totaal 60,50" in d["text"] for d in docs)
@@ -172,7 +172,7 @@ def test_zip_archives_are_opened_file_by_file_and_stay_bounded(tmp_path):
         z.writestr("oct.txt", "Datum Omschrijving")
         z.writestr("../../escape.txt", "path traversal attempt")  # only the file name is ever used
         z.writestr("inner.zip", b"PK")  # archives inside archives are ignored
-    parser.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
+    batch.process_inbox(tmp_path / "in", tmp_path / "out", isolated=False)
     names = sorted(json.loads(p.read_text())["name"] for p in (tmp_path / "out").glob("*.json"))
     assert names == ["statements.zip/escape.txt", "statements.zip/oct.txt"] and not (tmp_path / "escape.txt").exists()
 
@@ -184,5 +184,5 @@ def test_a_pdf_with_stray_bytes_before_its_header_is_still_read_as_a_pdf_with_it
     odd = tmp_path / "2025-02.pdf"
     odd.write_bytes(b"\xef\xbb\xbf\r\n" + plain.read_bytes())
     assert sniff.kind_of(odd) == "pdf"
-    got = parser.extract(odd)
+    got = extraction.extract(odd)
     assert got["kind"] == "pdf" and got["data"]["table"] and "Albert Heijn" in got["text"]

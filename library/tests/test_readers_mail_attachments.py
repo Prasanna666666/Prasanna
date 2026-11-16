@@ -3,7 +3,7 @@
 import email.message
 import email.policy
 
-from library import judging, readers, reading
+from library import bulkmail, judging, mailread, readers, reading
 
 
 def test_every_attachment_of_a_mail_is_found_nested_unnamed_repeated_and_forwarded():
@@ -27,10 +27,8 @@ def test_every_attachment_of_a_mail_is_found_nested_unnamed_repeated_and_forward
 def test_only_the_declared_mailboxes_are_read_and_the_rest_are_skipped(monkeypatch):
     from pathlib import Path
 
-    from library import parser
-
     monkeypatch.delenv("LIBRARY_MAILBOXES", raising=False)
-    read = lambda p: not parser._in_skipped_mailbox(Path(p))  # noqa: E731
+    read = lambda p: not bulkmail._in_skipped_mailbox(Path(p))  # noqa: E731
     assert (
         read("acc/INBOX.mbox/Data/Messages/1.emlx")
         and read("acc/Sent Messages.mbox/Data/Messages/2.emlx")
@@ -96,7 +94,6 @@ def test_stop_ends_a_wait_for_the_model_at_once_and_an_answer_that_comes_is_pass
 
 
 def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):
-    from library import parser
 
     def put(path, headers):
         f = tmp_path / path
@@ -108,7 +105,7 @@ def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):
     put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/2.emlx", "From: n@example.org\nList-Unsubscribe: <mailto:x@example.org>")
     put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/3.emlx", "From: n@example.org\nPrecedence: bulk")
     put("V10/A/[Gmail].mbox/Spam.mbox/U/Data/Messages/4.emlx", "From: a@example.org")
-    assert parser.mail_index(tmp_path, tmp_path / "out").mails == 1
+    assert mailread.mail_index(tmp_path, tmp_path / "out").mails == 1
 
 
 def test_the_rules_for_which_mail_is_read_have_a_fingerprint_that_changes_with_them(monkeypatch):
@@ -123,8 +120,6 @@ def test_the_rules_for_which_mail_is_read_have_a_fingerprint_that_changes_with_t
 def test_attachments_apple_mail_keeps_beside_its_messages_are_found_and_read(tmp_path):
     import json
 
-    from library import parser
-
     box = tmp_path / "V10/A/[Gmail].mbox/All Mail.mbox/U/Data/1/Messages"
     att = tmp_path / "V10/A/[Gmail].mbox/All Mail.mbox/U/Data/1/Attachments"
     spam = tmp_path / "V10/A/[Gmail].mbox/Spam.mbox/U/Data/1/Attachments/9/1"
@@ -136,22 +131,21 @@ def test_attachments_apple_mail_keeps_beside_its_messages_are_found_and_read(tmp
     (att / "5/1/report.txt").write_text("Quarterly report with some words in it. " * 5)
     (att / "6/1/offer.txt").write_text("Special offer. " * 10)  # belongs to a newsletter
     (spam / "x.txt").write_text("spam " * 20)  # a mailbox that is not read
-    assert [relative.rsplit("/", 1)[-1] for _, relative in parser.mail_index(tmp_path, tmp_path / "idx").attachments] == ["report.txt"]
-    parser._MAIL_INDEX.clear()
+    assert [relative.rsplit("/", 1)[-1] for _, relative in mailread.mail_index(tmp_path, tmp_path / "idx").attachments] == ["report.txt"]
+    mailread._MAIL_INDEX.clear()
     out = tmp_path / "out"
-    assert parser.process_mail_attachments(tmp_path, out, isolated=False)["parsed"] == 1
+    assert mailread.process_mail_attachments(tmp_path, out, isolated=False)["parsed"] == 1
     assert [json.loads(p.read_text())["name"] for p in out.glob("*.json")] == ["5/1/report.txt"]
 
 
 def test_a_google_export_marks_spam_promotions_and_trash_by_the_labels_it_carries(tmp_path):
-    from library import parser
 
     def put(name, labels):
         f = tmp_path / name
         f.write_bytes(f"From: a@example.org\nX-Gmail-Labels: {labels}\nSubject: x\n\nhello".encode())
         return f
 
-    assert not parser.is_bulk_mail(put("a.eml", "Inbox,Important,Category Updates"))
-    assert not parser.is_bulk_mail(put("b.eml", "Sent"))
+    assert not bulkmail.is_bulk_mail(put("a.eml", "Inbox,Important,Category Updates"))
+    assert not bulkmail.is_bulk_mail(put("b.eml", "Sent"))
     for labels in ("Spam", "Inbox,Category Promotions", "Trash", "Category Social,Unread"):
-        assert parser.is_bulk_mail(put("c.eml", labels))
+        assert bulkmail.is_bulk_mail(put("c.eml", labels))

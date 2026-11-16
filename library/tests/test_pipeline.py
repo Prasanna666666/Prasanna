@@ -9,7 +9,7 @@ from finance import library_client
 from finance.modules import ALL, statement_import
 from kit import db
 
-from library import judging, parser, store
+from library import batch, judging, store
 from tests.test_readers import fake_ocr, scanned_pdf  # noqa: F401 - the fixture is used by name
 
 LAYOUT = {
@@ -76,7 +76,7 @@ def test_a_scanned_statement_goes_from_the_reader_through_the_service_to_a_verif
     folder, parsed = tmp_path / "finance-folder", tmp_path / "parsed"
     folder.mkdir()
     scanned_pdf(folder / "ing-scan.pdf")
-    parser.process_inbox(folder, parsed, isolated=False, area="finance")
+    batch.process_inbox(folder, parsed, isolated=False, area="finance")
     store.ingest_dir(conn, parsed)
     assert judging.judge_pending(conn, Model(), "fake")["read"] == 1
     fetch = library_over_http(conn)
@@ -90,7 +90,7 @@ def test_a_second_app_takes_its_own_kind_from_the_same_store_and_finance_never_s
     health, parsed = tmp_path / "health-folder", tmp_path / "parsed"
     health.mkdir()
     (health / "bloed.txt").write_text("Uitslag bloedonderzoek 1 maart 2026: alle waarden normaal. Kliniek centrum.")
-    parser.process_inbox(health, parsed, isolated=False, area="health")  # a collection with any name; its files are always read
+    batch.process_inbox(health, parsed, isolated=False, area="health")  # a collection with any name; its files are always read
     store.ingest_dir(conn, parsed)
     judging.judge_pending(conn, Model(), "fake")
     assert store.list_documents(conn, ["invoice"]) == []  # an app asking for other kinds does not receive it

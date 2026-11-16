@@ -1,16 +1,16 @@
 import json
 
-from library import judging, parser, store, tripdocs
+from library import batch, control, extraction, judging, mailread, rounds, store, tripdocs
 
 
 def test_extract_text_csv_and_control_chars(tmp_path):
     (tmp_path / "a.txt").write_text("hello\x00 \x1bworld\nline2")
     (tmp_path / "s.csv").write_text("date,desc,amount\n2026-01-01,Rent,1000\n")
-    assert parser.extract(tmp_path / "a.txt")["text"] == "hello world\nline2"
-    c = parser.extract(tmp_path / "s.csv")
+    assert extraction.extract(tmp_path / "a.txt")["text"] == "hello world\nline2"
+    c = extraction.extract(tmp_path / "s.csv")
     assert c["meta"]["columns"] == ["date", "desc", "amount"] and "Rent | 1000" in c["text"]
     (tmp_path / "x.exe").write_bytes(b"MZ\x90\x00" + bytes(range(256)) * 4)
-    assert parser.extract(tmp_path / "x.exe")["kind"] == "binary"  # no list of allowed types: a file no reader fits is still taken, by the words it holds
+    assert extraction.extract(tmp_path / "x.exe")["kind"] == "binary"  # no list of allowed types: a file no reader fits is still taken, by the words it holds
 
 
 def test_process_inbox_isolated_dedupes_skips_and_survives_bad_files(tmp_path):
@@ -22,7 +22,7 @@ def test_process_inbox_isolated_dedupes_skips_and_survives_bad_files(tmp_path):
     (inbox / "malware.exe").write_bytes(b"MZ\x90\x00" + bytes(range(256)) * 2)
     (tmp_path / "secret.txt").write_text("outside the inbox")
     (inbox / "link.txt").symlink_to(tmp_path / "secret.txt")
-    r = parser.process_inbox(inbox, out)  # real subprocess isolation
+    r = batch.process_inbox(inbox, out)  # real subprocess isolation
     assert (
         r["parsed"] == 2 and r["failed"] == 1 and r["skipped"] == 0
     )  # the notes once, the program as a file with no readable text; only the damaged PDF fails
@@ -31,7 +31,7 @@ def test_process_inbox_isolated_dedupes_skips_and_survives_bad_files(tmp_path):
     kinds = {json.loads(f.read_text())["name"]: json.loads(f.read_text())["kind"] for f in files}
     assert kinds.get("malware.exe") == "binary" and "text" in (kinds.get("note.md"), kinds.get("copy.md"))
     assert all(json.loads(f.read_text())["sha256"] == f.stem for f in files)
-    assert parser.process_inbox(inbox, out) == {"parsed": 0, "skipped": 0, "failed": 1}  # nothing re-parsed
+    assert batch.process_inbox(inbox, out) == {"parsed": 0, "skipped": 0, "failed": 1}  # nothing re-parsed
 
 
 def _doc(**kw):
@@ -126,7 +126,7 @@ def test_every_kind_of_file_has_one_reader_in_the_registry():
 
     # every kind of content the sniffer can name has a reader, except mailboxes, which are opened first so that each message is read by the email reader
     named = {"pdf", "image", "sheet", "doc", "html", "email", "json", "csv", "text", "zip", "binary"}
-    assert set(parser.PARSERS) == named and sniff.kind_of.__doc__ and all(k in sniff.kind_of.__doc__ for k in named | {"mbox"})
+    assert set(extraction.PARSERS) == named and sniff.kind_of.__doc__ and all(k in sniff.kind_of.__doc__ for k in named | {"mbox"})
 
 
 def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_window_belongs_to_it(conn, tmp_path):
@@ -174,8 +174,6 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
     import argparse
     import json
 
-    from library import parser
-
     inbox = tmp_path / "inbox"
     (inbox / "mail").mkdir(parents=True)
     (inbox / "a.txt").write_text("x")
@@ -183,7 +181,7 @@ def test_the_reader_counts_every_file_and_mail_it_will_take_before_reading(tmp_p
     (inbox / "skip.xyz").write_text("x")
     (inbox / "mail" / "m.eml").write_text("Subject: hi\n\nbody")
     ns = argparse.Namespace(inbox=str(inbox), out=str(tmp_path / "out"), collection=[], mail="")
-    parser.write_found(ns)
+    rounds.write_found(ns)
     assert json.loads((tmp_path / "out" / ".found").read_text()) == {
         "documents": 3,  # skip.xyz is counted too: no file is turned away for its ending
         "mails": 1,
@@ -203,9 +201,9 @@ def test_reading_several_files_at_once_gives_the_same_result_as_one_at_a_time(tm
     (inbox / "twin2.txt").write_text("same words")  # the same content twice: read once, even when read at the same moment
     results = {}
     for workers in (1, 4):
-        monkeypatch.setattr(parser, "WORKERS", workers)
+        monkeypatch.setattr(batch, "WORKERS", workers)
         out = tmp_path / f"out{workers}"
-        counts = parser.process_inbox(inbox, out, isolated=False)
+        counts = batch.process_inbox(inbox, out, isolated=False)
         results[workers] = (counts, sorted(p.stem for p in out.glob("*.json")))
     assert results[1] == results[4] and results[4][0]["parsed"] == 13
 
@@ -213,10 +211,8 @@ def test_reading_several_files_at_once_gives_the_same_result_as_one_at_a_time(tm
 def test_stop_and_pause_are_heard_while_the_reader_is_still_looking_through_the_folders(tmp_path, monkeypatch):
     import argparse
 
-    from library import parser
-
-    monkeypatch.setattr(parser, "CHECK_EVERY", 5)
-    monkeypatch.setattr(parser, "GENTLE_SECONDS", 0)
+    monkeypatch.setattr(control, "CHECK_EVERY", 5)
+    monkeypatch.setattr(control, "GENTLE_SECONDS", 0)
     inbox, mail, out = tmp_path / "in", tmp_path / "mail", tmp_path / "out"
     for folder in (inbox, mail / "box"):
         folder.mkdir(parents=True)
@@ -225,14 +221,14 @@ def test_stop_and_pause_are_heard_while_the_reader_is_still_looking_through_the_
         (mail / "box" / f"{i}.emlx").write_text(f"Subject: {i}\n\nbody {i}")
     ns = argparse.Namespace(inbox=str(inbox), out=str(out), collection=[], mail=str(mail))
     out.mkdir()
-    (out / parser.STOP).touch()  # the person pressed Stop
-    parser.write_found(ns)
-    assert not (out / parser.FOUND_FILE).exists()  # it stopped counting instead of walking everything
-    assert parser.process_mail_store(mail, out, isolated=False) == {"parsed": 0, "skipped": 0, "failed": 0}  # and did not read the mail
-    assert parser.read_everything(ns) == {"parsed": 0, "skipped": 0, "failed": 0} and not list(out.glob("*.json"))
-    (out / parser.STOP).unlink()
-    parser.write_found(ns)
-    assert json.loads((out / parser.FOUND_FILE).read_text())["documents"] == 40  # without Stop it counts as before
+    (out / control.STOP).touch()  # the person pressed Stop
+    rounds.write_found(ns)
+    assert not (out / rounds.FOUND_FILE).exists()  # it stopped counting instead of walking everything
+    assert mailread.process_mail_store(mail, out, isolated=False) == {"parsed": 0, "skipped": 0, "failed": 0}  # and did not read the mail
+    assert rounds.read_everything(ns) == {"parsed": 0, "skipped": 0, "failed": 0} and not list(out.glob("*.json"))
+    (out / control.STOP).unlink()
+    rounds.write_found(ns)
+    assert json.loads((out / rounds.FOUND_FILE).read_text())["documents"] == 40  # without Stop it counts as before
 
 
 def test_a_changed_file_replaces_its_older_version_and_going_back_reads_it_again(tmp_path):
@@ -248,7 +244,7 @@ def test_a_changed_file_replaces_its_older_version_and_going_back_reads_it_again
 
     def read(text):
         note.write_text(text)
-        parser.process_inbox(folder, out, isolated=False, area="health")
+        batch.process_inbox(folder, out, isolated=False, area="health")
         return store.ingest_dir(conn, out)
 
     def texts():
@@ -258,7 +254,7 @@ def test_a_changed_file_replaces_its_older_version_and_going_back_reads_it_again
     assert read("version two")["replaced"] == 1 and texts() == ["version two"]  # one file, one document: the latest
     other = folder / "other.txt"
     other.write_text("a different file")
-    parser.process_inbox(folder, out, isolated=False, area="health")
+    batch.process_inbox(folder, out, isolated=False, area="health")
     store.ingest_dir(conn, out)
     assert sorted(texts()) == ["a different file", "version two"]  # a different file is not a version of this one
     assert (
@@ -272,7 +268,7 @@ def test_the_report_says_which_files_are_not_read_and_why(tmp_path, monkeypatch)
 
     from kit import db
 
-    from library import parser, readreport, store, tools
+    from library import readreport, store, tools
 
     inbox, out = tmp_path / "in", tmp_path / "out"
     cat = tmp_path / "personal"
@@ -286,7 +282,7 @@ def test_the_report_says_which_files_are_not_read_and_why(tmp_path, monkeypatch)
     (cat / ".DS_Store").write_text("x")
     ns = argparse.Namespace(inbox=str(inbox), out=str(out), collection=[f"personal={cat}"], mail="")
     monkeypatch.setenv("ATLAS_PARSED", str(out))
-    parser.write_found(ns)
+    rounds.write_found(ns)
     conn = db.connect(tmp_path / "library.db")
     db.migrate(conn, [store.MODULE])
     report = readreport.summary(conn)
@@ -313,13 +309,11 @@ def test_the_report_says_which_files_are_not_read_and_why(tmp_path, monkeypatch)
 def test_rtf_odt_and_pptx_files_are_read_and_heic_is_a_supported_picture_type(tmp_path):
     import zipfile
 
-    from library import parser
-
     rtf = tmp_path / "letter.rtf"
     rtf.write_bytes(
         rb"{\rtf1\ansi{\fonttbl\f0 Arial;}{\*\generator Word;}\f0\fs24 Dear Mr. Jansen,\par Your policy number is 12345.\par Caf\'e9 invoice: total 480,00 euro.\par}"
     )
-    text = parser.extract(rtf)["text"]
+    text = extraction.extract(rtf)["text"]
     assert (
         "Dear Mr. Jansen," in text
         and "policy number is 12345." in text
@@ -334,14 +328,14 @@ def test_rtf_odt_and_pptx_files_are_read_and_heic_is_a_supported_picture_type(tm
             "content.xml",
             '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><text:h>Tenancy</text:h><text:p>Rent is <text:span>950</text:span> euro.</text:p></office:body></office:document-content>',
         )
-    assert parser.extract(odt)["text"] == "Tenancy\nRent is 950 euro."
+    assert extraction.extract(odt)["text"] == "Tenancy\nRent is 950 euro."
     pptx = tmp_path / "talk.pptx"
     slide = '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>{}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'
     with zipfile.ZipFile(pptx, "w") as z:
         z.writestr("ppt/slides/slide10.xml", slide.format("Tenth"))
         z.writestr("ppt/slides/slide2.xml", slide.format("Second"))
         z.writestr("ppt/slides/slide1.xml", slide.format("First"))
-    assert parser.extract(pptx)["text"] == "First\n\nSecond\n\nTenth"  # in slide order, not name order
+    assert extraction.extract(pptx)["text"] == "First\n\nSecond\n\nTenth"  # in slide order, not name order
     from library import sniff
 
     heic = tmp_path / "scan.heic"
@@ -441,12 +435,12 @@ def test_a_round_that_started_by_itself_stops_at_its_limit_and_says_so(tmp_path)
     for i in range(6):
         (inbox / f"n{i}.txt").write_text(f"note number {i} with enough words to be read properly")
     (out / flags.AUTO_LIMIT).write_text("2")
-    parser._start_budget(out)
-    parser.BATCH, old = 2, parser.BATCH
+    batch._start_budget(out)
+    batch.BATCH, old = 2, batch.BATCH
     try:
-        res = parser.process_inbox(inbox, out, isolated=False)
+        res = batch.process_inbox(inbox, out, isolated=False)
     finally:
-        parser.BATCH = old
+        batch.BATCH = old
     assert res["parsed"] == 2 and (out / flags.AUTO_CAPPED).exists() and not (out / flags.AUTO_LIMIT).exists()
-    parser._start_budget(out)  # the next round, started by the person: no limit
-    assert parser._BUDGET["left"] is None and not (out / flags.AUTO_CAPPED).exists()
+    batch._start_budget(out)  # the next round, started by the person: no limit
+    assert batch._BUDGET["left"] is None and not (out / flags.AUTO_CAPPED).exists()

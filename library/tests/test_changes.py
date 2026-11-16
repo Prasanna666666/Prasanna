@@ -10,7 +10,7 @@ from images.config import ENV_INTERNAL
 from kit import db
 from PIL import Image
 
-from library import changes, filing, indexer, judging, pictures, store, tools, web
+from library import batch, changes, control, filing, indexer, judging, pictures, store, tools, web
 from tests.test_pictures import engine_with_fake_models
 
 
@@ -325,22 +325,21 @@ def test_a_paused_update_waits_and_a_stopped_one_ends_without_losing_what_was_re
 
 
 def test_the_reader_waits_while_paused_and_ends_the_round_when_stopped(tmp_path, monkeypatch):
-    from library import parser
 
-    monkeypatch.setattr(parser, "GENTLE_SECONDS", 0)
+    monkeypatch.setattr(control, "GENTLE_SECONDS", 0)
     out = tmp_path / "out"
     out.mkdir()
-    (out / parser.PAUSE).touch()
+    (out / control.PAUSE).touch()
     sleeps = []
 
     def sleep(_s):
         sleeps.append(1)
-        (out / parser.PAUSE).unlink(missing_ok=True)  # the person presses Resume while it waits
+        (out / control.PAUSE).unlink(missing_ok=True)  # the person presses Resume while it waits
 
-    monkeypatch.setattr(parser.time, "sleep", sleep)
-    assert parser.checkpoint(out) is False and sleeps  # it waited, then carried on
-    (out / parser.STOP).touch()
-    assert parser.checkpoint(out) is True  # stopped: the round ends at the next safe point
+    monkeypatch.setattr(control.time, "sleep", sleep)
+    assert batch.checkpoint(out) is False and sleeps  # it waited, then carried on
+    (out / control.STOP).touch()
+    assert batch.checkpoint(out) is True  # stopped: the round ends at the next safe point
 
 
 def test_tens_of_thousands_of_documents_are_judged_a_chunk_at_a_time_never_all_in_memory(inbox, monkeypatch):

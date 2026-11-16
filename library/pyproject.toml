@@ -47,7 +47,7 @@ max-statements = 50
 
 [tool.ruff.lint.per-file-ignores]
 "src/library/readers.py" = ["S603", "S607", "S314", "PLW2901"]  # fixed executables (tesseract, pdftotext) with list arguments and no shell; XML with a DOCTYPE or entities is refused before parsing
-"src/library/parser.py" = ["S603"]  # re-runs this program in a subprocess to isolate each file
+"src/library/extraction.py" = ["S603"]  # re-runs this program in a subprocess to isolate each file
 "src/library/applemail.py" = ["S603", "S607", "PLW1510", "S324"]  # osascript with a fixed script; the hash is only an identifier
 "tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
 

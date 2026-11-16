@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from . import parser, sniff
+from . import extraction, sniff
 
 EXAMPLES = 3
 ENOUGH_TEXT = 20  # characters: less than this is "no text"
@@ -21,7 +21,7 @@ def outcome(path: Path, timeout: int) -> tuple[str, str]:
     except (OSError, ValueError):
         return "unknown", "failed: could not be opened"
     try:
-        res = parser.extract_isolated(path, timeout)
+        res = extraction.extract_isolated(path, timeout)
     except Exception as exc:  # noqa: BLE001 - a file that fails must be counted, never stop the check
         return kind, f"failed: {str(exc).strip().splitlines()[-1][:70] if str(exc).strip() else 'unreadable'}"
     meta = res.get("meta") or {}
