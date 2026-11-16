@@ -27,3 +27,11 @@ Apps never import each other: they talk over HTTP (`/api/documents?app=…`). `k
 ## Words live in data, not in code
 
 What a spending category or a note tag is known by (merchant names, words) is in `finance/src/finance/categories.json` and `tags.json`, with the list of routine categories. Teaching Finance a new merchant is an edit of that file, not of code. The person's own corrections come before it and the local model decides what it does not cover. Small helpers every layer needs (`squash`, `clean`, `day`) are in `kit.text`; the request checks, error boundary and file serving of every service are in `kit.http.ModuleHandler`.
+
+## How the Documents service is divided
+
+`store` (what is kept), `judging` (what the model makes of each file), `healthdata` and `tripdocs` (views over what was read), `casebook` (grouping), `reading` (an Update), `scanstatus` (where it stands), `appstate` (server state), `web` (routes only). The reader is `parser` (entry point) over `extraction` (one file), `batch` (many files), `mailread` and `bulkmail` (mail), `control` (pause and stop) and `rounds`. Finance is divided the same way: `money` (the ledger and its tools), `statement_import` (reading statements) and `reports`.
+
+## Checks that run
+
+`ruff` and `mypy` in every package, `pytest` (Finance also needs 85% coverage), prettier on the web code, `kit/tests/test_architecture.py` (layers, no kind words, no copied function), `kit/tests/test_design.py` (one design, readable colours, visible focus). By hand against running apps: `node scripts/check-pages.js` (every page in a real browser, WCAG 2.1 AA with axe-core) and `python scripts/scale-check.py 300000` (the status counts and lists on 300,000 documents take under 0.3 s).

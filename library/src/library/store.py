@@ -181,6 +181,11 @@ _COLLECTION = re.compile(r"^[a-z]{2,20}$")
 Progress = Callable[[str], None]
 
 
+MAX_NAME = 255  # characters of a file name that are kept
+MAX_SOURCE = 600  # characters of where a file came from that are kept
+MAX_PROMISED = 10_000  # attachments a mail may say it carried: more is a mistake
+
+
 def _valid(d: Any, stem: str) -> bool:
     return bool(
         isinstance(d, dict)
@@ -190,17 +195,17 @@ def _valid(d: Any, stem: str) -> bool:
         and stem == d["sha256"]
         and d.get("kind") in FILE_KINDS
         and isinstance(d.get("name"), str)
-        and 0 < len(d["name"]) <= 255
+        and 0 < len(d["name"]) <= MAX_NAME
         and isinstance(d.get("text"), str)
         and len(d["text"]) <= MAX_TEXT
-        and (d.get("source") is None or (isinstance(d["source"], str) and len(d["source"]) <= 600))
+        and (d.get("source") is None or (isinstance(d["source"], str) and len(d["source"]) <= MAX_SOURCE))
     )
 
 
 def _promised(d: dict) -> int:
     meta = d.get("meta") if d.get("kind") == "email" and isinstance(d.get("meta"), dict) else {}
     count = (meta or {}).get("attachments")
-    return count if isinstance(count, int) and not isinstance(count, bool) and 0 <= count <= 10_000 else 0
+    return count if isinstance(count, int) and not isinstance(count, bool) and 0 <= count <= MAX_PROMISED else 0
 
 
 def _structured(d: dict) -> str:
@@ -276,7 +281,7 @@ def _repaired(d: Any, stem: str) -> dict | None:
     fixed["schema"], fixed["sha256"] = 1, stem
     given_name = fixed.get("name")
     name = given_name if isinstance(given_name, str) else ""
-    fixed["name"] = (name.strip() or f"unnamed file {stem[:8]}")[:255]
+    fixed["name"] = (name.strip() or f"unnamed file {stem[:8]}")[:MAX_NAME]
     if fixed.get("kind") not in FILE_KINDS:
         fixed["kind"] = "binary"
     given_text = fixed.get("text")
@@ -289,7 +294,7 @@ def _repaired(d: Any, stem: str) -> dict | None:
     fixed["text"] = text
     source = fixed.get("source")
     if isinstance(source, str):
-        fixed["source"] = source[:600]
+        fixed["source"] = source[:MAX_SOURCE]
     elif fixed.get("source") is not None:
         fixed["source"] = None
     return fixed if _valid(fixed, stem) else None
@@ -305,7 +310,7 @@ def _why_rejected(f: Path, d: Any, error: Exception | None = None) -> tuple[str,
         (not isinstance(d, dict), "the result of reading it was not in the form Atlas expects"),
         (isinstance(d, dict) and d.get("schema") != 1, "it was read by a version of the reader that Atlas does not know"),
         (isinstance(d, dict) and not named, "it has no name"),
-        (isinstance(d, dict) and isinstance(d.get("name"), str) and len(d["name"]) > 255, "its name is too long"),
+        (isinstance(d, dict) and isinstance(d.get("name"), str) and len(d["name"]) > MAX_NAME, "its name is too long"),
         (
             isinstance(d, dict) and not (isinstance(d.get("sha256"), str) and _SHA.match(d["sha256"]) and f.stem == d["sha256"]),
             "its identifier does not match its content",
@@ -313,7 +318,7 @@ def _why_rejected(f: Path, d: Any, error: Exception | None = None) -> tuple[str,
         (isinstance(d, dict) and d.get("kind") not in FILE_KINDS, "a kind of file Atlas does not keep"),
         (isinstance(d, dict) and not isinstance(d.get("text"), str), "it has no readable text"),
         (isinstance(d, dict) and isinstance(d.get("text"), str) and len(d["text"]) > MAX_TEXT, "too much text to keep"),
-        (isinstance(d, dict) and isinstance(d.get("source"), str) and len(d["source"]) > 600, "its location is too long to record"),
+        (isinstance(d, dict) and isinstance(d.get("source"), str) and len(d["source"]) > MAX_SOURCE, "its location is too long to record"),
     )
     reason = next((why for failed, why in checks if failed), "the result of reading it could not be used")
     area = d.get("area") if isinstance(d, dict) else ""

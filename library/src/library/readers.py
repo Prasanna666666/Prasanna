@@ -49,6 +49,9 @@ SECOND_OPINION_S = 60  # an engine that takes longer than this is left out, neve
 # reading a scan takes as long as it takes, but one file never holds up the rest for more than this: the pages reached so far are kept
 ZIP_MAX_ENTRIES = 200
 ZIP_MAX_TOTAL = 200 * 1024 * 1024
+MAX_READ_BYTES = 20_000_000  # the most that is read of one file or of one part inside a file
+MAX_PART_BYTES = 5_000_000  # the most that is read of one small member of an archive
+
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -332,7 +335,7 @@ def read_sheet(path: Path) -> dict:
 
 
 def _safe_xml(raw: bytes):
-    if re.search(rb"<!DOCTYPE|<!ENTITY", raw[:4096], re.IGNORECASE) or len(raw) > 20_000_000:
+    if re.search(rb"<!DOCTYPE|<!ENTITY", raw[:4096], re.IGNORECASE) or len(raw) > MAX_READ_BYTES:
         raise ValueError("unsafe XML refused")
     return ET.fromstring(raw)
 
@@ -340,7 +343,7 @@ def _safe_xml(raw: bytes):
 def read_docx(path: Path) -> dict:
     with zipfile.ZipFile(path) as z:
         info = z.getinfo("word/document.xml")
-        if info.file_size > 20_000_000:
+        if info.file_size > MAX_READ_BYTES:
             raise ValueError("document too large")
         root = _safe_xml(z.read("word/document.xml"))
     w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -366,7 +369,7 @@ def _doc_result(text: str) -> dict:
 def read_odt(path: Path) -> dict:
     """OpenDocument text (LibreOffice, Pages exports): the paragraphs and headings of content.xml."""
     with zipfile.ZipFile(path) as z:
-        if z.getinfo("content.xml").file_size > 20_000_000:
+        if z.getinfo("content.xml").file_size > MAX_READ_BYTES:
             raise ValueError("document too large")
         root = _safe_xml(z.read("content.xml"))
     ns = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
@@ -381,7 +384,7 @@ def read_pptx(path: Path) -> dict:
         slides = sorted((n for n in z.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)), key=lambda n: int(re.findall(r"\d+", n)[0]))[:300]
         out = []
         for name in slides:
-            if z.getinfo(name).file_size > 5_000_000:
+            if z.getinfo(name).file_size > MAX_PART_BYTES:
                 continue
             out.append("\n".join(t.text or "" for t in _safe_xml(z.read(name)).iter(f"{a}t") if (t.text or "").strip()))
     return _doc_result("\n\n".join(out))
@@ -392,7 +395,7 @@ _RTF_ESCAPE = re.compile(rb"\\'([0-9a-fA-F]{2})")
 
 def read_rtf(path: Path) -> dict:
     """Rich Text Format: the text without the formatting codes."""
-    raw = path.read_bytes()[:20_000_000]
+    raw = path.read_bytes()[:MAX_READ_BYTES]
     raw = re.sub(rb"\{\\\*[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", b"", raw)  # ignorable destinations (fonts, styles ...)
     raw = _RTF_ESCAPE.sub(lambda m: bytes([int(m.group(1), 16)]), raw)
     raw = re.sub(rb"\\(?:par|line|tab)\b ?", b"\n", raw)
@@ -424,7 +427,7 @@ _WORDS16 = re.compile(rb"(?:[\x20-\x7e]\x00){6,}")
 def read_binary(path: Path) -> dict:
     """Any file Atlas has no reader for (an old Word or Excel file, a program, a video): the readable words found inside it, if there are enough to mean something.
     Nothing is interpreted. A file with no words keeps only its name."""
-    raw = path.read_bytes()[:20_000_000]
+    raw = path.read_bytes()[:MAX_READ_BYTES]
     runs = [m.group().decode("latin-1") for m in _WORDS.finditer(raw)] + [m.group().decode("utf-16-le", "ignore") for m in _WORDS16.finditer(raw)]
     wordy = [r.strip() for r in runs if sum(c.isalpha() or c == " " for c in r) / len(r) >= 0.7 and len(r.split()) >= 2]
     text = "\n".join(dict.fromkeys(wordy))[:200_000]
@@ -472,7 +475,7 @@ class _Html(HTMLParser):
 
 def read_html_text(html: str) -> dict:
     p = _Html()
-    p.feed(html[:20_000_000])
+    p.feed(html[:MAX_READ_BYTES])
     text = "\n".join(" ".join(ln.split()) for ln in "".join(p.parts).splitlines() if ln.strip())
     return {
         "kind": "html",

@@ -17,6 +17,9 @@ _HEADER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*: ", re.MULTILINE)
 _MAIL_HEADERS = ("received:", "message-id:", "mime-version:", "return-path:", "x-mailer:", "delivered-to:", "content-type:")
 
 
+MAX_JSON_BYTES = 5_000_000  # a file this small that starts like JSON is checked to be JSON
+
+
 def head_of(path: Path) -> bytes:
     with path.open("rb") as handle:
         return handle.read(HEAD)
@@ -85,7 +88,7 @@ def _text_kind(text: str, path: Path, head: bytes) -> str:
         and len(_HEADER_LINE.findall(sample[:600])) >= 3
     ):
         return "email"
-    if sample[:1] in "{[" and path.stat().st_size <= 5_000_000:
+    if sample[:1] in "{[" and path.stat().st_size <= MAX_JSON_BYTES:
         try:
             json.loads(path.read_text(encoding="utf-8-sig"))
             return "json"
