@@ -363,3 +363,10 @@ def test_payments_are_given_to_atlas_as_plain_dated_items(conn):
     money.add_transaction(conn, {"amount": 60.50, "kind": "expense", "date": "2026-10-14", "note": "SEPA Ziggo klantnr 123", "category": "utilities"})
     [item] = money.payment_items(conn, days=36500)
     assert item["kind"] == "payment" and item["amount"] == 60.5 and item["date"] == "2026-10-14" and "Ziggo" in item["text"] and item["direction"] == "expense"
+
+
+def test_a_document_handed_over_again_takes_the_new_facts(conn):
+    first = {"sha256": "a" * 64, "name": "x.pdf", "file_kind": "pdf", "text": "t", "area": "finance", "data": "", "facts": {"kind": "Bank statement (Dutch)"}}
+    assert documents.store_from_library(conn, first) == 1
+    assert documents.store_from_library(conn, {**first, "facts": {"kind": "bank statement"}}) == 0  # not new
+    assert json.loads(conn.execute("SELECT facts FROM documents").fetchone()[0])["kind"] == "bank statement"

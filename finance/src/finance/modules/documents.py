@@ -51,9 +51,15 @@ def store_from_library(conn, doc: dict) -> int:
     people = [dict(r) for r in conn.execute("SELECT name FROM people")]
     tags = ",".join(rule_tags(f"{doc['name']} {doc['text'][:5000]}", people))
     area = doc["area"] if doc.get("area") in ("finance", "mail") else ""
+    facts = json.dumps(doc["facts"]) if doc["facts"] else ""
+    known = conn.execute("SELECT 1 FROM documents WHERE sha256=?", (doc["sha256"],)).fetchone() is not None
+    if known:  # handed over again: what the Documents part says about it now (its plain kind, for one) replaces what was said before
+        conn.execute("UPDATE documents SET facts=? WHERE sha256=?", (facts, doc["sha256"]))
+        conn.commit()
+        return 0
     cur = conn.execute(
         "INSERT OR IGNORE INTO documents (sha256, name, kind, text, tags, area, data, facts) VALUES (?,?,?,?,?,?,?,?)",
-        (doc["sha256"], doc["name"], doc["file_kind"], doc["text"], tags, area, str(doc.get("data") or ""), json.dumps(doc["facts"]) if doc["facts"] else ""),
+        (doc["sha256"], doc["name"], doc["file_kind"], doc["text"], tags, area, str(doc.get("data") or ""), facts),
     )
     conn.commit()
     return cur.rowcount

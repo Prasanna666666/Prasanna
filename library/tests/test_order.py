@@ -327,3 +327,32 @@ def test_files_that_share_something_the_model_found_in_them_are_shown_to_it_toge
     pairs = {(a, b) for a, b, _ in casebook.candidates(pieces)}
     assert {(1, 2), (3, 4), (5, 6)} <= pairs  # each matter, whatever it is about
     assert not any(7 in p for p in pairs) and not any(a >= 20 and b >= 20 for a, b in pairs)
+
+
+def test_the_many_wordings_of_a_kind_get_one_plain_name_and_the_apps_see_that_name(conn):
+    import json
+
+    from library import store
+
+    wordings = ["Bank statement (Personal Account)", "Rekeningafschrift", "bank statement", "Personal Bank Statement", "Rechnung"]
+    for i, kind in enumerate(wordings):
+        conn.execute(
+            "INSERT INTO documents (sha256, name, kind, text, area, judged, facts, ready) VALUES (?,?,?,?,?,1,?,?)",
+            (f"{i:064x}", f"f{i}.pdf", "pdf", "t", "finance", json.dumps({"kind": kind, "apps": ["finance"]}), i + 1),
+        )
+    conn.commit()
+
+    class Model:
+        def chat(self, model, messages, schema=None, **kw):
+            plain = {"rekeningafschrift": "bank statement", "rechnung": "invoice"}
+            names = [
+                {"given": k, "plain": plain.get(k, "bank statement")} for k in messages[-1]["content"].split("Names to give a plain name:\n")[1].split("\n")
+            ]
+            return {"content": json.dumps({"names": names})}
+
+    assert store.name_kinds(conn, Model(), "m") == 5  # five different wordings
+    docs = store.list_documents(conn, app="finance", limit=100)
+    assert sorted({d["kind"] for d in docs}) == ["bank statement", "invoice"]
+    assert {d["facts"]["kind"] for d in docs} == {"bank statement", "invoice"}
+    again = store.list_documents(conn, app="finance", since=0, limit=100)
+    assert min(d["ready"] for d in again) > 5  # handed to the apps again, so they show the plain names

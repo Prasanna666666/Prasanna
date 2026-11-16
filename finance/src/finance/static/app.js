@@ -1097,17 +1097,7 @@
             )
         );
         draw('');
-        return h(
-            'div',
-            { class: 'stack' },
-            h(
-                'div',
-                { class: 'row' },
-                ...docTotals.map((t) => h('span', { class: 'chip' }, `${t.grp} ${money(t.total)}`))
-            ),
-            kinds.length > 1 ? chips : null,
-            grid
-        );
+        return h('div', { class: 'stack' }, kinds.length > 1 ? chips : null, grid);
     }
 
     function buildStatusCard(ver, LEVEL) {

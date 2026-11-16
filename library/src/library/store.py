@@ -169,6 +169,9 @@ MIGRATIONS = (
     CREATE TABLE sigs (doc_id INTEGER NOT NULL, band INTEGER NOT NULL, h INTEGER NOT NULL);
     CREATE INDEX sigs_lookup ON sigs (band, h);
     """,
+    """
+    CREATE TABLE kind_names (kind TEXT PRIMARY KEY, name TEXT NOT NULL);   -- the plain name the model gave to each name it had given files: "Bank statement (Dutch)" and "Rekeningafschrift" become "bank statement"
+    """,
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
@@ -1117,6 +1120,7 @@ def list_documents(
     qualifies when it came from that area. Without any of them, everything the model found to be about some app is returned. With `full`, the text and structured data come too."""
     wanted = {k.lower() for k in kinds or [] if k}
     out: list[dict] = []
+    names = kind_names(conn)
     where = "ready > ?"
     args: list[Any] = [max(0, int(since))]
     # the database narrows the list before any document is looked at (the same conditions as `_fits`): without this a big library is read row by row for every page asked for
@@ -1147,6 +1151,9 @@ def list_documents(
             continue
         if year and not str(facts.get("start_date") or facts.get("date") or "").startswith(year):
             continue
+        plain = names.get(_kind_key(doc["kind"]))
+        if plain:  # the apps see the plain name (and not every wording and language the model used)
+            doc["kind_given"], doc["kind"], doc["facts"] = doc["kind"], plain, {**doc["facts"], "kind": plain}
         out.append(doc)
         if len(out) >= max(1, min(int(limit), 500)):
             break
@@ -1375,3 +1382,74 @@ def create_app_for_kind(conn, kind: str) -> dict[str, Any]:
     ).rowcount
     conn.commit()
     return {"ok": True, "app": name, "files": marked}
+
+
+KIND_NAMES_PROMPT = (
+    "These are names that were given to files, in several languages and wordings. Give each one a short plain name (one to three words, English, lower case) so that names that mean the "
+    "same thing get exactly the same plain name. Reuse a plain name from the list of existing ones whenever it fits. Answer with each name unchanged and its plain name."
+)
+KIND_NAMES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "names": {
+            "type": "array",
+            "items": {"type": "object", "properties": {"given": {"type": "string"}, "plain": {"type": "string"}}, "required": ["given", "plain"]},
+        }
+    },
+    "required": ["names"],
+}
+KIND_BATCH = 40
+
+
+def _kind_key(kind: str) -> str:
+    return " ".join(kind.lower().split())
+
+
+def kind_names(conn) -> dict[str, str]:
+    """The plain name of each kind the model gave (what the apps show instead of every wording and language)."""
+    try:
+        return {r["kind"]: r["name"] for r in conn.execute("SELECT kind, name FROM kind_names")}
+    except sqlite3.OperationalError:
+        return {}
+
+
+def name_kinds(conn, client, model, control: Callable[[], str] | None = None) -> int:
+    """Give the kinds the model has used plain names, so the apps show a few categories and not every wording: the model merges names that mean the same, reusing plain names that
+    exist. A file whose name changed is handed to the apps again, so they show the new name. Returns how many kinds were named."""
+    known = kind_names(conn)
+    todo = [
+        r["kind"]
+        for r in conn.execute(
+            "SELECT LOWER(TRIM(fact_kind)) AS kind FROM documents WHERE judged=1 AND TRIM(COALESCE(fact_kind, ''))<>'' GROUP BY LOWER(TRIM(fact_kind)) ORDER BY COUNT(*) DESC"
+        )
+        if _kind_key(r["kind"]) not in known
+    ]
+    named = 0
+    for i in range(0, len(todo), KIND_BATCH):
+        if control is not None and control() == "stop":
+            break
+        batch = todo[i : i + KIND_BATCH]
+        existing = sorted(set(known.values()))[:80]
+        try:
+            data = extract._ask(
+                client,
+                model,
+                KIND_NAMES_PROMPT,
+                "Existing plain names: " + "; ".join(existing) + "\n\nNames to give a plain name:\n" + "\n".join(batch),
+                KIND_NAMES_SCHEMA,
+            )
+        except extract.Unclear:
+            data = {"names": []}
+        given = {_kind_key(str(n.get("given", ""))): _kind_key(str(n.get("plain", ""))) for n in data.get("names", []) if isinstance(n, dict)}
+        for kind in batch:
+            plain = given.get(_kind_key(kind)) or _kind_key(kind)  # a name the model did not answer for keeps its own wording
+            conn.execute("INSERT OR REPLACE INTO kind_names (kind, name) VALUES (?,?)", (_kind_key(kind), plain[:40]))
+            known[_kind_key(kind)] = plain[:40]
+            named += 1
+    if named:
+        top = conn.execute("SELECT COALESCE(MAX(ready), 0) FROM documents").fetchone()[0]
+        conn.execute(
+            "UPDATE documents SET ready = ready + ? WHERE judged=1 AND ready > 0 AND TRIM(COALESCE(fact_kind, ''))<>''", (top,)
+        )  # handed to the apps again, with the plain names
+    conn.commit()
+    return named

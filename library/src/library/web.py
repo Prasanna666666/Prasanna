@@ -270,6 +270,8 @@ def _read_all(state: State) -> None:
         time.sleep(SETTLE_SECONDS)
         problem = _take_in_all(state, conn, totals)  # step 1, completely
         problem = _sort_all(state, conn, client, model, followed, totals) or problem  # then step 2, completely
+        if client is not None and state.control != "stop":
+            store.name_kinds(conn, client, model, lambda: state.control)  # the kinds get a few plain names before grouping
         if _summarise(state, conn, totals):
             _read_pictures(state, conn, client, model)
             _finish(state, conn, client, model, followed)
