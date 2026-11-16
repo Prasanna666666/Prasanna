@@ -821,6 +821,7 @@
         const bar = el('div', 'rd-big');
         bar.append(meter(now.percent), el('span', 'rd-bigpct', pctText(now.percent)));
         box.append(bar);
+        if (info.progress && now.n > 1) box.append(el('span', 'rd-sub', info.progress)); // how long it takes per file and about how long is left
         return box;
     };
     const problemBlocks = (report) =>

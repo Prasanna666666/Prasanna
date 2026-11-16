@@ -766,6 +766,11 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     steps = []
     gone_through = _gone_through()
     unread = _unread()
+    mails_read = bool(found) and gone_through.get("mails", 0) + unread.get("mails", 0) >= int(found.get("mails") or 0)
+    gone_through = {
+        **gone_through,
+        "attachments": gone_through.get("attachments", 0) + (promised if mails_read else 0),
+    }  # the ones inside the messages are read with their mail
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
         total_known = {
@@ -778,7 +783,10 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             labels.items() if n == 1 else sorted(labels.items(), key=lambda kv: SORT_ORDER.index(kv[0]))
         ):  # each step lists them in the order it works through them
             # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.
-            total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" else 0) if n == 1 else tally[key]["present"]
+            if n == 1 and key == "attachments":
+                total = max(tally[key]["present"], (known[key] or 0) + promised)  # the ones Mail keeps as files of their own, plus the ones inside the messages
+            else:
+                total = max(tally[key]["present"], known[key] or 0) if n == 1 else tally[key]["present"]
             # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).
             known_now = taken_in or total_known[key]
             held = tally[key]["present"]

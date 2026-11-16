@@ -1230,3 +1230,8 @@ body.chatting .fab {
 .asks {
     margin-bottom: 20px;
 }
+
+.rd-sub {
+    color: var(--muted);
+    font-size: 13.5px;
+}
