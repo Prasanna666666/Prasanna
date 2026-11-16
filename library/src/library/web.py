@@ -795,7 +795,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
                 "known": known_now,
             }
             every.append(line)
-            counts.append(line)
+            if n == 1 or (s.get("phase") or 1) >= n:  # a step that has not begun shows no numbers: they would only disagree with the step still running
+                counts.append(line)
         shown = [c for c in counts if c["known"]]
         done, total = sum(int(c["done"]) for c in shown), sum(int(c["total"]) for c in shown)
         everything = (n == 1 and taken_in) or (

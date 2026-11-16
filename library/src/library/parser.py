@@ -219,6 +219,16 @@ def _process_attachments(f: Path, label: str, out: Path, area: str, isolated: bo
     (out / ATTACHED / digest).touch()
 
 
+def _plain_reason(error: Exception) -> str:
+    """Why a file could not be read, in plain words (never the program's own message, which is code)."""
+    message = str(error).lower()
+    if "password" in message or "encrypted" in message:
+        return "locked with a password (put the password in passwords.txt in your finance folder)"
+    if "memory" in message or isinstance(error, MemoryError):
+        return "too big to open here"
+    return "damaged, or not a real file of its kind"
+
+
 def _too_large(size: int, kind: str, label: str, counts: dict[str, int]) -> bool:
     if size <= (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES):
         return False
@@ -283,7 +293,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         counts["failed"] += 1
         with _CLAIM_LOCK:
             if len(_FAILED) < MAX_FAILED:
-                _FAILED.append(f"{label[:120]}: {str(e).strip().splitlines()[-1][:100] if str(e).strip() else 'unreadable'}")
+                _FAILED.append(f"{label[:120]}: {_plain_reason(e)}")
 
 
 PICTURES_IN = "LIBRARY_PICTURES_IN"  # where a picture that arrived as a mail attachment is kept, for the picture engine to index like any other

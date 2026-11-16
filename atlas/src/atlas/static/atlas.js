@@ -666,13 +666,13 @@
         steps.find((s) => s.state === 'running') ||
         steps.find((s) => s.state === 'waiting');
     const countText = (c) =>
-        !c.known
-            ? 'counting…'
-            : c.total
-              ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()}` +
-                (c.copies ? ` · ${c.copies.toLocaleString()} identical to another` : '') +
-                (c.unread ? ` · ${c.unread.toLocaleString()} could not be read` : '')
-              : 'none found';
+        !c.known ? 'counting…' : c.total ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()}` : 'none found';
+    // what is beside a count, on a line of its own: copies and what could not be read
+    const countNotes = (c) =>
+        [
+            c.copies ? `${c.copies.toLocaleString()} identical to another` : '',
+            c.unread ? `${c.unread.toLocaleString()} could not be read` : '',
+        ].filter(Boolean);
     // a step: its name, what it does, how far it is, and its three counts (documents, mails, documents in mails), all alike
     const stepCard = (s, now) => {
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
@@ -689,6 +689,7 @@
             const line = el('div', 'rd-count');
             line.append(el('span', '', c.label), el('b', '', countText(c)));
             counts.append(line);
+            for (const note of countNotes(c)) counts.append(el('div', 'rd-countnote', note));
         }
         if (counts.children.length) card.append(counts);
         return card;

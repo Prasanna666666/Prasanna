@@ -1087,8 +1087,9 @@ body.chatting .fab {
 }
 .rd-count {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
-    gap: 10px;
+    gap: 2px 10px;
     font-size: 12.5px;
     color: var(--muted);
 }
@@ -1096,7 +1097,7 @@ body.chatting .fab {
     font-weight: 650;
     font-variant-numeric: tabular-nums;
     color: var(--fg);
-    white-space: nowrap;
+    text-align: right;
 }
 
 .rd-nowrow {
@@ -1217,4 +1218,11 @@ body.chatting .fab {
     margin-bottom: 2px;
     color: var(--fg);
     font-size: 13px;
+}
+
+.rd-countnote {
+    margin: -1px 0 3px;
+    font-size: 12px;
+    color: var(--warn);
+    text-align: right;
 }
