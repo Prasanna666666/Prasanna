@@ -40,7 +40,7 @@ from . import limits
 
 MAX_ROWS = limits.get("max_rows")
 LINE_CHARS = limits.get("line_chars")
-MAX_CELL = 300
+MAX_CELL = limits.get("max_cell_chars")
 OCR_DPI = 250
 MAX_OCR_PAGES = limits.get("max_ocr_pages")
 OCR_BUDGET_S = limits.get("ocr_budget_seconds")
@@ -49,8 +49,8 @@ SECOND_OPINION_S = 60  # an engine that takes longer than this is left out, neve
 # reading a scan takes as long as it takes, but one file never holds up the rest for more than this: the pages reached so far are kept
 ZIP_MAX_ENTRIES = 200
 ZIP_MAX_TOTAL = 200 * 1024 * 1024
-MAX_READ_BYTES = 20_000_000  # the most that is read of one file or of one part inside a file
-MAX_PART_BYTES = 5_000_000  # the most that is read of one small member of an archive
+MAX_READ_BYTES = limits.get("max_read_bytes")  # the most that is read of one file or of one part inside a file
+MAX_PART_BYTES = limits.get("max_part_bytes")  # the most that is read of one member of an archive
 
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 SAME_LINE_POINTS = 3  # words whose height differs by less than this are on one line
@@ -437,7 +437,7 @@ def read_binary(path: Path) -> dict:
     raw = path.read_bytes()[:MAX_READ_BYTES]
     runs = [m.group().decode("latin-1") for m in _WORDS.finditer(raw)] + [m.group().decode("utf-16-le", "ignore") for m in _WORDS16.finditer(raw)]
     wordy = [r.strip() for r in runs if sum(c.isalpha() or c == " " for c in r) / len(r) >= MIN_WORDY_RATIO and len(r.split()) >= MIN_WORDY_WORDS]
-    text = "\n".join(dict.fromkeys(wordy))[:200_000]
+    text = "\n".join(dict.fromkeys(wordy))[: limits.get("max_text_chars")]
     return {
         "kind": "binary",
         "text": clean(text) if len(text) >= MIN_BINARY_TEXT_CHARS else "",
@@ -502,7 +502,7 @@ def read_html(path: Path) -> dict:
 
 
 MAIL_MAX_MESSAGES = 1_000_000  # per mailbox file (a whole Gmail export is one file)
-MESSAGE_MAX_BYTES = 25 * 1024 * 1024
+MESSAGE_MAX_BYTES = limits.get("max_message_bytes")
 TINY_IMAGE = 10 * 1024  # logos and tracking pixels in signatures are not documents
 
 

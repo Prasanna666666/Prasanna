@@ -20,13 +20,7 @@ from . import apps, appstate, casebook, priority, recognise, relevance, store
 from .trace import FAILED, Hooks, Trace
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
-MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never its body (the owner's call: see docs/decisions.md)
 MIN_CALLS_FOR_SPEED = 2  # the speed of the model is quoted only after this many answers
-
-
-def _mail_summary(facts: dict | None) -> str:
-    parts = (str((facts or {}).get(k) or "") for k in ("title", "summary", "party", "date", "due_date", "reference", "place"))
-    return " ".join(parts).strip()[:MAIL_KEPT_CHARS]
 
 
 def _mark_ready(conn, sha: str, judged: int, facts: dict | None) -> None:
@@ -34,23 +28,6 @@ def _mark_ready(conn, sha: str, judged: int, facts: dict | None) -> None:
         "UPDATE documents SET judged=?, facts=?, ready=(SELECT COALESCE(MAX(ready),0)+1 FROM documents) WHERE sha256=?",
         (judged, json.dumps(facts) if facts else "", sha),
     )
-    # A whole email is not kept for good: it is read in full together with everything that belongs with it, and only then reduced to what it says (see forget_mail_bodies).
-
-
-def forget_mail_bodies(conn) -> int:
-    """Emails whose matter has been understood keep only what they say; returns how many were cut down. An email not yet read as part of its matter is kept whole."""
-    done = 0
-    while True:
-        rows = conn.execute(
-            "SELECT id, facts FROM documents WHERE area='mail' AND kind='email' AND judged>0 AND case_id IS NOT NULL AND length(text)>? LIMIT 500",
-            (MAIL_KEPT_CHARS,),
-        ).fetchall()
-        if not rows:
-            return done
-        for r in rows:
-            conn.execute("UPDATE documents SET text=?, data='' WHERE id=?", (_mail_summary(json.loads(r["facts"]) if r["facts"] else None), r["id"]))
-        conn.commit()
-        done += len(rows)
 
 
 def _data(d) -> dict:
@@ -328,7 +305,6 @@ def judge_pending(
 ) -> dict[str, Any]:
     """Judge every document not yet judged (or `limit` of them: the caller comes back for more, so new files keep being taken in meanwhile). Files from a collection folder you named, and anything else with text worth reading, go to the model; the rest is marked and left alone.
     If the model cannot be reached the document stays as it is and the next round tries again."""
-    forget_mail_bodies(conn)
     total = conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0]
     out: dict[str, Any] = {"read": 0, "skipped": 0, "waiting": 0, "unclear": 0, "problem": "", "stopped": False}
     began = time.monotonic()
@@ -440,7 +416,6 @@ def finish_matters(conn, client, model, hooks: Hooks | None = None, pairs: int =
     if hooks.phase:
         hooks.phase(appstate.PHASE_FINISH)
     done = casebook.understand_pending(conn, client, model, limit=groups, control=hooks.control, progress=hooks.progress, trace=hooks.trace)
-    forget_mail_bodies(conn)
     conn.commit()
     return done
 

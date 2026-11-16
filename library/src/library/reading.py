@@ -18,6 +18,7 @@ AUTO_LIMIT = int(
     os.environ.get("ATLAS_AUTO_LIMIT", "50")
 )  # files: automatic reading only when fewer than this are waiting (and a round that starts by itself stops after this many)
 JUDGE_PER_ROUND = 20  # judged per round: then the reader's new files are taken in again, so the count keeps moving while the model works
+MAIL_KEEPS = "the whole mail"  # what is kept of a mail; part of the fingerprint, so mail read when only a summary was kept is read again once
 
 
 class _StopRequested(Exception):
@@ -170,7 +171,7 @@ def _mail_scope() -> str:
     """A fingerprint of the rules for which mail is read (`mailboxes.json`, or LIBRARY_MAILBOXES): when it changes, the mail read under the old rules is forgotten."""
     import hashlib
 
-    rules = json.dumps([sorted(bulkmail.mailboxes_read()), sorted(bulkmail._bulk_headers().items())])
+    rules = json.dumps([sorted(bulkmail.mailboxes_read()), sorted(bulkmail._bulk_headers().items()), MAIL_KEEPS])
     return hashlib.sha256(rules.encode()).hexdigest()[:16]
 
 

@@ -16,6 +16,14 @@ DEFAULTS = {
     "max_text_chars": 50_000_000,
     "max_pages": 100_000,
     "line_chars": 5000,
+    "max_file_bytes": 10 * 1024**3,
+    "max_message_bytes": 10 * 1024**3,
+    "max_csv_rows": 100_000_000,
+    "max_cell_chars": 1_000_000,
+    "max_columns": 100_000,
+    "data_line_chars": 1_000_000,
+    "max_read_bytes": 10 * 1024**3,
+    "max_part_bytes": 10 * 1024**3,
 }
 
 

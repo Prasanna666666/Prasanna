@@ -17,7 +17,7 @@ from . import limits, readers, sniff
 SCHEMA = 1
 
 
-MAX_BYTES = 50 * 1024 * 1024
+MAX_BYTES = limits.get("max_file_bytes")
 
 
 MBOX_MAX_BYTES = 64 * 1024 * 1024 * 1024  # a whole mailbox export can be large; each message inside is still capped
@@ -29,13 +29,15 @@ MAX_TEXT = limits.get("max_text_chars")
 MAX_PAGES = limits.get("max_pages")
 
 
-MAX_CSV_ROWS = 200_000
+MAX_CSV_ROWS = limits.get("max_csv_rows")
 
 
-MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
+MAX_DATA_ROWS = limits.get("max_rows")  # structured rows/lines kept for statements
 
 
-MAX_CELL = 300
+MAX_CELL = limits.get("max_cell_chars")
+MAX_COLUMNS = limits.get("max_columns")
+DATA_LINE_CHARS = limits.get("data_line_chars")
 
 
 TIMEOUT_S = 300  # scanned PDFs are read with OCR, which takes a while
@@ -55,7 +57,7 @@ def clean(text: str) -> str:
 
 def _read_text(path: Path) -> dict:
     text = sniff.decode_text(path.read_bytes()[: 20 * 1024 * 1024]) or path.read_text(encoding="utf-8", errors="replace")
-    data: dict = {"lines": [clean(x)[:600] for x in text.splitlines()[:MAX_DATA_ROWS]]}
+    data: dict = {"lines": [clean(x)[:DATA_LINE_CHARS] for x in text.splitlines()[:MAX_DATA_ROWS]]}
     rows = _delimited_rows(text)  # a plain tab- or semicolon-separated export (some banks give these with no header row)
     if rows:
         data["rows"] = rows
@@ -76,7 +78,7 @@ def _read_csv(path: Path) -> dict:
     meta["rows"] = len(rows)
     meta["columns"] = [clean(c)[:80] for c in rows[0]][:50] if rows else []
     text = "\n".join(" | ".join(r) for r in rows)
-    return {"kind": "csv", "text": clean(text), "meta": meta, "data": {"rows": [[clean(c)[:MAX_CELL] for c in r][:60] for r in rows[:MAX_DATA_ROWS]]}}
+    return {"kind": "csv", "text": clean(text), "meta": meta, "data": {"rows": [[clean(c)[:MAX_CELL] for c in r][:MAX_COLUMNS] for r in rows[:MAX_DATA_ROWS]]}}
 
 
 def _is_emlx(path: Path) -> bool:
@@ -153,7 +155,7 @@ def _delimited_rows(text: str) -> list[list[str]]:
         counts = {ln.count(delimiter) for ln in head[:5]}
         if len(counts) == 1 and counts != {0} and next(iter(counts)) >= MIN_COLUMNS:
             reader = csv.reader(text.splitlines(), delimiter=delimiter)
-            return [[clean(c)[:MAX_CELL] for c in r][:60] for _, r in zip(range(MAX_DATA_ROWS), reader, strict=False)]
+            return [[clean(c)[:MAX_CELL] for c in r][:MAX_COLUMNS] for _, r in zip(range(MAX_DATA_ROWS), reader, strict=False)]
     return []
 
 

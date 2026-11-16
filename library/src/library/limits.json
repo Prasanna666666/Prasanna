@@ -2,8 +2,16 @@
   "_about": "The limits of reading, in one place. A document that was read with something left out because of one of these (it records which) is read again, by itself, when you change the numbers here. Large numbers mean nothing is left out.",
   "max_ocr_pages": 100000,
   "ocr_budget_seconds": 1000000000,
-  "max_rows": 5000000,
+  "max_rows": 100000000,
   "max_text_chars": 50000000,
   "max_pages": 100000,
-  "line_chars": 5000
+  "line_chars": 5000,
+  "max_file_bytes": 10737418240,
+  "max_message_bytes": 10737418240,
+  "max_csv_rows": 100000000,
+  "max_cell_chars": 1000000,
+  "max_columns": 100000,
+  "data_line_chars": 1000000,
+  "max_read_bytes": 10737418240,
+  "max_part_bytes": 10737418240
 }

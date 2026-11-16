@@ -365,7 +365,7 @@ def test_judging_in_small_rounds_leaves_the_rest_for_the_next_round(conn, tmp_pa
     assert judging.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
 
 
-def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stays_a_document(conn, tmp_path):
+def test_a_whole_email_is_kept_whole_after_it_is_read_and_so_is_its_attachment(conn, tmp_path):
     body = "Dear customer, thanks for your order. " * 40
     _put(tmp_path, _doc(name="order.eml", kind="email", text=body + " Booking confirmed total 480,00 EUR", sha256="a" * 64, area="mail"))
     _put(tmp_path, _doc(name="order.pdf", kind="pdf", text="FACTUUR Hotel totaal 480,00 EUR betaling " * 3, sha256="b" * 64, area="mail"))
@@ -392,7 +392,7 @@ def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stay
     judging.finish_matters(conn, Model(), "fake")  # the grouping runs once at the end of a read, not after every few files
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary<>''").fetchone()[0] == 2  # each read whole (the stub model says they are not one matter)
     mail = conn.execute("SELECT text, data FROM documents WHERE name='order.eml'").fetchone()
-    assert "Dear customer" not in mail["text"] and "Hotel booking" in mail["text"] and mail["data"] == ""
+    assert "Dear customer, thanks for your order." in mail["text"] and "total 480,00 EUR" in mail["text"]  # no limit: the whole mail stays, start and end
     assert "FACTUUR" in conn.execute("SELECT text FROM documents WHERE name='order.pdf'").fetchone()["text"]  # a document inside a mail stays whole
 
 
