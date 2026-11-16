@@ -33,6 +33,7 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
     from library import web
 
     monkeypatch.setattr(web, "_found", lambda: {"documents": 2, "mails": 1})
+    monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 1})
 
     _add(conn, "a.pdf", "finance", judged=1)
     _add(conn, "b.pdf", "finance", judged=0)
@@ -151,3 +152,16 @@ def test_step_one_counts_every_file_the_reader_has_gone_through_and_ends_on_the_
     line = lambda phase: next(c for c in web._steps(conn, {"phase": phase})[0]["counts"] if c["key"] == "documents")  # noqa: E731
     assert (line(1)["done"], line(1)["total"]) == (7, 10)  # copies and left-out files are gone through too
     assert (line(2)["done"], line(2)["total"]) == (10, 10)  # and when the step is over it is exactly the count
+
+
+def test_documents_in_mails_are_known_once_every_mail_has_been_gone_through_even_if_some_were_copies(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 0, "mails": 5})
+    _add(conn, "m1.eml", "mail", judged=1)  # five counted, one held: the others are copies of it
+    conn.execute("UPDATE documents SET kind='email' WHERE name='m1.eml'")
+    conn.commit()
+    monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 4})
+    assert not next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "attachments")["known"]
+    monkeypatch.setattr(web, "_gone_through", lambda: {"mails": 5})
+    assert next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "attachments")["known"]

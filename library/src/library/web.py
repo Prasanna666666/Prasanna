@@ -725,7 +725,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
     gone_through = _gone_through()
     taken_in = (s.get("phase") or 0) >= 2  # step 1 is over
     for n, ((name, doing, text), (where, running)) in enumerate(zip(STEP_WORDS, stages, strict=True), 1):
-        mails_in = bool(found) and tally["mails"]["present"] >= (found.get("mails") or 0)
+        mails_in = bool(found) and gone_through.get("mails", 0) >= (found.get("mails") or 0)  # every mail has been gone through: what they carry is all known
         total_known = {
             "documents": bool(found),
             "mails": bool(found),
