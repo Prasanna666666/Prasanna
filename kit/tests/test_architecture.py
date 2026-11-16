@@ -67,3 +67,18 @@ def test_no_function_is_copied_between_two_files():
                 seen[ast.dump(ast.Module(body=node.body, type_ignores=[]))].append(f"{path.relative_to(ROOT)}:{node.name}")
     copies = [v for v in seen.values() if len(v) > 1]
     assert not copies, f"the same function body is written in more than one place: {copies}"
+
+
+MAX_FUNCTION_LINES = 50
+
+
+def test_no_function_is_longer_than_fifty_lines():
+    """A function that does not fit on one screen is split into named steps: each step can be read, tested and reused on its own."""
+    import ast
+
+    too_long = []
+    for path in ROOT.glob("*/src/**/*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.end_lineno - node.lineno + 1 > MAX_FUNCTION_LINES:
+                too_long.append(f"{path.relative_to(ROOT)}:{node.name} ({node.end_lineno - node.lineno + 1} lines)")
+    assert not too_long, f"split these into named steps: {too_long}"

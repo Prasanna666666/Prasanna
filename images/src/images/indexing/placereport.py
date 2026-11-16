@@ -34,8 +34,30 @@ def _gps_audit(conn: sqlite3.Connection) -> list[str]:
     return out
 
 
-def report(conn: sqlite3.Connection, geo: Any, name: str) -> list[str]:
+DISTANCES_KM = (25, 50, 100)  # how many photos lie within each of these distances of a place is reported
+
+
+def _near_place(conn: sqlite3.Connection, geo: Any, name: str, lines: list[str]) -> np.ndarray:
+    """The photos with GPS near a place (adding to `lines` how many lie within each distance); none when the place is not in the offline list."""
     from ..search.filters import haversine_km
+
+    found = geo.find(name) if geo is not None else None
+    if found is None:
+        lines.append(f"'{name}' is not in the offline place list, so 'near {name}' cannot be measured.")
+        return np.zeros(0, np.int64)
+    rows = conn.execute(
+        "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL"
+    ).fetchall()
+    ids = np.array([r[0] for r in rows], np.int64)
+    dist = (
+        haversine_km(found[0], found[1], np.array([r[1] for r in rows]), np.array([r[2] for r in rows])) if rows else np.zeros(0)
+    )
+    for km in DISTANCES_KM:
+        lines.append(f"Photos with GPS within {km} km of {found[2]}: {int((dist <= km).sum()):,}")
+    return ids[dist <= NEAR_KM]
+
+
+def report(conn: sqlite3.Connection, geo: Any, name: str) -> list[str]:
     from ..search.metadata import place_ids
 
     lines: list[str] = []
@@ -48,23 +70,7 @@ def report(conn: sqlite3.Connection, geo: Any, name: str) -> list[str]:
     lines += _gps_audit(conn)
     tagged = place_ids(conn, name)
     lines.append(f"Photos whose place name says '{name}': {len(tagged):,}")
-    found = geo.find(name) if geo is not None else None
-    near_ids = np.zeros(0, np.int64)
-    if found is None:
-        lines.append(f"'{name}' is not in the offline place list, so 'near {name}' cannot be measured.")
-    else:
-        rows = conn.execute(
-            "SELECT id, gps_lat, gps_lon FROM items WHERE missing=0 AND gps_lat IS NOT NULL AND gps_lon IS NOT NULL"
-        ).fetchall()
-        ids = np.array([r[0] for r in rows], np.int64)
-        dist = (
-            haversine_km(found[0], found[1], np.array([r[1] for r in rows]), np.array([r[2] for r in rows]))
-            if rows
-            else np.zeros(0)
-        )
-        for km in (25, 50, 100):
-            lines.append(f"Photos with GPS within {km} km of {found[2]}: {int((dist <= km).sum()):,}")
-        near_ids = ids[dist <= NEAR_KM]
+    near_ids = _near_place(conn, geo, name, lines)
     anchors = np.union1d(tagged, near_ids)
     if len(anchors):
         marks = ",".join("?" * min(len(anchors), 900))

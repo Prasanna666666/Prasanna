@@ -34,4 +34,8 @@ What a spending category or a note tag is known by (merchant names, words) is in
 
 ## Checks that run
 
-`ruff` and `mypy` in every package, `pytest` (Finance also needs 85% coverage), prettier on the web code, `kit/tests/test_architecture.py` (layers, no kind words, no copied function), `kit/tests/test_design.py` (one design, readable colours, visible focus). By hand against running apps: `node scripts/check-pages.js` (every page in a real browser, WCAG 2.1 AA with axe-core) and `python scripts/scale-check.py 300000` (the status counts and lists on 300,000 documents take under 0.3 s).
+`ruff` and `mypy` in every package, `pytest` (Finance also needs 85% coverage), prettier on the web code, `kit/tests/test_architecture.py` (layers, no kind words, no copied function, no function over 50 lines), `kit/tests/test_design.py` (one design, readable colours, visible focus). By hand against running apps: `node scripts/check-pages.js` (every page in a real browser, WCAG 2.1 AA with axe-core) and `python scripts/scale-check.py 300000` (the status counts and lists on 300,000 documents take under 0.3 s).
+
+## Limits the tools enforce
+
+At most seven arguments per function (related ones travel together as a record: `Hooks`, `Where`, `Narrow`, `Budget`, `ClipLimits`), no bare numbers in comparisons (a named constant says what the number means; shared units are in `kit.units`), at most 50 lines per function, 15 branches, complexity 15. These are in each package's `pyproject.toml` and in `kit/tests/test_architecture.py`; none is switched off.

@@ -117,19 +117,13 @@ def _guess(times, t_gps, lat_gps, lon_gps, before, after):
     return bucket, plat, plon
 
 
-def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = MIN_PRECISION, min_samples: int = 30) -> dict:
-    """Give photos with no GPS a location from the photos around them in time, but only for kinds of guess that are at least
-    `min_precision` accurate when tested on the library's own GPS photos (each is hidden in turn and guessed from its neighbours).
-    Returns the measured accuracy of every kind and how many photos were located."""
+def _timed_photos(conn: sqlite3.Connection):
+    """The photos with a real time taken, as arrays: id, time (minutes), latitude and longitude (nan when there is no GPS)."""
     import numpy as np
 
     rows = conn.execute(
-        "SELECT id, taken_at, gps_lat, gps_lon FROM items WHERE missing=0 AND meta_done=1 AND taken_exif=1 AND taken_at >= '2003' "
-        "ORDER BY taken_at"
+        "SELECT id, taken_at, gps_lat, gps_lon FROM items WHERE missing=0 AND meta_done=1 AND taken_exif=1 AND taken_at >= '2003' ORDER BY taken_at"
     ).fetchall()
-    conn.execute(
-        "UPDATE items SET gps_est_lat=NULL, gps_est_lon=NULL, gps_est_conf=NULL, gps_est_place=NULL, gps_est_place_text=''"
-    )
     id_list: list[int] = []
     time_list: list[float] = []
     lat_list: list[float] = []
@@ -142,14 +136,13 @@ def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = MIN_PR
         id_list.append(item_id)
         lat_list.append(np.nan if la is None else la)
         lon_list.append(np.nan if lo is None else lo)
-    ids, times, lat, lon = np.array(id_list, np.int64), np.array(time_list), np.array(lat_list), np.array(lon_list)
-    has = ~np.isnan(lat)
-    report: dict[str, Any] = {"kinds": [], "located": 0, "without_gps": int((~has).sum())}
-    if has.sum() < min_samples * 2:
-        conn.commit()
-        return report
-    tg, lg, og = times[has], lat[has], lon[has]
-    # 1. test: hide each GPS photo in turn, guess from the GPS photos on either side of it, compare with the truth
+    return np.array(id_list, np.int64), np.array(time_list), np.array(lat_list), np.array(lon_list)
+
+
+def _test_kinds_of_guess(tg, lg, og, min_precision: float, min_samples: int, report: dict) -> dict[int, float]:
+    """Hide each GPS photo in turn, guess it from the GPS photos on either side, compare with the truth; says which kinds of guess are accurate enough (kind -> precision)."""
+    import numpy as np
+
     pos = np.arange(len(tg))
     bucket, plat, plon = _guess(tg, tg, lg, og, pos - 1, pos + 1)
     correct = _haversine(plat, plon, lg, og) <= RADIUS_KM
@@ -165,7 +158,27 @@ def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = MIN_PR
         report["kinds"].append({"kind": label, "tested": n, "accuracy": round(precision, 3), "used": ok})
         if ok:
             accepted[b] = precision
-    # 2. apply the kinds that passed to the photos that have no GPS
+    return accepted
+
+
+def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = MIN_PRECISION, min_samples: int = 30) -> dict:
+    """Give photos with no GPS a location from the photos around them in time, but only for kinds of guess that are at least
+    `min_precision` accurate when tested on the library's own GPS photos (each is hidden in turn and guessed from its neighbours).
+    Returns the measured accuracy of every kind and how many photos were located."""
+    import numpy as np
+
+    ids, times, lat, lon = _timed_photos(conn)
+    conn.execute(
+        "UPDATE items SET gps_est_lat=NULL, gps_est_lon=NULL, gps_est_conf=NULL, gps_est_place=NULL, gps_est_place_text=''"
+    )
+    has = ~np.isnan(lat)
+    report: dict[str, Any] = {"kinds": [], "located": 0, "without_gps": int((~has).sum())}
+    if has.sum() < min_samples * 2:
+        conn.commit()
+        return report
+    tg, lg, og = times[has], lat[has], lon[has]
+    accepted = _test_kinds_of_guess(tg, lg, og, min_precision, min_samples, report)
+    # apply the kinds that passed to the photos that have no GPS
     q = ~has
     qb, qlat, qlon = _guess(times[q], tg, lg, og, np.searchsorted(tg, times[q]) - 1, np.searchsorted(tg, times[q]))
     updates = []

@@ -84,6 +84,49 @@ def greedy_cluster(embeddings: np.ndarray, threshold: float, refine: int = 2) ->
     return labels
 
 
+def _dissolve_unnamed_groups(conn: sqlite3.Connection) -> None:
+    """Take the faces out of automatic groups nobody has named, and remove those groups; named people and manual corrections stay."""
+    conn.execute("UPDATE faces SET person_id=NULL WHERE locked=0 AND person_id IN (SELECT id FROM people WHERE name IS NULL)")
+    conn.execute(
+        "DELETE FROM people WHERE name IS NULL AND id NOT IN (SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL)"
+    )
+
+
+def _join_existing_people(
+    conn: sqlite3.Connection, ids: np.ndarray, embs: np.ndarray, threshold: float
+) -> tuple[int, np.ndarray]:
+    """Give each face to the known person it looks most like, if alike enough. Returns how many joined and which faces are left over."""
+    known = conn.execute("SELECT person_id, emb FROM faces WHERE person_id IS NOT NULL").fetchall()
+    if not known:
+        return 0, np.ones(len(ids), bool)
+    person_ids = np.array([r["person_id"] for r in known])
+    matrix = np.vstack([np.frombuffer(r["emb"], np.float32) for r in known])
+    unique, inverse = np.unique(person_ids, return_inverse=True)
+    centroids = np.zeros((len(unique), matrix.shape[1]), np.float32)
+    np.add.at(centroids, inverse, matrix)
+    best, sim = _best_match(embs, _normalize_rows(centroids))
+    ok = sim >= threshold
+    conn.executemany(
+        "UPDATE faces SET person_id=? WHERE id=?", [(int(unique[b]), int(i)) for b, i in zip(best[ok], ids[ok], strict=True)]
+    )
+    return int(ok.sum()), ~ok
+
+
+def _group_into_new_people(conn: sqlite3.Connection, ids: np.ndarray, embs: np.ndarray, threshold: float) -> int:
+    """Group faces that look alike into new, unnamed people. Returns how many people were made."""
+    if len(ids) == 0:
+        return 0
+    labels = greedy_cluster(embs, threshold)
+    now = time.time()
+    created = {
+        int(label): conn.execute("INSERT INTO people(created_at) VALUES (?)", (now,)).lastrowid for label in np.unique(labels)
+    }
+    conn.executemany(
+        "UPDATE faces SET person_id=? WHERE id=?", [(created[int(lab)], int(i)) for lab, i in zip(labels, ids, strict=True)]
+    )
+    return len(created)
+
+
 def cluster_faces(
     conn: sqlite3.Connection,
     *,
@@ -95,11 +138,7 @@ def cluster_faces(
     """Assign ungrouped faces to people.  ``rebuild`` first dissolves *unnamed*
     automatic groups (named people and manual corrections are preserved)."""
     if rebuild:
-        conn.execute("UPDATE faces SET person_id=NULL WHERE locked=0 AND person_id IN (SELECT id FROM people WHERE name IS NULL)")
-        conn.execute(
-            "DELETE FROM people WHERE name IS NULL AND id NOT IN "
-            "(SELECT DISTINCT person_id FROM faces WHERE person_id IS NOT NULL)"
-        )
+        _dissolve_unnamed_groups(conn)
     pending = conn.execute(
         "SELECT id, emb FROM faces WHERE person_id IS NULL AND locked=0 AND score>=? AND px>=? ORDER BY score DESC",
         (min_score, min_px),
@@ -110,37 +149,9 @@ def cluster_faces(
     ids = np.array([r["id"] for r in pending])
     embs = np.vstack([np.frombuffer(r["emb"], np.float32) for r in pending])
 
-    assigned = 0
-    remaining = np.ones(len(ids), bool)
-    known = conn.execute("SELECT person_id, emb FROM faces WHERE person_id IS NOT NULL").fetchall()
-    if known:  # 1) join existing people
-        person_ids = np.array([r["person_id"] for r in known])
-        matrix = np.vstack([np.frombuffer(r["emb"], np.float32) for r in known])
-        unique, inverse = np.unique(person_ids, return_inverse=True)
-        centroids = np.zeros((len(unique), matrix.shape[1]), np.float32)
-        np.add.at(centroids, inverse, matrix)
-        best, sim = _best_match(embs, _normalize_rows(centroids))
-        ok = sim >= threshold
-        conn.executemany(
-            "UPDATE faces SET person_id=? WHERE id=?",
-            [(int(unique[b]), int(i)) for b, i in zip(best[ok], ids[ok], strict=True)],
-        )
-        assigned += int(ok.sum())
-        remaining = ~ok
-
-    new_people = 0
-    if remaining.any():  # 2) group the rest into new people
-        labels = greedy_cluster(embs[remaining], threshold)
-        now = time.time()
-        created = {
-            int(label): conn.execute("INSERT INTO people(created_at) VALUES (?)", (now,)).lastrowid for label in np.unique(labels)
-        }
-        conn.executemany(
-            "UPDATE faces SET person_id=? WHERE id=?",
-            [(created[int(lab)], int(i)) for lab, i in zip(labels, ids[remaining], strict=True)],
-        )
-        assigned += int(remaining.sum())
-        new_people = len(created)
+    joined, remaining = _join_existing_people(conn, ids, embs, threshold)  # 1) faces that look like someone already known
+    new_people = _group_into_new_people(conn, ids[remaining], embs[remaining], threshold)  # 2) the rest become new people
+    assigned = joined + int(remaining.sum())
     meta_set(conn, "people_version", str(time.time()))
     conn.commit()
     return ClusterResult(assigned=assigned, new_people=new_people)

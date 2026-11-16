@@ -62,7 +62,7 @@ print(
     len(
         timed(
             "list_documents page",
-            lambda: store.list_documents(conn, area="finance", limit=50),
+            lambda: store.list_documents(conn, narrow=store.Narrow(area="finance"), limit=50),
         )
     ),
     "rows",

@@ -135,6 +135,15 @@ class Executor:
         positives = [c for c in plan.clauses if not c.exclude]
         negatives = [c for c in plan.clauses if c.exclude]
 
+        current = self._narrow_by_clauses(plan, positives, negatives, current, result)
+        current = self._narrow_by_date_and_filters(plan, current, result)
+        result.ids = self._rank(current)
+        return result
+
+    def _narrow_by_clauses(
+        self, plan: Plan, positives: list[Clause], negatives: list[Clause], current: np.ndarray, result: ExecResult
+    ) -> np.ndarray:
+        """Keep the pictures that match what was asked for (all of it, or any part of it) and drop those that match what was excluded."""
         if positives:
             sets: list[tuple[Clause, np.ndarray]] = [(c, self._clause_ids(c, result)) for c in positives]
             if plan.match == "any":
@@ -150,7 +159,10 @@ class Executor:
             ids = self._clause_ids(clause, result)
             current = np.setdiff1d(current, ids, assume_unique=True)
             result.reports.append(ClauseReport(clause.label, len(ids), len(current), "excluded"))
+        return current
 
+    def _narrow_by_date_and_filters(self, plan: Plan, current: np.ndarray, result: ExecResult) -> np.ndarray:
+        """Keep the pictures from the asked-for days and those that pass the filters (hours, place radius ...)."""
         span = resolve(plan.date, self._today())
         if span is not None:
             start, end = span
@@ -160,15 +172,12 @@ class Executor:
             result.reports.append(ClauseReport(f"date {result.date_range}", len(ids), len(current)))
         elif not plan.date.is_empty:
             result.notes.append("I could not understand the date, so I ignored it.")
-
         if not plan.filters.is_empty:
             ids, notes = apply_filters(self._conn, plan.filters, self._geo_provider())
             current = np.intersect1d(current, ids, assume_unique=True)
             result.notes.extend(n for n in notes if n not in result.notes)
             result.reports.append(ClauseReport(f"filters: {plan.filters.describe()}", len(ids), len(current)))
-
-        result.ids = self._rank(current)
-        return result
+        return current
 
     def _clause_ids(self, clause: Clause, result: ExecResult) -> np.ndarray:
         parts = [self._engine_ids(engine, clause.query, result) for engine in clause.engines]

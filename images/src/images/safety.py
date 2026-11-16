@@ -122,6 +122,53 @@ def trusted_hosts() -> set[str]:
     return {h.strip().lower() for h in os.environ.get("APERTURE_TRUSTED_HOSTS", "").split(",") if h.strip()}
 
 
+class _Guard:
+    """The replacements for the socket calls that reach out: each checks where it is going first, and only then calls the real one."""
+
+    def __init__(self) -> None:
+        self.real_connect = socket.socket.connect
+        self.real_connect_ex = socket.socket.connect_ex
+        self.real_getaddrinfo = socket.getaddrinfo
+        self.real_gethostbyname = socket.gethostbyname
+        self.trusted = trusted_hosts()
+        self.trusted_ips: set[str] = set()
+
+    def check_address(self, address: Any) -> None:
+        if isinstance(address, (str, bytes)):  # AF_UNIX path
+            return
+        if isinstance(address, tuple) and address and not is_local_host(address[0]) and address[0] not in self.trusted_ips:
+            raise SafetyError(f"Aperture is air-gapped: blocked connection to {address[0]!r}")
+
+    def _blocked_lookup(self, host: Any) -> socket.gaierror:
+        return socket.gaierror(socket.EAI_NONAME, f"air-gapped: lookup of {host!r} blocked")
+
+    def connect(self, sock: socket.socket, address: Any) -> None:
+        self.check_address(address)
+        return self.real_connect(sock, address)
+
+    def connect_ex(self, sock: socket.socket, address: Any) -> int:
+        self.check_address(address)
+        return self.real_connect_ex(sock, address)
+
+    def getaddrinfo(self, host: Any, *args: Any, **kwargs: Any) -> Any:
+        if str(host).lower() in self.trusted:
+            result = self.real_getaddrinfo(host, *args, **kwargs)
+            self.trusted_ips.update(str(r[4][0]) for r in result)
+            return result
+        if not is_local_host(host):
+            raise self._blocked_lookup(host)
+        return self.real_getaddrinfo(host, *args, **kwargs)
+
+    def gethostbyname(self, host: Any) -> str:
+        if str(host).lower() in self.trusted:
+            ip = self.real_gethostbyname(host)
+            self.trusted_ips.add(ip)
+            return ip
+        if not is_local_host(host):
+            raise self._blocked_lookup(host)
+        return self.real_gethostbyname(host)
+
+
 def enable_offline_guard() -> bool:
     """Refuse every outbound connection and DNS lookup that is not loopback.
 
@@ -131,49 +178,17 @@ def enable_offline_guard() -> bool:
         return False
     if getattr(socket, "_aperture_guard", False):
         return True
+    guard = _Guard()
 
-    real_connect = socket.socket.connect
-    real_connect_ex = socket.socket.connect_ex
-    real_getaddrinfo = socket.getaddrinfo
-    real_gethostbyname = socket.gethostbyname
-    trusted = trusted_hosts()
-    trusted_ips: set[str] = set()
+    def connect(sock: socket.socket, address: Any) -> None:
+        return guard.connect(sock, address)
 
-    def check_address(address: Any) -> None:
-        if isinstance(address, (str, bytes)):  # AF_UNIX path
-            return
-        if isinstance(address, tuple) and address and not is_local_host(address[0]) and address[0] not in trusted_ips:
-            raise SafetyError(f"Aperture is air-gapped: blocked connection to {address[0]!r}")
-
-    def connect(self: socket.socket, address: Any) -> None:
-        check_address(address)
-        return real_connect(self, address)
-
-    def connect_ex(self: socket.socket, address: Any) -> int:
-        check_address(address)
-        return real_connect_ex(self, address)
-
-    def getaddrinfo(host: Any, *args: Any, **kwargs: Any) -> Any:
-        if str(host).lower() in trusted:
-            result = real_getaddrinfo(host, *args, **kwargs)
-            trusted_ips.update(str(r[4][0]) for r in result)
-            return result
-        if not is_local_host(host):
-            raise socket.gaierror(socket.EAI_NONAME, f"air-gapped: lookup of {host!r} blocked")
-        return real_getaddrinfo(host, *args, **kwargs)
-
-    def gethostbyname(host: Any) -> str:
-        if str(host).lower() in trusted:
-            ip = real_gethostbyname(host)
-            trusted_ips.add(ip)
-            return ip
-        if not is_local_host(host):
-            raise socket.gaierror(socket.EAI_NONAME, f"air-gapped: lookup of {host!r} blocked")
-        return real_gethostbyname(host)
+    def connect_ex(sock: socket.socket, address: Any) -> int:
+        return guard.connect_ex(sock, address)
 
     socket.socket.connect = connect  # type: ignore[method-assign,assignment]
     socket.socket.connect_ex = connect_ex  # type: ignore[method-assign,assignment]
-    socket.getaddrinfo = getaddrinfo  # type: ignore[assignment]
-    socket.gethostbyname = gethostbyname  # type: ignore[assignment]
+    socket.getaddrinfo = guard.getaddrinfo  # type: ignore[assignment]
+    socket.gethostbyname = guard.gethostbyname  # type: ignore[assignment]
     socket._aperture_guard = True  # type: ignore[attr-defined]
     return True
