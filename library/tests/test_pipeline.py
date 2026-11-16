@@ -58,7 +58,11 @@ def library_over_http(service_conn):
         query = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlsplit(path).query).items()}
         kinds = [k for k in query.get("kind", "").split(",") if k]
         found = store.list_documents(
-            service_conn, kinds, query.get("area", ""), since=int(query.get("since", 0)), limit=int(query.get("limit", 100)), full=query.get("full") == "1"
+            service_conn,
+            kinds,
+            narrow=store.Narrow(area=query.get("area", ""), since=int(query.get("since", 0))),
+            limit=int(query.get("limit", 100)),
+            full=query.get("full") == "1",
         )
         return {"documents": found}
 

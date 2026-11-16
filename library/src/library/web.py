@@ -42,15 +42,17 @@ def _get_documents(state: State, conn, query: dict[str, str]) -> dict:
     found = store.list_documents(
         conn,
         _list_arg(query, "kind"),
-        query.get("area", "")[:20],
-        query.get("place", "")[:80],
-        query.get("year", "")[:4],
-        since,
-        limit,
-        full,
-        query.get("source", "")[:9],
-        query.get("understood") == "1",
-        re.sub(r"[^a-z0-9_-]", "", query.get("app", "").lower())[:30],
+        store.Narrow(
+            area=query.get("area", "")[:20],
+            place=query.get("place", "")[:80],
+            year=query.get("year", "")[:4],
+            since=since,
+            source=query.get("source", "")[:9],
+            only_understood=query.get("understood") == "1",
+            app=re.sub(r"[^a-z0-9_-]", "", query.get("app", "").lower())[:30],
+        ),
+        limit=limit,
+        full=full,
     )
     return {"documents": found}
 

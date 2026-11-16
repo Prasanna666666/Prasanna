@@ -11,7 +11,7 @@ def trip_documents(conn, limit: int = 500) -> list[dict]:
     """The files that are about a trip: those marked for an app that reads trips (`apps.json`)."""
     found: list[dict] = []
     for name in apps.with_reading("trip"):
-        found += store.list_documents(conn, app=name, limit=limit)
+        found += store.list_documents(conn, limit=limit, narrow=store.Narrow(app=name))
     return found
 
 
@@ -69,7 +69,7 @@ def documents_of_the_same_matter(conn, ids: list[int], limit: int = 60) -> list[
 def documents_between(conn, start: str, end: str, limit: int = 100) -> list[dict]:
     """Every recognised document dated within the window (its own date, or the dates of a ticket or booking), oldest first."""
     out: list[dict] = []
-    for doc in store.list_documents(conn, limit=500, source="documents"):  # documents, never a whole email
+    for doc in store.list_documents(conn, limit=500, narrow=store.Narrow(source="documents")):  # documents, never a whole email
         facts = doc["facts"]
         day = str(facts.get("start_date") or facts.get("date") or "")
         if day and start <= day <= end:

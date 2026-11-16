@@ -107,7 +107,7 @@ def test_with_nothing_nearby_the_judge_alone_counts_only_after_it_measured_at_le
         _photo(conn, i, f"2025-01-{i:02d} 10:00:00", gps=(35.68, 139.76))
     _photo(conn, 99, "2026-09-01 10:00:00")  # no GPS and nothing else that day
     _previews(tmp_path, [*list(range(1, 11)), 99])
-    assert judge.run(conn, tmp_path, Fake(), GEO, limit=1)["located"] == 0  # never measured: not trusted
+    assert judge.run(conn, tmp_path, Fake(), GEO, budget=judge.Budget(limit=1))["located"] == 0  # never measured: not trusted
     conn.execute("DELETE FROM photo_vision")
     result = judge.calibrate(conn, tmp_path, Fake(), GEO, samples=10)
     assert result["precision"] == 1.0 and float(meta_get(conn, "judge_precision")) == 1.0

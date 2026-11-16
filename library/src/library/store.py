@@ -18,6 +18,7 @@ import shutil
 import sqlite3
 import threading
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -451,21 +452,25 @@ def _fits(doc: dict[str, Any], wanted: set[str], area: str, source: str, only_un
     return bool(doc["apps"])  # everything the model found to be about some app
 
 
-def list_documents(
-    conn,
-    kinds: list[str] | None = None,
-    area: str = "",
-    place: str = "",
-    year: str = "",
-    since: int = 0,
-    limit: int = 100,
-    full: bool = False,
-    source: str = "",
-    only_understood: bool = False,
-    app: str = "",
-) -> list[dict]:
+@dataclass(frozen=True)
+class Narrow:
+    """What narrows a list of documents besides their kinds: the `area` they came from, the `place` and `year` they are about, only those newer than number `since`, only `source`
+    "documents" (never a whole email), only the ones already `only_understood`, and the `app` the model marked them for."""
+
+    area: str = ""
+    place: str = ""
+    year: str = ""
+    since: int = 0
+    source: str = ""
+    only_understood: bool = False
+    app: str = ""
+
+
+def list_documents(conn, kinds: list[str] | None = None, narrow: Narrow | None = None, limit: int = 100, full: bool = False) -> list[dict]:
     """Ready documents, oldest first. `app` is an app the model marked the file for; `kinds` are words looked for in what the model called the file; with `area`, a document also
     qualifies when it came from that area. Without any of them, everything the model found to be about some app is returned. With `full`, the text and structured data come too."""
+    n = narrow or Narrow()
+    area, place, year, since, source, only_understood, app = n.area, n.place, n.year, n.since, n.source, n.only_understood, n.app
     wanted = {k.lower() for k in kinds or [] if k}
     out: list[dict] = []
     names = kind_names(conn)

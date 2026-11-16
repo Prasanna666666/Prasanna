@@ -13,6 +13,7 @@ import json
 import sqlite3
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -161,24 +162,27 @@ def store(conn: sqlite3.Connection, item_id: int, model: str, data: dict) -> Non
     )
 
 
+@dataclass(frozen=True)
+class Budget:
+    """How much one run may do: for `seconds` (0 = no limit), over `limit` photos (0 = all), until `stop` is set, telling `report(done, of, located)` how it goes."""
+
+    seconds: float = 0.0
+    limit: int = 0
+    stop: Any = None
+    report: Callable[[int, int, int], None] | None = None
+
+
 def run(
-    conn: sqlite3.Connection,
-    data_dir: Path,
-    vision: Any,
-    geo: Any,
-    model: str = "vision",
-    seconds: float = 0.0,
-    limit: int = 0,
-    stop: Any = None,
-    report: Callable[[int, int, int], None] | None = None,
+    conn: sqlite3.Connection, data_dir: Path, vision: Any, geo: Any, model: str = "vision", budget: Budget | None = None
 ) -> dict:
     """Analyse undecided photos until the time budget (seconds, 0 = no limit) or the queue runs out. Resumable; every answer is kept."""
-    todo = pending(conn, limit)
-    deadline = time.monotonic() + seconds if seconds else None
+    budget = budget or Budget()
+    todo = pending(conn, budget.limit)
+    deadline = time.monotonic() + budget.seconds if budget.seconds else None
     done = located = failed = 0
     last_error = ""
     for n, item_id in enumerate(todo, 1):
-        if (stop is not None and stop.is_set()) or (deadline is not None and time.monotonic() > deadline):
+        if (budget.stop is not None and budget.stop.is_set()) or (deadline is not None and time.monotonic() > deadline):
             break
         try:
             data = analyse(vision, (data_dir / preview_rel(item_id)).read_bytes())
@@ -200,8 +204,8 @@ def run(
             located += 1
         if n % 10 == 0:
             conn.commit()
-            if report:
-                report(n, len(todo), located)
+            if budget.report:
+                budget.report(n, len(todo), located)
     conn.commit()
     return {
         "analysed": done,

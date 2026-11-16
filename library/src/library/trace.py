@@ -7,6 +7,7 @@ import json
 import sqlite3
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -102,3 +103,14 @@ def recent(conn, run: str = "", name: str = "", limit: int = 100) -> list[dict[s
         (run, f"%{name}%", max(1, min(limit, 500))),
     )
     return [dict(r) for r in rows]
+
+
+@dataclass(frozen=True)
+class Hooks:
+    """What the caller of a long job can do to it and see of it: `control()` says run, pause or stop; `progress(text)` is told what it is doing; `trace` keeps the steps;
+    `phase(n)` is told which phase of an Update it has reached."""
+
+    control: Callable[[], str] | None = None
+    progress: Callable[[str], None] | None = None
+    trace: Trace | None = None
+    phase: Callable[[int], None] | None = None

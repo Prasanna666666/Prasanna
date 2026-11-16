@@ -9,6 +9,7 @@ from __future__ import annotations
 import sqlite3
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -115,18 +116,26 @@ def run(
     return done, bad
 
 
+@dataclass(frozen=True)
+class ClipLimits:
+    """How close a label has to be to a photo to be kept: at most `top` labels per photo, each scoring at least `min_score` and at least `min_p` as a share of all labels."""
+
+    top: int = CLIP_TOP
+    min_score: float = CLIP_MIN_SCORE
+    min_p: float = CLIP_MIN_P
+
+
 def clip_tags(
     conn: sqlite3.Connection,
     index: Any,
     embedder: Any,
     labels: list[str] | None = None,
-    top: int = CLIP_TOP,
-    min_score: float = CLIP_MIN_SCORE,
-    min_p: float = CLIP_MIN_P,
+    limits: ClipLimits | None = None,
     geo: Any = None,
     verify: bool = True,
 ) -> int:
     """Tag every photo with the vocabulary labels its stored embedding is closest to (no image is decoded: seconds, not hours)."""
+    limits = limits or ClipLimits()
     labels = labels or vocabulary()
     if len(index) == 0 or not labels:
         return 0
@@ -138,14 +147,14 @@ def clip_tags(
         scores = block @ text.T
         shifted = 100.0 * scores - (100.0 * scores).max(axis=1, keepdims=True)  # CLIP's own temperature
         probs = np.exp(shifted) / np.exp(shifted).sum(axis=1, keepdims=True)
-        best = np.argsort(-scores, axis=1)[:, :top]
+        best = np.argsort(-scores, axis=1)[:, : limits.top]
         batch = []
         for r in range(len(block)):
             item = int(index.ids[start + r])
             batch += [
                 (item, labels[j].lower(), float(scores[r, j]))
                 for j in best[r]
-                if scores[r, j] >= min_score and probs[r, j] >= min_p
+                if scores[r, j] >= limits.min_score and probs[r, j] >= limits.min_p
             ]
         conn.executemany("INSERT INTO photo_labels(item_id, label, score, source) VALUES (?,?,?,'clip')", batch)
         rows += len(batch)

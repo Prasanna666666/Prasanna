@@ -3,6 +3,7 @@ import json
 from kit import extract
 
 from library import casebook, judging
+from library.trace import Hooks
 
 
 def _doc(conn, name, text, facts=None):
@@ -107,7 +108,7 @@ def test_the_read_button_finishes_every_matter_in_rounds_and_stops_when_nothing_
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: {"title": "Letter", "what": "A letter"})
     assert judging.finish_matters(conn, object(), "m") == 8
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary=''").fetchone()[0] == 0
-    stop = judging.finish_matters(conn, object(), "m", lambda: "stop")
+    stop = judging.finish_matters(conn, object(), "m", Hooks(control=lambda: "stop"))
     assert stop == 0
 
 
@@ -138,7 +139,7 @@ def test_a_stop_pressed_during_the_final_step_ends_it_before_the_next_model_call
         _doc(conn, f"b{i}", f"Invoice number {i}", {"due_date": "2026-12-01"})
     calls = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(1) or {"title": "t", "what": "w"})
-    assert judging.finish_matters(conn, object(), "m", lambda: "stop") == 0 and calls == []
+    assert judging.finish_matters(conn, object(), "m", Hooks(control=lambda: "stop")) == 0 and calls == []
 
 
 def test_a_database_made_by_any_earlier_version_upgrades_without_error(tmp_path):

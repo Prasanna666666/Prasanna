@@ -9,6 +9,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any
 
 from kit import extract
@@ -16,7 +17,7 @@ from kit.text import json_object
 from kit.units import SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
 from . import apps, appstate, casebook, priority, recognise, relevance, store
-from .trace import FAILED, Trace
+from .trace import FAILED, Hooks, Trace
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
 MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never its body (the owner's call: see docs/decisions.md)
@@ -333,12 +334,24 @@ def judge_pending(
     began = time.monotonic()
     ahead = _Ahead(client, model)
     try:
-        return _judge_chunks(conn, client, model, progress, control, limit, trace, out, total, ahead, began)
+        return _judge_chunks(conn, client, model, Hooks(control, progress, trace), limit, _Pass(out, total, ahead, began))
     finally:
         ahead.close()
 
 
-def _judge_chunks(conn, client, model, progress, control, limit, trace, out, total, ahead, began) -> dict[str, Any]:
+@dataclass
+class _Pass:
+    """One pass over the waiting files: what it has done so far, how many there were, the model call that runs ahead, and when it began."""
+
+    out: dict[str, Any]
+    total: int
+    ahead: _Ahead
+    began: float
+
+
+def _judge_chunks(conn, client, model, hooks: Hooks, limit: int, this: _Pass) -> dict[str, Any]:
+    out, total, ahead, began = this.out, this.total, this.ahead, this.began
+    control, progress, trace = hooks.control, hooks.progress, hooks.trace
     index = calls = 0
     for chunk in _pending_chunks(conn):
         for position, d in enumerate(chunk):
@@ -402,27 +415,18 @@ def _with_health(conn, client, model, control, out: dict[str, Any], skip: bool =
     return out
 
 
-def finish_matters(
-    conn,
-    client,
-    model,
-    control: Callable[[], str] | None = None,
-    progress: store.Progress | None = None,
-    trace: Trace | None = None,
-    pairs: int = casebook.MAX_CONFIRMS,
-    groups: int = casebook.MAX_READ_PER_PRESS,
-    phase: Callable[[int], None] | None = None,
-) -> int:
+def finish_matters(conn, client, model, hooks: Hooks | None = None, pairs: int = casebook.MAX_CONFIRMS, groups: int = casebook.MAX_READ_PER_PRESS) -> int:
     """Interpretation: the files are grouped (comparing up to `pairs` pairs) and then up to `groups` groups are read. Done in small slices while files are still being identified,
     and in full at the end of a read. Respects Pause and Stop; what is not reached (the model is slow) is counted by `audit` and carried on. Returns how many groups were read."""
-    if phase:
-        phase(appstate.PHASE_GROUP)
-    if progress:
-        progress("Finding which files belong together…")
-    casebook.rebuild(conn, client, model, control, progress, trace, pairs)
-    if phase:
-        phase(appstate.PHASE_FINISH)
-    done = casebook.understand_pending(conn, client, model, limit=groups, control=control, progress=progress, trace=trace)
+    hooks = hooks or Hooks()
+    if hooks.phase:
+        hooks.phase(appstate.PHASE_GROUP)
+    if hooks.progress:
+        hooks.progress("Finding which files belong together…")
+    casebook.rebuild(conn, client, model, hooks, pairs)
+    if hooks.phase:
+        hooks.phase(appstate.PHASE_FINISH)
+    done = casebook.understand_pending(conn, client, model, limit=groups, control=hooks.control, progress=hooks.progress, trace=hooks.trace)
     forget_mail_bodies(conn)
     conn.commit()
     return done

@@ -37,9 +37,9 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", 
 ignore = [
     "S101",    # assert is used in tests
     "S608",    # SQL is built from column names written in code, never from user input (reviewed)
-    "PLR0913",  # many keyword arguments are normal here; magic numbers in readers are format widths
+     # many keyword arguments are normal here; magic numbers in readers are format widths
     "PLC0415", # imports inside functions are deliberate: optional dependencies and the parser container must not load each other
-    "PLR0917", # call sites use keywords where it matters
+    # call sites use keywords where it matters
     "E501",    # the formatter owns line length
     "RUF001", "RUF002", "RUF003",  # text deliberately uses typographic characters
 ]
@@ -48,6 +48,8 @@ ignore = [
 max-complexity = 15   # a function above this is split, not excused
 
 [tool.ruff.lint.pylint]
+max-args = 7  # more is bundled into one record
+max-positional-args = 7
 max-branches = 15
 max-returns = 8
 max-statements = 50

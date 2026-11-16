@@ -262,10 +262,9 @@ def _copies(n: int, taken_in: bool, total: int, held: int, unread: int) -> int:
     return max(0, total - held - unread) if n == 1 and taken_in else 0
 
 
-def _done_count(
-    n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any], unread: dict[str, int]
-) -> int:
-    if (s.get("phase") or 1) < n:
+def _done_count(c: _Context, n: int, key: str, where: str, total: int) -> int:
+    held, taken_in, gone_through = c.tally[key], c.taken_in, c.gone_through
+    if (c.s.get("phase") or 1) < n:
         return 0  # a step that has not begun has done nothing, whatever state the files are already in
     if n == 1:
         return (
@@ -347,7 +346,7 @@ def _count_line(c: _Context, n: int, key: str, label: str, where: str) -> dict[s
     return {
         "key": key,
         "label": label,
-        "done": _done_count(n, key, c.tally[key], where, total, c.taken_in, c.gone_through, c.s, c.unread),
+        "done": _done_count(c, n, key, where, total),
         "unread": c.unread.get(key, 0) if n == 1 else 0,
         "copies": copies,
         "total": total,

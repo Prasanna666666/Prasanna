@@ -11,6 +11,7 @@ from kit import log
 
 from . import appstate, bulkmail, concepts, flags, judging, pictures, scanstatus, store, trace
 from .appstate import State
+from .trace import Hooks
 
 SETTLE_SECONDS = 3
 AUTO_LIMIT = int(
@@ -55,9 +56,8 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
     if client is None or not model or state.control == "stop":
         return
-    judging.finish_matters(
-        conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed, phase=lambda n: state.scan.update(phase=n)
-    )
+    hooks = Hooks(lambda: state.control, lambda m: state.scan.update(progress=m), followed, lambda n: state.scan.update(phase=n))
+    judging.finish_matters(conn, client, model, hooks)
     if state.control != "stop":
         state.scan["summary"] += ". " + judging.audit_line(judging.audit(conn))
 

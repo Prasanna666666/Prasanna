@@ -170,7 +170,7 @@ def test_many_files_of_a_kind_about_no_app_are_suggested_as_a_new_app_and_can_be
     made = store.create_app_for_kind(conn, "Circuit design")
     assert made == {"ok": True, "app": "circuit-design", "files": 25}
     assert "circuit-design" in apps.names() and store.category_suggestions(conn) == []  # the files belong to the app now
-    assert len(store.list_documents(conn, app="circuit-design", limit=100)) == 25
+    assert len(store.list_documents(conn, limit=100, narrow=store.Narrow(app="circuit-design"))) == 25
     assert store.create_app_for_kind(conn, "circuit design")["ok"] is False  # not twice
 
 
@@ -342,10 +342,10 @@ def test_the_many_wordings_of_a_kind_get_one_plain_name_and_the_apps_see_that_na
             return {"content": json.dumps({"names": names})}
 
     assert store.name_kinds(conn, Model(), "m") == 5  # five different wordings
-    docs = store.list_documents(conn, app="finance", limit=100)
+    docs = store.list_documents(conn, limit=100, narrow=store.Narrow(app="finance"))
     assert sorted({d["kind"] for d in docs}) == ["bank statement", "invoice"]
     assert {d["facts"]["kind"] for d in docs} == {"bank statement", "invoice"}
-    again = store.list_documents(conn, app="finance", since=0, limit=100)
+    again = store.list_documents(conn, limit=100, narrow=store.Narrow(app="finance", since=0))
     assert min(d["ready"] for d in again) > 5  # handed to the apps again, so they show the plain names
 
 

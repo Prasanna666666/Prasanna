@@ -104,7 +104,9 @@ def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
     if window:
         found = [d for d in tripdocs.documents_between(conn, *window, limit=200) if not kinds or any(k.lower() in d["kind"].lower() for k in kinds)]
     else:
-        found = store.list_documents(conn, kinds, place=str(a.get("place", ""))[:80], year=str(a.get("year", ""))[:4], limit=200, source="documents")
+        found = store.list_documents(
+            conn, kinds, limit=200, narrow=store.Narrow(place=str(a.get("place", ""))[:80], year=str(a.get("year", ""))[:4], source="documents")
+        )
     if window and a.get("place"):
         found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or not tripdocs.is_trip_document(d)]
     data = {"count": len(found), "documents": [_doc_row(d) for d in found[:40]]}

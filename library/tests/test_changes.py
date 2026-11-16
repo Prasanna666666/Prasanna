@@ -257,7 +257,7 @@ def test_a_file_that_changed_or_a_missing_folder_name_stops_the_filing(inbox):
 
 
 def test_documents_and_emails_are_listed_apart(inbox):
-    names_of = lambda source: {d["name"] for d in store.list_documents(inbox.conn, ["invoice", "insurance"], source=source)}  # noqa: E731
+    names_of = lambda source: {d["name"] for d in store.list_documents(inbox.conn, ["invoice", "insurance"], narrow=store.Narrow(source=source))}  # noqa: E731
     assert names_of("mail") == {"offer.eml"} and names_of("files") == {"scan001.pdf", "letter.pdf"}
 
 
@@ -269,7 +269,7 @@ def test_every_apps_documents_are_in_the_one_store_and_none_is_treated_different
         (json.dumps({"kind": "medical report", "apps": ["health"]}),),
     )
     inbox.conn.commit()
-    names = lambda *a, **k: {d["name"] for d in store.list_documents(inbox.conn, *a, **k)}  # noqa: E731
+    names = lambda kinds=None, **k: {d["name"] for d in store.list_documents(inbox.conn, kinds, narrow=store.Narrow(**k))}  # noqa: E731
     assert "blood.pdf" in names([])  # asking for everything includes it, like any other app's documents: the store is one
     assert "blood.pdf" in names(["medical"]) and "blood.pdf" in names(app="health")  # by what it is, or by the app it is about
     assert "blood.pdf" not in names(app="finance")  # an app asks for what it is about; that is how it finds its files, not a wall

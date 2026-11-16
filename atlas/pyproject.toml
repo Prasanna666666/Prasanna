@@ -28,7 +28,11 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
-ignore = ["S101", "PLR0913", "E501", "S310"]
+ignore = ["S101", "E501", "S310"]
+
+[tool.ruff.lint.pylint]
+max-args = 7  # more is bundled into one record
+max-positional-args = 7
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S105", "S106", "PLC0415", "RUF059", "PLR0912", "PLR2004"]  # test tokens are invented; local imports keep each test self-contained

@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -72,15 +73,26 @@ def _now(out: Path, name: str, step: str = "") -> None:
         (out / ".now").write_text(f"{name[:200]}\n{step[:100]}")
 
 
-def _process_attachments(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int, digest: str) -> None:
+@dataclass
+class Where:
+    """Where the files of one read are put and how they are read: the folder the results go to, the `area` they are for, whether each file is read in its own sealed process, and the running `counts`."""
+
+    out: Path
+    area: str
+    isolated: bool
+    counts: dict[str, int]
+
+
+def _process_attachments(f: Path, label: str, where: Where, depth: int, digest: str) -> None:
     """Every document a mail carries is read as a document of its own; the mail is then marked, so it is not opened again for this."""
+    out = where.out
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmp:
         for name, content in (readers.read_emlx(f) if extraction._is_emlx(f) else readers.read_eml(f))[1]:
             inner = Path(tmp) / f"{abs(hash(name)) % 10**8}-{Path(name).name}"  # two attachments with one name stay two files
             inner.write_bytes(content)
-            _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
+            _process(inner, f"{label}/{name}", where, depth + 1)
     (out / ATTACHED).mkdir(parents=True, exist_ok=True)
     (out / ATTACHED / digest).touch()
 
@@ -105,8 +117,9 @@ def _too_large(size: int, kind: str, label: str, counts: dict[str, int]) -> bool
     return True
 
 
-def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0, source: str = "") -> None:
+def _process(f: Path, label: str, where: Where, depth: int = 0, source: str = "") -> None:
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
+    out, area, isolated, counts = where.out, where.area, where.isolated, where.counts
     import tempfile
 
     size = f.stat().st_size
@@ -122,9 +135,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
     digest = _identity(f, kind, area)
     if _done(out, digest):
         if kind == "email" and depth < MAIL_DEPTH and not (out / ATTACHED / digest).exists():
-            _process_attachments(
-                f, label, out, area, isolated, counts, depth, digest
-            )  # a mail read before its attachments were all taken out: once more, for those
+            _process_attachments(f, label, where, depth, digest)  # a mail read before its attachments were all taken out: once more, for those
         return
     with _CLAIM_LOCK:  # files read at the same moment with the same content: only the first one reads it
         if digest in _CLAIMED:
@@ -132,7 +143,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         _CLAIMED.add(digest)
     try:
         if kind == "mbox" and depth == 0:
-            _process_mailbox(f, label, out, area, isolated, counts, digest)
+            _process_mailbox(f, label, where, digest)
             return
         if kind == "zip" and depth < control.MAX_NESTING:  # a package (an archive, an e-book, an Apple Pages or Keynote file): its members are read one by one
             members = readers.zip_members(f)
@@ -140,7 +151,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
                 for name, content in members:
                     inner = Path(tmp) / name
                     inner.write_bytes(content)
-                    _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
+                    _process(inner, f"{label}/{name}", where, depth + 1)
             return
         _now(out, label)
         res = (
@@ -153,7 +164,7 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         if depth and area == "mail" and res["kind"] == "image":
             keep_picture(f)
         if kind == "email" and depth < MAIL_DEPTH:
-            _process_attachments(f, label, out, area, isolated, counts, depth, digest)
+            _process_attachments(f, label, where, depth, digest)
     except Exception as e:  # noqa: BLE001 - an unreadable or hostile file must fail only itself, never the whole batch
         print(f"FAILED {label}: {e}", file=sys.stderr, flush=True)
         counts["failed"] += 1
@@ -178,8 +189,9 @@ def keep_picture(f: Path) -> None:
         shutil.copyfile(f, target)
 
 
-def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], digest: str) -> None:
+def _process_mailbox(f: Path, label: str, where: Where, digest: str) -> None:
     """A mailbox export: every message is parsed as an email (and its attachments as documents). A mailbox already read is not read again."""
+    out = where.out
     import tempfile
 
     seen = out / ".seen-2" / digest
@@ -189,7 +201,7 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
         for n, raw in enumerate(readers.mbox_messages(f), 1):
             inner = Path(tmp) / f"{n:05d}.eml"
             inner.write_bytes(raw)
-            _process(inner, f"{label}/{n:05d} {readers.mail_subject(raw)}.eml", out, area, isolated, counts, 1)
+            _process(inner, f"{label}/{n:05d} {readers.mail_subject(raw)}.eml", where, 1)
     seen.parent.mkdir(parents=True, exist_ok=True)
     seen.touch()  # empty: a mail's name can be its subject, and nothing readable is kept here
 
@@ -262,7 +274,7 @@ def _read_batch(files: list[Path], label_of, out: Path, area: str, isolated: boo
 
     def one(f: Path) -> dict[str, int]:
         counts = {"parsed": 0, "skipped": 0, "failed": 0}
-        _process(f, label_of(f), out, area, isolated, counts, 0, source_of(f) if source_of else "")
+        _process(f, label_of(f), Where(out, area, isolated, counts), 0, source_of(f) if source_of else "")
         return counts
 
     unread = 0

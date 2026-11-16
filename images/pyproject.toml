@@ -44,6 +44,10 @@ ignore = [
 [tool.ruff.lint.mccabe]
 max-complexity = 15   # a function above this is split, not excused
 
+[tool.ruff.lint.pylint]
+max-args = 7  # more is bundled into one record
+max-positional-args = 7
+
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S", "B"]
 

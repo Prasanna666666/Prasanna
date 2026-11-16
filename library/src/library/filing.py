@@ -75,7 +75,7 @@ def prepare(conn, args: dict) -> tuple[list[list], str, str, list[str]]:
     kinds = [k for k in str(args.get("kind", "")).replace(" ", "").split(",") if k]
     if not kinds and not mail:
         raise ValueError("say which kind of document to file (for example invoice or insurance)")
-    wanted = store.list_documents(conn, kinds, area="mail" if mail else "", limit=500)
+    wanted = store.list_documents(conn, kinds, limit=500, narrow=store.Narrow(area="mail" if mail else ""))
     wanted = [d for d in wanted if (d["area"] == "mail") == mail and d["area"] in ("", "mail")]
     folders: dict[str, list[Path]] = {}
     for path in root.rglob("*"):

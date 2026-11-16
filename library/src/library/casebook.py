@@ -19,7 +19,7 @@ from kit import extract
 from kit.groups import Groups
 
 from . import priority
-from .trace import FAILED_GROUP
+from .trace import FAILED_GROUP, Hooks
 
 ID = re.compile(
     r"\b(?=[A-Za-z0-9/\-]*\d)(?=[A-Za-z0-9/\-]*[A-Za-z])[A-Za-z0-9][A-Za-z0-9/\-]{4,}\b"
@@ -289,12 +289,11 @@ def _verdicts(
     model: str,
     by_id: dict[int, dict[str, Any]],
     answered: list[int],
-    control: Callable[[], str] | None,
-    progress: Callable[[str], None] | None,
-    trace: Any = None,
+    hooks: Hooks,
     pairs: int = MAX_CONFIRMS,
 ) -> Callable[[int, int], bool | None]:
     """Earlier answers are remembered by the content of both pieces; new ones are asked, a limited number per round. `answered` counts the new answers."""
+    control, progress, trace = hooks.control, hooks.progress, hooks.trace
     budget = [pairs if client is not None else 0]
 
     def verdict(a: int, b: int) -> bool | None:
@@ -323,20 +322,12 @@ def _verdicts(
     return verdict
 
 
-def rebuild(
-    conn,
-    client: Any = None,
-    model: str = "",
-    control: Callable[[], str] | None = None,
-    progress: Callable[[str], None] | None = None,
-    trace: Any = None,
-    pairs: int = MAX_CONFIRMS,
-) -> int:
+def rebuild(conn, client: Any = None, model: str = "", hooks: Hooks | None = None, pairs: int = MAX_CONFIRMS) -> int:
     """Group the pieces into matters (returns how much changed). A matter whose pieces did not change keeps what was already understood; changed or new ones are queued to be read again."""
     pieces = pieces_of(conn)
     by_id = {p["id"]: p for p in pieces}
     answered = [0]
-    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, control, progress, trace, pairs))[0]}
+    now: dict[str, list[int]] = {_hash(g, by_id): g for g in link(pieces, _verdicts(conn, client, model, by_id, answered, hooks or Hooks(), pairs))[0]}
     known = {r["input_hash"] for r in conn.execute("SELECT input_hash FROM cases")}
     for h in known - set(now):
         conn.execute("DELETE FROM cases WHERE input_hash=?", (h,))

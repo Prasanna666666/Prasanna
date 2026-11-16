@@ -88,7 +88,9 @@ def test_a_document_becomes_ready_once_judged_and_an_app_asks_by_kind(conn, tmp_
     assert done["read"] == 1
     [doc] = store.list_documents(conn, ["invoice"], full=True)
     assert doc["facts"]["party"] == "Ziggo" and float(doc["facts"]["total"]) == 60.5 and "FACTUUR" in doc["text"] and doc["ready"] == 1
-    assert store.list_documents(conn, ["ticket"]) == [] and store.list_documents(conn, ["invoice"], since=1) == []  # nothing new since number 1
+    assert (
+        store.list_documents(conn, ["ticket"]) == [] and store.list_documents(conn, ["invoice"], narrow=store.Narrow(since=1)) == []
+    )  # nothing new since number 1
 
 
 def test_a_newsletter_is_judged_once_without_the_model_and_a_waiting_document_stays_pending(conn, tmp_path):
@@ -421,7 +423,7 @@ def test_documents_are_named_by_what_they_say_and_a_whole_email_is_never_listed(
 
     judging.judge_pending(conn, Model(), "fake")
     judging.finish_matters(conn, Model(), "fake")  # shown once read together with what belongs with it, at the end of a read
-    listed = store.list_documents(conn, ["invoice"], source="documents")
+    listed = store.list_documents(conn, ["invoice"], narrow=store.Narrow(source="documents"))
     assert [d["title"] for d in listed] == ["Internet bill · Ziggo"]  # the document inside the mail, by its title; the mail itself is not a document
     assert len(store.list_documents(conn, ["invoice"])) == 2  # the data feed (trips, Finance) still sees what the mail says
 

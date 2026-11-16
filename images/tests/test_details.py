@@ -67,7 +67,12 @@ def test_scene_and_landmark_tags_come_from_the_stored_embeddings_without_decodin
         def embed_text(self, texts):
             return np.array([[1.0, 0.0] if "tower" in t.lower() else [0.0, 1.0] for t in texts], np.float32)
 
-    assert details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "beach"], top=1, min_score=0.5, verify=False) == 2
+    assert (
+        details.clip_tags(
+            conn, index, Embedder(), ["Tokyo Tower", "beach"], limits=details.ClipLimits(top=1, min_score=0.5), verify=False
+        )
+        == 2
+    )
     tags = dict(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
     assert tags == {1: "tokyo tower", 2: "beach"}
 
@@ -126,7 +131,9 @@ def test_guesses_from_appearance_are_kept_only_when_something_independent_agrees
         def embed_text(self, texts):
             return np.ones((len(texts), 2), np.float32)  # every photo matches every label equally well
 
-    details.clip_tags(conn, index, Embedder(), ["Tokyo Tower", "dog"], top=2, min_score=0.0, min_p=0.0, geo=geo)
+    details.clip_tags(
+        conn, index, Embedder(), ["Tokyo Tower", "dog"], limits=details.ClipLimits(top=2, min_score=0.0, min_p=0.0), geo=geo
+    )
     tags = sorted(conn.execute("SELECT item_id, label FROM photo_labels WHERE source='clip'").fetchall())
     assert tags == [
         (1, "tokyo tower"),
