@@ -58,11 +58,12 @@ class Unclear(Exception):
     """The model answered, but not with anything usable (twice). The document is not 'other': it is not understood yet and is tried again later."""
 
 
-def _ask(client, model: str, system: str, text: str, schema: dict) -> dict:
+def _ask(client, model: str, system: str, text: str, schema: dict, max_tokens: int | None = None) -> dict:
     """Ask the model twice at most. Raises Unclear with the reason (never with anything from the text): nothing came back, the answer was cut off or not valid, or it was empty."""
     reason = "the model gave no usable answer"
     for _ in range(2):
-        msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema)
+        extra = {"max_tokens": max_tokens} if max_tokens else {}  # a short answer is capped: the model stops as soon as it has said it
+        msg = client.chat(model, [{"role": "system", "content": system}, {"role": "user", "content": text}], schema=schema, **extra)
         content = str((msg or {}).get("content") or "")
         if not content.strip():
             reason = "the model returned nothing"
@@ -189,7 +190,7 @@ def _classify_briefly(client, model: str, name: str, text: str, apps: dict[str, 
     schema = kind_schema(apps)
     schema = {**schema, "properties": {k: v for k, v in schema["properties"].items() if k in ("kind", "title", "apps")}}
     prompt = kind_prompt(apps).split(" Then give:")[0] + " Then give a short title. Nothing else."
-    data = _ask(client, model, prompt, f"File name: {name}\n\n{text[:1200]}\n[...]\n{text[-400:] if len(text) > 1600 else ''}", schema)
+    data = _ask(client, model, prompt, f"File name: {name}\n\n{text[:1200]}\n[...]\n{text[-400:] if len(text) > 1600 else ''}", schema, max_tokens=160)
     return {
         "kind": str(data.get("kind") or "").strip()[:60],
         "title": str(data.get("title") or "")[:120],

@@ -6,6 +6,11 @@
 #   ATLAS_REBUILD=1 ./up.sh    rebuild even if nothing changed
 set -euo pipefail
 cd "$(dirname "$0")"
+# Make the most of the Apple chip: Ollama runs on the Mac's GPU already; these settings make it faster and lighter on memory (flash attention, and a smaller memory for what it has just read).
+if [ "$(uname)" = Darwin ] && [ "$(launchctl getenv OLLAMA_FLASH_ATTENTION 2>/dev/null)" != 1 ]; then
+  launchctl setenv OLLAMA_FLASH_ATTENTION 1 && launchctl setenv OLLAMA_KV_CACHE_TYPE q8_0 \
+    && echo "Speed settings for the AI model are set. Quit and reopen Ollama once for them to apply."
+fi
 BUILT="$HOME/.atlas-built"
 HERE="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 export ATLAS_BUILD="${HERE:0:7}"   # shown on the home page, so a part that was not updated can be seen
