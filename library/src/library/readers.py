@@ -424,7 +424,7 @@ def read_html(path: Path) -> dict:
     return read_html_text(path.read_text(encoding="utf-8", errors="replace"))
 
 
-MAIL_MAX_MESSAGES = 20_000  # per mailbox file
+MAIL_MAX_MESSAGES = 1_000_000  # per mailbox file (a whole Gmail export is one file)
 MESSAGE_MAX_BYTES = 25 * 1024 * 1024
 TINY_IMAGE = 10 * 1024  # logos and tracking pixels in signatures are not documents
 

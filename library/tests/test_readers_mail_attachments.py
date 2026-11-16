@@ -143,3 +143,17 @@ def test_attachments_apple_mail_keeps_beside_its_messages_are_found_and_read(tmp
     out = tmp_path / "out"
     assert parser.process_mail_attachments(tmp_path, out, isolated=False)["parsed"] == 1
     assert [json.loads(p.read_text())["name"] for p in out.glob("*.json")] == ["5/1/report.txt"]
+
+
+def test_a_google_export_marks_spam_promotions_and_trash_by_the_labels_it_carries(tmp_path):
+    from library import parser
+
+    def put(name, labels):
+        f = tmp_path / name
+        f.write_bytes(f"From: a@example.org\nX-Gmail-Labels: {labels}\nSubject: x\n\nhello".encode())
+        return f
+
+    assert not parser.is_bulk_mail(put("a.eml", "Inbox,Important,Category Updates"))
+    assert not parser.is_bulk_mail(put("b.eml", "Sent"))
+    for labels in ("Spam", "Inbox,Category Promotions", "Trash", "Category Social,Unread"):
+        assert parser.is_bulk_mail(put("c.eml", labels))

@@ -1,5 +1,5 @@
 {
-  "_about": "The mailboxes that are read, by name (any language, any case, '.mbox' ignored): every other mailbox, such as spam, trash, drafts and your own folders, is skipped. Gmail keeps all mail in one mailbox, 'All Mail', and shows Inbox and Sent as views of it: it is read, and mail that carries one of the `bulk` headers below (newsletters, promotions, mailing lists) is skipped. Add a name or a header here to change what is read. Set LIBRARY_MAILBOXES (comma separated) to use another list.",
+  "_about": "The mailboxes that are read, by name (any language, any case, '.mbox' ignored): every other mailbox, such as spam, trash, drafts and your own folders, is skipped. Gmail keeps all mail in one mailbox, 'All Mail', and shows Inbox and Sent as views of it: it is read, and mail that carries one of the `bulk` headers below (newsletters, promotions, mailing lists) is skipped. Add a name or a header here to change what is read. Set LIBRARY_MAILBOXES (comma separated) to use another list. A Google export (Takeout) marks each message with its Gmail labels in `X-Gmail-Labels`: spam, trash, promotions, social and drafts are skipped.",
   "read": [
     "inbox",
     "postvak in",
@@ -18,6 +18,7 @@
     "list-unsubscribe": "",
     "precedence": "bulk list junk",
     "x-spam-flag": "yes",
-    "auto-submitted": "auto-generated"
+    "auto-submitted": "auto-generated",
+    "x-gmail-labels": "spam trash promotions social drafts"
   }
 }
