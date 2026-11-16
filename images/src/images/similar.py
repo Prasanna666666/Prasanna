@@ -18,6 +18,7 @@ import numpy as np
 from .search.embeddings import EmbeddingIndex
 
 NEIGHBOURS = 40
+MIN_PHOTOS = 2  # one photo has nothing to be similar to
 
 
 @dataclass(frozen=True)
@@ -36,14 +37,14 @@ def _find(parent: np.ndarray, i: int) -> int:
 
 def find_similar_groups(conn: sqlite3.Connection, index: EmbeddingIndex, cfg: SimilarSettings | None = None) -> list[list[int]]:
     cfg = cfg or SimilarSettings()
-    if len(index) < 2:
+    if len(index) < MIN_PHOTOS:
         return []
     times = {
         r["id"]: r["taken_at"]
         for r in conn.execute("SELECT id, taken_at FROM items WHERE missing=0 AND kind='image' AND taken_at IS NOT NULL")
     }
     keep = [pos for pos, item_id in enumerate(index.ids.tolist()) if item_id in times]
-    if len(keep) < 2:
+    if len(keep) < MIN_PHOTOS:
         return []
     ids = index.ids[keep]
     vectors = index.vectors[keep].astype(np.float32)

@@ -8,6 +8,8 @@ from typing import Any
 
 import numpy as np
 
+NEAR_KM = 25  # photos within this many km are "near"
+
 
 def _gps_audit(conn: sqlite3.Connection) -> list[str]:
     """Why do photos lack GPS: is it missing from the files, or did the app fail to read it?"""
@@ -62,7 +64,7 @@ def report(conn: sqlite3.Connection, geo: Any, name: str) -> list[str]:
         )
         for km in (25, 50, 100):
             lines.append(f"Photos with GPS within {km} km of {found[2]}: {int((dist <= km).sum()):,}")
-        near_ids = ids[dist <= 25]
+        near_ids = ids[dist <= NEAR_KM]
     anchors = np.union1d(tagged, near_ids)
     if len(anchors):
         marks = ",".join("?" * min(len(anchors), 900))

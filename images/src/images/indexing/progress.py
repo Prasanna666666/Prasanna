@@ -11,6 +11,8 @@ from typing import Any
 
 from ..config import Paths
 
+REPORT_EVERY_SECONDS = 0.7  # progress is reported at most this often
+
 
 class ProgressReporter:
     """Throttled, atomic writer of ``progress.json``."""
@@ -34,7 +36,7 @@ class ProgressReporter:
     def update(self, force: bool = False, **fields: Any) -> None:
         self.state.update(fields)
         now = time.time()
-        if force or now - self._last > 0.7:
+        if force or now - self._last > REPORT_EVERY_SECONDS:
             self._last = now
             self.state["updated"] = now
             tmp = self._file.with_suffix(".tmp")

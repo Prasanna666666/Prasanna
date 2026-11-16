@@ -28,6 +28,8 @@ KINDS = ("none", "image", "document")
 HOURS = {"dawn": (4, 7), "morning": (7, 12), "afternoon": (12, 17), "evening": (17, 21), "night": (21, 4)}
 DEFAULT_RADIUS_KM = 25
 FACE_MIN_SCORE, FACE_MIN_PX = 0.6, 40
+HOUR_FROM_MAX = 23  # the hour a time range starts at: 0 to this
+HOUR_TO_MAX = 24  # the hour it ends at: up to this
 
 
 @dataclass(frozen=True)
@@ -51,7 +53,7 @@ class Filters:
         return self == Filters()
 
     def hours(self) -> tuple[int, int] | None:
-        if 0 <= self.hour_from <= 23 and 0 <= self.hour_to <= 24:
+        if 0 <= self.hour_from <= HOUR_FROM_MAX and 0 <= self.hour_to <= HOUR_TO_MAX:
             return self.hour_from, self.hour_to % 24
         return HOURS.get(self.time_of_day)
 

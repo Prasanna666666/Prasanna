@@ -16,6 +16,7 @@ from ..db import meta_get
 from .textnorm import like_escape
 
 _TERM = re.compile(r'"([^"]+)"|(\S+)')
+MIN_TRIGRAM_TERM = 3  # a shorter term cannot be matched by trigrams
 
 
 def parse_terms(query: str) -> list[str]:
@@ -35,7 +36,7 @@ def search_text_ids(conn: sqlite3.Connection, query: str, *, phrase: bool = Fals
     if not terms:
         return np.zeros(0, np.int64)
     tokenizer = meta_get(conn, "fts_tokenizer", "trigram") or "trigram"
-    long_terms = [t for t in terms if len(t) >= 3] if tokenizer == "trigram" else terms
+    long_terms = [t for t in terms if len(t) >= MIN_TRIGRAM_TERM] if tokenizer == "trigram" else terms
     short_terms = [t for t in terms if t not in long_terms]  # trigram cannot index < 3 chars
     where, params = ["i.missing=0"], []
     if long_terms:

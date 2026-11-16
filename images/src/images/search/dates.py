@@ -14,11 +14,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from kit.units import MONTHS_IN_YEAR
+
 SEASON_START_MONTH = {"spring": 3, "summer": 6, "autumn": 9, "winter": 12}
 UNITS = ("day", "week", "month", "year")
 RELATIVE = (
     "today", "yesterday", "this_week", "last_week", "this_month", "last_month", "this_year", "last_year",
 )  # fmt: skip
+FIRST_YEAR = 1800
+LAST_YEAR = 2999
 
 
 @dataclass(frozen=True)
@@ -72,8 +76,8 @@ def resolve(spec: DateSpec, today: date) -> tuple[date, date] | None:
         return (start, end_excl) if start < end_excl else None
     if spec.relative in RELATIVE:
         return _relative(spec.relative, today)
-    year = spec.year if 1800 <= spec.year <= 2999 else 0
-    month = spec.month if 1 <= spec.month <= 12 else 0
+    year = spec.year if FIRST_YEAR <= spec.year <= LAST_YEAR else 0
+    month = spec.month if 1 <= spec.month <= MONTHS_IN_YEAR else 0
     if spec.season in SEASON_START_MONTH:
         first = SEASON_START_MONTH[spec.season]
         if not year:  # most recent such season that has started

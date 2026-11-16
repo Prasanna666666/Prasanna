@@ -35,6 +35,11 @@ from images.search.visual import VisualSearch
 from .plan import Clause, Plan
 
 log = logging.getLogger(__name__)
+MIN_AGREEING_CLUES = 2  # this many independent clues for the same pictures make an answer
+MIN_LONG_WORD = 5  # a word this long is worth looking up on its own
+NEAR_KM = 25  # pictures within this many km of a place are "near" it
+MIN_TERM_CHARS = 3
+MIN_WORD_CHARS = 2
 
 
 @dataclass
@@ -68,7 +73,7 @@ class Exploration:
     def together(self) -> np.ndarray | None:
         """The photos where EVERY condition holds at once (each condition judged by its own best evidence). None for a single condition."""
         sets = [*self.terms.values(), *([self.when] if self.when is not None else [])]
-        if len(sets) < 2:
+        if len(sets) < MIN_AGREEING_CLUES:
             return None
         both = sets[0]
         for other in sets[1:]:
@@ -268,7 +273,7 @@ class Executor:
                 readings.append((engine, template.format(term), np.sort(ids)))
                 identified = identified or engine in self.HARD
         hard_found = [(engine, ids) for engine, _, ids in readings if engine in self.HARD]
-        if len(hard_found) >= 2:
+        if len(hard_found) >= MIN_AGREEING_CLUES:
             # Several hard facts point at the same word (the place name, GPS nearby, a folder...): one combined answer, not separate tabs.
             # Photos near a city are often named after a smaller neighbouring town, so the place name alone misses them.
             union = np.unique(np.concatenate([ids for _, ids in hard_found]))
@@ -284,7 +289,9 @@ class Executor:
             if engine in self.SOFT:
                 for i in ids.tolist():
                     support[i] = support.get(i, 0) + 1
-        agreed = np.array(sorted(i for i, n in support.items() if n >= 2), np.int64)  # two independent clues agree
+        agreed = np.array(
+            sorted(i for i, n in support.items() if n >= MIN_AGREEING_CLUES), np.int64
+        )  # two independent clues agree
         if len(agreed):
             confirmed = np.union1d(confirmed, agreed)
         for engine, _, ids in readings:
@@ -354,7 +361,7 @@ class Executor:
                 for (text,) in self._conn.execute(
                     "SELECT DISTINCT place_text FROM items WHERE missing=0 AND place_text IS NOT NULL"
                 ):
-                    words.update(w for w in text.split() if len(w) >= 5)
+                    words.update(w for w in text.split() if len(w) >= MIN_LONG_WORD)
                 return sorted(words)
 
             self._vocabulary = remembered(self._conn, "place_vocabulary", build)
@@ -363,7 +370,7 @@ class Executor:
     def _similar_place_ids(self, query: str, result: ExecResult) -> np.ndarray:
         """A place spelled differently from the library's (Bangalore / Bengaluru, Zurich / Zürich)."""
         found: list[np.ndarray] = []
-        for word in dict.fromkeys(w for w in query.lower().split() if len(w) >= 5):
+        for word in dict.fromkeys(w for w in query.lower().split() if len(w) >= MIN_LONG_WORD):
             close = difflib.get_close_matches(word, self._place_vocabulary(), n=1, cutoff=0.66)
             if close:
                 ids = place_ids(self._conn, close[0])
@@ -414,7 +421,7 @@ class Executor:
 
                     near = np.array([r[0] for r in rows], np.int64)
                     dist = haversine_km(found[0], found[1], np.array([r[1] for r in rows]), np.array([r[2] for r in rows]))
-                    ids = np.union1d(ids, near[dist <= 25])
+                    ids = np.union1d(ids, near[dist <= NEAR_KM])
             return ids
         except sqlite3.Error:
             return np.zeros(0, np.int64)
@@ -507,7 +514,7 @@ class Executor:
         """Photos whose Apple Vision labels share a word with the term (confident labels only)."""
         from images.search.textnorm import tokens
 
-        words = [w for w in tokens(term) if len(w) >= 3]
+        words = [w for w in tokens(term) if len(w) >= MIN_TERM_CHARS]
         if not words:
             return np.zeros(0, np.int64)
         try:
@@ -525,7 +532,7 @@ class Executor:
     def _tag_ids(self, query: str) -> np.ndarray:
         """Photos labelled with this scene, object or landmark (read once from the picture; see `aperture details`)."""
         word = query.strip().lower()
-        if len(word) < 2:
+        if len(word) < MIN_WORD_CHARS:
             return np.zeros(0, np.int64)
         try:
             # The exact label, never a part of one. Trusted when strong on its own (>= 0.8) or when two different sources agree (>= 0.5 each),

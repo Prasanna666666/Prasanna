@@ -22,6 +22,7 @@ from .textnorm import tokens
 from .visual import VisualSearch
 
 TOO_COMMON = 0.5  # a word found in more than half of the library says nothing about this request
+MIN_PHRASE_WORD = 3  # a shorter word is not a phrase of its own
 
 
 def _word_ids(conn: sqlite3.Connection, word: str) -> np.ndarray:
@@ -164,7 +165,9 @@ def probe(conn: sqlite3.Connection, request: str, people: Callable[[str], int] |
     names, text found in photos, and (when given) people.  Only hits are reported, with their
     counts, so the model picks the engine that really holds the word instead of guessing."""
     words = [w for w in tokens(request, min_len=2) if w not in FILLER]  # filler words match everything and cost a lookup each
-    phrases = list(dict.fromkeys([w for w in words if len(w) >= 3] + [f"{a} {b}" for a, b in itertools.pairwise(words)]))
+    phrases = list(
+        dict.fromkeys([w for w in words if len(w) >= MIN_PHRASE_WORD] + [f"{a} {b}" for a, b in itertools.pairwise(words)])
+    )
     total = remembered(conn, "live_count", lambda: conn.execute("SELECT COUNT(*) FROM items WHERE missing=0").fetchone()[0]) or 1
     lines: list[str] = []
     for phrase in phrases[:8]:

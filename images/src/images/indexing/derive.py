@@ -130,16 +130,19 @@ def infer_locations(conn: sqlite3.Connection, geo, min_precision: float = MIN_PR
     conn.execute(
         "UPDATE items SET gps_est_lat=NULL, gps_est_lon=NULL, gps_est_conf=NULL, gps_est_place=NULL, gps_est_place_text=''"
     )
-    ids, times, lat, lon = [], [], [], []
+    id_list: list[int] = []
+    time_list: list[float] = []
+    lat_list: list[float] = []
+    lon_list: list[float] = []
     for item_id, taken, la, lo in rows:
         try:
-            times.append(datetime.fromisoformat(str(taken)[:19]).timestamp() / 60.0)  # minutes
+            time_list.append(datetime.fromisoformat(str(taken)[:19]).timestamp() / 60.0)  # minutes
         except ValueError:
             continue
-        ids.append(item_id)
-        lat.append(np.nan if la is None else la)
-        lon.append(np.nan if lo is None else lo)
-    ids, times, lat, lon = np.array(ids, np.int64), np.array(times), np.array(lat), np.array(lon)
+        id_list.append(item_id)
+        lat_list.append(np.nan if la is None else la)
+        lon_list.append(np.nan if lo is None else lo)
+    ids, times, lat, lon = np.array(id_list, np.int64), np.array(time_list), np.array(lat_list), np.array(lon_list)
     has = ~np.isnan(lat)
     report: dict[str, Any] = {"kinds": [], "located": 0, "without_gps": int((~has).sum())}
     if has.sum() < min_samples * 2:

@@ -14,6 +14,8 @@ import numpy as np
 
 from .textnorm import like_escape, tokens
 
+MEMO_LIMIT = 64  # the memo is emptied when it holds more than this
+
 
 def _ids(rows: list[tuple[int]] | list[sqlite3.Row]) -> np.ndarray:
     return np.fromiter((r[0] for r in rows), np.int64)
@@ -81,7 +83,7 @@ def remembered(conn: sqlite3.Connection, name: Any, compute: Any) -> Any:
         return compute()
     key = (name, signature)
     if key not in _MEMO:
-        if len(_MEMO) > 64:
+        if len(_MEMO) > MEMO_LIMIT:
             _MEMO.clear()
         _MEMO[key] = compute()
     value = _MEMO[key]

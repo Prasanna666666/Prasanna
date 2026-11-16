@@ -133,7 +133,7 @@ class OnnxFaceAnalyzer:
             box_d = np.asarray(outputs[idx + 3]).reshape(-1, 4) * stride
             kps_d = np.asarray(outputs[idx + 6]).reshape(-1, 10) * stride
             cells = size // stride
-            anchors = np.stack(np.mgrid[:cells, :cells][::-1], axis=-1).astype(np.float32).reshape(-1, 2) * stride
+            anchors = np.stack(list(np.mgrid[:cells, :cells][::-1]), axis=-1).astype(np.float32).reshape(-1, 2) * stride
             anchors = np.stack([anchors] * 2, axis=1).reshape(-1, 2)  # two anchors per cell
             keep = np.where(score >= self._thresh)[0]
             if not keep.size:

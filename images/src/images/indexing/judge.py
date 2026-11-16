@@ -59,6 +59,7 @@ PROMPT = (
     "season, weather, main colours, and what kind of image it is. For the place, name the city and country only if the picture really shows "
     "it (a famous landmark, a readable sign, unmistakable architecture) and say what tells you; otherwise leave the city empty and set sure to false."
 )
+MIN_TAG_CHARS = 3  # a shorter tag is dropped
 
 
 def shrink(jpeg: bytes) -> bytes:
@@ -87,7 +88,7 @@ def labels_of(data: dict) -> list[str]:
     for key in ("scene", "activity", "time_of_day", "season", "weather", "setting", "kind"):
         if data.get(key):
             words.append(str(data[key]))
-    return [w.strip().lower() for w in dict.fromkeys(words) if w and len(str(w).strip()) >= 3]
+    return [w.strip().lower() for w in dict.fromkeys(words) if w and len(str(w).strip()) >= MIN_TAG_CHARS]
 
 
 def _time_neighbours(conn: sqlite3.Connection, taken: str, hours: float = 12.0) -> list[tuple[float, float]]:

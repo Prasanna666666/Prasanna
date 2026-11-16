@@ -16,6 +16,8 @@ from kit.groups import Groups
 
 from ..db import meta_set
 
+MAX_MERGE_CLUSTERS = 8000  # above this many clusters the merge step is skipped: it compares every pair
+
 
 @dataclass(frozen=True)
 class ClusterResult:
@@ -72,7 +74,7 @@ def greedy_cluster(embeddings: np.ndarray, threshold: float, refine: int = 2) ->
     centroids = np.zeros((k, dim), np.float32)
     np.add.at(centroids, labels, embeddings)
     centroids = _normalize_rows(centroids)
-    if 1 < k <= 8000:  # merge clusters that are really the same person
+    if 1 < k <= MAX_MERGE_CLUSTERS:  # merge clusters that are really the same person
         same_person = Groups(range(k))
         similarity = centroids @ centroids.T
         for a, b in zip(*np.where(np.triu(similarity >= threshold + 0.05, 1)), strict=True):

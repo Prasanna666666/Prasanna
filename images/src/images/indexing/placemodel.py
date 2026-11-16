@@ -28,6 +28,9 @@ TIME_SCALE_MIN = 60.0
 MAX_TEST = 20000
 MIN_TESTS_PER_PLACE = 8  # a place must have been tested at least this often to be trusted
 CHUNK = 512
+MIN_GPS_PHOTOS = 200  # fewer photos with a place than this teach nothing
+MIN_CHECKED = 100  # a check needs this many photos to mean anything
+NEAREST_IN_TIME = 40  # the closest photos in time that are compared
 
 
 def _cell(lat: np.ndarray, lon: np.ndarray) -> np.ndarray:
@@ -61,8 +64,8 @@ def _features(
             idx = np.arange(max(lo, 0), hi)
             if self_pos is not None:
                 idx = idx[idx != self_pos[r]]
-            if len(idx) > 40:  # the 40 closest in time
-                idx = idx[np.argsort(np.abs(t_gps[idx] - t))[:40]]
+            if len(idx) > NEAREST_IN_TIME:
+                idx = idx[np.argsort(np.abs(t_gps[idx] - t))[:NEAREST_IN_TIME]]
             wt = np.exp(-np.abs(t_gps[idx] - t) / TIME_SCALE_MIN)
             tot = wt.sum()
             if tot > 0:
@@ -95,7 +98,7 @@ def _top(candidates, w):
             result.append((None, 0.0, 0.0))
             continue
         p = _predict(w, feats)
-        k = int(p.argmax())
+        k = int(np.argmax(p))
         result.append((cells[k], float(p[k]), float(feats[k, 1])))
     return result
 
@@ -160,7 +163,7 @@ def locate_by_picture(
         "located": 0,
         "without_gps": int((~has & ~est).sum()),
     }
-    if has.sum() < 200:
+    if has.sum() < MIN_GPS_PHOTOS:
         return report
     vec = index.vectors[[row_of[int(i)] for i in ids]].astype(np.float32)
     vec /= np.maximum(np.linalg.norm(vec, axis=1, keepdims=True), 1e-9)
@@ -226,7 +229,7 @@ def locate_by_picture(
     # 1b. The test photos have GPS, the photos to place do not, and they may look different (screenshots, forwarded pictures, other cameras).
     # So also check the model on photos that have NO GPS but were located by time at >= 95%: if it disagrees with them, it places nothing.
     checked = np.flatnonzero(~has & est & ~np.isnan(elat))
-    if len(checked) >= 100:
+    if len(checked) >= MIN_CHECKED:
         s, c = neighbours(vec[checked], times[checked], None)
         verdicts = [
             cell == t
@@ -235,7 +238,7 @@ def locate_by_picture(
             )
             if cell is not None and p >= threshold and look >= floor and int(cell) in trusted
         ]
-        if len(verdicts) >= 100:
+        if len(verdicts) >= MIN_CHECKED:
             agreement = float(np.mean(verdicts))
             report.update(checked_on_no_gps=len(verdicts), agreement_on_no_gps=round(agreement, 3))
             if agreement < min_precision:

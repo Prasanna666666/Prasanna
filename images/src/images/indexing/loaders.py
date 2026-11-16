@@ -18,6 +18,7 @@ from ..safety import WriteGuard
 
 MAX_TEXT_CHARS = 300_000
 _EXIF_DATE = re.compile(r"^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})")
+MIN_TEXT_LAYER_CHARS = 20  # a page with less text than this is read by character recognition
 
 
 @dataclass
@@ -172,7 +173,7 @@ def load_pdf(
             for number in range(min(doc.page_count, max_pages)):
                 page = doc[number]
                 text = page.get_text("text") or ""
-                if len(text.strip()) < 20 and recognizer is not None:
+                if len(text.strip()) < MIN_TEXT_LAYER_CHARS and recognizer is not None:
                     pixmap = page.get_pixmap(matrix=fitz.Matrix(2.5, 2.5), alpha=False)
                     text = recognizer.read(pixmap.tobytes("png"))
                 pages.append(text)

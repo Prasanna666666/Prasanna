@@ -13,6 +13,10 @@ LIVE = "i.missing=0 AND i.meta_done=1 AND i.kind='image'"  # the photos that can
 _DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _MONTH = re.compile(r"^\d{4}-\d{2}$")
 _YEAR = re.compile(r"^\d{4}$")
+MIN_QUERY_CHARS = 2  # a search shorter than this finds nothing
+FEW_FACES = 4  # a picture of one to this many faces is a portrait or a group; more is a crowd
+PORTRAIT_SCORE = 0.25
+CROWD_SCORE = 0.1
 
 
 def library(conn: sqlite3.Connection, q: dict[str, str], offset: int = 0, limit: int = PAGE) -> dict[str, Any]:
@@ -64,7 +68,7 @@ def _score(r: sqlite3.Row) -> float:
     return (
         0.35 * min(pixels / 12_000_000, 1.0)
         + 0.35 * detail
-        + (0.25 if 1 <= faces <= 4 else 0.1 if faces else 0.0)
+        + (PORTRAIT_SCORE if 1 <= faces <= FEW_FACES else CROWD_SCORE if faces else 0.0)
         + (0.1 if r["place"] else 0.0)
     )
 
@@ -204,7 +208,7 @@ def search_links(
     from urllib.parse import quote
 
     q = query.strip().lower()
-    if len(q) < 2:
+    if len(q) < MIN_QUERY_CHARS:
         return []
     out: list[dict[str, str]] = [
         {"title": p["place"], "subtitle": f"{p['n']:,} photos", "kind": "place", "link": "#/library?place=" + quote(p["place"])}

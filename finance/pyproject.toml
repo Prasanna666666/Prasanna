@@ -37,7 +37,7 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", 
 ignore = [
     "S101",    # assert is used in tests
     "S608",    # SQL is built from column names written in code, never from user input (reviewed)
-    "PLR0913", "PLR2004",  # many keyword arguments are normal here; magic numbers in readers are format widths
+    "PLR0913",  # many keyword arguments are normal here; magic numbers in readers are format widths
     "PLC0415", # imports inside functions are deliberate: optional dependencies and the parser container must not load each other
     "PLR0917", # call sites use keywords where it matters
     "E501",    # the formatter owns line length

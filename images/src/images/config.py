@@ -21,6 +21,13 @@ ENV_NEVER_ONLINE = "APERTURE_NEVER_ONLINE"  # "1" = network can NEVER be enabled
 ENV_INTERNAL = "APERTURE_ALLOW_INTERNAL"  # test escape hatch: allow a non-external drive
 
 STRICTNESS_LEVELS = ("strict", "balanced", "broad")
+SCHEMA_FAST_PLANNER = 2  # v2: the fast single-call planner is the default
+SCHEMA_SMALL_VISION = 3  # v3: a small vision model that fits in 8 GB is the default
+SCHEMA_ONE_MODEL = 4  # v4: a single Ministral model replaces llama3.2 + moondream
+SCHEMA_LIGHT_INDEXING = 5  # v5: lighter indexing defaults (8 GB Mac sharing RAM with the model)
+SCHEMA_MANUAL_SCAN = 6  # v6: indexing no longer starts by itself every time the app opens
+SCHEMA_AGENT_BRAIN = 8  # v8: the tool-using agent is the default brain; word-matching shortcuts are off
+SCHEMA_AGENT_AGAIN = 9  # v9: the tool-using agent is the default again
 
 
 @dataclass(frozen=True)
@@ -211,22 +218,26 @@ class Settings:
         except (OSError, ValueError):
             return settings.normalized()
         if isinstance(raw, dict):
-            if raw.get("schema", 1) < 2:  # v2: the fast single-call planner is the default
+            if raw.get("schema", 1) < SCHEMA_FAST_PLANNER:  # v2: the fast single-call planner is the default
                 raw.pop("agentic", None)
-            if raw.get("schema", 1) < 3:  # v3: a small vision model that fits in 8 GB is the default
+            if raw.get("schema", 1) < SCHEMA_SMALL_VISION:  # v3: a small vision model that fits in 8 GB is the default
                 raw.pop("vision_model", None)
-            if raw.get("schema", 1) < 4:  # v4: a single Ministral model replaces llama3.2 + moondream
+            if raw.get("schema", 1) < SCHEMA_ONE_MODEL:  # v4: a single Ministral model replaces llama3.2 + moondream
                 raw.pop("ollama_model", None)
                 raw.pop("vision_model", None)
-            if raw.get("schema", 1) < 5:  # v5: lighter indexing defaults (8 GB Mac sharing RAM with the model)
+            if (
+                raw.get("schema", 1) < SCHEMA_LIGHT_INDEXING
+            ):  # v5: lighter indexing defaults (8 GB Mac sharing RAM with the model)
                 raw.pop("batch_size", None)
                 raw.pop("workers", None)
-            if raw.get("schema", 1) < 6:  # v6: indexing no longer starts by itself every time the app opens
+            if raw.get("schema", 1) < SCHEMA_MANUAL_SCAN:  # v6: indexing no longer starts by itself every time the app opens
                 raw.pop("auto_scan", None)
-            if raw.get("schema", 1) < 8:  # v8: the tool-using agent is the default brain; word-matching shortcuts are off
+            if (
+                raw.get("schema", 1) < SCHEMA_AGENT_BRAIN
+            ):  # v8: the tool-using agent is the default brain; word-matching shortcuts are off
                 for key in ("quick_preview", "brain", "rescue_search"):
                     raw.pop(key, None)
-            if raw.get("schema", 1) < 9:  # v9: the tool-using agent is the default again
+            if raw.get("schema", 1) < SCHEMA_AGENT_AGAIN:  # v9: the tool-using agent is the default again
                 raw.pop("brain", None)
             _overlay(settings, raw)
             settings.schema = 9

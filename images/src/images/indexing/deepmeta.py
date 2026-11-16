@@ -22,11 +22,12 @@ from typing import Any, cast
 
 READER_VERSION = 1
 MAX_INLINE_BYTES = 4096  # longer binary values are summarised (length + fingerprint), never silently dropped
+MAX_DEPTH = 6  # nested metadata is cut off below this depth
 
 
 def json_safe(value: Any, depth: int = 0) -> Any:
     """Turn any metadata value into something JSON can hold without losing it."""
-    if depth > 6:
+    if depth > MAX_DEPTH:
         return str(value)
     if value is None or isinstance(value, (bool, int, str)):
         return value

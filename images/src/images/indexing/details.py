@@ -22,6 +22,7 @@ VERSION = 2  # 2: all the Vision readers + the perceptual hash; pictures read at
 CLIP_TOP = 5
 CLIP_MIN_SCORE = 0.18  # cosine between image and "a photo of <label>" below which a tag is noise
 CLIP_MIN_P = 0.35  # and the label must win a real share of the vocabulary (a landmark tag on a plain street photo is wrong)
+MIN_TERM_CHARS = 3  # a shorter word is not a search term
 
 
 def vocabulary() -> list[str]:
@@ -161,7 +162,7 @@ STOP_WORDS = {"the", "and", "photo", "with", "of", "in", "a"}
 def _words(text: str) -> set[str]:
     from ..search.textnorm import tokens
 
-    return {t for t in tokens(text) if len(t) >= 3 and t not in STOP_WORDS}
+    return {t for t in tokens(text) if len(t) >= MIN_TERM_CHARS and t not in STOP_WORDS}
 
 
 def verify_clip_tags(conn: sqlite3.Connection, geo: Any) -> int:

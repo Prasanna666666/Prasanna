@@ -12,11 +12,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from kit.units import MAX_LATITUDE, MAX_LONGITUDE
 
 from ..config import Paths
 from .textnorm import fold, index_text
 
 EARTH_KM = 6371.0
+COUNTRY_COLUMNS = 4
+CITY_COLUMNS = 9  # columns of a line of the places file
+MAX_ALTERNATE_CHARS = 24  # an alternate name longer than this is not a place name
 
 
 @dataclass(frozen=True)
@@ -65,19 +69,19 @@ class GeoIndex:
             for line in country_info.read_text(encoding="utf-8", errors="replace").splitlines():
                 if line and not line.startswith("#"):
                     cols = line.split("\t")
-                    if len(cols) > 4:
+                    if len(cols) > COUNTRY_COLUMNS:
                         country_names[cols[0]] = cols[4]
         names, countries, search, lats, lons, pops = [], [], [], [], [], []
         for line in cities.read_text(encoding="utf-8", errors="replace").splitlines():
             cols = line.split("\t")
-            if len(cols) < 9:
+            if len(cols) < CITY_COLUMNS:
                 continue
             try:
                 lat, lon = float(cols[4]), float(cols[5])
             except ValueError:
                 continue
             country = country_names.get(cols[8], cols[8])
-            alternates = [a for a in cols[3].split(",") if a and len(a) <= 24]
+            alternates = [a for a in cols[3].split(",") if a and len(a) <= MAX_ALTERNATE_CHARS]
             variants = {cols[1], cols[2], *alternates[:40]}
             names.append(cols[1])
             countries.append(country)
@@ -92,7 +96,7 @@ class GeoIndex:
 
     def lookup(self, lat: float, lon: float, max_km: float = 80.0) -> Place | None:
         """Nearest listed city within ``max_km`` (haversine), else ``None``."""
-        if not (-90 <= lat <= 90 and -180 <= lon <= 180) or not len(self):
+        if not (-MAX_LATITUDE <= lat <= MAX_LATITUDE and -MAX_LONGITUDE <= lon <= MAX_LONGITUDE) or not len(self):
             return None
         lat_r, lon_r = math.radians(lat), math.radians(lon)
         dlat = self._lat - lat_r

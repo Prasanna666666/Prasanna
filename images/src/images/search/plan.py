@@ -17,6 +17,10 @@ from images.search.filters import DAY_TYPES, KINDS, ORIENTATIONS, QUALITIES, TIM
 
 SEASONS = ("none", "spring", "summer", "autumn", "winter")
 RELATIVES = ("none", *RELATIVE)
+HOUR_FROM_MAX = 23  # the hour a time range starts at: 0 to this
+HOUR_TO_MAX = 24  # the hour it ends at: up to this
+MAX_COUNT = 50  # a count asked for above this is refused
+MAX_RADIUS_KM = 20000  # half the way round the earth
 
 
 @dataclass(frozen=True)
@@ -99,7 +103,7 @@ def _people_count(value: Any) -> int:
         n = int(value)
     except (TypeError, ValueError):
         return -1
-    return n if 0 <= n <= 50 else -1
+    return n if 0 <= n <= MAX_COUNT else -1
 
 
 def _filters(raw: Any) -> Filters:
@@ -109,7 +113,7 @@ def _filters(raw: Any) -> Filters:
         _int(raw.get("hour_from")) if "hour_from" in raw else -1,
         _int(raw.get("hour_to")) if "hour_to" in raw else -1,
     )
-    if not (0 <= hour_from <= 23 and 0 <= hour_to <= 24 and hour_from != hour_to):
+    if not (0 <= hour_from <= HOUR_FROM_MAX and 0 <= hour_to <= HOUR_TO_MAX and hour_from != hour_to):
         hour_from = hour_to = -1
     radius = _int(raw.get("radius_km"))
     return Filters(
@@ -124,6 +128,6 @@ def _filters(raw: Any) -> Filters:
         has_gps=_choice(raw.get("has_gps"), TRISTATE, "none"),
         kind=_choice(raw.get("kind"), KINDS, "none"),
         near=_text(raw.get("near"), 80),
-        radius_km=radius if 0 < radius <= 20000 else 0,
+        radius_km=radius if 0 < radius <= MAX_RADIUS_KM else 0,
         color=_choice(raw.get("color"), COLORS, "none"),
     )

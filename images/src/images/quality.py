@@ -33,6 +33,7 @@ SENSITIVITY: dict[str, tuple[float, float, float]] = {
     "high": (50.0, 55.0, 205.0),
 }
 BLANK_CONTRAST = 6.0
+MIN_SIDE_FOR_METRICS = 3  # an image thinner than this has no sharpness to measure
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ class Metrics:
 def analyze_gray(gray: np.ndarray) -> Metrics:
     """Metrics of a 2-D float array (luminance 0-255)."""
     g = gray.astype(np.float32)
-    if min(g.shape) < 3:
+    if min(g.shape) < MIN_SIDE_FOR_METRICS:
         return Metrics(0.0, float(g.mean()), float(g.std()))
     lap = 4 * g[1:-1, 1:-1] - g[:-2, 1:-1] - g[2:, 1:-1] - g[1:-1, :-2] - g[1:-1, 2:]
     hb, wb = lap.shape[0] // BLOCK, lap.shape[1] // BLOCK

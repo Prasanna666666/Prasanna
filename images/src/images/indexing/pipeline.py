@@ -26,6 +26,7 @@ from . import loaders
 from .discovery import meta_text_for
 
 STAGE_INDEX, STAGE_FACES, STAGE_OCR = "index", "faces", "ocr"
+MIN_OCR_SIDE = 40  # a picture smaller than this (pixels) is not worth reading
 
 
 @dataclass
@@ -123,7 +124,7 @@ def _ocr(job: Job, svc: Services, st: Settings, out: WorkResult) -> None:
         _, _, out.text = loaders.load_pdf(job.path, recognizer=svc.ocr, max_pages=st.ocr_max_pdf_pages, want_text=True)
     elif svc.ocr is not None:
         image, _ = loaders.load_image(job.path, st.ocr_max_side)
-        if min(image.size) >= 40:
+        if min(image.size) >= MIN_OCR_SIDE:
             out.text = svc.ocr.read(loaders.jpeg_bytes(image))
     out.text = (out.text or "")[: loaders.MAX_TEXT_CHARS]
 
