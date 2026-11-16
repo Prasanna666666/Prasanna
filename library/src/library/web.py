@@ -629,7 +629,7 @@ def _step_state(running: bool, done: bool) -> str:
 STEP_WORDS = (
     ("Read", "Reading files", "Get the text out of every file"),
     ("Sort", "Sorting files", "Find out what each file is"),
-    ("Understand", "Understanding your files", "Connect related files and read them together"),
+    ("Group", "Grouping related files", "Put files about the same thing together and read them as one"),
 )
 
 
@@ -664,7 +664,7 @@ def _tally(conn) -> dict[str, dict[str, int]]:
 
 
 def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
-    """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Understand: related
+    """The three steps of a read. 1 Read: the text of every file is taken out. 2 Sort: every file is sorted or, when the model has no use for it, dealt with. 3 Group: related
     files are connected and read together. Each step counts three things apart, the way the person knows them: the documents (files in the folders), the mails, and the documents
     inside mails. A step is done when all of them are."""
     found = _found()

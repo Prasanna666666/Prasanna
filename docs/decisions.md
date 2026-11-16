@@ -160,7 +160,7 @@ Still true and still visible in the reading report (`unread_files` tool): mail j
 
 - **Nothing is hardcoded.** The apps are declared in `library/src/library/apps.json` (name, what it is about, the words that signal it, optionally an extra reading). The model describes each file freely (`kind`) and marks it with the declared apps it belongs to (`apps`). No kind of document or keyword table is in the code; an app asks for its files with `app=<name>`.
 - **One integrated store.** No app is private or special: every app sees every file marked for it.
-- **Three strict steps, one after the other.** 1 Read (text out of every file), 2 Sort (the model marks every file), 3 Understand (related files linked, read together, claims verified by literal quotes, then cross-checked against the other apps). A step finishes completely before the next starts.
+- **Three strict steps, one after the other.** 1 Read (text out of every file), 2 Sort (the model marks every file), 3 Group (related files linked, read together, claims verified by literal quotes, then cross-checked against the other apps). A step finishes completely before the next starts.
 - **Counts are what the person knows:** documents, mails and documents inside mails, each counted apart per step (`counts` in the step). No internal numbers (groups, items, skipped) are shown.
 - **Time left** comes from the model work still to do (`store.model_work_left`), not from the number of waiting rows.
 - **Failures say what and where, never what the file says:** a failed file shows the reason (`returned nothing`, `cut off`, `empty`) and the try (n of 3); errors show kind and place in the code only.

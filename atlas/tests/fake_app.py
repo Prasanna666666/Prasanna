@@ -83,7 +83,7 @@ class _Handler(BaseHTTPRequestHandler):
                             "counts": [{"label": "documents", "done": 1, "total": 8}, {"label": "mails", "done": "x", "total": 1}],
                             "percent": 12.5,
                         },
-                        {"n": 3, "name": "Understand", "state": "waiting", "counts": [], "percent": 0.0},
+                        {"n": 3, "name": "Group", "state": "waiting", "counts": [], "percent": 0.0},
                         {"n": "x"},
                     ]
                     if self.app.scanning
