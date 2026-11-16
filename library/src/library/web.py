@@ -39,9 +39,6 @@ def model_client() -> tuple[Any, str]:
     return client, client.resolve(os.environ.get("LIBRARY_MODEL", llm.DEFAULT_MODEL))
 
 
-_MARKED: list[int] = []
-
-
 class State:
     """What the server remembers between requests: the Update that is running, if any."""
 
@@ -63,20 +60,7 @@ class State:
 
     def connect(self):
         conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db", timeout=60)
-        if not _MARKED:  # files sorted before the apps were declared get their marks, once per start, in the background: no request ever waits for it
-            _MARKED.append(0)
-            threading.Thread(target=self._mark_old_files, name="mark-old-files", daemon=True).start()
         return conn
-
-    def _mark_old_files(self) -> None:
-        conn = db.connect(Path(os.environ.get("ATLAS_HOME", Path.home() / ".atlas")) / "library.db", timeout=60)
-        try:
-            store.mark_old_files(conn)
-        except Exception as exc:  # noqa: BLE001 - logged; it is tried again at the next start
-            log.failed("marking old files failed", exc)
-            _MARKED.clear()
-        finally:
-            conn.close()
 
 
 AUTO_LIMIT = int(
@@ -249,6 +233,7 @@ def _read_all(state: State) -> None:
         ):  # scanned pages were read with the old reader: once Apple's text recognition is running they are read again with it
             store.forget_scanned(conn, parsed_dir())
             engine_mark.write_text(engine)
+        store.mark_old_files(conn)  # files sorted before the apps were declared get their marks (on this connection: no other writer is at work meanwhile)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".now").unlink(missing_ok=True)
         (parsed_dir() / ".found").unlink(

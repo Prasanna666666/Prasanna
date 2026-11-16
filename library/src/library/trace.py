@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -23,14 +24,21 @@ class Trace:
         self._began = time.monotonic()
 
     def step(self, name: str, step: str, detail: str = "", seconds: float = 0.0) -> None:
-        self.conn.execute(
-            "INSERT INTO trace (run, at, name, step, detail, seconds) VALUES (?,?,?,?,?,?)",
-            (self.run, datetime.now().astimezone().strftime("%H:%M:%S"), name[:200], step, detail[:300], round(seconds, 1)),
-        )
-        self._count += 1
-        if self._count % 200 == 0:
-            self.conn.execute("DELETE FROM trace WHERE id <= (SELECT MAX(id) FROM trace) - ?", (KEEP,))
-        self.conn.commit()
+        for attempt in range(5):
+            try:
+                self.conn.execute(
+                    "INSERT INTO trace (run, at, name, step, detail, seconds) VALUES (?,?,?,?,?,?)",
+                    (self.run, datetime.now().astimezone().strftime("%H:%M:%S"), name[:200], step, detail[:300], round(seconds, 1)),
+                )
+                self._count += 1
+                if self._count % 200 == 0:
+                    self.conn.execute("DELETE FROM trace WHERE id <= (SELECT MAX(id) FROM trace) - ?", (KEEP,))
+                self.conn.commit()
+                break
+            except (
+                sqlite3.OperationalError
+            ):  # the database was busy: the trace is for looking at, so it waits a moment and, failing that, leaves this line out rather than stop the read
+                time.sleep(0.2 * (attempt + 1))
         print(f"trace {self.run} | {name} | {step} | {detail} | {seconds:.1f}s", flush=True)
         if self._now is not None:
             self._now(name, step, detail)

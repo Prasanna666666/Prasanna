@@ -1045,12 +1045,25 @@ def list_documents(
     out: list[dict] = []
     where = "ready > ?"
     args: list[Any] = [max(0, int(since))]
-    if app and not area:
-        where += " AND fact_apps LIKE ?"
-        args.append(f"%|{app}|%")
-    elif wanted and not area:
-        where += " AND (" + " OR ".join("LOWER(COALESCE(fact_kind, '')) LIKE ?" for _ in wanted) + ")"
+    # the database narrows the list before any document is looked at (the same conditions as `_fits`): without this a big library is read row by row for every page asked for
+    either: list[str] = []
+    if wanted:
+        either += ["LOWER(COALESCE(fact_kind, '')) LIKE ?" for _ in wanted]
         args += [f"%{w}%" for w in sorted(wanted)]
+    if app:
+        either.append("fact_apps LIKE ?")
+        args.append(f"%|{app}|%")
+    if area:
+        either.append("area=?")
+        args.append(area)
+    if either:
+        where += " AND (" + " OR ".join(either) + ")"
+    else:
+        where += " AND COALESCE(fact_apps, '||') NOT IN ('||', '')"  # everything the model found to be about some app
+    if only_understood or source == "documents":
+        where += " AND case_id IS NOT NULL"
+    if source == "documents":
+        where += " AND kind<>'email'"
     for r in conn.execute(f"SELECT {LIST_COLUMNS} FROM documents WHERE {where} ORDER BY ready", args):
         doc = _as_document(r)
         if not _fits(doc, wanted, area, source, only_understood, app):
