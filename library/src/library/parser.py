@@ -219,6 +219,16 @@ def _process_attachments(f: Path, label: str, out: Path, area: str, isolated: bo
     (out / ATTACHED / digest).touch()
 
 
+def _too_large(size: int, kind: str, label: str, counts: dict[str, int]) -> bool:
+    if size <= (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES):
+        return False
+    counts["skipped"] += 1
+    with _CLAIM_LOCK:
+        if len(_FAILED) < MAX_FAILED:
+            _FAILED.append(f"{label[:120]}: too large to read")
+    return True
+
+
 def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: dict[str, int], depth: int = 0, source: str = "") -> None:
     """One file. ZIP archives and emails are opened and their files processed one by one (bounded; nothing inside an archive is trusted)."""
     import tempfile
@@ -231,11 +241,8 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
         kind = sniff.kind_of(f)
     except (OSError, ValueError):
         kind = "binary"
-    if size > (MBOX_MAX_BYTES if kind == "mbox" else MAX_BYTES) or _is_bulk_message(
-        f, kind, area, depth
-    ):  # too big, or a newsletter, promotion or mailing list
-        counts["skipped"] += 1
-        return
+    if _is_bulk_message(f, kind, area, depth) or _too_large(size, kind, label, counts):
+        return  # a newsletter, promotion or mailing list (not counted among the mails to read), or a file too large to read (said as unread)
     digest = _identity(f, kind, area)
     if _done(out, digest):
         if kind == "email" and depth < MAIL_DEPTH and not (out / ATTACHED / digest).exists():

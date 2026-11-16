@@ -80,7 +80,7 @@ def test_one_update_button_starts_every_app_and_reports_each_one(running):
     money = report["modules"]["money"]
     assert money["waiting"] == ["next.pdf"] and money["steps"][0]["name"] == "Sort" and money["steps"][0]["percent"] == 12.5
     assert money["steps"][0]["counts"] == [
-        {"label": "documents", "done": 1, "total": 8, "known": True, "unread": 0}
+        {"label": "documents", "done": 1, "total": 8, "known": True, "unread": 0, "copies": 0}
     ]  # a count that is not whole numbers is dropped
     assert money["steps"][-1]["n"] == 3 and money["steps"][-1]["percent"] == 0.0
     assert report["modules"]["money"]["file"] == {"name": "bill.pdf", "step": "identifying: 31 characters", "percent": 40.0, "estimated": True, "seconds": 6}

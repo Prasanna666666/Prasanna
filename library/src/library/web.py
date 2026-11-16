@@ -472,6 +472,15 @@ def _gone_through() -> dict[str, int]:
         return {}
 
 
+def _unread_files() -> list[str]:
+    """The files (and mails) the reader could not read in its last round, each with the reason: the reader writes them down, the card names them."""
+    try:
+        raw = json.loads((parsed_dir() / ".failed.json").read_text())
+    except (OSError, ValueError):
+        return []
+    return [str(item)[:220] for item in raw[:50]] if isinstance(raw, list) else []
+
+
 def _unread() -> dict[str, int]:
     """How many it could not read: failed, or too large. They are said, never counted as read."""
     raw = _progress().get("unread")
@@ -680,16 +689,20 @@ def _steps_for_now(s: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _copies(n: int, taken_in: bool, total: int, held: int, unread: int) -> int:
+    """Counted files that are the same as another one (a logo in a hundred mails is one document): once the reading is over every counted file is held, copied or unreadable."""
+    return max(0, total - held - unread) if n == 1 and taken_in else 0
+
+
 def _done_count(
     n: int, key: str, held: dict[str, int], where: str, total: int, taken_in: bool, gone_through: dict[str, int], s: dict[str, Any], unread: dict[str, int]
 ) -> int:
     if (s.get("phase") or 1) < n:
         return 0  # a step that has not begun has done nothing, whatever state the files are already in
     if n == 1:
-        read = gone_through.get(key, 0)
-        if taken_in:
-            return max(0, total - unread.get(key, 0)) if gone_through else total  # everything counted was read, except what could not be
-        return min(total, max(held["present"], read))
+        return (
+            min(total, max(held["present"], gone_through.get(key, 0))) if not taken_in else min(total, held["present"])
+        )  # what is held: each different document once
     return held[where]
 
 
@@ -760,6 +773,7 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
                 "label": label,
                 "done": _done_count(n, key, tally[key], where, total, taken_in, gone_through, s, unread),
                 "unread": unread.get(key, 0) if n == 1 else 0,
+                "copies": _copies(n, taken_in, total, tally[key]["present"], unread.get(key, 0)),
                 "total": total,
                 "known": known_now,
             }
@@ -849,6 +863,7 @@ def _scan_status(state: State, conn, query: dict[str, str]) -> dict:
         "recent": [] if reading else counted["recent"],
         "waiting": [] if reading else counted["waiting"],
         "steps": counted["steps"],
+        "unread_files": _unread_files() if s["running"] else [],
         "summary": s["summary"],
         "problems": s["problems"],
         "needs_check": [],

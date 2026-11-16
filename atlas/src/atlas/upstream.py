@@ -76,6 +76,7 @@ def _counts(raw: object) -> list[dict[str, Any]]:
             "total": c["total"],
             "known": c.get("known") is not False,
             "unread": c["unread"] if ok(c.get("unread")) else 0,
+            "copies": c["copies"] if ok(c.get("copies")) else 0,
         }
         for c in (raw if isinstance(raw, list) else [])[:5]
         if isinstance(c, dict) and isinstance(c.get("label"), str) and ok(c.get("done")) and ok(c.get("total"))
@@ -197,6 +198,7 @@ class Upstreams:
             "needs_check": 0,
             "file": None,
             "recent": [],
+            "unread_files": [],
             "waiting": [],
             "steps": [],
             "parts": [],
@@ -224,6 +226,9 @@ class Upstreams:
             "progress": str(raw.get("progress", ""))[:200],
             "file": self._file(raw.get("file")),  # the file being worked on right now
             "recent": self._named(raw.get("recent")),  # the last files finished, with their result
+            "unread_files": [str(n)[:220] for n in raw["unread_files"][:50]]
+            if isinstance(raw.get("unread_files"), list)
+            else [],  # what could not be read, with the reason
             "waiting": [str(n)[:200] for n in (raw.get("waiting") or []) if isinstance(n, str)][:6],  # the next files to be read
             "steps": self._steps(raw.get("steps")),  # the steps of the read and which is running
             "summary": str(raw.get("summary", ""))[:200],

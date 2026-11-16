@@ -141,19 +141,6 @@ def test_a_step_that_has_not_begun_shows_nothing_done(conn, monkeypatch):
     assert {c["key"]: c["done"] for c in web._steps(conn, {"phase": 2})[1]["counts"]}["documents"] == 1
 
 
-def test_step_one_counts_every_file_the_reader_has_gone_through_and_ends_on_the_exact_count(conn, monkeypatch):
-    from library import web
-
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0})
-    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 7})
-    for i in range(4):
-        _add(conn, f"f{i}.pdf", "finance", judged=1)
-    conn.commit()
-    line = lambda phase: next(c for c in web._steps(conn, {"phase": phase})[0]["counts"] if c["key"] == "documents")  # noqa: E731
-    assert (line(1)["done"], line(1)["total"]) == (7, 10)  # copies and left-out files are gone through too
-    assert (line(2)["done"], line(2)["total"]) == (10, 10)  # and when the step is over it is exactly the count
-
-
 def test_all_three_counts_are_known_as_soon_as_the_reader_has_counted(conn, monkeypatch):
     from library import web
 
@@ -201,28 +188,6 @@ def test_a_round_is_complete_only_when_the_reader_has_gone_through_everything_it
     assert web._round_complete()  # nothing to compare with: the read is not held
 
 
-def test_step_one_shows_every_count_complete_when_the_reader_has_gone_through_everything(conn, monkeypatch):
-    from library import web
-
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 3, "mails": 2, "attachments": 10})
-    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 3, "mails": 2, "attachments": 10})
-    _add(conn, "a.pdf", "finance", judged=1)  # one document held: the other attachments are copies of it or could not be read
-    conn.commit()
-    lines = web._steps(conn, {"phase": 2})[0]
-    assert all(c["done"] == c["total"] for c in lines["counts"]) and lines["state"] == "done"
-
-
-def test_a_file_that_could_not_be_read_is_never_counted_as_read_and_is_said(conn, monkeypatch):
-    from library import web
-
-    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0, "attachments": 0})
-    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 8, "mails": 0, "attachments": 0})
-    monkeypatch.setattr(web, "_unread", lambda: {"documents": 2, "mails": 0, "attachments": 0})
-    assert web._round_complete()  # every counted file was read, or could not be
-    line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
-    assert (line["done"], line["total"], line["unread"]) == (8, 10, 2)  # 8 read fully, 2 could not be: never "10 of 10"
-
-
 def test_each_step_lists_the_counts_in_the_order_it_works_through_them(conn, monkeypatch):
     from library import web
 
@@ -231,3 +196,30 @@ def test_each_step_lists_the_counts_in_the_order_it_works_through_them(conn, mon
     assert [c["key"] for c in steps[0]["counts"]] == ["mails", "attachments", "documents"]  # reading takes the mail first
     assert [c["key"] for c in steps[1]["counts"]] == ["documents", "mails", "attachments"]  # sorting takes the documents first
     assert [c["key"] for c in steps[2]["counts"]] == ["documents", "mails", "attachments"]
+
+
+def test_every_counted_file_is_accounted_for_as_read_identical_to_one_read_or_unreadable(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 10, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(web, "_gone_through", lambda: {"documents": 8, "mails": 0, "attachments": 0})
+    monkeypatch.setattr(web, "_unread", lambda: {"documents": 2, "mails": 0, "attachments": 0})
+    for i in range(6):
+        _add(conn, f"f{i}.pdf", "finance", judged=1)  # six different documents held
+    conn.commit()
+    assert web._round_complete()  # every counted file was read, or could not be
+    line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
+    assert (line["done"], line["total"], line["copies"], line["unread"]) == (6, 10, 2, 2)  # 6 + 2 identical + 2 unreadable = the 10 counted: nothing is hidden
+    assert web._steps(conn, {"phase": 2})[0]["state"] == "done"
+    live = next(c for c in web._steps(conn, {"phase": 1})[0]["counts"] if c["key"] == "documents")
+    assert live["copies"] == 0  # until the reading is over nothing can be called a copy
+
+
+def test_the_files_that_could_not_be_read_are_listed_with_the_reason(tmp_path, monkeypatch):
+    import json
+
+    from library import web
+
+    monkeypatch.setattr(web, "parsed_dir", lambda: tmp_path)
+    (tmp_path / ".failed.json").write_text(json.dumps(["a.pdf: this PDF is password-protected", "big.zip: too large to read"]))
+    assert web._unread_files() == ["a.pdf: this PDF is password-protected", "big.zip: too large to read"]

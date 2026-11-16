@@ -670,6 +670,7 @@
             ? 'counting…'
             : c.total
               ? `${c.done.toLocaleString()} of ${c.total.toLocaleString()}` +
+                (c.copies ? ` · ${c.copies.toLocaleString()} identical to another` : '') +
                 (c.unread ? ` · ${c.unread.toLocaleString()} could not be read` : '')
               : 'none found';
     // a step: its name, what it does, how far it is, and its three counts (documents, mails, documents in mails), all alike
@@ -691,6 +692,15 @@
         }
         if (counts.children.length) card.append(counts);
         return card;
+    };
+    // what could not be read, by name and reason: never hidden behind a count
+    const unreadBlock = (info) => {
+        const names = info.unread_files || [];
+        if (!names.length) return null;
+        const box = el('div', 'rd-unread');
+        box.append(el('b', '', `Could not be read (${names.length})`));
+        for (const name of names) box.append(el('span', '', name));
+        return box;
     };
     const stepsBlock = (steps) => {
         if (!steps || !steps.length) return null;
@@ -836,7 +846,7 @@
             );
         } else {
             blocks.push(headlineBlock(info, running));
-            if (running) blocks.push(stepsBlock(info.steps), nowBlock(info));
+            if (running) blocks.push(stepsBlock(info.steps), unreadBlock(info), nowBlock(info));
             blocks.push(...problemBlocks(report));
         }
         patchChildren(panel, blocks.filter(Boolean));
