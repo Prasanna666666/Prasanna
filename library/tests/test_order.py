@@ -1,7 +1,7 @@
 import json
 import threading
 
-from library import apps, casebook, priority, store
+from library import apps, casebook, judging, priority, store
 
 
 def test_the_apps_are_served_in_their_order_with_loose_files_and_mail_last(monkeypatch):
@@ -26,7 +26,7 @@ def test_finance_files_are_taken_before_health_files_and_before_loose_files_and_
     for name, area in (("mail.eml", "mail"), ("loose.pdf", ""), ("health.pdf", "health"), ("finance.pdf", "finance"), ("other.pdf", "others")):
         _add(conn, name, area)
     conn.commit()
-    assert store.waiting_files(conn, limit=5) == ["finance.pdf", "health.pdf", "other.pdf", "loose.pdf", "mail.eml"]
+    assert judging.waiting_files(conn, limit=5) == ["finance.pdf", "health.pdf", "other.pdf", "loose.pdf", "mail.eml"]
 
 
 def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, monkeypatch):
@@ -65,7 +65,7 @@ def test_the_groups_of_the_app_served_first_are_read_first(conn, monkeypatch):
     conn.commit()
     asked = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: asked.append(a[3]) or {"title": "t", "what": "w"})
-    store.finish_matters(conn, object(), "m")
+    judging.finish_matters(conn, object(), "m")
     assert len(asked) == 2 and "f.pdf" in asked[0] and "h.pdf" in asked[1]  # the app served first is read first
     assert [r["rank"] for r in conn.execute("SELECT rank FROM cases ORDER BY id")] == [priority.rank("health"), priority.rank("finance")]
 
@@ -82,8 +82,8 @@ def test_the_model_is_asked_about_the_next_file_while_the_current_one_is_still_b
             return {"content": json.dumps({"kind": "invoice", "apps": ["finance"], "title": "t", "what": "w"})}
 
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
-    monkeypatch.setattr(store, "PARALLEL", 2)
-    out = store.judge_pending(conn, Model(), "fake")
+    monkeypatch.setattr(judging, "PARALLEL", 2)
+    out = judging.judge_pending(conn, Model(), "fake")
     assert out["read"] == 2 and conn.execute("SELECT COUNT(*) FROM documents WHERE judged=1").fetchone()[0] == 2
 
 
@@ -98,11 +98,11 @@ def test_a_cases_rank_follows_the_app_served_first_among_its_files(conn):
 
 def test_a_mail_with_attachments_is_not_skipped_by_the_keyword_rule_but_one_without_still_can_be():
     base = {"kind": "email", "area": "mail", "name": "00001 Hello.eml", "text": "Hi, see you soon, thanks for the lovely evening"}
-    assert store._skippable({**base, "data": json.dumps({"meta": {"attachments": 0}})}) is True  # no amount, no invoice-like word, nothing attached
+    assert judging._skippable({**base, "data": json.dumps({"meta": {"attachments": 0}})}) is True  # no amount, no invoice-like word, nothing attached
     assert (
-        store._skippable({**base, "data": json.dumps({"meta": {"attachments": 2}})}) is False
+        judging._skippable({**base, "data": json.dumps({"meta": {"attachments": 2}})}) is False
     )  # its attachments are read: what the mail says about them matters
-    assert store._skippable({**base, "text": "  ", "data": json.dumps({"meta": {"attachments": 2}})}) is True  # no text at all is still nothing to read
+    assert judging._skippable({**base, "text": "  ", "data": json.dumps({"meta": {"attachments": 2}})}) is True  # no text at all is still nothing to read
 
 
 def test_the_apps_and_their_words_come_from_the_file_not_from_the_code(tmp_path, monkeypatch):

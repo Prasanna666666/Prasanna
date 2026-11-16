@@ -23,7 +23,7 @@ from typing import Any, ClassVar
 from kit import db, llm, log, netguard, sign
 from kit.http import Fail, ModuleHandler
 
-from . import apps, changes, concepts, flags, highlights, items, pictures, readreport, store, tools, trace, travel
+from . import apps, changes, concepts, flags, healthdata, highlights, items, judging, pictures, readreport, store, tools, trace, travel
 
 STATIC = Path(__file__).with_name("static")
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "documents.localhost", "library.internal"}  # library.internal: how the other apps reach it inside Docker
@@ -97,7 +97,7 @@ def _read_pictures(state: State, conn, client, model) -> None:
         index.close()
     if found:
         state.scan["progress"] = f"Reading {found} pictures of documents…"
-        store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
+        judging.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control)
         state.scan["summary"] += f"; {found} pictures of documents"
 
 
@@ -105,11 +105,11 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
     """The end of a read: every matter is put together and read in full, then the audit says exactly what, if anything, is left."""
     if client is None or not model or state.control == "stop":
         return
-    store.finish_matters(
+    judging.finish_matters(
         conn, client, model, lambda: state.control, lambda m: state.scan.update(progress=m), followed, phase=lambda n: state.scan.update(phase=n)
     )
     if state.control != "stop":
-        state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
+        state.scan["summary"] += ". " + judging.audit_line(judging.audit(conn))
 
 
 MAIL_SCOPE_MARK = ".mail-scope"  # holds the rules the mail held here was read under
@@ -180,7 +180,7 @@ MAX_SORT_PASSES = 3  # how often files the model could not make sense of are ask
 def _sort_pass(state: State, conn, client, model, followed: trace.Trace, totals: dict[str, int]) -> str:
     problem = ""
     while state.control != "stop":
-        judged = store.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
+        judged = judging.judge_pending(conn, client, model, lambda m: state.scan.update(progress=m), lambda: state.control, JUDGE_PER_ROUND, followed)
         totals["read"] += judged["read"]
         totals["skipped"] += judged["skipped"]
         problem = judged["problem"] or problem
@@ -257,12 +257,12 @@ def _read_all(state: State) -> None:
         except RuntimeError:
             client, model = None, ""
         if client is not None:
-            client = store.StoppableModel(client, lambda: state.control == "stop")  # Stop ends a wait for the model at once
+            client = judging.StoppableModel(client, lambda: state.control == "stop")  # Stop ends a wait for the model at once
         followed = trace.Trace(conn, lambda name, step, detail: state.scan.update(now=(name, step, detail), now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
         _forget_what_was_read_under_other_rules(conn)
-        store.mark_old_files(conn)  # files sorted before the apps were declared get their marks (on this connection: no other writer is at work meanwhile)
+        judging.mark_old_files(conn)  # files sorted before the apps were declared get their marks (on this connection: no other writer is at work meanwhile)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         _forget_last_read()
         state.scan.update(rejected={}, rejected_files=[])  # what the service itself would not take in is counted afresh
@@ -281,7 +281,7 @@ def _read_all(state: State) -> None:
         if state.control != "stop":
             store.warm_search(conn, state.picture_text(), lambda: state.control == "stop")
         state.scan["problems"] = [problem] if problem else []
-    except store.Stopped:
+    except judging.Stopped:
         state.scan["summary"] = "Stopped. What was read stays; reading carries on from here next time."
     except Exception as exc:  # noqa: BLE001 - shown on the page and logged, never lost
         log.failed("update failed", exc)
@@ -438,14 +438,14 @@ def _post_packing(state: State, conn, body: dict) -> dict:
 def _get_medical_part(part):
     def route(state: State, conn, query: dict[str, str]) -> dict:
         if part == "documents":
-            return store.health_documents(conn)
+            return healthdata.health_documents(conn)
         if part == "status":
-            return store.health_funnel(conn)
+            return healthdata.health_funnel(conn)
         if part == "values":
-            return store.health_values(conn, query.get("test", "")[:60])
+            return healthdata.health_values(conn, query.get("test", "")[:60])
         if part == "medicines":
-            return store.health_medicines(conn)
-        return store.health_followups(conn, _today())
+            return healthdata.health_medicines(conn)
+        return healthdata.health_followups(conn, _today())
 
     return route
 
@@ -896,7 +896,7 @@ def _counted(state: State, conn, s: dict[str, Any]) -> dict[str, Any]:
     def make(c) -> dict[str, Any]:
         return {
             "steps": _steps(c, snapshot),
-            "waiting": store.waiting_files(c, (snapshot.get("now") or ("",))[0]),
+            "waiting": judging.waiting_files(c, (snapshot.get("now") or ("",))[0]),
             "recent": trace.finished(c, snapshot.get("run") or ""),
         }
 

@@ -9,7 +9,7 @@ from finance import library_client
 from finance.modules import ALL, money
 from kit import db
 
-from library import parser, store
+from library import judging, parser, store
 from tests.test_readers import fake_ocr, scanned_pdf  # noqa: F401 - the fixture is used by name
 
 LAYOUT = {
@@ -78,7 +78,7 @@ def test_a_scanned_statement_goes_from_the_reader_through_the_service_to_a_verif
     scanned_pdf(folder / "ing-scan.pdf")
     parser.process_inbox(folder, parsed, isolated=False, area="finance")
     store.ingest_dir(conn, parsed)
-    assert store.judge_pending(conn, Model(), "fake")["read"] == 1
+    assert judging.judge_pending(conn, Model(), "fake")["read"] == 1
     fetch = library_over_http(conn)
     assert library_client.pull(finance, fetch) == {"new": 1, "known": 0}
     assert library_client.pull(finance, fetch) == {"new": 0, "known": 0}  # the second time there is nothing new
@@ -92,7 +92,7 @@ def test_a_second_app_takes_its_own_kind_from_the_same_store_and_finance_never_s
     (health / "bloed.txt").write_text("Uitslag bloedonderzoek 1 maart 2026: alle waarden normaal. Kliniek centrum.")
     parser.process_inbox(health, parsed, isolated=False, area="health")  # a collection with any name; its files are always read
     store.ingest_dir(conn, parsed)
-    store.judge_pending(conn, Model(), "fake")
+    judging.judge_pending(conn, Model(), "fake")
     assert store.list_documents(conn, ["invoice"]) == []  # an app asking for other kinds does not receive it
     assert [d["facts"]["title"] for d in store.list_documents(conn, ["medical"])] == ["Blood test"]  # what a health app would ask for
     assert library_client.pull(finance, library_over_http(conn)) == {"new": 0, "known": 0}  # Finance asks for its own kinds and its own folder only

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from kit import db
 
-from library import store
+from library import healthdata, store
 
 from .marks import APPS_OF
 
@@ -63,5 +63,5 @@ def test_an_empty_health_page_says_where_the_documents_are_stuck(conn):
     )
     conn.conn.execute("INSERT INTO documents (sha256, name, kind, text, area, facts, judged) VALUES ('w','scan.pdf','pdf','','health','',0)")
     conn.conn.commit()
-    f = store.health_funnel(conn.conn)
+    f = healthdata.health_funnel(conn.conn)
     assert f["found"] == 2 and f["understood"] == 1 and f["with_values"] == 1 and f["waiting_for_the_model"] == 1 and f["no_readable_text"] == 1

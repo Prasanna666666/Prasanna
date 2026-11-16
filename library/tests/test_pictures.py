@@ -13,7 +13,7 @@ from images.indexing.pipeline import STAGE_OCR, Services
 from kit import db
 from PIL import Image
 
-from library import indexer, pictures, store, web
+from library import indexer, judging, pictures, store, web
 from tests.test_web import call, post
 
 
@@ -162,6 +162,6 @@ def test_a_photographed_receipt_becomes_a_document_that_is_judged_like_any_other
                 )
             }
 
-    assert store.judge_pending(conn, Model(), "fake")["read"] == 1
+    assert judging.judge_pending(conn, Model(), "fake")["read"] == 1
     [doc] = store.list_documents(conn, ["receipt"])
     assert doc["area"] == "pictures" and doc["name"] == "receipt.jpg" and float(doc["facts"]["total"]) == 23.45  # Finance takes it from here like any receipt

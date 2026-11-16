@@ -3,7 +3,7 @@
 import email.message
 import email.policy
 
-from library import readers
+from library import judging, readers
 
 
 def test_every_attachment_of_a_mail_is_found_nested_unnamed_repeated_and_forwarded():
@@ -71,8 +71,6 @@ def test_stop_ends_a_wait_for_the_model_at_once_and_an_answer_that_comes_is_pass
     import threading
     import time
 
-    from library import store
-
     gate = threading.Event()
 
     class Slow:
@@ -83,18 +81,18 @@ def test_stop_ends_a_wait_for_the_model_at_once_and_an_answer_that_comes_is_pass
         other = "kept"
 
     stop = threading.Event()
-    model = store.StoppableModel(Slow(), stop.is_set)
+    model = judging.StoppableModel(Slow(), stop.is_set)
     assert model.other == "kept"  # everything but chat is passed on
     threading.Timer(0.5, stop.set).start()
     began = time.monotonic()
     try:
         model.chat("m", [])
         raise AssertionError("it should have stopped")
-    except store.Stopped:
+    except judging.Stopped:
         pass
     gate.set()
     assert time.monotonic() - began < 5  # not the 30 s the model would have taken
-    assert store.StoppableModel(Slow(), lambda: False).chat("m", []) == {"content": "late"}
+    assert judging.StoppableModel(Slow(), lambda: False).chat("m", []) == {"content": "late"}
 
 
 def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):

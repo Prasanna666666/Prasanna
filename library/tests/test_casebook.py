@@ -2,7 +2,7 @@ import json
 
 from kit import extract
 
-from library import casebook
+from library import casebook, judging
 
 
 def _doc(conn, name, text, facts=None):
@@ -101,48 +101,44 @@ def test_the_model_must_quote_both_pieces_to_confirm(monkeypatch):
 
 
 def test_the_read_button_finishes_every_matter_in_rounds_and_stops_when_nothing_more_changes(conn, monkeypatch):
-    from library import store
 
     for i in range(8):  # more matters than one round handles
         _doc(conn, f"f{i}", f"Letter about subject{i} reference REF-{i}0000")
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: {"title": "Letter", "what": "A letter"})
-    assert store.finish_matters(conn, object(), "m") == 8
+    assert judging.finish_matters(conn, object(), "m") == 8
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary=''").fetchone()[0] == 0
-    stop = store.finish_matters(conn, object(), "m", lambda: "stop")
+    stop = judging.finish_matters(conn, object(), "m", lambda: "stop")
     assert stop == 0
 
 
 def test_the_audit_says_final_only_when_nothing_is_left(conn, monkeypatch):
-    from library import store
 
     _doc(conn, "a", "Letter about subject reference REF-10000")
-    assert store.audit(conn)["not_grouped"] == 1 and store.audit_line(store.audit(conn)).startswith(
+    assert judging.audit(conn)["not_grouped"] == 1 and judging.audit_line(judging.audit(conn)).startswith(
         "Still left: 1 sorted files not yet placed in a group of related files"
     )
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: {"title": "Letter", "what": "A letter"})
-    store.finish_matters(conn, object(), "m")
-    assert store.audit_line(store.audit(conn)).startswith("Nothing is left: 1 files sorted, in 1 groups of related files")
+    judging.finish_matters(conn, object(), "m")
+    assert judging.audit_line(judging.audit(conn)).startswith("Nothing is left: 1 files sorted, in 1 groups of related files")
 
 
 def test_a_lone_file_costs_no_model_call_and_a_file_with_a_date_to_act_on_is_read_by_the_model(conn, monkeypatch):
-    from library import store
 
     _doc(conn, "lone", "A newsletter about gardens")
     _doc(conn, "bill", "Invoice for internet", {"due_date": "2026-12-01", "kind": "invoice", "apps": ["finance"]})
     calls = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(a[3]) or {"title": "Internet bill", "what": "A bill", "open": False})
-    assert store.finish_matters(conn, object(), "m") == 2
+    assert judging.finish_matters(conn, object(), "m") == 2
     assert len(calls) == 1 and "Invoice for internet" in calls[0]  # only the file with a date was sent to the model
 
 
 def test_a_stop_pressed_during_the_final_step_ends_it_before_the_next_model_call(conn, monkeypatch):
-    from library import store
 
     for i in range(3):
         _doc(conn, f"b{i}", f"Invoice number {i}", {"due_date": "2026-12-01"})
     calls = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(1) or {"title": "t", "what": "w"})
-    assert store.finish_matters(conn, object(), "m", lambda: "stop") == 0 and calls == []
+    assert judging.finish_matters(conn, object(), "m", lambda: "stop") == 0 and calls == []
 
 
 def test_a_database_made_by_any_earlier_version_upgrades_without_error(tmp_path):
@@ -159,12 +155,11 @@ def test_a_database_made_by_any_earlier_version_upgrades_without_error(tmp_path)
 
 
 def test_interpretation_can_run_in_small_slices_while_files_are_still_being_identified(conn, monkeypatch):
-    from library import store
 
     for i in range(6):
         _doc(conn, f"b{i}", f"Invoice number {i}", {"due_date": "2026-12-01"})
     calls = []
     monkeypatch.setattr(extract, "_ask", lambda *a, **k: calls.append(1) or {"title": "t", "what": "w"})
-    assert store.finish_matters(conn, object(), "m", pairs=2, groups=2) == 2 and len(calls) == 2  # only a slice
-    assert store.finish_matters(conn, object(), "m", pairs=2, groups=2) == 2  # the next slice carries on from there
+    assert judging.finish_matters(conn, object(), "m", pairs=2, groups=2) == 2 and len(calls) == 2  # only a slice
+    assert judging.finish_matters(conn, object(), "m", pairs=2, groups=2) == 2  # the next slice carries on from there
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary=''").fetchone()[0] == 2

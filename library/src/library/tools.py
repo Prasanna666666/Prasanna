@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from . import changes, pictures, readreport, store, travel
+from . import changes, healthdata, pictures, readreport, store, travel, tripdocs
 
 Result = tuple[Any, list[dict]]  # (data for the model, items to show)
 
@@ -102,11 +102,11 @@ def find_documents(state, conn, a: dict, ask: Ask | None = None) -> Result:
     kinds = [k for k in str(a.get("kind", "")).replace(" ", "").split(",") if k]
     window = _dates(a)
     if window:
-        found = [d for d in store.documents_between(conn, *window, limit=200) if not kinds or any(k.lower() in d["kind"].lower() for k in kinds)]
+        found = [d for d in tripdocs.documents_between(conn, *window, limit=200) if not kinds or any(k.lower() in d["kind"].lower() for k in kinds)]
     else:
         found = store.list_documents(conn, kinds, place=str(a.get("place", ""))[:80], year=str(a.get("year", ""))[:4], limit=200, source="documents")
     if window and a.get("place"):
-        found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or not store.is_trip_document(d)]
+        found = [d for d in found if str(a["place"]).lower() in str(d["facts"].get("place", "")).lower() or not tripdocs.is_trip_document(d)]
     data = {"count": len(found), "documents": [_doc_row(d) for d in found[:40]]}
     return data, [_doc_item(d) for d in found[:MAX_ITEMS]] if a.get("show") is True else []
 
@@ -128,12 +128,12 @@ def read_document(state, conn, a: dict, ask: Ask | None = None) -> Result:
 
 def trips(state, conn, a: dict, ask: Ask | None = None) -> Result:
     """Journeys found in the tickets and bookings: where, from which day to which day, and how many documents show it."""
-    return {"trips": store.trips(conn, str(a.get("place", ""))[:80], str(a.get("year", ""))[:4])}, []
+    return {"trips": tripdocs.trips(conn, str(a.get("place", ""))[:80], str(a.get("year", ""))[:4])}, []
 
 
 def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
     """Measurements from the person's medical documents over time, exactly as printed (result, unit, reference range if printed). Never interpreted."""
-    data = store.health_values(conn, str(a.get("test", ""))[:60])
+    data = healthdata.health_values(conn, str(a.get("test", ""))[:60])
 
     def brief(g: dict, readings: int) -> dict:
         return {
@@ -153,11 +153,11 @@ def health_values(state, conn, a: dict, ask: Ask | None = None) -> Result:
 
 
 def health_medicines(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return store.health_medicines(conn), []
+    return healthdata.health_medicines(conn), []
 
 
 def health_followups(state, conn, a: dict, ask: Ask | None = None) -> Result:
-    return store.health_followups(conn, datetime.now().astimezone().date().isoformat()), []
+    return healthdata.health_followups(conn, datetime.now().astimezone().date().isoformat()), []
 
 
 def trip_details(state, conn, a: dict, ask: Ask | None = None) -> Result:

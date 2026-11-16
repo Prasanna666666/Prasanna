@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from . import casebook, pictures, readreport, store, travel
+from . import casebook, healthdata, pictures, readreport, store, travel
 
 
 def _today() -> str:
@@ -20,8 +20,8 @@ def _pending_note(conn) -> str:
 
 
 def health(conn, state: Any) -> dict[str, Any]:
-    values = store.health_values(conn)
-    follow = store.health_followups(conn, _today())["follow_ups"]
+    values = healthdata.health_values(conn)
+    follow = healthdata.health_followups(conn, _today())["follow_ups"]
     flagged = values["attention"]
     total = len(values["tests"])
     items = [{"label": g["test"], "value": f"{g['latest']['value']} {g['unit']}".strip()} for g in flagged[:3]]

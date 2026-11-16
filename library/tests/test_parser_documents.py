@@ -1,6 +1,6 @@
 import json
 
-from library import parser, store
+from library import judging, parser, store, tripdocs
 
 
 def test_extract_text_csv_and_control_chars(tmp_path):
@@ -84,7 +84,7 @@ def test_a_document_becomes_ready_once_judged_and_an_app_asks_by_kind(conn, tmp_
                 )
             }
 
-    done = store.judge_pending(conn, Model(), "fake")
+    done = judging.judge_pending(conn, Model(), "fake")
     assert done["read"] == 1
     [doc] = store.list_documents(conn, ["invoice"], full=True)
     assert doc["facts"]["party"] == "Ziggo" and float(doc["facts"]["total"]) == 60.5 and "FACTUUR" in doc["text"] and doc["ready"] == 1
@@ -95,7 +95,7 @@ def test_a_newsletter_is_judged_once_without_the_model_and_a_waiting_document_st
     _put(tmp_path, _doc(name="promo.eml", kind="email", text="Big sale this week only, enjoy our newsletter with many friendly words.", sha256="c" * 64))
     _put(tmp_path, _doc(name="hotel.eml", kind="email", text="Booking confirmed. Total paid EUR 480,00 for the hotel.", sha256="d" * 64))
     store.ingest_dir(conn, tmp_path)
-    done = store.judge_pending(conn, None, None)  # the model is not running
+    done = judging.judge_pending(conn, None, None)  # the model is not running
     assert done["skipped"] == 1 and done["waiting"] == 1 and "Ollama" in done["problem"]
     assert store.counts(conn)["waiting"] == 1
 
@@ -116,7 +116,7 @@ def test_a_picture_with_no_text_is_a_photo_and_one_with_text_is_a_document(conn,
                 )
             }
 
-    store.judge_pending(conn, Model(), "fake")
+    judging.judge_pending(conn, Model(), "fake")
     assert [d["name"] for d in store.list_documents(conn, ["photo"])] == ["holiday.jpg"]  # for the Photos app to take; no model was asked
     assert [d["name"] for d in store.list_documents(conn, ["receipt"])] == ["receipt.jpg"]
 
@@ -161,12 +161,12 @@ def test_a_trip_is_found_from_the_tickets_and_bookings_and_everything_in_its_win
         _put(tmp_path, _doc(name=name.replace(".eml", ".pdf"), kind="pdf", text=f"{kind} {name}", sha256=sha))
     store.ingest_dir(conn, tmp_path)
     for sha, _kind, facts in texts.values():
-        store._mark_ready(conn, sha, 1, facts)
+        judging._mark_ready(conn, sha, 1, facts)
     conn.execute("UPDATE documents SET case_id=1")  # as if read together with what belongs with them
-    [india] = store.trips(conn, "india", "2026")
+    [india] = tripdocs.trips(conn, "india", "2026")
     assert india == {"place": "India", "start": "2026-01-12", "end": "2026-01-30", "documents": 3}
-    assert [t["place"] for t in store.trips(conn)] == ["India", "France"]  # most documents first
-    titles = [d["facts"]["title"] for d in store.documents_between(conn, india["start"], india["end"])]
+    assert [t["place"] for t in tripdocs.trips(conn)] == ["India", "France"]  # most documents first
+    titles = [d["facts"]["title"] for d in tripdocs.documents_between(conn, india["start"], india["end"])]
     assert titles == ["Flight out", "Hotel Delhi", "Taxi Delhi", "Flight back"]  # the taxi has no trip tag, but its date is inside the window
 
 
@@ -364,9 +364,9 @@ def test_judging_in_small_rounds_leaves_the_rest_for_the_next_round(conn, tmp_pa
                 )
             }
 
-    assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
+    assert judging.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
     assert store.counts(conn)["waiting"] == 3  # the other three wait; new files can be taken in meanwhile
-    assert store.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
+    assert judging.judge_pending(conn, Model(), "fake", limit=2)["read"] == 2
 
 
 def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stays_a_document(conn, tmp_path):
@@ -392,8 +392,8 @@ def test_a_whole_email_is_never_kept_only_what_it_says_while_its_attachment_stay
                 )
             }
 
-    store.judge_pending(conn, Model(), "fake")
-    store.finish_matters(conn, Model(), "fake")  # the grouping runs once at the end of a read, not after every few files
+    judging.judge_pending(conn, Model(), "fake")
+    judging.finish_matters(conn, Model(), "fake")  # the grouping runs once at the end of a read, not after every few files
     assert conn.execute("SELECT COUNT(*) FROM cases WHERE summary<>''").fetchone()[0] == 2  # each read whole (the stub model says they are not one matter)
     mail = conn.execute("SELECT text, data FROM documents WHERE name='order.eml'").fetchone()
     assert "Dear customer" not in mail["text"] and "Hotel booking" in mail["text"] and mail["data"] == ""
@@ -425,8 +425,8 @@ def test_documents_are_named_by_what_they_say_and_a_whole_email_is_never_listed(
                 )
             }
 
-    store.judge_pending(conn, Model(), "fake")
-    store.finish_matters(conn, Model(), "fake")  # shown once read together with what belongs with it, at the end of a read
+    judging.judge_pending(conn, Model(), "fake")
+    judging.finish_matters(conn, Model(), "fake")  # shown once read together with what belongs with it, at the end of a read
     listed = store.list_documents(conn, ["invoice"], source="documents")
     assert [d["title"] for d in listed] == ["Internet bill · Ziggo"]  # the document inside the mail, by its title; the mail itself is not a document
     assert len(store.list_documents(conn, ["invoice"])) == 2  # the data feed (trips, Finance) still sees what the mail says

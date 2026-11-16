@@ -9,7 +9,7 @@ import hashlib
 from datetime import date, timedelta
 from typing import Any
 
-from . import concepts, pictures, store
+from . import concepts, pictures, tripdocs
 
 PHOTO_TRIP_MIN = 5  # a run of photos with a place counts as a trip only from this many
 
@@ -24,7 +24,7 @@ def _overlaps(a_start: str, a_end: str, b_start: str, b_end: str) -> bool:
 
 def trips(conn, engine, today: str) -> list[dict[str, Any]]:
     """Every trip, soonest first: those from tickets and bookings, plus photo trips that no ticket explains. Each says where it came from."""
-    found = [{**t, "source": "documents", "status": _status(t["start"], t["end"], today)} for t in store.trips(conn)]
+    found = [{**t, "source": "documents", "status": _status(t["start"], t["end"], today)} for t in tripdocs.trips(conn)]
     if engine is not None:
         for p in pictures.browse(engine, "trips", {}):
             place, start, stop = p.get("place") or "", p["start"], p["stop"]
@@ -72,7 +72,7 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
     """One trip: its tickets and bookings, documents that belong with them (the same matter), the amounts the tickets and bookings print (added up per currency, exactly), and photos."""
     booked = [
         _ticket(d, concepts.of(conn, d["kind"]))
-        for d in store.trip_documents(conn)
+        for d in tripdocs.trip_documents(conn)
         if place.casefold() in str(d["facts"].get("place") or "").casefold()
         and _overlaps(str(d["facts"].get("start_date") or "9"), str(d["facts"].get("end_date") or d["facts"].get("start_date") or "0"), start, end)
     ]
@@ -85,8 +85,8 @@ def detail(conn, engine, place: str, start: str, end: str) -> dict[str, Any]:
             "title": d["title"],
             "date": str(d["facts"].get("date") or d["facts"].get("start_date") or ""),
         }
-        for d in store.documents_of_the_same_matter(conn, sorted(booked_ids))
-        if not store.is_trip_document(d)
+        for d in tripdocs.documents_of_the_same_matter(conn, sorted(booked_ids))
+        if not tripdocs.is_trip_document(d)
     ]
     minor: dict[str, int] = {}
     for t in booked:

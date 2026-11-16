@@ -9,7 +9,7 @@ from http.server import ThreadingHTTPServer
 import pytest
 from kit import db
 
-from library import parser, store, web
+from library import judging, parser, store, web
 
 
 class Model:
@@ -363,7 +363,7 @@ def test_the_report_names_the_files_waiting_and_counts_set_aside_files_apart_fro
     conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('z','done.pdf','pdf','text','finance',1)")
     conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('y','junk.eml','email','','mail',2)")
     conn.commit()
-    assert store.waiting_files(conn, current="f0.pdf", limit=3) == [
+    assert judging.waiting_files(conn, current="f0.pdf", limit=3) == [
         "f3.pdf",
         "f1.pdf",
         "f2.pdf",

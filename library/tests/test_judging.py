@@ -2,7 +2,7 @@
 
 import json
 
-from library import parser, relevance, store
+from library import judging, parser, relevance, store
 
 
 def test_what_is_worth_reading():
@@ -43,10 +43,10 @@ def test_a_parser_round_says_when_it_is_busy_and_wakes_on_request(tmp_path):
 
 
 def test_the_panel_says_how_long_one_file_takes_and_how_long_what_really_goes_to_the_model_will_take():
-    assert store._speed_line(1184, 0, 0) == "Sorting files"
-    assert store._speed_line(1184, 140, 10) == "Sorting files: 14 s per file, about 4 h 36 min left"
-    assert store._speed_line(0, 140, 10) == "Sorting files: 14 s per file, almost done"
-    assert store._duration(45) == "45 s" and store._duration(600) == "10 min"
+    assert judging._speed_line(1184, 0, 0) == "Sorting files"
+    assert judging._speed_line(1184, 140, 10) == "Sorting files: 14 s per file, about 4 h 36 min left"
+    assert judging._speed_line(0, 140, 10) == "Sorting files: 14 s per file, almost done"
+    assert judging._duration(45) == "45 s" and judging._duration(600) == "10 min"
 
 
 def test_the_time_left_counts_only_the_files_that_will_really_go_to_the_model(conn):
@@ -68,7 +68,7 @@ def test_the_time_left_counts_only_the_files_that_will_really_go_to_the_model(co
         add(i, "finance", 0)  # 10 finance files waiting: all of them will
     add(0, "finance", 0, text="")  # nothing to read: never the model
     conn.commit()
-    assert store.model_work_left(conn) == 60  # 50 of the mails and the 10 finance files, not 1,011
+    assert judging.model_work_left(conn) == 60  # 50 of the mails and the 10 finance files, not 1,011
 
 
 def test_each_file_the_model_finishes_is_saved_at_once_so_the_counts_move(tmp_path, monkeypatch):
@@ -98,8 +98,8 @@ def test_each_file_the_model_finishes_is_saved_at_once_so_the_counts_move(tmp_pa
             }
 
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
-    monkeypatch.setattr(store, "PARALLEL", 1)  # one at a time: each file is finished and saved before the next is asked
-    store.judge_pending(conn, Model(), "fake")
+    monkeypatch.setattr(judging, "PARALLEL", 1)  # one at a time: each file is finished and saved before the next is asked
+    judging.judge_pending(conn, Model(), "fake")
     assert seen == [0, 1, 2]
 
 
@@ -122,7 +122,7 @@ def test_a_read_leaves_a_trace_of_every_step_on_every_file(conn):
             }
 
     followed = trace.Trace(conn, lambda name, step, detail: now.append((name, step, detail)))
-    store.judge_pending(conn, Model(), "fake", trace=followed)
+    judging.judge_pending(conn, Model(), "fake", trace=followed)
     steps = [(s["name"], s["step"], s["detail"]) for s in reversed(trace.recent(conn))]
     assert ("bill.pdf", "sorting", "31 characters") in steps and ("bill.pdf", "sorted", "invoice") in steps
     assert ("empty.pdf", "skipped", "no readable text") in steps
@@ -140,7 +140,7 @@ def test_a_file_the_model_cannot_make_sense_of_is_not_asked_again_after_three_tr
 
     for _ in range(store.MAX_TRIES):
         store.retry_unclear(conn)
-        store.judge_pending(conn, Model(), "fake")
+        judging.judge_pending(conn, Model(), "fake")
     assert conn.execute("SELECT judged, tries FROM documents").fetchone()[:] == (3, store.MAX_TRIES)
     assert store.retry_unclear(conn) == 0  # it stays as it is: no more model calls spent on it, and the audit still lists it
 
@@ -158,7 +158,7 @@ def test_a_file_the_model_fails_on_shows_as_failed_with_the_reason_and_the_try(c
             return {"content": ""}
 
     followed = trace.Trace(conn)
-    store.judge_pending(conn, Nothing(), "fake", trace=followed)
+    judging.judge_pending(conn, Nothing(), "fake", trace=followed)
     [failed] = trace.finished(conn, followed.run)
     assert failed["state"] == "failed" and failed["name"] == "id card.pdf"
     assert failed["detail"].startswith("could not be sorted: the model returned nothing; it is tried again at the next read (try 1 of 3)")
@@ -182,11 +182,11 @@ def test_a_file_recognised_without_the_model_is_shown_by_its_title_like_any_othe
 
     conn.execute("INSERT INTO documents (sha256, name, kind, text, area, judged) VALUES ('e','rates.xml','sheet','x','finance',0)")
     conn.commit()
-    original = store._exact_facts
-    store._exact_facts = lambda d: {"kind": "other", "title": "ECB exchange rates"}
+    original = judging._exact_facts
+    judging._exact_facts = lambda d: {"kind": "other", "title": "ECB exchange rates"}
     try:
         followed = trace.Trace(conn)
-        store.judge_pending(conn, None, "", trace=followed)
+        judging.judge_pending(conn, None, "", trace=followed)
     finally:
-        store._exact_facts = original
+        judging._exact_facts = original
     assert [r["detail"] for r in trace.finished(conn, followed.run)] == ["sorted: ECB exchange rates"]  # not "from its own data, no model needed"

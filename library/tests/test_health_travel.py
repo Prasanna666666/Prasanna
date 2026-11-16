@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from kit import db
 
-from library import store, tools, travel, web
+from library import healthdata, judging, store, tools, travel, web
 
 from .marks import APPS_OF
 
@@ -43,14 +43,14 @@ def _blood(lib):
 
 def test_health_shows_each_measurement_over_time_exactly_as_printed(lib):
     _blood(lib)
-    tests = store.health_values(lib.conn)["tests"]
+    tests = healthdata.health_values(lib.conn)["tests"]
     assert len(tests) == 1 and tests[0]["test"] == "Hemoglobin" and tests[0]["unit"] == "mmol/L"
     assert [(r["date"], r["value"], r["range"]) for r in tests[0]["readings"]] == [("2026-03-01", "8,4", "7,5 - 10,0"), ("2026-06-02", "9,0", "7,5 - 10,0")]
-    assert store.health_values(lib.conn, "cholesterol")["tests"] == []
-    assert [m["name"] for m in store.health_medicines(lib.conn)["medicines"]] == ["Metformine"]
-    assert [d["name"] for d in store.health_documents(lib.conn)["documents"]] == ["bloed-juni.pdf", "bloed-maart.pdf"]  # newest first
-    assert [f["date"] for f in store.health_followups(lib.conn, "2026-07-01")["follow_ups"]] == ["2099-06-01"]
-    assert store.health_followups(lib.conn, "2100-01-01")["follow_ups"] == []
+    assert healthdata.health_values(lib.conn, "cholesterol")["tests"] == []
+    assert [m["name"] for m in healthdata.health_medicines(lib.conn)["medicines"]] == ["Metformine"]
+    assert [d["name"] for d in healthdata.health_documents(lib.conn)["documents"]] == ["bloed-juni.pdf", "bloed-maart.pdf"]  # newest first
+    assert [f["date"] for f in healthdata.health_followups(lib.conn, "2026-07-01")["follow_ups"]] == ["2099-06-01"]
+    assert healthdata.health_followups(lib.conn, "2100-01-01")["follow_ups"] == []
 
 
 def test_medical_details_are_filled_for_documents_judged_before_and_use_the_model_once(lib):
@@ -62,8 +62,8 @@ def test_medical_details_are_filled_for_documents_judged_before_and_use_the_mode
             calls.append(1)
             return {"content": json.dumps({"values": [{"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L"}]})}
 
-    assert store.fill_health_details(lib.conn, Model(), "m") == 1 and store.fill_health_details(lib.conn, Model(), "m") == 0 and len(calls) == 1
-    assert store.health_values(lib.conn)["tests"][0]["readings"][0]["value"] == "8,4"
+    assert judging.fill_health_details(lib.conn, Model(), "m") == 1 and judging.fill_health_details(lib.conn, Model(), "m") == 0 and len(calls) == 1
+    assert healthdata.health_values(lib.conn)["tests"][0]["readings"][0]["value"] == "8,4"
 
 
 def test_trips_come_from_tickets_and_bookings_with_exact_booked_totals(lib):
@@ -150,7 +150,7 @@ def test_the_packing_routes_exist_and_refuse_a_trip_without_days(lib):
 
 
 def test_a_result_is_flagged_only_against_the_range_the_report_itself_prints():
-    flag = store.range_flag
+    flag = healthdata.range_flag
     assert [flag(8.4, "7,5 - 10,0"), flag(7.4, "7,5 - 10,0"), flag(10.1, "7.5-10.0"), flag(7.5, "7,5 - 10,0"), flag(10.0, "7,5 - 10,0")] == [
         "in_range",
         "below_range",
@@ -196,7 +196,7 @@ def test_lab_values_are_grouped_by_common_test_with_the_latest_flag_and_the_chan
         ("Hb", "9,0", 9.0, "mmol/L", "7,5 - 10,0"),
         ("Zink", "11", 11.0, "umol/L", ""),
     )
-    r = store.health_values(lib.conn)
+    r = healthdata.health_values(lib.conn)
     chol = next(g for g in r["common"] if g["test"] == "Cholesterol (total)")
     assert [x["value"] for x in chol["readings"]] == ["5,0", "5,6"] and chol["flag"] == "above_range"  # two spellings, one test
     assert chol["change"] == {"since": "2026-01-10", "absolute": 0.6, "percent": 12.0, "direction": "up"}
@@ -223,7 +223,7 @@ def test_a_document_in_the_health_folder_is_a_health_document_whatever_the_model
     )
     lib.conn.commit()
     assert [d["name"] for d in store.list_documents(lib.conn, ["other"])] == ["scan.pdf"]  # a folder's file is in the one store like any other
-    assert [d["name"] for d in store.health_documents(lib.conn)["documents"]] == ["scan.pdf"] and store.get_document(lib.conn, "e" * 64)
+    assert [d["name"] for d in healthdata.health_documents(lib.conn)["documents"]] == ["scan.pdf"] and store.get_document(lib.conn, "e" * 64)
 
 
 def test_the_folders_script_gives_the_reader_category_folders_and_listed_ones_read_only_and_skips_bad_lines(tmp_path):

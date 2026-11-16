@@ -10,7 +10,7 @@ from images.config import ENV_INTERNAL
 from kit import db
 from PIL import Image
 
-from library import changes, filing, indexer, pictures, store, tools, web
+from library import changes, filing, indexer, judging, pictures, store, tools, web
 from tests.test_pictures import engine_with_fake_models
 
 
@@ -318,8 +318,8 @@ def test_a_paused_update_waits_and_a_stopped_one_ends_without_losing_what_was_re
         seen.append(next(answers, "stop"))
         return seen[-1]
 
-    monkeypatch.setattr(store.time, "sleep", lambda _s: None)  # no real waiting in the test
-    out = store.judge_pending(inbox.conn, None, "", None, control)
+    monkeypatch.setattr(judging.time, "sleep", lambda _s: None)  # no real waiting in the test
+    out = judging.judge_pending(inbox.conn, None, "", None, control)
     assert out["stopped"] is True and seen[:2] == ["pause", "pause"]  # it waited while paused, then ended when stopped
     assert inbox.conn.execute("SELECT COUNT(*) FROM documents WHERE judged=0").fetchone()[0] >= 1  # what was not read yet is still waiting
 
@@ -361,7 +361,7 @@ def test_tens_of_thousands_of_documents_are_judged_a_chunk_at_a_time_never_all_i
         def commit(self):
             self.conn.commit()
 
-    monkeypatch.setattr(store, "JUDGE_CHUNK", 2)
+    monkeypatch.setattr(judging, "JUDGE_CHUNK", 2)
     monkeypatch.setattr(store, "GENTLE_SECONDS", 0)
     for i in range(7):
         inbox.conn.execute(
@@ -371,10 +371,10 @@ def test_tens_of_thousands_of_documents_are_judged_a_chunk_at_a_time_never_all_i
     inbox.conn.commit()
     total = inbox.conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0]
     counting = Counting(inbox.conn)
-    out = store.judge_pending(counting, None, "")
+    out = judging.judge_pending(counting, None, "")
     assert counting.biggest <= 2 and out["read"] + out["skipped"] + out["waiting"] == total  # two at a time, every document accounted for
     inbox.conn.execute("UPDATE documents SET judged=0, facts='', ready=NULL")
     inbox.conn.commit()
     seen = iter(["run", "run", "run", "stop"])
-    out = store.judge_pending(Counting(inbox.conn), None, "", None, lambda: next(seen, "stop"))
+    out = judging.judge_pending(Counting(inbox.conn), None, "", None, lambda: next(seen, "stop"))
     assert out["stopped"] is True and out["waiting"] >= 1
