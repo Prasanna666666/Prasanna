@@ -658,6 +658,11 @@ def _step_state(running: bool, done: bool) -> str:
     return "running" if running else "done" if done else "waiting"
 
 
+SORT_ORDER = (
+    "documents",
+    "mails",
+    "attachments",
+)  # sorting and grouping: the files in your folders first, then the mail and what it carries (the reader takes the mail first)
 STEP_WORDS = (
     ("Read", "Reading files", "Get the text out of every file"),
     ("Sort", "Sorting files", "Find out what each file is"),
@@ -743,7 +748,9 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
             "attachments": bool(found),
         }  # all three are counted by the reader before it reads; the third also grows, up to what the mails say they carried, as mails are opened
         counts, every = [], []
-        for key, label in labels.items():
+        for key, label in (
+            labels.items() if n == 1 else sorted(labels.items(), key=lambda kv: SORT_ORDER.index(kv[0]))
+        ):  # each step lists them in the order it works through them
             # Step 1 counts the files the reader counted, each once it has been gone through (read, already known, or left out); sorting and grouping count what is held.
             total = max(tally[key]["present"], known[key] or 0, promised if key == "attachments" else 0) if n == 1 else tally[key]["present"]
             # All three are listed alike, and each gives its number as soon as its total is known (until then it says it is counting).

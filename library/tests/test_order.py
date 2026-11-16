@@ -53,7 +53,7 @@ def test_each_step_counts_documents_mails_and_documents_in_mails_apart(conn, mon
     }  # each gives its number as soon as its total is known
     assert [c["key"] for c in read["counts"]] == ["mails", "attachments", "documents"]  # all three are always listed alike, in the order they are read
     assert web._steps(conn, {"phase": 1})[0]["state"] != "done"  # the mail says how many it carried, even before they are all taken out
-    assert [c["label"] for c in sort["counts"]] == ["mails", "documents in mails", "documents"]
+    assert [c["label"] for c in sort["counts"]] == ["documents", "mails", "documents in mails"]  # sorting takes the documents first
 
 
 def test_the_groups_of_the_app_served_first_are_read_first(conn, monkeypatch):
@@ -221,3 +221,13 @@ def test_a_file_that_could_not_be_read_is_never_counted_as_read_and_is_said(conn
     assert web._round_complete()  # every counted file was read, or could not be
     line = next(c for c in web._steps(conn, {"phase": 2})[0]["counts"] if c["key"] == "documents")
     assert (line["done"], line["total"], line["unread"]) == (8, 10, 2)  # 8 read fully, 2 could not be: never "10 of 10"
+
+
+def test_each_step_lists_the_counts_in_the_order_it_works_through_them(conn, monkeypatch):
+    from library import web
+
+    monkeypatch.setattr(web, "_found", lambda: {"documents": 1, "mails": 1, "attachments": 1})
+    steps = web._steps(conn, {"phase": 2})
+    assert [c["key"] for c in steps[0]["counts"]] == ["mails", "attachments", "documents"]  # reading takes the mail first
+    assert [c["key"] for c in steps[1]["counts"]] == ["documents", "mails", "attachments"]  # sorting takes the documents first
+    assert [c["key"] for c in steps[2]["counts"]] == ["documents", "mails", "attachments"]
