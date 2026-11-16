@@ -240,8 +240,12 @@ def test_the_documents_are_shown_as_soon_as_they_are_counted_while_the_mail_is_s
     assert counts == {"mails": False, "attachments": False, "documents": True}
 
 
-def test_no_result_is_dropped_a_small_problem_is_put_right_and_a_damaged_one_is_read_again(conn, tmp_path):
+def test_no_result_is_dropped_a_small_problem_is_put_right_and_a_damaged_one_is_read_again(conn, tmp_path, monkeypatch):
     import json
+
+    settings = tmp_path.parent / f"{tmp_path.name}-limits.json"
+    settings.write_text(json.dumps({"max_text_chars": 1000, "max_name_chars": 255}))
+    monkeypatch.setenv("LIBRARY_LIMITS", str(settings))
 
     from library import store
 
@@ -249,7 +253,7 @@ def test_no_result_is_dropped_a_small_problem_is_put_right_and_a_damaged_one_is_
         return {"schema": 1, "sha256": sha * 64, "kind": "pdf", "name": "ok.pdf", "text": "t", **over}
 
     odd = {
-        "a": result("a", text="x" * (store.MAX_TEXT + 1), name="huge.pdf"),
+        "a": result("a", text="x" * 1001, name="huge.pdf"),
         "b": result("b", kind="video", name="film.mov"),
         "c": result("c", name="  "),
         "d": result("d", name="n" * 300),
@@ -267,9 +271,7 @@ def test_no_result_is_dropped_a_small_problem_is_put_right_and_a_damaged_one_is_
     got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: said.append(a))
     assert got["new"] == 6  # all six are kept, put right
     rows = {r["name"]: r for r in conn.execute("SELECT name, kind, length(text) AS n, data FROM documents")}
-    assert (
-        rows["huge.pdf"]["n"] == store.MAX_TEXT and "limits_hit" in rows["huge.pdf"]["data"]
-    )  # cut, and said to be cut, so it is read again if the limit is lifted
+    assert rows["huge.pdf"]["n"] == 1000 and "limits_hit" in rows["huge.pdf"]["data"]  # cut, and said to be cut, so it is read again if the limit is lifted
     assert rows["film.mov"]["kind"] == "binary" and any(n.startswith("unnamed file") for n in rows) and any(len(n) == 255 for n in rows)
     # the two that are not results at all are removed with their marks, so the reader reads those files again; they are said
     assert got["rejected"] == 2 and not (tmp_path / ".done" / ("9" * 64)).exists() and not (tmp_path / ".done" / ("8" * 64)).exists()

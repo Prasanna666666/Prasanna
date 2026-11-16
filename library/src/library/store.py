@@ -175,17 +175,21 @@ MIGRATIONS = (
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
-MAX_JSON = 400_000_000
-MAX_TEXT = 50_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 _COLLECTION = re.compile(r"^[a-z]{2,20}$")
 Progress = Callable[[str], None]
 
 
-MAX_NAME = 255  # characters of a file name that are kept
-MAX_SOURCE = 600  # characters of where a file came from that are kept
-MAX_PROMISED = 10_000  # attachments a mail may say it carried: more is a mistake
 JUDGED_FAILED = 3  # judged = 3: the model could not make sense of it yet
+
+
+def _kept(value: str, limit: str, what: str, cut: list[str]) -> str:
+    """The value, cut to the limit named in limits.json; when it was cut, `what` is added to `cut` so the document says it was read with something left out (and is read again when the limit changes)."""
+    most = limits.get(limit)
+    if len(value) <= most:
+        return value
+    cut.append(what)
+    return value[:most]
 
 
 def _valid(d: Any, stem: str) -> bool:
@@ -197,17 +201,17 @@ def _valid(d: Any, stem: str) -> bool:
         and stem == d["sha256"]
         and d.get("kind") in FILE_KINDS
         and isinstance(d.get("name"), str)
-        and 0 < len(d["name"]) <= MAX_NAME
+        and 0 < len(d["name"]) <= limits.get("max_name_chars")
         and isinstance(d.get("text"), str)
-        and len(d["text"]) <= MAX_TEXT
-        and (d.get("source") is None or (isinstance(d["source"], str) and len(d["source"]) <= MAX_SOURCE))
+        and len(d["text"]) <= limits.get("max_text_chars")
+        and (d.get("source") is None or (isinstance(d["source"], str) and len(d["source"]) <= limits.get("max_source_chars")))
     )
 
 
 def _promised(d: dict) -> int:
     meta = d.get("meta") if d.get("kind") == "email" and isinstance(d.get("meta"), dict) else {}
     count = (meta or {}).get("attachments")
-    return count if isinstance(count, int) and not isinstance(count, bool) and 0 <= count <= MAX_PROMISED else 0
+    return count if isinstance(count, int) and not isinstance(count, bool) and 0 <= count <= limits.get("max_promised_attachments") else 0
 
 
 def _structured(d: dict) -> str:
@@ -283,22 +287,21 @@ def _repaired(d: Any, stem: str) -> dict | None:
     fixed["schema"], fixed["sha256"] = 1, stem
     given_name = fixed.get("name")
     name = given_name if isinstance(given_name, str) else ""
-    fixed["name"] = (name.strip() or f"unnamed file {stem[:8]}")[:MAX_NAME]
+    cut: list[str] = []
+    fixed["name"] = _kept(name.strip() or f"unnamed file {stem[:8]}", "max_name_chars", "name", cut)
     if fixed.get("kind") not in FILE_KINDS:
         fixed["kind"] = "binary"
     given_text = fixed.get("text")
-    text = given_text if isinstance(given_text, str) else ""
-    if len(text) > MAX_TEXT:
-        given_meta = fixed.get("meta")
-        meta = given_meta if isinstance(given_meta, dict) else {}
-        fixed["meta"] = {**meta, "limits_hit": [*meta.get("limits_hit", []), "text"]}
-        text = text[:MAX_TEXT]
-    fixed["text"] = text
+    fixed["text"] = _kept(given_text if isinstance(given_text, str) else "", "max_text_chars", "text", cut)
     source = fixed.get("source")
     if isinstance(source, str):
-        fixed["source"] = source[:MAX_SOURCE]
-    elif fixed.get("source") is not None:
+        fixed["source"] = _kept(source, "max_source_chars", "source", cut)
+    elif source is not None:
         fixed["source"] = None
+    if cut:
+        given_meta = fixed.get("meta")
+        meta = given_meta if isinstance(given_meta, dict) else {}
+        fixed["meta"] = {**meta, "limits_hit": [*meta.get("limits_hit", []), *cut], "limits_version": limits.version()}
     return fixed if _valid(fixed, stem) else None
 
 
@@ -312,15 +315,15 @@ def _why_rejected(f: Path, d: Any, error: Exception | None = None) -> tuple[str,
         (not isinstance(d, dict), "the result of reading it was not in the form Atlas expects"),
         (isinstance(d, dict) and d.get("schema") != 1, "it was read by a version of the reader that Atlas does not know"),
         (isinstance(d, dict) and not named, "it has no name"),
-        (isinstance(d, dict) and isinstance(d.get("name"), str) and len(d["name"]) > MAX_NAME, "its name is too long"),
+        (isinstance(d, dict) and isinstance(d.get("name"), str) and len(d["name"]) > limits.get("max_name_chars"), "its name is too long"),
         (
             isinstance(d, dict) and not (isinstance(d.get("sha256"), str) and _SHA.match(d["sha256"]) and f.stem == d["sha256"]),
             "its identifier does not match its content",
         ),
         (isinstance(d, dict) and d.get("kind") not in FILE_KINDS, "a kind of file Atlas does not keep"),
         (isinstance(d, dict) and not isinstance(d.get("text"), str), "it has no readable text"),
-        (isinstance(d, dict) and isinstance(d.get("text"), str) and len(d["text"]) > MAX_TEXT, "too much text to keep"),
-        (isinstance(d, dict) and isinstance(d.get("source"), str) and len(d["source"]) > MAX_SOURCE, "its location is too long to record"),
+        (isinstance(d, dict) and isinstance(d.get("text"), str) and len(d["text"]) > limits.get("max_text_chars"), "too much text to keep"),
+        (isinstance(d, dict) and isinstance(d.get("source"), str) and len(d["source"]) > limits.get("max_source_chars"), "its location is too long to record"),
     )
     reason = next((why for failed, why in checks if failed), "the result of reading it could not be used")
     area = d.get("area") if isinstance(d, dict) else ""
@@ -339,7 +342,7 @@ def ingest_dir(
             break  # Stop: what is taken in so far stays, the rest waits for the next read
         d = None
         try:
-            if f.is_symlink() or f.stat().st_size > MAX_JSON:
+            if f.is_symlink() or f.stat().st_size > limits.get("max_json_bytes"):
                 raise ValueError("symlink or too large")
             raw = json.loads(f.read_text(encoding="utf-8"))
             d = _repaired(raw, f.stem)
@@ -626,7 +629,7 @@ def ingest_pictures(conn, engine_conn) -> int:
         sha = hashlib.sha256(f"picture\0{r['name']}\0{r['text']}".encode()).hexdigest()
         cur = conn.execute(
             "INSERT OR IGNORE INTO documents (sha256, name, kind, text, area, data, parsed_at) VALUES (?,?,?,?,?,?,?)",
-            (sha, str(r["name"])[:255], "image", str(r["text"])[:MAX_TEXT], "pictures", "", ""),
+            (sha, str(r["name"])[: limits.get("max_name_chars")], "image", str(r["text"])[: limits.get("max_text_chars")], "pictures", "", ""),
         )
         added += cur.rowcount
     conn.commit()

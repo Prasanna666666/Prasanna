@@ -23,9 +23,6 @@ MAX_BYTES = limits.get("max_file_bytes")
 MBOX_MAX_BYTES = 64 * 1024 * 1024 * 1024  # a whole mailbox export can be large; each message inside is still capped
 
 
-MAX_TEXT = limits.get("max_text_chars")
-
-
 MAX_PAGES = limits.get("max_pages")
 
 
@@ -52,7 +49,7 @@ MIN_COLUMNS = 2  # a delimited line has at least this many separators
 
 
 def clean(text: str) -> str:
-    return _CTRL.sub("", text)[:MAX_TEXT]
+    return _CTRL.sub("", text)[: limits.get("max_text_chars")]
 
 
 def _read_text(path: Path) -> dict:
@@ -116,7 +113,7 @@ def extract(path: Path) -> dict:
     hit = []
     if meta.get("ocr_cut_short"):
         hit.append("ocr")
-    if len(res.get("text", "")) >= MAX_TEXT:
+    if len(res.get("text", "")) >= limits.get("max_text_chars"):
         hit.append("text")
     if any(isinstance(data.get(k), list) and len(data[k]) >= readers.MAX_ROWS for k in ("lines", "table", "rows")):
         hit.append("rows")

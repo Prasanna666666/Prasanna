@@ -9,6 +9,8 @@ import re
 import zipfile
 from pathlib import Path
 
+from . import limits
+
 HEAD = 8192
 IMAGE_STARTS = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff", b"GIF87a", b"GIF89a", b"II*\x00", b"MM\x00*", b"BM")
 HEIF_BRANDS = (b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1", b"heif", b"avif")
@@ -17,7 +19,6 @@ _HEADER_LINE = re.compile(r"^[A-Za-z][A-Za-z0-9-]*: ", re.MULTILINE)
 _MAIL_HEADERS = ("received:", "message-id:", "mime-version:", "return-path:", "x-mailer:", "delivered-to:", "content-type:")
 
 
-MAX_JSON_BYTES = 5_000_000  # a file this small that starts like JSON is checked to be JSON
 UTF8_CHARACTER_BYTES = 3  # the most bytes of a character cut by the end of what was read
 MIN_PRINTABLE_RATIO = 0.9  # text is text when this much of it can be printed
 MIN_HEADER_LINES = 3  # a mail starts with at least this many header lines
@@ -97,7 +98,7 @@ def _text_kind(text: str, path: Path, head: bytes) -> str:
         and len(_HEADER_LINE.findall(sample[:HEADER_SAMPLE_CHARS])) >= MIN_HEADER_LINES
     ):
         return "email"
-    if sample[:1] in "{[" and path.stat().st_size <= MAX_JSON_BYTES:
+    if sample[:1] in "{[" and path.stat().st_size <= limits.get("json_sniff_bytes"):
         try:
             json.loads(path.read_text(encoding="utf-8-sig"))
             return "json"

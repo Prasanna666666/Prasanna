@@ -24,6 +24,11 @@ DEFAULTS = {
     "data_line_chars": 1_000_000,
     "max_read_bytes": 10 * 1024**3,
     "max_part_bytes": 10 * 1024**3,
+    "max_json_bytes": 400_000_000,
+    "json_sniff_bytes": 5_000_000,
+    "max_name_chars": 255,
+    "max_source_chars": 600,
+    "max_promised_attachments": 10_000,
 }
 
 
