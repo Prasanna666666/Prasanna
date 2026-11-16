@@ -588,13 +588,10 @@ body.chatting .fab {
 .scan {
     display: flex;
     flex-direction: column;
-    gap: 18px;
-    margin: 16px 24px 0;
-    padding: 18px 20px;
-    border-radius: 20px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    box-shadow: var(--shadow);
+    gap: 12px;
+    margin: 0 0 26px;
+    padding: 0 0 22px;
+    border-bottom: 1px solid var(--line);
 }
 .scan[hidden] {
     display: none;
@@ -983,7 +980,7 @@ body.chatting .fab {
 .rd-headline {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 .rd-doing {
     font-size: 14px;
@@ -996,12 +993,12 @@ body.chatting .fab {
     gap: 14px;
 }
 .rd-big .rd-meter {
-    height: 12px;
+    height: 10px;
 }
 .rd-bigpct {
     min-width: 52px;
     text-align: right;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
     color: var(--fg);
@@ -1014,14 +1011,14 @@ body.chatting .fab {
 .rd-stepgrid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
+    gap: 10px;
 }
 .rd-step {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 14px 16px;
-    border-radius: 16px;
+    padding: 10px 14px;
+    border-radius: 14px;
     border: 1px solid var(--line);
     background: var(--surface);
 }
@@ -1038,7 +1035,8 @@ body.chatting .fab {
     gap: 10px;
 }
 .rd-stepname b {
-    font-size: 15px;
+    flex: 1;
+    font-size: 14px;
     font-weight: 650;
     color: var(--fg);
 }
@@ -1085,14 +1083,13 @@ body.chatting .fab {
 .rd-counts {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-top: 2px;
+    gap: 2px;
 }
 .rd-count {
     display: flex;
     justify-content: space-between;
     gap: 10px;
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--muted);
 }
 .rd-count b {
@@ -1106,8 +1103,8 @@ body.chatting .fab {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 14px;
-    border-radius: 14px;
+    padding: 8px 12px;
+    border-radius: 12px;
     background: var(--surface);
     border: 1px solid var(--line);
 }

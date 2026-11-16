@@ -303,7 +303,8 @@
                 'div',
                 'sub',
                 new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
-            )
+            ),
+            scan.panel // the reading of the files is part of this page, under its heading
         );
         // things to ask: Atlas prepares, you confirm; nothing is changed by asking
         const asks = el('div', 'asks');
@@ -336,6 +337,7 @@
     const render = () => {
         const stage = $('#stage');
         const { module, route } = parse();
+        scan.park.append(scan.panel); // out of the page being replaced: it goes back into the new overview below
         stage.querySelector('.dash')?.remove();
         state.frames.forEach((frame, id) => {
             frame.hidden = !module || module.id !== id || module.native;
@@ -344,6 +346,10 @@
         else if (module) frameFor(module, route);
         else stage.prepend(renderDashboard());
         markActive();
+        if (scan.last) {
+            scan.sig = ''; // the card appears on the overview and is gone on every other page
+            showScan(scan.last);
+        }
     };
 
     // ---------------------------------------------------------------- chips and health
@@ -567,7 +573,12 @@
     }
 
     // ---------------------------------------------------------------- one Update button: read everything new, in every app that can
-    const scan = { timer: null, hide: null };
+    const scan = {
+        timer: null,
+        hide: null,
+        panel: document.getElementById('scan'),
+        park: document.getElementById('scan').parentNode,
+    };
     // ---- the reading card: one overall bar, one row per file (done, being read, waiting), and the totals; part of the page, redrawn only where something changed
     // never "100%" before it is all done (99.8 reads 99%), and never "0%" shown as a guess
     const pctText = (p, estimated) => {
@@ -627,14 +638,14 @@
     // a step: its name, what it does, how far it is, and its three counts (documents, mails, documents in mails), all alike
     const stepCard = (s, now) => {
         const card = el('div', 'rd-step ' + s.state + (now && now.n === s.n ? ' current' : ''));
+        card.title = s.about || '';
         const head = el('div', 'rd-stepname');
-        head.append(el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)), el('b', '', s.name));
-        card.append(
-            head,
-            el('span', 'rd-about', s.about || ''),
-            meter(s.percent),
+        head.append(
+            el('i', 'rd-stepmark', s.state === 'done' ? '' : String(s.n)),
+            el('b', '', s.name),
             el('span', 'rd-pct', pctText(s.percent))
         );
+        card.append(head, meter(s.percent));
         const counts = el('div', 'rd-counts');
         for (const c of s.counts || []) {
             const line = el('div', 'rd-count');
@@ -767,7 +778,7 @@
     const problemBlocks = (report) =>
         state.modules.flatMap((m) => (report.modules[m.id] || {}).problems || []).map((p) => noteBlock(p, true));
     const showScan = (report) => {
-        const panel = $('#scan');
+        const panel = scan.panel;
         scan.last = report;
         if (scanUnchanged(report, panel)) return;
         // the part of Atlas that reads the files (hidden from the menu) decides what the card says: when it is switched off there is nothing to pause or stop
@@ -792,7 +803,7 @@
             blocks.push(...problemBlocks(report));
         }
         patchChildren(panel, blocks.filter(Boolean));
-        panel.hidden = false;
+        panel.hidden = !!parse().module; // the reading card belongs to the overview: every other page is its app's own, with nothing of the read above it
         $('#update').classList.toggle('busy', running);
         $('#update span').textContent = running ? 'Reading…' : 'Read new files';
     };
