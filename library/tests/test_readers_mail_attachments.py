@@ -110,7 +110,7 @@ def test_gmail_all_mail_is_read_but_bulk_mail_and_spam_are_not(tmp_path):
     put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/2.emlx", "From: n@example.org\nList-Unsubscribe: <mailto:x@example.org>")
     put("V10/A/[Gmail].mbox/All Mail.mbox/U/Data/Messages/3.emlx", "From: n@example.org\nPrecedence: bulk")
     put("V10/A/[Gmail].mbox/Spam.mbox/U/Data/Messages/4.emlx", "From: a@example.org")
-    assert parser._supported(tmp_path, only_emlx=True) == 1
+    assert parser.mail_index(tmp_path, tmp_path / 'out').mails == 1
 
 
 def test_the_rules_for_which_mail_is_read_have_a_fingerprint_that_changes_with_them(monkeypatch):
@@ -139,7 +139,8 @@ def test_attachments_apple_mail_keeps_beside_its_messages_are_found_and_read(tmp
     (att / "5/1/report.txt").write_text("Quarterly report with some words in it. " * 5)
     (att / "6/1/offer.txt").write_text("Special offer. " * 10)  # belongs to a newsletter
     (spam / "x.txt").write_text("spam " * 20)  # a mailbox that is not read
-    assert [relative.rsplit("/", 1)[-1] for _, relative in parser._stored_attachments(tmp_path)] == ["report.txt"]
+    assert [relative.rsplit("/", 1)[-1] for _, relative in parser.mail_index(tmp_path, tmp_path / "idx").attachments] == ["report.txt"]
+    parser._MAIL_INDEX.clear()
     out = tmp_path / "out"
     assert parser.process_mail_attachments(tmp_path, out, isolated=False)["parsed"] == 1
     assert [json.loads(p.read_text())["name"] for p in out.glob("*.json")] == ["5/1/report.txt"]

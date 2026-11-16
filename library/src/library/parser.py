@@ -427,7 +427,7 @@ def is_bulk_mail(path: Path) -> bool:
         return False
     try:
         with path.open("rb") as f:
-            raw = f.read(65536)
+            raw = f.read(16384)
     except OSError:
         return False
     if path.suffix.lower() == ".emlx" or sniff.is_emlx(raw[:64]):
@@ -441,7 +441,7 @@ def is_bulk_mail(path: Path) -> bool:
 
 
 def _is_bulk_message(f: Path, kind: str, area: str, depth: int) -> bool:
-    return kind == "email" and area == "mail" and depth < 2 and is_bulk_mail(f)
+    return kind == "email" and area == "mail" and depth < 2 and str(f) not in _VETTED and is_bulk_mail(f)
 
 
 def _in_skipped_mailbox(relative: Path) -> bool:
@@ -455,44 +455,97 @@ def _save_seen(cache_file: Path, seen: dict[str, str]) -> None:
     cache_file.write_text(json.dumps(seen))
 
 
-def _stored_attachments(root: Path, out: Path | None = None) -> list[tuple[Path, str]]:
-    """The attachments Apple Mail keeps as files of their own beside the messages (`.../Attachments/<message>/<part>/<file>`), of the mailboxes that are read and of messages that
-    are not bulk mail: as (file, path inside the Mail folder)."""
-    found: list[tuple[Path, str]] = []
-    resolved = root.resolve()
-    for seen, f in enumerate(resolved.rglob("*"), 1):
-        if out is not None and seen % CHECK_EVERY == 0 and halted(out):
-            raise Halted
-        if f.name.startswith(".") or f.is_symlink() or "Attachments" not in f.parts or not f.is_file():
+_MAIL_INDEX: dict[str, MailIndex] = {}
+_INDEX_LOCK = threading.Lock()
+_VETTED: set[str] = set()  # messages already checked for being bulk mail: not opened again
+
+
+class MailIndex:
+    """One walk through Apple Mail's folder, made once per round and shared by the counting and the reading: the messages of the mailboxes that are read (not bulk mail), how many of
+    them were read before, the bulk messages found now, and the attachments Mail keeps as files of their own beside the messages."""
+
+    def __init__(self) -> None:
+        self.messages: list[tuple[Path, str, str]] = []  # (file, path inside the Mail folder, size:time) still to read
+        self.gone = 0  # messages read in an earlier round
+        self.new_bulk: dict[str, str] = {}  # newsletters, promotions and mailing lists seen now: remembered, never counted
+        self.attachments: list[tuple[Path, str]] = []
+
+    @property
+    def mails(self) -> int:
+        return len(self.messages) + self.gone
+
+
+def _seen_cache(out: Path, root: Path, kind: str = "") -> tuple[Path, dict[str, str]]:
+    cache_file = out / ".mailseen-2" / (hashlib.sha256((kind + str(root)).encode()).hexdigest()[:16] + ".json")
+    try:
+        return cache_file, json.loads(cache_file.read_text()) if cache_file.exists() else {}
+    except (OSError, ValueError):
+        return cache_file, {}
+
+
+def _build_mail_index(root: Path, out: Path) -> MailIndex:
+    idx = MailIndex()
+    _, seen = _seen_cache(out, root)
+    bulk_owners: set[tuple[str, str]] = set()
+    candidates: list[tuple[Path, str, tuple[str, str]]] = []
+    for n, f in enumerate(root.rglob("*"), 1):  # one look at every file, not sorted first, so Pause and Stop are heard during the walk
+        if n % CHECK_EVERY == 0:
+            _now(out, "Mail", f"looking for new messages ({n:,} looked at)")
+            if halted(out):
+                raise Halted
+        if f.name.startswith(".") or f.is_symlink():
             continue
-        inside = f.relative_to(resolved)
-        parts = inside.parts
-        if len(parts) < 3 or _in_skipped_mailbox(inside) or f.stat().st_size == 0:
+        inside = f.relative_to(root)
+        if _in_skipped_mailbox(inside):
             continue
-        at = parts.index("Attachments")
-        message = parts[at + 1] if len(parts) > at + 2 else ""
-        base = resolved.joinpath(*parts[:at])
-        owner = next((c for c in (base / "Messages" / f"{message}.emlx", base / "Messages" / f"{message}.partial.emlx") if c.exists()), None)
-        if owner is not None and is_bulk_mail(owner):
-            continue  # an attachment of a newsletter or promotion
-        found.append((f, str(inside)))
-    return found
+        if f.suffix.lower() == ".emlx":
+            stat = f.stat()
+            stamp, key = f"{stat.st_size}:{int(stat.st_mtime)}", str(inside)
+            owner = (str(f.parent), f.name.split(".")[0])
+            if seen.get(key) == f"bulk:{stamp}":
+                bulk_owners.add(owner)
+            elif seen.get(key) == stamp:
+                idx.gone += 1
+            elif is_bulk_mail(f):
+                idx.new_bulk[key] = stamp
+                bulk_owners.add(owner)
+            else:
+                idx.messages.append((f, key, stamp))
+                _VETTED.add(str(f))
+        elif "Attachments" in inside.parts and f.is_file():
+            at = inside.parts.index("Attachments")
+            if len(inside.parts) > at + 2:
+                candidates.append((f, str(inside), (str(root.joinpath(*inside.parts[:at], "Messages")), inside.parts[at + 1])))
+    idx.attachments = [
+        (f, rel) for f, rel, owner in candidates if owner not in bulk_owners and f.stat().st_size > 0
+    ]  # an attachment of a newsletter or promotion is not read
+    return idx
+
+
+def mail_index(store: Path, out: Path) -> MailIndex:
+    """The walk through the Mail folder, made once in a round: whoever asks first does it, the other gets the same result."""
+    key = str(store.resolve())
+    with _INDEX_LOCK:
+        if key not in _MAIL_INDEX:
+            _MAIL_INDEX[key] = _build_mail_index(Path(key), out)
+        return _MAIL_INDEX[key]
 
 
 def process_mail_attachments(store: Path, out: Path, isolated: bool = True) -> dict[str, int]:
     """The attachments Apple Mail keeps beside the messages are read as documents of the mail (the ones not read before)."""
     out.mkdir(parents=True, exist_ok=True)
     root = store.resolve()
-    cache_file = out / ".mailseen-2" / (hashlib.sha256(("attachments" + str(root)).encode()).hexdigest()[:16] + ".json")
-    try:
-        seen: dict[str, str] = json.loads(cache_file.read_text()) if cache_file.exists() else {}
-    except (OSError, ValueError):
-        seen = {}
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
+    try:
+        idx = mail_index(root, out)
+    except Halted:
+        return counts
+    cache_file, seen = _seen_cache(out, root, "attachments")
     todo = []
     gone = 0
-    for f, relative in _stored_attachments(root, out):
-        stamp = f"{f.stat().st_size}:{int(f.stat().st_mtime)}"
+    for f, relative in idx.attachments:
+        stat = f.stat()
+        stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
         if seen.get(relative) == stamp:
             gone += 1
         else:
@@ -511,44 +564,22 @@ def process_mail_attachments(store: Path, out: Path, isolated: bool = True) -> d
 
 
 def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[str, int]:
-    """Apple Mail's own folder (read-only): the messages of the declared mailboxes (`mailboxes.json`: Inbox and Sent), only those not read before (a message is recognised by its
-    path, size and time, so the folder is not re-read every round). Messages become documents with the area `mail`, attachments included."""
+    """Apple Mail's own folder (read-only): the messages of the declared mailboxes (`mailboxes.json`), not bulk mail, only those not read before (a message is recognised by its
+    path, size and time, so the folder is not re-read every round). Messages become documents with the area `mail`."""
     out.mkdir(parents=True, exist_ok=True)
     root = store.resolve()
-    cache_file = out / ".mailseen-2" / (hashlib.sha256(str(root).encode()).hexdigest()[:16] + ".json")
-    try:
-        seen: dict[str, str] = json.loads(cache_file.read_text()) if cache_file.exists() else {}
-    except (OSError, ValueError):
-        seen = {}
     counts = {"parsed": 0, "skipped": 0, "failed": 0}
-    todo: list[tuple[Path, str, str]] = []
-    counted_before = 0  # messages already read in an earlier round: gone through, nothing to do
-    # looked at one by one (not sorted first), so Pause and Stop are heard during the walk
-    for seen_files, f in enumerate(root.rglob("*.emlx"), 1):
-        if seen_files % CHECK_EVERY == 0:
-            _now(out, "Mail", f"looking for new messages ({seen_files:,} looked at)")
-            if halted(out):
-                return counts  # stopped while looking through the mail folder
-        if f.is_symlink() or root not in f.resolve().parents:
-            continue
-        inside = f.relative_to(root)
-        if _in_skipped_mailbox(inside):
-            continue
-        stat = f.stat()
-        stamp = f"{stat.st_size}:{int(stat.st_mtime)}"
-        if seen.get(str(inside)) == f"bulk:{stamp}":
-            continue  # a newsletter, promotion or mailing list: not among the mails to read
-        if seen.get(str(inside)) == stamp:
-            counted_before += 1
-        elif is_bulk_mail(f):
-            seen[str(inside)] = f"bulk:{stamp}"
-        else:
-            todo.append((f, str(inside), stamp))
-    _progress_add(out, "mail", counted_before)
+    try:
+        idx = mail_index(root, out)
+    except Halted:
+        return counts  # stopped while looking through the mail folder
+    cache_file, seen = _seen_cache(out, root)
+    seen.update({k: f"bulk:{v}" for k, v in idx.new_bulk.items()})  # remembered, so their headers are not read again
+    _progress_add(out, "mail", idx.gone)
     for i in range(
-        0, len(todo), BATCH
+        0, len(idx.messages), BATCH
     ):  # a batch at a time, several messages at once; what is done is remembered after each batch, so an interrupted first read carries on
-        batch = todo[i : i + BATCH]
+        batch = idx.messages[i : i + BATCH]
         for k, v in _read_batch([f for f, _, _ in batch], lambda f: f.name, out, "mail", isolated).items():
             counts[k] += v
         for _f, relative, stamp in batch:
@@ -556,8 +587,7 @@ def process_mail_store(store: Path, out: Path, isolated: bool = True) -> dict[st
         _save_seen(cache_file, seen)
         if checkpoint(out):
             break
-    cache_file.parent.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps(seen))
+    _save_seen(cache_file, seen)
     return counts
 
 
@@ -725,8 +755,9 @@ def write_found(a: argparse.Namespace) -> None:
         mails = _supported(Path(a.inbox) / "mail", out=out) if (Path(a.inbox) / "mail").is_dir() else 0
         attachments = 0
         if a.mail and Path(a.mail).is_dir():
-            mails += _supported(Path(a.mail), only_emlx=True, out=out)
-            attachments = len(_stored_attachments(Path(a.mail), out))
+            idx = mail_index(Path(a.mail), out)
+            mails += idx.mails
+            attachments = len(idx.attachments)
         roots = [("inbox", Path(a.inbox))] + [(name, folder) for name, folder in collections(a.collection) if folder.is_dir()]
         unread = unread_report([(n, r) for n, r in roots if r.is_dir()], out)
     except Halted:
@@ -779,6 +810,8 @@ def _read_round(a: argparse.Namespace) -> dict[str, int]:
     mails: list[dict[str, int]] = []
     documents: list[dict[str, int]] = []
     _PROGRESS.update(documents=0, mails=0, attachments=0)
+    _MAIL_INDEX.clear()
+    _VETTED.clear()
     _write_progress(out)
     _now(out, "Mail", "looking for new messages")
     if (Path(a.inbox) / "mail").is_dir():  # the mail first, with everything it carries (mail exports dropped into the inbox: .mbox, .eml, .emlx)
