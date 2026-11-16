@@ -260,7 +260,9 @@ def _process(f: Path, label: str, out: Path, area: str, isolated: bool, counts: 
                     _process(inner, f"{label}/{name}", out, area, isolated, counts, depth + 1)
             return
         _now(out, label)
-        res = extract_isolated(f) if isolated else extract(f)
+        res = (
+            extract_isolated(f) if isolated and kind != "email" else extract(f)
+        )  # a mail is plain text parsed by the standard library, inside this sealed container: a sealed child per message would take a thousand times longer
         _write(out, digest, label, f.stat().st_size, res, area, source if depth == 0 else "")
         counts["parsed"] += 1
         if _BUDGET["left"] is not None:
@@ -309,7 +311,9 @@ def _process_mailbox(f: Path, label: str, out: Path, area: str, isolated: bool, 
     seen.touch()  # empty: a mail's name can be its subject, and nothing readable is kept here
 
 
-WORKERS = max(1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", "2")), 8))  # files read at the same time, each in its own sealed child process
+WORKERS = max(
+    1, min(int(os.environ.get("LIBRARY_PARSE_WORKERS", str(max(2, min(os.cpu_count() or 2, 4))))), 8)
+)  # files read at the same time, each in its own sealed child process
 BATCH = 50  # files per batch: a pause or stop takes effect within one batch
 
 
