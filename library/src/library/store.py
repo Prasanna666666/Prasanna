@@ -172,8 +172,8 @@ MIGRATIONS = (
 )
 MODULE = Module("library", MIGRATIONS)
 FILE_KINDS = {"text", "csv", "pdf", "image", "sheet", "doc", "html", "email", "json", "binary"}
-MAX_JSON = 30_000_000
-MAX_TEXT = 2_000_000
+MAX_JSON = 400_000_000
+MAX_TEXT = 50_000_000
 _SHA = re.compile(r"^[0-9a-f]{64}$")
 _COLLECTION = re.compile(r"^[a-z]{2,20}$")
 Progress = Callable[[str], None]
@@ -313,7 +313,7 @@ def ingest_dir(
 
 
 # ---- judging: what is each document? ------------------------------------------------------------------------------------------
-MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never what it is
+MAIL_KEPT_CHARS = 600  # what is kept of an email: what it says, never its body (the owner's call: see docs/decisions.md)
 
 
 def _mail_summary(facts: dict | None) -> str:

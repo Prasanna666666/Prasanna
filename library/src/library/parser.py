@@ -34,8 +34,8 @@ from . import flags, priority, readers, sniff
 SCHEMA = 1
 MAX_BYTES = 50 * 1024 * 1024
 MBOX_MAX_BYTES = 64 * 1024 * 1024 * 1024  # a whole mailbox export can be large; each message inside is still capped
-MAX_TEXT = 2_000_000
-MAX_PAGES = 500
+MAX_TEXT = 50_000_000  # no practical limit: a document's text is kept whole
+MAX_PAGES = 100_000
 MAX_CSV_ROWS = 200_000
 MAX_DATA_ROWS = 50_000  # structured rows/lines kept for statements
 MAX_CELL = 300
