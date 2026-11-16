@@ -712,6 +712,7 @@
     const pages = {};
 
     /** The month as a calendar: every day coloured by what was spent, so the expensive days stand out. */
+    const HEAT_WHITE_TEXT_FROM = 0.9; // the share of the busiest day above which a calendar cell is dark enough for white text
     function spendCalendar(month, payments) {
         const perDay = {};
         for (const t of payments) if (t.kind !== 'income') perDay[t.day] = (perDay[t.day] || 0) + t.amount;
@@ -730,6 +731,7 @@
                 String(day)
             );
             cell.style.setProperty('--level', value ? (0.18 + 0.82 * (value / top)).toFixed(2) : '0');
+            if (value / top > HEAT_WHITE_TEXT_FROM) cell.classList.add('heat-top'); // the darkest cells need white text to stay readable
             grid.append(cell);
         }
         return grid;

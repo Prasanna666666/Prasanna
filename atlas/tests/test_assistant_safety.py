@@ -4,9 +4,9 @@ model that answers is the one that was configured, never another one installed b
 import json
 
 import pytest
+from test_assistant import call, chat, loop_calls, text, tool
 
 from atlas.assistant import ModelClient
-from tests.test_assistant import call, chat, loop_calls, text, tool
 
 
 def test_a_short_yes_is_passed_to_the_part_and_the_change_is_reported_in_its_own_words(running):

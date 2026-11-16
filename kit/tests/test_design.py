@@ -47,3 +47,15 @@ def test_text_colours_are_readable_on_every_background_in_both_themes():
 def test_every_page_keeps_a_visible_keyboard_focus_and_respects_reduced_motion():
     css = (ROOT / "design" / "design.css").read_text()
     assert ":focus-visible" in css and "prefers-reduced-motion: reduce" in css
+
+
+def test_no_rule_hides_the_surfaces_every_page_is_made_of():
+    """A cleanup once left `.card, .stat { display: none !important }` behind: every card in every app disappeared and no test noticed."""
+    import re
+
+    css = (ROOT / "design" / "design.css").read_text()
+    surfaces = {".card", ".stat", ".hero", ".panel", ".tripcard", ".medcard", ".labtile", ".yearstrip", ".healthhero", ".travelhero", ".hero-next"}
+    for selectors, block in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        names = {s.strip() for s in selectors.split(",")}
+        if names & surfaces and re.search(r"display\s*:\s*none", block):
+            raise AssertionError(f"a rule hides a page surface: {sorted(names & surfaces)}")

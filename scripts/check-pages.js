@@ -19,8 +19,8 @@ const targets = [
     ],
     [
         "atlas",
-        "http://127.0.0.1:8000/",
-        ["#/", "#/home", "#/documents", "#/finance"],
+        "http://atlas.localhost:8000/",
+        ["#/", "#/finance", "#/health", "#/travel", "#/photos", "#/calendar"],
     ],
 ];
 (async () => {
@@ -52,6 +52,40 @@ const targets = [
             const res = await page.evaluate(() =>
                 axe.run({ runOnly: ["wcag2a", "wcag2aa", "wcag21aa"] }),
             );
+            // The apps' own pages are shown inside Atlas, so their pages are checked in their frames too (axe) and no card or tile may be hidden by a stylesheet (a page may hide one itself).
+            const hidden = [];
+            const inner = [];
+            for (const frame of page.frames().slice(1)) {
+                try {
+                    await frame.evaluate(axe);
+                    const found = await frame.evaluate(() =>
+                        axe.run({ runOnly: ["wcag2a", "wcag2aa", "wcag21aa"] }),
+                    );
+                    inner.push(...found.violations);
+                } catch (e) {
+                    errors.push("frame: " + e.message);
+                }
+            }
+            for (const frame of [page.mainFrame(), ...page.frames().slice(1)]) {
+                const n = await frame
+                    .evaluate(
+                        () =>
+                            [
+                                ...document.querySelectorAll(
+                                    ".card,.stat,.hero,.panel,.tripcard",
+                                ),
+                            ].filter(
+                                (e) =>
+                                    getComputedStyle(e).display === "none" &&
+                                    e.style.display !== "none",
+                            ).length,
+                    )
+                    .catch(() => 0);
+                if (n) hidden.push(n);
+            }
+            res.violations.push(...inner);
+            if (hidden.length)
+                errors.push("hidden surfaces: " + hidden.join(","));
             const filtered = errors.filter(
                 (e) =>
                     !/favicon|Failed to load resource: the server responded with a status of (4|5)0/.test(
