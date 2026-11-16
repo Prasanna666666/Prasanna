@@ -128,7 +128,7 @@ def _finish(state: State, conn, client, model, followed: trace.Trace) -> None:
         state.scan["summary"] += ". " + store.audit_line(store.audit(conn))
 
 
-MAIL_SCOPE_MARK = ".mail-scope-1"  # exists once the mail read before the mailboxes were chosen has been forgotten
+MAIL_SCOPE_MARK = ".mail-scope"  # holds the rules the mail held here was read under
 READER_START_SECONDS = 90  # how long the reader may take to pick up the request before it is called not running
 
 
@@ -210,6 +210,16 @@ def _summarise(state: State, conn, totals: dict[str, int]) -> bool:
     return state.control != "stop" and not (parsed_dir() / flags.AUTO_CAPPED).exists()
 
 
+def _mail_scope() -> str:
+    """A fingerprint of the rules for which mail is read (`mailboxes.json`, or LIBRARY_MAILBOXES): when it changes, the mail read under the old rules is forgotten."""
+    import hashlib
+
+    from . import parser
+
+    rules = json.dumps([sorted(parser.mailboxes_read()), sorted(parser._bulk_headers().items())])
+    return hashlib.sha256(rules.encode()).hexdigest()[:16]
+
+
 def _read_all(state: State) -> None:
     """Update, in three strict stages: everything is read, then everything is sorted, then everything is understood. One press does all of it (and the last stage is bounded; the end of a read says what is left)."""
     conn = state.connect()
@@ -225,9 +235,13 @@ def _read_all(state: State) -> None:
         followed = trace.Trace(conn, lambda name, step, detail: state.scan.update(now=(name, step, detail), now_since=time.monotonic()))
         state.scan["run"] = followed.run
         parsed_dir().mkdir(parents=True, exist_ok=True)
-        if not (parsed_dir() / MAIL_SCOPE_MARK).exists():  # mail read before only Inbox and Sent were chosen is forgotten once, then read again from those
+        scope = _mail_scope()
+        marker = parsed_dir() / MAIL_SCOPE_MARK
+        if (
+            not marker.exists() or marker.read_text() != scope
+        ):  # the rules for which mail is read changed (or never applied): mail read under other rules is forgotten and read again
             store.forget_mail(conn, parsed_dir())
-            (parsed_dir() / MAIL_SCOPE_MARK).touch()
+            marker.write_text(scope)
         store.retry_unclear(conn)  # what the model could not make sense of last time gets another try, once per press
         (parsed_dir() / ".now").unlink(missing_ok=True)
         (parsed_dir() / ".found").unlink(
