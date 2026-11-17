@@ -177,3 +177,13 @@ Reviewer did not independently reproduce fixes, run the app, or read all 512 fil
 
 Reviewer's actions before closure, and where each stands at the head named: (1) regenerate the coverage matrix: **done in this commit** (512 entries, carried-over row statuses, four AUTHORED rows; C-1 FIXED - P2 - this commit, awaiting reviewer); (2) tracker in the new format: header updated, rows still use the older words and mapping, row-by-row rewrite OPEN; (3) independent verification of financial calculations, consent, encryption, migrations: needs a reviewer other than the author, OPEN; (4) O-16: blocker for sensitive use, owner decision pending; (5) Mac/model checks: BLOCKED; (6) older-release and extraction fixtures (O-12, O-14): OPEN; (7) P-1 outside this PR: agreed, unchanged; (8) nothing is closed on documentation alone: agreed.
 Reviewer's O-1 ask (tests across zero-, two-, three-decimal currencies on import and calculation paths): agreed as the remainder of O-1; the statement-import path is untested. O-4 documents roughly 5x memory on a 66 MB JSON; supported input limits are not yet written down: OPEN.
+
+## 13. R11: Gemini sign-off written against `2e2fd91` ("Ready for Merge & Local Deployment")
+
+Recorded, not adopted as an approval. `2e2fd91` is an ancestor of the current head; the answer names no commit for any item and does not use the agreed STATE - PROOF - FLAG - COMMIT format, so by the agreed rules its statuses count as unverified.
+- Its "FIXED" ledger repeats the author's own claims (P3, author-reported); it names no check it ran itself. Nothing becomes VERIFIED or CLOSED from it.
+- Out of date: "1,231 tests" (1,265 at `97d5e29`/`cc06e92`); it defers O-2, O-3, O-11, O-13, O-15, O-17 as undone, but they were done at `97d5e29` (D-39, D-36, D-38, D-37/D-45, D-35, D-40).
+- O-16 is listed as an accepted trade-off. It is not: ACCEPTED RISK needs the owner's written sign-off (reason, scope, exposure window, controls, review date), and none exists. The other reviewer calls it a blocker for sensitive use.
+- "Linters and type checkers completely green" and "UI theme checks green": CI for the exact heads completed without failure; no one has independently re-run lint, type checks or the page check.
+- Merge is the owner's decision. Open items remain as tracked: O-1, O-4, O-5, O-6, O-7, O-8, O-9, O-10, O-12, O-14, O-16, P-1 to P-16 and the NEEDS MAC/MODEL checks.
+Conclusion: Gemini's answer does not change any status. It does agree the next real step is a run on the owner's Mac with the local model, which is what stays BLOCKED until then.
