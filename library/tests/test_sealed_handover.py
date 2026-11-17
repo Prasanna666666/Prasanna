@@ -178,3 +178,19 @@ def test_the_read_summary_tells_the_person_when_sealed_files_could_not_be_opened
     assert "2 files read but not opened" in state.scan["summary"] and "nothing was lost" in state.scan["summary"]
     reading._summarise(state, conn, {"new": 0, "replaced": 0})
     assert "not opened" not in state.scan["summary"]
+
+
+def test_the_readers_own_notes_are_not_documents_and_are_never_rejected_or_deleted(tmp_path, conn):
+    """Found by running the real parser in Docker: `.failed.json` (the list of files that could not be read) matched `*.json`, was counted as a rejected document, was shown to the person as an unreadable file, and was deleted."""
+    from library import rounds
+
+    note = tmp_path / rounds.FAILED_FILE
+    note.write_text('["scan.pdf"]')
+    rejected: list = []
+
+    def collect(*a, sink=rejected):
+        sink.append(a)
+
+    got = store.ingest_dir(conn, tmp_path, on_rejected=collect)
+    assert got == {"new": 0, "known": 0, "rejected": 0, "replaced": 0} and rejected == []
+    assert note.read_text() == '["scan.pdf"]'

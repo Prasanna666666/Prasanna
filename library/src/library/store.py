@@ -354,6 +354,11 @@ def _handover_private_key() -> str:
     return key
 
 
+def _handover_files(directory: Path) -> list[Path]:
+    """The reader's results: `<sha256>.json` or `<sha256>.sealed`. The reader's own notes beside them (`.failed.json`, `.progress`, ...) start with a dot and are not documents: they are never taken in, counted as rejected or deleted."""
+    return sorted(f for pattern in ("*.json", "*.sealed") for f in directory.resolve().glob(pattern) if not f.name.startswith("."))
+
+
 _WAITS = object()  # a sealed file this app has no key for: it waits, untouched
 
 
@@ -381,7 +386,7 @@ def ingest_dir(
     stored: list[Path] = []
     _remove_orphans(directory)
     private = _handover_private_key()
-    for looked, f in enumerate(sorted([*directory.resolve().glob("*.json"), *directory.resolve().glob("*.sealed")]), 1):
+    for looked, f in enumerate(_handover_files(directory), 1):
         if stop is not None and looked % 100 == 0 and stop():
             break  # Stop: what is taken in so far stays, the rest waits for the next read
         d = None
