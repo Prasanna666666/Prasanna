@@ -56,10 +56,18 @@ def test_ingest_puts_a_small_problem_right_and_reads_a_damaged_result_again_neve
     _put(tmp_path, _doc(sha256="c" * 64, kind="exe"))  # a kind Atlas has no word for: kept as a file it could only read the words of
     _put(tmp_path, _doc(sha256="d" * 64, text=["not", "a", "string"]))  # wrong type of text: kept, with no text
     _put(tmp_path, _doc(sha256="e" * 64), stem="f" * 64)  # name and content identifier disagree: the name of the file is the identifier
-    (tmp_path / "junk.json").write_text("{not json")  # not a result at all (and not a content identifier): said, and removed
+    (tmp_path / "junk.json").write_text(
+        "{not json"
+    )  # not a result at all (and not a content identifier): said, and left alone (it is not a file the reader could have written)
     assert store.ingest_dir(conn, tmp_path) == {"new": 5, "known": 0, "rejected": 1, "replaced": 0}
+    assert (tmp_path / "junk.json").read_text() == "{not json"
     assert conn.execute("SELECT kind FROM documents WHERE sha256=?", ("c" * 64,)).fetchone()[0] == "binary"
-    assert store.ingest_dir(conn, tmp_path) == {"new": 0, "known": 0, "rejected": 0, "replaced": 0}  # nothing is stored twice
+    assert store.ingest_dir(conn, tmp_path) == {
+        "new": 0,
+        "known": 0,
+        "rejected": 1,
+        "replaced": 0,
+    }  # nothing is stored twice; the foreign file is said again until its owner removes it
 
 
 def test_search_and_read_documents(conn, tmp_path):

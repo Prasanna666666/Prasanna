@@ -194,3 +194,38 @@ def test_the_readers_own_notes_are_not_documents_and_are_never_rejected_or_delet
     got = store.ingest_dir(conn, tmp_path, on_rejected=collect)
     assert got == {"new": 0, "known": 0, "rejected": 0, "replaced": 0} and rejected == []
     assert note.read_text() == '["scan.pdf"]'
+
+
+def test_a_file_the_reader_could_not_have_written_is_reported_but_never_deleted(tmp_path, conn, keys, monkeypatch):
+    """Found by a reviewer's reading: a rejected file was deleted whatever its name, so an unrelated `notes.json` lying in the reader's folder was destroyed."""
+    stranger = tmp_path / "notes.json"
+    stranger.write_text('{"my": "notes"}')
+    odd = tmp_path / "report.sealed"
+    odd.write_bytes(b"x" * 10)  # too short to be a sealed file
+    monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", keys[0])
+    seen: list = []
+
+    def collect(*a, sink=seen):
+        sink.append(a[:2])
+
+    got = store.ingest_dir(conn, tmp_path, on_rejected=collect)
+    assert got["rejected"] == 2 and len(seen) == 2  # said to the person
+    assert stranger.read_text() == '{"my": "notes"}' and odd.read_bytes() == b"x" * 10  # and left where they are
+
+
+def test_a_disk_error_while_reading_never_deletes_a_valid_hand_over_or_its_mark(tmp_path, conn, keys, monkeypatch):
+    private, public = keys
+    _write(tmp_path, DOC, public)
+    sealed = tmp_path / ("a" * 64 + ".sealed")
+    before = sealed.read_bytes()
+    monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", private)
+
+    def broken(*args, **kwargs):
+        raise OSError(5, "Input/output error")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(store.Path, "read_bytes", broken)
+        got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
+    assert got == {"new": 0, "known": 0, "rejected": 0, "replaced": 0, "unreadable": 1}
+    assert sealed.read_bytes() == before and (tmp_path / ".done" / ("a" * 64)).exists()
+    assert store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)["new"] == 1  # the disk recovers: the same file is taken in
