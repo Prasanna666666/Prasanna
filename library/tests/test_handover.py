@@ -89,3 +89,41 @@ def test_two_ingests_of_the_same_folder_store_each_file_once(conn, tmp_path):
     first = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
     second = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
     assert (first["new"], second["new"]) == (1, 0) and conn.execute("SELECT count(*) FROM documents").fetchone()[0] == 1
+
+
+def _replace(path, text):
+    new = path.with_name(path.name + ".new")
+    new.write_text(text)
+    os.replace(new, path)  # a different file under the same name, as a reader rewriting a result would leave
+
+
+def test_a_result_replaced_after_it_was_read_is_not_deleted_with_the_one_that_was_read(conn, tmp_path):
+    (tmp_path / f"{SHA}.json").write_text(json.dumps(_result()))
+    newer = json.dumps(_result(SHA, "a newer reading of the same file, written while the folder was being taken in"))
+
+    def reader_rewrites_it(name):
+        _replace(tmp_path / f"{SHA}.json", newer)
+
+    got = store.ingest_dir(conn, tmp_path, on_new=reader_rewrites_it, on_rejected=lambda *a: None)
+    assert got["new"] == 1
+    assert (tmp_path / f"{SHA}.json").read_text() == newer  # the newer file was not the one that was stored, so it stays for the next look
+    assert store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)["known"] == 1 and not (tmp_path / f"{SHA}.json").exists()
+
+
+def test_a_broken_result_replaced_after_it_was_read_is_not_deleted_either(conn, tmp_path, monkeypatch):
+    broken = tmp_path / f"{'9' * 64}.json"
+    broken.write_text("{cut off")
+    (tmp_path / ".done").mkdir()
+    (tmp_path / ".done" / ("9" * 64)).touch()
+    real = store._read_handover
+
+    def read_then_replace(f, private):
+        try:
+            return real(f, private)
+        finally:
+            _replace(f, json.dumps(_result("9" * 64, "the reader's good result, written just now")))
+
+    monkeypatch.setattr(store, "_read_handover", read_then_replace)
+    got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
+    assert got["rejected"] == 1
+    assert "the reader's good result" in broken.read_text()  # the broken file was rejected; the good one that replaced it was not removed

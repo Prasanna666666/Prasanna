@@ -380,35 +380,44 @@ def _read_handover(f: Path, private: str) -> Any:
         return _WAITS  # a malformed, short or wrong key, or a file that does not open with it: the file and its mark stay, the person fixes the key
 
 
-def _throw_out(directory: Path, f: Path) -> None:
+def _identity(f: Path) -> tuple[int, int, int] | None:
+    """Which file this path names right now (inode, size, modification time). A path can be replaced between reading a result and removing it: a file is removed only if it is still the one that was read."""
+    try:
+        st = f.lstat()
+    except OSError:
+        return None
+    return st.st_ino, st.st_size, st.st_mtime_ns
+
+
+def _throw_out(directory: Path, f: Path, seen: tuple[int, int, int] | None) -> None:
     """Remove a result that can never be used, with its completion mark, so the reader reads the original again. Only a file the reader wrote (named by a sha256 AND carrying the reader's completion mark) is ever removed: any other file that lies there is reported and left alone."""
-    if not _SHA.match(f.stem) or not (directory / ".done" / f.stem).exists():
-        return  # the reader writes its completion mark before it puts the file in place, so a result without one was not written by the reader
+    if not _SHA.match(f.stem) or not (directory / ".done" / f.stem).exists() or seen is None or _identity(f) != seen:
+        return  # the reader writes its completion mark before it puts the file in place, so a result without one was not written by the reader; a file replaced since it was read is a different file and is left for the next look
     with contextlib.suppress(OSError):
         f.unlink()
         (directory / ".done" / f.stem).unlink(missing_ok=True)
 
 
-def _load(directory: Path, f: Path, private: str, on_rejected: Callable[[str, str, str], None] | None) -> tuple[str, dict | None]:
+def _load(directory: Path, f: Path, private: str, on_rejected: Callable[[str, str, str], None] | None) -> tuple[str, dict | None, tuple[int, int, int] | None]:
     """One hand-over file, as ("doc", result) or a word for why it gave none: "unopened" (sealed, and the key is missing or does not open it), "unreadable" (the disk failed for now), "gone" (taken away meanwhile) or "rejected" (the file itself is unusable: said, and removed when the reader wrote it)."""
-    raw = None
+    raw, seen = None, _identity(f)
     try:
         raw = _read_handover(f, private)
         if raw is _WAITS:
-            return "unopened", None  # a wrong or missing key must never make the reader's work be thrown away and redone: the file stays where it is
+            return "unopened", None, None  # a wrong or missing key must never make the reader's work be thrown away and redone: the file stays where it is
         d = _repaired(raw, f.stem)
         if d is None:
             raise ValueError("schema")
-        return "doc", d
+        return "doc", d, seen
     except FileNotFoundError:
-        return "gone", None  # looked at again next time
+        return "gone", None, None  # looked at again next time
     except ValueError as error:  # not JSON, wrong shape, too short to be sealed: removed with its mark, so the reader reads that file again at the next round
-        _throw_out(directory, f)
+        _throw_out(directory, f, seen)
         if on_rejected is not None:
             on_rejected(*_why_rejected(f, raw, error))
-        return "rejected", None
+        return "rejected", None, None
     except OSError:
-        return "unreadable", None  # the disk or the volume failed for now (not the file): nothing is thrown away, it is tried again next time
+        return "unreadable", None, None  # the disk or the volume failed for now (not the file): nothing is thrown away, it is tried again next time
 
 
 def ingest_dir(
@@ -417,13 +426,13 @@ def ingest_dir(
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
     new = known = replaced = 0
     skipped = dict.fromkeys(("rejected", "unopened", "unreadable", "gone"), 0)
-    stored: list[Path] = []
+    stored: list[tuple[Path, tuple[int, int, int] | None]] = []
     _remove_orphans(directory)
     private = _handover_private_key()
     for looked, f in enumerate(_handover_files(directory), 1):
         if stop is not None and looked % 100 == 0 and stop():
             break  # Stop: what is taken in so far stays, the rest waits for the next read
-        status, d = _load(directory, f, private, on_rejected)
+        status, d, seen = _load(directory, f, private, on_rejected)
         if d is None:
             skipped[status] += 1
             continue
@@ -439,11 +448,15 @@ def ingest_dir(
         known += 1 - cur.rowcount
         if cur.rowcount and on_new is not None:
             on_new(d["name"])
-        stored.append(f)
+        stored.append((f, seen))
     conn.commit()
     if os.access(directory, os.W_OK):
-        for f in stored:  # the text now lives only in the encrypted database
-            f.unlink(missing_ok=True)
+        for (
+            f,
+            seen,
+        ) in stored:  # the text now lives only in the encrypted database; a file replaced since it was read is a different result and stays for the next look
+            if seen is not None and _identity(f) == seen:
+                f.unlink(missing_ok=True)
     extra = {k: n for k in ("unopened", "unreadable") if (n := skipped[k])}
     return {"new": new, "known": known, "rejected": skipped["rejected"], "replaced": replaced, **extra}
 
