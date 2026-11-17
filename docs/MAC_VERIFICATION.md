@@ -38,9 +38,20 @@ PY
 ```
 Expected: A fails `test_a_result_replaced_after_it_was_read_is_not_deleted_with_the_one_that_was_read`; B fails `test_a_temporary_file_cleaned_up_while_the_reader_was_suspended_is_written_again_not_lost`.
 
+## If Python on the Mac cannot make a virtual environment (for example `ensurepip` fails on Python 3.14)
+Skip the local environment and use Docker for steps 2 and 3. Nothing is installed on the Mac:
+```
+# step 3 replacement: make the keys inside a throw-away container (prints the PRIVATE key, then the PUBLIC key)
+docker run --rm -v "$PWD/library/src/library/seal.py:/seal.py:ro" python:3.12-slim sh -c 'pip install -q cryptography >/dev/null 2>&1 && python /seal.py'
+# step 2 replacement (library tests only), also in a throw-away container
+docker run --rm -v "$PWD":/src -w /src python:3.12-slim sh -c 'pip install -q -e kit -e images -e finance -e "library[dev,parse]" pytest >/dev/null 2>&1; cd library && python -m pytest -q 2>&1 | tail -8'
+```
+The repository requires Python 3.11 or newer; Python 3.14 is newer than anything the author tested.
+
 ## 3. Make the sealing keys (once) and keep the private one in the Keychain
 ```
-python3 library/src/library/seal.py        # needs: pip install cryptography (already installed in step 2); prints the PRIVATE key, then the PUBLIC key
+source /tmp/atlas-venv/bin/activate        # the environment made in step 2 (if you skipped step 2: python3 -m venv /tmp/atlas-venv && source /tmp/atlas-venv/bin/activate && pip install cryptography)
+python3 library/src/library/seal.py        # prints the PRIVATE key, then the PUBLIC key (two lines of 64 characters)
 ```
 Copy the two lines into two shell variables **in this Terminal only** (do not save them in a file or paste them anywhere else):
 ```

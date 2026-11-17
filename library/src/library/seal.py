@@ -12,11 +12,16 @@ _INFO = b"atlas-handover-v1"
 
 def _lib() -> Any:
     """The `cryptography` pieces, imported only when a file is actually sealed or opened: an image that does not use the sealed hand-over does not need the library, and importing this module never fails for the lack of it."""
-    from cryptography.exceptions import InvalidTag
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-    from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    try:
+        from cryptography.exceptions import InvalidTag
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
+        from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    except ImportError as error:
+        raise SealUnavailableError(
+            "the sealed hand-over needs the Python package `cryptography` (pip install cryptography), and it is not installed here"
+        ) from error
 
     class Lib:
         pass
@@ -29,6 +34,10 @@ def _lib() -> Any:
 
 class SealError(ValueError):
     """The file could not be opened with the key given: a wrong key and a damaged file cannot be told apart (the authentication fails the same way), so neither is a reason to throw the file away."""
+
+
+class SealUnavailableError(RuntimeError):
+    """The sealing library is not installed in this Python. Not a fault of any file or key: nothing is read, opened or deleted because of it."""
 
 
 class SealKeyError(SealError):

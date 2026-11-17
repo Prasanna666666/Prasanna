@@ -52,3 +52,19 @@ def test_a_file_too_short_to_be_sealed_is_told_apart_from_a_key_problem():
     private, _ = seal.generate_keypair()
     with pytest.raises(seal.NotSealedError):
         seal.open_sealed(b"short", private)
+
+
+def test_a_missing_cryptography_package_is_said_plainly_and_is_not_taken_for_a_bad_file_or_key(monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def without_cryptography(name, *args, **kwargs):
+        if name.startswith("cryptography"):
+            raise ImportError("No module named 'cryptography'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_cryptography)
+    with pytest.raises(seal.SealUnavailableError, match="pip install cryptography"):
+        seal.generate_keypair()
+    assert not issubclass(seal.SealUnavailableError, ValueError)  # so ingest_dir can never treat it as an unusable file
