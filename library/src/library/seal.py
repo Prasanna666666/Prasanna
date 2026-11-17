@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any
 
 KEY_BYTES = 32
@@ -70,6 +71,12 @@ def generate_keypair() -> tuple[str, str]:
     return bytes(raw).hex(), _raw_public(lib, private.public_key()).hex()
 
 
+def public_from_private(private_hex: str) -> str:
+    """The public key that belongs to a private key (so the Keychain needs to be given only the private one)."""
+    lib = _lib()
+    return _raw_public(lib, lib.Private.from_private_bytes(_key_bytes(private_hex, "private")).public_key()).hex()
+
+
 def _key(lib: Any, shared: bytes, eph_public: bytes, recipient_public: bytes) -> bytes:
     return bytes(lib.Hkdf(algorithm=lib.hashes.SHA256(), length=KEY_BYTES, salt=eph_public + recipient_public, info=_INFO).derive(shared))
 
@@ -102,10 +109,16 @@ def open_sealed(blob: bytes, private_hex: str) -> bytes:
         raise SealError("wrong key or damaged file") from error
 
 
-def main() -> str | None:
+def main(argv: list[str] | None = None) -> str | None:
     """`python3 library/src/library/seal.py`: prints a new key pair, private first, then public (the private one goes in the Keychain, only the public one to the reader). Returns a plain message when the sealing library is missing."""
+    args = sys.argv[1:] if argv is None else argv
     try:
+        if args[:1] == ["--public-from-private"] and len(args) == 2:  # noqa: PLR2004
+            print(public_from_private(args[1]))
+            return None
         print(*generate_keypair(), sep="\n")
+    except SealKeyError as problem:
+        return str(problem)
     except SealUnavailableError as problem:
         return f"{problem}\nRun: python3 -m venv /tmp/atlas-venv && source /tmp/atlas-venv/bin/activate && pip install cryptography   and try again (or use the Docker route in docs/MAC_VERIFICATION.md)."
     return None

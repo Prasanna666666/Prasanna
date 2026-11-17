@@ -19,6 +19,7 @@ export ATLAS_FINANCE_DIR="${ATLAS_FINANCE_DIR:-$HOME/AtlasFinance}"   # keep you
 mkdir -p "$ATLAS_FINANCE_DIR"
 export ATLAS_DB_KEY="$KEY"
 source ../scripts/platform-key.sh
+source ../scripts/handover-keys.sh || exit 2   # the hand-over between the reader and the store is sealed when the Keychain holds its keys (made once, here); says so, never starts half configured
 ../scripts/folders-compose.sh docker-compose.folders.yml   # your category folders and any extra folders listed in ~/AtlasFolders.txt, read-only
 FILES=(-f docker-compose.yml -f docker-compose.folders.yml)
 export ATLAS_OCR_DIR="$HOME/.atlas/ocr"

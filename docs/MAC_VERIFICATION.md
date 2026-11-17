@@ -26,6 +26,9 @@ run "0000000000000000000000000000000000000000000000000000000000000000"          
 run "$(security find-generic-password -a "$USER" -s atlas-handover-private -w)"                      # right key: new 1, file removed
 ```
 
+## Sealing is now on by default (no manual export needed)
+`./up.sh` reads the two sealing keys from the Keychain (services `atlas-handover-private` and `atlas-handover-public`), makes the pair once if there is none, and prints one line: `Sealed hand-over: ON (...)` or `Sealed hand-over: OFF (reason)`. It refuses to start when the configuration is half done (one key only, a malformed key). `ATLAS_SEAL_HANDOVER=0 ./up.sh` turns it off; `ATLAS_REQUIRE_SEALED=1 ./up.sh` refuses to start plain. If only the private key is in the Keychain (as after the manual steps below), the public key is worked out from it and kept. Check after any start: `docker inspect atlas-documents-parser-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep HANDOVER | sed 's/=.*/=<set>/'` shows the public key only.
+
 ## 1. Get exactly the commit under review
 ```
 cd ~/path/to/Prasanna            # your clone

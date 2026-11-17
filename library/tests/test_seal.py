@@ -87,3 +87,11 @@ def test_the_key_script_says_what_to_do_when_cryptography_is_missing_and_prints_
     monkeypatch.setattr(builtins, "__import__", without_cryptography)
     message = seal.main()
     assert message and "pip install cryptography" in message and "Docker route" in message
+
+
+def test_the_public_key_is_worked_out_from_the_private_one_and_the_script_prints_it(capsys):
+    private, public = seal.generate_keypair()
+    assert seal.public_from_private(private) == public
+    assert seal.main(["--public-from-private", private]) is None
+    assert capsys.readouterr().out.strip() == public
+    assert "private key" in seal.main(["--public-from-private", "not-hex"])  # a bad key is said plainly, not a traceback
