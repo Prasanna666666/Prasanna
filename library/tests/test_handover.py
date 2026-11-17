@@ -33,8 +33,35 @@ def test_a_stored_result_is_removed_from_the_handover_folder(conn, tmp_path):
 
 def test_a_result_that_cannot_be_used_is_removed_too_not_left_with_its_text(conn, tmp_path):
     (tmp_path / f"{'b' * 64}.json").write_text('{"name": "broken", "text": "private text"')  # cut off
+    (tmp_path / ".done").mkdir()
+    (tmp_path / ".done" / ("b" * 64)).touch()  # the reader writes its completion mark before it puts the file in place
     got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
     assert got["rejected"] == 1 and not list(tmp_path.glob("*.json"))
+
+
+def test_a_sha_named_file_without_the_readers_mark_was_not_written_by_the_reader_and_is_kept(conn, tmp_path):
+    stranger = tmp_path / f"{'f' * 64}.json"
+    stranger.write_text("not a result at all")
+    said: list = []
+
+    def collect(*a, sink=said):
+        sink.append(a[:2])
+
+    got = store.ingest_dir(conn, tmp_path, on_rejected=collect)
+    assert got["rejected"] == 1 and len(said) == 1  # said to the person
+    assert stranger.read_text() == "not a result at all"  # and kept: no mark, so it is not ours to remove
+
+
+def test_only_the_readers_own_hand_over_temporaries_are_cleaned_up_never_other_hidden_tmp_files(conn, tmp_path):
+    ours, theirs = tmp_path / f".{'a' * 64}.tmp", tmp_path / ".my-notes.tmp"
+    ours.write_text("part of a file's text")
+    theirs.write_text("somebody else's file")
+    old = time.time() - store.ORPHAN_SECONDS - 60
+    for f in (ours, theirs):
+        os.utime(f, (old, old))
+    store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
+    assert not ours.exists()
+    assert theirs.read_text() == "somebody else's file"
 
 
 def test_a_half_written_file_from_a_stopped_reader_is_removed_once_it_is_clearly_abandoned(conn, tmp_path):

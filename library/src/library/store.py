@@ -339,6 +339,8 @@ def _remove_orphans(directory: Path) -> None:
     """A reader that was stopped half way leaves `.<id>.tmp` with part of a file's text in it. Nothing would ever read it, so it is removed once it is clearly abandoned (never while a reader may still be writing it)."""
     cutoff = time.time() - ORPHAN_SECONDS
     for leftover in directory.glob(".*.tmp"):
+        if not _SHA.match(leftover.name[1 : -len(".tmp")]):
+            continue  # only the reader's own hand-over temporary `.<sha256>.tmp`: any other hidden `.tmp` file is not ours to remove
         with contextlib.suppress(OSError):
             if leftover.is_file() and leftover.stat().st_mtime < cutoff:
                 leftover.unlink()
@@ -379,9 +381,9 @@ def _read_handover(f: Path, private: str) -> Any:
 
 
 def _throw_out(directory: Path, f: Path) -> None:
-    """Remove a result that can never be used, with its completion mark, so the reader reads the original again. Only a file the reader could have written (named by a sha256) is ever removed: any other file that lies there is reported and left alone."""
-    if not _SHA.match(f.stem):
-        return
+    """Remove a result that can never be used, with its completion mark, so the reader reads the original again. Only a file the reader wrote (named by a sha256 AND carrying the reader's completion mark) is ever removed: any other file that lies there is reported and left alone."""
+    if not _SHA.match(f.stem) or not (directory / ".done" / f.stem).exists():
+        return  # the reader writes its completion mark before it puts the file in place, so a result without one was not written by the reader
     with contextlib.suppress(OSError):
         f.unlink()
         (directory / ".done" / f.stem).unlink(missing_ok=True)
