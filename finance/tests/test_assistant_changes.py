@@ -239,3 +239,55 @@ def test_overwriting_a_note_or_a_person_is_prepared_not_made(conn):
     out = _ask(conn, "update_note", {"id": note, "body": "overwritten by a document"}, turn="t1")
     assert out["ok"] and "Gifts" in out["notes"][0]
     assert conn.execute("SELECT body FROM notes WHERE id=?", (note,)).fetchone()[0] == "original"
+
+
+def test_a_routine_write_only_adds_and_never_changes_a_record_that_already_exists(conn):
+    """There is no undo for these, so each may only ADD: every row that was there before is still there afterwards with the same content the person gave it.
+    (Columns Finance fills in by itself, such as the exchange-rate backfill that an import runs over old payments, are not the person's content and are not compared.)"""
+    from finance.modules import notes, people, tasks
+
+    tasks.add_task(conn, {"title": "Existing task", "due": "2026-12-01"})
+    notes.add_note(conn, {"title": "Existing note", "body": "kept"})
+    people.add_person(conn, {"name": "Existing Person"})
+    money.add_transaction(conn, {"amount": 10, "category": "food", "note": "lunch"})
+    columns = {
+        "tasks": "id, title, due, recurrence, done",
+        "notes": "id, title, body",
+        "people": "id, name",
+        "important_dates": "id, person_id, label, month, day, year",
+        "transactions": "id, day, amount_minor, kind, category, note",
+        "events": "id, name, main",
+        "goals": "id, name, target_minor",
+        "holdings": "id, name, value_minor",
+    }
+
+    def snapshot():
+        return {t: [tuple(r) for r in conn.execute(f"SELECT {cols} FROM {t} ORDER BY id")] for t, cols in columns.items()}
+
+    args = {
+        "add_person": {"name": "New Person"},
+        "add_important_date": {"person_id": 1, "label": "Birthday", "date": "1990-05-03"},
+        "add_task": {"title": "New task"},
+        "add_note": {"title": "New note", "body": "x"},
+        "create_event": {"name": "New event", "main": "events"},
+        "import_statements": {},
+    }
+    assert set(args) == toolrun.ROUTINE_WRITES, "a routine write was added without being checked here"
+    for name, given in args.items():
+        before = snapshot()
+        out, failed = toolrun.run_tool(conn, name, given)
+        assert not failed or name == "import_statements", out
+        after = snapshot()
+        for table, rows in before.items():
+            assert all(row in after[table] for row in rows), f"{name} changed or removed a row of {table}"
+
+
+def test_closing_or_moving_a_task_is_prepared_not_made_because_nothing_reopens_it(conn):
+    from finance.modules import tasks
+
+    task = tasks.add_task(conn, {"title": "Pay rent", "due": "2026-12-01"})["id"]
+    assert {"complete_task", "reschedule_task"} <= toolrun.CONSEQUENTIAL
+    _ask(conn, "complete_task", {"id": task}, turn="t1")
+    assert conn.execute("SELECT count(*) FROM tasks WHERE done=0").fetchone()[0] == 1
+    assert changes.confirm(conn, "yes", "t2")["done"] is True
+    assert conn.execute("SELECT count(*) FROM tasks WHERE done=0").fetchone()[0] == 0

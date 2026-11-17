@@ -107,3 +107,18 @@ def test_a_message_longer_than_the_assistant_reads_is_said(running):
     photos.script = [text("ok")]
     _, reply = chat(running, "word " * 600)
     assert any("Your message was longer than the assistant reads" in n for n in reply["parts"][0]["notes"])
+
+
+def test_a_conversation_longer_than_the_assistant_remembers_is_said(running):
+    photos = running.apps["photos"]
+    photos.script = [text("ok")]
+    long_history = [["user" if i % 2 == 0 else "assistant", f"turn {i}"] for i in range(10)]
+    _, reply = chat(running, "what next?", history=long_history)
+    assert any("remembers only the last" in n for n in reply["parts"][0]["notes"])
+
+
+def test_a_short_conversation_says_nothing_about_forgetting(running):
+    photos = running.apps["photos"]
+    photos.script = [text("ok")]
+    _, reply = chat(running, "hello", history=[["user", "hi"], ["assistant", "hello"]])
+    assert not any("remembers only" in n for n in reply["parts"][0].get("notes", []))

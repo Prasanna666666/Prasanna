@@ -276,6 +276,10 @@ class Assistant:
         turn = Turn(text, {t.public: t for t in tools}, show=wants_to_see)
         if cut_question:
             turn.notes.append(cut_question)
+        if len(history) > HISTORY_TURNS or any(len(t) > HISTORY_CHARS for _, t in history):
+            turn.notes.append(
+                f"The assistant remembers only the last {HISTORY_TURNS} messages and the first {HISTORY_CHARS} characters of each, so an older or longer part of this conversation was not seen."
+            )
         turn.messages = [
             {"role": "system", "content": system_prompt(datetime.now().astimezone().date())},
             *({"role": r, "content": t[:HISTORY_CHARS]} for r, t in history[-HISTORY_TURNS:]),

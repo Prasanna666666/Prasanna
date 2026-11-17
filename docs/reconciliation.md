@@ -67,7 +67,7 @@ All seven of these were mutation-checked (the defect put back, the test failed):
 | O-4 500 MB | **PARTIALLY FIXED** | default 100 MB, measured about 5× memory; no streaming |
 | O-5 real-library speed/quality | **OPEN, not verifiable here** | needs the Mac |
 | O-6 invoice vs due date | **OPEN** | inherent without word lists |
-| O-7 routine writes | **PARTIALLY FIXED** | classified and enforced; routine writes run at once; no undo |
+| O-7 routine writes | **PARTIALLY FIXED** (D-43) | routine writes only ADD (test: `test_a_routine_write_only_adds…`); closing and moving a task are prepared; **no undo mechanism exists** |
 | O-8 word lists in `consent.py` | **PARTIALLY FIXED** | whole-message rule, bound to the exchange; English and Dutch only |
 | O-9 UI notes | **OPEN** | |
 | O-10 real-model injection | **OPEN, not verifiable here** | |

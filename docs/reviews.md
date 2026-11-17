@@ -85,7 +85,7 @@ Verified against the code and posted on the PR as comment `R5`.
 | R1-4 | Partially resolved; do not silently assign an ambiguous date | **Partially resolved, agreed.** Source line kept, unverified date unknown, due before date dropped; role confusion and display of the source are open (O-6, O-17) |
 | R1-6 | Not verified; filesystem operations | **Closed.** Images migrations are SQL only (no file operations), version update is in the same transaction (`images/db.py:321`), tested; the only gap is no pre-upgrade copy (O-15) |
 | R1-7 | Likely resolved pending call sites | **Closed.** Sites listed in Review 4; model-window and display cuts only; stored data intact; announcing them is O-13 |
-| R1-9 | Keep open pending the execution path | **Kept open for a real model; boundary proven in code** (eleven writes and six deletes prepared only, owner's yes bound to the exchange before it, Library tools only read or prepare) |
+| R1-9 | Keep open pending the execution path | **Kept open for a real model; boundary proven in code** (thirteen writes and six deletes prepared only, owner's yes bound to the exchange before it, Library tools only read or prepare) |
 | O-8 | High; confirmation not explicit, not bound to one action | **Confirmed and fixed in two steps**: D-24 (the whole message must be a yes) and D-29 (a yes only answers the exchange right before it; any other message drops the proposal). Word lists remain (English, Dutch) |
 | O-1 | Medium; restrict or implement per-currency precision | **Mitigated**: a three-decimal currency amount that would lose the third decimal is refused; JPY exact; tested end to end |
 | Encryption crash safety | Not verified; add crash-point tests | **Done**: D-30, six injected stops |

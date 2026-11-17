@@ -26,6 +26,8 @@ CONSEQUENTIAL = (
             "update_event",
             "update_note",  # overwrites what is there
             "update_person",
+            "complete_task",  # changes a record that is there, and nothing reopens it
+            "reschedule_task",  # overwrites the old due date
             "add_holding",
             "update_holding",
             "add_goal",
@@ -35,13 +37,11 @@ CONSEQUENTIAL = (
 DELETES = frozenset(  # need the person's own delete word AND, like CONSEQUENTIAL, are only prepared and made by the person's yes (delete_transaction is never offered)
     {"delete_event", "delete_goal", "delete_holding", "delete_note", "delete_person", "delete_task", "delete_transaction"}
 )
-ROUTINE_WRITES = frozenset(  # the person's organiser, and reading their own files: run at once, but every one of them is also open to the person to undo
+ROUTINE_WRITES = frozenset(  # only ADD something (a task, a note, a person, a date, an event) or read the person's own files: run at once. There is no undo; what was added can be removed again with the delete tools, which are confirmed by the owner. A test checks that none of these changes a record that already exists
     {
         "add_person",
         "add_important_date",
         "add_task",
-        "complete_task",
-        "reschedule_task",
         "add_note",
         "create_event",
         "import_statements",
