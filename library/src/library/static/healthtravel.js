@@ -183,10 +183,14 @@
         host().replaceChildren(...page);
     }
 
-    // every place gets its own colours, the same each time
+    // "1 report", "2 reports"
+    const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+    // a number written the way the reports write theirs: with a decimal comma when they use one
+    const number = (value, comma) => (comma ? String(value).replace('.', ',') : String(value));
+    // every place gets its own colour, the same each time
     const hue = (text) => [...text].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
-    const banner = (place) =>
-        `linear-gradient(135deg, hsl(${hue(place)} 68% 46%), hsl(${(hue(place) + 50) % 360} 70% 32%))`;
+    // a plain colour (the design has no gradients), dark enough for white text in every hue (yellow-greens look light at the same lightness)
+    const banner = (place) => `hsl(${hue(place)} 55% 24%)`;
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     // twelve months at a glance: each trip a coloured bar where it falls
@@ -484,6 +488,7 @@
         box.append(header);
         const pts = g.readings.filter((r) => r.number != null);
         if (!pts.length) return box;
+        const comma = g.readings.some((r) => String(r.value).includes(',')); // the reports write 8,4: the chart does too
         const W = 640,
             H = 210,
             L = 40,
@@ -517,7 +522,7 @@
             const v = lo + ((hi - lo) * i) / 3;
             const line = svgEl('line', { x1: L, x2: W - R, y1: y(v), y2: y(v), class: 'focus-grid' });
             const label = svgEl('text', { x: L - 6, y: y(v) + 4, 'text-anchor': 'end', class: 'focus-axis' });
-            label.textContent = (Math.round(v * 10) / 10).toString();
+            label.textContent = number(Math.round(v * 10) / 10, comma);
             svg.append(line, label);
         }
         const path = pts.map((r, i) => `${i ? 'L' : 'M'}${x(i)} ${y(r.number)}`).join(' ');
@@ -715,9 +720,9 @@
                 'span',
                 'stat-sub',
                 [
-                    `${total} tests`,
-                    `${meds.medicines.length} medicines`,
-                    `${docs.documents.length} reports`,
+                    plural(total, 'test'),
+                    plural(meds.medicines.length, 'medicine'),
+                    plural(docs.documents.length, 'report'),
                     latest &&
                         `latest report ${shortDate(latest)}${monthsOld(latest) >= 12 ? ` (${monthsOld(latest)} months old)` : ''}`,
                 ]

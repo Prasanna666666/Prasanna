@@ -403,3 +403,22 @@ def test_the_status_counts_through_the_database_once_not_at_every_question(conn,
     for _ in range(5):
         scanstatus._counted(state, conn, running)  # a status question every two seconds while a read goes on
     assert len(calls) == 1
+
+
+def test_photos_shows_as_down_when_the_photo_drive_is_not_connected_and_the_rest_stays_up():
+    class NoPictures:
+        def engine(self):
+            return None
+
+    plain = web.GET_ROUTES["/api/health"](NoPictures(), None, {})
+    assert plain["ok"] is True
+    with pytest.raises(web.Fail) as why:
+        web.GET_ROUTES["/api/health"](NoPictures(), None, {"needs": "photos"})
+    assert why.value.status == 404
+
+
+def test_the_photos_entry_in_atlas_asks_whether_the_drive_is_connected():
+    from pathlib import Path
+
+    manifest = json.loads((Path(__file__).resolve().parents[2] / "atlas" / "modules.d" / "photos.json").read_text())
+    assert manifest["health"] == "/api/health?needs=photos"

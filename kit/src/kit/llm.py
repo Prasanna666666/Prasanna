@@ -37,8 +37,10 @@ def pick_installed(names: list[str], preferred: str) -> tuple[str, str]:
 
 
 def configured_model() -> str:
-    """The model every part is meant to use: ATLAS_MODEL, otherwise the default."""
-    return os.environ.get("ATLAS_MODEL", "").strip() or DEFAULT_MODEL
+    """The model every part is meant to use: ATLAS_MODEL, otherwise the default (see kit.config, which also takes an app's own setting)."""
+    from . import config
+
+    return config.model()
 
 
 def is_local_host(name: str) -> bool:

@@ -20,6 +20,7 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
+from kit import config as kit_config
 from kit import consent, llm, log, netguard, sign
 from kit.http import Fail, ModuleHandler, host_ok
 from kit.units import YEAR_DIGITS
@@ -80,7 +81,7 @@ def inbox_dir() -> Path:
 
 def client_and_model(conn):
     client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
-    return client, client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))
+    return client, client.resolve(kit_config.model(db.get_setting(conn, "model", "")))
 
 
 def _take_documents(state: State, conn) -> list[str]:
@@ -157,7 +158,7 @@ def _get_highlights(state: State, conn, query: dict[str, str]) -> dict:
 def _get_status(state: State, conn, query: dict[str, str]) -> dict:
     try:
         client = llm.OllamaClient(db.get_setting(conn, "ollama_host", "") or None)
-        return {"ok": True, "ai": True, "model": client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))}
+        return {"ok": True, "ai": True, "model": client.resolve(kit_config.model(db.get_setting(conn, "model", "")))}
     except RuntimeError as exc:
         return {"ok": True, "ai": False, "problem": str(exc)}
 
@@ -168,7 +169,7 @@ def _get_settings(state: State, conn, query: dict[str, str]) -> dict:
         "currency": db.display_currency(conn),
         "view": db.view_currency(conn),
         "main_currency": db.get_setting(conn, "currency", "EUR"),
-        "model": db.get_setting(conn, "model", llm.DEFAULT_MODEL),
+        "model": kit_config.model(db.get_setting(conn, "model", "")),
         "ollama_host": db.get_setting(conn, "ollama_host", "") or llm.host(),
         "data": str(db.home()),
     }
@@ -216,6 +217,9 @@ GET_ROUTES = {
     "/api/status": _get_status,
     "/api/tools": _get_tools,
     "/api/changes": lambda state, conn, query: {"changes": changes.history(conn)},
+    "/api/truncations": lambda state, conn, query: {
+        "cuts": db.rows(conn.execute("SELECT at, source, field, original_chars, kept_chars FROM truncation_audit ORDER BY id DESC LIMIT 200"))
+    },
     "/api/settings": _get_settings,
     "/api/import": lambda state, conn, query: {"ok": True, **state.importing},
 }

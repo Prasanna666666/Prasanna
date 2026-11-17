@@ -59,3 +59,14 @@ def test_no_rule_hides_the_surfaces_every_page_is_made_of():
         names = {s.strip() for s in selectors.split(",")}
         if names & surfaces and re.search(r"display\s*:\s*none", block):
             raise AssertionError(f"a rule hides a page surface: {sorted(names & surfaces)}")
+
+
+def test_only_the_trip_card_has_white_text_the_other_hero_cards_are_plain_cards_with_dark_text():
+    """A merged selector once turned every hero card's text white on a white card: the headline of the Health summary disappeared and no check noticed."""
+    import re
+
+    css = (ROOT / "design" / "design.css").read_text()
+    for selectors, block in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
+        names = {s.strip() for s in selectors.split(",")}
+        if names & {".hero", ".healthhero"} and re.search(r"(^|;|\s)color\s*:\s*(#fff|#ffffff|white)\b", block):
+            raise AssertionError(f"white text on a plain hero card: {sorted(names)}")

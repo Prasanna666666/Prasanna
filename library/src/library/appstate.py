@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from kit import db, llm
+from kit import config, db, llm
 
 from . import pictures
 
@@ -23,7 +23,7 @@ def parsed_dir() -> Path:
 
 def model_client() -> tuple[Any, str]:
     client = llm.OllamaClient(os.environ.get("OLLAMA_HOST") or None)
-    return client, client.resolve(os.environ.get("LIBRARY_MODEL", llm.DEFAULT_MODEL))
+    return client, client.resolve(config.model(os.environ.get("LIBRARY_MODEL", "")))
 
 
 class State:

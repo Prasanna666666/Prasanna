@@ -7,6 +7,7 @@ import os
 import sys
 from pathlib import Path
 
+from kit import config as kit_config
 from kit import llm, netguard
 
 from . import applenotes, clock, db, tagging
@@ -39,7 +40,7 @@ def _inbox() -> Path:
 
 
 def _model(conn, client) -> str:
-    return client.resolve(db.get_setting(conn, "model", llm.DEFAULT_MODEL))
+    return client.resolve(kit_config.model(db.get_setting(conn, "model", "")))
 
 
 # ---- commands that need no database: never create one as a side effect ---------------------------------------------------------

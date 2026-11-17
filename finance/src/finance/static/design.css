@@ -142,20 +142,34 @@ h3 {
 
 /* hero cards were coloured: now they are plain cards with a big number */
 .hero,
-.healthhero,
-.travelhero {
+.healthhero {
     color: var(--ink) !important;
+    box-shadow: var(--shadow) !important;
+}
+.travelhero {
+    color: #fff !important; /* the trip card is always dark (a place colour or a photo under a shade), in both themes */
     box-shadow: var(--shadow) !important;
 }
 .hero .eyebrow,
 .hero .k,
 .hero .stat-label,
 .hero .stat-sub,
-.hero .hero-count span,
+.hero .hero-count span {
+    color: var(--muted) !important;
+}
 .travelhero .stat-label,
 .travelhero .stat-sub,
 .travelhero .hero-count span {
-    color: var(--muted) !important;
+    color: rgba(255, 255, 255, 0.88) !important;
+}
+.travelhero .hero-facts span {
+    color: #fff !important;
+    background: rgba(
+        255,
+        255,
+        255,
+        0.12
+    ) !important; /* light enough to read as a chip, dark enough for white text on any place colour */
 }
 .hero .big,
 .hero .v {
@@ -203,7 +217,7 @@ h3 {
     color: #fff;
 }
 .travelhero.withcover .hero-facts span {
-    background: rgba(255, 255, 255, 0.2) !important;
+    background: rgba(255, 255, 255, 0.12) !important;
     color: #fff;
 }
 .figures {
@@ -1144,5 +1158,12 @@ main {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
+    }
+}
+
+/* on a phone the Ask button and the tab bar sit over the bottom of the page: leave room so the last card can be scrolled clear of them */
+@media (max-width: 760px) {
+    main {
+        padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px));
     }
 }

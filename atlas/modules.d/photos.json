@@ -1,6 +1,6 @@
 {
   "upstream": "http://host.docker.internal:8502",
-  "health": "/api/health",
+  "health": "/api/health?needs=photos",
   "headers": {
     "X-Library": "1"
   },

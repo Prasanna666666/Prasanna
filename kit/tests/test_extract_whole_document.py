@@ -362,3 +362,24 @@ def test_a_repeated_measurement_of_the_same_test_stays_two_rows_each_next_to_its
         text,
     )
     assert sorted(r["value"] for r in rows) == ["8,4", "9,1"] and not any("check" in r for r in rows)
+
+
+def test_a_cut_of_a_stored_fact_is_recorded_in_the_facts(tmp_path):
+    text = "Factuur Amsterdam " + "Piet de Vries " * 3 + "\n" + " ".join(f"Naam{i}" for i in range(12))
+    said = {
+        "kind": "k" * 90,
+        "title": "T",
+        "place": "Amsterdam",
+        "entities": [f"Naam{i}" for i in range(12)],
+        "date": "2026-03-02",
+        "date_quote": "x",
+    }
+    got = extract.classify(_Said(said), "m", "f.pdf", text)
+    by = {c["field"]: c for c in got["clipped"]}
+    assert (by["kind"]["original_chars"], by["kind"]["kept_chars"]) == (90, 60) and len(got["kind"]) == 60
+    assert (by["entities"]["original_chars"], by["entities"]["kept_chars"]) == (12, 8) and len(got["entities"]) == 8
+
+
+def test_nothing_is_recorded_when_nothing_was_cut():
+    got = extract.classify(_Said({"kind": "invoice", "title": "T", "apps": []}), "m", "f.pdf", INVOICE)
+    assert "clipped" not in got

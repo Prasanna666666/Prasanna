@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from kit import extract
 from kit import money as kit_money
@@ -26,6 +27,19 @@ from .. import (
 from ..db import rows
 from ..findings import Finding, Read
 
+DESCRIPTION_CHARS, TITLE_CHARS, SUMMARY_CHARS, PARTY_CHARS, REFERENCE_CHARS, PLACE_CHARS, SOURCE_CHARS = 300, 120, 300, 120, 60, 80, 200
+
+
+def _kept(conn, source: str, field: str, value, limit: int) -> str:
+    """The text cut to fit its field. A cut is never silent: where it came from, which field, and how long it was are recorded in `truncation_audit`."""
+    text = str(value or "")
+    if len(text) > limit:
+        conn.execute(
+            "INSERT INTO truncation_audit (at, source, field, original_chars, kept_chars) VALUES (?,?,?,?,?)",
+            (datetime.now(UTC).isoformat(timespec="seconds"), str(source)[:SOURCE_CHARS], field, len(text), limit),
+        )
+    return text[:limit]
+
 
 # ---- statements -------------------------------------------------------------------------------------------------------
 def _store(conn, d, txns, learned, account: str = "", currency: str = "") -> int:
@@ -40,9 +54,9 @@ def _store(conn, d, txns, learned, account: str = "", currency: str = "") -> int
                 t.amount_minor,
                 t.kind,
                 categorize.categorise(t.desc, t.kind, learned, decided),
-                t.desc[:300],
+                _kept(conn, d["name"], "description", t.desc, DESCRIPTION_CHARS),
                 ref,
-                d["name"][:200],
+                _kept(conn, d["name"], "file name", d["name"], SOURCE_CHARS),
                 t.balance_minor,
                 currency,
                 scope,
@@ -67,17 +81,17 @@ def _remember_doc(conn, d, info) -> None:
     period = str(info.get("period") or "")
     conn.execute(
         "INSERT OR REPLACE INTO finance_docs (sha256, name, kind, title, summary, party, doc_date, due_date, reference, total_minor, vat_minor, currency, "
-        "gross_minor, tax_minor, net_minor, period, start_date, end_date, place, concept) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "gross_minor, tax_minor, net_minor, period, start_date, end_date, place, concept, date_source, due_date_source) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (
             d["sha256"],
             d["name"],
             info.get("kind", "other"),
-            str(info.get("title") or "")[:120],
-            str(info.get("summary") or "")[:300],
-            str(info.get("party") or "")[:120],
+            _kept(conn, d["name"], "title", info.get("title"), TITLE_CHARS),
+            _kept(conn, d["name"], "summary", info.get("summary"), SUMMARY_CHARS),
+            _kept(conn, d["name"], "party", info.get("party"), PARTY_CHARS),
             _day(info.get("date")),
             _day(info.get("due_date")),
-            str(info.get("reference") or "")[:60],
+            _kept(conn, d["name"], "reference", info.get("reference"), REFERENCE_CHARS),
             _money(info.get("total")),
             _money(info.get("vat")),
             str(info.get("currency") or "")[:5].upper(),
@@ -87,8 +101,10 @@ def _remember_doc(conn, d, info) -> None:
             period if re.fullmatch(r"20\d{2}(-\d{2})?", period) else "",
             _day(info.get("start_date")),
             _day(info.get("end_date")),
-            str(info.get("place") or "")[:80],
+            _kept(conn, d["name"], "place", info.get("place"), PLACE_CHARS),
             concepts.of(conn, info.get("kind", "other")),
+            _kept(conn, d["name"], "date source", info.get("date_source") if _day(info.get("date")) else "", SOURCE_CHARS),
+            _kept(conn, d["name"], "due date source", info.get("due_date_source") if _day(info.get("due_date")) else "", SOURCE_CHARS),
         ),
     )
 
@@ -131,7 +147,7 @@ def finance_documents(conn, a=None):
             where.append(f"doc_date {op} ?")
             args.append(a[key])
     sql = (
-        "SELECT kind, concept, title, party, doc_date AS date, due_date, reference, total_minor/100.0 AS total, vat_minor/100.0 AS vat, currency, summary, name "
+        "SELECT kind, concept, title, party, doc_date AS date, due_date, date_source, due_date_source, reference, total_minor/100.0 AS total, vat_minor/100.0 AS vat, currency, summary, name "
         "FROM finance_docs" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY doc_date DESC, name LIMIT ?"
     )
     return rows(conn.execute(sql, [*args, int(a.get("limit", 50))]))

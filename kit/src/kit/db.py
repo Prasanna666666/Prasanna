@@ -240,6 +240,50 @@ def _retire_redundant_copy(path: Path, key: str) -> None:
         _retire(held)
 
 
+PLAIN_SUFFIX = ".unencrypted"
+
+
+def leftover_plain_copies(folder: str | Path) -> list[Path]:
+    """The plain-text copies an earlier release left beside encrypted databases."""
+    return sorted(Path(folder).glob(f"*{PLAIN_SUFFIX}"))
+
+
+def _same_rows(held: Path, path: Path, key: str) -> bool | None:
+    """True when the plain copy and the encrypted file hold exactly the same rows, False when they differ, None when either cannot be read."""
+    try:
+        plain = sqlite3.connect(str(held))
+        try:
+            want, version = _fingerprint(plain), plain.execute("PRAGMA user_version").fetchone()[0]
+        finally:
+            plain.close()
+    except sqlite3.DatabaseError:
+        return None
+    if _verified(path, key, want, version):
+        return True
+    return False if _open_ok(path, key) else None
+
+
+def retire_leftover(held: str | Path, key: str, confirm: Callable[[str], bool] | None = None) -> str:
+    """Remove one leftover plain copy, safely. An identical copy is removed at once. A copy whose rows differ from the encrypted file (it may be the only copy of older data) is removed only
+    if `confirm` is given and the owner says yes to it. Nothing is removed when the encrypted file is missing or does not open with this key, or when the copy cannot be read.
+    Returns what happened, in a sentence."""
+    held = Path(held)
+    path = held.with_name(held.name.removesuffix(PLAIN_SUFFIX))
+    if not path.is_file():
+        return f"kept {held.name}: the encrypted file it belongs to is missing"
+    same = _same_rows(held, path, key)
+    if same is None:
+        return f"kept {held.name}: it cannot be read, or the encrypted file does not open with this key"
+    if same:
+        _retire(held)
+        return f"removed {held.name}: identical to the encrypted file"
+    question = f"{held.name} holds different rows from the encrypted file, so it may be the only copy of older data. Overwrite and delete it?"
+    if confirm is not None and confirm(question):
+        _retire(held)
+        return f"removed {held.name}: you confirmed"
+    return f"kept {held.name}: its rows differ from the encrypted file and you did not confirm"
+
+
 def _encrypt_locked(path: Path, key: str) -> bool:
     _finish_interrupted(path, key)
     _retire_redundant_copy(path, key)
@@ -299,7 +343,7 @@ class MigrationError(RuntimeError):
     """An upgrade of the database failed. Your data from before the upgrade is in the copy named in the message."""
 
 
-def _copy_before_upgrade(conn: sqlite3.Connection) -> Path | None:
+def copy_before_upgrade(conn: sqlite3.Connection) -> Path | None:
     """A full copy of the database (same encryption) taken just before it is changed, so a failed or unwanted upgrade can always be undone. None for an in-memory database."""
     file = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
     if not file:
@@ -352,7 +396,7 @@ def migrate(conn: sqlite3.Connection, modules: list[Module], after: Callable[[sq
     conn.commit()
     have = {r["module"]: r["version"] for r in conn.execute("SELECT module, version FROM _migrations")}
     pending = [m for m in modules if len(m.migrations) > have.get(m.name, 0)]
-    saved = _copy_before_upgrade(conn) if pending and have else None
+    saved = copy_before_upgrade(conn) if pending and have else None
     for m in pending:
         done = have.get(m.name, 0)
         for i, sql in enumerate(m.migrations[done:], start=done + 1):

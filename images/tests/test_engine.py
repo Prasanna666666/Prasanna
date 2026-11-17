@@ -84,3 +84,28 @@ def test_a_migration_step_that_fails_halfway_leaves_the_index_at_its_old_version
     assert conn.execute("PRAGMA user_version").fetchone()[0] == before
     assert conn.execute("SELECT count(*) FROM sqlite_master WHERE name='half'").fetchone()[0] == 0
     assert not conn.in_transaction
+
+
+def test_an_index_that_already_holds_pictures_is_copied_before_an_upgrade_changes_it(paths, monkeypatch):
+    import sqlite3
+
+    from images import db as images_db
+
+    steps = [
+        "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT); CREATE TABLE a (x TEXT); INSERT INTO a VALUES ('old picture');",
+        "CREATE TABLE b (x TEXT);",
+    ]
+    monkeypatch.setattr(images_db, "MIGRATIONS", steps)
+    first = images_db.Database(paths.db).connect()
+    first.close()
+    assert not (paths.db.parent / "backups").exists(), "a new index has nothing to protect"
+    monkeypatch.setattr(images_db, "MIGRATIONS", [*steps, "CREATE TABLE c (x TEXT);"])
+    images_db.Database(paths.db).connect().close()
+    copies = list((paths.db.parent / "backups").glob("before-upgrade-*.db"))
+    assert len(copies) == 1
+    old = sqlite3.connect(copies[0])
+    assert old.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert old.execute("SELECT x FROM a").fetchone()[0] == "old picture"
+    assert old.execute("SELECT count(*) FROM sqlite_master WHERE name='c'").fetchone()[0] == 0, (
+        "the copy is from before the upgrade"
+    )

@@ -258,7 +258,13 @@ class Assistant:
 
     def answer(self, text: str, conv: str, history: list[list[str]]) -> dict[str, Any]:
         """One question: the model uses whichever tools of whichever parts it needs, then answers. Returns the answer as one labelled part."""
-        text = text.strip()[:MAX_TEXT]
+        full = text.strip()
+        text = full[:MAX_TEXT]
+        cut_question = (
+            f"Your message was longer than the assistant reads ({len(full):,} characters): only the first {MAX_TEXT:,} were used."
+            if len(full) > MAX_TEXT
+            else ""
+        )
         made = self.upstreams.confirm_changes(text)
         if made:  # the person said yes to a change that was waiting: made by the part itself, once, and said here in code's own words
             return self._reply(True, " ".join(made), Turn(text, {}))
@@ -268,6 +274,8 @@ class Assistant:
             return self._reply(False, self._model_down(), Turn(text, {}))
         tools, wants_to_see = chosen
         turn = Turn(text, {t.public: t for t in tools}, show=wants_to_see)
+        if cut_question:
+            turn.notes.append(cut_question)
         turn.messages = [
             {"role": "system", "content": system_prompt(datetime.now().astimezone().date())},
             *({"role": r, "content": t[:HISTORY_CHARS]} for r, t in history[-HISTORY_TURNS:]),
@@ -317,7 +325,12 @@ class Assistant:
                 # a change waiting for the person is always shown (it needs them); pictures and files only when the model says the person asked to see them
                 if item["kind"] == "confirm" or args.get("show") is True:
                     turn.items.append({**item, "module": tool.module.id})
-        body = json.dumps({"error": result["error"]} if not result.get("ok") else result.get("data"), default=str)[:TOOL_RESULT_CHARS]
+        whole = json.dumps({"error": result["error"]} if not result.get("ok") else result.get("data"), default=str)
+        body = whole[:TOOL_RESULT_CHARS]
+        if len(whole) > TOOL_RESULT_CHARS:  # said next to the answer: the model saw only the start, so the answer may leave something out
+            notice = f"A result was longer than the assistant can read at once ({len(whole):,} characters): it saw only the first {TOOL_RESULT_CHARS:,}, so the answer may be incomplete."
+            if notice not in turn.notes:
+                turn.notes.insert(0, notice)
         turn.outputs.append(body)
         turn.messages.append({"role": "tool", "tool_name": name, "content": body})
 

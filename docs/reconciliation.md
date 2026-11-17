@@ -53,13 +53,17 @@ Status words: **FIXED** (changed, and a test fails if the defect returns), **PAR
 | D-33 (R3-3) | **PARTIALLY FIXED** | Hand-over files held whole text, mode default; an interrupted reader left `.<id>.tmp` forever | mode 0600; abandoned temporaries removed after one hour; cleanup after success and rejection and "only what it stored" tested. **Still plain inside the shared Docker volume until ingested** (O-16) | `library/tests/test_handover.py` (mode **DETECTED**) |
 | D-34 (R3-4) | **PARTIALLY FIXED** | A model could report an end of the printed range as the result and it passed (only "printed" was checked) | a result must be on its test's line (or the next, if nothing numeric follows the name) and not only an end of the printed range; otherwise kept exactly but marked `check`, never range-flagged, never used for "change since" | `kit/tests/test_extract_whole_document.py` (**DETECTED**). Layouts where the result is in another column or page are **NOT VERIFIED** |
 
+## Added after the second follow-up (D-35 to D-42)
+
+All seven of these were mutation-checked (the defect put back, the test failed): O-2 cleanup without confirmation, O-3 shared setting ignored, O-11 cut not recorded, O-13 notice removed, O-15 copy removed, O-17 source not kept, and the hero-text regression (D-42).
+
 ## Open items
 
 | ID | Status | Note |
 |---|---|---|
 | O-1 currencies in hundredths | **PARTIALLY FIXED** | JPY exact; three-decimal amounts refused (`money.py:57`); statement import of such currencies untested |
-| O-2 old `.unencrypted` files | **OPEN** | leftovers with different rows are deliberately untouched; inventory in `data-locations.md` |
-| O-3 model settings | **OPEN** | |
+| O-2 | **FIXED** (D-39): `kit/src/kit/db.py` `retire_leftover`, `kit/cleanup.py`. Mutation-checked. |
+| O-3 | **FIXED** (D-36): `kit/src/kit/config.py`. Mutation-checked. |
 | O-4 500 MB | **PARTIALLY FIXED** | default 100 MB, measured about 5× memory; no streaming |
 | O-5 real-library speed/quality | **OPEN, not verifiable here** | needs the Mac |
 | O-6 invoice vs due date | **OPEN** | inherent without word lists |
@@ -67,10 +71,10 @@ Status words: **FIXED** (changed, and a test fails if the defect returns), **PAR
 | O-8 word lists in `consent.py` | **PARTIALLY FIXED** | whole-message rule, bound to the exchange; English and Dutch only |
 | O-9 UI notes | **OPEN** | |
 | O-10 real-model injection | **OPEN, not verifiable here** | |
-| O-11 unrecorded text cuts | **OPEN** | |
+| O-11 | **FIXED** (D-38): `truncation_audit`, `clipped`. Mutation-checked. |
 | O-12 old-release fixtures | **OPEN** | |
-| O-13 announced truncation | **OPEN** | |
+| O-13 | **FIXED** (D-37): `atlas/assistant.py`. Mutation-checked. |
 | O-14 range end as value | **PARTIALLY FIXED** | see D-34 |
-| O-15 Images pre-upgrade copy | **OPEN** | |
+| O-15 | **FIXED** (D-35): `images/db.py`. Mutation-checked. |
 | O-16 plain hand-over | **PARTIALLY FIXED** | see D-33 |
-| O-17 date source in UI | **OPEN** | |
+| O-17 | **FIXED** (D-40): `finance/modules/statement_import.py`, `static/app.js`. Mutation-checked. |

@@ -98,6 +98,10 @@ Verified against the code and posted on the PR as comment `R5`.
 
 Posted on the PR as comment `R6`. Four named findings, all checked: **all four were real** (D-31 to D-34, fixed or partly fixed). The request for an exhaustive audit of 496 entries, every screenshot, every deployment path and every test was **not completed** and the documents say so: `docs/coverage-matrix.md` (96 entries read in the round, 403 **not inspected**), `docs/reconciliation.md` (status of every D-/O- item with a mutation check where done), `docs/security-deployment-review.md`.
 
+## Review 7: Gemini "final readiness" prompt
+
+The prompt listed O-2, O-3, O-11, O-13, O-15, O-17 and the UI notes as already closed. **They were not** (no `kit/config.py`, no cleanup test, no `truncation_audit`, no notices, no Images backup, nothing read `date_source`); this was reported as such on the PR (`R7`). They were then done, each with a test that fails when the defect is put back (D-35 to D-42), and the screenshots were retaken.
+
 ## Author's own findings
 
 D-09, D-12, D-13, D-14, D-15 in `defects.md`. The most important: D-12, every card hidden by CSS for two days, found only because the apps were finally run and photographed.

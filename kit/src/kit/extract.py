@@ -157,6 +157,16 @@ def _written_date(value: object, written: set[str]) -> str | None:
     return text if text in written else None
 
 
+PLACE_CHARS, KIND_CHARS, SOURCE_CHARS, ENTITY_COUNT = 80, 60, 200, 8
+
+
+def _clip(checked: dict, field: str, value: str, limit: int) -> str:
+    """The text cut to fit its field. A cut is recorded in the file's own facts (`clipped`: field, how long it was, how much was kept), so it is never silent."""
+    if len(value) > limit:
+        checked.setdefault("clipped", []).append({"field": field, "original_chars": len(value), "kept_chars": limit})
+    return value[:limit]
+
+
 def verify_dates(info: dict, text: str) -> dict:
     """The document's date and due date are kept only if the document writes them (any layout, English or Dutch) and a due date is not before the date. The line that carries each is kept as its source
     when the model quoted it correctly; an unverified date becomes None, so it is unknown rather than a guess."""
@@ -168,7 +178,7 @@ def verify_dates(info: dict, text: str) -> dict:
         quote = str(info.get(f"{field}_quote") or "").strip()
         checked[field] = found
         carried = bool(found) and bool(quote) and squash(quote.lower()) in squashed and found in dates_in(quote)
-        checked[f"{field}_source"] = quote[:200] if carried else ""
+        checked[f"{field}_source"] = _clip(checked, f"{field}_source", quote, SOURCE_CHARS) if carried else ""
         checked.pop(f"{field}_quote", None)
     if checked["date"] and checked["due_date"] and checked["due_date"] < checked["date"]:
         checked["due_date"], checked["due_date_source"] = None, ""
@@ -185,7 +195,7 @@ def verify_trip_fields(info: dict, text: str) -> dict:
     if checked["start_date"] and checked["end_date"] and checked["end_date"] < checked["start_date"]:
         checked["end_date"] = None
     place = str(info.get("place") or "").strip()
-    checked["place"] = place[:80] if place and place.lower() in text.lower() else ""
+    checked["place"] = _clip(checked, "place", place, PLACE_CHARS) if place and place.lower() in text.lower() else ""
     return checked
 
 
@@ -226,7 +236,7 @@ def sample_of(text: str) -> str:
 def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, str] | None) -> dict:
     data = _ask(client, model, kind_prompt(apps), f"File name: {name}\n\n{sample_of(text)}", kind_schema(apps))
     checked = verify_trip_fields(verify_dates(verify_amounts(data, text), text), text)
-    checked["kind"] = str(checked.get("kind") or "").strip()[:60]
+    checked["kind"] = _clip(checked, "kind", str(checked.get("kind") or "").strip(), KIND_CHARS)
     checked["apps"] = [a for a in (checked.get("apps") or []) if a in (apps or {})]
     party = str(checked.get("party") or "").strip()
     if party and squash(party.lower()) not in squash(text.lower()):
@@ -234,9 +244,10 @@ def _classify_fully(client, model: str, name: str, text: str, apps: dict[str, st
     whole = squash(text.lower())
     listed = checked.get("entities")
     given = listed if isinstance(listed, list) else []
-    checked["entities"] = list(dict.fromkeys(str(e).strip() for e in given if str(e).strip() and squash(str(e).lower()) in whole))[
-        :8
-    ]  # only what the file really says
+    found = list(dict.fromkeys(str(e).strip() for e in given if str(e).strip() and squash(str(e).lower()) in whole))  # only what the file really says
+    if len(found) > ENTITY_COUNT:
+        checked.setdefault("clipped", []).append({"field": "entities", "original_chars": len(found), "kept_chars": ENTITY_COUNT})  # counted in names here
+    checked["entities"] = found[:ENTITY_COUNT]
     return checked
 
 

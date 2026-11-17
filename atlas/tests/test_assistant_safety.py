@@ -81,3 +81,29 @@ def test_the_system_prompt_and_tool_results_are_not_written_to_the_log(running, 
     with caplog.at_level("DEBUG"):
         chat(running, "find things")
     assert secret not in caplog.text and json.dumps(secret) not in caplog.text
+
+
+def test_a_result_too_long_for_the_assistant_is_said_next_to_the_answer(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("find_things")]
+    money.tool_results["find_things"] = {"ok": True, "data": {"rows": ["x" * 40] * 200}}
+    photos.script = [call("money__find_things"), text("There are many rows.")]
+    _, reply = chat(running, "list everything")
+    notes = reply["parts"][0]["notes"]
+    assert any("longer than the assistant can read at once" in n and "2,500" in n for n in notes), notes
+
+
+def test_a_short_result_says_nothing_about_shortening(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("find_things")]
+    money.tool_results["find_things"] = {"ok": True, "data": {"rows": ["a"]}}
+    photos.script = [call("money__find_things"), text("One row.")]
+    _, reply = chat(running, "list everything")
+    assert not any("longer than" in n for n in reply["parts"][0].get("notes", []))
+
+
+def test_a_message_longer_than_the_assistant_reads_is_said(running):
+    photos = running.apps["photos"]
+    photos.script = [text("ok")]
+    _, reply = chat(running, "word " * 600)
+    assert any("Your message was longer than the assistant reads" in n for n in reply["parts"][0]["notes"])

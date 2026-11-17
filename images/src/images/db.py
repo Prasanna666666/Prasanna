@@ -316,6 +316,9 @@ class Database:
     # ------------------------------------------------------------------
     def _migrate(self, conn: sqlite3.Connection) -> None:
         version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if 0 < version < len(MIGRATIONS):
+            # an index that already holds pictures is copied (same encryption) before it is changed; the last three copies are kept
+            kit_db.copy_before_upgrade(conn)
         for number, script in enumerate(MIGRATIONS[version:], start=version + 1):
             try:
                 conn.executescript("BEGIN;\n" + script + f"\nPRAGMA user_version={number};\nCOMMIT;")

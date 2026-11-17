@@ -241,9 +241,16 @@ def _post_app(state: State, conn, body: dict) -> dict:
     return store.create_app_for_kind(conn, str(body.get("kind", "")))
 
 
+def _get_health(state: State, conn, query: dict[str, str]) -> dict:
+    """Is this app answering. With `needs=photos` it is also whether the photo drive is connected: Photos shows as down when it is not, instead of a green dot over a page that says "not connected"."""
+    if query.get("needs") == "photos":
+        _engine_or_fail(state)
+    return {"ok": True, "build": os.environ.get("ATLAS_BUILD", "unknown")[:12]}
+
+
 GET_ROUTES = {
     "/api/suggestions": _get_suggestions,
-    "/api/health": lambda state, conn, query: {"ok": True, "build": os.environ.get("ATLAS_BUILD", "unknown")[:12]},
+    "/api/health": _get_health,
     "/api/search": _get_search,
     "/api/documents": _get_documents,
     "/api/document": _get_document,

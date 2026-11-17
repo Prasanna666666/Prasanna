@@ -847,7 +847,11 @@
             stat(
                 'Net worth',
                 nw.net_worth == null ? '–' : money(nw.net_worth),
-                nw.net_worth == null ? 'no data yet' : `Cash ${money(nw.accounts || 0)}`,
+                nw.net_worth == null
+                    ? 'no data yet'
+                    : nw.accounts == null
+                      ? 'no statements read yet'
+                      : `Cash ${money(nw.accounts)}`,
                 '#/networth'
             ),
             stat(
@@ -1057,7 +1061,14 @@
                                     [d.date, d.due_date && `due ${d.due_date}`, d.total != null && money(d.total, 2)]
                                         .filter(Boolean)
                                         .join(' · ')
-                                )
+                                ),
+                                // where the document says it, so the person can check which date is which
+                                ...[
+                                    d.date && d.date_source ? `date: “${d.date_source}”` : '',
+                                    d.due_date && d.due_date_source ? `due: “${d.due_date_source}”` : '',
+                                ]
+                                    .filter(Boolean)
+                                    .map((line) => h('small', { class: 'datesource' }, line))
                             ),
                             h('em', { class: 'doctag' }, d.kind.replace('_', ' '))
                         )

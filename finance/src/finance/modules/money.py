@@ -150,6 +150,20 @@ MIGRATIONS = (
     );
     CREATE INDEX IF NOT EXISTS assistant_changes_state ON assistant_changes(state, id);
     """,
+    """
+    CREATE TABLE IF NOT EXISTS truncation_audit (    -- every stored text that was cut to fit its field: where from, which field, how long it was, how much was kept
+        id INTEGER PRIMARY KEY,
+        at TEXT NOT NULL,
+        source TEXT NOT NULL,
+        field TEXT NOT NULL,
+        original_chars INTEGER NOT NULL,
+        kept_chars INTEGER NOT NULL
+    );
+    """,
+    """
+    ALTER TABLE finance_docs ADD COLUMN date_source TEXT NOT NULL DEFAULT '';        -- the line of the document that carries its date, as the document prints it
+    ALTER TABLE finance_docs ADD COLUMN due_date_source TEXT NOT NULL DEFAULT '';
+    """,
 )
 
 

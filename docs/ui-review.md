@@ -64,3 +64,19 @@ Documents has no page of its own: it is a hidden module that feeds Health, Trave
 ## One bug the screenshots found
 
 Before this branch's last commit, every card on every page was invisible (`defects.md` D-12). The Finance dashboard looked like a greeting and an empty page. Please look at screenshots 02 and 02b, which show the fixed state, and tell me if anything still looks wrong or empty.
+
+
+## Changes made after the review of this round (screenshots were retaken)
+
+| ID | State |
+|---|---|
+| UI-A Travel gradient | **Fixed**: a plain place colour, dark enough for white text in every hue (axe, light and dark) |
+| UI-B decimal separators | **Fixed**: the chart axis uses the report's decimal comma |
+| UI-C "1 reports" | **Fixed** (`1 report`, `2 tests`, `0 medicines`) |
+| UI-D floating Ask button | **Fixed**: 120 px of room at the bottom on phones (measured, 120 px); not visually verified by a scrolled phone screenshot |
+| UI-I Photos dot | **Fixed**: red when the photo drive is not connected (`03`/`04`/`05` show it) |
+| Finance "Cash €0" | **Fixed**: "no statements read yet" |
+| UI-17 date source | **Done**: screenshot `09-finance-documents-with-date-source.png` |
+| Still open | UI-E "142% vs before" unexplained, UI-F empty tiles, UI-G wrapping top-bar pills, UI-K empty calendar grid, UI-L first-run flow, the Finance dashboard density |
+
+A regression of mine (a hero card's headline turning white on white) passed `scripts/check-pages.js` and was caught only by looking at the screenshot (D-42).
