@@ -162,6 +162,7 @@ def currency(conn) -> str:
 
 
 def add_transaction(conn, a):
+    kit_money.check_fits(a["amount"], currency(conn))
     amt = to_minor(a["amount"])
     if amt <= 0:
         raise ValueError("amount must be positive")

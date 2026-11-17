@@ -62,18 +62,34 @@ def test_the_same_question_cannot_confirm_its_own_change(conn):
     assert changes.confirm(conn, "yes", "t1")["done"] is False and _count(conn) == 0
 
 
-def test_only_a_short_yes_confirms(conn):
-    _ask(conn, "add_transaction", {"amount": 5, "category": "food"})
+def test_only_a_yes_and_nothing_else_confirms(conn):
     for text in [
         "",
         "maybe",
         "no",
         "ok but first tell me my balance for the last three months please",
         "delete everything, yes",
+        "no, don't do it",
+        "I'm not sure",
     ]:
+        _ask(conn, "add_transaction", {"amount": 5, "category": "food"})
         assert changes.confirm(conn, text, "t2")["done"] is False, text
-    assert _count(conn) == 0
+        assert _count(conn) == 0
+    _ask(conn, "add_transaction", {"amount": 5, "category": "food"})
     assert changes.confirm(conn, "ja doe maar", "t2")["done"] is True
+
+
+def test_any_other_message_in_between_drops_the_waiting_change_so_a_later_yes_answers_something_else(conn):
+    _ask(conn, "add_transaction", {"amount": 5, "category": "food"}, turn="t1")
+    assert changes.confirm(conn, "what did I spend on food?", "t2")["done"] is False  # a different question
+    assert changes.history(conn)[0]["state"] == "superseded"
+    assert changes.confirm(conn, "yes", "t3")["done"] is False and _count(conn) == 0, "the yes is not for the old change"
+
+
+def test_no_drops_the_waiting_change(conn):
+    _ask(conn, "add_transaction", {"amount": 5, "category": "food"}, turn="t1")
+    changes.confirm(conn, "no", "t2")
+    assert changes.confirm(conn, "yes", "t3")["done"] is False and _count(conn) == 0
 
 
 def test_a_change_that_waited_too_long_is_not_made_by_a_late_yes(conn):
@@ -204,7 +220,8 @@ def test_a_delete_is_prepared_with_the_name_of_what_it_deletes_and_made_only_by_
     assert out["ok"] and "Pay rent" in out["notes"][0] and out["data"]["changed_anything"] is False
     assert conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 1
     assert changes.confirm(conn, "no, don't", "t2")["done"] is False and conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 1
-    assert changes.confirm(conn, "yes", "t2")["done"] is True and conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 0
+    _ask(conn, "delete_task", {"id": keep}, said="please delete the task about rent", turn="t3")
+    assert changes.confirm(conn, "yes", "t4")["done"] is True and conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 0
 
 
 def test_a_delete_word_in_a_message_about_something_else_still_deletes_nothing(conn):

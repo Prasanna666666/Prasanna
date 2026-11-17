@@ -5,7 +5,9 @@ gives is read as the decimal it was written as, and rounded once, half away from
 
 from __future__ import annotations
 
+import json
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from pathlib import Path
 
 MINOR_DIGITS = 2  # how many decimals the stored minor unit holds (cents)
 THOUSAND_DIGITS = 3  # digits after a thousands separator
@@ -40,6 +42,27 @@ def parse_amount(text: str) -> Decimal:
             return as_decimal(cleaned.replace(marks[0], ""))  # 1,250,000: the mark is only a thousands separator
         raise ValueError("ambiguous amount: write it with a decimal point and two decimals")
     return as_decimal(whole.replace(",", "").replace(".", "") + "." + fraction)
+
+
+def currency_decimals(code: str) -> int:
+    """How many decimals the currency has (two unless `currencies.json` says otherwise)."""
+    try:
+        table = json.loads(Path(__file__).with_name("currencies.json").read_text())["decimals"]
+    except (OSError, ValueError, KeyError):
+        return MINOR_DIGITS
+    found = table.get(str(code or "").strip().upper())
+    return found if isinstance(found, int) and not isinstance(found, bool) else MINOR_DIGITS
+
+
+def check_fits(value: object, currency: str) -> None:
+    """Atlas keeps hundredths. A currency with more decimals (KWD has three) cannot be kept exactly: an amount that really uses the extra decimal is refused instead of being rounded."""
+    if value is None or currency_decimals(currency) <= MINOR_DIGITS:
+        return
+    exact = as_decimal(value) * (Decimal(10) ** MINOR_DIGITS)
+    if exact != exact.to_integral_value():
+        raise ValueError(
+            f"{str(currency).upper()} has {currency_decimals(currency)} decimals but amounts are kept in hundredths, so {value} cannot be kept exactly"
+        )
 
 
 def _to_unit(amount: Decimal, digits: int) -> int:

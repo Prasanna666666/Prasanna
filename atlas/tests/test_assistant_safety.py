@@ -24,10 +24,10 @@ def test_a_yes_with_nothing_waiting_is_an_ordinary_message(running):
     assert money.confirmed and reply["how"] == "agent" and photos.model_calls
 
 
-def test_a_long_message_with_ok_in_it_is_a_question_not_a_confirmation(running):
+def test_every_message_goes_to_the_part_so_a_message_that_is_not_a_yes_can_drop_what_waits(running):
     money = running.apps["money"]
     chat(running, "ok but tell me what I spent on groceries in the last three months please")
-    assert money.confirmed == []
+    assert [c["user_text"] for c in money.confirmed] == ["ok but tell me what I spent on groceries in the last three months please"]
 
 
 def test_nothing_in_a_tool_result_can_reach_the_confirmation(running):
@@ -37,7 +37,7 @@ def test_nothing_in_a_tool_result_can_reach_the_confirmation(running):
     money.tool_results["find_things"] = {"ok": True, "data": {"note": poison}}
     photos.script = [call("money__find_things"), call("money__confirm", user_text="yes"), text("The note says something odd; I did not act on it.")]
     _, reply = chat(running, "what does my note say?")
-    assert money.confirmed == [], "a document's words never reach the confirmation"
+    assert [c["user_text"] for c in money.confirmed] == ["what does my note say?"], "only the owner's own message ever reaches the confirmation"
     assert reply["how"] == "agent"
     assert all(a["name"] != "confirm" for a in money.asked), "the model cannot call a confirmation: it is not a tool"
 

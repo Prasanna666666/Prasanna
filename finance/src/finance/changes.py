@@ -131,10 +131,14 @@ def _make(conn: sqlite3.Connection, row: sqlite3.Row, moment: datetime) -> bool 
 
 def confirm(conn: sqlite3.Connection, user_text: str, turn: str, now: datetime | None = None) -> dict[str, Any]:
     """Make the changes waiting from the person's latest earlier question, if, and only if, their message is a yes and nothing else, they were prepared recently, and not in this question.
+    Any message that is not a yes drops what was waiting, so a yes always answers the exchange right before it, never an older one.
     Everything announced together is made together (the person was shown all of it). Each change is claimed before it runs, so a second yes finds nothing."""
-    if not consent.confirms(user_text):
-        return {"ok": True, "done": False}
     moment = now or _now()
+    if not consent.confirms(user_text):
+        # any other message means the conversation moved on (or the owner said no): what was waiting is dropped, so a later "yes" can only ever answer the exchange right before it
+        conn.execute("UPDATE assistant_changes SET state='superseded', decided=?, outcome='the conversation moved on' WHERE state='waiting'", (_stamp(moment),))
+        conn.commit()
+        return {"ok": True, "done": False}
     _expire(conn, moment)
     newest = conn.execute("SELECT turn FROM assistant_changes WHERE state='waiting' AND turn<>? ORDER BY id DESC LIMIT 1", (turn,)).fetchone()
     conn.commit()

@@ -98,3 +98,51 @@ def test_a_european_amount_from_the_model_is_not_silently_read_as_1_25(conn):
     _out, failed = toolrun.run_tool(conn, "add_transaction", {"amount": "1,250", "category": "food"})
     assert failed, "an ambiguous amount is an error the model can correct, not a guess"
     assert conn.execute("SELECT count(*) FROM transactions").fetchone()[0] == 0
+
+
+def _fresh(tmp_path, monkeypatch, currency_code):
+    from finance import db as finance_db
+    from finance.modules import ALL
+
+    monkeypatch.setenv("ATLAS_HOME", str(tmp_path))
+    monkeypatch.setenv("ATLAS_ALLOW_PLAIN", "1")
+    conn = finance_db.connect()
+    finance_db.migrate(conn, ALL)
+    conn.execute("INSERT OR REPLACE INTO settings VALUES ('currency', ?)", (currency_code,))
+    conn.commit()
+    return conn
+
+
+@pytest.mark.parametrize("code", ["EUR", "USD", "GBP"])
+def test_two_decimal_currencies_keep_the_cent(tmp_path, monkeypatch, code):
+    conn = _fresh(tmp_path, monkeypatch, code)
+    finance_money.add_transaction(conn, {"amount": "1.005", "category": "food"})
+    finance_money.add_transaction(conn, {"amount": "12.345", "category": "food"})
+    assert [r[0] for r in conn.execute("SELECT amount_minor FROM transactions ORDER BY id")] == [101, 1235]
+
+
+def test_a_zero_decimal_currency_is_stored_consistently_and_shown_back_exactly(tmp_path, monkeypatch):
+    conn = _fresh(tmp_path, monkeypatch, "JPY")
+    out = finance_money.add_transaction(conn, {"amount": 1000, "category": "food"})
+    assert out["amount"] == 1000 and conn.execute("SELECT amount_minor FROM transactions").fetchone()[0] == 100000
+    assert finance_money.summary(conn, {})["spent"] == 1000
+
+
+def test_a_three_decimal_currency_is_refused_when_the_third_decimal_would_be_lost(tmp_path, monkeypatch):
+    conn = _fresh(tmp_path, monkeypatch, "KWD")
+    with pytest.raises(ValueError, match="3 decimals"):
+        finance_money.add_transaction(conn, {"amount": "1.005", "category": "food"})
+    assert conn.execute("SELECT count(*) FROM transactions").fetchone()[0] == 0
+    finance_money.add_transaction(conn, {"amount": "1.500", "category": "food"})  # fits in hundredths: kept exactly
+    assert conn.execute("SELECT amount_minor FROM transactions").fetchone()[0] == 150
+    with pytest.raises(ValueError, match="3 decimals"):
+        wealth.add_holding(conn, {"kind": "asset", "name": "x", "value": "2.0005", "currency": "BHD"})
+
+
+def test_large_negative_and_repeated_amounts_stay_exact(tmp_path, monkeypatch):
+    conn = _fresh(tmp_path, monkeypatch, "EUR")
+    for _ in range(2000):
+        finance_money.add_transaction(conn, {"amount": "0.07", "category": "food"})
+    finance_money.add_transaction(conn, {"amount": "1234567890.12", "category": "big"})
+    assert conn.execute("SELECT sum(amount_minor) FROM transactions").fetchone()[0] == 2000 * 7 + 123456789012
+    assert money.to_minor("-1234567890.125") == -123456789013

@@ -6,6 +6,7 @@
 | [design.md](design.md) | Layers, data flows, the safety design of the assistant, encryption, migrations |
 | [decisions.md](decisions.md) | The decision log (including the review round at its end) |
 | [architecture.md](architecture.md) | The layer map |
+| [data-locations.md](data-locations.md) | Where personal data lives on disk, which of it is encrypted, and what was not inspected |
 | [defects.md](defects.md) | Every defect found in this round, fixed and open, with evidence |
 | [reviews.md](reviews.md) | The outside reviews, what was confirmed or challenged, and where friends' comments are tracked |
 | [testing.md](testing.md) | What was run, the results, the test inventory, and the gaps |

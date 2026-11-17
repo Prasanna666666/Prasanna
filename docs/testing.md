@@ -6,12 +6,12 @@ Everything below was run on this branch (head of the pull request), in **fresh P
 
 | Package | Tests | Result | ruff | ruff format | mypy |
 |---|---|---|---|---|---|
-| kit | 130 | passed | clean | clean | clean (18 files) |
+| kit | 139 | passed | clean | clean | clean (18 files) |
 | images | 96 | passed (2 warnings) | clean | clean | clean (55 files) |
-| finance | 642 | passed, coverage 88.98% (gate 85%) | clean | clean | clean (43 files) |
+| finance | 650 | passed, coverage 88.94% (gate 85%) | clean | clean | clean (43 files) |
 | library | 219 | passed | clean | clean | clean (39 files) |
 | atlas | 92 | passed | clean | clean | clean (10 files) |
-| **Total** | **1,179** | all passed | | | |
+| **Total** | **1,196** | all passed | | | |
 
 Other checks run: `bandit` (both CI invocations) clean; `eslint 10.1.0` and `prettier 3.8.1 --check` clean on the three apps' static folders and `design/`; **`scripts/check-pages.js`** (axe-core WCAG 2.1 AA + script errors + no hidden card/tile) over Finance (6 pages), Documents (5 pages) and Atlas with the apps inside it (6 pages): `PROBLEMS 0` **in both the light and the dark theme** (`THEME=dark node scripts/check-pages.js`; the dark theme was not run in a browser before and failed on every active control, D-20).
 

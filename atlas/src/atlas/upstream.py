@@ -17,7 +17,6 @@ from http import HTTPStatus
 from typing import Any
 from urllib.parse import quote, urlsplit
 
-from kit import consent
 from kit.sign import sign
 
 from . import crosscheck, dots
@@ -29,7 +28,7 @@ HEALTH_CACHE_SECONDS = 4.0
 MAX_RESULTS_PER_MODULE = 8
 SCAN_SECONDS = 6.0
 ASK_SECONDS = 60.0
-MAX_BODY = 500_000_000  # the most an app's answer Atlas reads whole; ATLAS_MAX_ANSWER_BYTES changes it. A bigger answer is refused as too large, never cut off and read as if complete
+MAX_BODY = 100_000_000  # the most an app's answer Atlas reads whole; ATLAS_MAX_ANSWER_BYTES changes it. Parsing needs about five times the answer (measured), so this is about 500 MB at worst. A bigger answer is refused as too large, never cut off and read as if complete
 BYTES_PER_MEGABYTE = 1_000_000
 
 
@@ -568,10 +567,8 @@ class Upstreams:
 
     def confirm_changes(self, text: str) -> list[str]:
         """The person's own message goes to every part that can hold a change waiting for their yes. Returns plain sentences for the changes that were made (or could not be), which is
-        nothing unless the message is a short yes and something was waiting. Only what the person typed is ever sent here; the model and the documents cannot reach this."""
-        if not consent.confirms(text):
-            return []
-        turn = uuid.uuid4().hex
+        nothing unless the message is a yes and something was waiting. Only what the person typed is ever sent here; the model and the documents cannot reach this."""
+        turn = uuid.uuid4().hex  # every message goes to the part: a yes makes the waiting change, anything else drops it (the part decides which)
         said: list[str] = []
         for module in (m for m in self.modules.values() if m.confirm):
             payload = json.dumps({"user_text": text, "turn": turn}).encode()

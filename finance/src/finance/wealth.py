@@ -37,6 +37,8 @@ def add_holding(conn, a):
     as_of = str(a.get("as_of") or clock.today().isoformat())
     date.fromisoformat(as_of)
     currency = str(a.get("currency") or _main(conn)).upper()[:5]
+    for field in ("value", "price", "cost"):
+        kit_money.check_fits(a.get(field), currency)
     cur = conn.execute(
         "INSERT INTO holdings (name, kind, value_minor, units, price_minor, currency, as_of, cost_minor) VALUES (?,?,?,?,?,?,?,?)",
         (name[:80], kind, value, a.get("units"), kit_money.to_minor(a["price"]) if a.get("price") is not None else None, currency, as_of, cost),
@@ -50,6 +52,8 @@ def update_holding(conn, a):
     row = conn.execute("SELECT * FROM holdings WHERE id=?", (a["id"],)).fetchone()
     if row is None:
         raise ValueError("no such holding")
+    for field in ("value", "price", "cost"):
+        kit_money.check_fits(a.get(field), row["currency"])
     if a.get("units") is not None and a.get("price") is not None:
         value, units, price = kit_money.total_to_minor(a["units"], a["price"]), a["units"], kit_money.to_minor(a["price"])
     elif a.get("price") is not None and row["units"] is not None:
