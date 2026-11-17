@@ -37,7 +37,7 @@ CONSEQUENTIAL = (
 DELETES = frozenset(  # need the person's own delete word AND, like CONSEQUENTIAL, are only prepared and made by the person's yes (delete_transaction is never offered)
     {"delete_event", "delete_goal", "delete_holding", "delete_note", "delete_person", "delete_task", "delete_transaction"}
 )
-ROUTINE_WRITES = frozenset(  # only ADD something (a task, a note, a person, a date, an event) or read the person's own files: run at once. There is no undo; what was added can be removed again with the delete tools, which are confirmed by the owner. A test checks that none of these changes a record that already exists
+ROUTINE_WRITES = frozenset(  # only ADD something (a task, a note, a person, a date, an event) or read the person's own files: run at once. There is no undo; a person, task, note or event can be removed again with its delete tool (prepared, then confirmed by the owner); a date alone and a whole import have no such tool (tests/test_recovery_of_routine_writes.py). A test checks that none of these changes a record that already exists
     {
         "add_person",
         "add_important_date",
