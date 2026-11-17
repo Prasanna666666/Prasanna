@@ -859,7 +859,7 @@
         return h('p', { class: 'coverage' + (proof && proof.proven ? ' proven' : ' unproven') }, state + fresh);
     }
 
-    function buildStats(nw, year, inv, dueSoon) {
+    function buildStats(nw, year, inv, dueSoon, through) {
         return h(
             'div',
             { class: dueSoon.items.length === 0 ? 'grid g3' : 'grid g4' },
@@ -868,15 +868,18 @@
                 nw.net_worth == null ? '–' : money(nw.net_worth),
                 nw.net_worth == null
                     ? 'no data yet'
-                    : nw.accounts == null
-                      ? 'without account balances: no statements read yet'
-                      : `Cash ${money(nw.accounts)}`,
+                    : (nw.accounts == null
+                          ? 'without account balances: no statements read yet'
+                          : `Cash ${money(nw.accounts)}`) +
+                          (nw.not_converted
+                              ? ` · ${nw.not_converted} holding${nw.not_converted === 1 ? '' : 's'} not counted (no exchange rate)`
+                              : ''),
                 '#/networth'
             ),
             stat(
                 year ? `Kept in ${year.year}` : 'Kept',
                 year && year.savings_rate != null ? year.savings_rate + '%' : '–',
-                year ? `${signed(year.saved, 0)} saved` : '',
+                year ? `${signed(year.saved, 0)} saved, through ${through}` : '',
                 '#/savings',
                 year && year.saved < 0 ? 'bad' : 'good'
             ),
@@ -978,7 +981,7 @@
         countUp(big, spent, (v) => money(v));
         const hero = buildHero(month, big, delta, d, monthly, oneTime, sum);
         const year = yo.years[yo.years.length - 1];
-        const stats = buildStats(nw, year, inv, dueSoon);
+        const stats = buildStats(nw, year, inv, dueSoon, monthName(month));
         const attention = buildAttention(dueSoon, checks, det);
         const attentionCard = buildAttentionCard(attention);
         const tasks = b.tasks_due.slice(0, 4);
