@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -201,6 +202,27 @@ def encrypt_in_place(path: str | Path, key: str) -> bool:
         import sqlcipher3  # noqa: F401
     except ImportError as e:
         raise EncryptionError("sqlcipher3 is not installed, so the database cannot be encrypted.") from e
+    with _exclusive(path):  # two programs opening the same file at once must not both convert it
+        return _encrypt_locked(path, key)
+
+
+@contextlib.contextmanager
+def _exclusive(path: Path) -> Iterator[None]:
+    """One conversion at a time per database file (a lock file beside it; where the system has no file locks, no lock)."""
+    try:
+        import fcntl
+    except ImportError:
+        yield
+        return
+    with open(path.with_name(path.name + ".lock"), "w") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def _encrypt_locked(path: Path, key: str) -> bool:
     _finish_interrupted(path, key)
     held, target = path.with_name(path.name + ".unencrypted"), path.with_name(path.name + ".encrypting")
     if not path.is_file() or path.stat().st_size == 0:

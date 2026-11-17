@@ -29,10 +29,15 @@ def test_every_tool_is_classified_exactly_once():
 def test_read_only_tools_change_nothing(conn):
     money.add_transaction(conn, {"amount": 12.5, "category": "food"})
     before = conn.total_changes
+    needs = {"merchant_history": {"merchant": "x"}, "payment_detail": {"id": 1}, "spending_between": {"from": "2026-01-01", "to": "2026-12-31"}}
+    refused = []
     for name in sorted(toolrun.READ_ONLY):
-        toolrun.run_tool(conn, name, {})
+        _out, failed = toolrun.run_tool(conn, name, needs.get(name, {}))
         conn.rollback()
+        if failed:
+            refused.append(name)
     assert conn.total_changes == before, "a read-only tool wrote to the database"
+    assert len(refused) <= 3, f"too many tools refused the empty call, so this proved nothing about them: {refused}"
 
 
 def test_a_consequential_tool_only_prepares_and_changes_nothing(conn):
@@ -135,3 +140,39 @@ def test_the_audit_trail_names_the_persons_words_and_the_outcome(conn):
     row = changes.history(conn)[0]
     assert row["asked"] == "set my food budget to 300" and row["state"] == "done" and row["decided"]
     assert json.loads(conn.execute("SELECT args FROM assistant_changes").fetchone()[0])["monthly_amount"] == 300
+
+
+def test_a_change_left_running_by_a_stopped_program_is_marked_unknown_and_never_repeated(conn):
+    _ask(conn, "add_transaction", {"amount": 5, "category": "food"})
+    conn.execute("UPDATE assistant_changes SET state='running', decided='2000-01-01T00:00:00+00:00'")
+    conn.commit()
+    assert changes.confirm(conn, "yes", "t2")["done"] is False
+    row = changes.history(conn)[0]
+    assert row["state"] == "failed" and _count(conn) == 0
+
+
+def test_two_yes_messages_at_the_same_moment_make_the_change_once(tmp_path):
+    import threading
+
+    from finance import db as finance_db
+
+    path = tmp_path / "f.db"
+    setup = finance_db.connect(path)
+    finance_db.migrate(setup, ALL)
+    _ask(setup, "add_transaction", {"amount": 5, "category": "food"})
+    setup.close()
+    results: list[bool] = []
+
+    def say_yes(turn: str) -> None:
+        conn = finance_db.connect(path)
+        results.append(changes.confirm(conn, "yes", turn)["done"])
+        conn.close()
+
+    threads = [threading.Thread(target=say_yes, args=(f"t{i}",)) for i in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    check = finance_db.connect(path)
+    assert check.execute("SELECT count(*) FROM transactions").fetchone()[0] == 1
+    assert results.count(True) == 1

@@ -87,6 +87,10 @@ def stage(conn: sqlite3.Connection, name: str, args: Any, turn: str, asked: str,
 def _expire(conn: sqlite3.Connection, moment: datetime) -> None:
     cutoff = _stamp(moment - timedelta(minutes=CONFIRM_WINDOW_MINUTES))
     conn.execute("UPDATE assistant_changes SET state='expired', decided=? WHERE state='waiting' AND created < ?", (_stamp(moment), cutoff))
+    conn.execute(  # a change claimed but never finished (the program stopped mid-way): said so, never repeated, since it is not known whether it was made
+        "UPDATE assistant_changes SET state='failed', outcome='interrupted: it is not known whether this was made, check the records' WHERE state='running' AND decided < ?",
+        (cutoff,),
+    )
 
 
 def confirm(conn: sqlite3.Connection, user_text: str, turn: str, now: datetime | None = None) -> dict[str, Any]:

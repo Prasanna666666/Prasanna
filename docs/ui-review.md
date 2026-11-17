@@ -31,7 +31,10 @@ Generated with Playwright at 1280×900 (desktop), 1280×900 dark, and 390×844 (
 
 Documents has no page of its own: it is a hidden module that feeds Health, Travel, Photos and Calendar. Its stand-alone address only says "These pages belong inside Atlas".
 
-## Dark
+### UI-8 First run (an empty database)
+![First run](screenshots/08-finance-first-run-empty.png)
+
+## Dark (re-taken after the contrast fix: active controls now use dark text on the light accent)
 
 ![Overview, dark](screenshots/01-overview-dark.png)
 ![Finance, dark](screenshots/02-finance-dashboard-dark.png)
@@ -54,6 +57,7 @@ Documents has no page of its own: it is a hidden module that feeds Health, Trave
 | UI-G | Overview | The top bar has six status pills plus the Update button; on narrower widths the pill text wraps ("AI model not / running", "Read new / files") | layout |
 | UI-H | All | Apps opened outside Atlas show a stub page for Documents ("These pages belong inside Atlas") and an empty-looking Finance shell; intended, but is it clear? | first run |
 | UI-I | Photos | The sidebar dot and top pill for Photos are green while the page says "Photos are not connected" | honest status |
+| UI-L | First run | The empty Finance dashboard shows a welcome card and an "Add my files" button, then a "Today / Nothing today." card; does the first step feel obvious? | first run |
 | UI-K | Calendar | An empty month is a grid of large blank boxes; "Coming up" is below the fold | density |
 | UI-J | All | A pending change ("Waiting for your yes: …") is shown as a note under the answer, not as a card with a button; the owner must type "yes". Pictures use a window with a Confirm button | consistency of confirmation |
 

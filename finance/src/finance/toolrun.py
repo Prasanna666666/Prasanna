@@ -7,6 +7,8 @@ import json
 import sqlite3
 from typing import Any
 
+from kit import money as kit_money
+
 from .modules import ALL
 from .modules import tools as registry
 
@@ -113,7 +115,7 @@ def _coerce(tool, args: dict[str, Any]) -> dict[str, Any]:
             if t == "integer" and isinstance(v, (str, float)):
                 out[k] = int(float(v))
             elif t == "number" and isinstance(v, str):
-                out[k] = float(v.replace(",", ""))
+                out[k] = float(kit_money.parse_amount(v))
         except ValueError:
             pass
     return out

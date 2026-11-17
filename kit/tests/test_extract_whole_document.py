@@ -298,3 +298,16 @@ def test_the_classifier_returns_only_verified_dates():
     said = {"kind": "invoice", "title": "T", "date": "2026-03-02", "due_date": "2027-01-01", "apps": []}
     got = extract.classify(_Said(said), "m", "f.pdf", INVOICE)
     assert got["date"] == "2026-03-02" and got["due_date"] is None
+
+
+@pytest.mark.parametrize(
+    ("text", "iso"),
+    [("Geboren 12 maart 1985", "1985-03-12"), ("Datum 1999-12-31", "1999-12-31"), ("Contract 3.4.1998", "1998-04-03"), ("Born January 5, 1972", "1972-01-05")],
+)
+def test_dates_before_2000_are_read_too(text, iso):
+    assert iso in extract.dates_in(text)
+    assert extract.verify_dates({"date": iso}, text)["date"] == iso
+
+
+def test_a_two_digit_year_is_not_guessed():
+    assert extract.dates_in("Datum 12-01-26") == set()

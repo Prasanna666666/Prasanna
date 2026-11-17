@@ -30,6 +30,11 @@ const targets = [
         const ctx = await browser.newContext({
             viewport: { width: 1280, height: 900 },
         });
+        const theme = process.env.THEME || "light"; // THEME=dark checks the dark theme too
+        await ctx.addInitScript((t) => {
+            for (const k of ["atlas", "finance", "library"])
+                localStorage.setItem(k + ".theme", t);
+        }, theme);
         for (const r of routes) {
             const page = await ctx.newPage();
             const errors = [];

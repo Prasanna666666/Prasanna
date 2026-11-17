@@ -6,14 +6,14 @@ Everything below was run on this branch (head of the pull request), in **fresh P
 
 | Package | Tests | Result | ruff | ruff format | mypy |
 |---|---|---|---|---|---|
-| kit | 84 | passed | clean | clean | clean (18 files) |
+| kit | 91 | passed | clean | clean | clean (18 files) |
 | images | 96 | passed (2 warnings) | clean | clean | clean (55 files) |
-| finance | 619 | passed, coverage 88.89% (gate 85%) | clean | clean | clean (43 files) |
+| finance | 637 | passed, coverage 88.90% (gate 85%) | clean | clean | clean (43 files) |
 | library | 217 | passed | clean | clean | clean (39 files) |
 | atlas | 92 | passed | clean | clean | clean (10 files) |
-| **Total** | **1,108** | all passed | | | |
+| **Total** | **1,133** | all passed | | | |
 
-Other checks run: `bandit` (both CI invocations) clean; `eslint 10.1.0` and `prettier 3.8.1 --check` clean on the three apps' static folders and `design/`; **`scripts/check-pages.js`** (axe-core WCAG 2.1 AA + script errors + no hidden card/tile) over Finance (6 pages), Documents (5 pages) and Atlas with the apps inside it (6 pages): `PROBLEMS 0`.
+Other checks run: `bandit` (both CI invocations) clean; `eslint 10.1.0` and `prettier 3.8.1 --check` clean on the three apps' static folders and `design/`; **`scripts/check-pages.js`** (axe-core WCAG 2.1 AA + script errors + no hidden card/tile) over Finance (6 pages), Documents (5 pages) and Atlas with the apps inside it (6 pages): `PROBLEMS 0` **in both the light and the dark theme** (`THEME=dark node scripts/check-pages.js`; the dark theme was not run in a browser before and failed on every active control, D-20).
 
 **GitHub Actions** on commit `e9a76cc` (the push and the pull-request run) both finished green: every job of the matrix (Python 3.11 and 3.13 for Finance and Library, kit, images, atlas, web, security with bandit, pip-audit and gitleaks). The runs before it were red for the reasons in `defects.md` D-08, D-14, D-16, D-17.
 

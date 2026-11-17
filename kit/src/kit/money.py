@@ -8,6 +8,7 @@ from __future__ import annotations
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 MINOR_DIGITS = 2  # how many decimals the stored minor unit holds (cents)
+THOUSAND_DIGITS = 3  # digits after a thousands separator
 
 
 def as_decimal(value: object) -> Decimal:
@@ -21,6 +22,24 @@ def as_decimal(value: object) -> Decimal:
     if found is None or not found.is_finite():
         raise ValueError("not an amount")
     return found
+
+
+def parse_amount(text: str) -> Decimal:
+    """An amount a person or model typed as text, in either notation: `1,250.50` and `1.250,50` are both 1250.50. When both separators are there, the last one is the decimal point.
+    A single separator followed by exactly three digits (`1,250`, `1.250`) could be a thousand or a fraction, so it is refused rather than guessed. Currency signs and spaces are ignored."""
+    cleaned = "".join(ch for ch in str(text) if ch.isdigit() or ch in ",.-")
+    if not any(ch.isdigit() for ch in cleaned):
+        raise ValueError("not an amount")
+    last = max(cleaned.rfind(","), cleaned.rfind("."))
+    if last < 0:
+        return as_decimal(cleaned)
+    marks = [ch for ch in cleaned if ch in ",."]
+    whole, fraction = cleaned[:last], cleaned[last + 1 :]
+    if len(set(marks)) == 1 and (len(marks) > 1 or len(fraction) == THOUSAND_DIGITS):
+        if len(marks) > 1 and len(fraction) == THOUSAND_DIGITS:
+            return as_decimal(cleaned.replace(marks[0], ""))  # 1,250,000: the mark is only a thousands separator
+        raise ValueError("ambiguous amount: write it with a decimal point and two decimals")
+    return as_decimal(whole.replace(",", "").replace(".", "") + "." + fraction)
 
 
 def _to_unit(amount: Decimal, digits: int) -> int:

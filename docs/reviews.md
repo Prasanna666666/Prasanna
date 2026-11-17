@@ -36,6 +36,24 @@ This was a rubric to apply, not a finished audit; I was interrupted while runnin
 
 Starting that audit is what surfaced the untyped `dict` in `kit/text.py` (D-09).
 
+## Review 3: Gemini review of this pull request (pasted by the owner)
+
+Every claim was checked against the code, not accepted. Posted on the PR as comment series `R3-1` to `R3-11`.
+
+| # | Gemini's claim | Verdict | Evidence / what changed |
+|---|---|---|---|
+| R3-1 | O-1 High: fixed hundredths breaks zero-decimal (JPY) and three-decimal currencies | **Partly.** JPY is stored consistently ×100, not miscalculated; KWD/BHD lose the third digit | Stays **Open** (O-1), rated Medium |
+| R3-2 | O-2 High: old `.unencrypted` files must be shredded | **Agreed it is an exposure; challenged "must be shredded automatically"**: such a file may be the only pre-encryption copy. New conversions already overwrite and delete | **Open** (O-2) |
+| R3-3 | O-4 Blocker: "allocating raw 500 MB buffers per request" | **Challenged.** `read(limit + 1)` reads what arrives; it does not allocate 500 MB. Real answers are kilobytes; an over-limit answer is refused. Only a pathological 500 MB answer is a risk | **Open**, conditional (O-4) |
+| R3-4 | O-6/O-7: routine categorisation writes run unconfirmed | **Partly wrong.** Categorisation (`set_category`) is already confirm-gated. O-6 is about date roles, not writes. O-7 (tasks/notes/people) is a stated choice | no change |
+| R3-5 | R1-6: DDL can implicitly commit, so migrations are not transactional; use savepoints | **Refuted.** In SQLite DDL is transactional; `executescript` (which does commit first) is no longer used. `test_a_migration_that_fails_halfway_changes_nothing_and_can_be_retried` creates a table, fails, and asserts the table is absent | no change |
+| R3-6 | Money float path in `statement_import.py` | **Not reproduced there**: `_money` goes through `Decimal(str(float))`, exact as written, with no float arithmetic. **A different real float path was found while checking**: `_coerce` turned `"1.250,50"` into 1.2505 | **Fixed** D-18 |
+| R3-7 | Encryption: crash between rename and commit can orphan handles and leave zero valid databases | **Refuted as stated**: tests cover a stop between the renames, a corrupt encrypted copy, a failed check after the swap, a failed copy. **Found a real gap while checking**: two programs converting at once | **Fixed** D-22 |
+| R3-8 | Migration splitting by `;` breaks triggers and quoted strings | **Refuted.** The splitter is `sqlite3.complete_statement`, which understands quotes, comments and trigger bodies; a trigger test existed. Added a semicolon-in-string and in-comment test | test added |
+| R3-9 | Confirmation race / token replay can double-execute | **No token exists to replay.** Consumption is `UPDATE … WHERE state='waiting'` with a rowcount check. Added a 6-thread test on separate connections: exactly one change. **Found a real gap**: a change left `running` by a stopped program | **Fixed** D-21 |
+| R3-10 | UI-3: dense dashboard; timestamps fail dark-theme contrast | **Timestamps do not exist on the dashboard**, but **dark contrast really did fail**, on all active controls | **Fixed** D-20; density is UI-F, still open |
+| R3-11 | Honesty: docs claim atomic migrations but splitting leaves partial state | **Refuted** by R3-5. **A true honesty gap found instead**: "WCAG AA in both themes" had never been run in a browser in dark | corrected in D-20 and `requirements.md` |
+
 ## Author's own findings
 
 D-09, D-12, D-13, D-14, D-15 in `defects.md`. The most important: D-12, every card hidden by CSS for two days, found only because the apps were finally run and photographed.

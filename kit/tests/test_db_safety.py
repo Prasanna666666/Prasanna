@@ -21,7 +21,7 @@ def _plain(path: Path, rows: int = 50) -> None:
 
 
 def _leftovers(path: Path) -> list[str]:
-    return sorted(p.name for p in path.parent.iterdir() if p.name != path.name and not p.name.startswith("backups"))
+    return sorted(p.name for p in path.parent.iterdir() if p.name != path.name and not p.name.startswith("backups") and not p.name.endswith(".lock"))
 
 
 def test_a_plain_database_is_converted_and_no_plain_copy_remains(tmp_path):
@@ -193,3 +193,35 @@ def test_every_step_of_a_long_history_upgrades_from_each_old_version(tmp_path):
         assert conn.execute("SELECT version FROM _migrations WHERE module='m'").fetchone()[0] == 5
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert len(conn.execute("SELECT name FROM sqlite_master WHERE name LIKE 's_'").fetchall()) == 5
+
+
+def test_a_semicolon_inside_a_string_or_a_comment_does_not_split_a_statement(tmp_path):
+    script = "CREATE TABLE s (id INTEGER PRIMARY KEY, v TEXT);\n-- a comment; with a semicolon\nINSERT INTO s (v) VALUES ('a;b;c');\nINSERT INTO s (v) VALUES ('it''s; fine');"
+    conn = db.connect(tmp_path / "m.db")
+    db.migrate(conn, [Module("m", (script,))])
+    assert [r[0] for r in conn.execute("SELECT v FROM s ORDER BY id")] == ["a;b;c", "it's; fine"]
+
+
+def test_two_programs_converting_the_same_database_at_once_end_with_one_good_encrypted_file(tmp_path):
+    import threading
+
+    path = tmp_path / "a.db"
+    _plain(path, rows=2000)
+    errors: list[BaseException] = []
+
+    def convert():
+        try:
+            db.encrypt_in_place(path, KEY)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=convert) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []
+    conn = db.connect(path, KEY)
+    assert conn.execute("SELECT count(*) FROM t").fetchone()[0] == 2000
+    conn.close()
+    assert _leftovers(path) == []

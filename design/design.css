@@ -16,6 +16,7 @@
     --soft: #eef0ff;
     --accent-soft: #eef0ff;
     --accent: #4f46e5;
+    --on-accent: #ffffff; /* text on the accent colour: white on the dark accent of the light theme, dark on the light accent of the dark theme */
     --accent-2: #4f46e5;
     --accent-3: #4f46e5;
     --a1: #4f46e5;
@@ -48,6 +49,7 @@
     --soft: #1e2140;
     --accent-soft: #1e2140;
     --accent: #818cf8;
+    --on-accent: #0e1013;
     --accent-2: #818cf8;
     --accent-3: #818cf8;
     --a1: #818cf8;
@@ -77,6 +79,7 @@
         --soft: #1e2140;
         --accent-soft: #1e2140;
         --accent: #818cf8;
+        --on-accent: #0e1013;
         --a1: #818cf8;
         --a2: #818cf8;
         --good: #4ade80;
@@ -286,7 +289,7 @@ h3 {
     background: var(--accent) !important;
     background-image: none !important;
     border-color: var(--accent) !important;
-    color: #fff !important;
+    color: var(--on-accent) !important;
     box-shadow: none !important;
 }
 .btn:hover,
@@ -322,7 +325,7 @@ h3 {
 }
 .item.active svg,
 .item.active span {
-    color: #fff !important;
+    color: var(--on-accent) !important;
 }
 
 /* charts and bars */
@@ -557,7 +560,7 @@ main {
     color: var(--ink);
 }
 .heat-cell.heat-top {
-    color: #fff;
+    color: var(--on-accent);
     background: var(--accent);
 }
 .shopbars {
@@ -674,7 +677,7 @@ main {
 }
 .chip.on {
     background: var(--accent) !important;
-    color: #fff !important;
+    color: var(--on-accent) !important;
     border-color: var(--accent) !important;
 }
 
@@ -894,7 +897,7 @@ main {
     padding: 6px 0;
     border-radius: 10px;
     background: var(--accent);
-    color: #fff;
+    color: var(--on-accent);
     display: flex;
     flex-direction: column;
     align-items: center;

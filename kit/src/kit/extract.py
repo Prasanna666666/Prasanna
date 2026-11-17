@@ -125,10 +125,10 @@ _MONTHS = {
 }
 _MONTH = "|".join(sorted(_MONTHS, key=len, reverse=True))
 _DATE_PATTERNS = (
-    (re.compile(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b"), (0, 1, 2)),  # 2026-01-12
-    (re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2})\b"), (2, 1, 0)),  # 12-01-2026, day first
-    (re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[ .-]*({_MONTH})\b[ .,-]*(20\d{{2}})\b", re.IGNORECASE), (2, 1, 0)),  # 12 January 2026, 12 jan 2026
-    (re.compile(rf"\b({_MONTH})\b[ .]+(\d{{1,2}})(?:st|nd|rd|th)?,?[ ]+(20\d{{2}})\b", re.IGNORECASE), (2, 0, 1)),  # January 12, 2026
+    (re.compile(r"\b((?:19|20)\d{2})-(\d{1,2})-(\d{1,2})\b"), (0, 1, 2)),  # 2026-01-12
+    (re.compile(r"\b(\d{1,2})[./-](\d{1,2})[./-]((?:19|20)\d{2})\b"), (2, 1, 0)),  # 12-01-2026, day first
+    (re.compile(rf"\b(\d{{1,2}})(?:st|nd|rd|th)?[ .-]*({_MONTH})\b[ .,-]*((?:19|20)\d{{2}})\b", re.IGNORECASE), (2, 1, 0)),  # 12 January 2026, 12 jan 2026
+    (re.compile(rf"\b({_MONTH})\b[ .]+(\d{{1,2}})(?:st|nd|rd|th)?,?[ ]+((?:19|20)\d{{2}})\b", re.IGNORECASE), (2, 0, 1)),  # January 12, 2026
 )
 
 
