@@ -245,6 +245,7 @@ nav {
 }
 .searchbar {
     flex: 1;
+    min-width: 0;
     max-width: 640px;
     display: flex;
     align-items: center;
@@ -279,8 +280,10 @@ nav {
     display: flex;
     gap: 8px;
     margin-left: auto;
+    flex: none;
 }
 .chip {
+    white-space: nowrap;
     display: inline-flex;
     align-items: center;
     gap: 7px;
@@ -566,6 +569,8 @@ body.chatting .fab {
 }
 
 .update {
+    flex: none;
+    white-space: nowrap;
     display: inline-flex;
     align-items: center;
     gap: 8px;

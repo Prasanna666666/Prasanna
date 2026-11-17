@@ -213,13 +213,42 @@
                     ? `Left out because already dealt with: ${out.settled || 0} settled bills, ${out.done || 0} follow-ups done, ${out.renewed || 0} renewed.`
                     : '',
             ].filter(Boolean);
+            const first = isoDay(new Date(year, month, 1)),
+                last = isoDay(new Date(year, month + 1, 0));
+            const inMonth = joined.events.some((e) => e.date <= last && first <= e.end);
+            const later = joined.events.filter((e) => e.date > last).sort((a, b) => (a.date < b.date ? -1 : 1))[0];
+            // an empty month is one line (with a jump to the next month that has something), not a grid of blank days
+            let month_view = monthGrid(year, month, joined.events);
+            if (!inMonth) {
+                month_view = el('div', 'empty', 'Nothing dated this month.');
+                if (later) {
+                    const jump = el(
+                        'button',
+                        'pill',
+                        'Next: ' +
+                            new Date(later.date + 'T00:00').toLocaleDateString(undefined, {
+                                month: 'long',
+                                year: 'numeric',
+                            })
+                    );
+                    jump.type = 'button';
+                    jump.addEventListener('click', () => draw(joined, new Date(later.date + 'T00:00')));
+                    month_view.append(' ', jump);
+                }
+            }
             body.replaceChildren(
                 bar,
-                monthGrid(year, month, joined.events),
+                month_view,
                 el('h3', 'band', 'Coming up'),
                 soon.length
                     ? list
-                    : el('div', 'empty', 'Nothing dated yet. Dates appear here once your documents are read.'),
+                    : el(
+                          'div',
+                          'empty',
+                          joined.events.length
+                              ? 'Nothing coming up soon.'
+                              : 'Nothing dated yet. Dates appear here once your documents are read.'
+                      ),
                 ...notes.map((n) => el('p', 'note', n))
             );
         };
@@ -409,16 +438,17 @@
         return chip;
     };
     const renderChips = () => {
-        const chips = [
-            aiChip(),
-            ...state.modules
-                .filter((m) => !m.hidden)
-                .map((module) => {
-                    const chip = el('span', 'chip ' + statusClass(module), module.name);
-                    chip.prepend(el('i'));
-                    return chip;
-                }),
-        ].filter(Boolean);
+        // the menu already shows each app's dot; the header keeps two chips: the model, and one summary of the apps
+        const visible = state.modules.filter((m) => !m.hidden);
+        const down = visible.filter((m) => statusClass(m) === 'down').map((m) => m.name);
+        const summary = el(
+            'span',
+            'chip ' + (down.length ? 'down' : statusClass(visible[0] || {}) ? 'up' : ''),
+            down.length ? `${down.length} of ${visible.length} parts not running` : 'All parts running'
+        );
+        summary.prepend(el('i'));
+        summary.title = down.length ? `Not running: ${down.join(', ')}` : 'Every app answers';
+        const chips = [aiChip(), visible.length ? summary : null].filter(Boolean);
         const box = $('#chips');
         const html = chips.map((c) => c.outerHTML).join('');
         if (box.dataset.html === html) return; // nothing changed: nothing is redrawn
