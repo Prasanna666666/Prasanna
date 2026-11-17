@@ -4,6 +4,28 @@ Run these on the Mac, in Terminal, in order. Use **invented test files only** (n
 
 Needs: Docker Desktop running, Ollama running (for a full read), `git`, `python3`.
 
+## Fast isolated check (recommended: it does not depend on reading your whole real library)
+After step 5 has built the images (`./up.sh` made `library-parser:local` and `library:local`), run these with one invented file. They were run on the owner's Mac and passed (see `docs/comment-tracker.md` section 21). Note: the real images start `library-parser` / `library` by themselves, so pass only `--once` to the parser, and `--entrypoint python` to the app image.
+```
+rm -rf /tmp/o16-in /tmp/o16-out; mkdir -p /tmp/o16-in /tmp/o16-out
+printf 'Test report. Marker word ZEBRAQUARTZ. Glucose 5,2 mmol/L.\n' > /tmp/o16-in/t.txt; chmod -R a+rwX /tmp/o16-in /tmp/o16-out
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --tmpfs /tmp -u 10001 -e ATLAS_INBOX=/inbox -e ATLAS_PARSED=/parsed -e LIBRARY_HANDOVER_PUBLIC_KEY="$LIBRARY_HANDOVER_PUBLIC_KEY" -v /tmp/o16-in:/inbox:ro -v /tmp/o16-out:/parsed library-parser:local --once 2>&1 | tail -3
+ls -A /tmp/o16-out | grep -v '^\.'      # one <64 hex>.sealed, no .json
+grep -rl ZEBRAQUARTZ /tmp/o16-out | wc -l   # 0
+cat > /tmp/o16-ingest.py <<'PY'
+from pathlib import Path
+from kit import db as kdb
+from library import store
+c = kdb.connect(Path("/data/library.db")); kdb.migrate(c, [store.MODULE])
+print("result:", store.ingest_dir(c, Path("/parsed"), on_rejected=lambda *a: print("REJECTED", a[:2])))
+print("documents:", [(r[0], r[1][:40]) for r in c.execute("select name, text from documents")])
+print("sealed files still on the volume:", len(list(Path("/parsed").glob("*.sealed"))))
+PY
+run() { docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true --tmpfs /tmp --tmpfs /data:uid=10001 -u 10001 --entrypoint python -e ATLAS_DB_KEY=throwaway-test-key-123 -e LIBRARY_HANDOVER_PRIVATE_KEY="$1" -v /tmp/o16-out:/parsed -v /tmp/o16-ingest.py:/ingest.py:ro library:local /ingest.py 2>&1 | tail -4; }
+run "0000000000000000000000000000000000000000000000000000000000000000"                              # wrong key: unopened 1, file stays
+run "$(security find-generic-password -a "$USER" -s atlas-handover-private -w)"                      # right key: new 1, file removed
+```
+
 ## 1. Get exactly the commit under review
 ```
 cd ~/path/to/Prasanna            # your clone
