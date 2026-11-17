@@ -6,18 +6,24 @@ Everything below was run on this branch (head of the pull request), in **fresh P
 
 | Package | Tests | Result | ruff | ruff format | mypy |
 |---|---|---|---|---|---|
-| kit | 139 | passed | clean | clean | clean (18 files) |
+| kit | 146 | passed | clean | clean | clean (18 files) |
 | images | 96 | passed (2 warnings) | clean | clean | clean (55 files) |
-| finance | 650 | passed, coverage 88.94% (gate 85%) | clean | clean | clean (43 files) |
-| library | 219 | passed | clean | clean | clean (39 files) |
-| atlas | 92 | passed | clean | clean | clean (10 files) |
-| **Total** | **1,196** | all passed | | | |
+| finance | 662 | passed, coverage 88.95% (gate 85%) | clean | clean | clean (43 files) |
+| library | 228 | passed | clean | clean | clean (39 files) |
+| atlas | 99 | passed | clean | clean | clean (10 files) |
+| **Total** | **1,231** | all passed | | | |
 
 Other checks run: `bandit` (both CI invocations) clean; `eslint 10.1.0` and `prettier 3.8.1 --check` clean on the three apps' static folders and `design/`; **`scripts/check-pages.js`** (axe-core WCAG 2.1 AA + script errors + no hidden card/tile) over Finance (6 pages), Documents (5 pages) and Atlas with the apps inside it (6 pages): `PROBLEMS 0` **in both the light and the dark theme** (`THEME=dark node scripts/check-pages.js`; the dark theme was not run in a browser before and failed on every active control, D-20).
 
 **GitHub Actions** on commit `e9a76cc` (the push and the pull-request run) both finished green: every job of the matrix (Python 3.11 and 3.13 for Finance and Library, kit, images, atlas, web, security with bandit, pip-audit and gitleaks). The runs before it were red for the reasons in `defects.md` D-08, D-14, D-16, D-17.
 
 **Not run by me locally:** `pip-audit`, `gitleaks`, SBOM (they ran in CI), Python 3.13 for this exact head (it ran in CI), anything needing a Mac (Apple Vision OCR, Docker Desktop, real Ollama).
+
+## Do the tests bite? (mutation checks)
+
+Test counts do not show that a test would fail if the defect came back. For 22 fixed defects I put the defect back (one line), ran the test, and restored the code; the table is in `docs/reconciliation.md`. Result: 15 detected at the first attempt, 2 my own text mismatches (detected on re-run), 2 **not detected** (D-06's validation path; the `--ff-only` change), which exposed one real test gap (fixed) and one equivalent change; 3 more guard mutations detected. Defects marked "not mutation-checked" there have tests that were **not** shown to fail without the fix.
+
+Caveat found while doing it: Python can keep a stale compiled copy of a file that was mutated and restored within the same second with the same length; delete `__pycache__` after such a run.
 
 ## How to run
 

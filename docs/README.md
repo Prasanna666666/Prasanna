@@ -6,6 +6,9 @@
 | [design.md](design.md) | Layers, data flows, the safety design of the assistant, encryption, migrations |
 | [decisions.md](decisions.md) | The decision log (including the review round at its end) |
 | [architecture.md](architecture.md) | The layer map |
+| [reconciliation.md](reconciliation.md) | Every defect and open item: status, file and line, what its test proves, and whether the test was shown to fail without the fix |
+| [security-deployment-review.md](security-deployment-review.md) | What was inspected in Docker, Compose and scripts, what was run, and what was not |
+| [coverage-matrix.md](coverage-matrix.md) | Every changed entry of the pull request and whether it was inspected |
 | [data-locations.md](data-locations.md) | Where personal data lives on disk, which of it is encrypted, and what was not inspected |
 | [defects.md](defects.md) | Every defect found in this round, fixed and open, with evidence |
 | [reviews.md](reviews.md) | The outside reviews, what was confirmed or challenged, and where friends' comments are tracked |

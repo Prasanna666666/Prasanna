@@ -80,3 +80,24 @@ def test_documents_cut_under_old_limits_are_read_again_when_the_limits_change(co
     assert store.forget_stale_reads(conn, folder) == 0  # the limits have not changed
     configure(max_name_chars=1000)
     assert store.forget_stale_reads(conn, folder) == 1  # they have: what was cut is read again
+
+
+def test_a_raised_limit_lets_longer_names_sources_and_text_through_whole(configure, conn, tmp_path):
+    """A hard-coded copy of a limit anywhere in the path (validation as well as repair) would reject or cut these."""
+    folder = tmp_path / "results"
+    folder.mkdir()
+    configure(max_name_chars=1000, max_source_chars=2000, max_text_chars=100_000)
+    d = _document(name="n" * 700, text="t" * 60_000, source="s" * 1500)
+    (folder / f"{'a' * 64}.json").write_text(json.dumps(d))
+    assert store.ingest_dir(conn, folder, on_rejected=lambda *a: None)["new"] == 1
+    row = conn.execute("SELECT name, length(text) AS n, source FROM documents").fetchone()
+    assert len(row["name"]) == 700 and row["n"] == 60_000 and len(row["source"]) == 1500
+    assert "limits_hit" not in conn.execute("SELECT data FROM documents").fetchone()["data"]
+
+
+def test_the_same_document_under_the_default_limits_is_not_cut_either(conn, tmp_path):
+    folder = tmp_path / "results"
+    folder.mkdir()
+    (folder / f"{'b' * 64}.json").write_text(json.dumps(_document("b", name="n" * 255, text="t" * 10_000)))
+    store.ingest_dir(conn, folder, on_rejected=lambda *a: None)
+    assert len(conn.execute("SELECT name FROM documents").fetchone()["name"]) == 255

@@ -94,6 +94,10 @@ Verified against the code and posted on the PR as comment `R5`.
 | O-4 | Measure memory; configurable limits | **Measured** (5× the answer) and the default lowered to 100 MB; streaming not done |
 | O-7 | Classify routine / material / consequential | **Done**: read-only, routine writes, consequential writes and deletes (all prepared), classification enforced by a test |
 
+## Review 6: ChatGPT "comprehensive engineering review" of head `ddce7da` (request changes)
+
+Posted on the PR as comment `R6`. Four named findings, all checked: **all four were real** (D-31 to D-34, fixed or partly fixed). The request for an exhaustive audit of 496 entries, every screenshot, every deployment path and every test was **not completed** and the documents say so: `docs/coverage-matrix.md` (96 entries read in the round, 403 **not inspected**), `docs/reconciliation.md` (status of every D-/O- item with a mutation check where done), `docs/security-deployment-review.md`.
+
 ## Author's own findings
 
 D-09, D-12, D-13, D-14, D-15 in `defects.md`. The most important: D-12, every card hidden by CSS for two days, found only because the apps were finally run and photographed.
