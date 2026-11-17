@@ -6,6 +6,7 @@
 | [design.md](design.md) | Layers, data flows, the safety design of the assistant, encryption, migrations |
 | [decisions.md](decisions.md) | The decision log (including the review round at its end) |
 | [architecture.md](architecture.md) | The layer map |
+| [comment-tracker.md](comment-tracker.md) | Every review comment from ChatGPT, Gemini and the author, and its status, kept up to date |
 | [reconciliation.md](reconciliation.md) | Every defect and open item: status, file and line, what its test proves, and whether the test was shown to fail without the fix |
 | [security-deployment-review.md](security-deployment-review.md) | What was inspected in Docker, Compose and scripts, what was run, and what was not |
 | [coverage-matrix.md](coverage-matrix.md) | Every changed entry of the pull request and whether it was inspected |
