@@ -43,6 +43,11 @@
             minimumFractionDigits: d,
             maximumFractionDigits: d,
         }).format(n || 0);
+    const previousMonth = (ym) => {
+        const d = new Date(ym + '-15');
+        d.setMonth(d.getMonth() - 1);
+        return d.toISOString().slice(0, 7);
+    };
     const monthName = (ym) => new Date(ym + '-15').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     const PALETTE = [
         '#6366f1',
@@ -825,7 +830,7 @@
                         : h(
                               'span',
                               { class: 'delta' },
-                              `${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}% monthly vs before`
+                              `${delta >= 0 ? '↑' : '↓'} ${Math.abs(delta).toFixed(0)}% monthly vs ${monthName(previousMonth(month))}`
                           )
                 ),
                 h('div', { class: 'hero-spark' }, sparkline(d.trend.slice(-8).map((t) => t.spent)))
@@ -843,14 +848,14 @@
     function buildStats(nw, year, inv, dueSoon) {
         return h(
             'div',
-            { class: 'grid g4' },
+            { class: dueSoon.items.length === 0 ? 'grid g3' : 'grid g4' },
             stat(
                 'Net worth',
                 nw.net_worth == null ? '–' : money(nw.net_worth),
                 nw.net_worth == null
                     ? 'no data yet'
                     : nw.accounts == null
-                      ? 'no statements read yet'
+                      ? 'without account balances: no statements read yet'
                       : `Cash ${money(nw.accounts)}`,
                 '#/networth'
             ),
@@ -868,12 +873,14 @@
                 '#/investments',
                 inv.gain == null ? '' : inv.gain >= 0 ? 'good' : 'bad'
             ),
-            stat(
-                'Due in 3 weeks',
-                money(dueSoon.total),
-                `${dueSoon.items.length} payment${dueSoon.items.length === 1 ? '' : 's'}`,
-                '#/plan'
-            )
+            dueSoon.items.length === 0
+                ? null
+                : stat(
+                      'Due in 3 weeks',
+                      money(dueSoon.total),
+                      `${dueSoon.items.length} payment${dueSoon.items.length === 1 ? '' : 's'}`,
+                      '#/plan'
+                  )
         );
     }
 
