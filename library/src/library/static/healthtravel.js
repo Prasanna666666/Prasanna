@@ -155,6 +155,8 @@
     };
 
     // how old a date is, in whole months: an old report is said to be old, not shown as if it were current
+    const STALE_MONTHS = 3; // a report older than this is shown without a reassuring colour
+    const ago = (months) => (months < 1 ? 'this month' : months === 1 ? '1 month ago' : `${months} months ago`);
     const monthsOld = (iso) => Math.floor((Date.now() - new Date(iso + 'T00:00:00')) / (30.44 * 86400000));
 
     // ---------------------------------------------------------------- Travel
@@ -711,20 +713,30 @@
             .map((g) => g.latest.date)
             .sort()
             .pop();
-        const hero = el('div', `hero healthhero ${out ? 'warn' : 'good'}`);
+        // a result is only as current as its report: an old report never gets a reassuring colour or wording
+        const age = latest ? monthsOld(latest) : 0;
+        const stale = age >= STALE_MONTHS;
+        const hero = el('div', `hero healthhero ${stale ? 'stale' : out ? 'warn' : 'good'}`);
         const summary = el('div', 'hero-text');
         summary.append(
-            el('span', 'stat-label', 'Health summary'),
-            el('b', 'hero-place', !total ? 'No values yet' : out ? `${out} to look at` : 'All within range'),
+            el('span', 'stat-label', 'Recorded results'),
+            el(
+                'b',
+                'hero-place',
+                !total
+                    ? 'No values yet'
+                    : out
+                      ? `${plural(out, 'result')} outside the printed range`
+                      : `${plural(total, 'result')} inside the printed ranges`
+            ),
             el(
                 'span',
                 'stat-sub',
                 [
                     plural(total, 'test'),
-                    plural(meds.medicines.length, 'medicine'),
+                    meds.medicines.length ? plural(meds.medicines.length, 'medicine') : 'no medicine records found',
                     plural(docs.documents.length, 'report'),
-                    latest &&
-                        `latest report ${shortDate(latest)}${monthsOld(latest) >= 12 ? ` (${monthsOld(latest)} months old)` : ''}`,
+                    latest && `latest report ${shortDate(latest)} (${ago(age)})`,
                 ]
                     .filter(Boolean)
                     .join(' · ')
@@ -745,6 +757,7 @@
         const status = await getJson('/api/medical/status');
         const pending = status.waiting_for_the_model + status.not_understood;
         const page = [appTabs('health', 'health'), hero];
+        if (values.note) page.push(el('p', 'note', `${values.note} An older result does not describe today.`));
         if (pending) {
             page.push(
                 el('p', 'note', `${pending} health documents are still being understood: this page will change.`)
