@@ -30,12 +30,33 @@ class MailIndex:
         return len(self.messages) + self.gone
 
 
-def _seen_cache(out: Path, root: Path, kind: str = "") -> tuple[Path, dict[str, str]]:
-    cache_file = out / ".mailseen-2" / (hashlib.sha256((kind + str(root)).encode()).hexdigest()[:16] + ".json")
+class _HashedSeen:
+    """What the reader remembers of mail it has seen. The keys are the mail files' relative paths, which name mailboxes and accounts, so they are kept only as one-way hashes: the reader can still ask "have I seen this?" and the volume no longer holds the paths. (The reader must read this back itself, so it cannot be sealed to a public key.)"""
+
+    def __init__(self, stored: dict[str, str] | None = None) -> None:
+        self.stored: dict[str, str] = dict(stored or {})  # hashed key -> stamp: this is what is written to the volume
+
+    @staticmethod
+    def _h(key: str) -> str:
+        return hashlib.sha256(str(key).encode()).hexdigest()[:32]
+
+    def get(self, key: str, default: str | None = None) -> str | None:
+        return self.stored.get(self._h(key), default)
+
+    def __setitem__(self, key: str, value: str) -> None:
+        self.stored[self._h(key)] = value
+
+    def update(self, other: dict[str, str]) -> None:
+        for key, value in other.items():
+            self[key] = value
+
+
+def _seen_cache(out: Path, root: Path, kind: str = "") -> tuple[Path, _HashedSeen]:
+    cache_file = out / ".mailseen-3" / (hashlib.sha256((kind + str(root)).encode()).hexdigest()[:16] + ".json")
     try:
-        return cache_file, json.loads(cache_file.read_text()) if cache_file.exists() else {}
+        return cache_file, _HashedSeen(json.loads(cache_file.read_text()) if cache_file.exists() else {})
     except (OSError, ValueError):
-        return cache_file, {}
+        return cache_file, _HashedSeen()
 
 
 def _build_mail_index(root: Path, out: Path) -> MailIndex:

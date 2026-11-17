@@ -54,6 +54,7 @@ def _arguments() -> argparse.ArgumentParser:
 def _one_round(a: argparse.Namespace, out: Path) -> dict:
     """One round of reading: wait for the person's request when watching, read everything, leave what could not be read for the report."""
     out.mkdir(parents=True, exist_ok=True)
+    batch.forget_legacy_state(out)
     with contextlib.suppress(OSError):
         (out / ".ocr-engine").write_text(
             "apple" if readers.apple_ocr_running() else "tesseract"
@@ -67,7 +68,7 @@ def _one_round(a: argparse.Namespace, out: Path) -> dict:
     finally:
         (out / rounds.BUSY).unlink(missing_ok=True)
         (out / ".now").unlink(missing_ok=True)
-    (out / rounds.FAILED_FILE).write_text(json.dumps(batch._FAILED[: batch.MAX_FAILED]))  # what could not be read this round, for the report
+    batch.write_note(out / rounds.FAILED_FILE, json.dumps(batch._FAILED[: batch.MAX_FAILED]))  # what could not be read this round, for the report
     batch._FAILED.clear()
     return res
 

@@ -29,6 +29,13 @@ run "$(security find-generic-password -a "$USER" -s atlas-handover-private -w)" 
 ## Sealing is now on by default (no manual export needed)
 `./up.sh` reads the two sealing keys from the Keychain (services `atlas-handover-private` and `atlas-handover-public`), makes the pair once if there is none, and prints one line: `Sealed hand-over: ON (...)` or `Sealed hand-over: OFF (reason)`. It refuses to start when the configuration is half done (one key only, a malformed key). `ATLAS_SEAL_HANDOVER=0 ./up.sh` turns it off; `ATLAS_REQUIRE_SEALED=1 ./up.sh` refuses to start plain. If only the private key is in the Keychain (as after the manual steps below), the public key is worked out from it and kept. Check after any start: `docker inspect atlas-documents-parser-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep HANDOVER | sed 's/=.*/=<set>/'` shows the public key only.
 
+## B1 check: the reader's notes are sealed too (after `./up.sh` has rebuilt the images)
+Press **Read new files**, then (it prints the first bytes of a note and the list of files on the volume; no names should be readable):
+```
+docker run --rm -v library_library-parsed:/parsed alpine sh -c 'ls -A /parsed | head -20; echo "--- start of .progress (must begin with ATLAS-SEALED-NOTE-1):"; head -c 24 /parsed/.progress; echo; echo "--- readable file names inside the notes (must be none):"; grep -c "\.pdf\|\.emlx\|\.txt" /parsed/.progress /parsed/.unread-files /parsed/.found /parsed/.failed.json 2>/dev/null'
+```
+Expected: `ATLAS-SEALED-NOTE-1` at the start, and `0` for every file listed. The Atlas progress card must still show the file it is reading and the "could not be read" list (the app opens the notes with the private key). The first read after this update looks at your mail once more (the reader's mail cache was renamed and now keeps hashes, not paths); it does not read the mails again. Known remaining place for names: the parser prints the names of files it cannot read to its container log (`docker logs atlas-documents-parser-1`).
+
 ## 1. Get exactly the commit under review
 ```
 cd ~/path/to/Prasanna            # your clone

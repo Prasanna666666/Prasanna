@@ -11,7 +11,7 @@ from typing import Any
 
 from kit import log
 
-from . import appstate, judging, pictures, readreport, store, trace
+from . import appstate, judging, pictures, readreport, seal, store, trace
 from .appstate import State
 
 PERCENT_ONE_DECIMAL_BELOW = 10  # below this a percentage is shown with one decimal
@@ -24,7 +24,7 @@ def _get_status(state: State, conn, query: dict[str, str]) -> dict:
 def _found() -> dict[str, Any]:
     """What the reader has counted so far in its folders: each total is there as soon as it is known (the documents first, then the mails and what they carry)."""
     try:
-        data = json.loads((appstate.parsed_dir() / ".found").read_text())
+        data = json.loads(seal.read_note(appstate.parsed_dir() / ".found"))
         found: dict[str, Any] = {
             "mail_connected": data.get("mail_connected") is True,
             "by_folder": {str(k)[:20]: int(v) for k, v in (data.get("by_folder") or {}).items()},
@@ -39,7 +39,7 @@ def _found() -> dict[str, Any]:
 
 def _progress() -> dict[str, Any]:
     try:
-        return json.loads((appstate.parsed_dir() / ".progress").read_text())
+        return json.loads(seal.read_note(appstate.parsed_dir() / ".progress"))
     except (OSError, ValueError):
         return {}
 
@@ -56,7 +56,7 @@ def _gone_through() -> dict[str, int]:
 def _unread_files() -> list[str]:
     """The files (and mails) the reader could not read in its last round, each with the reason: the reader writes them down, the card names them."""
     try:
-        raw = json.loads((appstate.parsed_dir() / ".unread-files").read_text())
+        raw = json.loads(seal.read_note(appstate.parsed_dir() / ".unread-files"))
     except (OSError, ValueError):
         return []
     return [str(item)[:220] for item in raw[:50]] if isinstance(raw, list) else []
@@ -393,8 +393,8 @@ def _steps(conn, s: dict[str, Any]) -> list[dict[str, Any]]:
 def _reading_now(s: dict[str, Any]) -> dict[str, Any] | None:
     """Step 1: the file the reader says it is on (it writes the name as it starts each one), and how long it has been on it."""
     try:
-        name, _, step = (appstate.parsed_dir() / ".now").read_text()[:400].partition("\n")
-    except OSError:
+        name, _, step = seal.read_note(appstate.parsed_dir() / ".now")[:400].partition("\n")
+    except (OSError, ValueError):  # no note yet, or a sealed one this app cannot open
         return None
     if not name:
         return None

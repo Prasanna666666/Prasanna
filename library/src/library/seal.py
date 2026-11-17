@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 KEY_BYTES = 32
@@ -107,6 +108,36 @@ def open_sealed(blob: bytes, private_hex: str) -> bytes:
         return bytes(lib.Aead(key).decrypt(nonce, body, eph_public))
     except lib.InvalidTag as error:
         raise SealError("wrong key or damaged file") from error
+
+
+NOTE_MAGIC = b"ATLAS-SEALED-NOTE-1\n"  # what the reader writes for its own notes (file names, progress) when sealing is on: it marks a note as sealed, so plain notes are still read as before
+
+
+def private_key_from_environment() -> str:
+    """The private key that opens sealed hand-over files and notes, from `LIBRARY_HANDOVER_PRIVATE_KEY` or the file named by `LIBRARY_HANDOVER_PRIVATE_KEY_FILE`; "" when this process was given none."""
+    key = os.environ.get("LIBRARY_HANDOVER_PRIVATE_KEY", "").strip()
+    named = os.environ.get("LIBRARY_HANDOVER_PRIVATE_KEY_FILE", "")
+    if not key and named:
+        try:
+            key = Path(named).read_text(encoding="utf-8").strip()
+        except OSError:
+            key = ""
+    return key
+
+
+def seal_note(text: str, public_hex: str) -> bytes:
+    return NOTE_MAGIC + seal(text.encode("utf-8"), public_hex)
+
+
+def read_note(path: Path) -> str:
+    """A note the reader wrote: plain text, or sealed (opened with the private key from the environment). A sealed note with no key, a wrong key or a damaged file raises `SealError`, so a caller that already ignores a bad note ignores this one too."""
+    data = path.read_bytes()
+    if not data.startswith(NOTE_MAGIC):
+        return data.decode("utf-8")
+    key = private_key_from_environment()
+    if not key:
+        raise SealKeyError("a sealed note, and this process has no private key")
+    return open_sealed(data[len(NOTE_MAGIC) :], key).decode("utf-8")
 
 
 def main(argv: list[str] | None = None) -> str | None:

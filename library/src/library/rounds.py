@@ -96,7 +96,7 @@ def unread_report(roots: list[tuple[str, Path]], out: Path) -> dict[str, Any]:
 
 def _put_found(out: Path, data: dict) -> None:
     tmp = out / f"{FOUND_FILE}.tmp"
-    tmp.write_text(json.dumps(data))
+    batch.write_note(tmp, json.dumps(data))
     os.replace(tmp, out / FOUND_FILE)
 
 

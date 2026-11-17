@@ -1,6 +1,6 @@
 # Changed-file coverage matrix
 
-Recounted at `afb1b66ed6fedb182b68a7b139d2b3033598959e` (checked two ways: `git diff --name-status -M origin/aperture...HEAD` lists 541 entries, D 100, A 364, M 5, R 72, and every one is a row below; the rows count 105 ROUND, 15 ROUND + VIEWED, 24 AUTHORED, 397 NOT INSPECTED = 541). Last regenerated from `git diff --name-status -M origin/aperture...HEAD` at `4adc71a0b8d6486cf71a0a6f8996f8d3c32d29e5`. **544 entries with rename detection (D 100, A 364, M 5, R 72).** 512 were listed at `80562da`; the 20 added since are listed at the end (tests, fixtures and screenshots of this round; code files changed in the round were already in the list, so their rows are unchanged) The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
+Recounted at `afb1b66ed6fedb182b68a7b139d2b3033598959e` (checked two ways: `git diff --name-status -M origin/aperture...HEAD` lists 541 entries, D 100, A 364, M 5, R 72, and every one is a row below; the rows count 105 ROUND, 15 ROUND + VIEWED, 24 AUTHORED, 397 NOT INSPECTED = 541). Last regenerated from `git diff --name-status -M origin/aperture...HEAD` at `4adc71a0b8d6486cf71a0a6f8996f8d3c32d29e5`. **545 entries with rename detection (D 100, A 364, M 5, R 72).** 512 were listed at `80562da`; the 20 added since are listed at the end (tests, fixtures and screenshots of this round; code files changed in the round were already in the list, so their rows are unchanged) The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
 
 Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot I opened and looked at; other screenshots were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review. For those, the only evidence is the package suites and CI, which do not prove them correct. **AUTHORED** = a document or script written after `5676a6a` that has no test and was not inspected by anyone but its author.
 
@@ -23,8 +23,8 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | src | 46 | 0 | 0 | 46 |
 | tests | 30 | 0 | 0 | 30 |
 | added after `5676a6a` (AUTHORED, no test) | 4 | 0 | 0 | 0 |
-| added after `80562da`: 9 screenshots opened and looked at (VIEWED); 22 tests, fixtures, code, docs, scripts and screenshots not opened (AUTHORED, listed as such) | 32 | 0 | 9 | 0 |
-| **all** | **544** | **105** | **15** | **397** (+27 AUTHORED: 4 + 23) |
+| added after `80562da`: 9 screenshots opened and looked at (VIEWED); 23 tests, fixtures, code, docs, scripts and screenshots not opened (AUTHORED, listed as such) | 33 | 0 | 9 | 0 |
+| **all** | **545** | **105** | **15** | **397** (+28 AUTHORED: 4 + 24) |
 
 ## Every entry
 
@@ -574,3 +574,4 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `docs/MAC_VERIFICATION.md` | AUTHORED |
 | A | `scripts/handover-keys.sh` | AUTHORED |
 | A | `library/tests/test_handover_keys.py` | AUTHORED |
+| A | `library/tests/test_sealed_notes.py` | AUTHORED |

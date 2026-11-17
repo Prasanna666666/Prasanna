@@ -254,7 +254,7 @@ def _forget(conn, directory: Path, where: str, args: tuple = ()) -> int:
         if members & gone:
             conn.execute("DELETE FROM cases WHERE id=?", (case["id"],))
     conn.commit()
-    for name in (".mailseen-2", ".seen-2", ".attached-2"):  # what the reader remembers of having read mail
+    for name in (".mailseen-3", ".mailseen-2", ".mailseen", ".seen-2", ".attached-2"):  # what the reader remembers of having read mail
         shutil.rmtree(directory / name, ignore_errors=True)
     return len(rows)
 
@@ -348,12 +348,7 @@ def _remove_orphans(directory: Path) -> None:
 
 def _handover_private_key() -> str:
     """The private key that opens sealed hand-over files, from the environment or a file; "" when this app was given none."""
-    key = os.environ.get("LIBRARY_HANDOVER_PRIVATE_KEY", "").strip()
-    named = os.environ.get("LIBRARY_HANDOVER_PRIVATE_KEY_FILE", "")
-    if not key and named:
-        with contextlib.suppress(OSError):
-            key = Path(named).read_text(encoding="utf-8").strip()
-    return key
+    return seal.private_key_from_environment()
 
 
 def _handover_files(directory: Path) -> list[Path]:

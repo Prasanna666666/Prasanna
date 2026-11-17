@@ -23,6 +23,26 @@ def _done(out: Path, digest: str) -> bool:
     return (out / ".done" / digest).exists() or (out / f"{digest}.json").exists() or (out / f"{digest}.sealed").exists()
 
 
+def write_note(path: Path, text: str) -> None:
+    """One of the reader's own notes (what it is reading now, its progress, the files it could not read, what it found): sealed to the app's public key when sealing is on, so the file names in it are not left readable on the shared volume either; the app opens it with its private key."""
+    public = os.environ.get(HANDOVER_PUBLIC_KEY, "")
+    if public:
+        private_bytes(path, seal.seal_note(text, public))
+    else:
+        private_text(path, text)
+
+
+LEGACY_STATE = (
+    ".mailseen",
+    ".mailseen-2",
+)  # the reader's caches of mail it had seen, which kept the mail files' relative paths in plain text: replaced by `.mailseen-3` (hashed keys) and removed
+
+
+def forget_legacy_state(out: Path) -> None:
+    for name in LEGACY_STATE:
+        shutil.rmtree(out / name, ignore_errors=True)
+
+
 def private_text(path: Path, text: str) -> None:
     """Write a file only its owner can read (0600): what the reader hands over holds the whole text of a file, and the volume it lies on is shared by two containers."""
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
@@ -105,7 +125,7 @@ MAIL_DEPTH = 3  # a mail forwarded inside a mail still gets its attachments read
 def _now(out: Path, name: str, step: str = "") -> None:
     """What the reader is on, for the Documents service to show: the name, and (when it is not simply reading a file) what it is doing."""
     with contextlib.suppress(OSError):
-        private_text(out / ".now", f"{name[:200]}\n{step[:100]}")
+        write_note(out / ".now", f"{name[:200]}\n{step[:100]}")
 
 
 @dataclass
@@ -312,10 +332,10 @@ def _progress_add(out: Path, area: str, n: int, group: str = "", unread: int = 0
 def _write_progress(out: Path) -> None:
     with contextlib.suppress(OSError):
         tmp = out / ".progress.tmp"
-        private_text(tmp, json.dumps({**_PROGRESS, "unread": _UNREAD}))
+        write_note(tmp, json.dumps({**_PROGRESS, "unread": _UNREAD}))
         os.replace(tmp, out / ".progress")
         failed = out / ".unread-files.tmp"
-        private_text(failed, json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read so far, for the card
+        write_note(failed, json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read so far, for the card
         os.replace(failed, out / ".unread-files")
 
 

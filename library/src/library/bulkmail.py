@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from . import control, sniff
 
@@ -62,9 +63,9 @@ def _in_skipped_mailbox(relative: Path) -> bool:
     return not boxes or boxes[-1].lower().removesuffix(".mbox") not in mailboxes_read()
 
 
-def _save_seen(cache_file: Path, seen: dict[str, str]) -> None:
+def _save_seen(cache_file: Path, seen: Any) -> None:
     cache_file.parent.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps(seen))
+    cache_file.write_text(json.dumps(getattr(seen, "stored", seen)))  # a `_HashedSeen` writes its hashed keys, never the paths
 
 
 _VETTED: set[str] = set()  # messages already checked for being bulk mail: not opened again

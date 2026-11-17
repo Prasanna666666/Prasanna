@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from . import seal
+
 REASONS = {
     "only_in_icloud": "is in iCloud but not downloaded to this Mac yet (in Finder: right-click it, then Download Now)",
     "alias_or_link": "is a shortcut or alias, not the file itself",
@@ -23,7 +25,7 @@ def _parsed() -> Path:
 
 def _json(name: str) -> Any:
     try:
-        return json.loads((_parsed() / name).read_text())
+        return json.loads(seal.read_note(_parsed() / name))
     except (OSError, ValueError):
         return None
 
