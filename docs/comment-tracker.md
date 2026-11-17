@@ -201,3 +201,4 @@ Conclusion: Gemini's answer does not change any status. It does agree the next r
 | `745668c`, `1b19673` | Older-release upgrade tests for Finance and Documents (O-12) from text dumps written by the code of older commits |
 | `f011e8e` | Images: an index written by the released aperture code (`5d3ddb5`, the real older release) opens with the current code and is encrypted in place with every row intact (O-12 for Images; the schema is the same 16 steps in both builds) |
 | `87d7ee3` | Dashboard: net worth says how many holdings were left out for lack of an exchange rate (they were silently excluded before); savings tile says "through <month>" |
+| (next commit) | O-16: sealed hand-over built (`library/src/library/seal.py`), off by default, not run in Docker; supersedes the earlier "oppose" of the redesign for the code part. The Docker run on the Mac is BLOCKED - NEEDS MAC/MODEL |

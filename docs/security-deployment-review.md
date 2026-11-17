@@ -23,6 +23,15 @@ Token generation, expiry and reuse (`kit/sign.py`, Atlas token fetch); CSRF and 
 - `scripts/update-code.sh`: clean, dirty, ahead, behind, diverged, no local branch, other branch (`atlas/tests/test_update_script.py`, 7 scenarios, real git repositories).
 - `up.sh`, `down.sh`, `scripts/install-autostart.sh`: **not run**; a test only checks that `up.sh` does not rebuild when nothing changed (`library/tests/test_docker_files.py`, string checks, which is weak).
 
+## Turning on the sealed hand-over (O-16; off by default, not yet run in Docker)
+
+1. Make a key pair once: `python3 -m library.seal` prints the private key, then the public key (needs `pip install cryptography` and this repository's `library` folder on the path, or run it inside the app image).
+2. Keep the private key in the macOS Keychain; never in a file or in git.
+3. Start with the public key given to the parser and the private key to the app: `LIBRARY_HANDOVER_PUBLIC_KEY=<public> LIBRARY_HANDOVER_PRIVATE_KEY=<private> ./up.sh` (the compose file passes each only to its own container; a test checks this). The images must be rebuilt once, because both now install `cryptography`.
+4. Press Read new files, then look in the shared volume: it must hold only `.sealed` files, no `.json`. A document that was read must still appear in Documents.
+5. If the app has no key or the wrong one, sealed files stay where they are (shown as unopened); nothing is deleted.
+This has not been run here: the images were not built or started. Until it is, the plain hand-over (mode 0600, removed after ingestion) is what runs.
+
 ## Known weak points, stated
 
 - The test that checks `up.sh` is a source-string test; it does not run the script.

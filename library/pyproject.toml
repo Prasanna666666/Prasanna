@@ -12,7 +12,8 @@ dependencies = []
 [project.optional-dependencies]
 secure = ["sqlcipher3-binary>=0.5"]
 parse = ["pymupdf>=1.24", "pdfplumber>=0.11", "openpyxl>=3.1", "pillow>=13", "pillow-heif>=0.16"]
-dev = ["pytest>=8", "ruff>=0.5", "mypy>=1.10", "pyyaml>=6"]  # pyyaml: the tests read the compose files
+seal = ["cryptography>=42"]  # the sealed hand-over (off by default)
+dev = ["cryptography>=42", "pytest>=8", "ruff>=0.5", "mypy>=1.10", "pyyaml>=6"]  # pyyaml: the tests read the compose files
 
 [project.scripts]
 library = "library.cli:main"

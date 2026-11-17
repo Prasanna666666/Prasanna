@@ -1,6 +1,6 @@
 # Changed-file coverage matrix
 
-Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `4adc71a0b8d6486cf71a0a6f8996f8d3c32d29e5`. **538 entries with rename detection (D 100, A 355, M 5, R 72).** 512 were listed at `80562da`; the 20 added since are listed at the end (tests, fixtures and screenshots of this round; code files changed in the round were already in the list, so their rows are unchanged) The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
+Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `4adc71a0b8d6486cf71a0a6f8996f8d3c32d29e5`. **541 entries with rename detection (D 100, A 355, M 5, R 72).** 512 were listed at `80562da`; the 20 added since are listed at the end (tests, fixtures and screenshots of this round; code files changed in the round were already in the list, so their rows are unchanged) The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
 
 Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot I opened and looked at; other screenshots were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review. For those, the only evidence is the package suites and CI, which do not prove them correct. **AUTHORED** = a document or script written after `5676a6a` that has no test and was not inspected by anyone but its author.
 
@@ -23,8 +23,8 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | src | 46 | 0 | 0 | 46 |
 | tests | 30 | 0 | 0 | 30 |
 | added after `5676a6a` (AUTHORED, no test) | 4 | 0 | 0 | 0 |
-| added after `80562da`: 9 screenshots opened and looked at (VIEWED); 16 tests, fixtures, code and screenshots not opened (AUTHORED, listed as such) | 26 | 0 | 9 | 0 |
-| **all** | **538** | **105** | **15** | **397** (+21 AUTHORED: 4 + 17) |
+| added after `80562da`: 9 screenshots opened and looked at (VIEWED); 19 tests, fixtures, code and screenshots not opened (AUTHORED, listed as such) | 29 | 0 | 9 | 0 |
+| **all** | **541** | **105** | **15** | **397** (+24 AUTHORED: 4 + 20) |
 
 ## Every entry
 
@@ -568,3 +568,6 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `finance/tests/test_undo_last_additions.py` | AUTHORED |
 | A | `docs/screenshots/17-first-run-checklist-dark.png` | AUTHORED |
 | A | `finance/tests/test_recovery_of_routine_writes.py` | AUTHORED |
+| A | `library/src/library/seal.py` | AUTHORED |
+| A | `library/tests/test_seal.py` | AUTHORED |
+| A | `library/tests/test_sealed_handover.py` | AUTHORED |

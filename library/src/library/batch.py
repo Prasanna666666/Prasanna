@@ -15,12 +15,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import bulkmail, control, extraction, flags, readers, sniff
+from . import bulkmail, control, extraction, flags, readers, seal, sniff
 
 
 def _done(out: Path, digest: str) -> bool:
     """Has this content been read? A marker with no content in it is kept, because the readable copy is deleted once the app has stored it."""
-    return (out / ".done" / digest).exists() or (out / f"{digest}.json").exists()
+    return (out / ".done" / digest).exists() or (out / f"{digest}.json").exists() or (out / f"{digest}.sealed").exists()
 
 
 def private_text(path: Path, text: str) -> None:
@@ -28,6 +28,17 @@ def private_text(path: Path, text: str) -> None:
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         handle.write(text)
+
+
+HANDOVER_PUBLIC_KEY = (
+    "LIBRARY_HANDOVER_PUBLIC_KEY"  # hex of the app's public key; when it is set the hand-over is sealed (off by default until it has been run on the Mac)
+)
+
+
+def private_bytes(path: Path, data: bytes) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)
 
 
 def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, source: str = "") -> None:
@@ -42,10 +53,15 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, 
         **res,
     }
     tmp = out / f".{digest}.tmp"
-    private_text(tmp, json.dumps(doc, ensure_ascii=False))
+    text = json.dumps(doc, ensure_ascii=False)
+    public = os.environ.get(HANDOVER_PUBLIC_KEY, "")
+    if public:  # sealed to the app's public key: this reader can write the file but never read it back
+        private_bytes(tmp, seal.seal(text.encode("utf-8"), public))
+    else:
+        private_text(tmp, text)
     (out / ".done").mkdir(exist_ok=True)
     (out / ".done" / digest).touch()
-    os.replace(tmp, out / f"{digest}.json")  # atomic: the app never sees a half-written file
+    os.replace(tmp, out / (f"{digest}.sealed" if public else f"{digest}.json"))  # atomic: the app never sees a half-written file
 
 
 _CLAIMED: set[str] = set()

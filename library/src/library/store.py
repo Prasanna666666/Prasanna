@@ -26,7 +26,7 @@ from typing import Any
 from kit import extract, rag
 from kit.module import Module
 
-from . import apps, limits, relevance
+from . import apps, limits, relevance, seal
 
 MIGRATIONS = (
     """
@@ -344,21 +344,50 @@ def _remove_orphans(directory: Path) -> None:
                 leftover.unlink()
 
 
+def _handover_private_key() -> str:
+    """The private key that opens sealed hand-over files, from the environment or a file; "" when this app was given none."""
+    key = os.environ.get("LIBRARY_HANDOVER_PRIVATE_KEY", "").strip()
+    named = os.environ.get("LIBRARY_HANDOVER_PRIVATE_KEY_FILE", "")
+    if not key and named:
+        with contextlib.suppress(OSError):
+            key = Path(named).read_text(encoding="utf-8").strip()
+    return key
+
+
+_WAITS = object()  # a sealed file this app has no key for: it waits, untouched
+
+
+def _read_handover(f: Path, private: str) -> Any:
+    """What one hand-over file holds, as the reader wrote it: plain JSON, or a sealed file opened with the app's private key."""
+    if f.is_symlink() or f.stat().st_size > limits.get("max_json_bytes"):
+        raise ValueError("symlink or too large")
+    if f.suffix != ".sealed":
+        return json.loads(f.read_text(encoding="utf-8"))
+    if not private:
+        return _WAITS
+    try:
+        return json.loads(seal.open_sealed(f.read_bytes(), private).decode("utf-8"))
+    except seal.SealError:
+        return _WAITS
+
+
 def ingest_dir(
     conn, directory: Path, stop=None, on_new: Callable[[str], None] | None = None, on_rejected: Callable[[str, str, str], None] | None = None
 ) -> dict[str, int]:
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
-    new = known = rejected = replaced = 0
+    new = known = rejected = replaced = unopened = 0
     stored: list[Path] = []
     _remove_orphans(directory)
-    for looked, f in enumerate(sorted(directory.resolve().glob("*.json")), 1):
+    private = _handover_private_key()
+    for looked, f in enumerate(sorted([*directory.resolve().glob("*.json"), *directory.resolve().glob("*.sealed")]), 1):
         if stop is not None and looked % 100 == 0 and stop():
             break  # Stop: what is taken in so far stays, the rest waits for the next read
         d = None
         try:
-            if f.is_symlink() or f.stat().st_size > limits.get("max_json_bytes"):
-                raise ValueError("symlink or too large")
-            raw = json.loads(f.read_text(encoding="utf-8"))
+            raw = _read_handover(f, private)
+            if raw is _WAITS:
+                unopened += 1  # a wrong or missing key must never make the reader's work be thrown away and redone: the file stays where it is
+                continue
             d = _repaired(raw, f.stem)
             if d is None:
                 raise ValueError("schema")
@@ -391,7 +420,7 @@ def ingest_dir(
     if os.access(directory, os.W_OK):
         for f in stored:  # the text now lives only in the encrypted database
             f.unlink(missing_ok=True)
-    return {"new": new, "known": known, "rejected": rejected, "replaced": replaced}
+    return {"new": new, "known": known, "rejected": rejected, "replaced": replaced, **({"unopened": unopened} if unopened else {})}
 
 
 # ---- asking: what any app can take -------------------------------------------------------------------------------------------

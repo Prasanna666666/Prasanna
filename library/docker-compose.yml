@@ -24,6 +24,7 @@ services:
       ATLAS_INBOX: /inbox
       ATLAS_PARSED: /parsed
       LIBRARY_COLLECTIONS: finance=/collections/finance   # a folder you keep for one purpose; add more as apps arrive (health=/collections/health)
+      LIBRARY_HANDOVER_PUBLIC_KEY: ${LIBRARY_HANDOVER_PUBLIC_KEY:-}   # when set, what the parser hands over is sealed to this PUBLIC key: it can write the file but never read it (off until you turn it on, see docs/security-deployment-review.md)
     volumes:
       - ${HOME}/AtlasInbox:/inbox:ro
       - ${ATLAS_FINANCE_DIR:-${HOME}/AtlasFinance}:/collections/finance:ro   # your bank statements and finance files
@@ -43,6 +44,7 @@ services:
       ATLAS_BUILD: ${ATLAS_BUILD:-unknown}   # which version of the code this is (shown on the home page)
       PLATFORM_KEY: ${PLATFORM_KEY:?run ./up.sh (it reads the key from the Keychain)}   # calls from the other apps must be signed with it (from the Keychain, by up.sh)
       ATLAS_DB_KEY: ${ATLAS_DB_KEY:?run ./scripts/up.sh (it reads the key from the Keychain)}
+      LIBRARY_HANDOVER_PRIVATE_KEY: ${LIBRARY_HANDOVER_PRIVATE_KEY:-}   # opens the sealed hand-over; only this container holds it
     volumes:
       - library-data:/data
       - ${HOME}/AtlasInbox:/inbox:${LIBRARY_INBOX_MODE:-ro}   # read-only. Filing documents into folders needs LIBRARY_INBOX_MODE=rw when you start it
