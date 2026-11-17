@@ -10,6 +10,7 @@
 | [reviews.md](reviews.md) | The outside reviews, what was confirmed or challenged, and where friends' comments are tracked |
 | [testing.md](testing.md) | What was run, the results, the test inventory, and the gaps |
 | [ui-review.md](ui-review.md) | Screenshots of the apps with invented data, for UI comments |
-| [REVIEW_PROMPT.md](REVIEW_PROMPT.md) | The prompt used to ask other AIs for a review |
+| [REVIEW_PROMPT.md](REVIEW_PROMPT.md) | The prompt used to ask other AIs for the first review |
+| [RE_REVIEW_PROMPT.md](RE_REVIEW_PROMPT.md) | The prompt to send reviewers (people and AIs) for the re-review of this pull request |
 
 Read in this order if you have ten minutes: `defects.md` (what was wrong), `design.md` (how the assistant is kept safe), `ui-review.md` (what it looks like).
