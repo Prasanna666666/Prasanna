@@ -25,7 +25,7 @@ from kit import consent, llm, log, netguard, sign
 from kit.http import Fail, ModuleHandler, host_ok
 from kit.units import YEAR_DIGITS
 
-from . import answers, applenotes, browse, changes, clock, db, insight, library_client, report, tagging, toolrun
+from . import additions, answers, applenotes, browse, changes, clock, db, insight, library_client, report, tagging, toolrun
 from .modules import ALL, money, reports, statement_import
 from .modules import tools as registry
 from .modules.today import briefing_for
@@ -240,6 +240,7 @@ def _post_tool(state: State, conn, body: dict) -> dict:
     data = json.loads(out)
     if error:
         return {"ok": False, "data": None, "error": data.get("error")}
+    additions.record(conn, name, data, str(body.get("turn", "")))
     problems, notes = answers.check_tool(conn, name, args if isinstance(args, dict) else {}, out)
     if problems:
         return {

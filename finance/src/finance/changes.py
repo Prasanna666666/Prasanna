@@ -11,7 +11,7 @@ from typing import Any, cast
 
 from kit import consent
 
-from . import toolrun
+from . import additions, toolrun
 from .modules import ALL
 from .modules import tools as registry
 
@@ -55,6 +55,8 @@ def summarize(name: str, args: dict[str, Any], conn: sqlite3.Connection | None =
     """What the change would do, in plain words made by code from the tool's own description and the arguments (never written by the model), with the name of what it is about."""
     tool = registry(ALL)[name]
     what = tool.description.split(".")[0].strip() + _target(conn, name, args)
+    if name == "undo_last_additions" and conn is not None:
+        what += f": {additions.preview(conn) or 'nothing'}"
     given = ", ".join(f"{k}: {str(v)[:SUMMARY_VALUE_CHARS]}" for k, v in sorted(args.items()) if v not in (None, ""))
     return (f"{what} ({given})" if given else what)[:SUMMARY_CHARS]
 

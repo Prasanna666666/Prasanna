@@ -8,6 +8,7 @@ from kit import money as kit_money
 from kit.module import INT, Module, N, S, Tool
 
 from .. import (
+    additions,
     audit,
     browse,
     categorize,
@@ -163,6 +164,16 @@ MIGRATIONS = (
     """
     ALTER TABLE finance_docs ADD COLUMN date_source TEXT NOT NULL DEFAULT '';        -- the line of the document that carries its date, as the document prints it
     ALTER TABLE finance_docs ADD COLUMN due_date_source TEXT NOT NULL DEFAULT '';
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS assistant_additions (   -- what the assistant added at once (a person, date, task, note, event) and the question it was added in, so the latest can be taken back
+        id INTEGER PRIMARY KEY,
+        turn TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        tbl TEXT NOT NULL,
+        row_id INTEGER NOT NULL,
+        undone INTEGER NOT NULL DEFAULT 0
+    );
     """,
 )
 
@@ -438,6 +449,12 @@ MODULE = Module(
             "Where a month's spending comes from: by file, trips and events apart, the biggest payments, and anything that looks like it is not really spending.",
             {"month": S("YYYY-MM, default the newest month")},
             insight.month_breakdown,
+        ),
+        Tool(
+            "undo_last_additions",
+            "Take back what the assistant added in its latest question (a person, date, task, note or event it added).",
+            {},
+            additions.undo_last_additions,
         ),
         Tool(
             "months_proof",
