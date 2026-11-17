@@ -42,9 +42,9 @@ Stored as integer minor units. `kit.money.to_minor` reads a number or text as th
 - The model **chooses** tools (schema-constrained) and **writes** the answer; every figure in the answer must appear in a tool result (`kit.audit.unproven_figures`), otherwise the answer is refused.
 - Tool results are data. The system prompt says so, but nothing relies on that: permissions are enforced in code.
 - Every Finance tool is classified (`finance/toolrun.py`): READ_ONLY, ROUTINE_WRITES, DELETES, CONSEQUENTIAL. A test fails for an unclassified tool.
-  - **CONSEQUENTIAL** (nine tools that change money records) are only *prepared*: run for real inside a transaction that is rolled back (so errors return at once), then kept in `assistant_changes` as `waiting`.
-  - The owner's **own next message**, passed on by Atlas, confirms it if it is a short yes (≤ 6 words, `kit.consent.confirms`), the change was prepared in an earlier question, and not more than 10 minutes ago. The change is claimed before it runs, so a second yes finds nothing.
-  - **DELETES** need the owner's own delete words in the same message; `delete_transaction` is never offered.
+  - **CONSEQUENTIAL** (eleven tools that change money records or overwrite a note or person) and every **DELETE** (except `delete_transaction`, which is never offered) are only *prepared*: run for real inside a transaction that is rolled back (so errors return at once), then kept in `assistant_changes` as `waiting`.
+  - The owner's **own next message**, passed on by Atlas, confirms it only if the **whole message is a yes** (≤ 6 words, no question mark, nothing left after the yes-words but filler: `kit.consent.confirms`; "no, don't do it", "I'm not sure", "ok what is my budget" are not confirmations), the changes were prepared in an earlier question, and not more than 10 minutes ago. Everything announced in one question is made by one yes; each change is claimed before it runs, so a second yes finds nothing. The summary names what a delete or overwrite is about ("Delete a task permanently [Pay rent]").
+  - **DELETES** need the owner's own delete word in the same message *and* the owner's yes afterwards; `delete_transaction` is never offered.
   - The model cannot confirm anything: confirmation is not a tool and its input is the owner's message, never a tool result or a document.
   - Every proposal and its outcome (`waiting, running, done, failed, superseded, expired`) is the audit trail (`GET /api/changes`).
 - Pictures keep their own "prepare, then confirm in a window" flow in Documents.

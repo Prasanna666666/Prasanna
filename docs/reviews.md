@@ -54,6 +54,28 @@ Every claim was checked against the code, not accepted. Posted on the PR as comm
 | R3-10 | UI-3: dense dashboard; timestamps fail dark-theme contrast | **Timestamps do not exist on the dashboard**, but **dark contrast really did fail**, on all active controls | **Fixed** D-20; density is UI-F, still open |
 | R3-11 | Honesty: docs claim atomic migrations but splitting leaves partial state | **Refuted** by R3-5. **A true honesty gap found instead**: "WCAG AA in both themes" had never been run in a browser in dark | corrected in D-20 and `requirements.md` |
 
+## Review 4: the final follow-up audit prompt, run by the author
+
+The prompt asked for an independent audit, with the disputed findings (R1-4, R1-6, R1-7, R1-9) reassessed and the money, encryption, migration, extraction, assistant-safety, limits and test areas tested with reproductions. Results, posted on the PR as comment `R4`:
+
+| Disputed finding | Reassessment (evidence) |
+|---|---|
+| R1-4 invoice vs due date | **An inherent limit plus one implementation gap.** Source line is kept (`date_source`), an unverified date becomes unknown, a due date before the date is dropped. But **no page shows the source line** (O-17), so the owner is not told which date is a guess |
+| R1-6 Images migrations | **Author's rebuttal holds for atomicity** (`BEGIN; step; PRAGMA user_version=N; COMMIT`, rollback on error, tested). **New gap:** Images makes no pre-upgrade copy (O-15) |
+| R1-7 `MAX_TEXT = 6000` | Sites: `library/tools.py:29,120` (answer size for the model's window); `atlas/assistant.py:30,50,261` (owner's message cut to 2000), `:35,320` (tool result cut to 2500); storage limits are `limits.json`. 6000 is not storage. The 2000/2500 cuts are display/model limits, but are **not announced** (O-13) |
+| R1-9 prompt injection | **A missing boundary existed, now closed, and the earlier boundary had two holes the author had not seen**: a "yes" meant anything with a yes-word in it (D-24), and deletes were not prepared at all (D-26). Still not demonstrated with a real model (O-10) |
+
+| Area | New findings |
+|---|---|
+| Money | End to end: 3,000 random amounts through the entry point sum exactly (integer sum, summary and exact decimal agree); 1.005 → 101, 12.345 → 1235, −1.005 → −101, 99999999999.995 → 10000000000000. KWD 1.005 is stored as 1.01 (O-1). European and US notation: D-18 (found earlier) |
+| Encryption | Crash-point table in `docs/design.md`-style form below; D-27 fixed |
+| Migrations | Immutability test added (D-28) |
+| Assistant safety | D-24, D-25, D-26 |
+| Extraction | O-14 (range end accepted as a value) |
+| Limits | O-13, O-16 |
+
+**Encryption crash points.** (1) before copying: nothing changed. (2) during copying: only `.encrypting` exists, removed on the next run. (3) after the encrypted file exists: verified before anything is replaced. (4) during verification: a failure removes the copy and raises; nothing replaced. (5) during replacement: original is renamed to `.unencrypted`, encrypted file renamed in, checked again; a stop between the two renames is finished or undone on the next open (tested). (6) during scrubbing: the plain copy may remain; the next start removes it if its rows equal the encrypted file's (D-27, new). (7) sidecars: `-wal`/`-shm` of the plain file are removed by SQLite's clean close and by `_retire`; a stale sidecar left by a hard kill beside the *new* encrypted file is **NOT VERIFIED**. APFS/SSD: overwriting cannot promise old blocks are gone; FileVault does.
+
 ## Author's own findings
 
 D-09, D-12, D-13, D-14, D-15 in `defects.md`. The most important: D-12, every card hidden by CSS for two days, found only because the apps were finally run and photographed.

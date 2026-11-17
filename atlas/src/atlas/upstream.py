@@ -583,9 +583,9 @@ class Upstreams:
             if status != HTTPStatus.OK or not isinstance(raw, dict):
                 continue
             if raw.get("done") is True:
-                said.append(f"Done: {str(raw.get('summary', ''))[:300]}")
-            elif raw.get("failed") is True:
-                said.append(f"{module.name} could not make the change: {str(raw.get('summary', ''))[:300]}")
+                said.append(f"Done: {str(raw.get('summary', ''))[:600]}")
+            if raw.get("failed") is True:
+                said.append(f"{module.name} could not make: {str(raw.get('failed_summary') or raw.get('summary', ''))[:600]}")
         return said
 
     @staticmethod

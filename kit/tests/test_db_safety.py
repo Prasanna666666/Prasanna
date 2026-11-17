@@ -225,3 +225,30 @@ def test_two_programs_converting_the_same_database_at_once_end_with_one_good_enc
     assert conn.execute("SELECT count(*) FROM t").fetchone()[0] == 2000
     conn.close()
     assert _leftovers(path) == []
+
+
+def test_a_plain_copy_left_after_a_conversion_that_stopped_before_removing_it_is_removed_on_the_next_start(tmp_path, monkeypatch):
+    path = tmp_path / "a.db"
+    _plain(path)
+    monkeypatch.setenv(db.KEEP_PLAIN_ENV, "1")
+    db.encrypt_in_place(path, KEY)  # leaves the plain copy, as a stop just before the scrub would
+    held = path.with_name("a.db.unencrypted")
+    assert held.is_file()
+    monkeypatch.delenv(db.KEEP_PLAIN_ENV)
+    db.encrypt_in_place(path, KEY)
+    assert not held.exists()
+    assert db.connect(path, KEY).execute("SELECT count(*) FROM t").fetchone()[0] == 50
+
+
+def test_a_plain_copy_that_differs_from_the_encrypted_file_is_never_removed(tmp_path, monkeypatch):
+    path = tmp_path / "a.db"
+    _plain(path)
+    monkeypatch.setenv(db.KEEP_PLAIN_ENV, "1")
+    db.encrypt_in_place(path, KEY)
+    monkeypatch.delenv(db.KEEP_PLAIN_ENV)
+    conn = db.connect(path, KEY)
+    conn.execute("INSERT INTO t (body) VALUES ('written after the conversion')")
+    conn.commit()
+    conn.close()
+    db.encrypt_in_place(path, KEY)
+    assert path.with_name("a.db.unencrypted").is_file(), "it may be the only copy of the older state"

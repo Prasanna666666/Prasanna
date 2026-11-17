@@ -29,10 +29,32 @@ def _stamp(moment: datetime) -> str:
     return moment.isoformat(timespec="seconds")
 
 
-def summarize(name: str, args: dict[str, Any]) -> str:
-    """What the change would do, in plain words made by code from the tool's own description and the arguments (never written by the model)."""
+LABELS = {  # which row a change by id is about, so the owner is told its name and not only a number
+    "delete_task": ("tasks", "title"),
+    "delete_note": ("notes", "title"),
+    "update_note": ("notes", "title"),
+    "delete_person": ("people", "name"),
+    "update_person": ("people", "name"),
+    "delete_goal": ("goals", "name"),
+    "delete_holding": ("holdings", "name"),
+    "update_holding": ("holdings", "name"),
+    "delete_event": ("events", "name"),
+    "update_event": ("events", "name"),
+}
+
+
+def _target(conn: sqlite3.Connection | None, name: str, args: dict[str, Any]) -> str:
+    if conn is None or name not in LABELS or args.get("id") is None:
+        return ""
+    table, column = LABELS[name]
+    row = conn.execute(f"SELECT {column} FROM {table} WHERE id=?", (args["id"],)).fetchone()
+    return f" [{str(row[0])[:SUMMARY_VALUE_CHARS]}]" if row else ""
+
+
+def summarize(name: str, args: dict[str, Any], conn: sqlite3.Connection | None = None) -> str:
+    """What the change would do, in plain words made by code from the tool's own description and the arguments (never written by the model), with the name of what it is about."""
     tool = registry(ALL)[name]
-    what = tool.description.split(".")[0].strip()
+    what = tool.description.split(".")[0].strip() + _target(conn, name, args)
     given = ", ".join(f"{k}: {str(v)[:SUMMARY_VALUE_CHARS]}" for k, v in sorted(args.items()) if v not in (None, ""))
     return (f"{what} ({given})" if given else what)[:SUMMARY_CHARS]
 
@@ -66,9 +88,11 @@ def stage(conn: sqlite3.Connection, name: str, args: Any, turn: str, asked: str,
     error = _rehearse(conn, name, given)
     if error:
         return {"ok": False, "data": None, "error": error}  # the model is told at once, so it can correct the arguments; nothing is kept
-    summary = summarize(name, given)
+    summary = summarize(name, given, conn)
     moment = now or _now()
-    conn.execute("UPDATE assistant_changes SET state='superseded', decided=? WHERE state='waiting'", (_stamp(moment),))
+    conn.execute(
+        "UPDATE assistant_changes SET state='superseded', decided=? WHERE state='waiting' AND turn<>?", (_stamp(moment), turn)
+    )  # changes of one question stay together
     cur = conn.execute(
         "INSERT INTO assistant_changes (tool, args, summary, turn, asked, created, state) VALUES (?,?,?,?,?,?, 'waiting')",
         (name, json.dumps(given, default=str), summary, turn, asked[:500], _stamp(moment)),
@@ -93,25 +117,45 @@ def _expire(conn: sqlite3.Connection, moment: datetime) -> None:
     )
 
 
+def _make(conn: sqlite3.Connection, row: sqlite3.Row, moment: datetime) -> bool | None:
+    """Claim one waiting change and make it. None: someone else claimed it first. Otherwise whether it was made."""
+    claimed = conn.execute("UPDATE assistant_changes SET state='running', decided=? WHERE id=? AND state='waiting'", (_stamp(moment), row["id"]))
+    conn.commit()
+    if claimed.rowcount != 1:
+        return None
+    out, failed = toolrun.run_tool(conn, row["tool"], json.loads(row["args"]))
+    conn.execute("UPDATE assistant_changes SET state=?, outcome=? WHERE id=?", ("failed" if failed else "done", out[: SUMMARY_CHARS * 5], row["id"]))
+    conn.commit()
+    return not failed
+
+
 def confirm(conn: sqlite3.Connection, user_text: str, turn: str, now: datetime | None = None) -> dict[str, Any]:
-    """Apply the waiting change if, and only if, the person's message is a short yes, the change was prepared in an earlier question and recently. At most once: the change is
-    claimed before it runs, so a second yes finds nothing waiting."""
+    """Make the changes waiting from the person's latest earlier question, if, and only if, their message is a yes and nothing else, they were prepared recently, and not in this question.
+    Everything announced together is made together (the person was shown all of it). Each change is claimed before it runs, so a second yes finds nothing."""
     if not consent.confirms(user_text):
         return {"ok": True, "done": False}
     moment = now or _now()
     _expire(conn, moment)
-    row = conn.execute("SELECT * FROM assistant_changes WHERE state='waiting' AND turn<>? ORDER BY id DESC LIMIT 1", (turn,)).fetchone()
-    if row is None:
-        conn.commit()
-        return {"ok": True, "done": False}
-    claimed = conn.execute("UPDATE assistant_changes SET state='running', decided=? WHERE id=? AND state='waiting'", (_stamp(moment), row["id"]))
+    newest = conn.execute("SELECT turn FROM assistant_changes WHERE state='waiting' AND turn<>? ORDER BY id DESC LIMIT 1", (turn,)).fetchone()
     conn.commit()
-    if claimed.rowcount != 1:
+    if newest is None:
         return {"ok": True, "done": False}
-    out, failed = toolrun.run_tool(conn, row["tool"], json.loads(row["args"]))
-    conn.execute("UPDATE assistant_changes SET state=?, outcome=? WHERE id=?", ("failed" if failed else "done", out[: SUMMARY_CHARS * 5], row["id"]))
-    conn.commit()
-    return {"ok": True, "done": not failed, "failed": failed, "summary": row["summary"], "error": "" if not failed else "the change could not be made"}
+    made: list[str] = []
+    failed: list[str] = []
+    for row in conn.execute("SELECT * FROM assistant_changes WHERE state='waiting' AND turn=? ORDER BY id", (newest["turn"],)).fetchall():
+        result = _make(conn, row, moment)
+        if result is not None:
+            (made if result else failed).append(row["summary"])
+    if not made and not failed:
+        return {"ok": True, "done": False}
+    return {
+        "ok": True,
+        "done": bool(made),
+        "failed": bool(failed),
+        "summary": "; ".join(made),
+        "failed_summary": "; ".join(failed),
+        "error": "" if not failed else "a change could not be made",
+    }
 
 
 def history(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:

@@ -230,7 +230,7 @@ def _post_tool(state: State, conn, body: dict) -> dict:
     if name.startswith("delete_") and not consent.says(consent.DELETE, str(body.get("user_text", ""))):
         return {"ok": False, "data": None, "error": "refused: deleting needs you to ask for it in your own words"}
     args = body.get("args") or {}
-    if name in toolrun.CONSEQUENTIAL:  # decided here, in code: the assistant prepares it, the person's own next message confirms it (see changes.py)
+    if name in toolrun.STAGED:  # decided here, in code: the assistant prepares it, the person's own next message confirms it (see changes.py)
         return changes.stage(conn, name, args, str(body.get("turn", "")), str(body.get("user_text", "")))
     out, error = toolrun.run_tool(conn, name, args)
     data = json.loads(out)

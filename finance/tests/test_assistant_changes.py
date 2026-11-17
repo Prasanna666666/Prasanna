@@ -176,3 +176,49 @@ def test_two_yes_messages_at_the_same_moment_make_the_change_once(tmp_path):
     check = finance_db.connect(path)
     assert check.execute("SELECT count(*) FROM transactions").fetchone()[0] == 1
     assert results.count(True) == 1
+
+
+def test_every_change_announced_in_one_question_is_made_by_one_yes(conn):
+    for amount in (11, 22):
+        _ask(conn, "add_transaction", {"amount": amount, "category": "food"}, turn="t1")
+    assert [c["state"] for c in changes.history(conn)] == ["waiting", "waiting"], "the owner was shown both, so both wait"
+    done = changes.confirm(conn, "yes", "t2")
+    assert done["done"] is True and "amount: 11" in done["summary"] and "amount: 22" in done["summary"]
+    assert sorted(r[0] for r in conn.execute("SELECT amount_minor FROM transactions")) == [1100, 2200]
+
+
+def test_a_new_question_replaces_the_changes_of_an_earlier_one_but_not_its_own(conn):
+    _ask(conn, "add_transaction", {"amount": 1, "category": "food"}, turn="t1")
+    _ask(conn, "add_transaction", {"amount": 2, "category": "food"}, turn="t2")
+    _ask(conn, "add_transaction", {"amount": 3, "category": "food"}, turn="t2")
+    assert [c["state"] for c in changes.history(conn)] == ["waiting", "waiting", "superseded"]
+    changes.confirm(conn, "yes", "t3")
+    assert sorted(r[0] for r in conn.execute("SELECT amount_minor FROM transactions")) == [200, 300]
+
+
+def test_a_delete_is_prepared_with_the_name_of_what_it_deletes_and_made_only_by_a_yes(conn):
+    from finance.modules import tasks
+
+    keep = tasks.add_task(conn, {"title": "Pay rent"})["id"]
+    out = _ask(conn, "delete_task", {"id": keep}, said="please delete the task about rent", turn="t1")
+    assert out["ok"] and "Pay rent" in out["notes"][0] and out["data"]["changed_anything"] is False
+    assert conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 1
+    assert changes.confirm(conn, "no, don't", "t2")["done"] is False and conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 1
+    assert changes.confirm(conn, "yes", "t2")["done"] is True and conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 0
+
+
+def test_a_delete_word_in_a_message_about_something_else_still_deletes_nothing(conn):
+    from finance.modules import tasks
+
+    tasks.add_task(conn, {"title": "Pay rent"})
+    _ask(conn, "delete_task", {"id": 1}, said="how do I delete the typo in my note?", turn="t1")
+    assert conn.execute("SELECT count(*) FROM tasks").fetchone()[0] == 1
+
+
+def test_overwriting_a_note_or_a_person_is_prepared_not_made(conn):
+    from finance.modules import notes
+
+    note = notes.add_note(conn, {"title": "Gifts", "body": "original"})["id"]
+    out = _ask(conn, "update_note", {"id": note, "body": "overwritten by a document"}, turn="t1")
+    assert out["ok"] and "Gifts" in out["notes"][0]
+    assert conn.execute("SELECT body FROM notes WHERE id=?", (note,)).fetchone()[0] == "original"

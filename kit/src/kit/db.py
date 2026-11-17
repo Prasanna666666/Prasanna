@@ -222,8 +222,27 @@ def _exclusive(path: Path) -> Iterator[None]:
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+def _retire_redundant_copy(path: Path, key: str) -> None:
+    """A plain copy left beside an encrypted file that holds exactly the same rows (a conversion that stopped before the plain file was removed) is overwritten and deleted. A plain copy that
+    differs (an older leftover, or a copy kept on purpose) is never touched: it may be the only one."""
+    held = path.with_name(path.name + ".unencrypted")
+    if not held.is_file() or not path.is_file() or os.environ.get(KEEP_PLAIN_ENV) == "1":
+        return
+    try:
+        plain = sqlite3.connect(str(held))
+        try:
+            want, version = _fingerprint(plain), plain.execute("PRAGMA user_version").fetchone()[0]
+        finally:
+            plain.close()
+    except sqlite3.DatabaseError:
+        return
+    if _verified(path, key, want, version):
+        _retire(held)
+
+
 def _encrypt_locked(path: Path, key: str) -> bool:
     _finish_interrupted(path, key)
+    _retire_redundant_copy(path, key)
     held, target = path.with_name(path.name + ".unencrypted"), path.with_name(path.name + ".encrypting")
     if not path.is_file() or path.stat().st_size == 0:
         return False

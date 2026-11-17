@@ -1,0 +1,77 @@
+{
+ "finance:clock": [],
+ "finance:documents": [
+  "40ba9d0718a558d7",
+  "8305dde087d1d28e",
+  "e107a5067a0662bb"
+ ],
+ "finance:events": [
+  "fb2d92cb6cf503c6",
+  "bbcc91020f28855a"
+ ],
+ "finance:money": [
+  "c1d3a5b9485aa578",
+  "c2b5956c0f598a56",
+  "abe232193dabbfbf",
+  "366491b6bda778f1",
+  "c865b1f031be956c",
+  "30b77e9e9d3d5cde",
+  "3544f186f03a1213",
+  "d3fc4b4e8ab7971e",
+  "66d550a03610a691",
+  "1b8ff6ea6d8c3c9e",
+  "5ae33428cc528d3b",
+  "25654412ebca52f5",
+  "4e4049e80c4fb511",
+  "76c0ee4065ea6dde",
+  "91cd5b2d07d84353",
+  "6ac15d88cc56b8f8"
+ ],
+ "finance:notes": [
+  "db65a28649423cb4",
+  "913554e6fbfe58d7"
+ ],
+ "finance:people": [
+  "2220cc89e0a656cb"
+ ],
+ "finance:tasks": [
+  "70e4d7ffe4ca9ad5"
+ ],
+ "finance:today": [],
+ "images:index": [
+  "46c5bbba603105bd",
+  "8aaf067555b8d218",
+  "bb049b7038e875b2",
+  "38356bb1bffae2f0",
+  "95b2a9f3a04b59f3",
+  "02ebc6e548d7b3b6",
+  "fcaa9214e3ef56cd",
+  "7412c11092889675",
+  "4dc5efb1c79e7205",
+  "c2f9f4dcff26c782",
+  "0424725272d00a3a",
+  "8fa696152c28349f",
+  "30e992252f9eff1b",
+  "402444bb765d7e8d",
+  "cef275cbe0babb13",
+  "2ffe354f84ad622b"
+ ],
+ "library:library": [
+  "3b015a47738604b6",
+  "98739f02a794e06b",
+  "a38d7b988acda7c6",
+  "de71fc5a809ba86d",
+  "304946fe577cd657",
+  "5355b6ef1151339c",
+  "d90219f38f58f3a2",
+  "b92aef2c37813981",
+  "15053dac1a9d21bf",
+  "084aac203ebe4616",
+  "308121ba65f08a25",
+  "ed54400ff1db8804",
+  "ae299990a342f87d",
+  "06234719125c3af8",
+  "1f9f875f26185a17",
+  "4494f08715a9a4c3"
+ ]
+}
