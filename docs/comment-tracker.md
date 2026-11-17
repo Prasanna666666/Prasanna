@@ -94,7 +94,7 @@ Not yet replied to on the PR. Items checked against the code and screenshots:
 
 | ID | Comment | Verified? | Status |
 |---|---|---|---|
-| P-1 | **Health says "All within range" for a report dated six months ago** and uses reassuring green; the requirement says show values as printed and do not interpret | **Confirmed** in the screenshot (`03-health.png`) and the code (`healthtravel.js`): the age was only shown from 12 months | **IN PROGRESS**: neutral wording ("2 results inside the printed ranges"), the report's age beside it, no green ring or border for a report older than three months, "no medicine records found", the printed-range note with "an older result does not describe today". Edited, **not tested, not committed** |
+| P-1 | **Health says "All within range" for a report dated six months ago** and uses reassuring green; the requirement says show values as printed and do not interpret | **Confirmed** in the screenshot (`03-health.png`) and the code (`healthtravel.js`): the age was only shown from 12 months | **IN PROGRESS**: neutral wording ("2 results inside the printed ranges"), the report's age beside it, no green ring or border for a report older than three months, "no medicine records found", the printed-range note with "an older result does not describe today". Edited and pushed to the **separate branch `wip/health-freshness`** (not on the PR branch); passes prettier and eslint only; **not browser-checked, no test yet, no screenshot retaken** |
 | P-2 | Finance "142% monthly vs before" has no comparison period | Confirmed (`app.js:828`; I was reading what "before" compares to when interrupted) | OPEN |
 | P-3 | Empty "Due in 3 weeks €0" tile wastes space | Confirmed (screenshot 02) | OPEN |
 | P-4 | Net worth next to "no statements read yet" confuses | Confirmed; the label was changed from "Cash €0" but net worth still shows | PARTIAL |
@@ -113,6 +113,7 @@ Not yet replied to on the PR. Items checked against the code and screenshots:
 
 ## 9. Open at this moment
 
-- **Uncommitted, untested working-tree changes** for P-1: `library/src/library/static/healthtravel.js`, `design/design.css` and its copies. Until they are tested (eslint, prettier, browser check, a retaken Health screenshot, a test) they are **not** counted as done.
+- **P-1 work is on `wip/health-freshness`, not on the PR branch**, and untested beyond prettier and eslint. It is not counted as done until the browser check, a retaken Health screenshot and a test pass; then it is merged into `atlas`.
+- **The status words are not yet agreed** with ChatGPT and Gemini (proposal sent to the owner); this tracker uses the author's words until they are.
 - Everything marked OPEN, PARTIAL, ROADMAP or NOT VERIFIABLE HERE above.
 - The three blockers before sensitive use: the Mac and real-model run, the plain parser hand-over, and health layouts beyond a range end.
