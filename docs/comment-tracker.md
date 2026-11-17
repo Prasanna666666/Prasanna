@@ -199,3 +199,5 @@ Conclusion: Gemini's answer does not change any status. It does agree the next r
 | `a6c67bc` | Month proven or not and newest payment on the dashboard (P-5, P-6 in part) |
 | `326e0a5` | **Found while working on O-1:** `tables.parse_money` rounded a third decimal to cents without a word; it now refuses to read such an amount (the statement is then held back). Earlier docs said the three-decimal currencies were refused everywhere; for statement import that was not true until this commit |
 | `745668c`, `1b19673` | Older-release upgrade tests for Finance and Documents (O-12) from text dumps written by the code of older commits |
+| `f011e8e` | Images: an index written by the released aperture code (`5d3ddb5`, the real older release) opens with the current code and is encrypted in place with every row intact (O-12 for Images; the schema is the same 16 steps in both builds) |
+| `87d7ee3` | Dashboard: net worth says how many holdings were left out for lack of an exchange rate (they were silently excluded before); savings tile says "through <month>" |
