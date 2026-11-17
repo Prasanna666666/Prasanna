@@ -367,8 +367,10 @@ def _read_handover(f: Path, private: str) -> Any:
         return _WAITS
     try:
         return json.loads(seal.open_sealed(f.read_bytes(), private).decode("utf-8"))
+    except seal.NotSealedError:
+        raise  # a fault of the file itself, whatever the key: rejected like any unusable file
     except seal.SealError:
-        return _WAITS
+        return _WAITS  # a malformed, short or wrong key, or a file that does not open with it: the file and its mark stay, the person fixes the key
 
 
 def ingest_dir(

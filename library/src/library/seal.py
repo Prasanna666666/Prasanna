@@ -28,7 +28,25 @@ def _lib() -> Any:
 
 
 class SealError(ValueError):
-    """The file could not be opened: wrong key, damaged, or not a sealed file at all."""
+    """The file could not be opened with the key given: a wrong key and a damaged file cannot be told apart (the authentication fails the same way), so neither is a reason to throw the file away."""
+
+
+class SealKeyError(SealError):
+    """The KEY is unusable: not hexadecimal, not 32 bytes, or empty. That is a configuration mistake of the person running it, never a fault of the file."""
+
+
+class NotSealedError(SealError):
+    """The file is too short to be a sealed file at all. That is a fault of the file, whatever key is given."""
+
+
+def _key_bytes(hex_text: str, what: str) -> bytes:
+    try:
+        raw = bytes.fromhex(hex_text.strip())
+    except (ValueError, AttributeError) as error:
+        raise SealKeyError(f"the {what} key is not hexadecimal") from error
+    if len(raw) != KEY_BYTES:
+        raise SealKeyError(f"the {what} key must be {KEY_BYTES} bytes, not {len(raw)}")
+    return raw
 
 
 def _raw_public(lib: Any, key: Any) -> bytes:
@@ -49,7 +67,7 @@ def _key(lib: Any, shared: bytes, eph_public: bytes, recipient_public: bytes) ->
 
 def seal(plaintext: bytes, public_hex: str) -> bytes:
     lib = _lib()
-    recipient = bytes.fromhex(public_hex)
+    recipient = _key_bytes(public_hex, "public")
     ephemeral = lib.Private.generate()
     eph_public = _raw_public(lib, ephemeral.public_key())
     key = _key(lib, ephemeral.exchange(lib.Public.from_public_bytes(recipient)), eph_public, recipient)
@@ -59,9 +77,9 @@ def seal(plaintext: bytes, public_hex: str) -> bytes:
 
 def open_sealed(blob: bytes, private_hex: str) -> bytes:
     if len(blob) < KEY_BYTES + NONCE_BYTES + 16:
-        raise SealError("too short to be a sealed file")
+        raise NotSealedError("too short to be a sealed file")
     lib = _lib()
-    private = lib.Private.from_private_bytes(bytes.fromhex(private_hex))
+    private = lib.Private.from_private_bytes(_key_bytes(private_hex, "private"))
     recipient_public = _raw_public(lib, private.public_key())
     eph_public, nonce, body = blob[:KEY_BYTES], blob[KEY_BYTES : KEY_BYTES + NONCE_BYTES], blob[KEY_BYTES + NONCE_BYTES :]
     key = _key(lib, private.exchange(lib.Public.from_public_bytes(eph_public)), eph_public, recipient_public)

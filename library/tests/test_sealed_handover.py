@@ -87,3 +87,69 @@ def test_both_images_carry_the_sealing_library_and_the_parser_image_still_has_no
     parser = d.split("AS parser")[1].split("AS indexer")[0]
     assert "cryptography" in app and "cryptography" in parser
     assert "COPY kit" not in parser and "./kit" not in parser
+
+
+# ---- a key that is malformed, empty, missing or wrong must never cost the owner the reader's work ------------------------------
+def _bad_keys(private: str) -> list[str]:
+    return ["not-hex-at-all", "zz" * 32, private[:-1], private[:10], private + "00", "00" * 31, "00" * 33, "   ", ""]
+
+
+def test_no_malformed_empty_or_wrong_private_key_ever_deletes_a_sealed_file_or_its_mark(tmp_path, conn, keys, monkeypatch):
+    private, public = keys
+    wrong, _ = seal.generate_keypair()
+    for bad in [*_bad_keys(private), wrong]:
+        out = tmp_path / ("k" + str(abs(hash(bad)) % 10**8))
+        out.mkdir()
+        _write(out, DOC, public)
+        sealed = out / ("a" * 64 + ".sealed")
+        before = sealed.read_bytes()
+        monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", bad)
+        rejected: list = []
+
+        def collect(*a, sink=rejected):
+            sink.append(a)
+
+        got = store.ingest_dir(conn, out, on_rejected=collect)
+        assert got["new"] == 0 and got["rejected"] == 0 and got["unopened"] == 1, (bad, got)
+        assert rejected == [], bad  # nothing was reported as a bad file
+        assert sealed.read_bytes() == before and (out / ".done" / ("a" * 64)).exists(), bad
+        monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", private)  # the key is then fixed: the very same file opens
+        fixed = store.ingest_dir(conn, out, on_rejected=lambda *a: None)
+        assert fixed["new"] + fixed["known"] == 1 and not sealed.exists(), bad  # the very same file was opened and stored
+    assert conn.execute("SELECT COUNT(*) FROM documents").fetchone()[0] == 1  # the same document each time: stored once
+
+
+def test_a_key_file_that_is_missing_empty_or_garbage_also_keeps_the_sealed_file(tmp_path, conn, keys, monkeypatch):
+    private, public = keys
+    _write(tmp_path, DOC, public)
+    sealed = tmp_path / ("a" * 64 + ".sealed")
+    before = sealed.read_bytes()
+    for content in (None, "", "garbage\n", private[:20]):
+        key_file = tmp_path / "k.key"
+        key_file.unlink(missing_ok=True)
+        if content is not None:
+            key_file.write_text(content)
+        monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY_FILE", str(key_file))
+        got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
+        assert got["rejected"] == 0 and sealed.read_bytes() == before and (tmp_path / ".done" / ("a" * 64)).exists(), content
+    key_file.write_text(private + "\n")  # a trailing newline in the key file is fine
+    assert store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)["new"] == 1
+
+
+def test_only_a_file_too_short_to_be_sealed_is_rejected_whatever_the_key(tmp_path, conn, keys, monkeypatch):
+    private, _ = keys
+    (tmp_path / ("c" * 64 + ".sealed")).write_bytes(b"short")
+    (tmp_path / ".done").mkdir()
+    (tmp_path / ".done" / ("c" * 64)).touch()
+    monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", private)
+    got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
+    assert got["rejected"] == 1 and not (tmp_path / ("c" * 64 + ".sealed")).exists()  # a fault of the file: it is read again next round
+
+
+def test_a_malformed_public_key_stops_the_reader_before_it_writes_or_marks_anything(tmp_path):
+    for bad in ["not-hex", "zz" * 32, "00" * 31, "00" * 33]:
+        out = tmp_path / ("w" + str(abs(hash(bad)) % 10**8))
+        out.mkdir()
+        with pytest.raises(seal.SealKeyError):
+            _write(out, DOC, bad)
+        assert list(out.iterdir()) == [], bad  # no half-written file, no completion mark: the file is read again once the key is fixed

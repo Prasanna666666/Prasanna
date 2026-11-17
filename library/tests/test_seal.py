@@ -35,3 +35,20 @@ def test_a_damaged_or_truncated_file_is_refused():
 def test_two_seals_of_the_same_text_differ():
     _, public = seal.generate_keypair()
     assert seal.seal(b"same", public) != seal.seal(b"same", public)
+
+
+@pytest.mark.parametrize("bad", ["not-hex", "zz" * 32, "00" * 31, "00" * 33, "", "  "])
+def test_a_malformed_key_is_a_key_error_and_never_looks_like_a_fault_of_the_file(bad):
+    private, public = seal.generate_keypair()
+    blob = seal.seal(b"text", public)
+    with pytest.raises(seal.SealKeyError):
+        seal.open_sealed(blob, bad)
+    with pytest.raises(seal.SealKeyError):
+        seal.seal(b"text", bad)
+    assert seal.open_sealed(blob, private) == b"text"  # the file itself was never harmed
+
+
+def test_a_file_too_short_to_be_sealed_is_told_apart_from_a_key_problem():
+    private, _ = seal.generate_keypair()
+    with pytest.raises(seal.NotSealedError):
+        seal.open_sealed(b"short", private)
