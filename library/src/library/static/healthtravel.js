@@ -266,11 +266,10 @@
         hero.type = 'button';
         hero.style.setProperty(
             'background',
-            star.cover
-                ? `linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.7)), url("${coverUrl(star.cover, 'preview')}") center / cover`
-                : banner(star.place),
+            star.cover ? `url("${coverUrl(star.cover, 'preview')}") center / cover #606060` : banner(star.place),
             'important'
         );
+        if (star.cover) hero.style.setProperty('background-blend-mode', 'multiply', 'important');
         hero.addEventListener('click', () => open(star));
         const nights = Math.max(1, days(star.end) - days(star.start));
         const text = el('div', 'hero-text');

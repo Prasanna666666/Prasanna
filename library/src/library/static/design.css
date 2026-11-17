@@ -269,7 +269,7 @@ h3 {
     color: #fff;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.65));
+    background: rgba(0, 0, 0, 0.6);
 }
 .tc-label b {
     font-size: 18px;
@@ -425,7 +425,7 @@ main {
     display: flex;
     gap: 28px;
     padding: 46px 22px 16px;
-    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.72));
+    background: rgba(0, 0, 0, 0.65);
 }
 .cg-figure {
     background: none;
@@ -1046,9 +1046,8 @@ main {
     min-height: 200px;
     justify-content: flex-end;
     color: #fff;
-    background:
-        linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.72)),
-        var(--cover) center / cover;
+    background: var(--cover) center / cover #606060;
+    background-blend-mode: multiply;
 }
 .hc.has-cover .hc-top,
 .hc.has-cover .hc-sub {
