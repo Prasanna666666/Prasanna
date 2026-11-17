@@ -61,18 +61,18 @@ All seven of these were mutation-checked (the defect put back, the test failed):
 
 | ID | Status | Note |
 |---|---|---|
-| O-1 currencies in hundredths | **PARTIALLY FIXED** | JPY exact; three-decimal amounts refused (`money.py:57`); statement import of such currencies untested |
+| O-1 currencies in hundredths | **PARTIALLY FIXED** | JPY exact; three-decimal amounts refused when typed (`money.py:57`) and, since `326e0a5`, not read on statement import (before that commit statement import rounded them to cents); three-decimal currencies are not supported; tests `test_statement_amounts_exact.py` |
 | O-2 | **FIXED** (D-39): `kit/src/kit/db.py` `retire_leftover`, `kit/cleanup.py`. Mutation-checked. |
 | O-3 | **FIXED** (D-36): `kit/src/kit/config.py`. Mutation-checked. |
 | O-4 500 MB | **PARTIALLY FIXED** | default 100 MB, measured about 5× memory; no streaming |
 | O-5 real-library speed/quality | **OPEN, not verifiable here** | needs the Mac |
 | O-6 invoice vs due date | **OPEN** | inherent without word lists |
-| O-7 routine writes | **PARTIALLY FIXED** (D-43) | routine writes only ADD (test: `test_a_routine_write_only_adds…`); closing and moving a task are prepared; **no undo mechanism exists** |
+| O-7 routine writes | **PARTIALLY FIXED** (D-43, `696f650`) | routine writes only ADD; closing and moving a task are prepared; `undo_last_additions` takes back the latest question's additions (prepared, then confirmed; `finance/additions.py`, `test_undo_last_additions.py`); **a whole statement import has no single undo** |
 | O-8 word lists in `consent.py` | **PARTIALLY FIXED** | whole-message rule, bound to the exchange; English and Dutch only |
 | O-9 UI notes | **OPEN** | |
 | O-10 real-model injection | **OPEN, not verifiable here** | |
 | O-11 | **FIXED** (D-38): `truncation_audit`, `clipped`. Mutation-checked. |
-| O-12 old-release fixtures | **OPEN** | |
+| O-12 old-release fixtures | **PARTIALLY FIXED** (`745668c`, `1b19673`, `f011e8e`) | text-dump fixtures written by older code for Finance, Documents and Images (only Images is a released build); the owner's own older databases are not covered |
 | O-13 | **FIXED** (D-37): `atlas/assistant.py`. Mutation-checked. |
 | O-14 range end as value | **PARTIALLY FIXED** | see D-34 |
 | O-15 | **FIXED** (D-35): `images/db.py`. Mutation-checked. |

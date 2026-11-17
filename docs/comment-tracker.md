@@ -91,7 +91,7 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 |---|---|---|
 | R7 | O-2, O-3, O-11, O-13, O-15, O-17 and UI notes listed as closed but not done | FIXED - P3 for D-35 to D-40 and D-42, P2 for D-41 - awaiting reviewer - 97d5e29 |
 | NEW-01 | test inventory did not add up | FIXED - P2 (D-44, `scripts/test-inventory.py`) - 97d5e29 |
-| NEW-02 | comment claimed undo; none exists | FIXED - P3 - awaiting reviewer (D-43); real undo OPEN (O-7) - 97d5e29 |
+| NEW-02 | comment claimed undo; none exists | FIXED - P3 - awaiting reviewer (D-43); real undo built later in `696f650` (O-7); a whole import still has no single undo - 97d5e29 |
 | O-13 | past history cut not announced | FIXED - P3 - awaiting reviewer (D-45) - 97d5e29 |
 
 ## 8. R9: ChatGPT product, screenshot and functionality review (this session)
@@ -121,7 +121,7 @@ Not yet replied to on the PR. Items checked against the code and screenshots:
 
 - P-1 (Health) is on the PR branch now (`796d485`), browser-checked and tested.
 - **Status words:** ChatGPT approved with amendments (section 10); Gemini's answer is still awaited. The rows below keep the old words until the owner confirms the final set; the mapping is in the header.
-- Everything marked OPEN, PARTIAL, ROADMAP or BLOCKED above. Work left for the author: O-14 needs real reports (cannot be built from invented ones), Images fixture for O-12, a currency-aware three-decimal import. Waiting on the owner: O-16, the Photos drive mount (P-8), the assistant part of P-6, the Mac and real-model runs.
+- Everything marked OPEN, PARTIAL, ROADMAP or BLOCKED above. Work left for the author: none that can be done without new input. O-14 needs real reports; a currency-aware three-decimal import is opposed by the author (see comment 6950256794). Waiting on the owner: O-16, the Photos drive mount (P-8), the assistant part of P-6, the Mac and real-model runs.
 - The three blockers before sensitive use: the Mac and real-model run, the plain parser hand-over, and health layouts beyond a range end.
 
 ## 10. ChatGPT's answer on the status scheme (head `41e9d36`; decision REQUEST CHANGES)
