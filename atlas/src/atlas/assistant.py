@@ -146,6 +146,7 @@ class Turn:
     show: bool = False  # the model judged that the person asked to SEE pictures or files; then every tool that can show them is told to
     nudged: bool = False
     asked_to_show: bool = False  # the model asked for pictures or files to be shown (whether or not any were found)
+    waiting: bool = False  # a change was prepared and waits for the person's own yes: the page then offers a Yes and a No button (the person's click sends their own message)
     notes: list[str] = field(default_factory=list)  # things the person must be told next to a figure (a month that is not proven, files waiting for a check)
 
 
@@ -324,6 +325,8 @@ class Assistant:
             if tool.module.id not in turn.used:
                 turn.used.append(tool.module.id)
             turn.notes.extend(n for n in result.get("notes") or [] if n not in turn.notes)
+            data = result.get("data")
+            turn.waiting = turn.waiting or (isinstance(data, dict) and data.get("prepared") is True and data.get("changed_anything") is False)
             turn.asked_to_show = turn.asked_to_show or args.get("show") is True
             for item in result.get("items") or []:
                 # a change waiting for the person is always shown (it needs them); pictures and files only when the model says the person asked to see them
@@ -378,5 +381,5 @@ class Assistant:
             "documents": any(i["kind"] == "document" for i in items),
         }
         part: dict[str, Any] = {"module": "atlas", "name": "Atlas", "ok": ok, "show": show}
-        part.update({"text": text, "items": items, "notes": turn.notes[:3]} if ok else {"error": text})
+        part.update({"text": text, "items": items, "notes": turn.notes[:3], "waiting": turn.waiting} if ok else {"error": text})
         return {"how": "agent" if ok else "down", "routed": used, "show": show, "asked_to_show": turn.asked_to_show, "parts": [part]}

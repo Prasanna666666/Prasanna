@@ -1025,7 +1025,27 @@
         box.append(body);
         appendAnswerItems(box, part);
         (part.notes || []).forEach((note) => box.append(el('div', 'part-note', note)));
+        if (part.waiting === true) box.append(confirmButtons());
         return box;
+    };
+    // a change is waiting for the person: two buttons that send the person's own short reply, exactly as if they had typed it (the part treats a whole-message yes as consent and any other message as a no)
+    const confirmButtons = () => {
+        const row = el('div', 'part-confirm-row');
+        const yes = el('button', 'pill primary', 'Yes, do it');
+        const no = el('button', 'pill', 'No, leave it');
+        for (const [button, reply] of [
+            [yes, 'yes'],
+            [no, 'no'],
+        ]) {
+            button.type = 'button';
+            button.addEventListener('click', () => {
+                yes.disabled = true;
+                no.disabled = true;
+                askAtlas(reply);
+            });
+            row.append(button);
+        }
+        return row;
     };
     const chatWelcome = () => {
         const wrap = el('div', 'achat-welcome');

@@ -77,6 +77,7 @@ Before this branch's last commit, every card on every page was invisible (`defec
 | UI-I Photos dot | **Fixed**: red when the photo drive is not connected (`03`/`04`/`05` show it) |
 | Finance "Cash €0" | **Fixed**: "no statements read yet" |
 | UI-17 date source | **Done**: screenshot `09-finance-documents-with-date-source.png` |
+| Fixed after `80562da` (UI-J on the owner's decision: a pending change shows "Yes, do it" and "No, leave it" buttons that send the person's own `yes` or `no`, see screenshot 16) |
 | Fixed after `80562da` | UI-E "142% vs before" now names its month (`631130b`); UI-F empty tile hidden (`631130b`); UI-G one summary chip, "Read new files" stays in view (`aec2230`); UI-K empty month is one line with a jump (`aec2230`); UI-A gradients now flat tints (`40d023b`) |
 | Still open | UI-H apps opened outside Atlas show a stub page; UI-J a pending change is a note, not a card with a button (the typed yes is the consent design; a button is a design decision); UI-L first-run guidance (roadmap) |
 

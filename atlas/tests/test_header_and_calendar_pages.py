@@ -21,3 +21,8 @@ def test_chips_and_the_update_button_never_wrap_or_shrink():
 def test_an_empty_calendar_month_is_a_line_with_a_jump_not_a_grid():
     assert "Nothing dated this month." in JS
     assert "const inMonth" in JS and "Next: " in JS
+
+
+def test_the_yes_and_no_buttons_send_fixed_short_replies_and_only_when_the_part_says_a_change_waits():
+    assert "if (part.waiting === true) box.append(confirmButtons());" in JS
+    assert "[yes, 'yes']," in JS and "[no, 'no']," in JS  # the words are fixed in the page: nothing the model or a document wrote is ever sent as the reply

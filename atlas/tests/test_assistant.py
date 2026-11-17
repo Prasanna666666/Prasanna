@@ -275,3 +275,25 @@ def test_atlas_keeps_the_model_loaded_as_long_as_every_other_part_does(running):
     from atlas.assistant import KEEP_LOADED
 
     assert KEEP_LOADED == KEEP  # different values make the model server reload the model
+
+
+def test_a_change_waiting_for_the_persons_yes_is_flagged_so_the_page_can_offer_yes_and_no_buttons(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("delete_note")]
+    money.tool_results["delete_note"] = {
+        "ok": True,
+        "data": {"prepared": True, "changed_anything": False, "waiting_for_the_person": "delete the note Old idea"},
+        "notes": ["Waiting for your yes: delete the note Old idea. Nothing has been changed yet."],
+    }
+    photos.script = [call("money__delete_note"), text("I can delete that note.")]
+    _, reply = chat(running, "delete my old idea note")
+    assert reply["parts"][0]["waiting"] is True
+
+
+def test_an_ordinary_answer_is_not_flagged_as_waiting(running):
+    money, photos = running.apps["money"], running.apps["photos"]
+    money.tools = [tool("spending_summary")]
+    money.tool_results["spending_summary"] = {"ok": True, "data": {"spent": 850.0}}
+    photos.script = [call("money__spending_summary"), text("You spent 850.00.")]
+    _, reply = chat(running, "how much did I spend?")
+    assert reply["parts"][0]["waiting"] is False
