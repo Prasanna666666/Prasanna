@@ -104,6 +104,9 @@ def _take_in_all(state: State, conn, totals: dict[str, int]) -> str:
         del state.scan.get("taken", [])[:-3]  # the last few files taken in are all the card shows
         totals["new"] += got["new"]
         totals["replaced"] += got.get("replaced", 0)
+        totals["unopened"] = max(
+            totals.get("unopened", 0), got.get("unopened", 0)
+        )  # sealed files this app cannot open (no key, a malformed key, the wrong key): they wait, and the person is told
         busy = (appstate.parsed_dir() / ".busy").exists()
         waiting = (appstate.parsed_dir() / ".wake").exists()  # the reader has not yet started the round that was asked for
         if state.control == "stop":
@@ -159,6 +162,9 @@ def _summarise(state: State, conn, totals: dict[str, int]) -> bool:
     line = f"{new} new file{'s' if new != 1 else ''}, {counts['documents']} in all"
     if replaced:
         line += f"; {replaced} changed file{'s' if replaced != 1 else ''} replaced their older version"
+    if totals.get("unopened"):
+        n = totals["unopened"]
+        line += f"; {n} file{'s' if n != 1 else ''} read but not opened: the key for the sealed hand-over is missing or wrong (nothing was lost, they open once it is right)"
     if state.control == "stop":
         line = "Stopped. " + line + ". Reading carries on from here next time."
     elif (appstate.parsed_dir() / flags.AUTO_CAPPED).exists():

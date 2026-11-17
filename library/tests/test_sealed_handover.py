@@ -153,3 +153,28 @@ def test_a_malformed_public_key_stops_the_reader_before_it_writes_or_marks_anyth
         with pytest.raises(seal.SealKeyError):
             _write(out, DOC, bad)
         assert list(out.iterdir()) == [], bad  # no half-written file, no completion mark: the file is read again once the key is fixed
+
+
+def test_a_forged_low_order_ephemeral_key_is_a_fault_of_the_file_not_of_the_key(tmp_path, conn, keys, monkeypatch):
+    private, _ = keys
+    (tmp_path / ("d" * 64 + ".sealed")).write_bytes(bytes(32) + bytes(12) + bytes(40))  # an all-zero ephemeral public key
+    (tmp_path / ".done").mkdir()
+    (tmp_path / ".done" / ("d" * 64)).touch()
+    with pytest.raises(seal.NotSealedError):
+        seal.open_sealed((tmp_path / ("d" * 64 + ".sealed")).read_bytes(), private)
+    monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", private)
+    got = store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)
+    assert got["rejected"] == 1 and not (tmp_path / ("d" * 64 + ".sealed")).exists()  # rejected on purpose: the mark goes too, so the original is read again
+
+
+def test_the_read_summary_tells_the_person_when_sealed_files_could_not_be_opened(tmp_path, conn, monkeypatch):
+    from types import SimpleNamespace
+
+    from library import appstate, reading
+
+    monkeypatch.setattr(appstate, "parsed_dir", lambda: tmp_path)
+    state = SimpleNamespace(scan={}, control="")
+    reading._summarise(state, conn, {"new": 0, "replaced": 0, "unopened": 2})
+    assert "2 files read but not opened" in state.scan["summary"] and "nothing was lost" in state.scan["summary"]
+    reading._summarise(state, conn, {"new": 0, "replaced": 0})
+    assert "not opened" not in state.scan["summary"]

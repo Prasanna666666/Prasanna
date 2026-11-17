@@ -82,7 +82,11 @@ def open_sealed(blob: bytes, private_hex: str) -> bytes:
     private = lib.Private.from_private_bytes(_key_bytes(private_hex, "private"))
     recipient_public = _raw_public(lib, private.public_key())
     eph_public, nonce, body = blob[:KEY_BYTES], blob[KEY_BYTES : KEY_BYTES + NONCE_BYTES], blob[KEY_BYTES + NONCE_BYTES :]
-    key = _key(lib, private.exchange(lib.Public.from_public_bytes(eph_public)), eph_public, recipient_public)
+    try:
+        shared = private.exchange(lib.Public.from_public_bytes(eph_public))
+    except ValueError as error:  # a low-order or invalid ephemeral key: no honest sealer writes one, so this is a fault of the file whatever key is given
+        raise NotSealedError("not a valid sealed file") from error
+    key = _key(lib, shared, eph_public, recipient_public)
     try:
         return bytes(lib.Aead(key).decrypt(nonce, body, eph_public))
     except lib.InvalidTag as error:
