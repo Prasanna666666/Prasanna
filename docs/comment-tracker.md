@@ -145,21 +145,21 @@ Checked by reading source at `87702bd` only; nothing run, no browser. State, pro
 
 | ID | Finding | What the source shows at `87702bd` | State - proof - commit |
 |---|---|---|---|
-| F1 | "monthly vs before" has no stated baseline | Valid. The baseline is the previous calendar month (`modules/events.py:200`, same pattern in `modules/money.py:305`), but the tile says only "before" (`finance/static/app.js:828`). The percentage is hidden when the baseline is 0 (`app.js:947`) | OPEN - P1 - 87702bd (wording; the inspectable-periods part is a roadmap ask) |
-| F2 | Empty "Due in 3 weeks" tile always drawn | Valid (`app.js:872`) | OPEN - P1 - 87702bd (same as O-9) |
-| F3 | Net worth shown while accounts say "no statements read yet" | Valid as presentation: `nw.net_worth` is drawn whatever `nw.accounts` is (`app.js:849-855`). Whether the figure is wrong was not shown | PARTIAL - P1 - 87702bd (same as P-4) |
-| F4 | No freshness or period on headline metrics | Valid, not built (same as P-2) | OPEN - P0 - 87702bd |
-| F5 | Dashboard and assistant do not state incomplete reconciliation | Valid, not built; reconciled months exist in the data, not on the dashboard (same as P-3) | OPEN - P0 - 87702bd |
-| F6 | Photos disconnected has no retry | Valid: one status call, message says restart (`library/static/app.js:78,109`) (same as P-7) | OPEN - P1 - 87702bd |
-| F7 | Calendar draws an empty month grid first | Valid (O-9 / P-8) | OPEN - P1 - 87702bd |
-| F8 | Overview header crowded | Valid, already recorded (UI-G, P-9) | OPEN - P1 - 87702bd |
-| F9 | Travel hero has a gradient over a cover photo | Valid: `healthtravel.js:270` and `design.css:272,428,1050`; `docs/design.md` says "no gradients" and already points to the UI review. Either amend the rule or remove them; the text must stay readable | OPEN - P1 - 87702bd |
+| F1 | "monthly vs before" has no stated baseline | Valid. The baseline is the previous calendar month (`modules/events.py:200`, same pattern in `modules/money.py:305`), but the tile says only "before" (`finance/static/app.js:828`). The percentage is hidden when the baseline is 0 (`app.js:947`) | FIXED - P3 - awaiting reviewer - 631130b |
+| F2 | Empty "Due in 3 weeks" tile always drawn | Valid (`app.js:872`) | FIXED - P3 - awaiting reviewer - 631130b |
+| F3 | Net worth shown while accounts say "no statements read yet" | Valid as presentation: `nw.net_worth` is drawn whatever `nw.accounts` is (`app.js:849-855`). Whether the figure is wrong was not shown | FIXED - P3 - awaiting reviewer - 631130b (label); a complete/partial breakdown not built |
+| F4 | No freshness or period on headline metrics | Valid, not built (same as P-2) | PARTIAL - P3 - a6c67bc (month card only) |
+| F5 | Dashboard and assistant do not state incomplete reconciliation | Valid, not built; reconciled months exist in the data, not on the dashboard (same as P-3) | PARTIAL - P3 - a6c67bc (dashboard part; assistant part is an owner decision) |
+| F6 | Photos disconnected has no retry | Valid: one status call, message says restart (`library/static/app.js:78,109`) (same as P-7) | OPEN - owner decision (see P-8) - aec2230 |
+| F7 | Calendar draws an empty month grid first | Valid (O-9 / P-8) | FIXED - P3 - awaiting reviewer - aec2230 |
+| F8 | Overview header crowded | Valid, already recorded (UI-G, P-9) | FIXED - P3 - awaiting reviewer - aec2230 |
+| F9 | Travel hero has a gradient over a cover photo | Valid: `healthtravel.js:270` and `design.css:272,428,1050`; `docs/design.md` says "no gradients" and already points to the UI review. Either amend the rule or remove them; the text must stay readable | FIXED - P3 - awaiting reviewer - 40d023b (legacy gradients in atlas.css and finance/app.css remain, overridden, not scanned) |
 | F10 | First-run guidance | Same as P-11 | ROADMAP |
 | F11 | Travel itinerary | Same as P-10; the reviewer itself calls it roadmap | ROADMAP |
 | F12 | Provenance on every module | Same as P-14 / O-17 | PARTIAL - P3 for Finance dates - 97d5e29 |
 | F13 | Plain parser hand-over | Same as O-16; stays a blocker for sensitive use until the owner signs off or it changes | PARTIAL - P3 - 97d5e29, NEEDS MAC/MODEL for the Docker check |
-| F14 | No older-release upgrade fixture | Same as O-12 | OPEN - P2 - 97d5e29 |
-| F15 | Coverage must not read as exhaustive; recount at the head | Agreed. Not yet recounted at `87702bd` | OPEN - P0 - 87702bd |
+| F14 | No older-release upgrade fixture | Same as O-12 | PARTIAL - P3 - 745668c, 1b19673 (Finance and Documents; Images and real older databases not covered) |
+| F15 | Coverage must not read as exhaustive; recount at the head | Agreed. Not yet recounted at `87702bd` | FIXED - P2 - cde07ec (matrix regenerated at 80562da; recount needed again at a later head) |
 
 Nothing new was found beyond what the tracker already held, except F1 as a precise wording defect and F9 as a confirmed gradient location list.
 
