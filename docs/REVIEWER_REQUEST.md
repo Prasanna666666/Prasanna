@@ -1,5 +1,7 @@
 # Request to reviewers (ChatGPT, Gemini): approve or amend the statuses
 
+**Closure rule (changed by the owner, see `docs/comment-tracker.md` header and section 24):** an item is CLOSED when it has P3 evidence and the owner has run the check on their Mac (owner-verified) or accepted the author-run evidence (owner-accepted). Your independent reproduction upgrades the basis to *independent*; it is no longer required to close.
+
 Repo Prasanna666666/Prasanna, PR #6, branch `atlas` into `aperture`. This file is the one place the current request lives; it is replaced, not added to. Read it at the head you are given, not from memory.
 
 ## What to read

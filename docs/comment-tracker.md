@@ -2,12 +2,12 @@
 
 One place for every review comment, whoever wrote it, and what became of it. **Rule:** every review the owner pastes gets rows here in the same session; a row is updated when its status changes; nothing is dropped. Reviewers (ChatGPT, Gemini) cannot post on GitHub; the owner pastes their reviews and the author posts the replies as PR comments (links below).
 
-Status scheme (ChatGPT approved it with amendments; Gemini has not answered yet). Shown as **STATE — PROOF — FLAG — COMMIT** (every status names the commit its evidence applies to).
+Status scheme (ChatGPT approved it with amendments; Gemini has not answered yet; the CLOSED rule below was changed by the owner). Shown as **STATE — PROOF — FLAG — COMMIT** (every status names the commit its evidence applies to).
 - STATE: OPEN · IN PROGRESS · FIXED · BLOCKED (needs the owner's Mac or a real model) · PARTIAL (remainder named) · ACCEPTED RISK (owner sign-off and reason) · REFUTED (evidence) · ROADMAP (suggestions only). CLOSED is not a state; it is derived.
 - PROOF: P0 claimed only · P1 code read · P2 test passes · P3 author put the defect back and the test failed · P4 a reviewer independently reproduced it (commit, procedure, command, result recorded) · P5 verified on the owner's Mac with the real model.
 - FLAG: NEEDS MAC/MODEL keeps that item OPEN until P5. It does not apply to unrelated items.
 - SEVERITY (separate): blocker · high · medium · low · nit.
-- **CLOSED = FIXED + P3 or stronger + reviewer confirmation (P4).** Until then: "FIXED — P3 — awaiting reviewer". Author-run mutation checks alone never close an item.
+- **CLOSED (rule changed by the owner, who owns this PR; supersedes the reviewer-confirmation rule above, which stays welcome as an upgrade).** CLOSED = FIXED + P3 or stronger (the author put the defect back and the test failed), and the owner has either **run the check on their own Mac** (basis tag *owner-verified*) or **accepted the author-run evidence** for items that need no Mac (basis tag *owner-accepted*). A closed row always shows its basis. A reviewer who later reproduces it upgrades the basis to *independent*. Items that need the real model, OCR, Photos, Docker recovery or real health reports are not closed by this rule until they have been run.
 - Mapping of the words still used in the rows below: old CLOSED = FIXED — P3 (author-reported), awaiting P4; FIXED, UNPROVEN = FIXED — P2; NOT VERIFIABLE HERE = OPEN — NEEDS MAC/MODEL; PENDING = OPEN, or IN PROGRESS if started. No row is CLOSED under the new rule yet.
 
 Detail for each defect is in `defects.md` and `reconciliation.md`. Counts below are as of commit `97d5e29` plus the uncommitted work named in section 9.
@@ -51,7 +51,7 @@ Detail for each defect is in `defects.md` and `reconciliation.md`. Counts below 
 |---|---|---|
 | R2-1 | Gates; no commented-out code | PARTIAL: gates run; "no commented-out code" not checked by a tool |
 | R2-2 | The nine owner rules | PARTIAL: R-Q8 exception (O-8); R-Q10 not tested |
-| R2-3 | Old migrations never edited | FIXED - P3 - awaiting reviewer (D-28; history before `e8718a1` NOT VERIFIED) - 97d5e29 |
+| R2-3 | Old migrations never edited | CLOSED - owner-accepted (author-run P3) (D-28; history before `e8718a1` NOT VERIFIED) - 97d5e29 |
 | R2-4 | 500 MB memory | PARTIAL: measured, default 100 MB, no streaming (O-4) |
 | R2-5 | Scorecard and unverified-claims ledger | FIXED - P1 - docs: `testing.md`, `defects.md` - 97d5e29 |
 
@@ -63,15 +63,15 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 
 | ID | Item | Status |
 |---|---|---|
-| D-24 | "yes" meant any yes-word | FIXED - P3 - awaiting reviewer - 97d5e29 |
-| D-25 | grouped changes | FIXED - P3 - awaiting reviewer - 97d5e29 |
-| D-26 | deletes unstaged | FIXED - P3 - awaiting reviewer - 97d5e29 |
-| D-27 | plain leftover after a crash | FIXED - P3 - awaiting reviewer - 97d5e29 |
-| D-28 | migration immutability | FIXED - P3 - awaiting reviewer (see R2-3) - 97d5e29 |
-| D-29 | a yes bound to the exchange before it | FIXED - P3 - awaiting reviewer - 97d5e29 |
+| D-24 | "yes" meant any yes-word | CLOSED - owner-accepted (author-run P3) - 97d5e29 |
+| D-25 | grouped changes | CLOSED - owner-accepted (author-run P3) - 97d5e29 |
+| D-26 | deletes unstaged | CLOSED - owner-accepted (author-run P3) - 97d5e29 |
+| D-27 | plain leftover after a crash | CLOSED - owner-accepted (author-run P3) - 97d5e29 |
+| D-28 | migration immutability | CLOSED - owner-accepted (author-run P3) (see R2-3) - 97d5e29 |
+| D-29 | a yes bound to the exchange before it | CLOSED - owner-accepted (author-run P3) - 97d5e29 |
 | D-30 | crash-point tests | FIXED - P2 - 97d5e29 |
 | O-14 | range end as a result | PARTIAL (D-34) |
-| O-15 | Images pre-upgrade copy | FIXED - P3 - awaiting reviewer (D-35) - 97d5e29 |
+| O-15 | Images pre-upgrade copy | CLOSED - owner-accepted (author-run P3) (D-35) - 97d5e29 |
 | O-16 | plain parser hand-over | PARTIAL (D-33) |
 | O-17 | date source not shown | PARTIAL: Finance Documents page only |
 
@@ -79,8 +79,8 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 
 | ID | Finding | Status |
 |---|---|---|
-| R6-1 (R3-1) | float in `_coerce` | FIXED - P3 - awaiting reviewer (D-31) - 97d5e29 |
-| R6-2 (R3-2) | `update.sh` moves the branch | FIXED - P3 - awaiting reviewer (D-32) - 97d5e29 |
+| R6-1 (R3-1) | float in `_coerce` | CLOSED - owner-accepted (author-run P3) (D-31) - 97d5e29 |
+| R6-2 (R3-2) | `update.sh` moves the branch | CLOSED - owner-accepted (author-run P3) (D-32) - 97d5e29 |
 | R6-3 (R3-3) | plain hand-over | PARTIAL (D-33, O-16) |
 | R6-4 (R3-4) | health result vs range | PARTIAL (D-34, O-14) |
 | R6-x | exhaustive audit of 508 entries, every screenshot, every deployment path | OPEN: 397 entries NOT INSPECTED (`coverage-matrix.md`); deployment NOT VERIFIABLE HERE |
@@ -89,10 +89,10 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 
 | ID | Item | Status |
 |---|---|---|
-| R7 | O-2, O-3, O-11, O-13, O-15, O-17 and UI notes listed as closed but not done | FIXED - P3 for D-35 to D-40 and D-42, P2 for D-41 - awaiting reviewer - 97d5e29 |
+| R7 | O-2, O-3, O-11, O-13, O-15, O-17 and UI notes listed as closed but not done | CLOSED - owner-accepted for D-35 to D-40 and D-42 (author-run P3); D-41 stays FIXED - P2 - 97d5e29 |
 | NEW-01 | test inventory did not add up | FIXED - P2 (D-44, `scripts/test-inventory.py`) - 97d5e29 |
-| NEW-02 | comment claimed undo; none exists | FIXED - P3 - awaiting reviewer (D-43); real undo built later in `696f650` (O-7); a whole import still has no single undo - 97d5e29 |
-| O-13 | past history cut not announced | FIXED - P3 - awaiting reviewer (D-45) - 97d5e29 |
+| NEW-02 | comment claimed undo; none exists | CLOSED - owner-accepted (author-run P3) (D-43); real undo built later in `696f650` (O-7); a whole import still has no single undo - 97d5e29 |
+| O-13 | past history cut not announced | CLOSED - owner-accepted (author-run P3) (D-45) - 97d5e29 |
 
 ## 8. R9: ChatGPT product, screenshot and functionality review (this session)
 
@@ -100,15 +100,15 @@ Not yet replied to on the PR. Items checked against the code and screenshots:
 
 | ID | Comment | Verified? | Status |
 |---|---|---|---|
-| P-1 | **Health says "All within range" for a report dated six months ago** and uses reassuring green; the requirement says show values as printed and do not interpret | **Confirmed** in the screenshot (`03-health.png`) and the code (`healthtravel.js`): the age was only shown from 12 months | FIXED - P3 - awaiting reviewer - 796d485 (merged from the wip branch; browser-checked; test; an out-of-range result keeps its warning at any age) |
-| P-2 | Finance "142% monthly vs before" has no comparison period | Confirmed (`app.js:828`; I was reading what "before" compares to when interrupted) | FIXED - P3 - awaiting reviewer - 631130b (comparison names its month: "vs October 2026") |
-| P-3 | Empty "Due in 3 weeks €0" tile wastes space | Confirmed (screenshot 02) | FIXED - P3 - awaiting reviewer - 631130b (tile hidden when there are no payments; three-tile row) |
-| P-4 | Net worth next to "no statements read yet" confuses | Confirmed; the label was changed from "Cash €0" but net worth still shows | FIXED - P3 - awaiting reviewer - 631130b (label: "without account balances: no statements read yet"). Not shown: that the figure itself is wrong; a complete/partial breakdown is not built (PARTIAL for that part) |
+| P-1 | **Health says "All within range" for a report dated six months ago** and uses reassuring green; the requirement says show values as printed and do not interpret | **Confirmed** in the screenshot (`03-health.png`) and the code (`healthtravel.js`): the age was only shown from 12 months | CLOSED - owner-accepted (author-run P3) - 796d485 (merged from the wip branch; browser-checked; test; an out-of-range result keeps its warning at any age) |
+| P-2 | Finance "142% monthly vs before" has no comparison period | Confirmed (`app.js:828`; I was reading what "before" compares to when interrupted) | CLOSED - owner-accepted (author-run P3) - 631130b (comparison names its month: "vs October 2026") |
+| P-3 | Empty "Due in 3 weeks €0" tile wastes space | Confirmed (screenshot 02) | CLOSED - owner-accepted (author-run P3) - 631130b (tile hidden when there are no payments; three-tile row) |
+| P-4 | Net worth next to "no statements read yet" confuses | Confirmed; the label was changed from "Cash €0" but net worth still shows | CLOSED - owner-accepted (author-run P3) - 631130b (label: "without account balances: no statements read yet"). Not shown: that the figure itself is wrong; a complete/partial breakdown is not built (PARTIAL for that part) |
 | P-5 | Metrics undefined (kept in 2026, savings rate, investment gain) and no data-freshness date | Confirmed: nothing shows the latest statement date | PARTIAL - P3 - a6c67bc and the next commit (the month card says proven or not and the newest payment date; the savings tile says "through <month>"; net worth says how many holdings were left out for lack of an exchange rate); investments and gain have no as-of date on the tile |
 | P-6 | Figures look authoritative when source data is incomplete (reconciliation status) | Partly: the app proves months and holds back unproven ones, but the dashboard does not say so | PARTIAL - P3 - a6c67bc ("not proven: <reason>. These figures may be incomplete."); list of missing months and the assistant using it OPEN (the assistant never sees finance data: owner decision) |
-| P-7 | Overview: crowded status pills, Ask invited while the AI is off, little to click | Confirmed (screenshot 01) | FIXED - P3 - awaiting reviewer - aec2230 (one summary chip; "Read new files" stays in view at 1280, 1100, 900 px). Ask-while-AI-off wording not changed |
+| P-7 | Overview: crowded status pills, Ask invited while the AI is off, little to click | Confirmed (screenshot 01) | CLOSED - owner-accepted (author-run P3) - aec2230 (one summary chip; "Read new files" stays in view at 1280, 1100, 900 px). Ask-while-AI-off wording not changed |
 | P-8 | Photos disconnected page has no retry, no last-indexed time | Confirmed (`library/static/app.js:78`) | OPEN - owner decision: the drive is mounted when the container starts (`library/docker-compose.pictures.yml:32`), so a recheck cannot find a later drive; a "Check again" button was built and reverted |
-| P-9 | Calendar: empty grid, agenda below the fold | Confirmed (screenshot 06) | FIXED - P3 - awaiting reviewer - aec2230 (empty month is one line with a jump to the next month that has something) |
+| P-9 | Calendar: empty grid, agenda below the fold | Confirmed (screenshot 06) | CLOSED - owner-accepted (author-run P3) - aec2230 (empty month is one line with a jump to the next month that has something) |
 | P-10 | Travel: no itinerary, no segments, no source documents | Partly: documents list exists on the Documents tab; no segment detail | ROADMAP |
 | P-11 | First run: no guided setup | Confirmed (screenshot 08) | ROADMAP (UI-L) |
 | P-12 | Mobile: Ask button covers content, large cards | Padding fixed (measured 120 px); card size and header not changed | PARTIAL |
@@ -145,15 +145,15 @@ Checked by reading source at `87702bd` only; nothing run, no browser. State, pro
 
 | ID | Finding | What the source shows at `87702bd` | State - proof - commit |
 |---|---|---|---|
-| F1 | "monthly vs before" has no stated baseline | Valid. The baseline is the previous calendar month (`modules/events.py:200`, same pattern in `modules/money.py:305`), but the tile says only "before" (`finance/static/app.js:828`). The percentage is hidden when the baseline is 0 (`app.js:947`) | FIXED - P3 - awaiting reviewer - 631130b |
-| F2 | Empty "Due in 3 weeks" tile always drawn | Valid (`app.js:872`) | FIXED - P3 - awaiting reviewer - 631130b |
-| F3 | Net worth shown while accounts say "no statements read yet" | Valid as presentation: `nw.net_worth` is drawn whatever `nw.accounts` is (`app.js:849-855`). Whether the figure is wrong was not shown | FIXED - P3 - awaiting reviewer - 631130b (label); a complete/partial breakdown not built |
+| F1 | "monthly vs before" has no stated baseline | Valid. The baseline is the previous calendar month (`modules/events.py:200`, same pattern in `modules/money.py:305`), but the tile says only "before" (`finance/static/app.js:828`). The percentage is hidden when the baseline is 0 (`app.js:947`) | CLOSED - owner-accepted (author-run P3) - 631130b |
+| F2 | Empty "Due in 3 weeks" tile always drawn | Valid (`app.js:872`) | CLOSED - owner-accepted (author-run P3) - 631130b |
+| F3 | Net worth shown while accounts say "no statements read yet" | Valid as presentation: `nw.net_worth` is drawn whatever `nw.accounts` is (`app.js:849-855`). Whether the figure is wrong was not shown | CLOSED - owner-accepted (author-run P3) - 631130b (label); a complete/partial breakdown not built |
 | F4 | No freshness or period on headline metrics | Valid, not built (same as P-2) | PARTIAL - P3 - a6c67bc (month card only) |
 | F5 | Dashboard and assistant do not state incomplete reconciliation | Valid, not built; reconciled months exist in the data, not on the dashboard (same as P-3) | PARTIAL - P3 - a6c67bc (dashboard part; assistant part is an owner decision) |
 | F6 | Photos disconnected has no retry | Valid: one status call, message says restart (`library/static/app.js:78,109`) (same as P-7) | OPEN - owner decision (see P-8) - aec2230 |
-| F7 | Calendar draws an empty month grid first | Valid (O-9 / P-8) | FIXED - P3 - awaiting reviewer - aec2230 |
-| F8 | Overview header crowded | Valid, already recorded (UI-G, P-9) | FIXED - P3 - awaiting reviewer - aec2230 |
-| F9 | Travel hero has a gradient over a cover photo | Valid: `healthtravel.js:270` and `design.css:272,428,1050`; `docs/design.md` says "no gradients" and already points to the UI review. Either amend the rule or remove them; the text must stay readable | FIXED - P3 - awaiting reviewer - 40d023b (legacy gradients in atlas.css and finance/app.css remain, overridden, not scanned) |
+| F7 | Calendar draws an empty month grid first | Valid (O-9 / P-8) | CLOSED - owner-accepted (author-run P3) - aec2230 |
+| F8 | Overview header crowded | Valid, already recorded (UI-G, P-9) | CLOSED - owner-accepted (author-run P3) - aec2230 |
+| F9 | Travel hero has a gradient over a cover photo | Valid: `healthtravel.js:270` and `design.css:272,428,1050`; `docs/design.md` says "no gradients" and already points to the UI review. Either amend the rule or remove them; the text must stay readable | CLOSED - owner-accepted (author-run P3) - 40d023b (legacy gradients in atlas.css and finance/app.css remain, overridden, not scanned) |
 | F10 | First-run guidance | Same as P-11 | ROADMAP |
 | F11 | Travel itinerary | Same as P-10; the reviewer itself calls it roadmap | ROADMAP |
 | F12 | Provenance on every module | Same as P-14 / O-17 | PARTIAL - P3 for Finance dates - 97d5e29 |
@@ -283,3 +283,16 @@ The owner ran the commands in `docs/MAC_VERIFICATION.md` on a MacBook Air (Pytho
 
 After `git pull --ff-only` and a plain `./up.sh` in a fresh Terminal tab with **no keys exported**, the Mac printed: `Sealed hand-over: ON (keys from the Keychain; the public key was worked out from the private one).` Then, checked with `docker inspect`: `atlas-documents-parser-1` holds only `LIBRARY_HANDOVER_PUBLIC_KEY`; `atlas-documents-app-1` holds only `LIBRARY_HANDOVER_PRIVATE_KEY`; and `security find-generic-password -a "$USER" -s atlas-handover-public -w | wc -c` printed `65` (the public key is now kept in the Keychain). So on the owner's Mac a plain `./up.sh` now starts with sealing on, with nothing to export.
 **State:** B2 FIXED - P3 (author-run tests with stand-ins) and VERIFIED on the owner's Mac - owner-run - `fd5589f` for the Keychain read, the derivation of the public key and the containers' configuration. **Not seen on the Mac:** the refusal on a half configuration, the plain fallback with no key pair, and `ATLAS_SEAL_HANDOVER=0` (covered only by the stand-in tests). O-16 stays PARTIAL - not CLOSED.
+
+## 24. Closure decision by the owner (rule: see the header; 25 rows closed here)
+
+The owner decided: *it is OK for the author to close its own comments; the owner has the Mac.* Applied honestly:
+- **CLOSED - owner-accepted (author-run P3):** every row that was "FIXED - P3 - awaiting reviewer" (25 rows). Each has a test that fails when the change is reverted (author mutation check); the owner accepts that evidence.
+- **CLOSED - owner-verified on the Mac:** the O-16 sealed hand-over mechanism (`2ad3c93`: the repository's own build and start, Keychain, parser seals, app opens, a wrong key keeps the file) and B2, sealing on by default (`fd5589f`: the start line, the containers' configuration, the public key kept in the Keychain). The things of B2 not seen on the Mac (refusal on a half configuration, plain fallback, `ATLAS_SEAL_HANDOVER=0`) are covered by tests with stand-ins only and are named in section 23.
+- **NOT closed, and why:**
+  - **FIXED - P2** (test passes, not shown to fail without the fix): D-08, D-14, D-16, D-09, D-11, D-13, D-17, D-18, D-19, D-20, D-23, D-30, D-41, D-44, R1-1. They need a mutation check before they can close.
+  - **B1, the reader's notes stay plain text** (file names, counts, progress): OPEN - owner decision. One line from the owner, "accept B1", records it as ACCEPTED RISK with reason, scope, exposure and controls.
+  - **Needs the real model, OCR, Photos, real health reports or Docker recovery on the Mac:** O-5, O-6, O-10, O-14, Apple Vision and Tesseract on real scans, connected Photos, disk-full and interrupted-startup, and the Yes/No flow with the real model.
+  - **Not built, author's decision (the owner may override):** O-4 streaming, O-1 three-decimal currencies, P-8 parent-folder mounting. Status: NOT BUILT.
+  - **PARTIAL items** keep their named remainder.
+- **Disclosures unchanged:** 397 changed files were never read line by line (`docs/coverage-matrix.md`); a foreign valid sha-named result in the reader's own volume is still taken in (an operational assumption, `docs/security-deployment-review.md`).
