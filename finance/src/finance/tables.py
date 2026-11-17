@@ -244,9 +244,12 @@ def parse_money(text: str, layout: Layout) -> tuple[int, str | None] | None:
     if not re.fullmatch(r"\d+(\.\d+)?", s):
         return None
     try:
-        minor = int((Decimal(s) * 100).to_integral_value())
+        scaled = Decimal(s) * 100
     except InvalidOperation:
         return None
+    if scaled != scaled.to_integral_value():
+        return None  # a third decimal that is not zero (KWD, BHD...): rounding it to cents would be a wrong number, so it is not read at all
+    minor = int(scaled)
     return (-minor if negative else minor), side
 
 
