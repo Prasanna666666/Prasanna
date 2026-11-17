@@ -845,6 +845,20 @@
         );
     }
 
+    /** What the figures on this page rest on: whether the month is proven, why not, and how fresh the newest payment is. */
+    function coverage(month, proof, txs) {
+        const latest = txs.length ? txs[0].day : null;
+        const why = proof && proof.reasons ? proof.reasons : [];
+        const state =
+            proof && proof.proven
+                ? `${monthName(month)} is proven: every statement passed its checks and the totals agree.`
+                : `${monthName(month)} is not proven: ${why[0] || 'it has not been checked'}${why.length > 1 ? ` (and ${why.length - 1} more)` : ''}. These figures may be incomplete.`;
+        const fresh = latest
+            ? ` Newest payment: ${new Date(latest + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}.`
+            : '';
+        return h('p', { class: 'coverage' + (proof && proof.proven ? ' proven' : ' unproven') }, state + fresh);
+    }
+
     function buildStats(nw, year, inv, dueSoon) {
         return h(
             'div',
@@ -938,15 +952,16 @@
             tool('yearly_overview'),
             tool('investments_overview'),
         ]);
-        const [daily, byMain, sum, txs, shops] = has
+        const [daily, byMain, sum, txs, shops, proof] = has
             ? await Promise.all([
                   tool('daily_spending', { month }),
                   tool('spending_by_main', { month }),
                   tool('spending_summary', { month }),
                   tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }),
                   tool('top_merchants', { month, limit: 6 }),
+                  tool('month_proof', { month }),
               ])
-            : [[], [], { income: 0 }, [], []];
+            : [[], [], { income: 0 }, [], [], null];
         const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net,
             oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0),
             spent = monthly + oneTime;
@@ -999,6 +1014,7 @@
             ...(has
                 ? [
                       hero,
+                      coverage(month, proof, txs),
                       stats,
                       h(
                           'div',

@@ -17,3 +17,10 @@ def test_a_due_tile_with_no_payments_is_not_drawn():
 
 def test_net_worth_without_account_balances_says_so():
     assert "without account balances: no statements read yet" in APP
+
+
+def test_the_dashboard_says_whether_the_month_is_proven_and_how_fresh_it_is():
+    assert "tool('month_proof', { month })" in APP
+    assert "coverage(month, proof, txs)," in APP
+    assert "is not proven:" in APP and "These figures may be incomplete." in APP
+    assert "Newest payment:" in APP

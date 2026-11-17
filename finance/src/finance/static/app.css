@@ -1574,3 +1574,13 @@ a.stat:hover {
     font-style: italic;
     overflow-wrap: anywhere;
 }
+
+.coverage {
+    margin: -6px 0 0;
+    padding: 0 4px;
+    font-size: 13px;
+    color: var(--muted);
+}
+.coverage.unproven {
+    color: var(--ink);
+}
