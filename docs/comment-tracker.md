@@ -2,7 +2,13 @@
 
 One place for every review comment, whoever wrote it, and what became of it. **Rule:** every review the owner pastes gets rows here in the same session; a row is updated when its status changes; nothing is dropped. Reviewers (ChatGPT, Gemini) cannot post on GitHub; the owner pastes their reviews and the author posts the replies as PR comments (links below).
 
-Status words: **CLOSED** (fixed, with a test that fails when the defect returns: author-run, not reproduced by anyone else) · **FIXED, UNPROVEN** (changed; the test was not shown to fail without the fix) · **PARTIAL** · **OPEN** (not done) · **ROADMAP** (a product suggestion, not a defect; not built) · **REFUTED** (the claim was wrong, with evidence) · **NOT VERIFIABLE HERE** (needs the owner's Mac and a real model) · **IN PROGRESS** (started, not committed or not tested).
+Status scheme (ChatGPT approved it with amendments; Gemini has not answered yet). Shown as **STATE — PROOF — FLAG**.
+- STATE: OPEN · IN PROGRESS · FIXED · PARTIAL (remainder named) · ACCEPTED RISK (owner sign-off and reason) · REFUTED (evidence) · ROADMAP (suggestions only). CLOSED is not a state; it is derived.
+- PROOF: P0 claimed only · P1 code read · P2 test passes · P3 author put the defect back and the test failed · P4 a reviewer independently reproduced it (commit, procedure, command, result recorded) · P5 verified on the owner's Mac with the real model.
+- FLAG: NEEDS MAC/MODEL keeps that item OPEN until P5. It does not apply to unrelated items.
+- SEVERITY (separate): blocker · high · medium · low · nit.
+- **CLOSED = FIXED + P3 or stronger + reviewer confirmation (P4).** Until then: "FIXED — P3 — awaiting reviewer". Author-run mutation checks alone never close an item.
+- Mapping of the words still used in the rows below: old CLOSED = FIXED — P3 (author-reported), awaiting P4; FIXED, UNPROVEN = FIXED — P2; NOT VERIFIABLE HERE = OPEN — NEEDS MAC/MODEL; PENDING = OPEN, or IN PROGRESS if started. No row is CLOSED under the new rule yet.
 
 Detail for each defect is in `defects.md` and `reconciliation.md`. Counts below are as of commit `97d5e29` plus the uncommitted work named in section 9.
 
@@ -114,6 +120,21 @@ Not yet replied to on the PR. Items checked against the code and screenshots:
 ## 9. Open at this moment
 
 - **P-1 work is on `wip/health-freshness`, not on the PR branch**, and untested beyond prettier and eslint. It is not counted as done until the browser check, a retaken Health screenshot and a test pass; then it is merged into `atlas`.
-- **The status words are not yet agreed** with ChatGPT and Gemini (proposal sent to the owner); this tracker uses the author's words until they are.
+- **Status words:** ChatGPT approved with amendments (section 10); Gemini's answer is still awaited. The rows below keep the old words until the owner confirms the final set; the mapping is in the header.
 - Everything marked OPEN, PARTIAL, ROADMAP or NOT VERIFIABLE HERE above.
 - The three blockers before sensitive use: the Mac and real-model run, the plain parser hand-over, and health layouts beyond a range end.
+
+## 10. ChatGPT's answer on the status scheme (head `41e9d36`; decision REQUEST CHANGES)
+
+It reported that it did not run the tests or mutations itself, so every P3 here is author-reported and none is P4. Amendments it asked for, all adopted above: CLOSED is derived, not a state; the display is STATE — PROOF — FLAG; NEEDS MAC/MODEL applies only to the items that need it; P4 must be a real independent check.
+
+Qualifications to carry into the rows (to be applied row by row, not yet done):
+- D-41 (UI notes) and D-44 (test inventory): P2, not P3. D-41 mixes source, browser and screenshot evidence; split it by sub-item.
+- D-06: the first mutation missed a hard-coded limit; keep that history. D-22: tested with four threads, not a broad multi-process stress. D-28: history before e8718a1 not verified. D-32: the `--ff-only` mutation alone was not detected (guards made it equivalent); the guards were. D-10 and R1-1 carry NEEDS MAC/MODEL for real-model use.
+- D-08, D-14, D-16 rest on earlier CI runs; the exact head must not be called green unless its own run shows it.
+- REFUTED means the evidence shows the claim false, not "not reproduced".
+- O-1, O-4, O-6, O-7, O-8, O-9, O-12, O-14, O-16, O-17 stay PARTIAL or OPEN with the named remainder. O-16 is a candidate for ACCEPTED RISK only with the owner's written sign-off (reason, scope, exposure window, compensating controls, review date); mode 0600 and cleanup are mitigations.
+- P5 records must name device and OS, commit, model name and version, data category (no personal data), steps, expected and observed result.
+- Audit coverage: "397 of 508" is the earlier audit's figure; the PR now changes 510 files. Recount at the head being reviewed before quoting it.
+
+Its remaining blockers: (1) no P5 run for real model, ingestion/OCR, Docker and connected Photos; (2) O-16 plain hand-over, no sign-off; (3) O-10; (4) O-14 and P-1; (5) O-6; (6) O-12; (7) O-1; (8) O-4; (9) O-7; (10) audit recount; (11) CI for the exact head not shown.
