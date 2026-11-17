@@ -2,8 +2,8 @@
 
 One place for every review comment, whoever wrote it, and what became of it. **Rule:** every review the owner pastes gets rows here in the same session; a row is updated when its status changes; nothing is dropped. Reviewers (ChatGPT, Gemini) cannot post on GitHub; the owner pastes their reviews and the author posts the replies as PR comments (links below).
 
-Status scheme (ChatGPT approved it with amendments; Gemini has not answered yet). Shown as **STATE — PROOF — FLAG**.
-- STATE: OPEN · IN PROGRESS · FIXED · PARTIAL (remainder named) · ACCEPTED RISK (owner sign-off and reason) · REFUTED (evidence) · ROADMAP (suggestions only). CLOSED is not a state; it is derived.
+Status scheme (ChatGPT approved it with amendments; Gemini has not answered yet). Shown as **STATE — PROOF — FLAG — COMMIT** (every status names the commit its evidence applies to).
+- STATE: OPEN · IN PROGRESS · FIXED · BLOCKED (needs the owner's Mac or a real model) · PARTIAL (remainder named) · ACCEPTED RISK (owner sign-off and reason) · REFUTED (evidence) · ROADMAP (suggestions only). CLOSED is not a state; it is derived.
 - PROOF: P0 claimed only · P1 code read · P2 test passes · P3 author put the defect back and the test failed · P4 a reviewer independently reproduced it (commit, procedure, command, result recorded) · P5 verified on the owner's Mac with the real model.
 - FLAG: NEEDS MAC/MODEL keeps that item OPEN until P5. It does not apply to unrelated items.
 - SEVERITY (separate): blocker · high · medium · low · nit.
@@ -166,3 +166,14 @@ Nothing new was found beyond what the tracker already held, except F1 as a preci
 **Gemini's prompt (head named `2e2fd91`)**: its "NOT FIXED" list is out of date. `2e2fd91` is an ancestor of `87702bd`, and the items it lists as to-do are already in the tracker with tests: O-2 (D-39), O-3 (D-36), O-11 (D-38), O-13 (D-37, D-45), O-15 (D-35), O-17 (D-40, Finance only) and the UI-review items (D-41; gradient, Photos retry, mobile Ask padding and "Cash" label are the ones still partly open). Its counts (1,231 tests, 403 of 499) are old; the figures are 1,265 tests at `97d5e29` and an uncounted audit scope at `87702bd`. It asks for fixes the owner did not ask for in this round, so none were started from it.
 
 **C-1 (new, from `docs/claude-review.md` at `cc06e92`):** the coverage matrix counts are stale (matrix: 508 entries at `5676a6a`; `cc06e92`: 511 with rename detection, 583 without). OPEN. The same file records the author re-run at `cc06e92` (1,265 tests passed) and three explicit disagreements with ChatGPT (F3 and F4/F5 severity, F13 remedy).
+
+## 12. Final reviewer answer on `80562da` (scheme APPROVED WITH AMENDMENTS; PR not approved for merge or sensitive-data use)
+
+Reviewer did not independently reproduce fixes, run the app, or read all 512 files. Amendments adopted from this point (the header above is updated to match):
+- Format is **STATE - PROOF - FLAG - COMMIT**; every status names the commit its evidence applies to; evidence from an older commit is not proof for a newer head.
+- A **BLOCKED** state is added: the check cannot be done now (owner's Mac or a real model needed). It stays BLOCKED, never CLOSED.
+- FLAG says whether the item is a merge blocker, needs device/model verification, is accepted risk, or is ordinary follow-up.
+- Author-run tests, CI, static inspection and independent reproduction are kept separate.
+
+Reviewer's actions before closure, and where each stands at the head named: (1) regenerate the coverage matrix: **done in this commit** (512 entries, carried-over row statuses, four AUTHORED rows; C-1 FIXED - P2 - this commit, awaiting reviewer); (2) tracker in the new format: header updated, rows still use the older words and mapping, row-by-row rewrite OPEN; (3) independent verification of financial calculations, consent, encryption, migrations: needs a reviewer other than the author, OPEN; (4) O-16: blocker for sensitive use, owner decision pending; (5) Mac/model checks: BLOCKED; (6) older-release and extraction fixtures (O-12, O-14): OPEN; (7) P-1 outside this PR: agreed, unchanged; (8) nothing is closed on documentation alone: agreed.
+Reviewer's O-1 ask (tests across zero-, two-, three-decimal currencies on import and calculation paths): agreed as the remainder of O-1; the statement-import path is untested. O-4 documents roughly 5x memory on a 66 MB JSON; supported input limits are not yet written down: OPEN.

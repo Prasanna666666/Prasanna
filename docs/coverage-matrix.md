@@ -1,8 +1,8 @@
 # Changed-file coverage matrix
 
-Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `5676a6a`. **508 entries with rename detection (D 100, A 331, M 5, R 72), which equals the 508 files GitHub reports for the pull request at `5676a6a`;** without rename detection git lists 580 paths. The 499 of the earlier version and the 502 of the review prompt were counts at earlier heads (`1b51b25`/`2e2fd91`): the pull request has grown as documents and tests were added. The review request asked for every entry to be accounted for; this is the honest account, **not** a claim of exhaustive inspection.
+Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `80562da1667cb968f228aa5235de4e595ab512d1`. **512 entries with rename detection (D 100, A 335, M 5, R 72), which equals the 512 files the pull request metadata reports at this head.** The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
 
-Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot I opened and looked at; other screenshots were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review. For those, the only evidence is the package suites and CI, which do not prove them correct.
+Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot I opened and looked at; other screenshots were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review. For those, the only evidence is the package suites and CI, which do not prove them correct. **AUTHORED** = a document or script written after `5676a6a` that has no test and was not inspected by anyone but its author.
 
 ## Summary by area
 
@@ -22,7 +22,8 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | scripts | 28 | 3 | 0 | 25 |
 | src | 46 | 0 | 0 | 46 |
 | tests | 30 | 0 | 0 | 30 |
-| **all** | **508** | **105** | **6** | **397** |
+| added after `5676a6a` (AUTHORED, no test) | 4 | 0 | 0 | 0 |
+| **all** | **512** | **105** | **6** | **397** |
 
 ## Every entry
 
@@ -536,3 +537,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | D | `tests/web_fixture.py` | NOT INSPECTED |
 | A | `up.sh` | NOT INSPECTED |
 | A | `update.sh` | ROUND |
+| A | `docs/REVIEWER_REQUEST.md` | AUTHORED |
+| A | `docs/claude-review.md` | AUTHORED |
+| A | `docs/comment-tracker.md` | AUTHORED |
+| A | `scripts/test-inventory.py` | AUTHORED |
