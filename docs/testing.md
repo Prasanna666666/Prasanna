@@ -15,7 +15,9 @@ Everything below was run on this branch (head of the pull request), in **fresh P
 
 Other checks run: `bandit` (both CI invocations) clean; `eslint 10.1.0` and `prettier 3.8.1 --check` clean on the three apps' static folders and `design/`; **`scripts/check-pages.js`** (axe-core WCAG 2.1 AA + script errors + no hidden card/tile) over Finance (6 pages), Documents (5 pages) and Atlas with the apps inside it (6 pages): `PROBLEMS 0`.
 
-**Not run here:** GitHub Actions on this head (see the pull request for its result), `pip-audit`, `gitleaks`, SBOM, Python 3.13 matrix legs (3.13 was run for the package suites earlier in the session, not for this exact head), anything needing a Mac (Apple Vision OCR, Docker Desktop, real Ollama).
+**GitHub Actions** on commit `e9a76cc` (the push and the pull-request run) both finished green: every job of the matrix (Python 3.11 and 3.13 for Finance and Library, kit, images, atlas, web, security with bandit, pip-audit and gitleaks). The runs before it were red for the reasons in `defects.md` D-08, D-14, D-16, D-17.
+
+**Not run by me locally:** `pip-audit`, `gitleaks`, SBOM (they ran in CI), Python 3.13 for this exact head (it ran in CI), anything needing a Mac (Apple Vision OCR, Docker Desktop, real Ollama).
 
 ## How to run
 
