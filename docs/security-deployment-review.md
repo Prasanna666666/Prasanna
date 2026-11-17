@@ -29,7 +29,7 @@ Token generation, expiry and reuse (`kit/sign.py`, Atlas token fetch); CSRF and 
 2. Keep the private key in the macOS Keychain; never in a file or in git.
 3. Start with the public key given to the parser and the private key to the app: `LIBRARY_HANDOVER_PUBLIC_KEY=<public> LIBRARY_HANDOVER_PRIVATE_KEY=<private> ./up.sh` (the compose file passes each only to its own container; a test checks this). The images must be rebuilt once, because both now install `cryptography`.
 4. Press Read new files, then look in the shared volume: it must hold only `.sealed` files, no `.json`. A document that was read must still appear in Documents.
-5. If the app has no key, a malformed key (not hexadecimal, not 32 bytes, empty, a key file that is missing or garbage) or the wrong key, sealed files and their completion marks stay where they are and are counted as unopened; nothing is deleted. Fix the key and the same files open. Only a file too short to be a sealed file at all is rejected (and read again next round). In `be059e4` a malformed key did delete them; fixed in `afb1b66`.
+5. If the app has no key, a malformed key (not hexadecimal, not 32 bytes, empty, a key file that is missing or garbage) or the wrong key, sealed files and their completion marks stay where they are and are counted as unopened; nothing is deleted. Fix the key and the same files open. Only a file that is not a valid sealed file at all (too short, or with an invalid low-order ephemeral key) is rejected, on purpose, and read again next round. In `be059e4` a malformed key did delete them; fixed in `afb1b66`.
 This has not been run here: the images were not built or started. Until it is, the plain hand-over (mode 0600, removed after ingestion) is what runs.
 
 ## Known weak points, stated
