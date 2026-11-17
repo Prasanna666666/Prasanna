@@ -168,6 +168,7 @@ def investments_overview(conn, a=None):
         "contributed_total": round(sum(y["contributed"] for y in paid["contributed_by_year"]), 2),
         "contributed_by_year": paid["contributed_by_year"],
         "value": round(value, 2),
+        "as_of": min((h["as_of"] for h in held if h["as_of"]), default=None),  # the OLDEST date typed with a holding: the figure is no fresher than that
         "holdings": held,
         "cost": round(cost, 2) if with_cost else None,
         "gain": round(gain, 2) if with_cost else None,

@@ -78,3 +78,13 @@ def month_proof(conn, a=None):
     fails = conn.execute("SELECT agent, message FROM findings WHERE level='fail' AND cross=1").fetchall()
     reasons += [f"{f['agent']}: {f['message']}" for f in fails[:5]]
     return {"month": month, "proven": not reasons, "accounts": len(accounts), "reasons": list(dict.fromkeys(reasons))[:12]}
+
+
+def months_proof(conn, a=None):
+    """Every month that has payments, each proven or not (the same proof as `month_proof`), newest first: so a page can say which months its totals rest on and which they must not be trusted for."""
+    months = [r[0] for r in conn.execute("SELECT DISTINCT substr(day,1,7) FROM transactions WHERE day<>'' ORDER BY 1 DESC")]
+    out = [month_proof(conn, {"month": m}) for m in months]
+    return {
+        "months": [{"month": p["month"], "proven": p["proven"], "reason": (p["reasons"] or [""])[0]} for p in out],
+        "not_proven": [p["month"] for p in out if not p["proven"]],
+    }

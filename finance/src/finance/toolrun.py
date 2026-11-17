@@ -84,6 +84,7 @@ READ_ONLY = frozenset(  # change nothing (a test runs each one and checks that t
         "money_detective",
         "month_breakdown",
         "month_proof",
+        "months_proof",
         "monthly_trend",
         "net_worth",
         "payment_detail",

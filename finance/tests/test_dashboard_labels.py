@@ -21,7 +21,7 @@ def test_net_worth_without_account_balances_says_so():
 
 def test_the_dashboard_says_whether_the_month_is_proven_and_how_fresh_it_is():
     assert "tool('month_proof', { month })" in APP
-    assert "coverage(month, proof, txs)," in APP
+    assert "coverage(month, proof, txs, months)," in APP
     assert "is not proven:" in APP and "These figures may be incomplete." in APP
     assert "Newest payment:" in APP
 
@@ -29,3 +29,8 @@ def test_the_dashboard_says_whether_the_month_is_proven_and_how_fresh_it_is():
 def test_net_worth_says_how_many_holdings_were_left_out_and_savings_say_through_when():
     assert "not counted (no exchange rate)" in APP
     assert "saved, through ${through}" in APP
+
+
+def test_the_dashboard_lists_the_months_that_are_not_proven_and_dates_the_investment_values():
+    assert "tool('months_proof')" in APP and "Months not proven:" in APP
+    assert "values typed" in APP

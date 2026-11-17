@@ -1247,3 +1247,21 @@ body.chatting .fab {
     color: var(--muted);
     font-size: 13.5px;
 }
+
+.firstrun {
+    padding: 20px 22px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--card);
+}
+.firstrun h2 {
+    margin: 0 0 10px;
+    font-size: 18px;
+}
+.firstrun-step {
+    margin: 6px 0;
+    color: var(--ink);
+}
+.firstrun-step.done {
+    color: var(--muted);
+}

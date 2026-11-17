@@ -440,6 +440,12 @@ MODULE = Module(
             insight.month_breakdown,
         ),
         Tool(
+            "months_proof",
+            "Every month that has payments, each PROVEN or not, newest first, and the list of months that are not proven.",
+            {},
+            proof.months_proof,
+        ),
+        Tool(
             "month_proof",
             "Whether a month is PROVEN (every statement checked, balances join up, reports equal the ledger) or not, with each reason.",
             {"month": S("YYYY-MM, default the newest month")},

@@ -846,7 +846,7 @@
     }
 
     /** What the figures on this page rest on: whether the month is proven, why not, and how fresh the newest payment is. */
-    function coverage(month, proof, txs) {
+    function coverage(month, proof, txs, months) {
         const latest = txs.length ? txs[0].day : null;
         const why = proof && proof.reasons ? proof.reasons : [];
         const state =
@@ -856,7 +856,19 @@
         const fresh = latest
             ? ` Newest payment: ${new Date(latest + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}.`
             : '';
-        return h('p', { class: 'coverage' + (proof && proof.proven ? ' proven' : ' unproven') }, state + fresh);
+        const bad = months && months.not_proven ? months.not_proven : [];
+        const listed = bad
+            .slice(0, 6)
+            .map((m) => monthName(m))
+            .join(', ');
+        const others = bad.length
+            ? ` Months not proven: ${listed}${bad.length > 6 ? ` and ${bad.length - 6} more` : ''}.`
+            : '';
+        return h(
+            'p',
+            { class: 'coverage' + (proof && proof.proven ? ' proven' : ' unproven') },
+            state + fresh + others
+        );
     }
 
     function buildStats(nw, year, inv, dueSoon, through) {
@@ -886,7 +898,10 @@
             stat(
                 'Investments',
                 money(inv.value),
-                inv.gain == null ? `${money(inv.contributed_total)} paid in` : `${signed(inv.gain, 0)} gain / loss`,
+                (inv.gain == null ? `${money(inv.contributed_total)} paid in` : `${signed(inv.gain, 0)} gain / loss`) +
+                    (inv.as_of
+                        ? ` · values typed ${new Date(inv.as_of + 'T12:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : ''),
                 '#/investments',
                 inv.gain == null ? '' : inv.gain >= 0 ? 'good' : 'bad'
             ),
@@ -955,7 +970,7 @@
             tool('yearly_overview'),
             tool('investments_overview'),
         ]);
-        const [daily, byMain, sum, txs, shops, proof] = has
+        const [daily, byMain, sum, txs, shops, proof, months] = has
             ? await Promise.all([
                   tool('daily_spending', { month }),
                   tool('spending_by_main', { month }),
@@ -963,8 +978,9 @@
                   tool('list_transactions', { since: month + '-01', until: month + '-31', limit: 400 }),
                   tool('top_merchants', { month, limit: 6 }),
                   tool('month_proof', { month }),
+                  tool('months_proof'),
               ])
-            : [[], [], { income: 0 }, [], [], null];
+            : [[], [], { income: 0 }, [], [], null, null];
         const monthly = (byMain.find((m) => m.main === 'others') || { net: 0 }).net,
             oneTime = byMain.filter((m) => m.main !== 'others').reduce((x, m) => x + m.net, 0),
             spent = monthly + oneTime;
@@ -1017,7 +1033,7 @@
             ...(has
                 ? [
                       hero,
-                      coverage(month, proof, txs),
+                      coverage(month, proof, txs, months),
                       stats,
                       h(
                           'div',

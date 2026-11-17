@@ -26,3 +26,9 @@ def test_an_empty_calendar_month_is_a_line_with_a_jump_not_a_grid():
 def test_the_yes_and_no_buttons_send_fixed_short_replies_and_only_when_the_part_says_a_change_waits():
     assert "if (part.waiting === true) box.append(confirmButtons());" in JS
     assert "[yes, 'yes']," in JS and "[no, 'no']," in JS  # the words are fixed in the page: nothing the model or a document wrote is ever sent as the reply
+
+
+def test_the_first_run_checklist_claims_nothing_until_the_first_health_answer_and_is_redrawn_when_it_arrives():
+    assert "Checking that the model and every part are running" in JS
+    assert "const known = state.ai !== null && Object.keys(state.health).length > 0;" in JS
+    assert "document.querySelectorAll('.firstrun').forEach(fillFirstRun);" in JS

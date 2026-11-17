@@ -99,3 +99,10 @@ def test_only_the_amount_paid_in_can_be_edited(conn):
     assert r["value"] == 100.0 and r["gain"] == 20.0
     with pytest.raises(ValueError):
         wealth.update_holding(conn, {"id": h["id"]})
+
+
+def test_the_investments_overview_names_the_oldest_date_typed_with_a_holding(conn):
+    wealth.add_holding(conn, {"name": "Old", "kind": "investment", "value": 100, "as_of": "2026-01-05"})
+    wealth.add_holding(conn, {"name": "New", "kind": "investment", "value": 100, "as_of": "2026-06-30"})
+    assert wealth.investments_overview(conn)["as_of"] == "2026-01-05"  # the figure is no fresher than its oldest part
+    assert wealth.investments_overview(conn)["value"] == 200.0

@@ -63,3 +63,12 @@ def test_a_failed_cross_check_stops_any_month_being_proven(conn):
 
 def test_no_data_is_not_proven(conn):
     assert not proof.month_proof(conn, {})["proven"]
+
+
+def test_months_proof_lists_every_month_and_which_are_not_proven(conn):
+    for day in ("2026-08-10", "2026-09-10"):
+        conn.execute("INSERT INTO transactions (day, amount_minor, kind, category) VALUES (?, 500, 'expense', 'food')", (day,))
+    conn.commit()
+    r = proof.months_proof(conn)
+    assert [m["month"] for m in r["months"]] == ["2026-09", "2026-08"]
+    assert r["not_proven"] == ["2026-09", "2026-08"] and r["months"][0]["reason"]

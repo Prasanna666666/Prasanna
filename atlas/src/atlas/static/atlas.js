@@ -398,11 +398,45 @@
                 const { cards, builds } = JSON.parse(raw);
                 const shown = HOME_ORDER.filter((id) => cards[id]).map((id) => state.modules.find((m) => m.id === id));
                 board.replaceChildren(...shown.filter(Boolean).map((m) => homeCard(m, cards[m.id])));
-                if (!shown.length) board.append(el('div', 'empty', 'Nothing to show yet. Press Read new files.'));
+                if (!shown.length) board.append(firstRun());
                 wrap.append(versionLine(builds || {}));
             })
             .catch(() => board.append(el('div', 'empty', 'The home page could not be loaded.')));
         return wrap;
+    };
+    // the first run, before anything has been read: what is ready, what is not, and the one thing to do
+    const fillFirstRun = (box) => {
+        const visible = state.modules.filter((m) => !m.hidden);
+        const known = state.ai !== null && Object.keys(state.health).length > 0; // until the first health answer arrives nothing is claimed either way
+        const down = visible.filter((m) => statusClass(m) === 'down').map((m) => m.name);
+        const modelUp = Boolean(state.ai && state.ai.up);
+        const steps = known
+            ? [
+                  [
+                      modelUp,
+                      modelUp
+                          ? 'The local model is running.'
+                          : 'Start Ollama: the model that reads and explains runs on this computer.',
+                  ],
+                  [
+                      !down.length,
+                      down.length ? `Not running yet: ${down.join(', ')}.` : 'Every part of Atlas is running.',
+                  ],
+              ]
+            : [[false, 'Checking that the model and every part are running…']];
+        steps.push([
+            false,
+            'Press Read new files. Atlas reads your folders, mail and pictures on this computer; nothing is sent anywhere.',
+        ]);
+        box.replaceChildren(el('h2', '', 'Getting started'));
+        for (const [done, text] of steps) {
+            box.append(el('p', 'firstrun-step' + (done ? ' done' : ''), (done ? '✓ ' : '• ') + text));
+        }
+    };
+    const firstRun = () => {
+        const box = el('div', 'firstrun');
+        fillFirstRun(box);
+        return box;
     };
     const render = () => {
         const stage = $('#stage');
@@ -463,6 +497,7 @@
             state.health = {};
         }
         renderChips();
+        document.querySelectorAll('.firstrun').forEach(fillFirstRun);
         document.querySelectorAll('#nav .group .dot').forEach((dot) => {
             const module = byId(dot.closest('.group').dataset.module);
             const next = 'dot ' + statusClass(module);
