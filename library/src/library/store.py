@@ -17,6 +17,7 @@ import re
 import shutil
 import sqlite3
 import threading
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -331,12 +332,25 @@ def _why_rejected(f: Path, d: Any, error: Exception | None = None) -> tuple[str,
     return name, reason, group
 
 
+ORPHAN_SECONDS = 3600  # a half-written hand-over file older than this was left by a reader that stopped
+
+
+def _remove_orphans(directory: Path) -> None:
+    """A reader that was stopped half way leaves `.<id>.tmp` with part of a file's text in it. Nothing would ever read it, so it is removed once it is clearly abandoned (never while a reader may still be writing it)."""
+    cutoff = time.time() - ORPHAN_SECONDS
+    for leftover in directory.glob(".*.tmp"):
+        with contextlib.suppress(OSError):
+            if leftover.is_file() and leftover.stat().st_mtime < cutoff:
+                leftover.unlink()
+
+
 def ingest_dir(
     conn, directory: Path, stop=None, on_new: Callable[[str], None] | None = None, on_rejected: Callable[[str, str, str], None] | None = None
 ) -> dict[str, int]:
     """Take the reader's output into the database. Strict: anything unexpected is skipped, never partially trusted. The readable copy is deleted once stored."""
     new = known = rejected = replaced = 0
     stored: list[Path] = []
+    _remove_orphans(directory)
     for looked, f in enumerate(sorted(directory.resolve().glob("*.json")), 1):
         if stop is not None and looked % 100 == 0 and stop():
             break  # Stop: what is taken in so far stays, the rest waits for the next read

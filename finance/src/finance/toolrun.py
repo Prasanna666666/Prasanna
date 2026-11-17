@@ -119,7 +119,8 @@ def _coerce(tool, args: dict[str, Any]) -> dict[str, Any]:
             if t == "integer" and isinstance(v, (str, float)):
                 out[k] = int(float(v))
             elif t == "number" and isinstance(v, str):
-                out[k] = float(kit_money.parse_amount(v))
+                exact = kit_money.parse_amount(v)  # kept exact: a float would change what was written (1.004999999999999999999 would become 1.005)
+                out[k] = int(exact) if exact == exact.to_integral_value() else exact
         except ValueError:
             pass
     return out

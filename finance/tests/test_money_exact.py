@@ -146,3 +146,60 @@ def test_large_negative_and_repeated_amounts_stay_exact(tmp_path, monkeypatch):
     finance_money.add_transaction(conn, {"amount": "1234567890.12", "category": "big"})
     assert conn.execute("SELECT sum(amount_minor) FROM transactions").fetchone()[0] == 2000 * 7 + 123456789012
     assert money.to_minor("-1234567890.125") == -123456789013
+
+
+@pytest.mark.parametrize(
+    ("written", "minor"),
+    [
+        ("1.004999999999999999999", 100),  # a float would have made this 1.005, which rounds up to 101
+        ("1.005000000000000000001", 101),
+        ("0.00499999999999999", 0),
+        ("0.005", 1),
+        ("2.675", 268),
+        ("1234567890123456.784", 123456789012345678),
+        ("-2.675", -268),
+        ("1.250,505", 125051),
+        ("1,250.504", 125050),
+    ],
+)
+def test_a_typed_amount_reaches_the_ledger_exactly_as_written_whatever_its_length(conn, written, minor):
+    from finance import toolrun
+
+    out, failed = toolrun.run_tool(conn, "add_transaction", {"amount": written, "category": "x", "kind": "income"})
+    if minor <= 0:
+        assert failed
+        return
+    assert not failed, out
+    assert conn.execute("SELECT amount_minor FROM transactions ORDER BY id DESC LIMIT 1").fetchone()[0] == minor
+
+
+def test_the_coerced_value_is_never_a_float_when_the_text_is_a_number():
+    from finance import toolrun
+
+    tool = toolrun.registry(toolrun.ALL)["add_transaction"]
+    coerced = toolrun._coerce(tool, {"amount": "1.004999999999999999999"})["amount"]
+    assert not isinstance(coerced, float) and str(coerced) == "1.004999999999999999999"
+    assert toolrun._coerce(tool, {"amount": "30"})["amount"] == 30 and isinstance(toolrun._coerce(tool, {"amount": "30"})["amount"], int)
+
+
+def test_every_amount_argument_of_every_tool_keeps_the_exact_text(conn):
+    """The money arguments of every tool that takes one are read by kit.money from the exact text, so none of them changes the submitted value."""
+    from finance import toolrun
+
+    exact = "1.004999999999999999999"
+    seen = {}
+    for name, tool in toolrun.registry(toolrun.ALL).items():
+        for key, spec in tool.properties.items():
+            if spec.get("type") == "number" and key not in ("limit", "months", "days", "id"):
+                seen[(name, key)] = toolrun._coerce(tool, {key: exact})[key]
+    assert seen, "no money argument found"
+    assert all(str(value) == exact for value in seen.values()), {k: v for k, v in seen.items() if str(v) != exact}
+    assert {"amount", "monthly_amount", "target", "value", "price", "units", "min_amount", "max_amount"} <= {k for _, k in seen}
+
+
+def test_a_holding_typed_with_long_decimals_is_valued_exactly(conn):
+    from finance import toolrun
+
+    out, failed = toolrun.run_tool(conn, "add_holding", {"kind": "investment", "name": "Fund", "units": "3", "price": "0.335"})
+    assert not failed, out
+    assert conn.execute("SELECT value_minor FROM holdings").fetchone()[0] == 101  # 3 × 0.335 = 1.005 → 1.01 in one rounding

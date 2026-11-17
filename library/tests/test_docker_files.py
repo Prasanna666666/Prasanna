@@ -94,7 +94,12 @@ def test_one_command_starts_and_updates_and_a_start_without_changes_does_not_reb
     up = (root / "up.sh").read_text()
     assert "git rev-parse HEAD" in up and "ATLAS_NO_BUILD=1" in up and "ATLAS_REBUILD" in up
     update = (root / "update.sh").read_text()
-    assert "git fetch origin" in update and "git checkout -B atlas origin/atlas" in update and "./up.sh" in update
+    assert "scripts/update-code.sh" in update and "./up.sh" in update
+    assert "checkout -B" not in update, (
+        "the update must never reset the owner's branch pointer"
+    )  # what it does instead is tested by running it: atlas/tests/test_update_script.py
+    step = (root / "scripts" / "update-code.sh").read_text()
+    assert "git fetch origin" in step and "--ff-only" in step and "checkout -B" not in step
     assert "atlas-migrated" in (root / "finance" / "scripts" / "up.sh").read_text()  # the one-time clean-up of the old names runs once
 
 

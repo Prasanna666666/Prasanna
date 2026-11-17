@@ -482,3 +482,23 @@ def test_a_medical_reading_made_before_completeness_was_recorded_is_read_again(l
             return {"content": json.dumps({"values": [{"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L"}]})}
 
     assert judging.fill_health_details(lib.conn, Model(), "m") == 1
+
+
+def test_a_result_marked_for_checking_is_not_flagged_and_is_not_used_for_the_change(lib):
+    ok = {"test": "Hemoglobine", "value": "8,4", "number": 8.4, "unit": "mmol/L", "range": "7,5 - 10,0"}
+    doubtful = {
+        "test": "Hemoglobine",
+        "value": "10,0",
+        "number": 10.0,
+        "unit": "mmol/L",
+        "range": "7,5 - 10,0",
+        "check": "the result is only an end of the printed reference range",
+    }
+    lib.add("a.pdf", "medical", title="A", date="2025-01-01", health={"values": [ok], "medicines": [], "follow_up": None, "complete": True, "unprocessed": []})
+    lib.add(
+        "b.pdf", "medical", title="B", date="2025-06-01", health={"values": [doubtful], "medicines": [], "follow_up": None, "complete": True, "unprocessed": []}
+    )
+    group = healthdata.health_values(lib.conn)["tests"][0]
+    latest = group["latest"]
+    assert latest["flag"] == "unverified" and latest["check"] and group["change"] is None
+    assert group not in healthdata.health_values(lib.conn)["attention"]

@@ -311,3 +311,54 @@ def test_dates_before_2000_are_read_too(text, iso):
 
 def test_a_two_digit_year_is_not_guessed():
     assert extract.dates_in("Datum 12-01-26") == set()
+
+
+LAB = "Uitslag bloedonderzoek\nHemoglobine 8,4 mmol/L (7,5 - 10,0)\nGlucose 6,4 mmol/L (4,0 - 6,0)\nCRP < 5 mg/L\nCreatinine -2,0 mmol/L (-3,0 - 3,0)\n"
+
+
+def _read(rows, text=LAB):
+    return extract.medical_details(Model({"values": rows}), "m", "lab.pdf", text)["values"]
+
+
+def test_a_result_next_to_its_test_name_is_not_marked():
+    rows = _read([{"test": "Hemoglobine", "value": "8,4", "unit": "mmol/L", "range": "7,5 - 10,0"}])
+    assert rows[0]["value"] == "8,4" and "check" not in rows[0]
+
+
+@pytest.mark.parametrize("endpoint", ["10,0", "7,5"])
+def test_a_range_end_reported_as_the_result_is_kept_but_marked(endpoint):
+    rows = _read([{"test": "Hemoglobine", "value": endpoint, "unit": "mmol/L", "range": "7,5 - 10,0"}])
+    assert rows[0]["value"] == endpoint and rows[0]["check"] == "the result is only an end of the printed reference range"
+
+
+def test_a_value_that_equals_an_end_of_the_range_but_is_also_printed_as_the_result_is_not_marked():
+    text = "Hemoglobine 10,0 mmol/L (7,5 - 10,0)\n"
+    rows = _read([{"test": "Hemoglobine", "value": "10,0", "unit": "mmol/L", "range": "7,5 - 10,0"}], text)
+    assert "check" not in rows[0]
+
+
+def test_a_value_from_another_line_is_marked_as_not_next_to_its_test_name():
+    rows = _read([{"test": "Hemoglobine", "value": "6,4", "unit": "mmol/L", "range": ""}])  # 6,4 is the glucose result
+    assert rows[0]["check"] == "the result is not next to its test name in the document"
+
+
+def test_inequality_ranges_negative_values_and_decimal_commas_are_kept_exactly():
+    rows = _read(
+        [
+            {"test": "CRP", "value": "5", "unit": "mg/L", "range": ""},
+            {"test": "Creatinine", "value": "-2,0", "unit": "mmol/L", "range": "-3,0 - 3,0"},
+            {"test": "Glucose", "value": "6,4", "unit": "mmol/L", "range": "4,0 - 6,0"},
+        ]
+    )
+    by = {r["test"]: r for r in rows}
+    assert by["Creatinine"]["number"] == -2.0 and "check" not in by["Creatinine"]
+    assert by["Glucose"]["number"] == 6.4 and "check" not in by["Glucose"]
+
+
+def test_a_repeated_measurement_of_the_same_test_stays_two_rows_each_next_to_its_own_name():
+    text = "Hemoglobine 8,4 mmol/L (7,5 - 10,0)\n" + "toelichting " * 1200 + "\nHemoglobine 9,1 mmol/L (7,5 - 10,0)\n"
+    rows = _read(
+        [{"test": "Hemoglobine", "value": "8,4", "range": "7,5 - 10,0"}, {"test": "Hemoglobine", "value": "9,1", "range": "7,5 - 10,0"}],
+        text,
+    )
+    assert sorted(r["value"] for r in rows) == ["8,4", "9,1"] and not any("check" in r for r in rows)

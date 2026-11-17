@@ -148,7 +148,8 @@ def health_values(conn, test: str = "") -> dict[str, Any]:
                     "number": v.get("number"),
                     "unit": v.get("unit") or "",
                     "range": v.get("range") or "",
-                    "flag": range_flag(v.get("number"), v.get("range") or ""),
+                    "flag": "unverified" if v.get("check") else range_flag(v.get("number"), v.get("range") or ""),
+                    "check": v.get("check") or "",
                     "document": d["name"],
                     "id": d["id"],
                 }
@@ -158,8 +159,8 @@ def health_values(conn, test: str = "") -> dict[str, Any]:
         latest = g["readings"][-1]
         g["latest"], g["flag"] = latest, latest["flag"]
         g["change"] = None
-        before = next((r for r in reversed(g["readings"][:-1]) if r["number"] is not None), None)
-        if before is not None and latest["number"] is not None:
+        before = next((r for r in reversed(g["readings"][:-1]) if r["number"] is not None and not r["check"]), None)
+        if before is not None and latest["number"] is not None and not latest["check"]:
             diff = round(latest["number"] - before["number"], 4)
             g["change"] = {
                 "since": before["date"],

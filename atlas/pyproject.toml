@@ -35,7 +35,7 @@ max-args = 7  # more is bundled into one record
 max-positional-args = 7
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S105", "S106", "PLC0415", "RUF059", "PLR0912", "PLR2004"]  # test tokens are invented; local imports keep each test self-contained
+"tests/*" = ["S105", "S106", "S603", "S607", "PLW1510", "PLC0415", "RUF059", "PLR0912", "PLR2004"]  # the update-script test runs git and bash on folders it makes itself  # test tokens are invented; local imports keep each test self-contained
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15

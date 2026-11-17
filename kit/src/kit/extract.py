@@ -363,6 +363,28 @@ def _windows(text: str) -> list[tuple[int, str]]:
         start = _line_start(text, end - OVERLAP)
 
 
+_RANGE_NUMBER = re.compile(r"[-+]?\d+(?:[.,]\d+)?")
+
+
+def _doubt(body: str, test: str, result: str, printed_range: str) -> str:
+    """Why a result should not be trusted as the measurement of its test, or "" when nothing speaks against it. Two checks that need no words: the result must stand on the line of its test name (or, when
+    nothing numeric follows the name there, on the line after it), and it must not be nothing but an end of the reference range printed there (the model quoting `10,0` of `7,5 - 10,0` as if it were the result)."""
+    lines = body.splitlines()
+    near: list[str] = []
+    for i, line in enumerate(lines):
+        at = line.lower().find(test.lower())
+        if at >= 0:
+            has_number = re.search(r"\d", line[at + len(test) :])
+            near.extend([line] if has_number else lines[i : i + 2])  # the result wrapped onto the next line only when nothing numeric follows the name
+    if len(lines) > 1 and near and not any(result in line for line in near):
+        return "the result is not next to its test name in the document"
+    if printed_range and result in _RANGE_NUMBER.findall(printed_range):
+        elsewhere = [line.replace(printed_range, " ") for line in near]
+        if not any(result in line for line in elsewhere):
+            return "the result is only an end of the printed reference range"
+    return ""
+
+
 def _health_window(client, model: str, name: str, body: str) -> dict:
     data = _ask(client, model, HEALTH_PROMPT, f"File name: {name}\n\n{body}", HEALTH_SCHEMA)
     lower, squashed = body.lower(), squash(body.lower())
@@ -374,15 +396,17 @@ def _health_window(client, model: str, name: str, body: str) -> dict:
         if not _printed(lower, squashed, test) or not _printed(lower, squashed, result):
             continue  # not in the document: dropped
         unit, rng = str(v.get("unit") or "").strip(), str(v.get("range") or "").strip()
-        values.append(
-            {
-                "test": test,
-                "value": result,
-                "number": float(result.replace(",", ".")) if _NUMBER.match(result) else None,
-                "unit": unit if _printed(lower, squashed, unit) else "",
-                "range": rng if _printed(lower, squashed, rng) else "",
-            }
-        )
+        printed_range = rng if _printed(lower, squashed, rng) else ""
+        row = {
+            "test": test,
+            "value": result,
+            "number": float(result.replace(",", ".")) if _NUMBER.match(result) else None,
+            "unit": unit if _printed(lower, squashed, unit) else "",
+            "range": printed_range,
+        }
+        if doubt := _doubt(body, test, result, printed_range):
+            row["check"] = doubt  # kept exactly as the document prints it, but marked: it is not shown as a verified measurement
+        values.append(row)
     medicines = []
     for m in data.get("medicines") or []:
         if not isinstance(m, dict):

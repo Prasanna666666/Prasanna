@@ -23,6 +23,13 @@ def _done(out: Path, digest: str) -> bool:
     return (out / ".done" / digest).exists() or (out / f"{digest}.json").exists()
 
 
+def private_text(path: Path, text: str) -> None:
+    """Write a file only its owner can read (0600): what the reader hands over holds the whole text of a file, and the volume it lies on is shared by two containers."""
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(text)
+
+
 def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, source: str = "") -> None:
     doc = {
         "schema": extraction.SCHEMA,
@@ -35,7 +42,7 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, 
         **res,
     }
     tmp = out / f".{digest}.tmp"
-    tmp.write_text(json.dumps(doc, ensure_ascii=False))
+    private_text(tmp, json.dumps(doc, ensure_ascii=False))
     (out / ".done").mkdir(exist_ok=True)
     (out / ".done" / digest).touch()
     os.replace(tmp, out / f"{digest}.json")  # atomic: the app never sees a half-written file
@@ -70,7 +77,7 @@ MAIL_DEPTH = 3  # a mail forwarded inside a mail still gets its attachments read
 def _now(out: Path, name: str, step: str = "") -> None:
     """What the reader is on, for the Documents service to show: the name, and (when it is not simply reading a file) what it is doing."""
     with contextlib.suppress(OSError):
-        (out / ".now").write_text(f"{name[:200]}\n{step[:100]}")
+        private_text(out / ".now", f"{name[:200]}\n{step[:100]}")
 
 
 @dataclass
@@ -277,10 +284,10 @@ def _progress_add(out: Path, area: str, n: int, group: str = "", unread: int = 0
 def _write_progress(out: Path) -> None:
     with contextlib.suppress(OSError):
         tmp = out / ".progress.tmp"
-        tmp.write_text(json.dumps({**_PROGRESS, "unread": _UNREAD}))
+        private_text(tmp, json.dumps({**_PROGRESS, "unread": _UNREAD}))
         os.replace(tmp, out / ".progress")
         failed = out / ".unread-files.tmp"
-        failed.write_text(json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read so far, for the card
+        private_text(failed, json.dumps(_FAILED[:MAX_FAILED]))  # what could not be read so far, for the card
         os.replace(failed, out / ".unread-files")
 
 

@@ -17,6 +17,11 @@ def _main(conn) -> str:
     return get_setting(conn, "currency", "EUR")
 
 
+def _units(value):
+    """How many units of an investment, kept as a plain number (a count, not an amount of money: the value is worked out exactly from the text)."""
+    return None if value is None else float(value)
+
+
 def add_holding(conn, a):
     """Something you typed in: an investment (units and price, or a value), an asset (house, car) or a debt (loan, mortgage)."""
     kind = str(a.get("kind", "")).lower()
@@ -41,7 +46,7 @@ def add_holding(conn, a):
         kit_money.check_fits(a.get(field), currency)
     cur = conn.execute(
         "INSERT INTO holdings (name, kind, value_minor, units, price_minor, currency, as_of, cost_minor) VALUES (?,?,?,?,?,?,?,?)",
-        (name[:80], kind, value, a.get("units"), kit_money.to_minor(a["price"]) if a.get("price") is not None else None, currency, as_of, cost),
+        (name[:80], kind, value, _units(a.get("units")), kit_money.to_minor(a["price"]) if a.get("price") is not None else None, currency, as_of, cost),
     )
     conn.commit()
     return {"id": cur.lastrowid, "name": name, "kind": kind, "value": value / 100, "currency": currency, "as_of": as_of}
@@ -55,7 +60,7 @@ def update_holding(conn, a):
     for field in ("value", "price", "cost"):
         kit_money.check_fits(a.get(field), row["currency"])
     if a.get("units") is not None and a.get("price") is not None:
-        value, units, price = kit_money.total_to_minor(a["units"], a["price"]), a["units"], kit_money.to_minor(a["price"])
+        value, units, price = kit_money.total_to_minor(a["units"], a["price"]), _units(a["units"]), kit_money.to_minor(a["price"])
     elif a.get("price") is not None and row["units"] is not None:
         units, price = row["units"], kit_money.to_minor(a["price"])
         value = kit_money.scale_minor(units, price)

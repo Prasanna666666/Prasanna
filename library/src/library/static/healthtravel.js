@@ -610,7 +610,7 @@
                 }
                 const cell = el('button', `mx-cell ${FLAG[r.flag] || 'none'}`, r.value);
                 cell.type = 'button';
-                cell.title = r.range ? `printed range ${r.range}` : g.test;
+                cell.title = r.check ? `Check this one: ${r.check}` : r.range ? `printed range ${r.range}` : g.test;
                 cell.addEventListener('click', () => openDoc(r.id));
                 grid.append(cell);
             }
