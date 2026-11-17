@@ -38,7 +38,7 @@ The PR answers an earlier review round (a ChatGPT review and a Gemini audit rubr
 
 ## How to answer
 
-- Comment on the pull request (inline on code, documents or screenshots, or as a reply under a numbered row). Begin each comment with an ID: `R1-4`, `R2-4`, `D-10`, `O-4` or `UI-3`.
+- If you can post on GitHub, comment on the pull request (inline on code, documents or screenshots, or as a reply under a numbered row). **If you cannot (most AI chat assistants cannot), write the comments in your answer, one per finding, ready to paste: the owner will post them on the pull request for you. Do not claim a comment was posted.** Begin each comment with an ID: `R1-4`, `R2-4`, `D-10`, `O-4` or `UI-3`.
 - Give **evidence**: file and line, a command and its output, or a short reproduction. Without evidence it is recorded as "not verified".
 - Mark severity: **blocker** (wrong money, lost or exposed data, a bypass of the confirmation rule), **high**, **medium**, **low**, **nit**.
 - Say what you could not check.
