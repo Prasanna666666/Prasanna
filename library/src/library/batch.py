@@ -55,13 +55,25 @@ def _write(out: Path, digest: str, label: str, size: int, res: dict, area: str, 
     tmp = out / f".{digest}.tmp"
     text = json.dumps(doc, ensure_ascii=False)
     public = os.environ.get(HANDOVER_PUBLIC_KEY, "")
-    if public:  # sealed to the app's public key: this reader can write the file but never read it back
-        private_bytes(tmp, seal.seal(text.encode("utf-8"), public))
-    else:
-        private_text(tmp, text)
-    (out / ".done").mkdir(exist_ok=True)
-    (out / ".done" / digest).touch()
-    os.replace(tmp, out / (f"{digest}.sealed" if public else f"{digest}.json"))  # atomic: the app never sees a half-written file
+    payload = (
+        seal.seal(text.encode("utf-8"), public) if public else text.encode("utf-8")
+    )  # sealed to the app's public key: this reader can write the file but never read it back
+    target = out / (f"{digest}.sealed" if public else f"{digest}.json")
+    for last in (False, True):
+        (private_bytes if public else _private_utf8)(tmp, payload)
+        (out / ".done").mkdir(exist_ok=True)
+        (out / ".done" / digest).touch()
+        try:
+            os.replace(tmp, target)  # atomic: the app never sees a half-written file
+            return
+        except FileNotFoundError:
+            # this process was suspended (a sleeping Mac) for so long that the app cleaned up its temporary file as abandoned: it is written again, once
+            if last:
+                raise
+
+
+def _private_utf8(path: Path, data: bytes) -> None:
+    private_text(path, data.decode("utf-8"))
 
 
 _CLAIMED: set[str] = set()

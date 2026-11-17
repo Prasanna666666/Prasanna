@@ -229,3 +229,35 @@ def test_a_disk_error_while_reading_never_deletes_a_valid_hand_over_or_its_mark(
     assert got == {"new": 0, "known": 0, "rejected": 0, "replaced": 0, "unreadable": 1}
     assert sealed.read_bytes() == before and (tmp_path / ".done" / ("a" * 64)).exists()
     assert store.ingest_dir(conn, tmp_path, on_rejected=lambda *a: None)["new"] == 1  # the disk recovers: the same file is taken in
+
+
+def test_a_temporary_file_cleaned_up_while_the_reader_was_suspended_is_written_again_not_lost(tmp_path, keys, monkeypatch):
+    """A Mac that sleeps in the middle of a write wakes up with an hours-old temporary file, which the app may have cleaned up as abandoned. The reader writes that result again instead of failing."""
+    import os as real_os
+
+    private, public = keys
+    calls = []
+    real_replace = real_os.replace
+
+    def replace_after_cleanup(src, dst):
+        calls.append(src)
+        if len(calls) == 1:
+            Path(src).unlink()  # the app's cleanup got there first
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(batch.os, "replace", replace_after_cleanup)
+    _write(tmp_path, DOC, public)
+    assert len(calls) == 2
+    monkeypatch.setenv("LIBRARY_HANDOVER_PRIVATE_KEY", private)
+    assert seal.open_sealed((tmp_path / ("a" * 64 + ".sealed")).read_bytes(), private)  # the result is there and opens
+
+
+def test_a_second_vanished_temporary_file_is_an_error_not_a_silent_loss(tmp_path, keys, monkeypatch):
+    _, public = keys
+
+    def always_gone(src, dst):
+        raise FileNotFoundError(src)
+
+    monkeypatch.setattr(batch.os, "replace", always_gone)
+    with pytest.raises(FileNotFoundError):
+        _write(tmp_path, DOC, public)
