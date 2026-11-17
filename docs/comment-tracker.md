@@ -51,9 +51,9 @@ Detail for each defect is in `defects.md` and `reconciliation.md`. Counts below 
 |---|---|---|
 | R2-1 | Gates; no commented-out code | PARTIAL: gates run; "no commented-out code" not checked by a tool |
 | R2-2 | The nine owner rules | PARTIAL: R-Q8 exception (O-8); R-Q10 not tested |
-| R2-3 | Old migrations never edited | CLOSED (D-28; history before `e8718a1` NOT VERIFIED) |
+| R2-3 | Old migrations never edited | FIXED - P3 - awaiting reviewer (D-28; history before `e8718a1` NOT VERIFIED) - 97d5e29 |
 | R2-4 | 500 MB memory | PARTIAL: measured, default 100 MB, no streaming (O-4) |
-| R2-5 | Scorecard and unverified-claims ledger | CLOSED: `testing.md`, `defects.md` |
+| R2-5 | Scorecard and unverified-claims ledger | FIXED - P1 - docs: `testing.md`, `defects.md` - 97d5e29 |
 
 ## 4. R3 (Gemini review of the PR)
 
@@ -63,15 +63,15 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 
 | ID | Item | Status |
 |---|---|---|
-| D-24 | "yes" meant any yes-word | CLOSED |
-| D-25 | grouped changes | CLOSED |
-| D-26 | deletes unstaged | CLOSED |
-| D-27 | plain leftover after a crash | CLOSED |
-| D-28 | migration immutability | CLOSED (see R2-3) |
-| D-29 | a yes bound to the exchange before it | CLOSED |
-| D-30 | crash-point tests | CLOSED |
+| D-24 | "yes" meant any yes-word | FIXED - P3 - awaiting reviewer - 97d5e29 |
+| D-25 | grouped changes | FIXED - P3 - awaiting reviewer - 97d5e29 |
+| D-26 | deletes unstaged | FIXED - P3 - awaiting reviewer - 97d5e29 |
+| D-27 | plain leftover after a crash | FIXED - P3 - awaiting reviewer - 97d5e29 |
+| D-28 | migration immutability | FIXED - P3 - awaiting reviewer (see R2-3) - 97d5e29 |
+| D-29 | a yes bound to the exchange before it | FIXED - P3 - awaiting reviewer - 97d5e29 |
+| D-30 | crash-point tests | FIXED - P2 - 97d5e29 |
 | O-14 | range end as a result | PARTIAL (D-34) |
-| O-15 | Images pre-upgrade copy | CLOSED (D-35) |
+| O-15 | Images pre-upgrade copy | FIXED - P3 - awaiting reviewer (D-35) - 97d5e29 |
 | O-16 | plain parser hand-over | PARTIAL (D-33) |
 | O-17 | date source not shown | PARTIAL: Finance Documents page only |
 
@@ -79,8 +79,8 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 
 | ID | Finding | Status |
 |---|---|---|
-| R6-1 (R3-1) | float in `_coerce` | CLOSED (D-31) |
-| R6-2 (R3-2) | `update.sh` moves the branch | CLOSED (D-32) |
+| R6-1 (R3-1) | float in `_coerce` | FIXED - P3 - awaiting reviewer (D-31) - 97d5e29 |
+| R6-2 (R3-2) | `update.sh` moves the branch | FIXED - P3 - awaiting reviewer (D-32) - 97d5e29 |
 | R6-3 (R3-3) | plain hand-over | PARTIAL (D-33, O-16) |
 | R6-4 (R3-4) | health result vs range | PARTIAL (D-34, O-14) |
 | R6-x | exhaustive audit of 508 entries, every screenshot, every deployment path | OPEN: 397 entries NOT INSPECTED (`coverage-matrix.md`); deployment NOT VERIFIABLE HERE |
@@ -89,10 +89,10 @@ R3-1 O-1: PARTIAL. R3-2 O-2: CLOSED (D-39) for the tool; leftovers on the Mac no
 
 | ID | Item | Status |
 |---|---|---|
-| R7 | O-2, O-3, O-11, O-13, O-15, O-17 and UI notes listed as closed but not done | CLOSED after doing them (D-35 to D-42) |
-| NEW-01 | test inventory did not add up | CLOSED (D-44, `scripts/test-inventory.py`) |
-| NEW-02 | comment claimed undo; none exists | CLOSED (D-43); real undo OPEN (O-7) |
-| O-13 | past history cut not announced | CLOSED (D-45) |
+| R7 | O-2, O-3, O-11, O-13, O-15, O-17 and UI notes listed as closed but not done | FIXED - P3 for D-35 to D-40 and D-42, P2 for D-41 - awaiting reviewer - 97d5e29 |
+| NEW-01 | test inventory did not add up | FIXED - P2 (D-44, `scripts/test-inventory.py`) - 97d5e29 |
+| NEW-02 | comment claimed undo; none exists | FIXED - P3 - awaiting reviewer (D-43); real undo OPEN (O-7) - 97d5e29 |
+| O-13 | past history cut not announced | FIXED - P3 - awaiting reviewer (D-45) - 97d5e29 |
 
 ## 8. R9: ChatGPT product, screenshot and functionality review (this session)
 
@@ -100,28 +100,28 @@ Not yet replied to on the PR. Items checked against the code and screenshots:
 
 | ID | Comment | Verified? | Status |
 |---|---|---|---|
-| P-1 | **Health says "All within range" for a report dated six months ago** and uses reassuring green; the requirement says show values as printed and do not interpret | **Confirmed** in the screenshot (`03-health.png`) and the code (`healthtravel.js`): the age was only shown from 12 months | **IN PROGRESS**: neutral wording ("2 results inside the printed ranges"), the report's age beside it, no green ring or border for a report older than three months, "no medicine records found", the printed-range note with "an older result does not describe today". Edited and pushed to the **separate branch `wip/health-freshness`** (not on the PR branch); passes prettier and eslint only; **not browser-checked, no test yet, no screenshot retaken** |
-| P-2 | Finance "142% monthly vs before" has no comparison period | Confirmed (`app.js:828`; I was reading what "before" compares to when interrupted) | OPEN |
-| P-3 | Empty "Due in 3 weeks €0" tile wastes space | Confirmed (screenshot 02) | OPEN |
-| P-4 | Net worth next to "no statements read yet" confuses | Confirmed; the label was changed from "Cash €0" but net worth still shows | PARTIAL |
-| P-5 | Metrics undefined (kept in 2026, savings rate, investment gain) and no data-freshness date | Confirmed: nothing shows the latest statement date | OPEN |
-| P-6 | Figures look authoritative when source data is incomplete (reconciliation status) | Partly: the app proves months and holds back unproven ones, but the dashboard does not say so | OPEN |
-| P-7 | Overview: crowded status pills, Ask invited while the AI is off, little to click | Confirmed (screenshot 01) | OPEN (UI-G) |
-| P-8 | Photos disconnected page has no retry, no last-indexed time | Confirmed (`library/static/app.js:78`) | OPEN; needs a server-side drive recheck |
-| P-9 | Calendar: empty grid, agenda below the fold | Confirmed (screenshot 06) | OPEN (UI-K) |
+| P-1 | **Health says "All within range" for a report dated six months ago** and uses reassuring green; the requirement says show values as printed and do not interpret | **Confirmed** in the screenshot (`03-health.png`) and the code (`healthtravel.js`): the age was only shown from 12 months | FIXED - P3 - awaiting reviewer - 796d485 (merged from the wip branch; browser-checked; test; an out-of-range result keeps its warning at any age) |
+| P-2 | Finance "142% monthly vs before" has no comparison period | Confirmed (`app.js:828`; I was reading what "before" compares to when interrupted) | FIXED - P3 - awaiting reviewer - 631130b (comparison names its month: "vs October 2026") |
+| P-3 | Empty "Due in 3 weeks €0" tile wastes space | Confirmed (screenshot 02) | FIXED - P3 - awaiting reviewer - 631130b (tile hidden when there are no payments; three-tile row) |
+| P-4 | Net worth next to "no statements read yet" confuses | Confirmed; the label was changed from "Cash €0" but net worth still shows | FIXED - P3 - awaiting reviewer - 631130b (label: "without account balances: no statements read yet"). Not shown: that the figure itself is wrong; a complete/partial breakdown is not built (PARTIAL for that part) |
+| P-5 | Metrics undefined (kept in 2026, savings rate, investment gain) and no data-freshness date | Confirmed: nothing shows the latest statement date | PARTIAL - P3 - a6c67bc (the month card says proven or not and the newest payment date); a period on every headline metric is OPEN |
+| P-6 | Figures look authoritative when source data is incomplete (reconciliation status) | Partly: the app proves months and holds back unproven ones, but the dashboard does not say so | PARTIAL - P3 - a6c67bc ("not proven: <reason>. These figures may be incomplete."); list of missing months and the assistant using it OPEN (the assistant never sees finance data: owner decision) |
+| P-7 | Overview: crowded status pills, Ask invited while the AI is off, little to click | Confirmed (screenshot 01) | FIXED - P3 - awaiting reviewer - aec2230 (one summary chip; "Read new files" stays in view at 1280, 1100, 900 px). Ask-while-AI-off wording not changed |
+| P-8 | Photos disconnected page has no retry, no last-indexed time | Confirmed (`library/static/app.js:78`) | OPEN - owner decision: the drive is mounted when the container starts (`library/docker-compose.pictures.yml:32`), so a recheck cannot find a later drive; a "Check again" button was built and reverted |
+| P-9 | Calendar: empty grid, agenda below the fold | Confirmed (screenshot 06) | FIXED - P3 - awaiting reviewer - aec2230 (empty month is one line with a jump to the next month that has something) |
 | P-10 | Travel: no itinerary, no segments, no source documents | Partly: documents list exists on the Documents tab; no segment detail | ROADMAP |
 | P-11 | First run: no guided setup | Confirmed (screenshot 08) | ROADMAP (UI-L) |
 | P-12 | Mobile: Ask button covers content, large cards | Padding fixed (measured 120 px); card size and header not changed | PARTIAL |
 | P-13 | Personal Inbox across modules; personal timeline; source links in assistant answers; Update trust panel; document intelligence; financial and travel intelligence | Not present | ROADMAP |
 | P-14 | Provenance on every fact (page, date extracted, verified) | Finance date source only | PARTIAL (O-17) |
-| P-15 | Missing connected Photos screenshot | True: no photo drive in the demo | NOT VERIFIABLE HERE |
-| P-16 | "Do not add yet": autonomous agent, cloud sync, medical advice | Agreed; nothing of that was added | CLOSED (no action) |
+| P-15 | Missing connected Photos screenshot | True: no photo drive in the demo | BLOCKED - NEEDS MAC/MODEL (no connected photo drive in the demo) |
+| P-16 | "Do not add yet": autonomous agent, cloud sync, medical advice | Agreed; nothing of that was added | ROADMAP (scope note, no defect) |
 
 ## 9. Open at this moment
 
-- **P-1 work is on `wip/health-freshness`, not on the PR branch**, and untested beyond prettier and eslint. It is not counted as done until the browser check, a retaken Health screenshot and a test pass; then it is merged into `atlas`.
+- P-1 (Health) is on the PR branch now (`796d485`), browser-checked and tested.
 - **Status words:** ChatGPT approved with amendments (section 10); Gemini's answer is still awaited. The rows below keep the old words until the owner confirms the final set; the mapping is in the header.
-- Everything marked OPEN, PARTIAL, ROADMAP or NOT VERIFIABLE HERE above.
+- Everything marked OPEN, PARTIAL, ROADMAP or BLOCKED above. Work left for the author: O-14 needs real reports (cannot be built from invented ones), Images fixture for O-12, a currency-aware three-decimal import. Waiting on the owner: O-16, the Photos drive mount (P-8), the assistant part of P-6, the Mac and real-model runs.
 - The three blockers before sensitive use: the Mac and real-model run, the plain parser hand-over, and health layouts beyond a range end.
 
 ## 10. ChatGPT's answer on the status scheme (head `41e9d36`; decision REQUEST CHANGES)
@@ -187,3 +187,15 @@ Recorded, not adopted as an approval. `2e2fd91` is an ancestor of the current he
 - "Linters and type checkers completely green" and "UI theme checks green": CI for the exact heads completed without failure; no one has independently re-run lint, type checks or the page check.
 - Merge is the owner's decision. Open items remain as tracked: O-1, O-4, O-5, O-6, O-7, O-8, O-9, O-10, O-12, O-14, O-16, P-1 to P-16 and the NEEDS MAC/MODEL checks.
 Conclusion: Gemini's answer does not change any status. It does agree the next real step is a run on the owner's Mac with the local model, which is what stays BLOCKED until then.
+
+## 14. Changes after the final reviewer answer on `80562da` (all author-run; CI for these commits not yet seen when this was written)
+
+| Commit | What |
+|---|---|
+| `138f900`, `631130b` | Finance dashboard: comparison names its month, empty due tile hidden, net-worth label (P-2, P-3, P-4); browser-checked; `finance/tests/test_dashboard_labels.py` |
+| `40d023b` | No gradients in `design.css` and the Documents pages; flat photo tints; `library/tests/test_no_gradients.py`. Limit: legacy gradient rules remain in `atlas.css` and `finance/app.css` (overridden by `design.css`, not scanned) |
+| `aec2230` | Calendar empty month and header summary chip (P-9, P-7); `atlas/tests/test_header_and_calendar_pages.py` |
+| `796d485` | Health freshness (P-1); `library/tests/test_health_freshness.py` |
+| `a6c67bc` | Month proven or not and newest payment on the dashboard (P-5, P-6 in part) |
+| `326e0a5` | **Found while working on O-1:** `tables.parse_money` rounded a third decimal to cents without a word; it now refuses to read such an amount (the statement is then held back). Earlier docs said the three-decimal currencies were refused everywhere; for statement import that was not true until this commit |
+| `745668c`, `1b19673` | Older-release upgrade tests for Finance and Documents (O-12) from text dumps written by the code of older commits |
