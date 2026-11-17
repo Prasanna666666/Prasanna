@@ -68,3 +68,22 @@ def test_a_missing_cryptography_package_is_said_plainly_and_is_not_taken_for_a_b
     with pytest.raises(seal.SealUnavailableError, match="pip install cryptography"):
         seal.generate_keypair()
     assert not issubclass(seal.SealUnavailableError, ValueError)  # so ingest_dir can never treat it as an unusable file
+
+
+def test_the_key_script_says_what_to_do_when_cryptography_is_missing_and_prints_two_keys_otherwise(monkeypatch, capsys):
+    import builtins
+
+    assert seal.main() is None
+    keys = capsys.readouterr().out.split()
+    assert len(keys) == 2 and all(len(k) == 64 for k in keys)
+
+    real_import = builtins.__import__
+
+    def without_cryptography(name, *args, **kwargs):
+        if name.startswith("cryptography"):
+            raise ImportError(name)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_cryptography)
+    message = seal.main()
+    assert message and "pip install cryptography" in message and "Docker route" in message

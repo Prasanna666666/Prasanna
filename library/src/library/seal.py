@@ -102,7 +102,14 @@ def open_sealed(blob: bytes, private_hex: str) -> bytes:
         raise SealError("wrong key or damaged file") from error
 
 
-if (
-    __name__ == "__main__"
-):  # python -m library.seal : prints a new pair, private first, then public (store the private one in the Keychain, give only the public one to the reader)
-    print(*generate_keypair(), sep="\n")
+def main() -> str | None:
+    """`python3 library/src/library/seal.py`: prints a new key pair, private first, then public (the private one goes in the Keychain, only the public one to the reader). Returns a plain message when the sealing library is missing."""
+    try:
+        print(*generate_keypair(), sep="\n")
+    except SealUnavailableError as problem:
+        return f"{problem}\nRun: python3 -m venv /tmp/atlas-venv && source /tmp/atlas-venv/bin/activate && pip install cryptography   and try again (or use the Docker route in docs/MAC_VERIFICATION.md)."
+    return None
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
