@@ -1,8 +1,8 @@
 # Changed-file coverage matrix
 
-Generated from `git diff --name-status -M origin/aperture...HEAD` at `0761872` (plus this review's documents). **499 entries.** The review request asked for every entry to be accounted for; this is the honest account, **not** a claim of exhaustive inspection.
+Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `5676a6a`. **508 entries with rename detection ({'D': 100, 'A': 331, 'M': 5, 'R': 72}); 580 paths without it.** GitHub's pull-request page reports a different count (508 at `5676a6a`) because it counts files in its own diff with its own rename rules and includes the documents added after this was generated; this table is the one derived from git. The review request asked for every entry to be accounted for; this is the honest account, **not** a claim of exhaustive inspection.
 
-Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by the tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot added in the round that I opened and looked at; screenshots not listed as viewed were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review was done. For those, evidence is only the package test suites and CI, which do not prove them correct.
+Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot I opened and looked at; other screenshots were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review. For those, the only evidence is the package suites and CI, which do not prove them correct.
 
 ## Summary by area
 
@@ -12,17 +12,17 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | .claude | 1 | 0 | 0 | 1 |
 | .github | 2 | 1 | 0 | 1 |
 | .streamlit | 1 | 0 | 0 | 1 |
-| atlas | 43 | 11 | 0 | 32 |
+| atlas | 43 | 12 | 0 | 31 |
 | design | 3 | 1 | 0 | 2 |
-| docs | 31 | 16 | 8 | 7 |
-| finance | 99 | 15 | 0 | 84 |
+| docs | 35 | 22 | 6 | 7 |
+| finance | 100 | 18 | 0 | 82 |
 | images | 77 | 6 | 0 | 71 |
-| kit | 32 | 14 | 0 | 18 |
-| library | 95 | 20 | 0 | 75 |
+| kit | 36 | 18 | 0 | 18 |
+| library | 95 | 23 | 0 | 72 |
 | scripts | 28 | 3 | 0 | 25 |
 | src | 46 | 0 | 0 | 46 |
 | tests | 30 | 0 | 0 | 30 |
-| **all** | **499** | **88** | **8** | **403** |
+| **all** | **508** | **105** | **6** | **397** |
 
 ## Every entry
 
@@ -50,7 +50,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `atlas/modules.d/documents.json` | NOT INSPECTED |
 | A | `atlas/modules.d/finance.json` | ROUND |
 | A | `atlas/modules.d/health.json` | NOT INSPECTED |
-| A | `atlas/modules.d/photos.json` | NOT INSPECTED |
+| A | `atlas/modules.d/photos.json` | ROUND |
 | A | `atlas/modules.d/travel.json` | NOT INSPECTED |
 | A | `atlas/pyproject.toml` | ROUND |
 | A | `atlas/src/atlas/__init__.py` | NOT INSPECTED |
@@ -93,11 +93,13 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | D | `docs/adr/0002-plan-based-agent.md` | NOT INSPECTED |
 | D | `docs/agent.md` | NOT INSPECTED |
 | M | `docs/architecture.md` | NOT INSPECTED |
+| A | `docs/coverage-matrix.md` | ROUND |
 | A | `docs/data-locations.md` | ROUND |
 | A | `docs/decisions.md` | ROUND |
 | A | `docs/defects.md` | ROUND |
 | A | `docs/design.md` | ROUND |
 | D | `docs/docker.md` | NOT INSPECTED |
+| A | `docs/reconciliation.md` | ROUND |
 | A | `docs/requirements.md` | ROUND |
 | A | `docs/reviews.md` | ROUND |
 | D | `docs/safety.md` | NOT INSPECTED |
@@ -105,16 +107,18 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `docs/screenshots/01-overview-phone.png` | ROUND |
 | A | `docs/screenshots/01-overview.png` | ROUND |
 | A | `docs/screenshots/02-finance-dashboard-dark.png` | ROUND + VIEWED |
-| A | `docs/screenshots/02-finance-dashboard-phone.png` | ROUND + VIEWED |
+| A | `docs/screenshots/02-finance-dashboard-phone.png` | ROUND |
 | A | `docs/screenshots/02-finance-dashboard.png` | ROUND + VIEWED |
 | A | `docs/screenshots/02b-finance-dashboard-scrolled.png` | ROUND |
 | A | `docs/screenshots/03-health-dark.png` | ROUND |
 | A | `docs/screenshots/03-health-phone.png` | ROUND |
 | A | `docs/screenshots/03-health.png` | ROUND + VIEWED |
 | A | `docs/screenshots/04-travel.png` | ROUND + VIEWED |
-| A | `docs/screenshots/05-photos.png` | ROUND + VIEWED |
-| A | `docs/screenshots/06-calendar.png` | ROUND + VIEWED |
+| A | `docs/screenshots/05-photos.png` | ROUND |
+| A | `docs/screenshots/06-calendar.png` | ROUND |
 | A | `docs/screenshots/08-finance-first-run-empty.png` | ROUND + VIEWED |
+| A | `docs/screenshots/09-finance-documents-with-date-source.png` | ROUND + VIEWED |
+| A | `docs/security-deployment-review.md` | ROUND |
 | A | `docs/testing.md` | ROUND |
 | A | `docs/ui-review.md` | ROUND |
 | A | `down.sh` | NOT INSPECTED |
@@ -141,7 +145,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `finance/src/finance/categories.json` | NOT INSPECTED |
 | A | `finance/src/finance/categorize.py` | NOT INSPECTED |
 | A | `finance/src/finance/changes.py` | ROUND |
-| A | `finance/src/finance/cli.py` | NOT INSPECTED |
+| A | `finance/src/finance/cli.py` | ROUND |
 | A | `finance/src/finance/clock.py` | NOT INSPECTED |
 | A | `finance/src/finance/concepts.json` | NOT INSPECTED |
 | A | `finance/src/finance/concepts.py` | NOT INSPECTED |
@@ -170,7 +174,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `finance/src/finance/report.py` | NOT INSPECTED |
 | A | `finance/src/finance/standards.py` | NOT INSPECTED |
 | A | `finance/src/finance/statements.py` | NOT INSPECTED |
-| A | `finance/src/finance/static/app.css` | NOT INSPECTED |
+| A | `finance/src/finance/static/app.css` | ROUND |
 | A | `finance/src/finance/static/app.js` | ROUND |
 | A | `finance/src/finance/static/common.js` | NOT INSPECTED |
 | A | `finance/src/finance/static/design.css` | ROUND |
@@ -214,6 +218,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `finance/tests/test_tally.py` | NOT INSPECTED |
 | A | `finance/tests/test_toolrun.py` | NOT INSPECTED |
 | A | `finance/tests/test_trip_facts.py` | NOT INSPECTED |
+| A | `finance/tests/test_truncation_audit.py` | ROUND |
 | A | `finance/tests/test_verify.py` | NOT INSPECTED |
 | A | `finance/tests/test_wealth_tax_bills.py` | NOT INSPECTED |
 | A | `finance/tests/test_web.py` | NOT INSPECTED |
@@ -298,7 +303,9 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `kit/src/kit/__init__.py` | NOT INSPECTED |
 | A | `kit/src/kit/amounts.py` | NOT INSPECTED |
 | A | `kit/src/kit/audit.py` | NOT INSPECTED |
+| A | `kit/src/kit/cleanup.py` | ROUND |
 | A | `kit/src/kit/concepts.py` | NOT INSPECTED |
+| A | `kit/src/kit/config.py` | ROUND |
 | A | `kit/src/kit/consent.py` | ROUND |
 | A | `kit/src/kit/currencies.json` | ROUND |
 | A | `kit/src/kit/db.py` | ROUND |
@@ -318,7 +325,9 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `kit/tests/test_call_local.py` | NOT INSPECTED |
 | A | `kit/tests/test_common_helpers.py` | NOT INSPECTED |
 | A | `kit/tests/test_concepts.py` | NOT INSPECTED |
+| A | `kit/tests/test_config.py` | ROUND |
 | A | `kit/tests/test_consent.py` | ROUND |
+| A | `kit/tests/test_db_cleanup.py` | ROUND |
 | A | `kit/tests/test_db_crash_points.py` | ROUND |
 | A | `kit/tests/test_db_safety.py` | ROUND |
 | A | `kit/tests/test_design.py` | ROUND |
@@ -345,7 +354,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `library/src/library/applemail.py` | NOT INSPECTED |
 | A | `library/src/library/apps.json` | NOT INSPECTED |
 | A | `library/src/library/apps.py` | NOT INSPECTED |
-| A | `library/src/library/appstate.py` | NOT INSPECTED |
+| A | `library/src/library/appstate.py` | ROUND |
 | A | `library/src/library/batch.py` | ROUND |
 | A | `library/src/library/bulkmail.py` | NOT INSPECTED |
 | A | `library/src/library/casebook.py` | NOT INSPECTED |
@@ -393,7 +402,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `library/src/library/trace.py` | NOT INSPECTED |
 | A | `library/src/library/travel.py` | NOT INSPECTED |
 | A | `library/src/library/tripdocs.py` | NOT INSPECTED |
-| A | `library/src/library/web.py` | NOT INSPECTED |
+| A | `library/src/library/web.py` | ROUND |
 | R | `library/tests/__init__.py` (from `src/aperture/ui/__init__.py`) | NOT INSPECTED |
 | A | `library/tests/conftest.py` | NOT INSPECTED |
 | A | `library/tests/marks.py` | NOT INSPECTED |
@@ -419,7 +428,7 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `library/tests/test_readers_mail_attachments.py` | NOT INSPECTED |
 | A | `library/tests/test_search.py` | NOT INSPECTED |
 | A | `library/tests/test_selfcheck.py` | NOT INSPECTED |
-| A | `library/tests/test_web.py` | NOT INSPECTED |
+| A | `library/tests/test_web.py` | ROUND |
 | A | `library/tests/test_whole_read.py` | NOT INSPECTED |
 | A | `scripts/add-folder.sh` | NOT INSPECTED |
 | D | `scripts/aperture-docker-migrate.sh` | NOT INSPECTED |
