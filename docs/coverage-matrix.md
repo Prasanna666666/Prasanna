@@ -1,6 +1,6 @@
 # Changed-file coverage matrix
 
-Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `80562da1667cb968f228aa5235de4e595ab512d1`. **512 entries with rename detection (D 100, A 335, M 5, R 72), which equals the 512 files the pull request metadata reports at this head.** The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
+Regenerated from `git diff --name-status -M origin/aperture...HEAD` at `4adc71a0b8d6486cf71a0a6f8996f8d3c32d29e5`. **532 entries with rename detection (D 100, A 355, M 5, R 72).** 512 were listed at `80562da`; the 20 added since are listed at the end (tests, fixtures and screenshots of this round; code files changed in the round were already in the list, so their rows are unchanged) The 508 of the previous version was the count at `5676a6a`; the four new entries are documents and a script added after it (listed at the end, status AUTHORED). Row statuses for the other 508 entries are carried over unchanged from `5676a6a`; none was re-inspected for this regeneration, and code is unchanged since `97d5e29`. This is the honest account, **not** a claim of exhaustive inspection.
 
 Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, changed and covered by tests named in `docs/reconciliation.md`. **ROUND + VIEWED** = a screenshot I opened and looked at; other screenshots were generated but **not individually inspected**. **NOT INSPECTED** = part of the branch before this round, or a deleted legacy file: no line-level review. For those, the only evidence is the package suites and CI, which do not prove them correct. **AUTHORED** = a document or script written after `5676a6a` that has no test and was not inspected by anyone but its author.
 
@@ -23,7 +23,8 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | src | 46 | 0 | 0 | 46 |
 | tests | 30 | 0 | 0 | 30 |
 | added after `5676a6a` (AUTHORED, no test) | 4 | 0 | 0 | 0 |
-| **all** | **512** | **105** | **6** | **397** |
+| added after `80562da`: 8 screenshots opened and looked at (VIEWED); 12 tests, fixtures and one screenshot not opened (AUTHORED, listed as such) | 20 | 0 | 8 | 0 |
+| **all** | **532** | **105** | **14** | **397** (+16 AUTHORED: 4 + 12) |
 
 ## Every entry
 
@@ -541,3 +542,23 @@ Status key: **ROUND** = changed in the review round (`e8718a1..HEAD`): read, cha
 | A | `docs/claude-review.md` | AUTHORED |
 | A | `docs/comment-tracker.md` | AUTHORED |
 | A | `scripts/test-inventory.py` | AUTHORED |
+| A | `atlas/tests/test_header_and_calendar_pages.py` | AUTHORED |
+| A | `docs/screenshots/10-finance-f13-due-accounts-missing-dark.png` | ROUND + VIEWED |
+| A | `docs/screenshots/10-finance-f13-nodue-accounts-light.png` | ROUND + VIEWED |
+| A | `docs/screenshots/11-travel-hero-white-photo-dark.png` | ROUND + VIEWED |
+| A | `docs/screenshots/11-travel-hero-white-photo-light.png` | ROUND + VIEWED |
+| A | `docs/screenshots/12-calendar-empty-month.png` | ROUND + VIEWED |
+| A | `docs/screenshots/13-header-summary-chip.png` | ROUND + VIEWED |
+| A | `docs/screenshots/14-health-old-report-light.png` | ROUND + VIEWED |
+| A | `docs/screenshots/15-finance-month-not-proven.png` | ROUND + VIEWED |
+| A | `docs/screenshots/15-finance-month-proven.png` | AUTHORED |
+| A | `finance/tests/fixtures/release-5f7fa48.sql` | AUTHORED |
+| A | `finance/tests/test_dashboard_labels.py` | AUTHORED |
+| A | `finance/tests/test_statement_amounts_exact.py` | AUTHORED |
+| A | `finance/tests/test_upgrade_from_older_release.py` | AUTHORED |
+| A | `images/tests/fixtures/release-aperture-5d3ddb5.sql` | AUTHORED |
+| A | `images/tests/test_upgrade_from_released_aperture.py` | AUTHORED |
+| A | `library/tests/fixtures/release-573d04f.sql` | AUTHORED |
+| A | `library/tests/test_health_freshness.py` | AUTHORED |
+| A | `library/tests/test_no_gradients.py` | AUTHORED |
+| A | `library/tests/test_upgrade_from_older_release.py` | AUTHORED |
