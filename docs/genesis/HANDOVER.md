@@ -1,6 +1,6 @@
 # Atlas — Handover
 
-**Status:** Updated for single-application direction and personal-work Agent Workforce target  
+**Status:** Updated for single-application direction, personal-work Agent Workforce and worldwide mobile-access target  
 **Repository:** `Prasanna666666/Prasanna`  
 **Documentation branch:** `genesis-architecture`  
 **Implementation baseline:** `atlas`
@@ -11,7 +11,7 @@ Start with [README.md](README.md), then read the canonical documents it indexes.
 
 ## Owner-confirmed product boundary
 
-There is exactly **one Atlas application**. Standalone Finance, Documents, Images and other legacy application shells are obsolete. Their useful features and data must be integrated into Atlas as internal capabilities. Hidden helper processes are allowed only when technically justified; they do not constitute separate apps.
+There is exactly **one Atlas application**. Standalone Finance, Documents, Images and other legacy application shells are obsolete. Their useful features and data must be integrated into Atlas as internal capabilities. Hidden helper processes are allowed only when technically justified; they do not constitute separate apps. macOS is the first platform, not the permanent limit: the eventual product must include iOS and Android clients usable worldwide wherever secure connectivity is available. Atlas Core and AI inference remain under owner control; worldwide access must not introduce cloud inference.
 
 ## Repository handling
 
@@ -29,6 +29,7 @@ Do not delete branches, historical evidence, user data, databases or indexes as 
 3. Claude re-reads the complete canonical set and confirms consistency, or lists exact remaining gaps.
 4. Only after that confirmation, Claude performs the implementation gap analysis against `atlas`, without changing code or data.
 5. ChatGPT reviews the evidence-backed gap analysis and prepares a bounded implementation brief. Owner approval remains required for product priorities, reserved privacy choices and consequential scope/risk decisions.
+6. The worldwide mobile target is included in the gap analysis as a future platform requirement. Do not start mobile implementation during the current documentation-confirmation stage; remote-access topology, device security, offline/sync and mobile release require separate ADRs and staged acceptance.
 
 **Current assignment:** documentation reconciliation and confirmation only. The implementation audit is held until step 3 is complete. No code changes, migrations, app retirement, data movement or destructive action are authorised during this stage.
 
