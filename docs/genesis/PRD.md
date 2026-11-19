@@ -112,6 +112,15 @@ This list is a capability map, not a commitment to implement every integration i
 
 Targets are provisional until measured on the actual hardware and representative workloads. A target is not a verified result.
 
+### 6.1 Additional owner constraints and quality requirements
+- Do not impose arbitrary hardcoded word lists, source-count limits, file-count limits or retention caps that silently exclude useful owner data. Any necessary resource or safety limit must be explicit, configurable where appropriate, visible to the owner, justified and handled without silent data loss.
+- Exact numbers, calculations, dates, units and logical validations must be produced or checked by deterministic code/tools. The model must not improvise arithmetic or act as the sole validator of exact results.
+- Atlas must never edit, rewrite or deploy its own application source code autonomously. Software updates require a separately authorised development and release process.
+- User-facing screens must present clear plain-language outcomes; raw stack traces, source code and internal error dumps are not user-facing content. Diagnostic detail belongs in appropriately redacted developer logs.
+- Preserve source data and report partial processing honestly. Never silently discard, truncate or mark unprocessed content complete.
+- Design for the known representative workload of approximately 26,000 email items and 1,400 documents, subject to inventory verification. Benchmark ingestion and interactive work together, including sleep/resume, low-battery and constrained-resource behaviour.
+- Voice is a desired unified interaction mode, but local speech-to-text and text-to-speech feasibility, quality and latency must be measured on the target hardware before voice is made a foundation release gate.
+
 ## 7. Explicit non-goals for the initial foundation
 
 - Replacing all existing modules in one rewrite; migrate legacy capabilities into the single Atlas application incrementally.
