@@ -52,12 +52,11 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O06 | What are notification quiet hours and escalation preferences? | Design defaults; ask during notification UX acceptance | Later |
 | G-O07 | What are final latency/accuracy thresholds? | Measure baseline and benchmark on target hardware | Yes, after evidence is available |
 | G-O08 | What are the first capability priorities after the foundation? | Present ranked roadmap with effort/risk/value after the read-only slice audit | Yes, at roadmap review |
+| G-O09 | Confirm the exact first vertical-slice workflow | Tentative preference is read-only local document discovery, reading and answering with exact source/page/section citations; owner confirmation still required | Yes, before implementation |
+| G-O10 | Which connectors and external actions may agents use, and at what autonomy level? | Local documents read-only; Mail read-only; Calendar read-only/propose-only. Propose least-privilege scopes for each additional connector; no blanket permission | Yes, per connector/action |
 | G-O11 | What is the minimum supported machine and OS version? | 32 GB Apple-silicon Mac mini is the planning/minimum profile; benchmark and publish the supported OS after target testing | No; verify before release |
 | G-O12 | What native packaging, helper-process and update mechanism will be used? | ADR covering app bundle, helper isolation, footprint, signing/integrity, one-click update and rollback | No; decide before release |
 | G-O13 | How are standing rules and legacy `docs/` records mapped to Genesis? | Audit and classify standing rules, defect list, coverage matrix and comment tracker during implementation gap analysis; retain historical evidence | No |
-
-| G-O09 | Confirm the exact first vertical-slice workflow | Tentative preference is read-only local document discovery, reading and answering with exact source/page/section citations; owner confirmation still required | Yes, before implementation |
-| G-O10 | Which connectors and external actions may agents use, and at what autonomy level? | Inventory available integrations and propose least-privilege scopes | Yes, per connector/action
 
 ## 4. Reconciliation with current Atlas implementation
 
