@@ -213,3 +213,13 @@ The first architecture proof should complete one useful personal workflow end to
 ## 16. Hardware and evidence requirements
 
 Distinguish the owner's intended target Mac from the actual machine used for tests. Every benchmark records machine model, RAM, OS, power/thermal state, model and quantisation, runtime, context size, concurrency, corpus/workload, cold/warm condition, p50/p95/p99 latency, throughput and resource use. Targets remain provisional until measured. Evidence labels are defined in the Delivery Protocol.
+
+
+## 17. Update, export and operational safety
+
+- Atlas must not autonomously modify, rewrite or deploy its own application source code. Agent-assisted development is a separate workflow with human-controlled repository permissions, review and release gates.
+- Define an integrity-verified local update path, explicit user consent where required, pre-update backup/checkpoint, health check and rollback to the last known-good version. Core functionality must not depend on a cloud update service.
+- Provide owner-controlled export of source records and derived knowledge in documented open formats, with provenance and schema/version metadata. Export and restore must be tested.
+- Define schema versioning, migration compatibility, preconditions, integrity checks, interruption recovery and rollback before changing persistent stores.
+- User-facing error states must be understandable and actionable. Keep raw code, stack traces and sensitive diagnostics out of normal UI; diagnostic logging follows redaction requirements.
+- Do not use arbitrary hardcoded source/word/record caps that silently limit ingestion or memory. Resource controls must be explicit, observable, configurable where appropriate and fail safely without dropping data.
