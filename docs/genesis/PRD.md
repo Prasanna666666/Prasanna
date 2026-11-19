@@ -21,7 +21,7 @@ Atlas is one integrated application—not a suite of separate apps. It is a cohe
 7. **One application, modular internals.** Domain capabilities are internal modules of Atlas, independently testable and coordinated through stable contracts. They do not become separate user-facing applications or independently owned products.
 8. **Model independence.** No single model family, runtime or vendor defines the product.
 9. **Traceability.** Important facts, recommendations and actions must be traceable to evidence and execution records.
-10. **Evolution, not rewrite by default.** Preserve valuable existing code and data; migrate incrementally when evidence supports it.
+10. **Best outcome over implementation preservation.** The existing implementation is not an architectural constraint. Reuse it only where it is the best choice; otherwise redesign or replace it. Preserve the owner's data, keys and history through integrity-checked migration and rollback.
 
 ## 3. Users and platform
 
@@ -30,7 +30,8 @@ Atlas is one integrated application—not a suite of separate apps. It is a cohe
 - Eventual client platforms: mobile applications for iOS and Android, with secure access usable while the owner is travelling or anywhere in the world with suitable internet connectivity. A secure browser-based client may also be considered as a complementary access surface.
 - macOS-first is a delivery sequence, not a permanent platform restriction. Domain logic and contracts must remain portable; platform-specific features belong behind adapters.
 - Deployment and inference: Atlas Core and AI inference remain under owner control on the owner's devices/local infrastructure. Worldwide mobile access does **not** imply cloud inference or a third-party hosted Atlas brain.
-- Remote access to the owner's Atlas Core is in scope, subject to an explicit secure-connectivity design. Availability depends on the host being online, connectivity and applicable regional/network restrictions.
+- The owner intends the Atlas Core host to be an always-on Mac mini. Treat this as an operating assumption, not a verified engineering guarantee. Atlas should start automatically after a normal reboot or update; mobile clients show a plain unreachable state when the host cannot be reached.
+- Remote access to the owner's Atlas Core is in scope, subject to an explicit secure-connectivity design. Protect the always-on home host with device enrolment/revocation, authenticated encrypted access and no public database/model ports.
 - Multi-user operation, a third-party remote-hosted Atlas service, cloud inference and separate Finance/Documents/Images applications are not part of the target unless explicitly reconsidered by the owner.
 
 ## 4. Product experience
@@ -108,12 +109,12 @@ Targets are provisional until measured on the actual hardware and representative
 - Atlas must never edit, rewrite or deploy its own application source code autonomously. Software updates require a separately authorised development and release process.
 - User-facing screens must present clear plain-language outcomes; raw stack traces, source code and internal error dumps are not user-facing content. Diagnostic detail belongs in appropriately redacted developer logs.
 - Preserve source data and report partial processing honestly. Never silently discard, truncate or mark unprocessed content complete.
-- Design for the known representative workload of approximately 26,000 email items and 1,400 documents, subject to inventory verification. Benchmark ingestion and interactive work together, including sleep/resume, low-battery and constrained-resource behaviour.
+- Design for the known representative workload of approximately 26,000 email items and 1,400 documents, subject to inventory verification. Benchmark ingestion and interactive work alongside interactive conversations, including normal restart/resume and constrained-resource behaviour.
 - Voice is a desired unified interaction mode, but local speech-to-text and text-to-speech feasibility, quality and latency must be measured on the target hardware before voice is made a foundation release gate.
 
 ## 7. Explicit non-goals for the initial foundation
 
-- Replacing all existing modules in one rewrite; migrate legacy capabilities into the single Atlas application incrementally.
+- Preserving or evolving the current implementation merely for its own sake. Choose the architecture and implementation that best meet Atlas requirements; retain existing components only where evidence supports doing so. Data, keys and history still require integrity-checked migration and rollback.
 - Committing to a particular model, MoE architecture, database or vector store before benchmarking.
 - Unrestricted autonomous execution.
 - Cloud-based inference or a cloud dependency for core operation.
@@ -134,4 +135,4 @@ A feature is not accepted merely because a happy-path demo works. It must have:
 
 Owner-established: Atlas identity; broad life-wide scope; local-only inference; unified experience; macOS-first and future-portable architecture; high but controlled autonomy; memory review/correction/deletion/expiry; sensitive-data isolation and explicit permission; source traceability.
 
-Open for investigation: exact model portfolio, inference runtime, storage/search stack, connector catalogue, multi-device sync/conflict model, secure remote-access and availability model for iOS, backup/recovery UX, notification policy and measured hardware performance. iOS is a committed future platform; its release sequencing and connectivity design require architecture and security review.
+Open for investigation: exact model portfolio and cross-platform core language/runtime, storage/search stack, connector catalogue, multi-device sync/conflict model, secure remote-access topology, backup/recovery UX, notification policy and measured hardware performance. iOS and Android are committed future platforms; their release sequencing and connectivity design require architecture and security review. The Mac mini is the intended always-on owner-controlled host; mobile availability still depends on network reachability and secure connectivity. The mobile stage is gated by an accepted threat model and ADR, and stages 0–7 must not depend on mobile access.
