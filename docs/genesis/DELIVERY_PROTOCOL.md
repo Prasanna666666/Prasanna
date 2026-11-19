@@ -106,7 +106,7 @@ A work item is complete only when:
 - ChatGPT review is complete;
 - owner acceptance is obtained for product-visible scope or owner-reserved decisions.
 
-Evidence levels must be labelled accurately: **developer-reported**, **CI-verified**, **architect-inspected**, **independently reproduced**, or **owner-verified on target Mac**.
+Evidence levels must be labelled accurately. From weakest to strongest, use **developer-reported**, **CI-verified**, **architect-inspected**, **owner-verified on target machine**, and **independently reproduced** (where a second party can execute the same test). For behaviour dependent on the owner's machine, configuration or private data, **owner-verified on the target machine is the closing evidence level**; independent reproduction on a different machine does not replace it. The owner currently has no Mac available, so such verification remains pending and must not be implied.
 
 ## 8. Communication rules
 
