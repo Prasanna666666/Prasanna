@@ -19,6 +19,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-010 | Architecture-first development | DECIDED | Define boundaries and contracts before major implementation |
 | G-011 | Existing implementation should be evaluated and evolved; no automatic rewrite | DECIDED | Incremental migration and regression protection |
 | G-012 | Response speed and answer accuracy are both critical | DECIDED | Latency and quality are paired release criteria |
+| G-013 | There will be exactly one Atlas application. Legacy standalone Finance, Documents, Images and other app shells are obsolete; their useful capabilities/data must be integrated into Atlas | DECIDED | One product identity and UX; internal modules are allowed, separate apps are not |
 
 ## 2. Architecture recommendations
 
@@ -46,9 +47,10 @@ This register distinguishes explicit owner decisions from architecture recommend
 
 ## 4. Reconciliation with current Atlas implementation
 
-The current branch documentation describes a single-Mac, Docker-based deployment with separate Atlas, Finance, Documents and Images packages/services, a local Ollama model and an existing Read/Sort/Group pipeline. These are current implementation facts recorded in the legacy documentation, not immutable target architecture.
+The current implementation may contain separate Atlas, Finance, Documents and Images packages/services, a local Ollama model and a Read/Sort/Group pipeline. These are legacy implementation facts to inventory and migrate—not approved product boundaries. The target is one Atlas application.
 
-Project Genesis intentionally broadens the product direction:
+Project Genesis establishes the single-application product boundary and evolves the internal architecture:
+- from legacy standalone app shells to one Atlas application with internal domain capabilities;
 - from a focused personal app to a personal operating system / chief of staff;
 - from one fixed model to a model-independent local intelligence gateway;
 - from app/tool-specific orchestration to central capability and policy contracts;
