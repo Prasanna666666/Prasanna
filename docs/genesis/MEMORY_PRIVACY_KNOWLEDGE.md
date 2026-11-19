@@ -52,7 +52,7 @@ Health data is locked by default. Highly sensitive categories must be isolated b
 
 Use hybrid retrieval where justified (structured filters, full-text search, semantic search and graph/relationship traversal). The authoritative source depends on the domain: financial calculations query the ledger; source documents remain authoritative for what they state; derived memory helps discovery and context but must link back to evidence.
 
-Retrieval must enforce access controls before results enter model context. Search quality is measured for recall, precision, stale/conflicting facts and cross-domain leakage.
+Retrieval must enforce access controls in the data-access/retrieval layer before results enter model context: the retrieval interface must be unable to return records above the caller's clearance, not merely filter them after retrieval or rely on prompt instructions. Apply the same rule to full-text, semantic, graph, summaries, caches and derived indexes. Search quality is measured for recall, precision, stale/conflicting facts and cross-domain leakage.
 
 ## 7. Correction and contradiction handling
 
