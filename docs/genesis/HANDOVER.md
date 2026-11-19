@@ -1,6 +1,6 @@
 # Atlas — Handover
 
-**Status:** Updated for the owner-confirmed single-application direction  
+**Status:** Updated for single-application direction and personal-work Agent Workforce target  
 **Repository:** `Prasanna666666/Prasanna`  
 **Documentation branch:** `genesis-architecture`  
 **Implementation baseline:** `atlas`
@@ -28,6 +28,6 @@ Claude must inspect the current implementation and return a requirement-by-requi
 
 No broad rewrite or destructive cleanup starts until ChatGPT reviews the analysis and issues a bounded work package. The owner approves product-scope changes and final acceptance.
 
-## Evidence status
+## Personal-work automation target\n\nAtlas is intended to help automate the owner's personal and professional work through a coordinated, on-demand Agent Workforce inside the single application. The target role catalogue and orchestration design are in PRD and TARGET_ARCHITECTURE; this is not a claim that these agents or workflows are already implemented.\n\n## Evidence status
 
 This handover is a target/documentation instruction, not proof that legacy apps have already been retired or that the implementation has been consolidated. Current behaviour must be established from code, tests and CI. Target-Mac and local-model checks must be explicitly reported as owner-verified or pending.
