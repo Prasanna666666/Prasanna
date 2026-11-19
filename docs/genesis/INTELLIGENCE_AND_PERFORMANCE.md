@@ -78,3 +78,17 @@ Maintain a versioned evaluation set covering:
 - Cold start, warm start and background contention.
 
 Every model, prompt, quantisation, retrieval or routing change must be compared against the baseline. Report quality and latency together; do not optimise speed by silently reducing accuracy. Set numeric accuracy thresholds only after a representative evaluation set exists and the owner accepts the trade-off.
+
+
+## 8. Agent execution efficiency and quality
+
+The Agent Workforce must not turn every request into a multi-agent chain. The orchestrator selects the least expensive execution plan that meets the task's quality and safety needs:
+- Direct answer/tool path for simple tasks; specialist delegation only when it adds measurable value.
+- Parallelise independent research and extraction; serialise dependent work and all conflicting writes.
+- Use deterministic code/tools for arithmetic, dates, transformations, validation and other exact operations.
+- Apply bounded task budgets: maximum wall time, model tokens, tool calls, retries, concurrency and resource consumption. Budgets are policy/configuration, not hardcoded assumptions scattered through agents.
+- Stream a useful acknowledgement and progress for long tasks; preserve cancellation and durable checkpoints.
+- Verify specialist outputs against source evidence; disagreement triggers reconciliation or an explicit uncertainty report, not majority voting.
+- Measure end-to-end workflow latency and cost in local compute resources, not just individual model token speed.
+
+Benchmark single-agent/direct execution against delegated execution for quality, completion rate, latency, RAM, CPU/GPU, energy/thermal impact and failure recovery. Keep the multi-agent route only where it improves the owner outcome enough to justify its overhead. All inference remains local; resource contention must not starve interactive conversations.
