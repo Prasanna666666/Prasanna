@@ -92,3 +92,30 @@ The Agent Workforce must not turn every request into a multi-agent chain. The or
 - Measure end-to-end workflow latency and cost in local compute resources, not just individual model token speed.
 
 Benchmark single-agent/direct execution against delegated execution for quality, completion rate, latency, RAM, CPU/GPU, energy/thermal impact and failure recovery. Keep the multi-agent route only where it improves the owner outcome enough to justify its overhead. All inference remains local; resource contention must not starve interactive conversations.
+
+
+## 9. Hardware profile, workload and local voice
+
+### 9.1 Hardware evidence
+The owner's discussed target is a macOS-first Apple-silicon Mac mini configuration, with 32 GB unified memory considered as a target candidate. This is a planning profile, not evidence that the machine is purchased, configured or used for tests. Every report must separately identify:
+- intended target machine and minimum supported machine (OPEN);
+- actual test machine, chip, unified memory, storage and free disk;
+- macOS version, power state and thermal conditions;
+- model, quantisation, runtime, context length and active model count;
+- concurrency, corpus size and background workload.
+
+Do not claim target performance from a different machine without clearly labelling the extrapolation.
+
+### 9.2 Representative workload and resource controls
+Benchmark against the existing archive, initially estimated at approximately 26,000 email items and 1,400 documents; verify the inventory before treating these figures as fixed. Measure first-pass and incremental ingestion, retrieval quality, time-to-searchable, throughput, CPU/GPU, peak and steady-state memory, disk growth, thermal throttling, energy use, queue delay and interactive p50/p95/p99 latency while background work runs.
+
+The scheduler must support configurable resource budgets and adaptive back-pressure rather than scattered hardcoded caps. It must respond safely to low battery, sleep, wake, limited disk, thermal pressure and foreground user activity. Persist checkpoints before sleep where possible and resume without duplicating completed work. Never silently drop queued sources to meet a resource budget.
+
+### 9.3 Local voice feasibility
+Evaluate local speech-to-text and text-to-speech separately and end to end: supported languages, transcription quality, privacy, cold/warm latency, streaming, CPU/GPU/RAM use, interruption handling and concurrent model contention. Keep voice in the product direction, but make release sequencing dependent on measured feasibility rather than assumed capability.
+
+## 10. Privacy-preserving observability and evaluation
+
+Logs and telemetry must use correlation IDs, component names, timings, state transitions and redacted error categories—not message bodies, document text, names, account details, secrets or raw prompts. Add automated log-scrubbing tests using synthetic sensitive fixtures. Debug mode must not silently weaken this rule.
+
+Maintain a synthetic or sanitised evaluation corpus and golden tasks; do not copy real private user content into test fixtures, CI artefacts or external evaluation services. Include adversarial prompt-injection, cross-domain leakage, deletion propagation, exact arithmetic/date, retrieval/provenance, partial failure and restart tests.
