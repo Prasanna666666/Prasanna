@@ -4,11 +4,11 @@
 
 ## 1. Architectural direction
 
-Adopt a **modular monolith for Atlas Core and product capabilities**, with explicit domain boundaries and stable contracts. Use separate processes only where isolation, platform constraints, fault containment or resource scheduling justify them (for example: untrusted document parsers, model runtimes, OCR/vision workers or platform-specific adapters).
+Build and ship **one Atlas application** with one product identity, one entry point, one navigation system, one settings surface and one coherent interaction model. Internally, use a modular monolith with explicit domain boundaries and stable contracts.
 
-This is a target direction, not an instruction to collapse the current Finance, Documents, Images and Atlas services immediately. Existing service boundaries may remain during migration where they provide useful isolation or independent deployment.
+Finance, Documents, Images and any other legacy standalone apps/services are obsolete as product boundaries. Their capabilities are to become internal Atlas modules. They must not remain separate user-facing apps, separately branded products or independently configured experiences in the target state.
 
-Avoid premature microservices and avoid a big-bang rewrite.
+Separate helper processes are permitted only as implementation details when required for security isolation, platform constraints, fault containment or resource scheduling (for example, an untrusted parser or model runtime). Such workers have no independent product identity or user-facing lifecycle. Migrate incrementally: preserve working behaviour and data while retiring the old app shells and duplicate orchestration. Do not perform a destructive big-bang rewrite.
 
 ## 2. Logical architecture
 
@@ -27,7 +27,7 @@ Memory & Knowledge   Intelligence Gateway   Action Runtime
   Temporal validity    Context assembly       Idempotency
   Sensitivity/retention
        |                 |                    |
-Domain capabilities / bounded contexts
+Internal Atlas capabilities / bounded contexts
   Documents | Finance | Health | Travel | Work | Calendar | Home | Media | ...
        |
 Platform adapters
@@ -47,7 +47,7 @@ Atlas Core owns:
 - Durable background job coordination.
 - Observability, audit correlation and operational health.
 
-Atlas Core should not become a dumping ground for domain-specific business logic. Domain capabilities own their schemas, validation, business rules, migrations and tools.
+Atlas Core should not become a dumping ground for domain-specific business logic. Internal Atlas capabilities own their schemas, validation, business rules, migrations and tools, but are delivered and experienced as parts of the single Atlas application.
 
 ## 4. Domain capability contract
 
@@ -60,7 +60,7 @@ Each capability exposes a typed, versioned interface describing:
 - Evidence/provenance returned with results.
 - Health and capability status.
 
-A capability must not bypass another capability's data ownership by directly editing its database. Cross-domain workflows are orchestrated through contracts or domain events.
+A capability must not bypass another capability's data ownership by directly editing its database. Cross-domain workflows are orchestrated through contracts or domain events. Internal module boundaries are code and data-ownership boundaries, not separate application boundaries.
 
 ## 5. Intelligence Gateway
 
@@ -122,8 +122,8 @@ Keep business logic and domain contracts platform-neutral. Encapsulate macOS-spe
 
 ## 11. Migration strategy
 
-1. Inventory current packages, processes, APIs, schemas, data stores, keys, tests, CI and operational scripts.
-2. Map existing behaviour to target capabilities and identify duplicate ownership or hidden coupling.
+1. Inventory current apps, packages, processes, APIs, schemas, data stores, keys, tests, CI and operational scripts.
+2. Map every legacy app feature and dataset to its target internal Atlas capability; identify duplicate ownership and hidden coupling.
 3. Define contract and security boundaries before moving code.
 4. Add compatibility adapters and regression tests.
 5. Introduce durable job state and evidence/provenance contracts before redesigning ingestion.
