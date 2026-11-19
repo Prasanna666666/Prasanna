@@ -32,7 +32,8 @@ Internal Atlas capabilities / bounded contexts
        |
 Platform adapters
   macOS | Filesystem | Keychain | Notifications | Voice | Local runtimes
-  Future platform adapters behind portable interfaces
+  iOS adapter (committed future platform)
+  Android / web adapters (future portability; not yet committed)
 ```
 
 ## 3. Atlas Core responsibilities
