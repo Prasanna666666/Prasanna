@@ -116,9 +116,28 @@ Do not lock the target to a database/search technology until current schemas, en
 
 Separate sensitive stores or encryption keys where threat modelling supports the added operational complexity. Search indexes and embeddings are derived and rebuildable; source records and audit history require stronger durability guarantees.
 
-## 10. Platform portability
+## 10. Platform portability and worldwide mobile access
 
 Keep business logic and domain contracts platform-neutral. Encapsulate macOS-specific functionality (Keychain, filesystem events, Apple Mail/Photos, notifications, speech, local model runtimes) behind adapters. Define capability detection and graceful degradation for platforms without an equivalent feature.
+
+The eventual product includes mobile clients for **iOS and Android**, usable by the owner while travelling and from anywhere with suitable internet connectivity. macOS remains the first implementation platform, not the only supported client. A secure browser client may complement mobile access; it must not become a separate product or weaken the single Atlas identity.
+
+### 10.1 Remote-access model (target; topology requires an ADR)
+
+- Atlas Core and all AI inference remain on owner-controlled devices/local infrastructure. A phone is a secure client, not a reason to move private data or inference to a third-party cloud.
+- Mobile clients communicate with Atlas Core through an authenticated, encrypted remote-access channel. The design may use a user-controlled VPN/mesh or a narrowly scoped encrypted relay to traverse NAT; a relay must not become an inference service or plaintext data store.
+- Do not expose the database, model runtime, filesystem or internal service ports directly to the public internet. Expose only a small, versioned client API/gateway with authentication, authorisation, rate limits, replay protection and audit.
+- Require strong device identity and owner authentication (passkeys/MFA where supported), explicit device enrolment, least-privilege scopes, remote session revocation and lost-device recovery. A mobile device must not inherit unrestricted access merely because it belongs to the owner.
+- Enforce the same domain boundaries and policy checks on remote requests as on local requests. Finance raw records remain inaccessible to all models and general agents; Health remains locked by default. No client-side UI check is a substitute for server-side policy enforcement.
+- Minimise data held on mobile devices. Protect local caches and credentials with platform secure storage; support remote sign-out/revocation and define what happens to cached data on device loss. Sensitive notification content must be opt-in and minimised.
+- Define offline behaviour explicitly: cached, already-authorised information may be available according to owner settings; new Core-dependent actions must be queued safely or reported unavailable, never falsely shown as completed. Resolve sync conflicts with explicit, auditable rules.
+- Global availability is an objective, not a guarantee: it depends on the owner-controlled host being online, power/network availability, mobile connectivity, supported regions and local law. Show connection/availability state clearly and degrade gracefully.
+
+### 10.2 Mobile capability and release expectations
+
+The mobile experience should support the core everyday loop: secure sign-in/device enrolment, conversation, voice where supported, notifications, task/activity status, approvals, and review of evidence-backed results. Platform-specific capabilities may differ, but permissions and consequential-action safeguards must remain consistent. Mobile UI must be designed for intermittent connectivity, latency and small screens rather than merely shrinking the desktop interface.
+
+Native iOS and Android delivery, secure remote connectivity, push-notification privacy, offline behaviour, sync/conflict handling, device revocation and mobile release/support policy require explicit design and test gates before those clients ship.
 
 ## 11. Unified delivery and migration roadmap
 
