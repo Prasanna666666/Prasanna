@@ -26,10 +26,12 @@ Atlas is one integrated application—not a suite of separate apps. It is a cohe
 ## 3. Users and platform
 
 - Primary user: one owner initially.
-- Initial platform: macOS.
-- Future platform support: architecture and interfaces should be portable to additional devices/platforms; macOS-first does not mean macOS-only design.
-- Deployment: local device and local services under owner control.
-- Multi-user operation, remote hosted service, cloud inference and separate Finance/Documents/Images applications are not part of the target unless explicitly reconsidered by the owner.
+- Initial development platform: macOS.
+- Eventual client platforms: mobile applications for iOS and Android, with secure access usable while the owner is travelling or anywhere in the world with suitable internet connectivity. A secure browser-based client may also be considered as a complementary access surface.
+- macOS-first is a delivery sequence, not a permanent platform restriction. Domain logic and contracts must remain portable; platform-specific features belong behind adapters.
+- Deployment and inference: Atlas Core and AI inference remain under owner control on the owner's devices/local infrastructure. Worldwide mobile access does **not** imply cloud inference or a third-party hosted Atlas brain.
+- Remote access to the owner's Atlas Core is in scope, subject to an explicit secure-connectivity design. Availability depends on the host being online, connectivity and applicable regional/network restrictions.
+- Multi-user operation, a third-party remote-hosted Atlas service, cloud inference and separate Finance/Documents/Images applications are not part of the target unless explicitly reconsidered by the owner.
 
 ## 4. Product experience
 
