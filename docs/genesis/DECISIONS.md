@@ -20,6 +20,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-011 | Existing implementation should be evaluated and evolved; no automatic rewrite | DECIDED | Incremental migration and regression protection |
 | G-012 | Response speed and answer accuracy are both critical | DECIDED | Latency and quality are paired release criteria |
 | G-013 | There will be exactly one Atlas application. Legacy standalone Finance, Documents, Images and other app shells are obsolete; their useful capabilities/data must be integrated into Atlas | DECIDED | One product identity and UX; internal modules are allowed, separate apps are not |
+| G-014 | Atlas is intended to automate the owner's personal and professional work through a unified assistant and coordinated internal capabilities | DECIDED | Design for end-to-end personal workflows, not only chat, search or isolated domain tools |
 
 ## 2. Architecture recommendations
 
@@ -31,6 +32,10 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-R04 | Shared governed Memory & Knowledge subsystem; domain systems remain authoritative for transactions | RECOMMENDED | Cross-domain context with evidence and clear ownership |
 | G-R05 | Central Action Runtime for tool policy, approval, execution and audit | RECOMMENDED | One enforcement point for autonomy |
 | G-R06 | Migrate incrementally behind compatibility contracts | RECOMMENDED | Preserve data, working functionality and rollback options |
+| G-R07 | Hierarchical Agent Workforce: Atlas Core supervises on-demand personal-domain specialists through durable task contracts | RECOMMENDED | Enables delegation and parallel work without uncontrolled agent swarms |
+| G-R08 | Central Agent Registry, task scheduler and policy-enforced tool gateway | RECOMMENDED | Makes role, permission, resource, deadline and lifecycle constraints enforceable |
+| G-R09 | Start with a thin personal workflow and a small specialist set; expand by measured value | RECOMMENDED | Proves reliability before adding orchestration complexity |
+| G-R10 | Domain-scoped agent context; restricted Finance and Health trust boundaries | RECOMMENDED | Prevents one-app convenience from becoming unrestricted cross-domain access |
 
 ## 3. Open decisions requiring investigation or owner input
 
@@ -44,6 +49,8 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O06 | What are notification quiet hours and escalation preferences? | Design defaults; ask during notification UX acceptance | Later |
 | G-O07 | What are final latency/accuracy thresholds? | Measure baseline and benchmark on target hardware | Yes, after evidence is available |
 | G-O08 | What are the first capability priorities after the foundation? | Present ranked roadmap with effort/risk/value | Yes, at roadmap review |
+| G-O09 | Which personal-work workflow should be the first complete agent-assisted vertical slice? | Claude audits existing capabilities; ChatGPT proposes a low-risk, high-value slice for owner selection | Yes, before implementation |
+| G-O10 | Which connectors and external actions may agents use, and at what autonomy level? | Inventory available integrations and propose least-privilege scopes | Yes, per connector/action
 
 ## 4. Reconciliation with current Atlas implementation
 
@@ -60,6 +67,12 @@ Project Genesis establishes the single-application product boundary and evolves 
 
 Do not remove existing security controls, data stores, tests or app capabilities as part of this evolution. Map each current component to the target, identify conflicts and migrate deliberately.
 
-## 5. Change log
+## 5. Personal Agent Workforce direction
 
-- 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.
+The owner-established product direction is that Atlas should assist with and automate personal and professional work across life domains. A specialised internal Agent Workforce is the recommended architecture for delivering this direction; the detailed role catalogue and orchestration design remain recommendations until validated against the existing implementation and approved through the normal process.
+
+Target roles include Chief of Staff/Coordinator, Personal Knowledge, Documents, Research/Verification, Finance, Work/Projects, Communications/Scheduling, Travel, Home, Health and Guardian/Policy. These are internal roles, not separate applications. Agents are on-demand, task-scoped and permission-limited. Finance remains restricted from general assistant context pending explicit resolution of the existing privacy rule; Health is locked by default. Consequential actions require the configured approval policy.
+
+## 6. Change log
+
+- 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.\n- 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
