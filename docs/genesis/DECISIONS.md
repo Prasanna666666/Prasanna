@@ -17,14 +17,13 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-008 | Highly sensitive information is isolated and requires explicit permission; Health locked by default | DECIDED | Sensitivity-aware retrieval and capability policy |
 | G-009 | Important factual conclusions must be traceable to source evidence | DECIDED | Provenance is part of data contracts |
 | G-010 | Architecture-first development | DECIDED | Define boundaries and contracts before major implementation |
-| G-011 | Existing implementation should be evaluated and evolved; no automatic rewrite | DECIDED | Incremental migration and regression protection |
+| G-011 | The existing implementation is not an architectural constraint; choose the best Atlas design. Reuse existing components only where they are the best choice; otherwise redesign or replace. | DECIDED | Audit each mechanism as reuse, reference-only or discard. Existing code/tests remain behavioural and regression evidence. Preserve owner data, keys and history with integrity checks and rollback. |
 | G-012 | Response speed and answer accuracy are both critical | DECIDED | Latency and quality are paired release criteria |
 | G-013 | There will be exactly one Atlas application. Legacy standalone Finance, Documents, Images and other app shells are obsolete; their useful capabilities/data must be integrated into Atlas | DECIDED | One product identity and UX; internal modules are allowed, separate apps are not |
 | G-014 | Atlas is intended to automate the owner's personal and professional work through a unified assistant and coordinated internal capabilities | DECIDED | Design for end-to-end personal workflows, not only chat, search or isolated domain tools |
 | G-015 | No AI model or general agent may see raw Finance records; financial answers must be computed deterministically and only approved computed outputs may cross the boundary | DECIDED | Finance remains a deterministic, isolated capability; changing this requires a new explicit owner decision |
 | G-016 | Target delivery is one native macOS application with one-click updates | DECIDED | Packaging, integrity verification, update and rollback implementation require an ADR and audit; this is not a claim of current implementation |
 | G-017 | Planning/minimum-support profile is a 32 GB Apple-silicon Mac mini | DECIDED (planning profile) | Not yet owner-verified or benchmarked; actual test machine and results must be recorded separately |
-| G-018 | A native iOS app is a committed future Atlas platform, following the macOS-first foundation; Atlas should ultimately be usable globally from iPhone | DECIDED | Preserve platform-neutral core contracts; design and approve secure remote access, identity, sync, availability and offline behaviour before iOS release. This does not authorise cloud inference or a hosted service. |
 | G-018 | Atlas must ultimately provide mobile access through iOS and Android apps, usable worldwide wherever secure connectivity is available | DECIDED | macOS remains first; keep domain logic portable and design secure remote access to owner-controlled Atlas Core without cloud inference |
 
 ## 2. Architecture recommendations
@@ -50,9 +49,10 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O02 | What storage, full-text, vector and relationship-query stack is appropriate? | Produce a storage/encryption/key-boundary ADR after auditing data volume, query patterns, backup and restore | No |
 | G-O03 | Which external sources/connectors should be supported first? | Inventory existing sources and rank by value/risk; current owner direction is local documents read-only, Mail read-only and Calendar read-only/propose-only | Only when prioritising a release |
 | G-O04 | What is the multi-device sync and conflict model? | Define offline cache, sync, conflict resolution, queued actions and device-loss behaviour before mobile beta | No; required before mobile beta |
-| G-O14 | What secure remote-access topology connects mobile clients to owner-controlled Atlas Core worldwide? | Compare owner-controlled VPN/mesh with a minimal end-to-end encrypted relay; threat-model NAT traversal, identity, metadata, availability, hosting and regional restrictions. No public database/model ports | No; ADR required before remote-access implementation |
+| G-O14 | What secure remote-access topology connects iOS and Android clients worldwide to the owner-controlled Atlas Core without violating local-only inference? | Compare owner-controlled VPN/mesh with a narrowly scoped end-to-end encrypted relay only if necessary and explicitly approved. Threat-model device identity/enrolment/revocation, authentication, NAT traversal, relay metadata, regional restrictions and availability. No public database/model ports, third-party inference or plaintext relay storage. Stage 8 is gated on an accepted threat model and ADR; stages 0–7 must not depend on mobile access. | No; ADR and threat model required before stage 8 |
 | G-O15 | What is the mobile offline and local-cache policy? | Define which data may be cached, expiry/encryption, queued action semantics, conflict handling and device-loss wipe/revocation | No; required before mobile beta |
 | G-O16 | What mobile platforms and release support are required? | Target iOS and Android; determine minimum OS versions, distribution, push provider/privacy and support policy during mobile planning | No; decide before mobile beta |
+| G-O17 | Which platform-neutral core language/runtime and packaging boundary best supports macOS first, then iOS and Android? | Before stage 2, compare viable options across macOS/iOS/Android, performance, local inference integration, security, maintainability and migration cost. No obligation to retain Python, Docker or the current runtime. Define portable domain/policy/memory contracts independently of UI/platform adapters. | No; ADR required before stage 2 |
 | G-O05 | What backup and key-recovery experience is acceptable? | Owner explicitly deferred this decision; keep the storage/recovery release gate closed until decided and restore-tested | Yes, before release relying on backup |
 | G-O06 | What are notification quiet hours and escalation preferences? | Design defaults; ask during notification UX acceptance | Later |
 | G-O07 | What are final latency/accuracy thresholds? | Measure baseline and benchmark on target hardware | Yes, after evidence is available |
@@ -62,11 +62,10 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O11 | What is the minimum supported machine and OS version? | 32 GB Apple-silicon Mac mini is the planning/minimum profile; benchmark and publish the supported OS after target testing | No; verify before release |
 | G-O12 | What native packaging, helper-process and update mechanism will be used? | ADR covering app bundle, helper isolation, footprint, signing/integrity, one-click update and rollback | No; decide before release |
 | G-O13 | How are standing rules and legacy `docs/` records mapped to Genesis? | Audit and classify standing rules, defect list, coverage matrix and comment tracker during implementation gap analysis; retain historical evidence | No |
-| G-O14 | What secure connectivity topology enables global iOS access without violating local-first/no-cloud-inference requirements? | Compare owner-controlled direct connectivity, local-network-only limitations and any explicitly owner-approved hosted coordination option; threat-model each and record an ADR | Yes, before implementation of remote access |
 
 ## 4. Reconciliation with current Atlas implementation
 
-The current implementation may contain separate Atlas, Finance, Documents and Images packages/services, a local Ollama model and a Read/Sort/Group pipeline. These are legacy implementation facts to inventory and migrate—not approved product boundaries. The target is one Atlas application.
+The current implementation may contain separate Atlas, Finance, Documents and Images packages/services, a local Ollama model and a Read/Sort/Group pipeline. These are legacy implementation facts to inspect as possible reuse, reference-only behaviour/regression evidence, or discard—not approved product boundaries or architectural constraints. The target is one Atlas application.
 
 Project Genesis establishes the single-application product boundary and evolves the internal architecture:
 - from legacy standalone app shells to one Atlas application with internal domain capabilities;
@@ -77,7 +76,7 @@ Project Genesis establishes the single-application product boundary and evolves 
 - from a chat-first interface to unified chat, voice, dashboard, notifications and approvals;
 - from current local Mac operation to macOS-first, cross-platform-ready boundaries.
 
-Do not remove existing security controls, data stores, tests or app capabilities as part of this evolution. Map each current component to the target, identify conflicts and migrate deliberately.
+Do not remove existing security controls or owner data casually. Map each current component to reuse, reference-only or discard; existing tests can serve as regression evidence. Select the best target design even if it replaces the current implementation. Preserve owner data, keys and history through integrity checks and rollback.
 
 ## 5. Personal Agent Workforce direction
 
@@ -87,4 +86,6 @@ The owner-established outcome is personal and professional work automation insid
 
 - 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.
 - 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
-- 2026-11-19: Owner confirmed a native iOS app and global iPhone access as a committed future Atlas target after the macOS-first foundation. Remote connectivity, sync, identity and availability remain open architecture/security decisions; no cloud inference or hosted service is authorised.
+- 2026-11-19: Owner confirmed iOS and Android as committed future mobile platforms after the macOS-first foundation; secure global access remains gated by remote-access threat modelling and ADR. No cloud inference or hosted Atlas brain is authorised.
+- 2026-11-19: Owner relaxed the default-evolve/no-rewrite constraint. Choose the best Atlas architecture; assess existing components as reuse, reference-only or discard, while preserving owner data, keys and history through integrity-checked migration and rollback.
+- 2026-11-19: Owner intends the Atlas Core host to be an always-on Mac mini. Treat this as an operating assumption; provide normal reboot/update auto-start and a clear mobile unreachable state. Do not engineer for extreme outage scenarios; retain proportionate security controls for remote access.
