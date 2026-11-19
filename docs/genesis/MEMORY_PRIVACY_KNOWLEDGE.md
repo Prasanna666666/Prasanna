@@ -69,3 +69,17 @@ Owner corrections should be first-class, attributable records. Do not silently r
 ## 9. Open design work
 
 Storage schema, graph representation, vector index, encryption partitioning, backup/restore, sync and deletion propagation require an implementation audit and ADR. Do not choose a database solely because it is fashionable.
+
+
+## 10. Agent-scoped memory and context
+
+The workforce does not share an unrestricted universal prompt or memory. Every task receives a minimal, purpose-bound context assembled only after access policy is evaluated. Agent context is scoped to the task, domain, owner permissions and retention policy. A specialist may return a result with provenance to the coordinator without exposing its underlying restricted records.
+
+- Agent scratch context is task-scoped and expires according to policy; it is not automatically promoted to durable personal memory.
+- Durable memory writes require the applicable retention and sensitivity policy, provenance, and owner controls.
+- Cross-domain retrieval is denied by default unless an explicit policy authorises the specific data flow and purpose.
+- Finance raw records remain outside general assistant and shared agent context pending owner resolution of the existing privacy rule. Finance specialists may return only narrowly scoped, policy-approved computed outputs where permitted.
+- Health remains locked by default and must not be present in general agent context.
+- Agent-to-agent delegation carries a signed/validated task scope and no greater permission than the delegating task. A child agent cannot broaden its own scope.
+- Logs, traces, evaluation datasets and failure reports must not contain source content, secrets or sensitive personal data. Use redacted metadata and synthetic evaluation fixtures.
+- Owner inspection, correction, expiry and deletion controls apply to retained agent-derived memory and task artefacts. Deletion propagation must include derived indexes and caches under the documented retention model.
