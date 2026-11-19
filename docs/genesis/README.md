@@ -26,7 +26,7 @@ The existing application, its tests, security controls, data stores and PR revie
 
 ## Source-of-truth rules
 
-- Existing implementation and review records under `docs/` describe current behaviour and test evidence. Consult them when performing the implementation gap analysis.
+- Existing implementation and review records under `docs/` describe current behaviour and test evidence. During the implementation gap analysis, inventory and classify the standing rules, defect list, coverage matrix, comment tracker and any other legacy records: (a) still binding and migrated into a canonical Genesis document, (b) historical evidence retained and linked, (c) superseded by an explicit Genesis rule, or (d) obsolete duplicate to be archived only with owner-safe history preservation. Do not assume that an unreferenced legacy file is obsolete, and do not maintain competing live specifications.
 - `docs/genesis/` describes the evolved target. Where it differs from current implementation, the difference is intentional only when explicitly marked as a target-state change or migration item.
 - Code and executable tests determine what is implemented. Documentation must not claim otherwise.
 - Owner decisions override recommendations. A recommendation is not an approved requirement until the owner accepts it.
