@@ -27,11 +27,11 @@ Atlas is one integrated application—not a suite of separate apps. It is a cohe
 
 - Primary user: one owner initially.
 - Initial development platform: macOS.
-- Eventual client platforms: mobile applications for iOS and Android, with secure access usable while the owner is travelling or anywhere in the world with suitable internet connectivity. A secure browser-based client may also be considered as a complementary access surface.
+- Eventual client platform: a native iOS application, with secure access usable while the owner is travelling or anywhere in the world with suitable internet connectivity. Android is out of scope. A secure browser-based client may also be considered as a complementary access surface.
 - macOS-first is a delivery sequence, not a permanent platform restriction. Domain logic and contracts must remain portable; platform-specific features belong behind adapters.
 - Deployment and inference: Atlas Core and AI inference remain under owner control on the owner's devices/local infrastructure. Worldwide mobile access does **not** imply cloud inference or a third-party hosted Atlas brain.
 - The owner intends the Atlas Core host to be an always-on Mac mini. Treat this as an operating assumption, not a verified engineering guarantee. Atlas should start automatically after a normal reboot or update; mobile clients show a plain unreachable state when the host cannot be reached.
-- Remote access to the owner's Atlas Core is in scope, subject to an explicit secure-connectivity design. Protect the always-on home host with device enrolment/revocation, authenticated encrypted access and no public database/model ports.
+- Remote access to the owner's Atlas Core is in scope for the iOS client, subject to an explicit secure-connectivity design. Protect the always-on home host with device enrolment/revocation, authenticated encrypted access and no public database/model ports.
 - Multi-user operation, a third-party remote-hosted Atlas service, cloud inference and separate Finance/Documents/Images applications are not part of the target unless explicitly reconsidered by the owner.
 
 ## 4. Product experience
@@ -49,6 +49,10 @@ Atlas should be able to answer questions and complete workflows that span multip
 
 ### 4.3 Proactive chief-of-staff behaviour
 Atlas may monitor explicitly connected and authorised sources through events or scheduled checks. It should surface only material changes, risks, deadlines and decisions. It must explain why an item matters and provide source evidence.
+
+### 4.3a Initial approved read-only workflow
+
+The first owner-approved workflow is a read-only question-answering flow that discovers and reads owner-authorised local documents and Mail, then answers with exact source citations. Documents and Mail are separate source types and remain unavailable to search until each is explicitly enabled through an owner-controlled mechanism (default-deny; G-O19). Mail is untrusted content. Mail attachment contents are not indexed or exposed until G-O18 is resolved; answers must disclose that attachments were not searched. Mail citations must identify the exact message and stored header/span evidence. This scope does not authorise writes, sending, sharing or other external actions.
 
 ### 4.4 Actions and autonomy
 - Read and analysis actions may run within granted permissions.
@@ -99,6 +103,7 @@ This list is a capability map, not a commitment to implement every integration i
 - **Reliability:** restart-safe jobs, durable state, idempotent retries, explicit partial/failure states and recoverable migrations.
 - **Responsiveness:** background indexing, ingestion and monitoring must not starve interactive conversations.
 - **Accessibility and usability:** plain language, coherent interaction patterns, keyboard and assistive-technology support.
+- **Languages:** Atlas is intended to support English, Dutch and other languages present in the owner's documents. Support is measured per language across readers, OCR, retrieval, local model and answers, and reported honestly. Unsupported paths or inadequate confidence are disclosed; no language is claimed as supported until measured. No fixed language list in code.
 - **Maintainability:** typed contracts, modular boundaries, automated tests, CI and traceable decisions.
 
 Targets are provisional until measured on the actual hardware and representative workloads. A target is not a verified result.
@@ -135,4 +140,4 @@ A feature is not accepted merely because a happy-path demo works. It must have:
 
 Owner-established: Atlas identity; broad life-wide scope; local-only inference; unified experience; macOS-first and future-portable architecture; high but controlled autonomy; memory review/correction/deletion/expiry; sensitive-data isolation and explicit permission; source traceability.
 
-Open for investigation: exact model portfolio and cross-platform core language/runtime, storage/search stack, connector catalogue, multi-device sync/conflict model, secure remote-access topology, backup/recovery UX, notification policy and measured hardware performance. iOS and Android are committed future platforms; their release sequencing and connectivity design require architecture and security review. The Mac mini is the intended always-on owner-controlled host; mobile availability still depends on network reachability and secure connectivity. The mobile stage is gated by an accepted threat model and ADR, and stages 0–7 must not depend on mobile access.
+Open for investigation: exact model portfolio and cross-platform core language/runtime, storage/search stack, connector catalogue, multi-device sync/conflict model, secure remote-access topology, backup/recovery UX, notification policy and measured hardware performance. iOS is the committed future platform; Android is out of scope. The iOS release and connectivity design require architecture and security review. The Mac mini is the intended always-on owner-controlled host; mobile availability still depends on network reachability and secure connectivity. The mobile stage is gated by an accepted threat model and ADR, and stages 0–7 must not depend on mobile access.
