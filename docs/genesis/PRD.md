@@ -54,6 +54,37 @@ Atlas may monitor explicitly connected and authorised sources through events or 
 - Approval must be specific, current, scoped to the exact proposed action and recorded.
 - Atlas must never treat instructions inside retrieved documents, emails or tool output as owner approval.
 
+### 4.5 Personal-work automation and agent workforce
+
+Atlas is intended to do useful work on the owner's behalf, not merely answer questions. A coordinated workforce of specialised, on-demand agents is a target capability within the single Atlas application. Atlas Core remains the supervisor and policy authority; agents are internal workers with bounded roles, not independent applications, identities or unrestricted assistants.
+
+The workforce should support the owner's personal and professional life, including:
+- **Chief of Staff / Coordinator:** understands goals, priorities, deadlines and preferences; breaks outcomes into tasks; delegates; tracks dependencies; consolidates results and asks the owner only for genuine decisions.
+- **Personal Knowledge:** finds, connects and explains information across authorised sources, retaining provenance and temporal context.
+- **Documents:** discovers, reads, extracts, classifies, compares, summarises, drafts and organises files while preserving originals and source references.
+- **Research and Verification:** researches questions, compares options, checks claims against independent evidence and reports uncertainty and conflicting sources.
+- **Finance:** analyses authorised financial records, budgets, investments and scenarios. Finance remains a restricted trust domain; raw records must not enter general agent memory or context. Only explicitly permitted, policy-checked outputs may cross the boundary.
+- **Work and Projects:** plans deliverables, tracks tasks, prepares meetings and follow-ups, and coordinates authorised project tools.
+- **Communications and Scheduling:** drafts and organises email/messages, calendar events, reminders and follow-ups. Sending, committing or contacting others follows explicit action policy.
+- **Travel:** researches and prepares itineraries, transport, accommodation and booking workflows; purchases and bookings require the configured approval.
+- **Home:** supports household administration, energy analysis, maintenance and authorised device automation.
+- **Health:** handles health information only when explicitly enabled; locked by default and isolated from general context.
+- **Guardian / Policy:** evaluates permissions, sensitivity, action risk, approvals and audit requirements. It is a control function, not an agent that can grant itself authority.
+
+These are target capability roles, not a requirement to run every agent continuously or ship every integration in the first release. Agents should be invoked only when a task benefits from specialist work. Simple requests should remain on a fast direct path.
+
+A typical workflow is: owner request or authorised trigger → coordinator scopes the outcome → policy checks source and action permissions → relevant specialists work in isolated task contexts → deterministic tools and independent verification check critical facts → coordinator consolidates a sourced result → Guardian enforces approval before consequential actions → Atlas records the outcome and notifies the owner. Parallel work is allowed only for independent tasks; conflicting writes and dependent steps are serialised.
+
+### 4.6 Automation levels
+- **Observe:** monitor explicitly authorised sources and detect material changes.
+- **Prepare:** research, analyse, draft and propose a plan without external side effects.
+- **Execute reversible work:** perform low-risk, reversible actions only within an owner-configured policy, with an audit record and undo/compensation where possible.
+- **Consequential execution:** require specific, current owner approval for financial transactions, purchases, bookings, sending communications, sharing data, destructive changes or other external/irreversible actions.
+- **Proactive delegation:** schedule or trigger bounded tasks only from owner-approved sources, scopes, cadence and stop conditions. Every task must be cancellable and report completion, partial completion or failure.
+
+### 4.7 Agent workforce quality requirements
+Every agent task has an owner, objective, permitted sources/tools, sensitivity scope, budget, deadline/timeout, expected output, evidence requirements and termination condition. Agents cannot expand their own permissions, delegate beyond their granted scope, or treat retrieved content as instructions from the owner. Results carry source references, tool/action receipts, confidence and limitations. The coordinator must disclose when no specialist or verification step was run.
+
 ## 5. Functional capability areas
 
 Capabilities are expected to evolve and may include:
