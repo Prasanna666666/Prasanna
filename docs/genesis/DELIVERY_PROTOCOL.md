@@ -117,14 +117,29 @@ Evidence levels must be labelled accurately. From weakest to strongest, use **de
 - One issue has one canonical discussion; summarise and link rather than duplicating threads.
 - Do not merge, release, delete branches/data or close owner-reserved work without explicit authority.
 
-## 9. Required documentation-review and implementation sequence
+## 9. Stage status, historical sequence and Stage 2 authorisation
 
-The current stage is documentation reconciliation. The order is mandatory:
+### Recorded status — 2026-11-19
 
-1. **Claude documentation review:** review the revised Genesis canonical documents on PR #7 only. Check the Agent Workforce/personal-work automation requirements, single-app boundary, Finance/Health trust boundaries, approval model, performance/resource constraints, storage/recovery gates, thin vertical slice and evidence requirements. Confirm each prior S1/S2 finding is closed or identify the exact remaining gap. Do not start implementation inspection or the implementation gap analysis in this step.
-2. **ChatGPT reconciliation:** assess Claude's review, correct any remaining documentation inconsistency and record the disposition in this PR.
-3. **Claude confirmation:** confirm that the revised canonical documents and review dispositions are consistent. Raise any unresolved owner-reserved decision explicitly; do not silently decide it.
-4. **Implementation gap analysis:** only after the documentation confirmation above, inspect the current Atlas implementation and produce a requirement-by-requirement evidence-backed gap analysis. Map legacy app features, processes, schemas, data and tests to internal Atlas capabilities; include the personal-work automation/agent requirements and identify reusable mechanisms. Do not implement during the audit.
-5. **Bounded delivery:** ChatGPT reviews the gap analysis and issues a scoped implementation brief. Owner approval is required for product priorities, reserved privacy choices and consequential scope/risk decisions. Documentation confirmation and closure of G-O18/G-O19 do not authorise Stage 2. Before Stage 2 begins, G-O17 must be resolved through an accepted runtime ADR, ChatGPT must review the bounded Stage 2 package, and the owner must explicitly authorise it.
+- **Stage 0 (documentation review and reconciliation): COMPLETE.** Claude's full-document consistency confirmation is recorded in PR #7 comment 7023445432.
+- **Stage 1 (implementation audit / gap analysis): ACCEPTED AND CLOSED.** Claude's audit reports are recorded in PR #7 comments 7022436618, 7022456916 and 7022810935, with the superseding final note in 7022967306. ChatGPT's formal acceptance is recorded in comment 7022990234. The audit did not implement changes; its evidence limitations and unverified Mac-dependent behaviour remain applicable.
+- **Stage 2: NOT AUTHORISED.** Completion of Stages 0 and 1 is not implementation approval.
 
-Until step 4 is authorised by completion of steps 1–3, Claude's assignment is documentation review only. This documentation sequence does not authorise Stage 2 or implementation. No code changes, migration, app retirement, data movement or destructive action is authorised by this sequence.
+### Historical sequence (Stages 0 and 1 — completed)
+
+The following records the sequence already completed; it is retained as an audit trail, not as a statement of current assignment:
+
+1. **Claude documentation review:** review the revised Genesis canonical documents on PR #7, covering Agent Workforce/personal-work automation, the single-app boundary, Finance/Health trust boundaries, approval model, performance/resource constraints, storage/recovery gates, thin vertical slice and evidence requirements.
+2. **ChatGPT reconciliation:** assess Claude's review, correct documentation inconsistencies and record dispositions in this PR.
+3. **Claude confirmation:** re-read the complete canonical set and confirm consistency or identify exact remaining gaps.
+4. **Implementation gap analysis:** inspect the current Atlas implementation and produce a requirement-by-requirement evidence-backed gap analysis. Map legacy app features, processes, schemas, data and tests to internal Atlas capabilities; include personal-work automation/agent requirements and identify reusable mechanisms. No implementation was part of the audit.
+
+### Stage 2 entry gates — all mandatory
+
+Before any Stage 2 implementation begins:
+
+1. **G-O17 runtime/platform ADR accepted:** compare candidate runtimes against the owner-set criteria, with Mac+iPhone code sharing as the top criterion, alongside local inference integration, performance, security, maintainability and migration cost.
+2. **ChatGPT review:** review and accept a bounded Stage 2 work package with objective, scope/non-goals, contracts, acceptance tests, evidence requirements, risks and rollback.
+3. **Explicit owner authorisation:** the owner must expressly approve starting Stage 2 after reviewing the ADR and bounded package.
+
+Documentation sign-off, Stage 0/1 completion, or resolution of G-O18/G-O19 does not satisfy these gates. Until all three gates are met, Claude must not begin Stage 2 implementation. No code changes, migration, app retirement, data movement or destructive action are authorised.
