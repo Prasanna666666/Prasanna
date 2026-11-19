@@ -9,7 +9,7 @@
 
 ## Purpose
 
-This directory is the single authoritative target specification for the one Atlas application. Legacy app shells are obsolete product boundaries; their capabilities are migrated into Atlas. Existing implementation/test records elsewhere in `docs/` are evidence of current behaviour only, not competing target specifications.
+This directory is the single authoritative target specification for the one Atlas application. macOS is the first platform; eventual iOS and Android clients with secure worldwide access are part of the product target. Legacy app shells are obsolete product boundaries; their capabilities are migrated into Atlas. Existing implementation/test records elsewhere in `docs/` are evidence of current behaviour only, not competing target specifications.
 
 The existing application, its tests, security controls, data stores and PR review evidence remain the implementation baseline. The target described here is not a claim that those capabilities already exist.
 
