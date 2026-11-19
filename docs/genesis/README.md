@@ -22,6 +22,7 @@ The existing application, its tests, security controls, data stores and PR revie
 5. [Ingestion and durable processing](INGESTION_PIPELINE.md) — reliable document and source processing.
 6. [Delivery and collaboration protocol](DELIVERY_PROTOCOL.md) — manager, architect/reviewer and developer responsibilities.
 7. [Decision register](DECISIONS.md) — settled decisions, recommendations and unresolved ADRs.
+8. [Project handover](HANDOVER.md) — repository state, canonical source-of-truth rules, clean-start safeguards and first developer deliverable.
 
 ## Source-of-truth rules
 
