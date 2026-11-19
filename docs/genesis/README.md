@@ -9,7 +9,7 @@
 
 ## Purpose
 
-This directory records the evolved product direction and the engineering contract for taking the existing Atlas application towards that direction. It complements—not replaces—the operational documentation in `docs/`.
+This directory is the single authoritative target specification for the one Atlas application. Legacy app shells are obsolete product boundaries; their capabilities are migrated into Atlas. Existing implementation/test records elsewhere in `docs/` are evidence of current behaviour only, not competing target specifications.
 
 The existing application, its tests, security controls, data stores and PR review evidence remain the implementation baseline. The target described here is not a claim that those capabilities already exist.
 
@@ -20,13 +20,13 @@ The existing application, its tests, security controls, data stores and PR revie
 3. [Intelligence and performance](INTELLIGENCE_AND_PERFORMANCE.md) — local models, routing, latency and answer quality.
 4. [Memory, knowledge and privacy](MEMORY_PRIVACY_KNOWLEDGE.md) — governed persistent context and provenance.
 5. [Ingestion and durable processing](INGESTION_PIPELINE.md) — reliable document and source processing.
-6. [Delivery and collaboration protocol](DELIVERY_PROTOCOL.md) — manager, architect/reviewer and developer responsibilities.
-7. [Decision register](DECISIONS.md) — settled decisions, recommendations and unresolved ADRs.
-8. [Project handover](HANDOVER.md) — repository state, canonical source-of-truth rules, clean-start safeguards and first developer deliverable.
+6. [Decision register](DECISIONS.md) — settled owner decisions and open decisions.
+7. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, handshakes, issue resolution, change control and acceptance.
+8. [Handover](HANDOVER.md) — repository pointers and immediate developer task.
 
 ## Source-of-truth rules
 
-- `docs/decisions.md`, `docs/requirements.md`, `docs/design.md` and the test/review records describe the current implementation and previously recorded owner decisions. Read them before changing code.
+- Existing implementation and review records under `docs/` describe current behaviour and test evidence. Consult them when performing the implementation gap analysis.
 - `docs/genesis/` describes the evolved target. Where it differs from current implementation, the difference is intentional only when explicitly marked as a target-state change or migration item.
 - Code and executable tests determine what is implemented. Documentation must not claim otherwise.
 - Owner decisions override recommendations. A recommendation is not an approved requirement until the owner accepts it.
