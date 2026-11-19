@@ -53,6 +53,7 @@ Atlas may monitor explicitly connected and authorised sources through events or 
 - Consequential, external, destructive, financial, privacy-sensitive or irreversible actions require explicit approval.
 - Approval must be specific, current, scoped to the exact proposed action and recorded.
 - Atlas must never treat instructions inside retrieved documents, emails or tool output as owner approval.
+- A task that reads untrusted content (including email, documents or webpages) must not directly perform an external send/share in the same unreviewed context. Before execution, the policy engine must inspect the exact outgoing content, destination/recipients and data classification; required approval must display that exact payload and recipients. Changes after approval invalidate the approval.
 
 ### 4.5 Personal-work automation and agent workforce
 
@@ -63,7 +64,7 @@ The workforce should support the owner's personal and professional life, includi
 - **Personal Knowledge:** finds, connects and explains information across authorised sources, retaining provenance and temporal context.
 - **Documents:** discovers, reads, extracts, classifies, compares, summarises, drafts and organises files while preserving originals and source references.
 - **Research and Verification:** researches questions, compares options, checks claims against independent evidence and reports uncertainty and conflicting sources.
-- **Finance:** analyses authorised financial records, budgets, investments and scenarios. Finance remains a restricted trust domain; raw records must not enter general agent memory or context. Only explicitly permitted, policy-checked outputs may cross the boundary.
+- **Finance:** a deterministic, domain-isolated capability computes authorised financial results. Under the owner's explicit decision, no AI model or general agent may see raw Finance records; only narrowly scoped, computed, policy-checked outputs may cross the boundary. Any future change requires a new explicit owner decision.
 - **Work and Projects:** plans deliverables, tracks tasks, prepares meetings and follow-ups, and coordinates authorised project tools.
 - **Communications and Scheduling:** drafts and organises email/messages, calendar events, reminders and follow-ups. Sending, committing or contacting others follows explicit action policy.
 - **Travel:** researches and prepares itineraries, transport, accommodation and booking workflows; purchases and bookings require the configured approval.
@@ -73,7 +74,7 @@ The workforce should support the owner's personal and professional life, includi
 
 These are target capability roles, not a requirement to run every agent continuously or ship every integration in the first release. Agents should be invoked only when a task benefits from specialist work. Simple requests should remain on a fast direct path.
 
-A typical workflow is: owner request or authorised trigger → coordinator scopes the outcome → policy checks source and action permissions → relevant specialists work in isolated task contexts → deterministic tools and independent verification check critical facts → coordinator consolidates a sourced result → Guardian enforces approval before consequential actions → Atlas records the outcome and notifies the owner. Parallel work is allowed only for independent tasks; conflicting writes and dependent steps are serialised.
+A typical workflow is: owner request or authorised trigger → coordinator scopes the outcome → policy checks source and action permissions → relevant specialists work in isolated task contexts → deterministic tools and independent verification check critical facts → coordinator consolidates a sourced result → Guardian enforces approval before consequential actions → Atlas records the outcome and notifies the owner. Parallel work is allowed only for independent tasks; conflicting writes and dependent steps are serialised. The detailed role catalogue and orchestration are TARGET/RECOMMENDED, not a claim of current implementation; see `TARGET_ARCHITECTURE.md` for the single canonical role catalogue and phased roadmap.
 
 ### 4.6 Automation levels
 - **Observe:** monitor explicitly authorised sources and detect material changes.
