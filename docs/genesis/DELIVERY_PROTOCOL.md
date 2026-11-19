@@ -117,6 +117,14 @@ Evidence levels must be labelled accurately: **developer-reported**, **CI-verifi
 - One issue has one canonical discussion; summarise and link rather than duplicating threads.
 - Do not merge, release, delete branches/data or close owner-reserved work without explicit authority.
 
-## 9. First task for Claude on this handover
+## 9. Required documentation-review and implementation sequence
 
-Read the Genesis index and canonical specifications, inspect the current Atlas implementation, then produce a requirement-by-requirement gap analysis. Map every legacy standalone app feature, process, schema and dataset to its future internal Atlas capability. Identify which app shells can be retired, which workers remain technically justified, and the migration/data-preservation sequence. Do not begin a broad rewrite until ChatGPT has reviewed the analysis and issued a bounded work package.
+The current stage is documentation reconciliation. The order is mandatory:
+
+1. **Claude documentation review:** review the revised Genesis canonical documents on PR #7 only. Check the Agent Workforce/personal-work automation requirements, single-app boundary, Finance/Health trust boundaries, approval model, performance/resource constraints, storage/recovery gates, thin vertical slice and evidence requirements. Confirm each prior S1/S2 finding is closed or identify the exact remaining gap. Do not start implementation inspection or the implementation gap analysis in this step.
+2. **ChatGPT reconciliation:** assess Claude's review, correct any remaining documentation inconsistency and record the disposition in this PR.
+3. **Claude confirmation:** confirm that the revised canonical documents and review dispositions are consistent. Raise any unresolved owner-reserved decision explicitly; do not silently decide it.
+4. **Implementation gap analysis:** only after the documentation confirmation above, inspect the current Atlas implementation and produce a requirement-by-requirement evidence-backed gap analysis. Map legacy app features, processes, schemas, data and tests to internal Atlas capabilities; include the personal-work automation/agent requirements and identify reusable mechanisms. Do not implement during the audit.
+5. **Bounded delivery:** ChatGPT reviews the gap analysis and issues a scoped implementation brief. Owner approval is required for product priorities, reserved privacy choices and consequential scope/risk decisions.
+
+Until step 4 is authorised by completion of steps 1–3, Claude's assignment is documentation review only. No code changes, migration, app retirement, data movement or destructive action is authorised by this sequence.
