@@ -89,3 +89,18 @@ At minimum:
 - Verify progress matches durable state after restart.
 - Verify one failed source does not block unrelated work.
 - Verify links retain provenance and do not merge conflicting facts.
+
+
+## 9. Workload, resource and completeness requirements
+
+The initial performance design must account for the owner's existing archive, currently estimated at about 26,000 email items and 1,400 documents; the implementation audit must verify actual counts, formats, sizes and duplicates. Do not add arbitrary hardcoded word/file/source limits or silently omit items. Resource ceilings may be configurable and hardware-aware, but pressure must cause back-pressure, pause, prioritisation or an explicit needs-attention state—not silent data loss.
+
+The pipeline must remain restart-safe across macOS sleep/wake, application restart, low-battery conditions, model unavailability, disk pressure and worker termination. Persist completed work and checkpoints before pausing where possible. Resume from durable state and revalidate source/version fingerprints. Report skipped, unsupported, corrupt, permission-denied and partially processed sources distinctly.
+
+## 10. Existing mechanisms and migration audit
+
+Before redesigning stages, Claude must inventory and map the current consent checks, staged changes, undo journal, audit trail, completion markers (including any .done files), idempotency keys, atomic publication, retry policy and progress persistence. The reported progress returning to 90% after restart is a user-reported symptom, not a reproduced defect until verified against the current code and a reproducible test. Preserve useful mechanisms; identify proven gaps before proposing replacements.
+
+## 11. Data portability and schema evolution
+
+Every durable store needs explicit schema/version metadata and a tested migration strategy. Migrations must be restartable or safely atomic, preserve source IDs and provenance, validate record counts/checksums and provide rollback or restore. The owner must be able to export personal data and source-linked knowledge in documented, open, machine-readable formats. Export must state what is excluded, encrypted or transformed; it must not require Atlas to remain installed to interpret the exported data.
