@@ -8,7 +8,7 @@ Build and ship **one Atlas application** with one product identity, one entry po
 
 Finance, Documents, Images and any other legacy standalone apps/services are obsolete as product boundaries. Their capabilities are to become internal Atlas modules. They must not remain separate user-facing apps, separately branded products or independently configured experiences in the target state.
 
-Separate helper processes are permitted only as implementation details when required for security isolation, platform constraints, fault containment or resource scheduling (for example, an untrusted parser or model runtime). Such workers have no independent product identity or user-facing lifecycle. Migrate incrementally: preserve working behaviour and data while retiring the old app shells and duplicate orchestration. Do not perform a destructive big-bang rewrite.
+Separate helper processes are permitted only as implementation details when required for security isolation, platform constraints or resource scheduling (for example, an untrusted parser or model runtime). Such workers have no independent product identity or user-facing lifecycle. The existing implementation is reference material, not an architectural constraint: classify each mechanism as **reuse**, **reference-only** (including behavioural/regression evidence), or **discard**. Choose the best architecture even if that requires a new core. Preserve the owner's data, keys and history through integrity-checked migration, verified backups where applicable and rollback; do not perform destructive cleanup without an approved migration plan.
 
 ## 2. Logical architecture
 
@@ -32,8 +32,8 @@ Internal Atlas capabilities / bounded contexts
        |
 Platform adapters
   macOS | Filesystem | Keychain | Notifications | Voice | Local runtimes
-  iOS adapter (committed future platform)
-  Android / web adapters (future portability; not yet committed)
+  iOS and Android client adapters (committed future platforms)
+  Optional secure browser client (not a committed delivery platform)
 ```
 
 ## 3. Atlas Core responsibilities
@@ -132,7 +132,8 @@ The eventual product includes mobile clients for **iOS and Android**, usable by 
 - Enforce the same domain boundaries and policy checks on remote requests as on local requests. Finance raw records remain inaccessible to all models and general agents; Health remains locked by default. No client-side UI check is a substitute for server-side policy enforcement.
 - Minimise data held on mobile devices. Protect local caches and credentials with platform secure storage; support remote sign-out/revocation and define what happens to cached data on device loss. Sensitive notification content must be opt-in and minimised.
 - Define offline behaviour explicitly: cached, already-authorised information may be available according to owner settings; new Core-dependent actions must be queued safely or reported unavailable, never falsely shown as completed. Resolve sync conflicts with explicit, auditable rules.
-- Global availability is an objective, not a guarantee: it depends on the owner-controlled host being online, power/network availability, mobile connectivity, supported regions and local law. Show connection/availability state clearly and degrade gracefully.
+- The owner intends the owner-controlled Mac mini hosting Atlas Core to remain on and available. Treat this as an operating assumption, not a verified guarantee. Atlas must start automatically after a normal reboot or update; if the host or network cannot be reached, the mobile client shows a plain, honest unreachable state. Do not add disproportionate engineering for extreme outage scenarios.
+- Worldwide mobile availability still depends on network reachability, mobile connectivity, supported regions and local law. Show connection state clearly and never imply an unavailable Core-dependent action completed.
 
 ### 10.2 Mobile capability and release expectations
 
@@ -142,19 +143,19 @@ Native iOS and Android delivery, secure remote connectivity, push-notification p
 
 ## 11. Unified delivery and migration roadmap
 
-This is the single ordered roadmap. Sections 13.8 and 15 define workforce design and first-proof criteria; they do not create competing migration sequences.
+This is the single ordered roadmap. Sections 12.8 and 14 define workforce sequencing and first-proof criteria; they do not create competing migration sequences. Stages 1–3 are the only near-term committed delivery scope until the read-only slice is demonstrated on the real target hardware and accepted. Later stages remain target direction, not parallel implementation commitments.
 
 | Order | Stage | Required work | What is proven before proceeding |
 |---:|---|---|---|
 | 0 | Documentation baseline | Complete Claude review, ChatGPT reconciliation and Claude confirmation. Inventory canonical vs legacy docs and record unresolved owner decisions. | One internally consistent target specification. |
-| 1 | Read-only vertical-slice audit/design | Audit existing mechanisms and define a small document workflow: find/read a local document and answer with exact source/page/section evidence. | Bounded workflow, code reuse map and measurable retrieval/provenance criteria. |
-| 2 | Foundation contracts | Define capability interfaces, policy checks, task/job state, provenance, redacted observability and architecture tests; reuse current controls. | Typed boundaries prevent bypass, leakage and duplicate orchestration. |
-| 3 | Read-only slice implementation | Implement only the approved workflow, durable task state and direct-path fallback; no writes or external side effects. | Correctness, provenance, restart recovery, adversarial isolation and recorded-hardware latency. |
+| 1 | Read-only vertical-slice audit/design | Audit existing mechanisms and classify each as reuse, reference-only or discard; define a small document workflow: find/read a local document and answer with exact source/page/section evidence. | Bounded workflow, code reuse map and measurable retrieval/provenance criteria. |
+| 2 | Foundation contracts | Define capability interfaces, policy checks, task/job state, provenance, redacted observability and architecture tests; retain existing controls only where the audit shows they are the best fit. | Typed boundaries prevent bypass, leakage and duplicate orchestration. |
+| 3 | Read-only slice implementation | Implement only the approved workflow on the architecture selected by the core language/runtime ADR, with durable task state and direct-path fallback; no writes or external side effects. | Correctness, provenance, restart recovery, adversarial isolation and recorded-hardware latency. |
 | 4 | Storage/recovery gate | Complete storage/key ADR, backup/restore/export/key recovery design and tested restore before consolidation or single-copy dependency. | Recoverability and integrity demonstrated; owner accepts recovery experience. |
 | 5 | Incremental capability migration | Migrate one internal capability at a time behind adapters; preserve data, keys, tests and rollback. | Parity and rollback demonstrated before retiring each legacy shell. |
 | 6 | Broader intelligence/workforce | Add measured routing, specialists, connectors and proactive work only where benchmarks justify complexity. | Each route/agent improves outcomes without violating privacy, latency or resource budgets. |
 | 7 | Native packaging/release | Deliver native Mac app, integrity-verified one-click updates, health checks, backup/checkpoint and rollback. | Install/update/rollback and operational recovery pass release tests. |
-| 8 | Worldwide mobile access | Deliver iOS and Android clients, secure remote connectivity to owner-controlled Atlas Core, device identity/revocation, push-notification privacy and defined offline/sync behaviour. | Remote threat model and ADR accepted; mobile security, device-loss, intermittent-network, sync/conflict and global connectivity tests pass. No cloud inference or plaintext relay storage. |
+| 8 | Worldwide mobile access | Deliver iOS and Android clients, secure remote connectivity to owner-controlled Atlas Core, device identity/revocation, push-notification privacy and defined offline/sync behaviour. | Threat model and remote-access ADR accepted before stage 8 begins; device enrolment/revocation, least-privilege access, no public database/model ports, push privacy and remote API security tested. Offline/sync behaviour and supported-region connectivity tested. Stages 0–7 have no dependency on mobile access. No cloud inference or plaintext relay storage. |
 
 No stage authorises destructive cleanup by itself. Each migration requires approval, inventory, compatibility checks, rollback and acceptance.
 
