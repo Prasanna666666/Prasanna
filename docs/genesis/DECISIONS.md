@@ -21,6 +21,9 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-012 | Response speed and answer accuracy are both critical | DECIDED | Latency and quality are paired release criteria |
 | G-013 | There will be exactly one Atlas application. Legacy standalone Finance, Documents, Images and other app shells are obsolete; their useful capabilities/data must be integrated into Atlas | DECIDED | One product identity and UX; internal modules are allowed, separate apps are not |
 | G-014 | Atlas is intended to automate the owner's personal and professional work through a unified assistant and coordinated internal capabilities | DECIDED | Design for end-to-end personal workflows, not only chat, search or isolated domain tools |
+| G-015 | No AI model or general agent may see raw Finance records; financial answers must be computed deterministically and only approved computed outputs may cross the boundary | DECIDED | Finance remains a deterministic, isolated capability; changing this requires a new explicit owner decision |
+| G-016 | Target delivery is one native macOS application with one-click updates | DECIDED | Packaging, integrity verification, update and rollback implementation require an ADR and audit; this is not a claim of current implementation |
+| G-017 | Planning/minimum-support profile is a 32 GB Apple-silicon Mac mini | DECIDED (planning profile) | Not yet owner-verified or benchmarked; actual test machine and results must be recorded separately |
 
 ## 2. Architecture recommendations
 
@@ -42,14 +45,18 @@ This register distinguishes explicit owner decisions from architecture recommend
 | ID | Question | Proposed next step | Owner input needed now? |
 |---|---|---|---|
 | G-O01 | Which local models and runtimes meet quality/latency/memory needs? | Benchmark a representative shortlist on the actual Mac | No; investigate first |
-| G-O02 | What storage, full-text, vector and relationship-query stack is appropriate? | Audit current data volume, query patterns, encryption and backup | No |
+| G-O02 | What storage, full-text, vector and relationship-query stack is appropriate? | Produce a storage/encryption/key-boundary ADR after auditing data volume, query patterns, backup and restore | No |
 | G-O03 | Which external sources/connectors should be supported first? | Inventory existing sources and rank by value/risk | Only when prioritising a release |
 | G-O04 | What is the multi-device sync and conflict model? | Defer until a second platform/device is scheduled | No |
-| G-O05 | What backup and key-recovery experience is acceptable? | Threat-model and prototype recovery without weakening encryption | Yes, before release relying on backup |
+| G-O05 | What backup and key-recovery experience is acceptable? | Owner explicitly deferred this decision; keep the storage/recovery release gate closed until decided and restore-tested | Yes, before release relying on backup |
 | G-O06 | What are notification quiet hours and escalation preferences? | Design defaults; ask during notification UX acceptance | Later |
 | G-O07 | What are final latency/accuracy thresholds? | Measure baseline and benchmark on target hardware | Yes, after evidence is available |
-| G-O08 | What are the first capability priorities after the foundation? | Present ranked roadmap with effort/risk/value | Yes, at roadmap review |
-| G-O09 | Which personal-work workflow should be the first complete agent-assisted vertical slice? | Claude audits existing capabilities; ChatGPT proposes a low-risk, high-value slice for owner selection | Yes, before implementation |
+| G-O08 | What are the first capability priorities after the foundation? | Present ranked roadmap with effort/risk/value after the read-only slice audit | Yes, at roadmap review |
+| G-O11 | What is the minimum supported machine and OS version? | 32 GB Apple-silicon Mac mini is the planning/minimum profile; benchmark and publish the supported OS after target testing | No; verify before release |
+| G-O12 | What native packaging, helper-process and update mechanism will be used? | ADR covering app bundle, helper isolation, footprint, signing/integrity, one-click update and rollback | No; decide before release |
+| G-O13 | How are standing rules and legacy `docs/` records mapped to Genesis? | Audit and classify standing rules, defect list, coverage matrix and comment tracker during implementation gap analysis; retain historical evidence | No |
+| G-O14 | What exact workflow does the owner want first? | Tentatively read-only documents; obtain explicit confirmation before issuing implementation brief | Yes |
+| G-O09 | Confirm the exact first vertical-slice workflow | Tentative preference is read-only local document discovery, reading and answering with exact source/page/section citations; owner confirmation still required | Yes, before implementation |
 | G-O10 | Which connectors and external actions may agents use, and at what autonomy level? | Inventory available integrations and propose least-privilege scopes | Yes, per connector/action
 
 ## 4. Reconciliation with current Atlas implementation
@@ -69,9 +76,7 @@ Do not remove existing security controls, data stores, tests or app capabilities
 
 ## 5. Personal Agent Workforce direction
 
-The owner-established product direction is that Atlas should assist with and automate personal and professional work across life domains. A specialised internal Agent Workforce is the recommended architecture for delivering this direction; the detailed role catalogue and orchestration design remain recommendations until validated against the existing implementation and approved through the normal process.
-
-Target roles include Chief of Staff/Coordinator, Personal Knowledge, Documents, Research/Verification, Finance, Work/Projects, Communications/Scheduling, Travel, Home, Health and Guardian/Policy. These are internal roles, not separate applications. Agents are on-demand, task-scoped and permission-limited. Finance remains restricted from general assistant context pending explicit resolution of the existing privacy rule; Health is locked by default. Consequential actions require the configured approval policy.
+The owner-established outcome is personal and professional work automation inside the single Atlas application. The recommended role catalogue, orchestration and phased delivery are defined once in `TARGET_ARCHITECTURE.md` §13 and the unified roadmap in §11. Do not duplicate the role list here. Finance follows G-015; Health remains locked by default. Consequential actions require the configured approval policy.
 
 ## 6. Change log
 
