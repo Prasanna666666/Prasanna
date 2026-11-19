@@ -120,28 +120,22 @@ Separate sensitive stores or encryption keys where threat modelling supports the
 
 Keep business logic and domain contracts platform-neutral. Encapsulate macOS-specific functionality (Keychain, filesystem events, Apple Mail/Photos, notifications, speech, local model runtimes) behind adapters. Define capability detection and graceful degradation for platforms without an equivalent feature.
 
-## 11. Migration strategy
+## 11. Unified delivery and migration roadmap
 
-1. Inventory current apps, packages, processes, APIs, schemas, data stores, keys, tests, CI and operational scripts.
-2. Map every legacy app feature and dataset to its target internal Atlas capability; identify duplicate ownership and hidden coupling.
-3. Define contract and security boundaries before moving code.
-4. Add compatibility adapters and regression tests.
-5. Introduce durable job state and evidence/provenance contracts before redesigning ingestion.
-6. Introduce the Intelligence Gateway behind the existing model client boundary.
-7. Migrate one capability/workflow at a time; preserve existing data and encryption keys.
-8. Benchmark and compare old/new behaviour before removing a legacy path.
-9. Retire old interfaces only after parity, migration, rollback and owner acceptance are demonstrated.
+This is the single ordered roadmap. Sections 13.8 and 15 define workforce design and first-proof criteria; they do not create competing migration sequences.
 
-## 12. Architecture guardrails
+| Order | Stage | Required work | What is proven before proceeding |
+|---:|---|---|---|
+| 0 | Documentation baseline | Complete Claude review, ChatGPT reconciliation and Claude confirmation. Inventory canonical vs legacy docs and record unresolved owner decisions. | One internally consistent target specification. |
+| 1 | Read-only vertical-slice audit/design | Audit existing mechanisms and define a small document workflow: find/read a local document and answer with exact source/page/section evidence. | Bounded workflow, code reuse map and measurable retrieval/provenance criteria. |
+| 2 | Foundation contracts | Define capability interfaces, policy checks, task/job state, provenance, redacted observability and architecture tests; reuse current controls. | Typed boundaries prevent bypass, leakage and duplicate orchestration. |
+| 3 | Read-only slice implementation | Implement only the approved workflow, durable task state and direct-path fallback; no writes or external side effects. | Correctness, provenance, restart recovery, adversarial isolation and recorded-hardware latency. |
+| 4 | Storage/recovery gate | Complete storage/key ADR, backup/restore/export/key recovery design and tested restore before consolidation or single-copy dependency. | Recoverability and integrity demonstrated; owner accepts recovery experience. |
+| 5 | Incremental capability migration | Migrate one internal capability at a time behind adapters; preserve data, keys, tests and rollback. | Parity and rollback demonstrated before retiring each legacy shell. |
+| 6 | Broader intelligence/workforce | Add measured routing, specialists, connectors and proactive work only where benchmarks justify complexity. | Each route/agent improves outcomes without violating privacy, latency or resource budgets. |
+| 7 | Native packaging/release | Deliver native Mac app, integrity-verified one-click updates, health checks, backup/checkpoint and rollback. | Install/update/rollback and operational recovery pass release tests. |
 
-- No direct cross-domain database writes.
-- No personal-data cloud inference or silent fallback.
-- No ungoverned model tool execution.
-- No non-durable long-running job state.
-- No hidden truncation or silent partial processing.
-- No model-specific assumptions in domain logic.
-- No architecture change without migration, tests and rollback plan.
-
+No stage authorises destructive cleanup by itself. Each migration requires approval, inventory, compatibility checks, rollback and acceptance.
 
 ## 13. Personal Agent Workforce and orchestration
 
@@ -150,7 +144,7 @@ Atlas Core provides one hierarchical supervisor/orchestrator for a coordinated w
 ### 13.1 Control plane
 The Agent Orchestrator owns task decomposition, routing, dependency graphs, delegation, deadlines, budgets, cancellation, retries, result consolidation and task status. A registry describes each agent's role, version, supported tasks, required permissions, sensitivity classification, allowed tools, model requirements, resource profile and health. The registry is configuration governed by Atlas policy; an agent cannot edit its own authority.
 
-The orchestrator uses a planner/supervisor with specialist workers. It should prefer a direct tool or single-model path when sufficient. It may fan out independent research or analysis tasks, but dependent tasks and writes are ordered. A verifier is selected for high-impact or uncertainty-sensitive work; using multiple agents is not itself proof of correctness.
+The orchestrator is a deterministic task state machine over registered, typed task contracts. A model may select among permitted task types and propose validated parameters, but it does not own workflow state, permissions, retry policy or authority. Prefer a direct tool or single-model path when sufficient; if planning confidence is inadequate, fall back to the direct path or ask the owner. It may fan out independent research or analysis tasks, but dependent tasks and writes are ordered. A verifier is selected for high-impact or uncertainty-sensitive work; using multiple agents is not itself proof of correctness.
 
 ### 13.2 Personal-domain specialist roles
 The initial role catalogue is a target design, not a commitment to implement all roles in the first release:
@@ -158,7 +152,7 @@ The initial role catalogue is a target design, not a commitment to implement all
 - Personal Knowledge — authorised retrieval, source linking, durable context and memory maintenance.
 - Documents — file discovery, extraction, comparison, drafting, classification and organisation.
 - Research / Verification — evidence gathering, source quality, contradiction checks and independent validation.
-- Finance — restricted financial analysis through a separately governed domain boundary.
+- Finance — deterministic, domain-isolated computation only. By explicit owner decision, no model or general agent sees raw Finance records; only narrowly scoped computed outputs may cross the boundary.
 - Work / Projects — project plans, tasks, meeting preparation, deliverables and follow-ups.
 - Communications / Scheduling — email, messages, calendar and reminders through explicitly authorised connectors.
 - Travel — itinerary research and booking preparation; transactional actions remain approval-gated.
@@ -176,10 +170,10 @@ Lifecycle: requested → policy checked → planned → queued → running → a
 ### 13.4 Context and permission isolation
 Each agent receives the minimum task-specific context required. Access is checked before retrieval and again before tool execution; filtering after content has entered model context is too late. Child agents inherit no more authority than the parent task and may receive less. Sensitive-domain data stays inside its domain boundary.
 
-Finance is treated as restricted pending explicit owner resolution of the existing privacy rule: general agents must not retrieve raw Finance records or place them in shared memory/context. Where policy permits, Finance may return narrowly scoped computed results with provenance, without exposing underlying records. Health remains locked by default. Cross-domain workflows require explicit policy authorisation for each data flow.
+Finance is a deterministic capability boundary: by explicit owner decision, raw Finance records are never exposed to any AI model, general agent, shared memory or coordinator context. Finance code computes the requested result and may return only the minimum necessary computed output, with provenance and policy checks. Any proposal to change this requires a new explicit owner decision. Health remains locked by default. Cross-domain workflows require explicit policy authorisation for each data flow.
 
 ### 13.5 Action and approval boundary
-All agent tools use the central Action Runtime. Agents may prepare proposed actions but cannot bypass preview, validation, approval, revalidation, idempotency, audit or undo/compensation controls. Approval is bound to the exact action, target, parameters and validity window. Retrieved documents, emails, webpages and agent outputs cannot grant approval or change policy.
+All agent tools use the central Action Runtime. Agents may prepare proposed actions but cannot bypass preview, validation, approval, revalidation, idempotency, audit or undo/compensation controls. Approval is bound to the exact action, target, parameters and validity window. Retrieved documents, emails, webpages and agent outputs cannot grant approval or change policy. A task that reads untrusted content must not directly perform an external send/share in the same unreviewed context. Before execution, policy must inspect the exact outgoing payload, recipients/destination and data classification; required approval must display that exact content and destination. Any post-approval change invalidates approval. Include hostile email/web prompt-injection cases in the synthetic evaluation suite.
 
 Default automation posture:
 - Observe and prepare within explicitly granted read permissions.
@@ -194,13 +188,8 @@ Agent execution is demand-driven, not a swarm of continuously active models. The
 Agents return structured results with evidence, uncertainty, limitations and proposed actions. The orchestrator handles worker crashes, timeouts, unavailable models/connectors, partial results and conflicting outputs. It must not present an incomplete workflow as complete. High-impact calculations use deterministic code/tools; high-impact conclusions require source evidence and independent validation where practical. Logs and telemetry must be privacy-minimised and must not expose personal content or secrets.
 
 ### 13.8 Initial delivery sequence
-1. Establish task contracts, agent registry, permission enforcement and durable task lifecycle.
-2. Deliver a single coordinator with a small number of useful specialists for Personal Knowledge, Documents and Research, using existing Atlas mechanisms where possible.
-3. Add connectors and further domain specialists in owner-prioritised slices; Finance and Health remain separately gated.
-4. Add scheduled/proactive delegation only after monitoring, cancellation, notification, audit and recovery are proven.
-5. Expand autonomy only through explicit owner-approved policies and measured reliability.
 
-Do not build a large multi-agent framework before proving one complete personal workflow end to end.
+The workforce follows the unified roadmap in §11; this is not a second migration plan. Begin with a read-only document retrieval/answer workflow and only the minimum coordinator, document retrieval and verification mechanisms required. Personal Knowledge and Research may be responsibilities inside that slice, not separate always-running agents. Add specialists/connectors only after the slice is measured and accepted. Finance and Health remain separately gated; proactive delegation and broader autonomy come later.
 
 ## 14. Storage, encryption and recovery gates
 
@@ -208,7 +197,7 @@ No irreversible consolidation of domain stores or single-copy dependency is allo
 
 ## 15. Thin vertical slice
 
-The first architecture proof should complete one useful personal workflow end to end: accept a user request, retrieve from one authorised source, produce a result with precise provenance, prepare any proposed action through the Action Runtime, enforce approval policy, persist task/audit state, and recover correctly after interruption. Reuse existing consent, staged-change, undo, audit and ingestion mechanisms after auditing them; do not rebuild them by assumption.
+The first architecture proof is a **read-only document workflow** (tentative owner preference, pending final confirmation): accept a user request, find and read an authorised local document, answer with exact file and page/section provenance, persist task state, and recover correctly after interruption. It has no write, send, share, purchase or other external side effect, so it does not need an approval flow to prove retrieval. Reuse existing permission, consent, audit and ingestion mechanisms after auditing them; do not rebuild them by assumption. This is a proposed first slice, not implementation authorisation.
 
 ## 16. Hardware and evidence requirements
 
@@ -216,6 +205,8 @@ Distinguish the owner's intended target Mac from the actual machine used for tes
 
 
 ## 17. Update, export and operational safety
+
+The owner has decided the target delivery experience is a **native macOS application with one-click updates**. The exact packaging mechanism, helper-process layout, install footprint, update signing/integrity chain and rollback implementation remain subject to an ADR and implementation audit. Existing containers/services, if present, are transitional implementation details until the audit proves otherwise; they must not create multiple user-facing apps. Do not claim native packaging is already implemented.
 
 - Atlas must not autonomously modify, rewrite or deploy its own application source code. Agent-assisted development is a separate workflow with human-controlled repository permissions, review and release gates.
 - Define an integrity-verified local update path, explicit user consent where required, pre-update backup/checkpoint, health check and rollback to the last known-good version. Core functionality must not depend on a cloud update service.
