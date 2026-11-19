@@ -141,3 +141,75 @@ Keep business logic and domain contracts platform-neutral. Encapsulate macOS-spe
 - No hidden truncation or silent partial processing.
 - No model-specific assumptions in domain logic.
 - No architecture change without migration, tests and rollback plan.
+
+
+## 13. Personal Agent Workforce and orchestration
+
+Atlas Core provides one hierarchical supervisor/orchestrator for a coordinated workforce of specialised agents. This is an internal capability of the one Atlas application, not a collection of autonomous apps or permanently running model instances.
+
+### 13.1 Control plane
+The Agent Orchestrator owns task decomposition, routing, dependency graphs, delegation, deadlines, budgets, cancellation, retries, result consolidation and task status. A registry describes each agent's role, version, supported tasks, required permissions, sensitivity classification, allowed tools, model requirements, resource profile and health. The registry is configuration governed by Atlas policy; an agent cannot edit its own authority.
+
+The orchestrator uses a planner/supervisor with specialist workers. It should prefer a direct tool or single-model path when sufficient. It may fan out independent research or analysis tasks, but dependent tasks and writes are ordered. A verifier is selected for high-impact or uncertainty-sensitive work; using multiple agents is not itself proof of correctness.
+
+### 13.2 Personal-domain specialist roles
+The initial role catalogue is a target design, not a commitment to implement all roles in the first release:
+- Chief of Staff / Coordinator — owner intent, prioritisation, decomposition, delegation, synthesis and follow-through.
+- Personal Knowledge — authorised retrieval, source linking, durable context and memory maintenance.
+- Documents — file discovery, extraction, comparison, drafting, classification and organisation.
+- Research / Verification — evidence gathering, source quality, contradiction checks and independent validation.
+- Finance — restricted financial analysis through a separately governed domain boundary.
+- Work / Projects — project plans, tasks, meeting preparation, deliverables and follow-ups.
+- Communications / Scheduling — email, messages, calendar and reminders through explicitly authorised connectors.
+- Travel — itinerary research and booking preparation; transactional actions remain approval-gated.
+- Home — energy, household maintenance and explicitly authorised device control.
+- Health — disabled/locked by default; separately permissioned and isolated.
+- Guardian / Policy — policy enforcement, risk classification, approval checks and audit oversight. It cannot grant permissions or override policy.
+
+Agents are logical roles. Multiple roles may share a model/runtime, and one role may use different local models or deterministic tools depending on the task. Do not create a separate app or independent persistent memory for each agent.
+
+### 13.3 Task contract and lifecycle
+Every delegated task records: task ID; initiating user/trigger; parent task; objective and acceptance criteria; agent/role and version; authorised sources and tools; sensitivity scope; input/output references; model/runtime configuration; resource/time budget; dependency state; checkpoints; cancellation; retries; approval requirements; evidence; and terminal outcome.
+
+Lifecycle: requested → policy checked → planned → queued → running → awaiting input/approval or verification → completed / partially completed / failed / cancelled / expired. State is durable and restart-safe. No infinite agent loops, unbounded retries, hidden delegation or indefinite background execution. The owner can inspect, pause and cancel active work.
+
+### 13.4 Context and permission isolation
+Each agent receives the minimum task-specific context required. Access is checked before retrieval and again before tool execution; filtering after content has entered model context is too late. Child agents inherit no more authority than the parent task and may receive less. Sensitive-domain data stays inside its domain boundary.
+
+Finance is treated as restricted pending explicit owner resolution of the existing privacy rule: general agents must not retrieve raw Finance records or place them in shared memory/context. Where policy permits, Finance may return narrowly scoped computed results with provenance, without exposing underlying records. Health remains locked by default. Cross-domain workflows require explicit policy authorisation for each data flow.
+
+### 13.5 Action and approval boundary
+All agent tools use the central Action Runtime. Agents may prepare proposed actions but cannot bypass preview, validation, approval, revalidation, idempotency, audit or undo/compensation controls. Approval is bound to the exact action, target, parameters and validity window. Retrieved documents, emails, webpages and agent outputs cannot grant approval or change policy.
+
+Default automation posture:
+- Observe and prepare within explicitly granted read permissions.
+- Execute only low-risk reversible actions covered by an owner-configured policy.
+- Require explicit approval for financial transactions, purchases, bookings, sending messages, external commitments, data sharing, destructive operations and irreversible changes.
+- Keep a complete, inspectable activity record and notify the owner of material outcomes or exceptions.
+
+### 13.6 Local model and resource scheduling
+Agent execution is demand-driven, not a swarm of continuously active models. The Intelligence Gateway selects local models and deterministic tools by task capability, quality, latency and resource cost. The scheduler enforces global RAM/CPU/GPU budgets, bounded concurrency, priority for interactive conversation, back-pressure, thermal awareness, cancellation and fair sharing. Model reuse is preferred where safe; agent contexts remain isolated even when runtime/model instances are shared. No cloud inference or silent remote fallback is permitted.
+
+### 13.7 Failure, verification and observability
+Agents return structured results with evidence, uncertainty, limitations and proposed actions. The orchestrator handles worker crashes, timeouts, unavailable models/connectors, partial results and conflicting outputs. It must not present an incomplete workflow as complete. High-impact calculations use deterministic code/tools; high-impact conclusions require source evidence and independent validation where practical. Logs and telemetry must be privacy-minimised and must not expose personal content or secrets.
+
+### 13.8 Initial delivery sequence
+1. Establish task contracts, agent registry, permission enforcement and durable task lifecycle.
+2. Deliver a single coordinator with a small number of useful specialists for Personal Knowledge, Documents and Research, using existing Atlas mechanisms where possible.
+3. Add connectors and further domain specialists in owner-prioritised slices; Finance and Health remain separately gated.
+4. Add scheduled/proactive delegation only after monitoring, cancellation, notification, audit and recovery are proven.
+5. Expand autonomy only through explicit owner-approved policies and measured reliability.
+
+Do not build a large multi-agent framework before proving one complete personal workflow end to end.
+
+## 14. Storage, encryption and recovery gates
+
+No irreversible consolidation of domain stores or single-copy dependency is allowed until the storage ADR, encryption/key boundaries, backup, restore, export and key-recovery procedures are specified and a restore has been tested. Every migration requires an inventory, integrity checks, preserved originals or recoverable backup, rollback plan and owner acceptance where data risk is material.
+
+## 15. Thin vertical slice
+
+The first architecture proof should complete one useful personal workflow end to end: accept a user request, retrieve from one authorised source, produce a result with precise provenance, prepare any proposed action through the Action Runtime, enforce approval policy, persist task/audit state, and recover correctly after interruption. Reuse existing consent, staged-change, undo, audit and ingestion mechanisms after auditing them; do not rebuild them by assumption.
+
+## 16. Hardware and evidence requirements
+
+Distinguish the owner's intended target Mac from the actual machine used for tests. Every benchmark records machine model, RAM, OS, power/thermal state, model and quantisation, runtime, context size, concurrency, corpus/workload, cold/warm condition, p50/p95/p99 latency, throughput and resource use. Targets remain provisional until measured. Evidence labels are defined in the Delivery Protocol.
