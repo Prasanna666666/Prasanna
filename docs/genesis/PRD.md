@@ -134,4 +134,4 @@ A feature is not accepted merely because a happy-path demo works. It must have:
 
 Owner-established: Atlas identity; broad life-wide scope; local-only inference; unified experience; macOS-first and future-portable architecture; high but controlled autonomy; memory review/correction/deletion/expiry; sensitive-data isolation and explicit permission; source traceability.
 
-Open for investigation: exact model portfolio, inference runtime, storage/search stack, connector catalogue, sync model, backup/recovery UX, notification policy and measured hardware performance.
+Open for investigation: exact model portfolio, inference runtime, storage/search stack, connector catalogue, multi-device sync/conflict model, secure remote-access and availability model for iOS, backup/recovery UX, notification policy and measured hardware performance. iOS is a committed future platform; its release sequencing and connectivity design require architecture and security review.
