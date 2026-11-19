@@ -46,6 +46,8 @@ A newer source does not automatically make an older fact false. Preserve tempora
 
 Health data is locked by default. Highly sensitive categories must be isolated by policy and require explicit permission before access or retention beyond the minimum necessary. Apply least privilege to tools, retrieval and memory. Do not leak sensitive data into logs, telemetry, prompts for unrelated tasks or non-authorised capabilities.
 
+**Finance is a stricter, owner-decided boundary:** no AI model, general agent, shared memory or coordinator context may receive raw Finance records. Finance calculations and validation are performed by deterministic domain code. Only the minimum computed result explicitly permitted for the task may cross the boundary, with provenance and policy checks. A future change requires a new explicit owner decision.
+
 ## 6. Retrieval
 
 Use hybrid retrieval where justified (structured filters, full-text search, semantic search and graph/relationship traversal). The authoritative source depends on the domain: financial calculations query the ledger; source documents remain authoritative for what they state; derived memory helps discovery and context but must link back to evidence.
@@ -78,8 +80,8 @@ The workforce does not share an unrestricted universal prompt or memory. Every t
 - Agent scratch context is task-scoped and expires according to policy; it is not automatically promoted to durable personal memory.
 - Durable memory writes require the applicable retention and sensitivity policy, provenance, and owner controls.
 - Cross-domain retrieval is denied by default unless an explicit policy authorises the specific data flow and purpose.
-- Finance raw records remain outside general assistant and shared agent context pending owner resolution of the existing privacy rule. Finance specialists may return only narrowly scoped, policy-approved computed outputs where permitted.
+- Finance raw records remain outside every AI model and general/shared agent context by explicit owner decision. Finance is deterministic code, not a model-reading specialist. It may return only the minimum narrowly scoped, policy-approved computed outputs with provenance.
 - Health remains locked by default and must not be present in general agent context.
-- Agent-to-agent delegation carries a signed/validated task scope and no greater permission than the delegating task. A child agent cannot broaden its own scope.
+- Agent-to-agent delegation carries a validated typed task-scope structure checked by the central policy engine and no greater permission than the delegating task. Use a signed envelope only when scope crosses a process or trust boundary; in-process calls use validated structures. A child agent cannot broaden its own scope.
 - Logs, traces, evaluation datasets and failure reports must not contain source content, secrets or sensitive personal data. Use redacted metadata and synthetic evaluation fixtures.
-- Owner inspection, correction, expiry and deletion controls apply to retained agent-derived memory and task artefacts. Deletion propagation must include derived indexes and caches under the documented retention model.
+- Owner inspection, correction, expiry and deletion controls apply to retained agent-derived memory and task artefacts. Deletion propagation must cover source copies where Atlas owns them, full-text indexes, embeddings, caches, summaries, task artefacts and replicas. Backups must follow a documented expiry/crypto-erasure policy; audit logs retain only the minimum non-content evidence needed for integrity. Provide a deletion receipt or verification report without exposing deleted content.
