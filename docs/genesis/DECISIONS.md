@@ -46,7 +46,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 |---|---|---|---|
 | G-O01 | Which local models and runtimes meet quality/latency/memory needs? | Benchmark a representative shortlist on the actual Mac | No; investigate first |
 | G-O02 | What storage, full-text, vector and relationship-query stack is appropriate? | Produce a storage/encryption/key-boundary ADR after auditing data volume, query patterns, backup and restore | No |
-| G-O03 | Which external sources/connectors should be supported first? | Inventory existing sources and rank by value/risk | Only when prioritising a release |
+| G-O03 | Which external sources/connectors should be supported first? | Inventory existing sources and rank by value/risk; current owner direction is local documents read-only, Mail read-only and Calendar read-only/propose-only | Only when prioritising a release |
 | G-O04 | What is the multi-device sync and conflict model? | Defer until a second platform/device is scheduled | No |
 | G-O05 | What backup and key-recovery experience is acceptable? | Owner explicitly deferred this decision; keep the storage/recovery release gate closed until decided and restore-tested | Yes, before release relying on backup |
 | G-O06 | What are notification quiet hours and escalation preferences? | Design defaults; ask during notification UX acceptance | Later |
@@ -55,7 +55,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O11 | What is the minimum supported machine and OS version? | 32 GB Apple-silicon Mac mini is the planning/minimum profile; benchmark and publish the supported OS after target testing | No; verify before release |
 | G-O12 | What native packaging, helper-process and update mechanism will be used? | ADR covering app bundle, helper isolation, footprint, signing/integrity, one-click update and rollback | No; decide before release |
 | G-O13 | How are standing rules and legacy `docs/` records mapped to Genesis? | Audit and classify standing rules, defect list, coverage matrix and comment tracker during implementation gap analysis; retain historical evidence | No |
-| G-O14 | What exact workflow does the owner want first? | Tentatively read-only documents; obtain explicit confirmation before issuing implementation brief | Yes |
+
 | G-O09 | Confirm the exact first vertical-slice workflow | Tentative preference is read-only local document discovery, reading and answering with exact source/page/section citations; owner confirmation still required | Yes, before implementation |
 | G-O10 | Which connectors and external actions may agents use, and at what autonomy level? | Inventory available integrations and propose least-privilege scopes | Yes, per connector/action
 
