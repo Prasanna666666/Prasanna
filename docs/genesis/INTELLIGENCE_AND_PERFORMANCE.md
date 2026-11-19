@@ -97,8 +97,8 @@ Benchmark single-agent/direct execution against delegated execution for quality,
 ## 9. Hardware profile, workload and local voice
 
 ### 9.1 Hardware evidence
-The owner's discussed target is a macOS-first Apple-silicon Mac mini configuration, with 32 GB unified memory considered as a target candidate. This is a planning profile, not evidence that the machine is purchased, configured or used for tests. Every report must separately identify:
-- intended target machine and minimum supported machine (OPEN);
+The owner has specified a **32 GB Apple-silicon Mac mini** as the planning/minimum-support profile. This is an owner decision about the intended profile, not evidence that the machine is purchased, configured or used for tests. It is not a verified compatibility floor until release testing. Every report must separately identify:
+- intended target/minimum-support profile (32 GB Mac mini) and actual test machine;
 - actual test machine, chip, unified memory, storage and free disk;
 - macOS version, power state and thermal conditions;
 - model, quantisation, runtime, context length and active model count;
@@ -118,4 +118,4 @@ Evaluate local speech-to-text and text-to-speech separately and end to end: supp
 
 Logs and telemetry must use correlation IDs, component names, timings, state transitions and redacted error categories—not message bodies, document text, names, account details, secrets or raw prompts. Add automated log-scrubbing tests using synthetic sensitive fixtures. Debug mode must not silently weaken this rule.
 
-Maintain a synthetic or sanitised evaluation corpus and golden tasks; do not copy real private user content into test fixtures, CI artefacts or external evaluation services. Include adversarial prompt-injection, cross-domain leakage, deletion propagation, exact arithmetic/date, retrieval/provenance, partial failure and restart tests.
+Maintain a versioned synthetic or sanitised evaluation corpus and golden tasks; do not copy real private user content into test fixtures, CI artefacts or external evaluation services. Define measurable pass criteria per task family (answer correctness, citation/source-span correctness, abstention on missing evidence, leakage count, arithmetic/date exactness, restart/idempotency and latency). Include hostile email/web prompt-injection attempts that request outbound sending or data sharing, cross-domain leakage, deletion propagation, exact arithmetic/date, retrieval/provenance, partial failure and restart tests. Run the corpus in CI; benchmark target-machine performance separately.
