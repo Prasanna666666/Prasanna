@@ -24,6 +24,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-015 | No AI model or general agent may see raw Finance records; financial answers must be computed deterministically and only approved computed outputs may cross the boundary | DECIDED | Finance remains a deterministic, isolated capability; changing this requires a new explicit owner decision |
 | G-016 | Target delivery is one native macOS application with one-click updates | DECIDED | Packaging, integrity verification, update and rollback implementation require an ADR and audit; this is not a claim of current implementation |
 | G-017 | Planning/minimum-support profile is a 32 GB Apple-silicon Mac mini | DECIDED (planning profile) | Not yet owner-verified or benchmarked; actual test machine and results must be recorded separately |
+| G-018 | Atlas must ultimately provide mobile access through iOS and Android apps, usable worldwide wherever secure connectivity is available | DECIDED | macOS remains first; keep domain logic portable and design secure remote access to owner-controlled Atlas Core without cloud inference |
 
 ## 2. Architecture recommendations
 
@@ -47,7 +48,10 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O01 | Which local models and runtimes meet quality/latency/memory needs? | Benchmark a representative shortlist on the actual Mac | No; investigate first |
 | G-O02 | What storage, full-text, vector and relationship-query stack is appropriate? | Produce a storage/encryption/key-boundary ADR after auditing data volume, query patterns, backup and restore | No |
 | G-O03 | Which external sources/connectors should be supported first? | Inventory existing sources and rank by value/risk; current owner direction is local documents read-only, Mail read-only and Calendar read-only/propose-only | Only when prioritising a release |
-| G-O04 | What is the multi-device sync and conflict model? | Defer until a second platform/device is scheduled | No |
+| G-O04 | What is the multi-device sync and conflict model? | Define offline cache, sync, conflict resolution, queued actions and device-loss behaviour before mobile beta | No; required before mobile beta |
+| G-O14 | What secure remote-access topology connects mobile clients to owner-controlled Atlas Core worldwide? | Compare owner-controlled VPN/mesh with a minimal end-to-end encrypted relay; threat-model NAT traversal, identity, metadata, availability, hosting and regional restrictions. No public database/model ports | No; ADR required before remote-access implementation |
+| G-O15 | What is the mobile offline and local-cache policy? | Define which data may be cached, expiry/encryption, queued action semantics, conflict handling and device-loss wipe/revocation | No; required before mobile beta |
+| G-O16 | What mobile platforms and release support are required? | Target iOS and Android; determine minimum OS versions, distribution, push provider/privacy and support policy during mobile planning | No; decide before mobile beta |
 | G-O05 | What backup and key-recovery experience is acceptable? | Owner explicitly deferred this decision; keep the storage/recovery release gate closed until decided and restore-tested | Yes, before release relying on backup |
 | G-O06 | What are notification quiet hours and escalation preferences? | Design defaults; ask during notification UX acceptance | Later |
 | G-O07 | What are final latency/accuracy thresholds? | Measure baseline and benchmark on target hardware | Yes, after evidence is available |
