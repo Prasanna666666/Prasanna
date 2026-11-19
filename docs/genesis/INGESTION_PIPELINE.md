@@ -93,7 +93,7 @@ At minimum:
 
 ## 9. Workload, resource and completeness requirements
 
-The initial performance design must account for the owner's existing archive, currently estimated at about 26,000 email items and 1,400 documents; the implementation audit must verify actual counts, formats, sizes and duplicates. Do not add arbitrary hardcoded word/file/source limits or silently omit items. Resource ceilings may be configurable and hardware-aware, but pressure must cause back-pressure, pause, prioritisation or an explicit needs-attention state—not silent data loss.
+The initial performance design must account for the owner's existing archive, currently estimated at about 26,000 email items and 1,400 documents; the implementation audit must verify actual counts, formats, sizes and duplicates. Do not add arbitrary hardcoded word/file/source limits or silently omit items. Resource ceilings may be configurable and hardware-aware, but pressure must cause back-pressure, pause, prioritisation or an explicit needs-attention state—not silent data loss. Explicit security guards (parser timeouts, decompression/expanded-archive size, recursion depth and nested-container limits) are required to resist hostile inputs; exceeding a guard must produce a visible needs-attention outcome and preserve the original source, never silently skip content or report completion.
 
 The pipeline must remain restart-safe across macOS sleep/wake, application restart, low-battery conditions, model unavailability, disk pressure and worker termination. Persist completed work and checkpoints before pausing where possible. Resume from durable state and revalidate source/version fingerprints. Report skipped, unsupported, corrupt, permission-denied and partially processed sources distinctly.
 
