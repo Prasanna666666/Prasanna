@@ -22,17 +22,22 @@ There is exactly **one Atlas application**. Standalone Finance, Documents, Image
 
 Do not delete branches, historical evidence, user data, databases or indexes as part of documentation cleanup. Retire obsolete app shells only through an approved, tested migration with data preservation and rollback.
 
-## PR #7 current sequence
+## PR #7 status and next gate
 
-1. Claude's documentation review and second review are recorded in the PR discussion.
-2. ChatGPT applies the accepted documentation reconciliation to the canonical Genesis documents on this branch only.
-3. Claude re-reads the complete canonical set and confirms consistency, or lists exact remaining gaps.
-4. Only after that confirmation, Claude performs the implementation gap analysis against `atlas`, without changing code or data.
-5. ChatGPT reviews the evidence-backed gap analysis and prepares a bounded implementation brief. Owner approval remains required for product priorities, reserved privacy choices and consequential scope/risk decisions.
-6. The future iOS target is included in the gap analysis. Do not start mobile implementation during the current documentation-confirmation stage; remote-access topology, device security, offline/sync and mobile release require separate ADRs and staged acceptance.
-7. Stage 2 is not authorised by documentation sign-off or by resolving G-O18/G-O19. It requires the G-O17 runtime ADR, ChatGPT review of a bounded Stage 2 package, and the owner's explicit authorisation.
+**Stage 0 — documentation review and reconciliation: COMPLETE.** Claude's full-document consistency confirmation is recorded in PR #7 comment 7023445432.
 
-**Current assignment:** documentation reconciliation and confirmation only. The implementation audit is held until step 3 is complete. No code changes, migrations, app retirement, data movement or destructive action are authorised during this stage.
+**Stage 1 — implementation audit / gap analysis: ACCEPTED AND CLOSED.** Claude's audit reports are recorded in PR #7 comments 7022436618, 7022456916 and 7022810935, with the superseding final note in 7022967306. ChatGPT's formal acceptance is recorded in comment 7022990234. The audit was documentation/evidence work only; its stated limitations and unverified Mac-dependent behaviour remain in force.
+
+The completed sequence is retained in the PR discussion as the audit trail. It does not grant implementation authority.
+
+**Next gate — Stage 2 is NOT AUTHORISED.** Before any Stage 2 implementation:
+1. G-O17 must be resolved through an evidence-backed, accepted platform/runtime ADR, with Mac+iPhone code sharing as the top runtime criterion.
+2. ChatGPT must review a bounded Stage 2 work package, including scope, interfaces, acceptance tests, risks and rollback.
+3. The owner must explicitly authorise Stage 2.
+
+The Stage 1 audit included the iOS target in its assessment. Mobile implementation remains separately gated; secure remote access, device security, offline/sync and mobile release require their own ADRs and staged acceptance. Resolving G-O18 or G-O19 does not satisfy the Stage 2 gates.
+
+**Current authority:** no Stage 2 implementation, code changes, migrations, app retirement, data movement or destructive action is authorised. Preserve all existing branches, user data, keys and history.
 
 ## Evidence status
 
