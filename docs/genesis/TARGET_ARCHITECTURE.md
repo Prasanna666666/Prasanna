@@ -153,6 +153,7 @@ This is the single ordered roadmap. Sections 13.8 and 15 define workforce design
 | 5 | Incremental capability migration | Migrate one internal capability at a time behind adapters; preserve data, keys, tests and rollback. | Parity and rollback demonstrated before retiring each legacy shell. |
 | 6 | Broader intelligence/workforce | Add measured routing, specialists, connectors and proactive work only where benchmarks justify complexity. | Each route/agent improves outcomes without violating privacy, latency or resource budgets. |
 | 7 | Native packaging/release | Deliver native Mac app, integrity-verified one-click updates, health checks, backup/checkpoint and rollback. | Install/update/rollback and operational recovery pass release tests. |
+| 8 | Worldwide mobile access | Deliver iOS and Android clients, secure remote connectivity to owner-controlled Atlas Core, device identity/revocation, push-notification privacy and defined offline/sync behaviour. | Remote threat model and ADR accepted; mobile security, device-loss, intermittent-network, sync/conflict and global connectivity tests pass. No cloud inference or plaintext relay storage. |
 
 No stage authorises destructive cleanup by itself. Each migration requires approval, inventory, compatibility checks, rollback and acceptance.
 
