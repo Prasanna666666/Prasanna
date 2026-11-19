@@ -59,7 +59,7 @@ Atlas may monitor explicitly connected and authorised sources through events or 
 
 Atlas is intended to do useful work on the owner's behalf, not merely answer questions. A coordinated workforce of specialised, on-demand agents is a target capability within the single Atlas application. Atlas Core remains the supervisor and policy authority; agents are internal workers with bounded roles, not independent applications, identities or unrestricted assistants.
 
-The target role catalogue, role boundaries and orchestration responsibilities are maintained in one place: `TARGET_ARCHITECTURE.md` §13.2. Those roles are logical internal responsibilities, not separate applications or a commitment to ship every specialist in the foundation release.
+The target role catalogue, role boundaries and orchestration responsibilities are maintained in one place: `TARGET_ARCHITECTURE.md` §12.2. Those roles are logical internal responsibilities, not separate applications or a commitment to ship every specialist in the foundation release.
 
 A typical workflow is: owner request or authorised trigger → coordinator scopes the outcome → policy checks source and action permissions → relevant specialists work in isolated task contexts → deterministic tools and independent verification check critical facts → coordinator consolidates a sourced result → Guardian enforces approval before consequential actions → Atlas records the outcome and notifies the owner. Parallel work is allowed only for independent tasks; conflicting writes and dependent steps are serialised. The detailed role catalogue and orchestration are TARGET/RECOMMENDED, not a claim of current implementation; see `TARGET_ARCHITECTURE.md` for the single canonical role catalogue and phased roadmap.
 
