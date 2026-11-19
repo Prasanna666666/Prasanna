@@ -80,4 +80,5 @@ The owner-established outcome is personal and professional work automation insid
 
 ## 6. Change log
 
-- 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.\n- 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
+- 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.
+- 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
