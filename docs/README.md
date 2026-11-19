@@ -30,6 +30,7 @@ The following documents define the evolved product direction. They are target-st
 - [Ingestion and durable processing](genesis/INGESTION_PIPELINE.md)
 - [Delivery and collaboration protocol](genesis/DELIVERY_PROTOCOL.md)
 - [Decision register](genesis/DECISIONS.md)
+- [Project handover](genesis/HANDOVER.md)
 
 **Important:** Existing documents describe the current implementation and review evidence. Genesis documents describe the evolved target. Reconcile differences explicitly; do not silently replace historical decisions or test evidence.
 
