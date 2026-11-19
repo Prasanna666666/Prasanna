@@ -24,6 +24,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-015 | No AI model or general agent may see raw Finance records; financial answers must be computed deterministically and only approved computed outputs may cross the boundary | DECIDED | Finance remains a deterministic, isolated capability; changing this requires a new explicit owner decision |
 | G-016 | Target delivery is one native macOS application with one-click updates | DECIDED | Packaging, integrity verification, update and rollback implementation require an ADR and audit; this is not a claim of current implementation |
 | G-017 | Planning/minimum-support profile is a 32 GB Apple-silicon Mac mini | DECIDED (planning profile) | Not yet owner-verified or benchmarked; actual test machine and results must be recorded separately |
+| G-018 | A native iOS app is a committed future Atlas platform, following the macOS-first foundation; Atlas should ultimately be usable globally from iPhone | DECIDED | Preserve platform-neutral core contracts; design and approve secure remote access, identity, sync, availability and offline behaviour before iOS release. This does not authorise cloud inference or a hosted service. |
 | G-018 | Atlas must ultimately provide mobile access through iOS and Android apps, usable worldwide wherever secure connectivity is available | DECIDED | macOS remains first; keep domain logic portable and design secure remote access to owner-controlled Atlas Core without cloud inference |
 
 ## 2. Architecture recommendations
@@ -61,6 +62,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-O11 | What is the minimum supported machine and OS version? | 32 GB Apple-silicon Mac mini is the planning/minimum profile; benchmark and publish the supported OS after target testing | No; verify before release |
 | G-O12 | What native packaging, helper-process and update mechanism will be used? | ADR covering app bundle, helper isolation, footprint, signing/integrity, one-click update and rollback | No; decide before release |
 | G-O13 | How are standing rules and legacy `docs/` records mapped to Genesis? | Audit and classify standing rules, defect list, coverage matrix and comment tracker during implementation gap analysis; retain historical evidence | No |
+| G-O14 | What secure connectivity topology enables global iOS access without violating local-first/no-cloud-inference requirements? | Compare owner-controlled direct connectivity, local-network-only limitations and any explicitly owner-approved hosted coordination option; threat-model each and record an ADR | Yes, before implementation of remote access |
 
 ## 4. Reconciliation with current Atlas implementation
 
@@ -85,3 +87,4 @@ The owner-established outcome is personal and professional work automation insid
 
 - 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.
 - 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
+- 2026-11-19: Owner confirmed a native iOS app and global iPhone access as a committed future Atlas target after the macOS-first foundation. Remote connectivity, sync, identity and availability remain open architecture/security decisions; no cloud inference or hosted service is authorised.
