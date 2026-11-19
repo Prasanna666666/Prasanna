@@ -59,20 +59,7 @@ Atlas may monitor explicitly connected and authorised sources through events or 
 
 Atlas is intended to do useful work on the owner's behalf, not merely answer questions. A coordinated workforce of specialised, on-demand agents is a target capability within the single Atlas application. Atlas Core remains the supervisor and policy authority; agents are internal workers with bounded roles, not independent applications, identities or unrestricted assistants.
 
-The workforce should support the owner's personal and professional life, including:
-- **Chief of Staff / Coordinator:** understands goals, priorities, deadlines and preferences; breaks outcomes into tasks; delegates; tracks dependencies; consolidates results and asks the owner only for genuine decisions.
-- **Personal Knowledge:** finds, connects and explains information across authorised sources, retaining provenance and temporal context.
-- **Documents:** discovers, reads, extracts, classifies, compares, summarises, drafts and organises files while preserving originals and source references.
-- **Research and Verification:** researches questions, compares options, checks claims against independent evidence and reports uncertainty and conflicting sources.
-- **Finance:** a deterministic, domain-isolated capability computes authorised financial results. Under the owner's explicit decision, no AI model or general agent may see raw Finance records; only narrowly scoped, computed, policy-checked outputs may cross the boundary. Any future change requires a new explicit owner decision.
-- **Work and Projects:** plans deliverables, tracks tasks, prepares meetings and follow-ups, and coordinates authorised project tools.
-- **Communications and Scheduling:** drafts and organises email/messages, calendar events, reminders and follow-ups. Sending, committing or contacting others follows explicit action policy.
-- **Travel:** researches and prepares itineraries, transport, accommodation and booking workflows; purchases and bookings require the configured approval.
-- **Home:** supports household administration, energy analysis, maintenance and authorised device automation.
-- **Health:** handles health information only when explicitly enabled; locked by default and isolated from general context.
-- **Guardian / Policy:** evaluates permissions, sensitivity, action risk, approvals and audit requirements. It is a control function, not an agent that can grant itself authority.
-
-These are target capability roles, not a requirement to run every agent continuously or ship every integration in the first release. Agents should be invoked only when a task benefits from specialist work. Simple requests should remain on a fast direct path.
+The target role catalogue, role boundaries and orchestration responsibilities are maintained in one place: `TARGET_ARCHITECTURE.md` §13.2. Those roles are logical internal responsibilities, not separate applications or a commitment to ship every specialist in the foundation release.
 
 A typical workflow is: owner request or authorised trigger → coordinator scopes the outcome → policy checks source and action permissions → relevant specialists work in isolated task contexts → deterministic tools and independent verification check critical facts → coordinator consolidates a sourced result → Guardian enforces approval before consequential actions → Atlas records the outcome and notifies the owner. Parallel work is allowed only for independent tasks; conflicting writes and dependent steps are serialised. The detailed role catalogue and orchestration are TARGET/RECOMMENDED, not a claim of current implementation; see `TARGET_ARCHITECTURE.md` for the single canonical role catalogue and phased roadmap.
 
