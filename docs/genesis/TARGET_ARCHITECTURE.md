@@ -32,7 +32,7 @@ Internal Atlas capabilities / bounded contexts
        |
 Platform adapters
   macOS | Filesystem | Keychain | Notifications | Voice | Local runtimes
-  iOS and Android client adapters (committed future platforms)
+  iOS client adapters (committed future platforms)
   Optional secure browser client (not a committed delivery platform)
 ```
 
@@ -121,7 +121,7 @@ Separate sensitive stores or encryption keys where threat modelling supports the
 
 Keep business logic and domain contracts platform-neutral. Encapsulate macOS-specific functionality (Keychain, filesystem events, Apple Mail/Photos, notifications, speech, local model runtimes) behind adapters. Define capability detection and graceful degradation for platforms without an equivalent feature.
 
-The eventual product includes mobile clients for **iOS and Android**, usable by the owner while travelling and from anywhere with suitable internet connectivity. macOS remains the first implementation platform, not the only supported client. A secure browser client may complement mobile access; it must not become a separate product or weaken the single Atlas identity.
+The eventual mobile client is **iOS only**, usable by the owner while travelling and from anywhere with suitable internet connectivity. macOS remains the first implementation platform. Android is not a target. A secure browser client may complement mobile access; it must not become a separate product or weaken the single Atlas identity.
 
 ### 10.1 Remote-access model (target; topology requires an ADR)
 
@@ -139,23 +139,23 @@ The eventual product includes mobile clients for **iOS and Android**, usable by 
 
 The mobile experience should support the core everyday loop: secure sign-in/device enrolment, conversation, voice where supported, notifications, task/activity status, approvals, and review of evidence-backed results. Platform-specific capabilities may differ, but permissions and consequential-action safeguards must remain consistent. Mobile UI must be designed for intermittent connectivity, latency and small screens rather than merely shrinking the desktop interface.
 
-Native iOS and Android delivery, secure remote connectivity, push-notification privacy, offline behaviour, sync/conflict handling, device revocation and mobile release/support policy require explicit design and test gates before those clients ship.
+Native iOS delivery, secure remote connectivity, push-notification privacy, offline behaviour, sync/conflict handling, device revocation and mobile release/support policy require explicit design and test gates before the client ships.
 
 ## 11. Unified delivery and migration roadmap
 
-This is the single ordered roadmap. Sections 12.8 and 14 define workforce sequencing and first-proof criteria; they do not create competing migration sequences. Stages 1–3 are the only near-term committed delivery scope until the read-only slice is demonstrated on the real target hardware and accepted. Later stages remain target direction, not parallel implementation commitments.
+This is the single ordered roadmap. Sections 12.8 and 14 define workforce sequencing and first-proof criteria; they do not create competing migration sequences. Stages 1–3 are the only near-term committed delivery scope until the read-only slice is demonstrated on the real target hardware and accepted. Later stages remain target direction, not parallel implementation commitments. The roadmap is not implementation authorisation: Stage 2 requires the G-O17 runtime ADR, ChatGPT review of a bounded Stage 2 package, and the owner's explicit authorisation. Resolving G-O18 or G-O19 alone does not authorise Stage 2.
 
 | Order | Stage | Required work | What is proven before proceeding |
 |---:|---|---|---|
 | 0 | Documentation baseline | Complete Claude review, ChatGPT reconciliation and Claude confirmation. Inventory canonical vs legacy docs and record unresolved owner decisions. | One internally consistent target specification. |
-| 1 | Read-only vertical-slice audit/design | Audit existing mechanisms and classify each as reuse, reference-only or discard; define a small document workflow: find/read a local document and answer with exact source/page/section evidence. | Bounded workflow, code reuse map and measurable retrieval/provenance criteria. |
-| 2 | Foundation contracts | Define capability interfaces, policy checks, task/job state, provenance, redacted observability and architecture tests; retain existing controls only where the audit shows they are the best fit. | Typed boundaries prevent bypass, leakage and duplicate orchestration. |
-| 3 | Read-only slice implementation | Implement only the approved workflow on the architecture selected by the core language/runtime ADR, with durable task state and direct-path fallback; no writes or external side effects. | Correctness, provenance, restart recovery, adversarial isolation and recorded-hardware latency. |
+| 1 | Read-only vertical-slice audit/design | Audit existing mechanisms and classify each as reuse, reference-only or discard; define the approved read-only workflow: find/read owner-authorised local documents and Mail, then answer with exact citations. Mail attachments remain excluded pending G-O18; source types are separately default-deny pending G-O19. | Bounded workflow, code reuse map, mail-specific threat model and measurable retrieval/provenance criteria. |
+| 2 | Foundation contracts | Only after G-O17 is accepted, ChatGPT has reviewed the bounded package, and the owner explicitly authorises Stage 2: define capability interfaces, policy checks, task/job state, provenance, redacted observability and architecture tests; retain existing controls only where the audit shows they are the best fit. | Typed boundaries prevent bypass, leakage and duplicate orchestration. |
+| 3 | Read-only slice implementation | Implement only the approved documents-and-Mail workflow on the architecture selected by the core language/runtime ADR, with durable task state and direct-path fallback; Mail attachments excluded until G-O18 is resolved; each source type must be explicitly enabled under G-O19. No writes or external side effects. | Correctness, exact document and message provenance, restart recovery, hostile-mail isolation, source-scope enforcement and recorded-hardware latency. |
 | 4 | Storage/recovery gate | Complete storage/key ADR, backup/restore/export/key recovery design and tested restore before consolidation or single-copy dependency. | Recoverability and integrity demonstrated; owner accepts recovery experience. |
 | 5 | Incremental capability migration | Migrate one internal capability at a time behind adapters; preserve data, keys, tests and rollback. | Parity and rollback demonstrated before retiring each legacy shell. |
 | 6 | Broader intelligence/workforce | Add measured routing, specialists, connectors and proactive work only where benchmarks justify complexity. | Each route/agent improves outcomes without violating privacy, latency or resource budgets. |
 | 7 | Native packaging/release | Deliver native Mac app, integrity-verified one-click updates, health checks, backup/checkpoint and rollback. | Install/update/rollback and operational recovery pass release tests. |
-| 8 | Worldwide mobile access | Deliver iOS and Android clients, secure remote connectivity to owner-controlled Atlas Core, device identity/revocation, push-notification privacy and defined offline/sync behaviour. | Threat model and remote-access ADR accepted before stage 8 begins; device enrolment/revocation, least-privilege access, no public database/model ports, push privacy and remote API security tested. Offline/sync behaviour and supported-region connectivity tested. Stages 0–7 have no dependency on mobile access. No cloud inference or plaintext relay storage. |
+| 8 | Worldwide iOS access | Deliver the iOS client, secure remote connectivity to owner-controlled Atlas Core, device identity/revocation, push-notification privacy and defined offline/sync behaviour. | Threat model and remote-access ADR accepted before Stage 8 begins; device enrolment/revocation, least-privilege access, no public database/model ports, push privacy and remote API security tested. Offline/sync behaviour and supported-region connectivity tested. Stages 0–7 have no dependency on mobile access. No cloud inference or plaintext relay storage. |
 
 No stage authorises destructive cleanup by itself. Each migration requires approval, inventory, compatibility checks, rollback and acceptance.
 
@@ -211,7 +211,7 @@ Agents return structured results with evidence, uncertainty, limitations and pro
 
 ### 12.8 Initial delivery sequence
 
-The workforce follows the unified roadmap in §11; this is not a second migration plan. Begin with a read-only document retrieval/answer workflow and only the minimum coordinator, document retrieval and verification mechanisms required. Personal Knowledge and Research may be responsibilities inside that slice, not separate always-running agents. Add specialists/connectors only after the slice is measured and accepted. Finance and Health remain separately gated; proactive delegation and broader autonomy come later.
+The workforce follows the unified roadmap in §11; this is not a second migration plan. Begin with the approved read-only documents-and-Mail retrieval/answer workflow and only the minimum coordinator, retrieval and verification mechanisms required. Mail attachments remain excluded until G-O18 is resolved; documents and Mail must be separately enabled under G-O19. Personal Knowledge and Research may be responsibilities inside that slice, not separate always-running agents. Add specialists/connectors only after the slice is measured and accepted. Finance and Health remain separately gated; proactive delegation and broader autonomy come later.
 
 ## 13. Storage, encryption and recovery gates
 
@@ -219,7 +219,7 @@ No irreversible consolidation of domain stores or single-copy dependency is allo
 
 ## 14. Thin vertical slice
 
-The first architecture proof is a **read-only document workflow** (tentative owner preference, pending final confirmation): accept a user request, find and read an authorised local document, answer with exact file and page/section provenance, persist task state, and recover correctly after interruption. It has no write, send, share, purchase or other external side effect, so it does not need an approval flow to prove retrieval. Reuse existing permission, consent, audit and ingestion mechanisms after auditing them; do not rebuild them by assumption. This is a proposed first slice, not implementation authorisation.
+The first architecture proof is the owner-approved **read-only documents-and-Mail workflow**: accept a question, find and read authorised local documents and Mail, answer with exact evidence, persist task state, and recover correctly after interruption. Document citations identify the file and page/section; Mail citations identify the exact message, stored header fields and quoted span. Documents and Mail are separately default-deny and each must be explicitly enabled by the owner through a mechanism to be designed (G-O19). Mail is untrusted content; hostile instructions in messages must not alter answer scope or trigger actions. Mail attachment contents are not indexed or exposed until G-O18 is resolved, and answers disclose that attachments were not searched. Logs must exclude message subjects, addresses, file names and question text. The slice has no write, send, share, purchase or other external side effect. Evaluate English and Dutch Q&A and at least one non-Latin-script document/question set; report retrieval and answer quality per language, without claiming unmeasured language support. Reuse existing permission, consent, audit and ingestion mechanisms only after auditing them; do not rebuild them by assumption. This is the approved workflow scope, not implementation or Stage 2 authorisation.
 
 ## 15. Hardware and evidence requirements
 
