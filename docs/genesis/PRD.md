@@ -8,7 +8,7 @@ Atlas is a private, local-first personal AI operating system: a digital extensio
 
 Atlas combines a unified conversational experience with persistent, evidence-backed personal context, specialised domain capabilities, proactive monitoring of authorised sources, and controlled action execution.
 
-Atlas is not merely a chatbot, document search tool or collection of disconnected apps. It is a coherent system that understands context across domains while preserving clear ownership, privacy boundaries and user control.
+Atlas is one integrated application—not a suite of separate apps. It is a coherent system that understands context across domains while preserving clear ownership, privacy boundaries and user control. Finance, Documents, Images and other legacy standalone applications are obsolete product boundaries. Their useful capabilities and data are to be absorbed into Atlas; they are not separate products in the target state.
 
 ## 2. Product principles
 
@@ -18,7 +18,7 @@ Atlas is not merely a chatbot, document search tool or collection of disconnecte
 4. **One coherent experience.** Chat, voice, dashboard, notifications, approvals and history share context and identity.
 5. **Persistent but governed memory.** Useful context can be retained, reviewed, corrected, expired and deleted under owner control.
 6. **High autonomy with boundaries.** Atlas may monitor and prepare work proactively, but consequential actions require the configured approval policy.
-7. **Composable capabilities.** Domain modules are specialised, independently testable and coordinated through stable contracts.
+7. **One application, modular internals.** Domain capabilities are internal modules of Atlas, independently testable and coordinated through stable contracts. They do not become separate user-facing applications or independently owned products.
 8. **Model independence.** No single model family, runtime or vendor defines the product.
 9. **Traceability.** Important facts, recommendations and actions must be traceable to evidence and execution records.
 10. **Evolution, not rewrite by default.** Preserve valuable existing code and data; migrate incrementally when evidence supports it.
@@ -29,7 +29,7 @@ Atlas is not merely a chatbot, document search tool or collection of disconnecte
 - Initial platform: macOS.
 - Future platform support: architecture and interfaces should be portable to additional devices/platforms; macOS-first does not mean macOS-only design.
 - Deployment: local device and local services under owner control.
-- Multi-user operation, remote hosted service and cloud inference are not part of the initial target unless explicitly reconsidered by the owner.
+- Multi-user operation, remote hosted service, cloud inference and separate Finance/Documents/Images applications are not part of the target unless explicitly reconsidered by the owner.
 
 ## 4. Product experience
 
@@ -83,7 +83,7 @@ Targets are provisional until measured on the actual hardware and representative
 
 ## 7. Explicit non-goals for the initial foundation
 
-- Replacing all existing modules in one rewrite.
+- Replacing all existing modules in one rewrite; migrate legacy capabilities into the single Atlas application incrementally.
 - Committing to a particular model, MoE architecture, database or vector store before benchmarking.
 - Unrestricted autonomous execution.
 - Cloud-based inference or a cloud dependency for core operation.
