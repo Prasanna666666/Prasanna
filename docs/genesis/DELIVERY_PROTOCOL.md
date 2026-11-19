@@ -1,103 +1,122 @@
-# Atlas — Delivery and Collaboration Protocol
+# Atlas — Roles, Collaboration and Resolution Protocol
 
-**Status:** Working agreement for Project Genesis  
-**Owner:** Product owner / manager
+**Authority:** Owner-approved working agreement  
+**Applies to:** All Atlas planning, documentation, implementation, review and release work
 
-## 1. Roles and decision rights
+## 1. Decision rights
 
-| Role | Owner | Responsibilities | Does not own |
-|---|---|---|---|
-| Manager / product owner | User | Product priorities, business trade-offs, final acceptance and decisions reserved for owner | Routine implementation details |
-| Planner, architect, integrator, tester and reviewer | ChatGPT | Consolidate requirements, maintain target architecture, define contracts and acceptance criteria, plan increments, review developer work, identify risks, design/run independent checks where access permits, integrate documentation and report status | Feature implementation or claiming developer tests were run when they were not |
-| Developer, tester and maintainer | Claude | Implement approved slices, write and run developer tests, fix defects, maintain code and implementation docs, report commits and evidence | Changing product direction or silently overriding owner decisions |
+| Role | Accountable for | Must not |
+|---|---|---|
+| **Owner / Manager — user** | Product direction, priorities, trade-offs, owner-reserved decisions, final acceptance and release approval | Be asked to repeat recorded decisions or manage routine technical details |
+| **Architect / Integrator / Documentation Owner / Independent Reviewer — ChatGPT** | Requirements, architecture, canonical documentation, work packages, cross-cutting integration, review, verification where access permits, issue resolution proposals and concise manager reporting | Implement product code as Claude's substitute; claim tests or Mac checks not actually performed; override owner decisions |
+| **Developer / Test Engineer / Maintainer — Claude** | Code implementation, developer tests, debugging, maintenance, implementation documentation, CI and evidence-backed completion reports | Change product direction, architecture contracts or scope silently; close disputed issues without evidence; mark unverified work done |
 
-## 2. Single source of truth
+The owner has final authority. ChatGPT owns architectural consistency and the document set. Claude owns implementation quality and maintenance. Each role challenges the others with evidence, not authority claims.
 
-- Product intent and owner decisions: `docs/genesis/PRD.md` and `docs/genesis/DECISIONS.md`.
-- Target architecture: `docs/genesis/TARGET_ARCHITECTURE.md`.
-- Current implementation and evidence: existing code, CI, `docs/requirements.md`, `docs/design.md`, `docs/testing.md`, `docs/defects.md` and PR review records.
-- Each work item must link the relevant requirement, architecture decision and acceptance evidence.
-- If current implementation and target documentation differ, record the gap; never disguise target design as implemented behaviour.
+## 2. Product boundary that governs all work
 
-## 3. Work handshake
+Atlas is **one application**. Finance, Documents, Images and other legacy standalone apps are obsolete product shells. Their valuable functionality and data are migrated into internal Atlas capabilities. Separate helper processes may exist only as hidden technical workers; they are not separate apps or products.
 
-### Architect → Developer (work package)
-Every package sent to Claude must contain:
-1. Objective and user value.
-2. In-scope and explicitly out-of-scope work.
-3. Relevant requirement IDs and architectural constraints.
-4. Expected interfaces/data contracts.
-5. Acceptance criteria, including failure cases.
-6. Security/privacy implications.
-7. Performance and resource expectations.
-8. Migration and rollback requirements.
-9. Required tests and evidence to report.
-10. Open questions that genuinely block implementation.
+No work package may introduce a new standalone app, duplicate settings/navigation/identity, or a second orchestration/memory/permission system without explicit owner approval.
 
-### Developer → Architect (completion handoff)
+## 3. Canonical sources and change ownership
+
+- Product requirements and accepted product direction: `PRD.md`.
+- Architecture and system boundaries: `TARGET_ARCHITECTURE.md`.
+- Settled decisions and open questions: `DECISIONS.md`.
+- Focused technical specifications: their corresponding files in this directory.
+- Roles, handshakes, issue resolution and acceptance: this document.
+- Repository status and immediate handover: `HANDOVER.md`.
+- Implemented behaviour: current code, executable tests and CI—not target documentation.
+
+These are the only authoritative Genesis documents. Do not create parallel PRDs, architecture plans, decision logs, role protocols or handover checklists. If content belongs elsewhere, move it to its canonical document and replace the duplicate with a link.
+
+ChatGPT maintains target/product documentation. Claude maintains code-facing implementation documentation and reports factual implementation changes. ChatGPT reconciles those updates into the canonical target set. Owner decisions are recorded in `DECISIONS.md`; accepted decisions are not re-litigated unless new evidence materially changes the trade-off.
+
+## 4. Standard work handshake
+
+### A. Owner → ChatGPT: direction
+The owner supplies goals, constraints and priorities. ChatGPT checks the existing decisions first, identifies only genuinely unresolved questions, and translates direction into requirements and acceptance criteria. ChatGPT does not ask the owner to repeat settled context.
+
+### B. ChatGPT → Claude: implementation brief
+No implementation begins until Claude receives a bounded brief containing:
+1. Objective and expected user outcome.
+2. Scope and explicit non-goals.
+3. Requirement/decision IDs and affected canonical documents.
+4. Current code paths and dependencies to inspect.
+5. Interfaces, data ownership and migration constraints.
+6. Acceptance criteria, including failure/recovery cases.
+7. Security, privacy and approval implications.
+8. Performance/resource targets and measurement method.
+9. Tests, evidence and rollback expectations.
+10. Decisions that are already settled versus questions that need escalation.
+
+### C. Claude → ChatGPT: completion report
 Claude returns:
-1. Summary of implementation and rationale.
-2. Commit/branch/PR references and changed paths.
-3. Tests actually run, exact commands and results.
-4. CI status and links.
-5. Performance measurements where relevant, including hardware/model/configuration.
-6. Security/privacy review and threat cases considered.
-7. Known limitations, untested paths and owner-only checks.
-8. Migration/rollback instructions.
-9. Documentation updated.
-10. Explicit statement of any deviation from the work package.
+1. Summary and rationale.
+2. Branch, commit SHA, PR and changed paths.
+3. Requirement IDs satisfied and any deviations.
+4. Exact test commands, environment and pass/fail results.
+5. CI links/status.
+6. Benchmarks with hardware, model, runtime, configuration and workload.
+7. Security/privacy and migration analysis.
+8. Known limitations, untested paths and residual risks.
+9. Rollback/recovery instructions.
+10. Documentation updated.
 
-### Architect → Manager (decision/acceptance brief)
-ChatGPT reports:
-- What changed and why it matters.
-- What was independently inspected or tested.
-- What is only developer-reported.
-- Remaining risks and unresolved owner decisions.
-- Recommendation: accept, request changes or defer.
+A statement such as “tested” without commands, scope and results is not sufficient evidence.
 
-## 4. Definition of ready
+### D. ChatGPT → Owner: review and decision brief
+ChatGPT independently inspects the diff and evidence where repository access permits, checks requirement coverage and regressions, distinguishes developer-reported from independently verified results, and recommends **accept**, **request changes**, or **defer**. The owner makes final product/release acceptance decisions.
 
-A work package is ready when the objective, scope, interfaces, acceptance criteria, constraints, test plan and rollback expectations are clear. No implementation should begin on ambiguous high-risk requirements.
+## 5. Issue, disagreement and resolution protocol
 
-## 5. Definition of done
+1. **Detect and record:** identify the exact requirement, code path, document, test or decision in conflict. Open or update one issue/thread; do not create duplicate trackers.
+2. **Classify:** bug/defect, requirement ambiguity, architecture conflict, implementation choice, security/privacy risk, performance regression, or scope change.
+3. **Contain:** Claude stops only the affected risky change; unrelated safe work may continue. Preserve data and current working behaviour.
+4. **Investigate:** Claude supplies reproduction and implementation evidence. ChatGPT independently checks requirements, architecture, impact and alternatives.
+5. **Propose:** ChatGPT records options, trade-offs, recommendation, migration and test implications. Claude may challenge with technical evidence.
+6. **Decide:** owner decides product scope, priorities, risk acceptance and reserved choices. ChatGPT may settle implementation-level architecture within the approved product constraints; Claude may choose local implementation details within the approved contracts.
+7. **Apply:** Claude implements the agreed resolution and links the commit/PR to the original issue.
+8. **Verify and close:** ChatGPT checks the change and evidence. Only the issue/thread owner or authorised reviewer closes it after acceptance criteria are met. Unresolved disagreement is escalated to the owner; no silent unilateral override.
 
-A work package is done only when:
-- Acceptance criteria are met.
-- Relevant tests pass and test evidence is linked.
-- CI is green or an exception is explicitly accepted.
-- No unresolved blocker/high-severity issue remains without owner sign-off.
-- Security/privacy and data migration implications are addressed.
-- Documentation and traceability are updated.
-- The architect has reviewed the diff and evidence.
-- Owner acceptance is obtained for product-visible or owner-reserved decisions.
+Security/privacy vulnerabilities, possible data loss, destructive migrations, external side effects or material accuracy risks are stop-and-escalate issues. Do not ship or conceal them to maintain momentum.
 
-Developer-reported success and independent verification are different evidence levels; label them accurately.
+## 6. Change control
 
-## 6. Branch and pull-request discipline
+Any change affecting product scope, app boundaries, public interfaces, data ownership, persistence, security, privacy, autonomy, migration or performance budgets requires:
+- rationale and affected requirement IDs;
+- impact and compatibility assessment;
+- data migration and rollback plan where applicable;
+- test/evidence plan;
+- update to the one canonical document;
+- owner approval if it changes an owner-established decision.
 
-- Use a focused branch/PR per coherent work package.
-- Avoid mixing architecture documentation, unrelated refactors and feature implementation in one PR.
-- Do not force-push or overwrite owner/developer work without coordination.
-- Keep PR descriptions current: scope, tests, risks, screenshots where relevant, and known gaps.
-- Do not merge or close PRs on behalf of the owner unless explicitly authorised.
-- Preserve review comments and link fixes to comment/requirement IDs.
+Do not edit history to make a decision appear older or more certain than it was. Mark superseded decisions with a link to the replacement.
 
-## 7. Communication protocol
+## 7. Definition of done
 
-- Do not ask the owner to repeat established decisions; consult the decision register and conversation context first.
-- Ask the owner only when a decision is genuinely theirs and blocks safe progress.
-- Keep updates concise: status, completed evidence, blocker/decision, next action.
-- Never claim a test, benchmark, Mac check, model evaluation or integration run that did not happen.
-- Escalate conflicts between old implementation constraints and the evolved target; propose a migration rather than silently choosing.
+A work item is complete only when:
+- acceptance criteria pass;
+- tests and CI are reported with reproducible evidence;
+- security/privacy and data integrity implications are addressed;
+- no unresolved critical/high issue remains without explicit owner risk acceptance;
+- migration and rollback are documented and validated where relevant;
+- code and canonical documentation agree;
+- ChatGPT review is complete;
+- owner acceptance is obtained for product-visible scope or owner-reserved decisions.
 
-## 8. Initial collaboration message for Claude
+Evidence levels must be labelled accurately: **developer-reported**, **CI-verified**, **architect-inspected**, **independently reproduced**, or **owner-verified on target Mac**.
 
-The developer should read this protocol and the Genesis documentation index, compare the target with the current branch, and return a gap analysis before changing architecture. The first response should identify:
-- Which target requirements are already implemented.
-- Which are partially implemented.
-- Which are absent.
-- Which existing decisions conflict with the target.
-- Which changes are low-risk documentation/interface work versus code migrations.
-- The smallest safe first implementation slice.
+## 8. Communication rules
 
-Do not start a broad rewrite. Do not change owner-established product direction without asking the owner.
+- Keep updates concise: status, evidence, blocker/decision, next action.
+- Raise only decisions that genuinely require the owner.
+- Never invent test results, benchmarks, completed actions or repository state.
+- Link to existing requirements, PRs and issues instead of copying their contents.
+- One issue has one canonical discussion; summarise and link rather than duplicating threads.
+- Do not merge, release, delete branches/data or close owner-reserved work without explicit authority.
+
+## 9. First task for Claude on this handover
+
+Read the Genesis index and canonical specifications, inspect the current Atlas implementation, then produce a requirement-by-requirement gap analysis. Map every legacy standalone app feature, process, schema and dataset to its future internal Atlas capability. Identify which app shells can be retired, which workers remain technically justified, and the migration/data-preservation sequence. Do not begin a broad rewrite until ChatGPT has reviewed the analysis and issued a bounded work package.
