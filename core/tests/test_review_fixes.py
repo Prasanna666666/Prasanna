@@ -241,3 +241,38 @@ def test_the_wording_is_accurate_for_each_case_not_searched_stopped_and_withheld
         assert answer["answer"].startswith(text) and limitation in answer["limitations"], boundary
         assert "Nothing was searched" not in answer["answer"] and answer["not_searched"] == []
         assert {n["source_type"] for n in answer["withheld_sources"]} == {"documents", "mail"}
+
+
+@pytest.mark.criterion(9)
+@pytest.mark.criterion(3)
+def test_a_crash_between_the_search_and_its_checkpoint_never_looks_like_nothing_was_searched(tmp_path):
+    w = _world(tmp_path)
+    record, _ = w.service.submit(request(["documents", "mail"]))
+    w.faults.armed.add("mid:retrieved")  # the retriever returned, then the process died before the passages were saved
+    with pytest.raises(SimulatedCrash):
+        w.service.run(record["task_id"])
+    step, data = w.store.checkpoint(record["task_id"])
+    assert step == "policy_checked" and "passages" not in data and data["retrieval_started"] == ["documents", "mail"]  # the attempt is durable; no content is
+    w.restart()
+    w.grants._grants.clear()
+    final = w.service.run(record["task_id"])
+    answer = w.service.answer(record["task_id"])
+    assert (final["state"], final["terminal_reason"]) == ("failed", "denied")
+    assert answer["answer"].startswith("The task was stopped") and "Nothing was searched" not in answer["answer"]
+    assert "no longer available" not in answer["answer"] and answer["limitations"] == ["task_stopped_no_answer"]  # no draft is claimed
+    assert answer["not_searched"] == [] and {n["source_type"] for n in answer["withheld_sources"]} == {"documents", "mail"}
+
+
+@pytest.mark.criterion(9)
+def test_a_crash_before_the_search_starts_is_still_nothing_searched(tmp_path):
+    w = _world(tmp_path)
+    record, _ = w.service.submit(request(["documents", "mail"]))
+    w.faults.armed.add("before:retrieved")  # died before the retriever was ever called
+    with pytest.raises(SimulatedCrash):
+        w.service.run(record["task_id"])
+    assert "retrieval_started" not in w.store.checkpoint(record["task_id"])[1] and w.retriever.calls == []
+    w.restart()
+    w.grants._grants.clear()
+    w.service.run(record["task_id"])
+    answer = w.service.answer(record["task_id"])
+    assert answer["answer"].startswith("Nothing was searched") and "withheld_sources" not in answer

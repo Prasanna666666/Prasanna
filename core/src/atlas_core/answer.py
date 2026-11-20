@@ -20,7 +20,7 @@ from .values import LanguageIn
 
 SAFE_TEXT = "I could not check this answer against your sources, so I am not giving it."
 WITHHELD_TEXT = "This answer is no longer available because permission to one or more of the sources it was built from was revoked."
-STOPPED_TEXT = "The task was stopped because permission to one or more sources changed after it had started. No answer was produced."
+STOPPED_TEXT = "The task was stopped because permission to one or more sources changed after it had started. No answer was delivered."
 DENIED_TEXT = "Nothing was searched: Atlas is not allowed to search the kinds of source that were asked for."
 NUMERIC_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
 

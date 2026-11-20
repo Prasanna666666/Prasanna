@@ -97,8 +97,10 @@ class TaskService:
         """End a task whose sources are not permitted, saying what actually happened: before retrieval 'nothing was searched'; after retrieval but before a draft the task 'was
         stopped, no answer produced'; once a draft or answer existed it is 'withheld'."""
         step, data = self._d.store.checkpoint(task_id)
-        rank, used = STEPS.index(step), frozenset(p["evidence"]["source_type"] for p in data.get("passages", []))
-        if rank < STEPS.index("retrieved"):
+        rank = STEPS.index(step)
+        attempted = frozenset(data.get("retrieval_started", []))
+        used = frozenset(p["evidence"]["source_type"] for p in data.get("passages", [])) | attempted
+        if rank < STEPS.index("retrieved") and not attempted:
             envelope = denied_envelope(task_id, requested, denied)
         elif rank < STEPS.index("drafted"):
             envelope = stopped_envelope(task_id, denied, used)
@@ -202,6 +204,9 @@ class TaskService:
         d = self._d
         self._boundary(task_id)
         d.faults.hit("before:retrieved")
+        d.store.note(
+            task_id, {"retrieval_started": sorted(token.permitted)}, d.clock()
+        )  # durable BEFORE the search: a crash after it must not look untouched (source types only, no content)
         passages = self._retrieval.fetch(token, d.retriever, question, d.clock())
         d.log.emit("retrieval.finished", "gate", task_id, count=len(passages))
         d.faults.hit("mid:retrieved")

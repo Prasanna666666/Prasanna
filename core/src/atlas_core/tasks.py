@@ -252,6 +252,19 @@ class TaskStore:
              _iso(now) if to == "running" else None, _iso(now) if to in TERMINAL else None, task_id),
         )  # fmt: skip
 
+    def note(self, task_id: str, data: dict[str, Any], now: datetime) -> None:
+        """Durably record a fact about the task's progress without changing its state (for example 'retrieval is about to start')."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = self._row(task_id)
+                merged = {**json.loads(row["checkpoint_data"]), **data}
+                self._conn.execute("UPDATE tasks SET checkpoint_data=?, updated_at=? WHERE task_id=?", (json.dumps(merged), _iso(now), task_id))
+                self._conn.execute("COMMIT")
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+
     def request_cancel(self, task_id: str, now: datetime) -> dict[str, Any]:
         """Ask for cancellation: immediate if the task is not running yet, otherwise honoured at the next step boundary. Safe to repeat."""
         with self._lock:
