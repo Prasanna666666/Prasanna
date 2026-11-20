@@ -1,6 +1,6 @@
 # Atlas — Handover
 
-**Status:** Stage 2 review accepted for reviewed scope; Stage 3 authorised (G-027); WP3.0 accepted; WP3.1 specification implemented and awaiting exact-SHA independent acceptance; WP3.2 not started  
+**Status:** Stage 2 review accepted for reviewed scope; Stage 3 authorised (G-027); WP3.0 accepted; WP3.1 specification accepted (ChatGPT exact-SHA review 6000401465); WP3.2 document-only implementation brief issued on PR #8; implementation evidence pending  
 **Repository:** `Prasanna666666/Prasanna`  
 **Documentation branch:** `genesis-stage2-foundation` (documentation now consolidated into PR #8)  
 **Implementation baseline:** `atlas`
