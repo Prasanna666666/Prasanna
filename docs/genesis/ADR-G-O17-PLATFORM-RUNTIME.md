@@ -1,4 +1,4 @@
-# ADR G-O17 — macOS/iOS Core Language, UI Runtime and Packaging Boundary
+# ADR G-O17 — macOS/iOS Application Runtime and Core API Boundary
 
 **Status:** RECOMMENDED — Claude technical challenge reconciled; owner acceptance pending  
 **Stage 2 authority:** NOT AUTHORISED; this ADR is a decision proposal only  
