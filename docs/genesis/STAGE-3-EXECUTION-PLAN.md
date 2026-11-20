@@ -234,7 +234,7 @@ ChatGPT reviews the exact commit rather than relying on summaries. Any critical/
 Stop the affected work and report with evidence if:
 - a required source grant is absent, ambiguous, revoked or cannot be enforced before retrieval;
 - a model or client path can bypass Core policy;
-- Finance/Health or other restricted data can enter general context;
+- Finance/Health data can enter a task/model context without the owner's current grant, or leave the Mac through an unauthorised egress path;
 - untrusted content can trigger an action or widen permissions;
 - source integrity, citation provenance, deletion or recovery cannot be guaranteed;
 - implementation requires an unapproved destructive migration, external exposure, cloud inference or owner-reserved scope change;
@@ -252,7 +252,7 @@ Stop the affected work and report with evidence if:
 ## 11. Approval record
 
 - Stage 2 review: **ACCEPTED by ChatGPT** for exact head `58210223398a5715b618d1163397104efd358d49`; 22/22 exact-head CI checks successful. This is not production/release sign-off.
-- Stage 3 plan: **prepared; technical challenge pending; owner authorisation pending**.
+- Stage 3 plan: **revised after Claude's documented challenge; fresh independent challenge of the current reconciled head requested; owner authorisation pending**.
 - Stage 3 implementation: **NOT AUTHORISED / NOT STARTED**.
 - Target-Mac verification: **pending hardware availability**.
 
@@ -263,7 +263,7 @@ This section is authoritative wherever earlier sections conflict. It does not ma
 ### 12.1 Product boundary and consent
 Atlas is single-user. Remove requirements that exist only for multiple users, shared devices or bystanders. Routine read/search/summarise/analyse/draft/compute operations do not require approval. Use one first-run Get Started consent flow plus macOS system permission prompts; no repeated prompts or per-folder selection. Core still enforces current grants and immediate revocation internally.
 
-Approval is reserved for consequential external effects or materially irreversible changes: sending/publishing/sharing/uploading, spending/purchases/payments/trades/bookings, deletion/overwrite/destructive migration and equivalent actions. Preview the exact action, payload, destination/recipient, attachments, amount and terms. Any material change invalidates approval.
+Approval is limited to the exhaustive categories in PRD §4.4: sending/publishing/sharing/uploading outside the Mac; spending/purchases/payments/trades/bookings; deletion/overwrite without reliable undo or destructive migration; and unlocking external physical access or disabling safety/security systems. Nothing else prompts. Preview the exact action, payload, destination/recipient, attachments, amount and terms. Any material change invalidates approval.
 
 ### 12.2 Finance and Health
 The owner explicitly permits the local model to read owner-authorised Finance and Health data (PR #8 comment 7049796870). This supersedes the former Finance model exclusion and Health lock. Keep separately labelled/keyed stores, grants, provenance, redacted logs, cache invalidation and revocation. Use deterministic code for exact financial arithmetic. Never send these records to public web search, third-party services or cloud inference.
