@@ -25,8 +25,8 @@ Stage 3 remains gated on explicit owner authorisation. This document is a plan, 
 - A user can ask a natural-language question and receive a sourced answer over the local source types explicitly enabled for that task.
 - Local document discovery, extraction/retrieval and exact file/page/section/block citations.
 - Mail discovery and read-only retrieval, with citations to the exact message and stored header/span evidence, after the Mail gate is open.
-- Separate, default-deny designation for Documents and Mail; neither source type becomes searchable merely because it exists.
-- Policy enforcement before retrieval and again at every model boundary; Finance raw records and Health data remain excluded from general model context.
+- One first-run Get Started consent flow plus OS permissions; Core grants remain default-deny until consent and are revalidated before reads/model calls. No repeated prompts or per-folder toggles.
+- Policy enforcement before retrieval and at every model boundary; owner-authorised Finance and Health data may enter local model context under G-021, with separate domain controls and redacted audit.
 - Durable, cancellable task progress and honest partial/failure states, using Stage 2 task/event contracts.
 - Evidence-grounded answers, deterministic checks for exact numbers/dates, redacted operational events, and synthetic adversarial tests.
 - A minimal usable macOS interaction path: conversation, progress/cancellation, citations/source inspection, and clear unavailable/permission/partial states.
@@ -36,11 +36,11 @@ Stage 3 remains gated on explicit owner authorisation. This document is a plan, 
 ### Explicitly out of scope
 
 - Any write, send, share, purchase, booking, financial transaction or other external side effect.
-- Mail attachment content ingestion or retrieval until G-O18 is explicitly resolved and separately implemented/accepted.
-- Searching Documents or Mail before its own G-O19 owner-controlled designation is enabled.
-- Finance model access; Health access; unrestricted cross-domain memory.
-- General-purpose agent swarms, always-running specialists, broad proactive monitoring or autonomous delegation.
-- Broad connector expansion, calendar writes, remote access, iOS implementation or public network exposure.
+- Mail attachment content exposure until its separate technical package is implemented and accepted. Owner scope is already decided: all supported formats.
+- Reading local sources before the one-time Get Started consent and required OS access are active.
+- Consequential external actions, destructive migration, unrestricted agent delegation or cross-domain access that bypasses Core policy.
+- Unrestricted or always-running agent swarms; specialists must be on-demand and task-bounded.
+- Broad connector expansion, calendar writes, remote access or iOS implementation before their respective gates. Public Internet research is allowed only through the network policy.
 - Destructive data migration, consolidation of legacy stores, deleting legacy apps/data, or making a new store the sole copy.
 - A Core-language rewrite, runtime substitution, silent model downsize or cloud inference/fallback.
 - Claiming target-Mac performance, MLX operation, macOS credential behaviour or production readiness without actual target evidence.
@@ -52,7 +52,7 @@ Stage 3 remains gated on explicit owner authorisation. This document is a plan, 
 3. **Default deny.** A source is not searchable until its source type and applicable sensitivity scope are explicitly enabled. Documents and Mail are independent grants.
 4. **Policy before data.** Authorisation must be evaluated before any source content is read or returned by full-text, semantic, graph, cache or summary retrieval. Revalidate grants at read and model boundaries.
 5. **Untrusted content stays data.** Document and Mail text cannot alter system policy, task scope, permissions or approval state. Hostile instructions must not trigger actions.
-6. **Finance and Health remain isolated.** Finance raw records never enter model/general-agent context. Health remains locked by default.
+6. **Finance and Health remain governed domains.** The local model may read owner-authorised data under G-021; retain separate stores/labels, provenance, revocation and redaction. Exact financial calculations are deterministic.
 7. **Evidence is first-class.** Every material personal-data claim links to immutable source identity/version and exact location where available. Conflicts, stale evidence and missing support are explicit.
 8. **No silent truncation or loss.** Resource limits must be explicit and visible. Incomplete extraction/retrieval is marked incomplete, never silently treated as complete.
 9. **Local-only inference.** Apple MLX is the selected runtime direction. No cloud inference or silent remote fallback. A missing local model produces a clear unavailable state.
@@ -173,8 +173,8 @@ Work is sequential where dependencies or trust boundaries require it. Independen
 2. **Revocation:** Revocation is enforced before each source read and each model boundary; stale grants/caches cannot return protected content.
 3. **Citation integrity:** Every personal-source claim has a resolvable source/version and exact location; invalid, stale or unsupported citations fail closed.
 4. **Injection resistance:** Hostile document/Mail instructions cannot change policy, widen retrieval, cause action execution or reveal unrelated data.
-5. **Domain isolation:** Finance raw records and Health data never enter general model context, logs, evaluation artefacts or unrelated retrieval.
-6. **Mail attachment boundary:** Attachment contents remain excluded until G-O18 is explicitly resolved; UI/answers disclose this limitation.
+5. **Domain governance:** owner-authorised Finance and Health data may enter local model context; unrelated-domain retrieval remains policy-controlled. No private content enters logs, public web queries or evaluation artefacts.
+6. **Mail attachment boundary:** all supported formats are in scope, but attachment contents remain unavailable until the separately specified and tested attachment package is accepted; UI/answers disclose coverage and limitations.
 7. **Exactness:** Numeric/date/unit claims use deterministic validation; unsupported claims are withheld or labelled uncertain.
 8. **Durability:** Jobs survive restart safely; retries are idempotent; cancellation is honoured; partial work is never marked complete.
 9. **Redaction:** Automated sentinel scans find no personal content, source names, message subjects/addresses, prompts or secrets in logs and CI artefacts.
