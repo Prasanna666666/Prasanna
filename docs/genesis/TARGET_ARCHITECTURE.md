@@ -65,7 +65,7 @@ A capability must not bypass another capability's data ownership by directly edi
 
 ## 5. Intelligence Gateway
 
-A single product-facing gateway abstracts model runtimes and model families. It provides:
+A single product-facing gateway abstracts model runtimes and model families. The owner-selected direction is Apple MLX with a benchmark-led ~27B main-model class and automatic task-based model switching (G-020); the exact model, quantisation, context and routing map remain evidence-gated under G-O01. The gateway provides:
 - Capability-based model selection (latency, context, structured output, reasoning, vision, embeddings).
 - Dense and MoE model support where measured benefits justify it.
 - Runtime adapters and model lifecycle management.
