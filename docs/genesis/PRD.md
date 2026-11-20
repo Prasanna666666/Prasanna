@@ -54,6 +54,10 @@ Atlas may monitor explicitly connected and authorised sources through events or 
 
 The first owner-approved workflow is a read-only question-answering flow that discovers and reads owner-authorised local documents and Mail, then answers with exact source citations. Documents and Mail are separate source types and remain unavailable to search until each is explicitly enabled through an owner-controlled mechanism (default-deny; G-O19). Mail is untrusted content. Mail attachment contents are not indexed or exposed until G-O18 is resolved; answers must disclose that attachments were not searched. Mail citations must identify the exact message and stored header/span evidence. This scope does not authorise writes, sending, sharing or other external actions.
 
+### 4.3b Local model transparency and routing safety
+
+The owner-selected local inference direction is Apple MLX with a benchmark-led ~27B main-model class and automatic task-based model switching (G-020). The exact model and routing map remain subject to target-Mac evaluation (G-O01). The answer must identify the model used (model ID and routing role only; never prompt text or personal content). Every model invocation, including after a route/switch, must pass through the same policy gate; model selection cannot grant or widen access. The answer-model identity field and safe-event representation are an additive minor-API/Stage 3 gate, not a claim that the current Stage 2 API already implements them.
+
 ### 4.4 Actions and autonomy
 - Read and analysis actions may run within granted permissions.
 - Reversible, low-risk actions may be automated only within an owner-configured policy.
