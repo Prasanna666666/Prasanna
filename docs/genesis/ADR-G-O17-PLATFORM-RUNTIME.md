@@ -34,7 +34,7 @@ This ADR resolves the application layer and the boundary to the Mac-host Core. I
 - Native update/signing implementation details beyond the chosen application boundary (G-O12).
 - The Mac-host Core language/runtime (G-O20); the current Python Core is an interim implementation choice, not a permanent commitment.
 
-Do not select Ollama, llama.cpp, MLX, a model family or a database merely because an application framework supports it.
+Do not select Ollama, llama.cpp, a model family or a database merely because an application framework supports it. **Apple MLX was selected separately by the owner as the local inference-runtime direction (G-020);** this ADR does not reopen that owner decision.
 
 ## 4. Shortlist
 
