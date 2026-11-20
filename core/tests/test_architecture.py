@@ -164,19 +164,7 @@ SUPERSEDED_RULES = {
 }
 # Violations the architect has been told about and has not yet corrected: (file, rule, start of the line). The test requires this list to equal what is found,
 # so an entry must be deleted in the same change that fixes its line, and nothing new can slip in.
-PENDING_DOC_FIXES: list[tuple[str, str, str]] = [
-    ("LOW_LEVEL_DESIGN.md", "finance-model-exclusion", "- No general agent access to raw Finance records."),
-    ("LOW_LEVEL_DESIGN.md", "finance-model-exclusion", "Finance ingestion, storage, calculations and query resolution live beh"),
-    ("LOW_LEVEL_DESIGN.md", "health-lock", "- No Health access by default."),
-    ("MEMORY_PRIVACY_KNOWLEDGE.md", "finance-model-exclusion", "**Finance is a stricter, owner-decided boundary:** no AI model, genera"),
-    ("MEMORY_PRIVACY_KNOWLEDGE.md", "health-lock", "Health data is locked by default. Highly sensitive categories must be "),
-    ("STAGE-2-WORK-PACKAGE.md", "finance-model-exclusion", "- No Finance integration into model context; no raw Finance access, no"),
-    ("STAGE-2-WORK-PACKAGE.md", "health-lock", "- No Health access or unlock."),
-    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Ask approval for purchases, paid services, security changes or conse"),
-    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Create, move or cancel events only under the consequential-action ap"),
-    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Never merge, deploy, publish or change production systems without th"),
-    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Submitting forms, signing, paying fees or making declarations requir"),
-]
+PENDING_DOC_FIXES: list[tuple[str, str, str]] = []
 APPROVAL_CATEGORIES = {
     "send outside the Mac": re.compile(r"(?i)\b(send|sending|forward\w*|shar\w+|publish\w*|upload\w*)\b"),
     "spend money": re.compile(r"(?i)\b(spend\w*|pay\w*|purchas\w+|trad\w+|paid booking\w*)\b"),
