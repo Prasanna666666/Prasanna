@@ -587,7 +587,7 @@ The following ADRs must be completed with options, evidence, decision, consequen
 - ADR-002: IPC transport (XPC vs authenticated Unix domain socket) and streaming.
 - ADR-003: SQLite/GRDB schema, physical database partitioning, encryption and backup.
 - ADR-004: Vector index candidate and embedding model; deletion/update correctness.
-- ADR-005: Local inference runtime and model family/quantisation based on target hardware.
+- ADR-005: MLX model family/quantisation/context and Python-versus-Swift integration path based on target hardware; changing the owner-selected MLX runtime requires a separate explicit owner decision.
 - ADR-006: OCR, document parsing and local speech stack.
 - ADR-007: Connector provider order, auth scopes and source designation UX.
 - ADR-008: Workflow engine implementation and process isolation.
