@@ -11,16 +11,21 @@ import socket
 import socketserver
 import struct
 import sys
+import threading
 from collections.abc import Iterable
+from email.message import Message
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
-from .api import CoreApi, Request
+from .api import MAX_BODY_BYTES, CoreApi, Request, framing_error
 
 SOL_LOCAL, LOCAL_PEERCRED = 0, 0x001  # macOS
 XUCRED_FORMAT = "=II"  # cr_version, cr_uid (the groups that follow are not needed)
 XUCRED_SIZE = 76
 SOCKET_MODE, DIR_MODE = 0o600, 0o700
+READ_TIMEOUT = 15.0  # seconds a client may stay silent while sending its request; the stream of a long answer is not affected (the server only writes there)
+MAX_LENGTH_DIGITS = len(str(MAX_BODY_BYTES))  # a longer number cannot be within the cap (and is never converted, so a huge one cannot raise)
+MAX_CONNECTIONS = 64  # simultaneous connections served; one owner, so this is generous, and the rest are closed unserved
 
 
 def peer_uid(sock: socket.socket) -> int | None:
@@ -34,11 +39,29 @@ def peer_uid(sock: socket.socket) -> int | None:
     return None
 
 
-def make_handler(api: CoreApi, allowed_uids: Iterable[int]) -> type[BaseHTTPRequestHandler]:
+def declared_length(headers: Message) -> int | None:
+    """The body length the client declared, or None if the framing is not one this transport accepts: chunked or any other transfer coding, a missing-or-repeated
+    or non-decimal Content-Length, a negative one, or one above the API's cap. Judged from the headers alone, before a single body byte is read."""
+    if headers.get_all("transfer-encoding") is not None:
+        return None
+    values = headers.get_all("content-length") or ["0"]
+    if len(values) != 1:
+        return None
+    text = values[0].strip()
+    if (
+        not (text.isascii() and text.isdigit()) or len(text) > MAX_LENGTH_DIGITS
+    ):  # ASCII digits only (int() also takes signs, spaces, underscores and other scripts)
+        return None
+    length = int(text)
+    return length if length <= MAX_BODY_BYTES else None
+
+
+def make_handler(api: CoreApi, allowed_uids: Iterable[int], read_timeout: float = READ_TIMEOUT) -> type[BaseHTTPRequestHandler]:
     allowed = frozenset(allowed_uids)
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        timeout = read_timeout  # a client that stops sending (headers or declared body) is dropped instead of holding a thread forever
 
         def setup(self) -> None:
             super().setup()
@@ -54,8 +77,19 @@ def make_handler(api: CoreApi, allowed_uids: Iterable[int]) -> type[BaseHTTPRequ
                 self.send_header("content-length", "0")
                 self.end_headers()
                 return
-            length = int(self.headers.get("content-length") or 0)
-            response = api.handle(Request(self.command, self.path, dict(self.headers.items()), self.rfile.read(length) if length else b""))
+            length = declared_length(self.headers)
+            if length is None:
+                self._refuse()
+                return
+            try:
+                body = self.rfile.read(length) if length else b""
+            except OSError:  # includes the read timeout: the client did not send what it declared
+                self.close_connection = True
+                return
+            if len(body) != length:  # the client closed early
+                self.close_connection = True
+                return
+            response = api.handle(Request(self.command, self.path, dict(self.headers.items()), body))
             self.send_response(response.status)
             for key, value in response.headers.items():
                 self.send_header(key, value)
@@ -71,22 +105,64 @@ def make_handler(api: CoreApi, allowed_uids: Iterable[int]) -> type[BaseHTTPRequ
                 self.wfile.flush()
             self.close_connection = True
 
+        def _refuse(self) -> None:
+            """Bad framing: a fixed client error, then the connection is closed (an unread body would otherwise be mistaken for the next request)."""
+            response = framing_error()
+            self.send_response(response.status)
+            for key, value in response.headers.items():
+                self.send_header(key, value)
+            self.send_header("content-length", str(len(response.body)))
+            self.send_header("connection", "close")
+            self.end_headers()
+            self.wfile.write(response.body)
+            self.close_connection = True
+
         do_GET = do_POST = _serve
 
     return Handler
 
 
+Connection = socket.socket | tuple[bytes, socket.socket]
+
+
 class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
 
+    def __init__(self, path: str, handler: type[BaseHTTPRequestHandler], max_connections: int = MAX_CONNECTIONS) -> None:
+        self._slots = threading.BoundedSemaphore(max_connections)
+        super().__init__(path, handler)
 
-def serve_unix(path: str | Path, api: CoreApi, allowed_uids: Iterable[int] | None = None) -> UnixServer:
+    def process_request(self, request: Connection, client_address: object) -> None:
+        if not self._slots.acquire(blocking=False):  # every slot busy: refuse by closing, without reading or replying (bounds threads and memory)
+            self.shutdown_request(request)
+            return
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._slots.release()
+            raise
+
+    def process_request_thread(self, request: Connection, client_address: object) -> None:
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._slots.release()
+
+
+def serve_unix(
+    path: str | Path,
+    api: CoreApi,
+    allowed_uids: Iterable[int] | None = None,
+    *,
+    max_connections: int = MAX_CONNECTIONS,
+    read_timeout: float = READ_TIMEOUT,
+) -> UnixServer:
     """Bind the socket (owner-only, in an owner-only folder) and return the server; the caller runs serve_forever()."""
     sock_path = Path(path)
     sock_path.parent.mkdir(parents=True, exist_ok=True, mode=DIR_MODE)
     os.chmod(sock_path.parent, DIR_MODE)
     if sock_path.exists():
         sock_path.unlink()
-    server = UnixServer(str(sock_path), make_handler(api, allowed_uids if allowed_uids is not None else [os.getuid()]))
+    server = UnixServer(str(sock_path), make_handler(api, allowed_uids if allowed_uids is not None else [os.getuid()], read_timeout), max_connections)
     os.chmod(sock_path, SOCKET_MODE)
     return server

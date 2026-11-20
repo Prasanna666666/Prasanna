@@ -14,6 +14,7 @@ import stat
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -47,8 +48,8 @@ def served(tmp_path):
     api = CoreApi(world.service, registry, world.log, world.clock, check_responses=True)
     started: list = []
 
-    def start(allowed=None):
-        server = serve_unix(folder / "run" / "core.sock", api, allowed)
+    def start(allowed=None, **limits):
+        server = serve_unix(folder / "run" / "core.sock", api, allowed, **limits)
         started.append(server)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         return str(folder / "run" / "core.sock")
@@ -104,3 +105,94 @@ def test_the_peer_user_id_is_read_from_the_kernel_not_from_anything_the_client_s
     finally:
         a.close()
         b.close()
+
+
+# ---- request framing and connection bounds (second independent review) -----------------------------------------------------------------------
+def _raw(path: str, head: bytes, body: bytes = b"", timeout: float = 3.0) -> tuple[int | None, bytes]:
+    """Send hand-written bytes over the socket; return the status line's code (None if the server closed without replying) and whatever else came back."""
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        sock.settimeout(timeout)
+        sock.connect(path)
+        sock.sendall(head + body)
+        data = b""
+        try:
+            while chunk := sock.recv(65536):
+                data += chunk
+        except (TimeoutError, ConnectionResetError):
+            pass
+    return (int(data.split(b" ", 2)[1]) if data.startswith(b"HTTP/") else None), data
+
+
+def _post(headers: str) -> bytes:
+    return ("POST /v1/tasks HTTP/1.1\r\nHost: localhost\r\n" + headers + "\r\n").encode()
+
+
+def _still_healthy(path: str, key, world) -> None:
+    status, body = _call(path, key, world, "GET", "/v1/version")
+    assert status == 200 and json.loads(body)["api_version"] == "1.0"
+
+
+@pytest.mark.criterion(14)
+@pytest.mark.parametrize(
+    "framing",
+    [
+        "Content-Length: 10000000",
+        "Content-Length: 65537",
+        "Content-Length: -1",
+        "Content-Length: abc",
+        "Content-Length: 1, 2",
+        "Content-Length: +5",
+        "Content-Length: 5.0",
+        "Content-Length: 99999999999999999999999",
+        "Content-Length: " + "9" * 5000,
+        "Content-Length: \u0663".encode().decode("unicode_escape"),
+        "Transfer-Encoding: chunked",
+        "Transfer-Encoding: gzip, chunked",
+        "Content-Length: 5\r\nContent-Length: 6",
+        "Content-Length: 5\r\nTransfer-Encoding: chunked",
+    ],
+)
+def test_bad_request_framing_is_refused_before_any_body_is_read_and_the_server_stays_up(served, framing):
+    start, key, world, _ = served
+    path = start()
+    status, data = _raw(path, _post(framing + "\r\n"), timeout=2.0)  # no body is ever sent: a server that tried to read one would hang until the timeout
+    assert status == 400 and b"invalid_request" in data and b"connection: close" in data.lower()
+    assert world.retriever.calls == []
+    _still_healthy(path, key, world)
+
+
+@pytest.mark.criterion(14)
+def test_a_body_at_the_cap_is_still_read_and_judged_by_the_api_not_by_the_transport(served):
+    start, *_ = served
+    path = start()
+    body = b"x" * (64 * 1024)
+    status, _ = _raw(path, _post(f"Content-Length: {len(body)}\r\n"), body)
+    assert status == 401  # framing accepted, then the unsigned request is refused by identity as usual
+
+
+@pytest.mark.criterion(14)
+def test_a_client_that_stops_sending_the_declared_body_is_dropped_after_the_read_timeout(served):
+    start, key, world, _ = served
+    path = start(read_timeout=0.3)
+    started = time.monotonic()
+    status, _ = _raw(path, _post("Content-Length: 100\r\n"), b"only ten b", timeout=5.0)  # 10 of 100 bytes, then silence
+    assert time.monotonic() - started < 3.0 and status in (None, 400)
+    _still_healthy(path, key, world)
+
+
+@pytest.mark.criterion(14)
+def test_connections_are_bounded_and_the_server_recovers_when_they_close(served):
+    start, key, world, _ = served
+    path = start(max_connections=2, read_timeout=5.0)
+    held = []
+    for _ in range(2):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(path)
+        held.append(sock)  # idle connections that occupy the two slots
+    time.sleep(0.2)
+    status, _ = _raw(path, b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n\r\n", timeout=2.0)
+    assert status is None  # a third connection is closed without being served
+    for sock in held:
+        sock.close()
+    time.sleep(0.3)
+    _still_healthy(path, key, world)

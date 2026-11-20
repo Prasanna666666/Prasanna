@@ -55,6 +55,11 @@ def _error(code: str, task_id: str | None = None) -> Response:
     return _json(status_of(code) if status_of(code) >= HTTP_ERROR else 409, user_error(code, task_id))
 
 
+def framing_error() -> Response:
+    """The reply for a request whose framing the transport refused before reading any body (the same fixed, user-safe error as any other bad request)."""
+    return _error("invalid_request")
+
+
 class CoreApi:
     def __init__(
         self, service: TaskService, registry: ClientRegistry, log: SafeLog, clock: Callable[[], datetime] | None = None, check_responses: bool = False
