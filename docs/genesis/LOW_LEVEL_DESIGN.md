@@ -22,7 +22,7 @@ Atlas is one native Apple application with a local, owner-controlled Core runtim
 - **Orchestration:** Atlas-owned deterministic workflow/state-machine engine backed by SQLite jobs, checkpoints, leases and an outbox. Do not add Temporal, LangGraph, CrewAI or a distributed workflow server to a single-user desktop product unless measured requirements later justify them.
 - **Connectors:** capability-scoped adapters; OAuth secrets in Keychain; read-only by default; explicit source designation; durable incremental sync; source provenance retained.
 - **Actions:** a single Action Gateway enforces permissions, approval, idempotency and audit. Models never execute tools directly.
-- **Memory:** governed, provenance-backed knowledge records distinct from raw sources, extracted observations, session context and derived conclusions. Sensitive domains are partitioned; Finance raw records never enter model context.
+- **Memory:** governed, provenance-backed knowledge records distinct from raw sources, extracted observations, session context and derived conclusions. Finance and Health are separately labelled/keyed and permission-controlled; owner-authorised content may enter local model context under G-021.
 - **Packaging:** signed/notarised native macOS app with a separately permissioned local Core/helper boundary only where process isolation is justified; verified one-click update and rollback.
 - **Mobile:** iOS is a future client of the same versioned Core API. Remote access is a separate security-gated design; no public database/model ports and no hosted inference.
 
@@ -71,7 +71,7 @@ Owner decisions G-001 through G-020 in the Decision Register remain authoritativ
 | NFR-012 | iOS can be added without rewriting domain contracts | API contract and portability tests |
 | NFR-013 | Unsupported, partial, failed and inaccessible content is visible, never silently treated as complete | Ingestion completeness tests |
 | NFR-014 | High-impact actions require policy evaluation and approval as configured | Action policy test matrix |
-| NFR-015 | Finance raw records are never visible to any model or general agent | Architectural boundary tests and code review |
+| NFR-015 | Finance and Health are visible to the local model only when owner-authorised; separate stores/keys, redaction, provenance and revocation are enforced | Domain-grant, cache-revocation and no-egress tests |
 | NFR-016 | English, Dutch and other encountered languages are evaluated separately | Per-language benchmark report |
 
 ## 3. System context and trust boundaries
@@ -112,7 +112,7 @@ Local encrypted data stores + original source references
 - **Z1 Core API:** authenticated client boundary; validates schema, identity, request limits and capability.
 - **Z2 General domain:** ordinary personal/work content under explicit source designation.
 - **Z3 Sensitive partitions:** Health and other sensitive data; locked unless specifically enabled.
-- **Z4 Finance enclave:** deterministic-only processing. No model, general agent, shared prompt, embedding pipeline or general-purpose index receives raw Finance records.
+- **Z4 Finance domain:** separately labelled/keyed and owner-authorised. The local model may read Finance content within the approved domain context; exact calculations remain deterministic. No Finance content enters public web requests, cloud inference, unrelated logs or unapproved domains.
 - **Z5 Action execution:** isolated tool execution with narrowly scoped capabilities, approvals and audit receipts.
 - **Z6 Model runtime:** receives only minimal policy-authorised context; no direct filesystem, network or connector credentials.
 - **Z7 External connectors:** remote systems are untrusted inputs; retrieved content is data, never executable instruction.
@@ -416,7 +416,7 @@ Threats include malicious prompt injection in email/documents, compromised conne
 Required controls:
 - Least-privilege connector scopes and per-source designation.
 - Keychain-protected credentials; never expose secrets to models.
-- Separate Finance store/key/access API; Health locked by default.
+- Separate Finance and Health stores/keys/access APIs; local model access is owner-authorised and revocable. Health is not categorically excluded from local model context.
 - Local model process has no connector credentials and no unrestricted filesystem/network.
 - Sandboxed parser and tool execution with explicit allowlists.
 - Policy checks before retrieval, model context and action.
