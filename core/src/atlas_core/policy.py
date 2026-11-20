@@ -6,6 +6,7 @@ gateway that asks for a token cannot be handed a made-up one.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -43,6 +44,7 @@ class PermitToken:
     permitted: frozenset[str]
     expires_at: datetime
     decision: dict[str, Any] = field(repr=False)
+    permit_id: str = field(default_factory=lambda: uuid.uuid4().hex)  # identifies this one authorisation: a context is bound to it
     _mint: object = field(repr=False, default=None)
 
     def __post_init__(self) -> None:
@@ -85,7 +87,7 @@ class PolicyEngine:
         if not permitted:
             return decision, None
         expiry = now + timedelta(seconds=self._rules.limit("token_seconds"))
-        return decision, PermitToken(frozenset(permitted), expiry, decision, _MINT)
+        return decision, PermitToken(frozenset(permitted), expiry, decision, _mint=_MINT)
 
     def _judge(self, source_type: str, now: datetime, purpose: str) -> tuple[str, str | None]:
         sensitivity = self._rules.sensitivity_of(source_type)

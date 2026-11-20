@@ -44,6 +44,7 @@ class ModelContext:
     question: str
     passages: tuple[dict[str, Any], ...]
     truncated: bool
+    permit_id: str = ""  # the authorisation this context was built under
     _mint: object = field(repr=False, default=None)
 
     def __post_init__(self) -> None:
@@ -78,7 +79,7 @@ class ContextBuilder:
                 continue  # dropped, and said so: truncated is carried to the answer's limitations
             kept.append(passage)
             used += len(passage["text"])
-        return ModelContext(question, tuple(kept), len(kept) < len(passages), _CONTEXT_MINT)
+        return ModelContext(question, tuple(kept), len(kept) < len(passages), token.permit_id, _CONTEXT_MINT)
 
 
 class GatedModel:
@@ -90,4 +91,9 @@ class GatedModel:
     def generate(self, token: PermitToken, context: ModelContext, now: datetime) -> ModelAnswer:
         if now >= token.expires_at:
             raise PolicyViolation("token_expired")
+        if context.permit_id != token.permit_id:
+            raise PolicyViolation("context_built_under_another_authorisation")
+        for passage in context.passages:  # re-checked at the door itself: a context carried over from a broader token cannot pass
+            if not token.allows(passage["evidence"]["source_type"], now):
+                raise PolicyViolation("passage_not_permitted")
         return self._model.generate(context)

@@ -4,13 +4,19 @@ deleting the file rolls the whole thing back.
 
 from __future__ import annotations
 
+import getpass
 import hashlib
 import json
 import os
+import secrets
+import shlex
+import subprocess
+import sys
 import threading
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from kit.db import EncryptionError, connect
 
@@ -43,13 +49,84 @@ class StoreKeyError(EncryptionError):
     """The task store has no key of its own."""
 
 
-def task_store_key() -> str:
-    """The task store's own key: from a file or the environment, never shared with any other database."""
-    path = os.environ.get(KEY_FILE_ENV)
-    key = Path(path).read_text().strip() if path else os.environ.get(KEY_ENV, "")
-    if not key:
-        raise StoreKeyError(f"No key for the task store ({KEY_ENV} or {KEY_FILE_ENV}).")
-    return key
+SOURCE_ENV = "ATLAS_TASK_KEY_SOURCE"  # "env" or "file": an explicit opt-in to the development providers on a Mac
+SECURITY_TOOL = "security"  # macOS command-line access to the Keychain (the same tool the existing scripts use)
+KEYCHAIN_NOT_FOUND = 44  # exit status of `security find-generic-password` when the item does not exist
+KEY_BYTES = 32
+
+
+class KeyProvider(Protocol):
+    def get(self) -> str: ...
+
+
+class EnvKeyProvider:
+    """DEVELOPMENT/TEST provider: the key from ATLAS_TASK_KEY_FILE or ATLAS_TASK_KEY. Never the Mac production path (see default_provider)."""
+
+    def __init__(self, environ: Mapping[str, str] | None = None) -> None:
+        self._env = os.environ if environ is None else environ
+
+    def get(self) -> str:
+        path = self._env.get(KEY_FILE_ENV)
+        key = Path(path).read_text().strip() if path else self._env.get(KEY_ENV, "")
+        if not key:
+            raise StoreKeyError(f"No key for the task store ({KEY_ENV} or {KEY_FILE_ENV}).")
+        return key
+
+
+Runner = Callable[..., "subprocess.CompletedProcess[str]"]
+
+
+class KeychainKeyProvider:
+    """The Mac production provider: the key lives in the dedicated Keychain item `atlas-task-key` (never in a file or an environment variable).
+
+    `get` reads it; `provision` creates a random 256-bit key if the item does not exist (the key is passed to `security -i` on standard input, never on a command line).
+    The runner is injectable so the commands can be tested on Linux; the real `security` tool is NOT VERIFIED until it runs on a Mac.
+    """
+
+    def __init__(self, account: str | None = None, runner: Runner = subprocess.run) -> None:
+        self._account = account or getpass.getuser()
+        self._run = runner
+
+    def get(self) -> str:
+        done = self._run([SECURITY_TOOL, "find-generic-password", "-a", self._account, "-s", KEYCHAIN_ITEM, "-w"], capture_output=True, text=True, check=False)
+        if done.returncode == KEYCHAIN_NOT_FOUND:
+            raise StoreKeyError("The task store key has not been provisioned in the Keychain.")
+        if done.returncode != 0 or not done.stdout.strip():
+            raise StoreKeyError("The task store key could not be read from the Keychain.")
+        return str(done.stdout.strip())
+
+    def provision(self) -> bool:
+        """Create the Keychain item with a fresh random key unless it exists. Returns True if it was created."""
+        try:
+            self.get()
+        except StoreKeyError:
+            pass
+        else:
+            return False
+        key = secrets.token_hex(KEY_BYTES)
+        command = f"add-generic-password -a {shlex.quote(self._account)} -s {KEYCHAIN_ITEM} -w {key}\n"
+        done = self._run([SECURITY_TOOL, "-i"], input=command, capture_output=True, text=True, check=False)
+        if done.returncode != 0:
+            raise StoreKeyError("The task store key could not be stored in the Keychain.")
+        return True
+
+
+def default_provider(platform: str | None = None, environ: Mapping[str, str] | None = None) -> KeyProvider:
+    """On macOS the Keychain provider, always, unless the owner opts in to the development providers with ATLAS_TASK_KEY_SOURCE=env|file (a plaintext key file or an environment
+    variable never becomes the Mac production path silently). On other platforms (Linux CI, tests) the environment provider."""
+    env = os.environ if environ is None else environ
+    if (platform or sys.platform) == "darwin" and env.get(SOURCE_ENV) not in ("env", "file"):
+        return KeychainKeyProvider()
+    return EnvKeyProvider(env)
+
+
+def task_store_key(provider: KeyProvider | None = None) -> str:
+    """The task store's own key from its provider (never shared with any other database)."""
+    return (provider or default_provider()).get()
+
+
+def open_task_store(path: str | Path, provider: KeyProvider | None = None) -> TaskStore:
+    return TaskStore(path, task_store_key(provider))
 
 
 def _iso(moment: datetime) -> str:

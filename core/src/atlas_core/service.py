@@ -145,6 +145,7 @@ class TaskService:
         done = STEPS.index(step)
         self._catch_up(task_id, done)
         decision, token = self._token(task_id, record["source_scope"])
+        self._revalidate(task_id, record["source_scope"], decision, token, data, done)
         question = d.store.objective(task_id)
         passages = data["passages"] if done >= STEPS.index("retrieved") else self._retrieve(task_id, token, question)
         if done < STEPS.index("drafted"):
@@ -163,6 +164,18 @@ class TaskService:
             self._deny(task_id, scope, decision["denied"])
             raise _Stop(self._d.store.record(task_id))
         return decision, token
+
+    def _revalidate(self, task_id: str, scope: list[str], decision: dict[str, Any], token: PermitToken, data: dict[str, Any], done: int) -> None:
+        """Work saved under an earlier permission (retrieved passages, a draft's citations, a verified answer) is used only if every source it touches is still permitted now.
+        If any is not (a grant was revoked while another stayed), the task fails closed: nothing saved is reused and the stale answer is replaced."""
+        d, now = self._d, self._d.clock()
+        touched = {p["evidence"]["source_type"] for p in data.get("passages", [])} | {c["evidence"]["source_type"] for c in data.get("citations", [])}
+        if done >= STEPS.index("verified"):
+            touched |= _cited_types(d.store.answer(task_id))
+        revoked = frozenset(t for t in touched if not token.allows(t, now))
+        if revoked:
+            self._deny(task_id, scope, _denied_now(decision, revoked))
+            raise _Stop(d.store.record(task_id))
 
     def _boundary(self, task_id: str) -> None:
         d, now = self._d, self._d.clock()
@@ -259,10 +272,34 @@ class TaskService:
         return self._d.store.record(task_id)
 
     def answer(self, task_id: str) -> dict[str, Any]:
-        return self._d.store.answer(task_id)
+        """The saved answer, unless a source it cites is no longer permitted: then the owner gets a plain 'not allowed any more' answer, never the old content."""
+        envelope = self._d.store.answer(task_id)
+        scope = self._d.store.record(task_id)["source_scope"]
+        decision, token = self._d.policy.decide(scope, self._d.clock())
+        permitted = token.permitted if token is not None else frozenset()
+        if _cited_types(envelope) <= permitted:
+            return envelope
+        return denied_envelope(task_id, scope, _denied_now(decision, _cited_types(envelope) - permitted))
 
     def receipt(self, task_id: str) -> dict[str, Any]:
         return self._d.store.receipt(task_id)
 
     def events_after(self, task_id: str, after: int) -> list[dict[str, Any]]:
-        return self._d.store.events_after(task_id, after)
+        """Stream events; a final answer that cites a source no longer permitted is replaced by a plain error event (same sequence number)."""
+        scope = self._d.store.record(task_id)["source_scope"]
+        _, token = self._d.policy.decide(scope, self._d.clock())
+        permitted = token.permitted if token is not None else frozenset()
+        out = []
+        for event in self._d.store.events_after(task_id, after):
+            leaks = event["type"] == "final" and not _cited_types(event["answer"]) <= permitted
+            out.append({"seq": event["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)} if leaks else event)
+        return out
+
+
+def _cited_types(envelope: dict[str, Any]) -> frozenset[str]:
+    return frozenset(c["evidence"]["source_type"] for c in envelope["citations"])
+
+
+def _denied_now(decision: dict[str, Any], revoked: frozenset[str]) -> list[dict[str, str]]:
+    known = {d["source_type"] for d in decision["denied"]}
+    return [*decision["denied"], *({"source_type": t, "reason_code": "grant_revoked"} for t in sorted(revoked) if t not in known)]
