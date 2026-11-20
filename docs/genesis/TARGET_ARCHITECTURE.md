@@ -200,7 +200,7 @@ All agent tools use the central Action Runtime. Agents may prepare proposed acti
 Default automation posture:
 - Observe and prepare within explicitly granted read permissions.
 - Execute only low-risk reversible actions covered by an owner-configured policy.
-- Require explicit approval for financial transactions, purchases, bookings, sending messages, external commitments, data sharing, destructive operations and irreversible changes.
+- Require explicit approval only for the exhaustive categories in PRD §4.4. Do not add an open-ended catch-all; all other actions are prompt-free.
 - Keep a complete, inspectable activity record and notify the owner of material outcomes or exceptions.
 
 ### 12.6 Local model and resource scheduling
@@ -211,7 +211,7 @@ Agents return structured results with evidence, uncertainty, limitations and pro
 
 ### 12.8 Initial delivery sequence
 
-The workforce follows the unified roadmap in §11; this is not a second migration plan. Stage 3 proves the first usable read-only Atlas workflow and only the minimum coordinator, retrieval and verification mechanisms. All supported Mail attachments are in scope but remain unavailable until their technical package passes acceptance. Use the single Get Started onboarding direction. Personal Knowledge and Research may be responsibilities inside that slice, not separate always-running agents. Add specialists/connectors only when frozen-set evaluation proves measurable benefit.
+The workforce follows the unified roadmap in §11; this is not a second migration plan. Stage 3 proves the first usable Mac application with a minimal coordinator, retrieval, local-model and verification path. All supported Mail attachment formats are in scope; content becomes available only after its separate technical package passes acceptance. One Get Started flow enables the initial local source scope; Core retains internal source-specific grants and revocation without per-folder prompts. Finance and Health local-model access is permitted under G-021 with separate stores/labels, grants, provenance, redaction and revocation. Expand specialists in Stage 6 only where frozen-set evaluation proves measurable benefit; do not run an always-on agent swarm.
 
 ## 13. Storage, encryption and recovery gates
 
