@@ -44,6 +44,10 @@ These are proposed product targets, not claims about current hardware or models.
 
 ## 5. Model strategy
 
+**Owner-selected direction (2026-11-20):** Atlas uses Apple MLX for local inference; its main-model class is approximately 27B parameters, with the exact model selected by benchmark on the actual Mac mini. Atlas automatically routes/switches models by task and visibly identifies which model answered. The exact model family, quantisation, context length, per-task routing map and fallback behaviour remain open until benchmarked and approved. This is a direction decision, not evidence that MLX or a 27B model has been installed, integrated or tested.
+
+MLX runs on Apple silicon. Linux CI must use a deterministic stub for model-boundary tests; it cannot establish MLX runtime or real inference behaviour. Benchmark the existing Ollama path against MLX as a bounded risk check if useful, but do not silently replace the owner's MLX direction. On the 32 GB planning profile, do not assume two large models can remain resident simultaneously: measure model load/unload, switching latency, KV-cache/context memory, peak memory and interactive contention. Do not invent speed or memory estimates as acceptance evidence.
+
 Model architecture is an implementation choice, not the product architecture:
 - Dense and Mixture-of-Experts (MoE) models are both eligible.
 - Select by measured task quality, latency, memory footprint, context capacity, structured-output reliability and energy/resource cost.
