@@ -1,10 +1,12 @@
 # Atlas Stage 3 — Contract Delta and Security Test Specification
 
-**Status:** Architect proposal for independent challenge; not implemented and not an owner approval to begin Stage 3 code  
+**Status:** SUPERSEDED historical proposal; not an implementation contract. For WP3.1, `core/docs/CONTRACT_1_1.md` and its linked schema/OpenAPI files are authoritative.  
 **Baseline:** Stage 2 API 1.0 at `ea4e48f5665055e988d7a04ebb6f27faca95173b`  
-**Compatibility rule:** API 1.0 remains frozen. Stage 3 adds API 1.1; no silent semantic changes to 1.0.
+**Compatibility rule:** API 1.0 remains frozen. The approved WP3.1 API 1.1 specification is documented in `core/docs/CONTRACT_1_1.md`; this older proposal must not be used to implement routes, events, schemas or coverage.
 
-## 1. Decisions to carry into implementation
+> **Supersession notice (2026-11-20):** This document predates the owner-approved WP3.1 v4 proposal and conflicts with the implemented WP3.1 specification. It is retained as historical design rationale only. Do not implement its proposed `/v1/sources/*` routes, `model.route` event, `routing_role`/runtime-version fields, or per-source coverage object. The authoritative WP3.1 surface is `GET/POST /v1/consent`, `DELETE /v1/consent/{grant_id}`, `GET /v1/index/status`, `model.routed`, the closed `ModelDescriptor` (`model_id`, `role`, `runtime`), and `Coverage` on each answer, as specified in `core/docs/CONTRACT_1_1.md`. That document also explicitly states that WP3.1 is specification-only and the Core does not yet serve API 1.1. Any future change requires a versioned contract update and review.
+
+## 1. Historical design decisions (not implementation authority)
 
 1. Keep Core as the only policy authority. The client may display source status and initiate owner actions but cannot grant itself access.
 2. Keep source grants source-type scoped (Documents, Mail, Finance, Health); no per-folder grants and no repeated prompts. One Get Started flow plus macOS permission prompts establishes the initial source scope.
