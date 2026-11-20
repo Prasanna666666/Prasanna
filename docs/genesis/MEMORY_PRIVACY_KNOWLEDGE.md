@@ -44,9 +44,9 @@ A newer source does not automatically make an older fact false. Preserve tempora
 
 ## 5. Sensitive data
 
-Health data is locked by default. Highly sensitive categories must be isolated by policy and require explicit permission before access or retention beyond the minimum necessary. Apply least privilege to tools, retrieval and memory. Do not leak sensitive data into logs, telemetry, prompts for unrelated tasks or non-authorised capabilities.
+Health data is a sensitive domain, separately labelled/keyed and unavailable to Atlas until the owner grants the applicable source and task permissions. Under G-021, the local model may read owner-authorised Health data within that scoped task context. Apply least privilege to tools, retrieval and memory; revoke access and invalidate derived caches immediately when the grant is withdrawn. Do not leak sensitive data into logs, telemetry, prompts for unrelated tasks or non-authorised capabilities.
 
-**Finance is a stricter, owner-decided boundary:** no AI model, general agent, shared memory or coordinator context may receive raw Finance records. Finance calculations and validation are performed by deterministic domain code. Only the minimum computed result explicitly permitted for the task may cross the boundary, with provenance and policy checks. A future change requires a new explicit owner decision.
+**Finance is a separately controlled sensitive domain under G-021:** owner-authorised Finance records may enter the local model's scoped task context. Keep Finance separately labelled/keyed with scoped grants, provenance, revocation, redacted logs and cache controls. Exact financial arithmetic and balances are deterministic/code-checked; no Finance content enters public web requests, cloud inference or unrelated task contexts. A grant is purpose-bound and revocable.
 
 ## 6. Retrieval
 
