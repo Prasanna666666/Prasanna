@@ -78,6 +78,7 @@ class AnswerInput:
     truncated: bool = False
     partial: bool = False
     language: LanguageIn = field(default_factory=LanguageIn)
+    excluded_sensitive: int = 0  # retrieved items left out because they were more sensitive than the grant covers
 
 
 def build_envelope(item: AnswerInput, store: SourceStore, rules: Rules | None = None) -> dict[str, Any]:
@@ -96,6 +97,7 @@ def build_envelope(item: AnswerInput, store: SourceStore, rules: Rules | None = 
     limits += ["dates_unproven"] if dates else []
     limits += ["context_truncated"] if item.truncated else []
     limits += ["partial_work"] if item.partial else []
+    limits += ["sensitive_items_excluded"] if item.excluded_sensitive else []
     status = _status(failed, item.citations, figures, dates, language["support_status"])
     envelope = {
         "task_id": item.task_id,

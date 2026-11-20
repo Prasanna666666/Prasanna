@@ -88,9 +88,13 @@ class StubRetriever:
     calls: list[str] = field(default_factory=list)
     misbehave: str | None = None
     only: set[str] | None = None  # return passages only for these source types (the others are searched but find nothing)
+    sens: dict[str, str] = field(default_factory=dict)  # source id -> trusted sensitivity of that item
+    on_search: Any = None  # called with the source type at the start of every search (tests revoke a grant here)
 
     def search(self, source_type: str, query: str) -> list[dict[str, Any]]:
         self.calls.append(source_type)
+        if self.on_search:
+            self.on_search(source_type)
         wanted = self.misbehave or source_type
         out = []
         for src in self.store.sources.values():
@@ -104,6 +108,9 @@ class StubRetriever:
                 out.append(passage(src, start, end, {"kind": "message_part", "message_part": "body"}))
             else:
                 out.append(passage(src, 0, len(src.text)))
+        for item in out:
+            if item["evidence"]["source_id"] in self.sens:
+                item["sensitivity"] = self.sens[item["evidence"]["source_id"]]
         return out
 
 

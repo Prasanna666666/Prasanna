@@ -13,7 +13,7 @@ import shlex
 import subprocess
 import sys
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
@@ -21,7 +21,7 @@ from typing import Any, Protocol
 from kit.db import EncryptionError, connect
 
 from .contracts import validate
-from .errors import CoreError
+from .errors import CoreError, user_error
 from .events import new_id
 from .rules import Rules, load_rules
 
@@ -129,6 +129,14 @@ def open_task_store(path: str | Path, provider: KeyProvider | None = None) -> Ta
     return TaskStore(path, task_store_key(provider))
 
 
+def _state(state: str) -> dict[str, Any]:
+    return {"type": "state", "state": state}
+
+
+def _error(code: str, task_id: str) -> dict[str, Any]:
+    return {"type": "error", "error": user_error(code, task_id)}
+
+
 def _iso(moment: datetime) -> str:
     return moment.astimezone(UTC).isoformat(timespec="seconds")
 
@@ -156,6 +164,9 @@ class TaskStore:
             raise StoreKeyError("The task store is always encrypted: a key is required.")
         self._rules = rules or load_rules()
         self._lock = threading.RLock()
+        self.hook: Callable[[str], None] | None = (
+            None  # tests: called inside a transition's transaction ('after_state', 'after_events'); an exception rolls everything back
+        )
         self._conn = connect(path, key)
         self._conn.isolation_level = None  # explicit transactions below
         self._init_schema()
@@ -225,14 +236,40 @@ class TaskStore:
             )  # fmt: skip
             return self.record(task_id), True
 
+    def _fire(self, name: str) -> None:
+        if self.hook is not None:
+            self.hook(name)
+
+    def _append_in_txn(self, task_id: str, event: dict[str, Any]) -> None:
+        """Append a StreamEvent inside the caller's open transaction (so it commits or rolls back with the state change it describes)."""
+        seq = self._conn.execute("SELECT COALESCE(MAX(seq),0)+1 FROM task_events WHERE task_id=?", (task_id,)).fetchone()[0]
+        if seq > self._rules.limit("max_events_per_task"):
+            return
+        full = {**event, "seq": seq, "task_id": task_id}
+        validate("StreamEvent", full)
+        self._conn.execute("INSERT INTO task_events (task_id, seq, payload) VALUES (?,?,?)", (task_id, seq, json.dumps(full)))
+
     def transition(
-        self, task_id: str, to: str, now: datetime, *, step: str | None = None, data: dict[str, Any] | None = None, reason: str | None = None
+        self,
+        task_id: str,
+        to: str,
+        now: datetime,
+        *,
+        step: str | None = None,
+        data: dict[str, Any] | None = None,
+        reason: str | None = None,
+        events: Sequence[dict[str, Any]] = (),
     ) -> dict[str, Any]:
-        """Move a task to a new state if the lifecycle allows it. Atomic: the state, checkpoint and terminal reason change together or not at all."""
+        """Move a task to a new state if the lifecycle allows it. Atomic: the state, checkpoint, terminal reason AND the stream events that describe the change commit together or not
+        at all, so a crash can never leave a finished task without its final event."""
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._apply(task_id, to, now, step, data, reason)
+                self._fire("after_state")
+                for event in events:
+                    self._append_in_txn(task_id, event)
+                self._fire("after_events")
                 self._conn.execute("COMMIT")
             except BaseException:
                 self._conn.execute("ROLLBACK")
@@ -275,6 +312,8 @@ class TaskStore:
                     self._conn.execute("UPDATE tasks SET cancel_requested=1, updated_at=? WHERE task_id=?", (_iso(now), task_id))
                     if row["state"] in ("requested", "policy_checked", "queued"):
                         self._apply(task_id, "cancelled", now, None, None, "cancelled")
+                        self._append_in_txn(task_id, {"type": "state", "state": "cancelled"})
+                        self._append_in_txn(task_id, _error("task_cancelled", task_id))
                 self._conn.execute("COMMIT")
             except BaseException:
                 self._conn.execute("ROLLBACK")
@@ -287,7 +326,7 @@ class TaskStore:
         with self._lock:
             for task_id in self.ids_in(tuple(s for s in TRANSITIONS if s not in TERMINAL)):
                 if datetime.fromisoformat(self._row(task_id)["deadline"]) < now:
-                    self.transition(task_id, "expired", now, reason="expired")
+                    self.transition(task_id, "expired", now, reason="expired", events=[_state("expired"), _error("task_expired", task_id)])
                     expired.append(task_id)
         return expired
 
@@ -296,16 +335,16 @@ class TaskStore:
         done: list[tuple[str, str]] = []
         with self._lock:
             for task_id in self.ids_in(STALE_EARLY):
-                self.transition(task_id, "failed", now, reason="needs_attention")
+                self.transition(task_id, "failed", now, reason="needs_attention", events=[_state("failed"), _error("needs_attention", task_id)])
                 done.append((task_id, "needs_attention"))
             for task_id in self.ids_in(INTERRUPTED):
                 row = self._row(task_id)
                 budget = json.loads(row["budget"])
                 if row["attempt"] < budget["max_retries"] and datetime.fromisoformat(row["deadline"]) > now:
-                    self.transition(task_id, "queued", now)
+                    self.transition(task_id, "queued", now, events=[_state("queued")])
                     done.append((task_id, "requeued"))
                 else:
-                    self.transition(task_id, "failed", now, reason="needs_attention")
+                    self.transition(task_id, "failed", now, reason="needs_attention", events=[_state("failed"), _error("needs_attention", task_id)])
                     done.append((task_id, "needs_attention"))
         return done
 

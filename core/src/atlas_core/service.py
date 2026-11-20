@@ -6,7 +6,7 @@ evidence checks.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -16,7 +16,7 @@ from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import SourceStore
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever
-from .policy import PermitToken, PolicyEngine, PolicyViolation
+from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .tasks import STEPS, TERMINAL, TaskStore
 from .values import LanguageIn
 
@@ -67,7 +67,8 @@ class Deps:
 class TaskService:
     def __init__(self, deps: Deps) -> None:
         self._d = deps
-        self._retrieval, self._builder, self._model = GatedRetrieval(), ContextBuilder(), GatedModel(deps.model)
+        self._retrieval, self._builder = GatedRetrieval(), ContextBuilder()
+        self._model = GatedModel(deps.model, deps.policy, deps.clock)
 
     # -- submitting, cancelling, recovering ------------------------------------------------------------------------------------------------
     def submit(self, request: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -109,31 +110,20 @@ class TaskService:
         else:
             envelope = withheld_envelope(task_id, denied, confirmed, attempted)
         self._d.store.save_answer(task_id, envelope)
-        self._to(task_id, "failed", reason="denied")
-        self._d.store.append_event(task_id, {"type": "error", "error": user_error("source_denied", task_id)})
+        self._to(task_id, "failed", reason="denied", events=[{"type": "error", "error": user_error("source_denied", task_id)}])
 
     def cancel(self, task_id: str) -> dict[str, Any]:
-        record = self._d.store.request_cancel(task_id, self._d.clock())
-        if record["state"] == "cancelled":
-            self._d.store.append_event(task_id, {"type": "state", "state": "cancelled"})
-        return record
+        return self._d.store.request_cancel(task_id, self._d.clock())  # an immediate cancellation and its event commit together
 
     def recover(self) -> list[tuple[str, str]]:
         """Run once at start-up, before serving: interrupted tasks resume from their checkpoint or end as needs-attention."""
         done = self._d.store.recover(self._d.clock())
-        for task_id, action in done:
-            state = self._d.store.record(task_id)["state"]
-            self._d.store.append_event(task_id, {"type": "state", "state": state})
-            if action == "needs_attention":
-                self._d.store.append_event(task_id, {"type": "error", "error": user_error("needs_attention", task_id)})
-            self._d.log.emit("task.recovered", "tasks", task_id, reason_code=action, state_to=state)
+        for task_id, action in done:  # the state events were written in the same transactions as the recovery transitions
+            self._d.log.emit("task.recovered", "tasks", task_id, reason_code=action, state_to=self._d.store.record(task_id)["state"])
         return done
 
     def expire_due(self) -> list[str]:
-        expired = self._d.store.expire_due(self._d.clock())
-        for task_id in expired:
-            self._d.store.append_event(task_id, {"type": "error", "error": user_error("task_expired", task_id)})
-        return expired
+        return self._d.store.expire_due(self._d.clock())
 
     # -- running -----------------------------------------------------------------------------------------------------------------------------
     def run(self, task_id: str) -> dict[str, Any]:
@@ -142,6 +132,12 @@ class TaskService:
             return self._run(task_id)
         except _Stop as stop:
             return stop.record
+        except (
+            PermissionRevoked
+        ) as revoked:  # a grant was revoked after the task started: stop before anything more is read or sent, and say what actually happened
+            record = self._d.store.record(task_id)
+            self._deny(task_id, record["source_scope"], revoked.denied)
+            return self._d.store.record(task_id)
         except PolicyViolation:  # a retriever or a caller tried to go around the policy: the task ends, nothing it found is used
             self._fail(task_id, "needs_attention")
             return self._d.store.record(task_id)
@@ -194,12 +190,10 @@ class TaskService:
         d, now = self._d, self._d.clock()
         record = d.store.record(task_id)
         if record["cancel_requested"]:
-            self._to(task_id, "cancelled", reason="cancelled")
-            d.store.append_event(task_id, {"type": "error", "error": user_error("task_cancelled", task_id)})
+            self._to(task_id, "cancelled", reason="cancelled", events=[{"type": "error", "error": user_error("task_cancelled", task_id)}])
             raise _Stop(d.store.record(task_id))
         if now >= datetime.fromisoformat(record["deadline"]):
-            self._to(task_id, "expired", reason="expired")
-            d.store.append_event(task_id, {"type": "error", "error": user_error("task_expired", task_id)})
+            self._to(task_id, "expired", reason="expired", events=[{"type": "error", "error": user_error("task_expired", task_id)}])
             raise _Stop(d.store.record(task_id))
 
     def _retrieve(self, task_id: str, token: PermitToken, question: str) -> list[dict[str, Any]]:
@@ -210,12 +204,12 @@ class TaskService:
             task_id, {"retrieval_started": sorted(token.permitted)}, d.clock()
         )  # durable BEFORE the search: a crash after it must not look untouched (source types only, no content); it proves an ATTEMPT, not a retrieval
         d.faults.hit("after:attempt")
-        passages = self._retrieval.fetch(token, d.retriever, question, d.clock())
-        d.log.emit("retrieval.finished", "gate", task_id, count=len(passages))
+        result = self._retrieval.fetch(token, d.retriever, question, d.clock(), d.policy, d.clock)  # grants re-checked immediately before each source is read
+        d.log.emit("retrieval.finished", "gate", task_id, count=len(result.passages))
         d.faults.hit("mid:retrieved")
-        self._to(task_id, "retrieved", step="retrieved", data={"passages": passages})
+        self._to(task_id, "retrieved", step="retrieved", data={"passages": result.passages, "excluded_sensitive": result.excluded_sensitive})
         d.faults.hit("after:retrieved")
-        return passages
+        return result.passages
 
     def _draft(self, task_id: str, token: PermitToken, question: str, passages: list[dict[str, Any]]) -> None:
         d = self._d
@@ -248,6 +242,7 @@ class TaskService:
             saved["truncated"],
             False,
             LanguageIn(**saved["language"]),
+            saved.get("excluded_sensitive", 0),
         )
         envelope = build_envelope(item, d.sources)
         d.log.emit("answer.verified", "answer", task_id, reason_code=envelope["verification"]["status"])
@@ -262,26 +257,33 @@ class TaskService:
         status = envelope["verification"]["status"]
         d.faults.hit("before:final")
         if status == "failed":
-            self._to(task_id, "failed", reason=FAIL_REASON[status])
-            d.store.append_event(task_id, {"type": "error", "error": user_error("citation_failed", task_id)})
+            self._to(task_id, "failed", reason=FAIL_REASON[status], events=[{"type": "error", "error": user_error("citation_failed", task_id)}])
         else:
-            self._to(task_id, FINAL_STATE[status], reason="completed" if status == "verified" else "partial")
-            d.store.append_event(task_id, {"type": "final", "answer": envelope})
+            self._to(task_id, FINAL_STATE[status], reason="completed" if status == "verified" else "partial", events=[{"type": "final", "answer": envelope}])
         return d.store.record(task_id)
 
     def _fail(self, task_id: str, reason: str) -> None:
-        self._to(task_id, "failed", reason=reason)
-        self._d.store.append_event(task_id, {"type": "error", "error": user_error(reason, task_id)})
+        self._to(task_id, "failed", reason=reason, events=[{"type": "error", "error": user_error(reason, task_id)}])
 
-    def _to(self, task_id: str, state: str, *, step: str | None = None, data: dict[str, Any] | None = None, reason: str | None = None) -> None:
+    def _to(
+        self,
+        task_id: str,
+        state: str,
+        *,
+        step: str | None = None,
+        data: dict[str, Any] | None = None,
+        reason: str | None = None,
+        events: Sequence[dict[str, Any]] = (),
+    ) -> None:
+        """Change state; the state event, a progress event and any extra events are committed in the SAME transaction as the change."""
         d = self._d
         before = d.store.record(task_id)["state"]
         if before == state:
             return
-        d.store.transition(task_id, state, d.clock(), step=step, data=data, reason=reason)
-        d.store.append_event(task_id, {"type": "state", "state": state})
+        journal: list[dict[str, Any]] = [{"type": "state", "state": state}]
         if step in ("retrieved", "drafted", "verified"):
-            d.store.append_event(task_id, {"type": "progress", "step": step})
+            journal.append({"type": "progress", "step": step})
+        d.store.transition(task_id, state, d.clock(), step=step, data=data, reason=reason, events=[*journal, *events])
         d.log.emit("task.transition", "tasks", task_id, state_from=before, state_to=state)
 
     # -- reading (what the API serves) -----------------------------------------------------------------------------------------------------

@@ -7,7 +7,7 @@ gateway that asks for a token cannot be handed a made-up one.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Protocol
@@ -20,6 +20,14 @@ _MINT = object()
 
 class PolicyViolation(Exception):
     """Something tried to read or pass on content the policy did not allow. The text is a code, never content."""
+
+
+class PermissionRevoked(PolicyViolation):
+    """A permission that was valid when the task started is no longer valid now. Carries the denied source types (codes only, no content)."""
+
+    def __init__(self, denied: list[dict[str, str]]) -> None:
+        super().__init__("permission_revoked")
+        self.denied = denied
 
 
 class GrantSource(Protocol):
@@ -45,6 +53,8 @@ class PermitToken:
     expires_at: datetime
     decision: dict[str, Any] = field(repr=False)
     permit_id: str = field(default_factory=lambda: uuid.uuid4().hex)  # identifies this one authorisation: a context is bound to it
+    max_sensitivity: Mapping[str, str] = field(default_factory=dict, repr=False)  # per source type: the most sensitive item the grant covers
+    order: tuple[str, ...] = field(default=(), repr=False)  # sensitivity order, lowest first
     _mint: object = field(repr=False, default=None)
 
     def __post_init__(self) -> None:
@@ -53,6 +63,14 @@ class PermitToken:
 
     def allows(self, source_type: str, now: datetime) -> bool:
         return source_type in self.permitted and now < self.expires_at
+
+    def allows_item(self, source_type: str, sensitivity: str | None, now: datetime) -> bool:
+        """The source type is permitted AND an item of this sensitivity is covered by the grant. No sensitivity means the type's default, which was already judged."""
+        if not self.allows(source_type, now):
+            return False
+        if sensitivity is None:
+            return True
+        return self.order.index(sensitivity) <= self.order.index(self.max_sensitivity[source_type])
 
 
 def _parse(stamp: str | None) -> datetime | None:
@@ -68,11 +86,13 @@ class PolicyEngine:
         permitted: list[str] = []
         denied: list[dict[str, str]] = []
         grant_ids: list[str] = []
+        ceilings: dict[str, str] = {}
         for source_type in dict.fromkeys(requested):
-            reason, grant_id = self._judge(source_type, now, purpose)
+            reason, grant_id, ceiling = self._judge(source_type, now, purpose)
             if reason == "granted":
                 permitted.append(source_type)
                 grant_ids.append(grant_id or "")
+                ceilings[source_type] = ceiling or ""
             else:
                 denied.append({"source_type": source_type, "reason_code": reason})
         decision: dict[str, Any] = {
@@ -87,19 +107,33 @@ class PolicyEngine:
         if not permitted:
             return decision, None
         expiry = now + timedelta(seconds=self._rules.limit("token_seconds"))
-        return decision, PermitToken(frozenset(permitted), expiry, decision, _mint=_MINT)
+        order = tuple(self._rules.raw["sensitivity_order"])
+        return decision, PermitToken(frozenset(permitted), expiry, decision, max_sensitivity=ceilings, order=order, _mint=_MINT)
 
-    def _judge(self, source_type: str, now: datetime, purpose: str) -> tuple[str, str | None]:
+    def revalidate(self, token: PermitToken, now: datetime, purpose: str = PURPOSE) -> tuple[frozenset[str], list[dict[str, str]]]:
+        """Re-check, against the grants as they are NOW, every source type the token was minted for. Used immediately before a source is read and again at the model door,
+        so a revocation after the token was minted takes effect before anything more is read or sent."""
+        still: set[str] = set()
+        denied: list[dict[str, str]] = []
+        for source_type in sorted(token.permitted):
+            reason, _, _ = self._judge(source_type, now, purpose)
+            if reason == "granted":
+                still.add(source_type)
+            else:
+                denied.append({"source_type": source_type, "reason_code": reason})
+        return frozenset(still), denied
+
+    def _judge(self, source_type: str, now: datetime, purpose: str) -> tuple[str, str | None, str | None]:
         sensitivity = self._rules.sensitivity_of(source_type)
         if sensitivity is None:
-            return "unknown_source_type", None
+            return "unknown_source_type", None, None
         if self._rules.is_restricted(source_type):
-            return "restricted_domain", None  # Finance and Health never enter a general context, whatever a grant says
+            return "restricted_domain", None, None  # Finance and Health never enter a general context, whatever a grant says
         if self._rules.deferred_to(source_type):
-            return "deferred_decision", None
+            return "deferred_decision", None, None
         return self._grant_verdict(self._grants.grants_for(source_type), sensitivity, now, purpose)
 
-    def _grant_verdict(self, grants: list[dict[str, Any]], sensitivity: str, now: datetime, purpose: str) -> tuple[str, str | None]:
+    def _grant_verdict(self, grants: list[dict[str, Any]], sensitivity: str, now: datetime, purpose: str) -> tuple[str, str | None, str | None]:
         reason = "no_grant"
         for grant in grants:
             if grant["purpose"] != purpose:
@@ -111,5 +145,5 @@ class PolicyEngine:
             elif self._rules.rank(grant["max_sensitivity"]) < self._rules.rank(sensitivity):
                 reason = "sensitivity_exceeds_grant"
             else:
-                return "granted", str(grant["grant_id"])
-        return reason, None
+                return "granted", str(grant["grant_id"]), str(grant["max_sensitivity"])
+        return reason, None, None

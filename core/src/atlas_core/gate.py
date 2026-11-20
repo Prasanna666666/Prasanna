@@ -6,12 +6,12 @@ the token allows, and only a context built here can be given to a model.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from .policy import PermitToken, PolicyViolation
+from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .rules import Rules, load_rules
 from .values import LanguageIn
 
@@ -52,17 +52,42 @@ class ModelContext:
             raise PolicyViolation("context_not_built_by_gate")
 
 
+@dataclass(frozen=True)
+class Retrieved:
+    passages: list[dict[str, Any]]
+    excluded_sensitive: int = 0  # items left out because they are more sensitive than the grant covers
+
+
 class GatedRetrieval:
-    def fetch(self, token: PermitToken, retriever: Retriever, query: str, now: datetime) -> list[dict[str, Any]]:
+    def fetch(
+        self,
+        token: PermitToken,
+        retriever: Retriever,
+        query: str,
+        now: datetime,
+        policy: PolicyEngine | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ) -> Retrieved:
+        """Search each permitted source type. With a policy, the grants are re-checked immediately before EACH source is read (a revocation after the token was minted stops
+        the next read), and items more sensitive than the grant covers are excluded and counted."""
         out: list[dict[str, Any]] = []
+        excluded = 0
         for source_type in sorted(token.permitted):
-            if not token.allows(source_type, now):
+            moment = clock() if clock is not None else now
+            if policy is not None:
+                current, denied = policy.revalidate(token, moment)
+                if source_type not in current or denied:
+                    raise PermissionRevoked(denied)
+            if not token.allows(source_type, moment):
                 continue
             for passage in retriever.search(source_type, query):
-                if not token.allows(passage["evidence"]["source_type"], now):
+                if not token.allows(passage["evidence"]["source_type"], moment):
                     raise PolicyViolation("retriever_returned_denied_source")
+                if not token.allows_item(passage["evidence"]["source_type"], passage.get("sensitivity"), moment):
+                    excluded += 1
+                    continue
                 out.append(passage)
-        return out
+        return Retrieved(out, excluded)
 
 
 class ContextBuilder:
@@ -73,7 +98,7 @@ class ContextBuilder:
         kept: list[dict[str, Any]] = []
         used = 0
         for passage in passages:
-            if not token.allows(passage["evidence"]["source_type"], now):
+            if not token.allows_item(passage["evidence"]["source_type"], passage.get("sensitivity"), now):
                 raise PolicyViolation("passage_not_permitted")
             if used + len(passage["text"]) > self._budget:
                 continue  # dropped, and said so: truncated is carried to the answer's limitations
@@ -83,17 +108,22 @@ class ContextBuilder:
 
 
 class GatedModel:
-    """The one door to a model. It re-checks the token, so a model is never called under an expired or missing permission."""
+    """The one door to a model. It re-checks the token, and (with a policy) the grants as they are now, so a model is never called under an expired, missing or revoked permission."""
 
-    def __init__(self, model: ModelGateway) -> None:
-        self._model = model
+    def __init__(self, model: ModelGateway, policy: PolicyEngine | None = None, clock: Callable[[], datetime] | None = None) -> None:
+        self._model, self._policy, self._clock = model, policy, clock
 
     def generate(self, token: PermitToken, context: ModelContext, now: datetime) -> ModelAnswer:
-        if now >= token.expires_at:
+        moment = self._clock() if self._clock is not None else now
+        if moment >= token.expires_at:
             raise PolicyViolation("token_expired")
         if context.permit_id != token.permit_id:
             raise PolicyViolation("context_built_under_another_authorisation")
         for passage in context.passages:  # re-checked at the door itself: a context carried over from a broader token cannot pass
-            if not token.allows(passage["evidence"]["source_type"], now):
+            if not token.allows_item(passage["evidence"]["source_type"], passage.get("sensitivity"), moment):
                 raise PolicyViolation("passage_not_permitted")
+        if self._policy is not None:
+            current, denied = self._policy.revalidate(token, moment)
+            if denied and any(p["evidence"]["source_type"] not in current for p in context.passages):
+                raise PermissionRevoked(denied)
         return self._model.generate(context)
