@@ -145,3 +145,16 @@ A feature is not accepted merely because a happy-path demo works. It must have:
 Owner-established: Atlas identity; broad life-wide scope; local-only inference; unified experience; macOS-first and future-portable architecture; high but controlled autonomy; memory review/correction/deletion/expiry; sensitive-data isolation and explicit permission; source traceability.
 
 Open for investigation: exact model portfolio and cross-platform core language/runtime, storage/search stack, connector catalogue, multi-device sync/conflict model, secure remote-access topology, backup/recovery UX, notification policy and measured hardware performance. iOS is the committed future platform; Android is out of scope. The iOS release and connectivity design require architecture and security review. The Mac mini is the intended always-on owner-controlled host; mobile availability still depends on network reachability and secure connectivity. The mobile stage is gated by an accepted threat model and ADR, and stages 0–7 must not depend on mobile access.
+
+## 10. Owner clarifications and capability coverage (2026-11-20)
+
+These clarifications supersede conflicting earlier baseline wording:
+
+- **Single owner and low friction:** one first-run Get Started consent flow plus macOS permission prompts. No repeated prompts, per-folder selection or incidental confirmations for routine reading, search, analysis, drafting or computation.
+- **Finance and Health:** the local model may read owner-authorised Finance and Health information. Keep separately labelled/keyed stores, access grants, provenance, redacted logs, cache controls and revocation. Exact arithmetic and financial computations remain deterministic and code-checked.
+- **Approval:** only consequential external effects or materially irreversible changes require approval: send/publish/share/upload, spend/purchase/pay/trade/book, delete/overwrite/destructive migration and equivalent actions. Show exact payload, destination/recipient, attachments, amount and terms; material changes invalidate approval.
+- **Attachments:** all supported Mail attachment formats are in scope, subject to a separate supported-format, extraction/OCR, provenance, safety and acceptance specification.
+- **Internet:** public web search/retrieval is allowed when useful. Private source content, credentials, Finance/Health data and local model context must not be sent to public search or third-party inference. See INTERNET_AND_NETWORK_POLICY.md.
+- **Coverage:** USE_CASE_REGISTER.md is the extensible cross-domain scenario and lifecycle acceptance inventory.
+
+These are target requirements, not claims that implementation, connector access or target-Mac verification is complete.
