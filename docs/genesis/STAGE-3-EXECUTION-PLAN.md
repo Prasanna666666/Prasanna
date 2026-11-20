@@ -24,13 +24,17 @@ Stage 3 remains gated on explicit owner authorisation. This document is a plan, 
 - A coherent macOS-first Atlas workflow, using the accepted shared Swift/SwiftUI application boundary and the versioned Core API.
 - A user can ask a natural-language question and receive a sourced answer over the local source types explicitly enabled for that task.
 - Local document discovery, extraction/retrieval and exact file/page/section/block citations.
-- Mail discovery and read-only retrieval, with citations to the exact message and stored header/span evidence, after the Mail gate is open.
+- Progressive tier-1, model-free full-text indexing, newest/recently-used first, so Atlas is useful before the entire corpus is processed; show searched/total/pending/unsupported coverage.
+- Synthetic policy and integration tests for owner-authorised Finance and Health model access, with separate stores/labels and redacted diagnostics.
+- Mail discovery and read-only retrieval, with citations to the exact message and stored header/span evidence, after onboarding and OS access are active.
+- A separate supported-attachment package for all supported formats, delivered after Mail body and accepted only after provenance, OCR confidence, parser isolation and hostile-file tests.
 - One first-run Get Started consent flow plus OS permissions; Core grants remain default-deny until consent and are revalidated before reads/model calls. No repeated prompts or per-folder toggles.
 - Policy enforcement before retrieval and at every model boundary; owner-authorised Finance and Health data may enter local model context under G-021, with separate domain controls and redacted audit.
 - Durable, cancellable task progress and honest partial/failure states, using Stage 2 task/event contracts.
 - Evidence-grounded answers, deterministic checks for exact numbers/dates, redacted operational events, and synthetic adversarial tests.
 - A minimal usable macOS interaction path: conversation, progress/cancellation, citations/source inspection, and clear unavailable/permission/partial states.
 - Local model adapter integration consistent with Apple MLX direction, subject to target-Mac verification. Linux CI continues to use deterministic stubs.
+- Public Internet research through the Core egress gateway when useful, using synthetic fixtures in CI and never sending private owner data to public search.
 - Measurement of retrieval/answer quality and performance, with developer-machine, CI and target-Mac evidence kept distinct.
 
 ### Explicitly out of scope
@@ -87,7 +91,7 @@ Work is sequential where dependencies or trust boundaries require it. Independen
 - Threat-model parser/extractor boundaries, malicious files and Mail prompt injection, source confusion, stale grants, cross-domain leakage, cache/index leakage, logs and denial-of-service/resource exhaustion.
 - Specify how the UI displays the exact source types in scope, citations, model identity, unsupported attachment status and partial processing.
 
-**Exit:** reviewed contract delta, threat model and test matrix; no unresolved high/critical security design issue. Owner decisions G-O18/G-O19 are not silently assumed.
+**Exit:** reviewed contract delta, threat model and test matrix; no unresolved high/critical security design issue. G-O18 scope and the G-O19 low-friction onboarding direction are already owner-set; implement and verify them rather than re-asking.
 
 ### WP3.2 — Document-only vertical path
 
@@ -109,12 +113,12 @@ Work is sequential where dependencies or trust boundaries require it. Independen
 
 - Do not begin Mail content retrieval until G-O19 has an accepted Mail designation mechanism and explicit owner enablement.
 - Treat Mail body, stored headers/metadata, thread context and attachment content as distinct source types with distinct provenance and policy.
-- Keep attachment content excluded until G-O18 is resolved. Answers must clearly disclose that attachment contents were not searched.
+- Keep attachment content unavailable until the separate attachment package passes technical acceptance. The owner has already set scope to all supported formats; answers must disclose attachment coverage and unsupported/partial extraction.
 - Cite exact message identity, stored sender/date fields and exact body span; do not infer sender/date from message text.
 - Treat all message content as untrusted. Test hostile instructions requesting broader search, secret disclosure, outbound sending or policy changes.
 - Ensure no Mail retrieval happens when Mail is not enabled, even if a message is already present in local storage.
 
-**Exit:** source-isolation, citation, injection, revocation, redaction and restart tests pass; the owner has explicitly enabled Mail for the test scope. If G-O18/G-O19 remain unresolved, this package remains blocked and is not represented as complete.
+**Exit:** source-isolation, citation, injection, revocation, redaction and restart tests pass under the single Get Started consent and OS grant. Attachment content remains separately gated until its technical package is accepted; G-O18 is not an unanswered owner preference.
 
 ### WP3.4 — Intelligence Gateway and answer quality
 
@@ -201,15 +205,15 @@ For every benchmark report p50/p95/p99 and cold/warm results. Report answer qual
 
 | Gate | Dependency | Required before |
 |---|---|---|
-| G-O18 | Mail attachment content treatment, supported formats, provenance, sensitivity and hostile-content tests | Any attachment extraction/indexing/retrieval |
-| G-O19 | Owner-controlled source designation mechanism; Documents and Mail separately default-deny | Enabling/searching either source type with real owner data |
+| G-O18 | Owner scope is all supported formats; technical package must define format matrix, provenance, OCR confidence/limits, parser isolation and hostile-file tests | Any attachment extraction/indexing/retrieval |
+| G-O19 | Implement one first-run Get Started consent plus macOS permissions; Core enforces source grants and revocation without per-folder prompts | Any real local source read |
 | G-O01 | Actual target-Mac MLX model/quantisation/context and resource benchmark; fallback decision if no candidate passes | Production model selection and target performance sign-off |
 | G-O20 | Evidence-backed Core language/runtime assessment; current recommendation is keep Python during Stage 3 | Any long-term Core language decision or rewrite |
 | G-O02/G-O05 | Storage/key-boundary ADR and accepted backup/restore/key-recovery experience with tested restore | Store consolidation, single-copy dependency or release relying on recovery |
 | G-O12 | Native packaging/update/signing/notarisation and rollback design | Production Mac distribution |
 | G-O14/G-O15 | Remote-access threat model/ADR and mobile offline/cache/sync policy | iOS/remote access; not a dependency for Stages 0–7 |
 
-**Owner decisions are requested only at the relevant gate.** The plan does not presume answers to G-O18, G-O19, G-O05 or any other open decision. If a gate is unresolved, work may continue on independent synthetic fixtures and document-only components, but the gated capability stays disabled.
+**Owner decisions are requested only when a genuinely reserved choice is reached.** G-O18 scope and G-O19 consent direction are already settled. G-O05 backup/key-recovery experience remains open before a release relies on backup or store consolidation. Other gates remain governed by the Decision Register.
 
 ## 8. Delivery sequence, ownership and reporting
 
@@ -239,11 +243,11 @@ Stop the affected work and report with evidence if:
 
 ## 10. What happens after this plan
 
-1. ChatGPT publishes this plan and reconciles the Genesis index/handover.
-2. Claude is asked to challenge the plan for feasibility, hidden dependencies, missing tests and sequencing conflicts—**not to implement**.
-3. ChatGPT resolves technical findings and presents the final owner decision brief.
-4. The owner explicitly authorises Stage 3 (or requests changes). This is the only implementation start gate.
-5. After authorisation, work begins at WP3.0 and proceeds through the gates above. No parallel Stage 4–8 work and no Stage 3 scope expansion by implication.
+1. ChatGPT maintains the canonical plan, scenario register, network policy and requirement-to-test traceability.
+2. Claude independently challenges the reconciled product baseline and execution plan for omissions, contradictions, feasibility and security; do not code during that challenge.
+3. ChatGPT reconciles the findings, updates the canonical baseline and issues a bounded implementation brief.
+4. Stage 3 code begins only after explicit owner authorisation; the team must not infer release or destructive-migration authority from a documentation request.
+5. After authorisation, work proceeds in dependency order, with exact-commit review and evidence at each package.
 
 ## 11. Approval record
 
