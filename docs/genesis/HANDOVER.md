@@ -30,9 +30,11 @@ Do not delete branches, historical evidence, user data, databases or indexes as 
 
 The completed sequence is retained in the PR discussion as the audit trail. It does not grant implementation authority.
 
+**Preparation complete — review and owner decisions are now the only gates.** A proposed G-O17 comparison/recommendation is in [ADR-G-O17-PLATFORM-RUNTIME.md](ADR-G-O17-PLATFORM-RUNTIME.md), and a bounded foundation package is in [STAGE-2-WORK-PACKAGE.md](STAGE-2-WORK-PACKAGE.md). Claude has been asked to challenge both on PR #7. Neither is accepted yet.
+
 **Next gate — Stage 2 is NOT AUTHORISED.** Before any Stage 2 work:
-1. G-O17 must be resolved through an evidence-backed, accepted platform/runtime ADR, with Mac+iPhone code sharing as the top runtime criterion.
-2. ChatGPT must review a bounded Stage 2 work package, including scope, interfaces, acceptance tests, risks and rollback.
+1. The owner must accept the G-O17 ADR after Claude's technical challenge. The current recommendation is Swift/SwiftUI with shared Swift packages for the macOS+iOS application layer and the existing Python Core retained behind a versioned Mac-host API initially.
+2. ChatGPT must accept the bounded Stage 2 foundation package after Claude's technical challenge. The current package is prepared in `STAGE-2-WORK-PACKAGE.md`.
 3. The owner must explicitly authorise Stage 2.
 
 The Stage 1 audit included the iOS target in its assessment. Mobile implementation remains separately gated; secure remote access, device security, offline/sync and mobile release require their own ADRs and staged acceptance. Resolving G-O18 or G-O19 does not satisfy the Stage 2 gates.
