@@ -243,24 +243,47 @@ def test_the_wording_is_accurate_for_each_case_not_searched_stopped_and_withheld
         assert {n["source_type"] for n in answer["withheld_sources"]} == {"documents", "mail"}
 
 
-@pytest.mark.criterion(9)
-@pytest.mark.criterion(3)
-def test_a_crash_between_the_search_and_its_checkpoint_never_looks_like_nothing_was_searched(tmp_path):
+def _crash_revoke_restart(tmp_path, boundary: str):
     w = _world(tmp_path)
     record, _ = w.service.submit(request(["documents", "mail"]))
-    w.faults.armed.add("mid:retrieved")  # the retriever returned, then the process died before the passages were saved
+    w.faults.armed.add(boundary)
     with pytest.raises(SimulatedCrash):
         w.service.run(record["task_id"])
     step, data = w.store.checkpoint(record["task_id"])
-    assert step == "policy_checked" and "passages" not in data and data["retrieval_started"] == ["documents", "mail"]  # the attempt is durable; no content is
     w.restart()
-    w.grants._grants.clear()
+    w.grants._grants.clear()  # every grant is revoked before the task resumes
     final = w.service.run(record["task_id"])
-    answer = w.service.answer(record["task_id"])
+    return w, record, (step, data), final, w.service.answer(record["task_id"])
+
+
+@pytest.mark.criterion(9)
+@pytest.mark.criterion(3)
+@pytest.mark.parametrize("boundary", ["after:attempt", "mid:retrieved"])
+def test_a_search_that_may_have_started_is_reported_as_attempted_never_as_nothing_searched_or_as_retrieved(tmp_path, boundary):
+    # after:attempt: the marker is durable, the retriever was never called. mid:retrieved: the retriever returned, the passages were not saved.
+    # From the stored state alone the two cannot be told apart, so both are 'attempted, retrieval not confirmed'.
+    w, _record, (step, data), final, answer = _crash_revoke_restart(tmp_path, boundary)
+    assert step == "policy_checked" and "passages" not in data and data["retrieval_started"] == ["documents", "mail"]  # the attempt is durable; no content is
+    assert w.retriever.calls == (
+        [] if boundary == "after:attempt" else ["documents", "mail"]
+    )  # whether the search ran is not recoverable from the stored state
     assert (final["state"], final["terminal_reason"]) == ("failed", "denied")
-    assert answer["answer"].startswith("The task was stopped") and "Nothing was searched" not in answer["answer"]
-    assert "no longer available" not in answer["answer"] and answer["limitations"] == ["task_stopped_no_answer"]  # no draft is claimed
-    assert answer["not_searched"] == [] and {n["source_type"] for n in answer["withheld_sources"]} == {"documents", "mail"}
+    assert answer["answer"].startswith("The task was stopped") and answer["limitations"] == ["task_stopped_no_answer"]
+    assert (
+        "Nothing was searched" not in answer["answer"] and "no longer available" not in answer["answer"]
+    )  # neither a certainty of 'not searched' nor a claimed draft
+    assert answer["not_searched"] == [] and answer["withheld_sources"] == []  # nothing is claimed as definitely retrieved
+    assert {n["source_type"] for n in answer["search_attempted_sources"]} == {"documents", "mail"}
+
+
+@pytest.mark.criterion(9)
+def test_the_marker_alone_proves_an_attempt_but_a_saved_retrieval_confirms_it(tmp_path):
+    _, _, _, _, attempted_only = _crash_revoke_restart(tmp_path / "a", "after:attempt") if (tmp_path / "a").mkdir() is None else (None,) * 5
+    _, _, _, _, confirmed = _crash_revoke_restart(tmp_path / "b", "after:retrieved") if (tmp_path / "b").mkdir() is None else (None,) * 5
+    assert attempted_only["withheld_sources"] == [] and attempted_only["search_attempted_sources"]
+    assert {n["source_type"] for n in confirmed["withheld_sources"]} == {"documents", "mail"} and confirmed[
+        "search_attempted_sources"
+    ] == []  # passages were durably recorded
 
 
 @pytest.mark.criterion(9)

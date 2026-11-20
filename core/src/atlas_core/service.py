@@ -99,13 +99,14 @@ class TaskService:
         step, data = self._d.store.checkpoint(task_id)
         rank = STEPS.index(step)
         attempted = frozenset(data.get("retrieval_started", []))
-        used = frozenset(p["evidence"]["source_type"] for p in data.get("passages", [])) | attempted
+        # CONFIRMED retrieval means the retrieval step completed and was durably recorded (passages saved): then every source searched is known. A marker alone proves only an attempt.
+        confirmed = attempted | frozenset(p["evidence"]["source_type"] for p in data["passages"]) if "passages" in data else frozenset()
         if rank < STEPS.index("retrieved") and not attempted:
             envelope = denied_envelope(task_id, requested, denied)
         elif rank < STEPS.index("drafted"):
-            envelope = stopped_envelope(task_id, denied, used)
+            envelope = stopped_envelope(task_id, denied, confirmed, attempted)
         else:
-            envelope = withheld_envelope(task_id, denied, used)
+            envelope = withheld_envelope(task_id, denied, confirmed, attempted)
         self._d.store.save_answer(task_id, envelope)
         self._to(task_id, "failed", reason="denied")
         self._d.store.append_event(task_id, {"type": "error", "error": user_error("source_denied", task_id)})
@@ -206,7 +207,8 @@ class TaskService:
         d.faults.hit("before:retrieved")
         d.store.note(
             task_id, {"retrieval_started": sorted(token.permitted)}, d.clock()
-        )  # durable BEFORE the search: a crash after it must not look untouched (source types only, no content)
+        )  # durable BEFORE the search: a crash after it must not look untouched (source types only, no content); it proves an ATTEMPT, not a retrieval
+        d.faults.hit("after:attempt")
         passages = self._retrieval.fetch(token, d.retriever, question, d.clock())
         d.log.emit("retrieval.finished", "gate", task_id, count=len(passages))
         d.faults.hit("mid:retrieved")

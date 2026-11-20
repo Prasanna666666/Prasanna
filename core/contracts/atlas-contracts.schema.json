@@ -206,7 +206,8 @@
         "language": {"$ref": "#/$defs/LanguageInfo"},
         "limitations": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/Limitation"}},
         "not_searched": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}},
-        "withheld_sources": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}, "description": "Sources that WERE retrieved for this task but whose permission was revoked since; the answer built from them is withheld or was never produced. Not the same as not_searched."}
+        "withheld_sources": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}, "description": "Sources whose retrieval is CONFIRMED (the retrieval step completed and was durably recorded) but whose permission was revoked since; the answer built from them is withheld or was never produced. Not the same as not_searched or search_attempted_sources."},
+        "search_attempted_sources": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}, "description": "Sources whose search may have started before the task stopped, but whose retrieval was NOT confirmed (the process stopped before the passages were durably recorded). Whether anything was retrieved is not established; not the same as withheld_sources or not_searched."}
       }
     },
     "ExecutionReceipt": {

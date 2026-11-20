@@ -15,7 +15,7 @@ from atlas_core.service import SimulatedCrash
 from atlas_core.tasks import SCHEMA_VERSION, TERMINAL, TRANSITIONS, StoreKeyError, TaskStore, task_store_key
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "atlas_core"
-BOUNDARIES = [f"{when}:{step}" for step in ("retrieved", "drafted", "verified") for when in ("before", "mid", "after")] + ["before:final"]
+BOUNDARIES = [f"{when}:{step}" for step in ("retrieved", "drafted", "verified") for when in ("before", "mid", "after")] + ["after:attempt", "before:final"]
 
 
 def _all_ids(w: World) -> list[str]:

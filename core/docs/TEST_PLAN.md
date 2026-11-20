@@ -7,7 +7,7 @@ All data is synthetic (invented sentinels in `tests/conftest.py`); no test needs
 |---|---|---|
 | Install | `pip install -e ../kit[secure] -e .[dev]` | no error |
 | Lint / format / types | `ruff check . && ruff format --check . && mypy src` | `All checks passed!`, files already formatted, `Success: no issues found` |
-| All tests | `python -m pytest -q -p no:cacheprovider` | `131 passed` |
+| All tests | `python -m pytest -q -p no:cacheprovider` | `134 passed` |
 | One criterion | `python -m pytest -q -k "policy"` etc. | per file |
 | Overhead benchmark | `python bench/overhead.py --runs 300 --json` | JSON report (see BENCHMARK.md) |
 | Legacy suites unaffected | `cd ../kit && python -m pytest -q` (and `library`, `finance`, `atlas`, `images`) | same counts as before this branch (165, 299, 701, 111, 100) |

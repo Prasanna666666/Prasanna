@@ -125,8 +125,11 @@ def denied_envelope(task_id: str, requested: Sequence[str], denied: Sequence[dic
     return envelope
 
 
-def _after_retrieval(task_id: str, text: str, limitation: str, denied: Sequence[dict[str, str]], used: Collection[str]) -> dict[str, Any]:
-    """An answer for a task whose sources were retrieved before a permission changed. Retrieved sources are 'withheld', never 'not searched'."""
+def _after_retrieval(
+    task_id: str, text: str, limitation: str, denied: Sequence[dict[str, str]], confirmed: Collection[str], attempted: Collection[str]
+) -> dict[str, Any]:
+    """An answer for a task that stopped after a search had started. Three honest categories: retrieval CONFIRMED (withheld_sources), search only ATTEMPTED with nothing durably
+    recorded (search_attempted_sources: whether anything was retrieved is not established), and never started (not_searched)."""
     envelope = {
         "task_id": task_id,
         "answer": text,
@@ -134,18 +137,19 @@ def _after_retrieval(task_id: str, text: str, limitation: str, denied: Sequence[
         "verification": {"status": "unverified", "unproven_figures": [], "unproven_dates": [], "citation_failures": []},
         "language": {"support_status": "unmeasured"},
         "limitations": [limitation],
-        "not_searched": [dict(d) for d in denied if d["source_type"] not in used],
-        "withheld_sources": [dict(d) for d in denied if d["source_type"] in used],
+        "not_searched": [dict(d) for d in denied if d["source_type"] not in confirmed and d["source_type"] not in attempted],
+        "withheld_sources": [dict(d) for d in denied if d["source_type"] in confirmed],
+        "search_attempted_sources": [dict(d) for d in denied if d["source_type"] in attempted and d["source_type"] not in confirmed],
     }
     validate("AnswerEnvelope", envelope)
     return envelope
 
 
-def withheld_envelope(task_id: str, denied: Sequence[dict[str, str]], used: Collection[str]) -> dict[str, Any]:
+def withheld_envelope(task_id: str, denied: Sequence[dict[str, str]], confirmed: Collection[str], attempted: Collection[str] = ()) -> dict[str, Any]:
     """An answer WAS produced, then permission to a source it was built from was revoked: the previous answer is withheld."""
-    return _after_retrieval(task_id, WITHHELD_TEXT, "answer_withheld", denied, used)
+    return _after_retrieval(task_id, WITHHELD_TEXT, "answer_withheld", denied, confirmed, attempted)
 
 
-def stopped_envelope(task_id: str, denied: Sequence[dict[str, str]], used: Collection[str]) -> dict[str, Any]:
-    """Retrieval happened but no answer had been produced when permission changed: the task stopped and there is nothing to withhold."""
-    return _after_retrieval(task_id, STOPPED_TEXT, "task_stopped_no_answer", denied, used)
+def stopped_envelope(task_id: str, denied: Sequence[dict[str, str]], confirmed: Collection[str], attempted: Collection[str] = ()) -> dict[str, Any]:
+    """A search had started (confirmed or only attempted) but no answer had been produced when permission changed: the task stopped and there is nothing to withhold."""
+    return _after_retrieval(task_id, STOPPED_TEXT, "task_stopped_no_answer", denied, confirmed, attempted)
