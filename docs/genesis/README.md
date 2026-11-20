@@ -29,12 +29,14 @@ The existing application, its tests, security controls, data stores and PR revie
 12. [Stage 3 execution plan](STAGE-3-EXECUTION-PLAN.md) — staged implementation plan, owner gates, acceptance criteria and stop conditions; planning only, not implementation authorisation.
 13. [Use-case and scenario register](USE_CASE_REGISTER.md) — cross-domain capabilities, interaction modes, lifecycle cases and integrations.
 14. [Internet and network policy](INTERNET_AND_NETWORK_POLICY.md) — public web access, data egress, connector credentials, downloads and approval boundaries.
+15. [Stage 3 baseline audit](STAGE-3-BASELINE-AUDIT.md) — exact repository inventory, reuse map, implementation gaps and Mac-independent/Mac-dependent evidence.
+16. [Stage 3 contract delta](STAGE-3-CONTRACT-DELTA.md) — proposed additive API 1.1, source-grant lifecycle, evidence/model metadata and security acceptance matrix.
 
 The sole delivery sequence is TARGET_ARCHITECTURE.md §11. Stage 3 is the first owner-tryable Mac application; later stages are mapped to scenario IDs and first-tryable outcomes there.
 
 ## Current decision/work-package status
 
-G-O17 and Stage 2 authority were accepted by the owner. Claude's documentation review 7045420044 has been reconciled in this branch. The owner-selected MLX/~27B direction, model transparency and routing policy are recorded; G-O01 benchmark and G-O20 Core-language evidence gates remain open. PR #9 is closed/unmerged; its detailed low-level design is now included here as a review baseline, not as an approved implementation plan. PR #8 is the only open PR. Stage 2 review is **ACCEPTED** for exact head `5821022` (22/22 exact-head CI checks successful); this is not production/release sign-off. Target-Mac verification and release readiness remain pending. The Stage 3 execution plan, scenario register, Internet policy and single roadmap have been reconciled after the prior Claude challenge; a fresh independent challenge of the current head and explicit owner authorisation remain pending. Stage 3 implementation is **NOT AUTHORISED / NOT STARTED**.
+G-O17 and Stage 2 authority were accepted by the owner. Claude's documentation review 7045420044 has been reconciled in this branch. The owner-selected MLX/~27B direction, model transparency and routing policy are recorded; G-O01 benchmark and G-O20 Core-language evidence gates remain open. PR #9 is closed/unmerged; its detailed low-level design is now included here as a review baseline, not as an approved implementation plan. PR #8 is the only open PR. Stage 2 review is **ACCEPTED** for exact head `5821022` (22/22 exact-head CI checks successful); this is not production/release sign-off. Target-Mac verification and release readiness remain pending. The Stage 3 execution plan, baseline audit and contract delta are planning artefacts. The baseline audit is architect-inspected at `ea4e48f`; the contract delta is a proposal awaiting independent Claude challenge. Stage 3 implementation is **NOT AUTHORISED / NOT STARTED**. The Stage 2 CI status for the latest head must be checked separately.
 
 ## Source-of-truth rules
 
