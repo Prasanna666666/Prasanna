@@ -1,11 +1,11 @@
 # ADR G-O17 — macOS/iOS Core Language, UI Runtime and Packaging Boundary
 
-**Status:** PROPOSED — not owner-accepted  
-**Stage 2 authority:** NOT AUTHORISED; this ADR and the accompanying package are review-only  
+**Status:** RECOMMENDED — Claude technical challenge reconciled; owner acceptance pending  
+**Stage 2 authority:** NOT AUTHORISED; this ADR is a decision proposal only  
 **Decision owner:** Atlas owner  
 **Prepared by:** ChatGPT, Architect / Integrator  
-**Technical challenge requested from:** Claude  
-**Scope:** Application language, UI framework, shared-code boundary and packaging direction. This ADR does not select the local LLM/inference engine, database, vector store, or remote-access topology.
+**Technical challenge:** Claude review recorded in PR #7 comment 7035425400; reconciled by ChatGPT  
+**Scope:** macOS/iOS application language and UI runtime, shared application-code boundary, Core API boundary and packaging direction. The language/runtime of the Mac-host Core is explicitly deferred to G-O20. This ADR does not select the local LLM/inference engine, database, vector store, or remote-access topology.
 
 ## 1. Decision to make
 
@@ -16,22 +16,23 @@ Choose the application technology that best delivers one Atlas application on ma
 - One Atlas product/application; no separate Finance, Documents or Images apps.
 - Target platforms: macOS first, then iOS. Android is out of scope.
 - One shared codebase across macOS and iPhone is the top technology criterion.
-- Native macOS delivery and one-click integrity-verified updates are target requirements.
+- Native macOS delivery and one-click integrity-verified updates are target requirements. Distribution assumption recorded from the owner (2026-11-19): direct download, Developer ID signed and notarised; not Mac App Store sandbox distribution. Exact packaging, helper signing, update and rollback implementation remains G-O12.
 - Atlas Core and inference remain under owner control. No cloud inference or silent remote fallback.
 - Worldwide iOS access is through a secure channel to the owner's host; it does not move inference or private data processing to a third-party AI service.
 - 32 GB Apple-silicon Mac mini is a planning profile, not a benchmark result.
-- Existing Python capabilities and tests are valuable migration assets. Do not discard or rewrite them without a requirement-level justification and parity/rollback evidence.
+- Existing Python capabilities and tests are migration assets, not constraints. Reuse them where they are the best choice; replace or rewrite components when requirement-level evidence supports doing so, with parity, data-preservation and rollback evidence.
 - The current app is Python services plus Docker/HTTP boundaries, web UI, SQLCipher SQLite, and Ollama integration (Stage 1 audit, PR #7 comments 7022436618 and 7022456916). Stage 1 evidence was code inspection and scratch-environment tests, not target-Mac verification.
 - All exact calculations remain deterministic. Finance stays outside model/general-agent context under G-015. Health remains locked by default.
 
 ## 3. Keep these technology decisions separate
 
-This ADR concerns the application runtime (language, UI framework, client/core boundaries and packaging). It does not decide:
+This ADR resolves the application layer and the boundary to the Mac-host Core. It does **not** select the Core's implementation language/runtime; that is a separate open decision, G-O20. G-O17 is therefore explicitly scoped to the application layer, Core API boundary and packaging direction. It does not decide:
 - Which local model or inference runtime Atlas uses (G-O01).
 - Storage/search/encryption/key architecture (G-O02).
 - Backup, restore and key recovery (G-O05).
 - Secure worldwide remote access, device identity or offline sync (G-O14/G-O15).
 - Native update/signing implementation details beyond the chosen application boundary (G-O12).
+- The Mac-host Core language/runtime (G-O20); the current Python Core is an interim implementation choice, not a permanent commitment.
 
 Do not select Ollama, llama.cpp, MLX, a model family or a database merely because an application framework supports it.
 
@@ -116,45 +117,72 @@ Qualitative assessment against this product's constraints; not benchmark results
 
 No framework can be selected responsibly from marketing claims alone. The actual proof must build the same small vertical slice on macOS and iOS and measure packaging, startup, responsiveness, native integration, memory and maintenance cost.
 
-## 6. Preliminary recommendation
+## 6. Recommendation for owner decision
 
 **Recommend A: Swift + SwiftUI + shared Swift packages**, subject to Claude's technical challenge and the owner's explicit acceptance.
 
 Reason: the committed platform set is macOS+iOS only. SwiftUI offers one shared Apple-native application codebase without adding a cross-platform rendering framework. It aligns best with native macOS delivery, iOS distribution, Apple security APIs and the future iOS client. Android portability is no longer a requirement and should not drive framework selection.
 
-**Migration strategy:** do not rewrite the existing Python system as part of this ADR or Stage 2. Keep the existing host-side Atlas Core and proven Python capabilities behind a narrow, versioned, authenticated local API while the shared SwiftUI application layer is established. Treat Python services as hidden technical workers under the single Atlas product, not as separate apps. Define contracts so the Core can be ported incrementally later if profiling, reliability or packaging evidence justifies it. The iOS client connects securely to the owner-controlled Mac Core; it does not run cloud inference.
+**Migration strategy:** keep the existing Mac-host Core behind a narrow, versioned API while the shared SwiftUI application layer is established. Python is the current implementation baseline, not a permanent language decision. Reuse existing capabilities where they are the best choice; replace them when requirements and evidence justify it. No big-bang rewrite is proposed. The iOS client connects securely to the owner-controlled Mac Core; it does not run cloud inference.
 
-This recommendation is not a final runtime selection until the owner accepts it. If the owner interprets one codebase as requiring all application and Core logic to use one language, rather than a shared macOS/iOS app codebase with a host-side Core, that distinction must be settled before ADR acceptance.
+**Owner's interpretation of “one codebase”:** the owner previously answered “not sure, decide on evidence.” The evidence-based interpretation adopted here is one shared macOS/iOS application codebase, with a separately hosted Core behind a language-neutral API. This preserves the shared app codebase criterion without forcing a Core rewrite before its own evidence-based decision (G-O20).
 
-## 7. Required technical challenge / proof before acceptance
+## 7. Migration cost and interim option
+
+Claude's repository inspection found approximately 11,800 lines of existing JS/HTML/CSS across the Atlas, Finance and Library interfaces, plus approximately 1,200 lines of shared design code. A SwiftUI choice means a staged UI migration; it is not UI reuse. Treat these counts as repository-inspection estimates, not independently measured product scope. Do not rewrite all screens in one step.
+
+A temporary native macOS shell hosting the existing web UI in WKWebView is a viable migration option to compare during a later implementation plan. It may reduce time-to-first-native-shell but trades off native interaction and does not remove the eventual iOS UI work. It is not selected or authorised by this ADR.
+
+## 8. API, security and packaging consequences
+
+- The current chat endpoint returns a single JSON response and has no streaming/cancellation contract. A sub-two-second first-useful-output target cannot be responsibly assessed until progress/token streaming and cancellation are designed and measured.
+- Current browser Origin/header checks are not native client or device authentication. “Localhost” is not an identity boundary. The Core must authenticate each client; Claude recommends per-client keys/signatures and local Unix-domain-socket peer-credential checks. The exact mechanism belongs in the contract/security design and must not be mistaken for the G-O14 remote-access design.
+- Direct-download distribution requires a signed/notarised Mac app and careful signing of nested binaries/helpers. Embedding Python and ML dependencies may materially affect footprint, startup, update and notarisation complexity. This is a G-O12 implementation risk, not proven solved by this ADR.
+- The Core API must support streaming/progress, cancellation, version negotiation and user-safe errors. A local API hop is not assumed to be a material latency problem; model and retrieval time must be measured separately.
+- Migration temporarily involves the shared Swift app, Mac-host Core and existing web UI until screens are ported. Keep the boundary contract-first and reversible.
+
+## 9. Required technical challenge / proof before acceptance
 
 Claude must assess the recommendation against the actual repository and provide evidence for:
 
-1. Shared SwiftUI/Xcode project structure for macOS and iOS, including what can genuinely be shared and what must be platform-specific.
-2. A minimal spike plan (not implementation yet) proving Swift client ↔ existing local Python Core API on macOS and secure iOS client ↔ Mac Core API.
-3. The native API and security boundary: authentication, device enrolment/revocation, transport, local-only inference and no public database/model ports. Detailed remote-access design remains G-O14 and is not decided here.
-4. Feasibility of local inference/native library integration on the Mac host without coupling the UI framework to the model runtime.
-5. Preservation/reuse strategy for Python capabilities and tests; identify any blockers to the API-boundary approach.
-6. Native packaging, signing, update and rollback implications (G-O12); do not claim implementation.
-7. Expected memory/footprint/startup/latency risks and a repeatable benchmark plan on the 32 GB target profile.
-8. A like-for-like comparison against Flutter and Compose, identifying any factual error or material omitted cost in this ADR.
+1. Confirm the shared SwiftUI/Xcode project boundary and list genuinely shared versus platform-specific code.
+2. Review the contract-first proof approach: versioned OpenAPI 3.1/JSON Schema, Python reference implementation/tests, and generated Swift client validation when a Mac/Xcode runner is available. No code spike is authorised by this ADR.
+3. Assess per-client authentication, signed requests, local IPC/transport and the distinction between local authentication and the separately gated G-O14 remote-access design.
+4. Assess streaming/progress, cancellation, version negotiation and user-safe errors against the current single-response chat endpoint.
+5. Assess Python/Core reuse, packaging/notarisation risks, UI migration cost and the WKWebView interim option.
+6. Compare SwiftUI against Flutter and Compose using the current repository, not a greenfield assumption.
+7. Identify risks, dependencies and any material technical correction. Do not request another owner questionnaire unless genuinely new evidence makes a reserved decision necessary.
 
 If Claude finds a material blocker, revise the recommendation rather than defend it. No code spike is authorised by this review request.
 
-## 8. Acceptance and consequences
+## 10. Verification status and evidence limits
 
-Owner acceptance of this ADR resolves G-O17 and satisfies only the runtime/platform decision gate. It does not authorise Stage 2 by itself.
+| Claim / comparison | Status in Claude review |
+|---|---|
+| Flutter iOS/macOS support; Pigeon native interop preview; platform channels established | Verified from official documentation/search evidence reported by Claude |
+| Compose iOS and desktop stability; JVM desktop vs Kotlin/Native iOS | Verified from JetBrains documentation reported by Claude |
+| Tauri 2 macOS/iOS support and Xcode requirement | Verified from Tauri documentation/search evidence reported by Claude |
+| Apple shared SwiftUI multiplatform target | Not independently verified by Claude; platform claim remains documented but not independently checked in that review |
+| Apple `swift-openapi-generator` availability and platform support | Verified from Apple/Swift project sources reported by Claude |
+| Current Atlas UI size, API response shape, browser-oriented auth, CI environment and container footprint | Code-inspected by Claude at implementation baseline `7a3b447`; not target-Mac benchmark evidence |
+| Embedded Python signing/notarisation feasibility and exact footprint | Not fully verified; treat as an open packaging risk under G-O12 |
+
+No target-Mac build, benchmark or packaging proof has been performed. These are future validation requirements, not implied acceptance evidence.
+
+## 11. Acceptance and consequences
+
+Owner acceptance of this ADR resolves G-O17 (application layer, Core API boundary and packaging direction) and satisfies only the runtime/platform decision gate. It does not decide G-O20 (Core language/runtime) and does not authorise Stage 2 by itself.
 
 After acceptance:
 - Keep domain contracts independent of SwiftUI views and OS-specific adapters.
 - Use a single shared SwiftUI app project/source tree for macOS and iOS, with narrow platform adapters.
 - Keep the Mac-host Core behind a versioned API; no cloud inference.
 - Require architecture tests for dependency direction and platform leakage.
-- Revisit the Core language only through a separate evidence-backed ADR if necessary.
+- Decide the Mac-host Core language/runtime separately through G-O20; do not infer permanent Python selection from this ADR.
 
 Rejected alternatives remain technically viable, but are not preferred for the current Apple-only target.
 
-## 9. Sources
+## 12. Sources
 
 Official platform documentation consulted 2026-11-20:
 - Apple, [Configuring a multiplatform app target](https://developer.apple.com/documentation/Xcode/configuring-a-multiplatform-app-target) — Apple platforms can share a target; SwiftUI projects can share substantial code.
