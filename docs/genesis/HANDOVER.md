@@ -30,14 +30,14 @@ Do not delete branches, historical evidence, user data, databases or indexes as 
 
 The completed sequence is retained in the PR discussion as the audit trail. It does not grant implementation authority.
 
-**Next gate — Stage 2 is NOT AUTHORISED.** Before any Stage 2 implementation:
+**Next gate — Stage 2 is NOT AUTHORISED.** Before any Stage 2 work:
 1. G-O17 must be resolved through an evidence-backed, accepted platform/runtime ADR, with Mac+iPhone code sharing as the top runtime criterion.
 2. ChatGPT must review a bounded Stage 2 work package, including scope, interfaces, acceptance tests, risks and rollback.
 3. The owner must explicitly authorise Stage 2.
 
 The Stage 1 audit included the iOS target in its assessment. Mobile implementation remains separately gated; secure remote access, device security, offline/sync and mobile release require their own ADRs and staged acceptance. Resolving G-O18 or G-O19 does not satisfy the Stage 2 gates.
 
-**Current authority:** no Stage 2 implementation, code changes, migrations, app retirement, data movement or destructive action is authorised. Preserve all existing branches, user data, keys and history.
+**Current authority:** no Stage 2 work, code changes, migrations, app retirement, data movement or destructive action is authorised. Preserve all existing branches, user data, keys and history.
 
 ## Evidence status
 
