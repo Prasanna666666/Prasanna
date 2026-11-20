@@ -15,5 +15,7 @@
 ## Product principles the owner has stated
 - One Atlas app, one user, fully local (no cloud inference). The local model may read all the owner's data, including Finance and Health.
 - Exact numbers and dates are computed and checked by code, never by the model.
-- Approval is needed only for extreme actions (sending or sharing out of the Mac, deleting or overwriting, spending money). No incidental friction or repeated prompts.
+- One first-run Get Started consent plus OS permission prompts; no repeated or per-folder prompts.
+- Approval is limited to the closed list in PRD §4.4; everything else is prompt-free. Only an enrolled owner client can change settings and grants; all such changes are audited and replay-protected.
+- Public web search is allowed through Core's egress gateway using sanitised queries; private content and model context never leave for public search or cloud inference.
 - Synthetic data only in tests and CI; no real personal data in artifacts.
