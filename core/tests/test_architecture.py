@@ -142,3 +142,161 @@ def test_the_traceability_matrix_names_every_criterion_and_only_tests_that_exist
     assert named and named <= existing, sorted(named - existing)
     for gap in ("G-2", "G-3", "G-5", "G-9", "G-13"):
         assert gap in doc
+
+
+# ---- canonical documents (docs/genesis): the owner's decisions are applied in place, the roadmap is single, the approval list is closed -------------------
+GENESIS = ROOT.parent / "docs" / "genesis"
+HISTORICAL = re.compile(
+    r"(?i)\b(superseded|historical|as authorised at the time)\b"
+)  # a line or a section heading carrying this is a labelled historical record
+SUPERSEDED_RULES = {
+    "finance-model-exclusion": re.compile(
+        r"(?i)((no|never|not|cannot|must not)\b[^.|]{0,80}raw finance|raw finance[^.|]{0,100}(never|outside|excluded|inaccessible|cannot|not visible)|finance enclave)"
+    ),
+    "health-lock": re.compile(
+        r"(?i)(health[^.|]{0,80}(locked by default|remains? locked|is locked|disabled/locked|excluded and locked)|no health access (by default|or unlock)|health (is |remains )?(excluded|locked))"
+    ),
+    "approval-beyond-the-closed-list": re.compile(
+        r"(?i)(privacy-sensitive|confirm (every|each)|only under the consequential-action approval rule"
+        r"|approval[^.|]{0,80}(security changes|consequential access|production systems|declarations|signing)"
+        r"|(security changes|consequential access changes|production systems|declarations|signing)[^.|]{0,80}approval)"
+    ),
+}
+# Violations the architect has been told about and has not yet corrected: (file, rule, start of the line). The test requires this list to equal what is found,
+# so an entry must be deleted in the same change that fixes its line, and nothing new can slip in.
+PENDING_DOC_FIXES: list[tuple[str, str, str]] = [
+    ("LOW_LEVEL_DESIGN.md", "finance-model-exclusion", "- No general agent access to raw Finance records."),
+    ("LOW_LEVEL_DESIGN.md", "finance-model-exclusion", "Finance ingestion, storage, calculations and query resolution live beh"),
+    ("LOW_LEVEL_DESIGN.md", "health-lock", "- No Health access by default."),
+    ("MEMORY_PRIVACY_KNOWLEDGE.md", "finance-model-exclusion", "**Finance is a stricter, owner-decided boundary:** no AI model, genera"),
+    ("MEMORY_PRIVACY_KNOWLEDGE.md", "health-lock", "Health data is locked by default. Highly sensitive categories must be "),
+    ("STAGE-2-WORK-PACKAGE.md", "finance-model-exclusion", "- No Finance integration into model context; no raw Finance access, no"),
+    ("STAGE-2-WORK-PACKAGE.md", "health-lock", "- No Health access or unlock."),
+    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Ask approval for purchases, paid services, security changes or conse"),
+    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Create, move or cancel events only under the consequential-action ap"),
+    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Never merge, deploy, publish or change production systems without th"),
+    ("USE_CASE_REGISTER.md", "approval-beyond-the-closed-list", "- Submitting forms, signing, paying fees or making declarations requir"),
+]
+APPROVAL_CATEGORIES = {
+    "send outside the Mac": re.compile(r"(?i)\b(send|sending|forward\w*|shar\w+|publish\w*|upload\w*)\b"),
+    "spend money": re.compile(r"(?i)\b(spend\w*|pay\w*|purchas\w+|trad\w+|paid booking\w*)\b"),
+    "delete without undo": re.compile(r"(?i)(delet\w+|overwrit\w+|destructive migration)"),
+    "physical access or safety": re.compile(r"(?i)(unlock|disarm|safety/security|safety or security|physical access)"),
+}
+
+
+def genesis_files() -> list[Path]:
+    return [*sorted(GENESIS.glob("*.md")), ROOT.parent / "CLAUDE.md"]
+
+
+def stale_phrases() -> list[tuple[str, str, str]]:
+    found = []
+    for path in genesis_files():
+        in_historical_section = False
+        for line in path.read_text().splitlines():
+            if line.startswith("#"):
+                in_historical_section = bool(HISTORICAL.search(line))
+            elif not in_historical_section and not HISTORICAL.search(line):
+                found += [(path.name, rule, line.strip()[:70]) for rule, pattern in SUPERSEDED_RULES.items() if pattern.search(line)]
+    return sorted(set(found))
+
+
+def section_text(name: str, heading: str) -> str:
+    """The text from the heading that matches `heading` to the next heading of the same or a higher level."""
+    lines, out, level = (GENESIS / name).read_text().splitlines(), [], 0
+    for line in lines:
+        if out and line.startswith("#") and len(line) - len(line.lstrip("#")) <= level:
+            break
+        if not out and line.startswith("#") and re.search(heading, line):
+            level = len(line) - len(line.lstrip("#"))
+        if level:
+            out.append(line)
+    return "\n".join(out)
+
+
+def categories_in(text: str) -> set[str]:
+    return {name for name, pattern in APPROVAL_CATEGORIES.items() if pattern.search(text)}
+
+
+def test_the_owner_decisions_are_applied_in_place_not_only_appended_as_supersession_notes():
+    found, pending = stale_phrases(), sorted(PENDING_DOC_FIXES)
+    assert found == pending, f"new: {sorted(set(found) - set(pending))}; fixed (delete from PENDING_DOC_FIXES): {sorted(set(pending) - set(found))}"
+
+
+def test_there_is_exactly_one_delivery_roadmap_and_it_is_in_the_target_architecture():
+    stage_tables = [
+        (p.name, n) for p in genesis_files() for n, line in enumerate(p.read_text().splitlines(), 1) if re.match(r"^\|\s*Order\s*\|\s*Stage\b", line)
+    ]
+    assert [name for name, _ in stage_tables] == ["TARGET_ARCHITECTURE.md"], stage_tables
+    competing = [
+        (p.name, line.strip()[:60])
+        for p in genesis_files()
+        for line in p.read_text().splitlines()
+        if re.search(r"(?i)(release prioritisation|milestone sequence|priority wave|\bwave [1-9]\b)", line) and not HISTORICAL.search(line)
+    ]
+    assert not competing, f"a second sequence is defined in: {competing}"
+
+
+def test_every_document_that_states_the_approval_list_states_the_same_closed_list():
+    stated = {
+        "PRD.md §4.4": section_text("PRD.md", r"4\.4"),
+        "DECISIONS.md G-022": next(line for line in (GENESIS / "DECISIONS.md").read_text().splitlines() if line.startswith("| G-022")),
+        "USE_CASE_REGISTER.md §7": section_text("USE_CASE_REGISTER.md", r"^## 7\."),
+        "INTERNET_AND_NETWORK_POLICY.md §6": section_text("INTERNET_AND_NETWORK_POLICY.md", r"^## 6\."),
+    }
+    wrong = {where: sorted(set(APPROVAL_CATEGORIES) ^ categories_in(text)) for where, text in stated.items() if categories_in(text) != set(APPROVAL_CATEGORIES)}
+    assert not wrong, f"these differ from the four closed categories: {wrong}"
+
+
+# The approval matrix. No Action Runtime exists yet, so this locks the specification: each row is an action, the effect it has, and whether the owner is asked. When the
+# runtime is built, `requires_approval` is replaced by the real decision and the same table drives the real test. Only these effects ever prompt (PRD section 4.4).
+PROMPTING_EFFECTS = {"external_send", "spend", "irreversible_delete", "destructive_migration", "physical_security"}
+APPROVAL_MATRIX = [  # (action, effect, owner is asked)
+    ("read, search, summarise, analyse, compute", "read", False),
+    ("draft an email, a letter or a reply", "draft", False),
+    ("create or move the owner's own calendar event", "local_change", False),
+    ("send a calendar invitation or update", "external_send", True),
+    ("create, edit, rename or organise files and notes with undo", "local_change", False),
+    ("delete or overwrite with reliable undo", "local_change", False),
+    ("delete or overwrite without reliable undo", "irreversible_delete", True),
+    ("destructive migration or retiring a legacy store", "destructive_migration", True),
+    ("send, forward, reply or post a message outside the Mac", "external_send", True),
+    ("share or upload a file or contact data outside the Mac", "external_send", True),
+    ("pay, transfer, trade, purchase or place a paid booking", "spend", True),
+    ("complete, create or reprioritise a task or reminder", "local_change", False),
+    ("ordinary device control (lights, heating, media)", "local_change", False),
+    ("unlock an external door, disarm an alarm or disable a safety system", "physical_security", True),
+    ("public web search or page fetch with a sanitised query", "read", False),
+    ("connect a read-only source after first-run consent", "read", False),
+    ("cancel a booking without any external message or payment", "local_change", False),
+    ("run a rule the owner stated that only changes local data with undo", "local_change", False),
+]
+
+
+def requires_approval(effect: str) -> bool:
+    return effect in PROMPTING_EFFECTS
+
+
+def register_matrix_rows() -> dict[str, bool]:
+    rows = section_text("USE_CASE_REGISTER.md", r"^## 7\.").splitlines()
+    cells = [[c.strip() for c in row.strip("|").split("|")] for row in rows if row.startswith("| ") and not row.startswith("| Action") and "---" not in row]
+    return {cell[0]: cell[1] == "Yes" for cell in cells if len(cell) >= 2 and cell[1] in ("Yes", "No")}
+
+
+def test_routine_actions_never_prompt_and_only_the_closed_categories_do():
+    wrong = [(action, effect) for action, effect, asked in APPROVAL_MATRIX if requires_approval(effect) != asked]
+    assert not wrong, wrong
+    assert {effect for _, effect, asked in APPROVAL_MATRIX if asked} == PROMPTING_EFFECTS  # every closed category has a case, and no case adds one
+    assert all(effect in PROMPTING_EFFECTS or not asked for _, effect, asked in APPROVAL_MATRIX)
+
+
+def test_the_prompt_table_in_the_use_case_register_agrees_with_the_matrix_on_every_row_it_has():
+    table = register_matrix_rows()
+    assert table, "the table in USE_CASE_REGISTER.md section 7 was not found"
+    asked_in_register = {action for action, asked in table.items() if asked}
+    never_asked_in_register = {action for action, asked in table.items() if not asked}
+    for action in asked_in_register:
+        assert categories_in(action), f"the register asks for approval on {action!r}, which is not in the closed list"
+    for action in never_asked_in_register:
+        assert not categories_in(action) or "with reliable undo" in action.lower(), f"{action!r} sounds like a prompting action but is marked No"
+    assert any("Create/move own calendar event" in a for a in never_asked_in_register)  # the case the owner objected to is prompt-free
