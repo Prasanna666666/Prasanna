@@ -1,6 +1,6 @@
 # Stage 2 Work Package — Foundation Contracts
 
-**Status:** OWNER-AUTHORISED — Stage 2 implementation in PR #8 is under independent review; implementation not yet accepted  
+**Status:** Historical Stage 2 work package — owner-authorised and accepted for its reviewed scope; it does not authorise Stage 3. 
 **Product:** One Atlas application  
 **Package owner:** ChatGPT — Architect / Integrator  
 **Implementer after authorisation:** Claude  
@@ -79,8 +79,7 @@ These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequ
 - No model integration, model routing implementation, model benchmarking, MoE/agent-workforce expansion or autonomous background agents. The owner has since selected MLX and a benchmark-led ~27B main-model direction with automatic task-based switching (G-020); this package does not implement or validate that runtime/model stack. The Python reference implementation here is a contract test/reference surface, not a permanent production Core-language decision; G-O20 remains open.
 - No Mail attachment indexing or exposure. G-O18 must be resolved before any attachment processing.
 - No actual document/Mail ingestion or search implementation until G-O19 source designation and G-O18 attachment handling are resolved.
-- No Finance integration into model context; no raw Finance access, no Finance agent, and no new computed Finance output permissions.
-- No Health access or unlock.
+- Stage 2 implementation did not include Finance or Health integration. This is a historical scope boundary, not a restriction on later stages; G-021 governs owner-authorised local-model access with separate domain controls.
 - No database consolidation, schema migration, data movement, key rotation, legacy app retirement or branch deletion.
 - No packaging/release implementation, update mechanism, backup/recovery release or deployment to the owner's machine.
 - No cloud inference, cloud storage of private content or third-party hosted Core.
