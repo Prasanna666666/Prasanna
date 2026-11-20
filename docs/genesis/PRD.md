@@ -78,7 +78,7 @@ A typical workflow is: owner request or authorised trigger → coordinator scope
 - **Observe:** monitor explicitly authorised sources and detect material changes.
 - **Prepare:** research, analyse, draft and propose a plan without external side effects.
 - **Execute reversible work:** perform low-risk, reversible actions only within an owner-configured policy, with an audit record and undo/compensation where possible.
-- **Consequential execution:** require specific, current owner approval for financial transactions, purchases, bookings, sending communications, sharing data, destructive changes or other external/irreversible actions.
+- **Consequential execution:** require specific, current owner approval only for the exhaustive categories in §4.4. All other work—including routine external read-only requests and reversible local changes—does not prompt.
 - **Proactive delegation:** schedule or trigger bounded tasks only from owner-approved sources, scopes, cadence and stop conditions. Every task must be cancellable and report completion, partial completion or failure.
 
 ### 4.7 Agent workforce quality requirements
@@ -152,7 +152,7 @@ These clarifications supersede conflicting earlier baseline wording:
 
 - **Single owner and low friction:** one first-run Get Started consent flow plus macOS permission prompts. No repeated prompts, per-folder selection or incidental confirmations for routine reading, search, analysis, drafting or computation.
 - **Finance and Health:** the local model may read owner-authorised Finance and Health information. Keep separately labelled/keyed stores, access grants, provenance, redacted logs, cache controls and revocation. Exact arithmetic and financial computations remain deterministic and code-checked.
-- **Approval:** only consequential external effects or materially irreversible changes require approval: send/publish/share/upload, spend/purchase/pay/trade/book, delete/overwrite/destructive migration and equivalent actions. Show exact payload, destination/recipient, attachments, amount and terms; material changes invalidate approval.
+- **Approval:** the exhaustive approval categories are defined in §4.4. No open-ended “equivalent actions” category is permitted; everything outside §4.4 never prompts. Any new category requires an explicit owner decision recorded in DECISIONS.md. Show exact payload, destination/recipient, attachments, amount and terms; material changes invalidate approval.
 - **Attachments:** all supported Mail attachment formats are in scope, subject to a separate supported-format, extraction/OCR, provenance, safety and acceptance specification.
 - **Internet:** public web search/retrieval is allowed when useful. Private source content, credentials, Finance/Health data and local model context must not be sent to public search or third-party inference. See INTERNET_AND_NETWORK_POLICY.md.
 - **Coverage:** USE_CASE_REGISTER.md is the extensible cross-domain scenario and lifecycle acceptance inventory.
