@@ -70,3 +70,7 @@ The canonical product scope extends beyond the original read-only Documents/Mail
 Key directions: single-user Atlas; one first-run Get Started flow; no routine approval prompts; local model access to owner-authorised Finance and Health; exact calculations code-checked; approval only for consequential external effects or materially irreversible changes; public Internet research under strict data-minimised egress; all supported Mail attachments in scope subject to technical acceptance; progressive newest-first indexing with visible coverage.
 
 The use-case and network-policy documents have been added to this branch. This is documentation progress, not a working app build. Stage 3 implementation remains subject to its explicit authorisation gate; target-Mac integration and performance remain unverified.
+
+## Always-on host and availability decision
+
+Keep FileVault enabled. Atlas Core starts automatically as a user LaunchAgent after the owner logs in and unlocks the login Keychain. After a reboot but before owner login, the Mac host is locked and remote clients must show that sign-in is required. Do not enable automatic login or weaken FileVault to make background services available before login. Any system-keychain alternative requires a separate security design and target-Mac verification.
