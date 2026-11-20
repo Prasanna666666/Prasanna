@@ -1,6 +1,6 @@
 # Stage 2 Work Package — Foundation Contracts
 
-**Status:** PROPOSED FOR REVIEW — Stage 2 is NOT authorised  
+**Status:** REVISED AFTER CLAUDE TECHNICAL CHALLENGE — Stage 2 is NOT authorised  
 **Product:** One Atlas application  
 **Package owner:** ChatGPT — Architect / Integrator  
 **Implementer after authorisation:** Claude  
@@ -37,7 +37,9 @@ No implied approval from “continue”, PR activity, documentation acceptance, 
 - Define the shared Swift application/client boundary and the versioned Atlas Core API contract.
 - Keep domain/policy contracts independent of SwiftUI views and platform-specific adapters.
 - Treat the current Python Core as a Mac-host implementation behind a narrow API initially; no forced Python-to-Swift rewrite in this package.
-- Define authenticated local IPC/API semantics for the Mac client. Remote iOS connectivity is specified only as an interface seam; detailed topology remains G-O14 and is out of scope.
+- Define a language-neutral, versioned OpenAPI 3.1 + JSON Schema contract as the source of truth. Provide a Python reference server/implementation and contract tests in this stage; generate/validate the Swift client only when a Mac/macOS CI runner is available. The existing chat endpoint is single-response today; define streaming/progress, cancellation, version negotiation and user-safe errors in the contract.
+- Define per-client identity and signed-request semantics; do not trust localhost or browser Origin/CSRF headers as native authentication. Local transport should use Unix-domain-socket peer-credential checks plus per-client credentials/signatures, subject to a security review. Remote iOS authentication/topology remains G-O14 and is out of scope.
+- Treat clients, including SwiftUI, as untrusted. All policy enforcement occurs in the Core before retrieval and before model-context assembly.
 
 **C. Typed capability and policy contracts**
 - Define typed request/result/error contracts for capabilities.
@@ -51,11 +53,12 @@ No implied approval from “continue”, PR activity, documentation acceptance, 
 - Define task ID, parent/trigger, objective, scope, budget, deadline, checkpoint, cancellation, retry/idempotency and terminal-state contracts.
 - Minimum lifecycle: requested → policy checked → queued/running → retrieved → drafted → verified → completed / partially completed / failed / cancelled / expired.
 - Define restart recovery and explicit partial/failure reporting.
+- For this bounded slice, durable task state uses a **new, separate, additive encrypted store** with its own dedicated Keychain item; it must be independently deletable for rollback. Do not modify existing databases, schemas or keys. If implementation reveals this cannot be safely isolated, stop and submit a separate migration/storage proposal.
 - Do not introduce an unbounded agent scheduler, agent swarm or proactive monitoring system.
 
 **E. Evidence and answer contracts**
-- Define passage/source references that can resolve to an exact document page/block and character span; Mail message identity and quoted span are represented separately when Mail is later enabled.
-- Define answer citations, verification status, limitations and an explicit not-searched/excluded-source list.
+- Define passage/source references that can represent an exact document page/block and character span, plus Mail message identity and quoted span for future Mail enablement. Stage 2 proves the contract against synthetic fixtures only; actual stored page offsets, extraction changes and immutable provenance migration are a separate approved package.
+- Define answer citations, verification status, language, confidence, limitations and an explicit not-searched/excluded-source list. Include an explicit unsupported-language outcome; do not imply universal OCR/model support. G-019 is the language requirement (numeric zero); G-O19 is the separate source-designation decision (letter O).
 - Reuse deterministic figure/date verification; extend only as necessary to verify citations and exact quotations.
 - No answer may imply that excluded attachments or disabled source types were searched.
 
@@ -85,6 +88,8 @@ No implied approval from “continue”, PR activity, documentation acceptance, 
 
 ## 4. Proposed contract set (design target, not pre-approved API names)
 
+The source-of-truth contract is language-neutral OpenAPI 3.1 plus JSON Schema, versioned in the repository. Python is the reference implementation for this slice. Swift client generation/build verification is deferred until a Mac or macOS CI runner is available; it is not a Stage 2 acceptance claim.
+
 Claude should propose the smallest set of typed contracts, avoiding over-abstraction:
 
 - TaskRequest / TaskRecord — objective, initiator, source scope, budget, lifecycle, checkpoints and cancellation.
@@ -92,7 +97,7 @@ Claude should propose the smallest set of typed contracts, avoiding over-abstrac
 - CapabilityRequest / CapabilityResult / CapabilityError — typed in-process or API boundary.
 - PassageRef / EvidenceRef — immutable source identity, version/hash, page/block/span and exact text reference.
 - PolicyDecision — allow/deny, policy version, reason code and permitted scope; default deny.
-- AnswerEnvelope — answer, citations, verification, limitations and not-searched list.
+- AnswerEnvelope — answer, citations, verification, language, confidence, limitations, unsupported-language state and not-searched list.
 - ExecutionReceipt — task result, timestamps, idempotency key and audit reference.
 - SafeEvent — allow-listed structured telemetry with redaction by construction.
 
@@ -100,20 +105,26 @@ These are conceptual names. Claude must challenge and simplify them against the 
 
 ## 5. Acceptance criteria
 
+Acceptance is evaluated against contract fixtures, Python reference implementation and tests in the available Linux CI/developer environment. Swift/Xcode build or runtime behaviour is explicitly **NOT VERIFIED** until a Mac or macOS CI runner is available. Stop rather than claim a Swift deliverable passed without that environment.
+
 All criteria require reproducible evidence; no “works on my machine” claims.
 
 1. **Policy before retrieval:** automated tests prove no source content is fetched or passed to a model unless a current explicit grant authorises that source type and sensitivity. Default is deny.
 2. **Isolation:** synthetic Finance and Health sentinels never appear in general model context, retrieved passages, answer evidence or logs.
 3. **Task durability:** restart/fault-injection tests at every lifecycle boundary recover safely or show a terminal/needs-attention state; retries are idempotent; cancellation is honoured.
-4. **Evidence integrity:** every citation resolves to the exact immutable source version and page/block/span; invalid or stale citations fail closed. Quoted spans are checked deterministically.
+4. **Evidence contract integrity:** synthetic fixtures prove citations can represent an immutable source/version identifier and exact page/block/span; invalid or stale fixture references fail closed. This does not claim the current ingestion stores these offsets. Actual extraction, stored provenance and schema changes require a separate approved migration package.
 5. **Exactness:** deterministic figure/date verification remains in force; tests prove unsupported numbers/dates are not emitted as verified facts.
 6. **Mail boundary:** Mail body, headers/metadata, thread context and attachment contents have distinct types/provenance; attachment content remains excluded. No Mail retrieval occurs until its separate gates are resolved.
 7. **Redaction:** synthetic sentinel scans find zero question text, document names, message subjects, addresses, passage text, secrets or raw personal data in logs across normal and failure paths.
 8. **Architecture:** automated tests enforce dependency direction, no duplicate policy/memory/orchestration implementation, no UI bypass of Core policy, and no model call before policy approval.
 9. **Failure transparency:** unavailable Core/model, denied source, incomplete ingestion, truncation, citation failure, timeout and partial work produce explicit user-safe states; no incomplete task is reported complete.
-10. **Responsiveness:** measure first-useful-output and typical-answer p50/p95 under idle and ingestion load on a named machine. Existing <2s / <5s targets remain provisional until a baseline is measured; do not claim they pass without owner-target hardware evidence.
+10. **Responsiveness:** measure policy, task and contract round-trip overhead with stubs on a named available machine. Do not run or claim ingestion-load/retrieval benchmarks in this stage; real retrieval/model latency and first-useful-output p50/p95 move to Stage 3 and must be measured on the named target Mac. Existing <2s / <5s targets remain provisional.
 11. **No data-risk migration:** no user-data movement, destructive schema migration or single-copy dependency occurs in this package.
-12. **Traceability:** every in-scope requirement links to implementation, automated test, CI result and known limitation.
+12. **Traceability:** every in-scope requirement links to contract/implementation, automated test, CI result and known limitation.
+13. **API compatibility and streaming:** contract tests cover version negotiation, safe failure for unsupported client/Core versions, progress/stream events, cancellation and a stable user-safe error taxonomy.
+14. **Client identity:** contract and Python reference tests reject missing, invalid and revoked client identity/signatures; no localhost-only or Origin-header trust.
+15. **Language disclosure:** AnswerEnvelope carries detected/requested language and confidence; unsupported-language cases are explicitly surfaced and tested.
+16. **Policy enforcement boundary:** tests prove policy is enforced in the Core and cannot be bypassed by a client.
 
 ## 6. Required Claude deliverables
 
@@ -150,6 +161,7 @@ Claude must stop and report before proceeding if:
 - A test requires real owner data or access to sensitive records.
 - The implementation requires remote exposure, third-party hosting or unapproved external side effects.
 - The Stage 1 baseline materially differs from current code.
+- No Mac/Xcode environment is available when a proposed deliverable or acceptance claim requires Swift build/runtime verification.
 
 ## 9. Owner decisions that will be requested later — not blockers to this package review
 
@@ -163,9 +175,19 @@ Do not ask the owner these questions now unless new evidence makes them immediat
 
 These decisions remain separate gates for the stages/features that depend on them. This package does not resolve them by implication.
 
-## 10. Approval record
+## 10. Stage 1 gap traceability and exclusions
+
+This package addresses the policy-before-retrieval and Finance/Health isolation gaps (Stage 1 G-3/G-13), contract-level provenance representation only (part of G-2), context/answer disclosure (G-5), and redacted observability (part of G-9). It does **not** close the consent/word-list gap (G-4), Mac-dependent gaps (G-6 to G-8), backup/key recovery (G-15), actual stored provenance/extraction, ingestion/search, or any source enablement gate.
+
+The first slice has **no user actions or external side effects**. ExecutionReceipt is an audit/result envelope only; approval-binding and action authorization belong to a later Action Runtime stage. Do not implement action execution in Stage 2.
+
+## 11. Approval record
 
 - G-O17 ADR owner acceptance: **PENDING**.
-- ChatGPT package review: **PENDING Claude technical challenge and reconciliation**.
+- ChatGPT package review: **PENDING final verification of this revision; acceptance will be recorded by ChatGPT after review**.
 - Explicit owner authorisation to start Stage 2: **NOT GRANTED**.
 - Implementation status: **NOT STARTED**.
+- Contract format: **OpenAPI 3.1 + JSON Schema, language-neutral**.
+- Reference implementation: **Python; Swift client verification deferred until Mac/macOS CI is available**.
+- Task persistence: **separate additive encrypted store and dedicated Keychain item; no existing DB/key changes**.
+- Provenance: **synthetic contract fixtures only; stored extraction/provenance changes deferred**.
