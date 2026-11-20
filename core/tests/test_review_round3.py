@@ -359,3 +359,105 @@ def test_a_saved_checkpoint_answer_of_an_unfinished_task_is_never_served_through
     assert w.store.record(task_id)["state"] == "verified" and w.store.answer(task_id)["task_id"] == task_id
     with pytest.raises(CoreError):
         w.service.answer(task_id)
+
+
+# ---- 4. a crash and a restart never rebind saved material to a newer grant ---------------------------------------------------------------------
+import json  # noqa: E402
+
+from conftest import SENTINEL_DOC  # noqa: E402
+
+CRASH_POINTS = ["after:retrieved", "after:drafted", "after:verified"]
+
+
+def _crashed_task(tmp_path, point: str, ceiling: str = "medium"):
+    w = World(tmp_path, [grant("documents", sensitivity=ceiling)])
+    record, _ = w.service.submit(request(max_retries=5))
+    w.faults.armed.add(point)
+    with pytest.raises(SimulatedCrash):
+        w.service.run(record["task_id"])
+    w.faults.armed.discard(point)
+    return w, record["task_id"]
+
+
+def _assert_old_material_unused(w: World, task_id: str, calls_before: int) -> None:
+    record = w.store.record(task_id)
+    assert record["state"] == "failed" and record["terminal_reason"] == "denied"
+    assert len(w.model.calls) == calls_before  # nothing old was sent to the model again
+    answer = w.service.answer(task_id)
+    served = json.dumps([answer, w.service.events_after(task_id, 0)])
+    assert SENTINEL_DOC not in served and "1250.50" not in served and answer["citations"] == []  # the old content is in neither the answer nor the stream
+    assert not any(e["type"] == "final" for e in w.store.events_after(task_id, 0))
+
+
+@pytest.mark.parametrize("point", CRASH_POINTS)
+@pytest.mark.parametrize("new_ceiling", ["medium", "high", "low"])
+def test_a_revoke_and_regrant_before_recovery_never_lets_old_checkpoint_data_through(tmp_path, point, new_ceiling):
+    w, task_id = _crashed_task(tmp_path, point)  # the same ceiling, a broader one, or a narrower one: none inherits the old material
+    before = len(w.model.calls)
+    regrant(w, "documents", "grant-documents-02", new_ceiling)
+    w.restart()
+    w.service.run(task_id)
+    _assert_old_material_unused(w, task_id, before)
+
+
+@pytest.mark.parametrize("point", CRASH_POINTS)
+def test_a_ceiling_lowered_in_place_before_recovery_never_lets_old_checkpoint_data_through(tmp_path, point):
+    w, task_id = _crashed_task(tmp_path, point, "high")
+    before = len(w.model.calls)
+    for g in w.grants._grants:
+        g["max_sensitivity"] = "medium"  # same grant identity, lower ceiling
+    w.restart()
+    w.service.run(task_id)
+    _assert_old_material_unused(w, task_id, before)
+
+
+@pytest.mark.parametrize("point", CRASH_POINTS)
+def test_the_same_grant_still_resumes_and_is_served(tmp_path, point):
+    w, task_id = _crashed_task(tmp_path, point)
+    w.restart()
+    assert w.service.run(task_id)["state"] == "completed"  # nothing changed: the saved work is reused
+    assert "1250.50" in w.service.answer(task_id)["answer"]
+
+
+@pytest.mark.parametrize("point", ["after:retrieved", "after:drafted"])
+def test_a_saved_passage_relabelled_above_the_ceiling_is_not_reused_even_under_the_same_grant(tmp_path, point):
+    w, task_id = _crashed_task(tmp_path, point)
+    before = len(w.model.calls)
+    w.sources.sources["doc00001"] = dataclasses.replace(DOC, sensitivity="high")  # the source store now labels the item above the grant
+    w.restart()
+    w.service.run(task_id)
+    _assert_old_material_unused(w, task_id, before)
+
+
+@pytest.mark.parametrize("point", ["after:retrieved", "after:drafted"])
+def test_a_saved_passage_whose_source_label_is_missing_fails_closed(tmp_path, point):
+    w, task_id = _crashed_task(tmp_path, point)
+    before = len(w.model.calls)
+    del w.sources.sources["doc00001"]  # unknown source: no label
+    w.restart()
+    w.service.run(task_id)
+    _assert_old_material_unused(w, task_id, before)
+
+
+def test_a_checkpoint_with_no_grant_binding_is_never_reused(tmp_path):
+    w, task_id = _crashed_task(tmp_path, "after:drafted")
+    before = len(w.model.calls)
+    data = w.store.checkpoint(task_id)[1]
+    assert data["grant_binding"] == {"documents": ["grant-documents-01", "medium"]}  # kept with the material, through the later draft checkpoint
+    w.store.note(task_id, {"grant_binding": {}}, T0)  # an older or tampered checkpoint without it
+    w.restart()
+    w.service.run(task_id)
+    _assert_old_material_unused(w, task_id, before)
+
+
+@pytest.mark.parametrize("change", ["regrant", "lower"])
+def test_a_finished_answer_is_withheld_after_a_regrant_or_lower_ceiling_even_without_a_restart(tmp_path, change):
+    w = World(tmp_path, [grant("documents", sensitivity="high")])
+    record = w.run_new(request())
+    assert record["state"] == "completed" and "1250.50" in w.service.answer(record["task_id"])["answer"]
+    if change == "regrant":
+        regrant(w, "documents", "grant-documents-02", "high")
+    else:
+        w.grants._grants[0]["max_sensitivity"] = "medium"
+    served = json.dumps([w.service.answer(record["task_id"]), w.service.events_after(record["task_id"], 0)])
+    assert "1250.50" not in served and SENTINEL_DOC not in served

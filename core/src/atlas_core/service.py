@@ -67,7 +67,7 @@ class Deps:
 class TaskService:
     def __init__(self, deps: Deps) -> None:
         self._d = deps
-        labels = SourceLabels(deps.sources)
+        labels = self._labels = SourceLabels(deps.sources)
         self._retrieval, self._builder = GatedRetrieval(labels), ContextBuilder(labels)
         self._model = GatedModel(deps.model, labels, deps.policy, deps.clock)
 
@@ -183,10 +183,26 @@ class TaskService:
         touched = {p["evidence"]["source_type"] for p in data.get("passages", [])} | {c["evidence"]["source_type"] for c in data.get("citations", [])}
         if done >= STEPS.index("verified"):
             touched |= _cited_types(d.store.answer(task_id))
-        revoked = frozenset(t for t in touched if not token.allows(t, now))
+        revoked = frozenset(
+            touched - self._valid_types(data, token, now)
+        )  # same grant identity and ceiling as at retrieval, and every saved item still covered
         if revoked:
             self._deny(task_id, scope, _denied_now(decision, revoked))
             raise _Stop(d.store.record(task_id))
+
+    def _valid_types(self, data: dict[str, Any], token: PermitToken, now: datetime) -> frozenset[str]:
+        """The source types whose SAVED material may still be used under this token. A type qualifies only if the token's grant for it has the same identity and ceiling as the one the
+        material was retrieved under (a revoke and re-grant, or a changed ceiling, never lets old data through, broader or not), and every saved passage of that type still has a
+        trusted label (re-read from the source store) that the current ceiling covers. A missing binding or label fails closed."""
+        bound = data.get("grant_binding", {})
+        passages = data.get("passages", [])
+        ok = set()
+        for source_type in token.permitted:
+            same = source_type in bound and tuple(bound[source_type]) == token.grants[source_type]
+            covered = all(token.allows_item(source_type, self._labels.of(p), now) for p in passages if p["evidence"]["source_type"] == source_type)
+            if same and covered:
+                ok.add(source_type)
+        return frozenset(ok)
 
     def _boundary(self, task_id: str) -> None:
         d, now = self._d, self._d.clock()
@@ -209,7 +225,15 @@ class TaskService:
         result = self._retrieval.fetch(token, d.retriever, question, d.clock(), d.policy, d.clock)  # grants re-checked immediately before each source is read
         d.log.emit("retrieval.finished", "gate", task_id, count=len(result.passages))
         d.faults.hit("mid:retrieved")
-        self._to(task_id, "retrieved", step="retrieved", data={"passages": result.passages, "excluded_sensitive": result.excluded_sensitive})
+        binding = {
+            t: list(g) for t, g in token.grants.items()
+        }  # the grant (identity, ceiling) this material was retrieved under: kept with it, never overwritten
+        self._to(
+            task_id,
+            "retrieved",
+            step="retrieved",
+            data={"passages": result.passages, "excluded_sensitive": result.excluded_sensitive, "grant_binding": binding},
+        )
         d.faults.hit("after:retrieved")
         return result.passages
 
@@ -306,7 +330,7 @@ class TaskService:
             return envelope  # already a safe answer (nothing searched, stopped, or withheld): it carries no source content
         scope = record["source_scope"]
         decision, token = self._d.policy.decide(scope, self._d.clock())
-        permitted = token.permitted if token is not None else frozenset()
+        permitted = self._valid_types(self._d.store.checkpoint(task_id)[1], token, self._d.clock()) if token is not None else frozenset()
         used = self._used_types(task_id, envelope)
         if used <= permitted:
             return envelope
@@ -324,7 +348,7 @@ class TaskService:
         """Stream events; a final answer built from a source no longer permitted is replaced by a plain error event (same sequence number)."""
         scope = self._d.store.record(task_id)["source_scope"]
         _, token = self._d.policy.decide(scope, self._d.clock())
-        permitted = token.permitted if token is not None else frozenset()
+        permitted = self._valid_types(self._d.store.checkpoint(task_id)[1], token, self._d.clock()) if token is not None else frozenset()
         out = []
         for event in self._d.store.events_after(task_id, after):
             leaks = event["type"] == "final" and not self._used_types(task_id, event["answer"]) <= permitted
