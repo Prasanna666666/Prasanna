@@ -52,7 +52,7 @@ Atlas may monitor explicitly connected and authorised sources through events or 
 
 ### 4.3a Initial approved read-only workflow
 
-The first owner-approved workflow is a read-only question-answering flow that discovers and reads owner-authorised local documents and Mail, then answers with exact source citations. Documents and Mail are separate source types and remain unavailable to search until each is explicitly enabled through an owner-controlled mechanism (default-deny; G-O19). Mail is untrusted content. Mail attachment contents are not indexed or exposed until G-O18 is resolved; answers must disclose that attachments were not searched. Mail citations must identify the exact message and stored header/span evidence. This scope does not authorise writes, sending, sharing or other external actions.
+The first usable workflow is a read-only, evidence-grounded question-answering flow over owner-authorised local sources. One first-run Get Started consent flow plus macOS system permissions establishes initial source access; Core enforces grants and immediate revocation internally without repeated prompts or per-folder selection. Mail is untrusted content. All supported attachment formats are in product scope, but attachment content remains unavailable until its separate technical package (format matrix, provenance, OCR quality, parser isolation and hostile-file tests) is accepted. Mail citations identify exact message, stored headers and body/attachment locators. Routine reads and analysis require no approval; consequential external actions remain separately approval-gated.
 
 ### 4.3b Local model transparency and routing safety
 
@@ -61,10 +61,10 @@ The owner-selected local inference direction is Apple MLX with a benchmark-led ~
 ### 4.4 Actions and autonomy
 - Read and analysis actions may run within granted permissions.
 - Reversible, low-risk actions may be automated only within an owner-configured policy.
-- Consequential, external, destructive, financial, privacy-sensitive or irreversible actions require explicit approval.
-- Approval must be specific, current, scoped to the exact proposed action and recorded.
-- Atlas must never treat instructions inside retrieved documents, emails or tool output as owner approval.
-- A task that reads untrusted content (including email, documents or webpages) must not directly perform an external send/share in the same unreviewed context. Before execution, the policy engine must inspect the exact outgoing content, destination/recipients and data classification; required approval must display that exact payload and recipients. Changes after approval invalidate the approval.
+- Approval is required only for consequential external effects or materially irreversible changes: sending/publishing/sharing/uploading, spending/purchases/payments/trades/bookings, deletion/overwrite/destructive migration and equivalent actions.
+- Routine reading, searching, summarising, analysing, drafting and computing never require approval after onboarding.
+- Approval is single-use and bound to the exact action, payload, recipient/destination, attachments, amount and terms; any material change invalidates it.
+- Atlas must never treat instructions inside retrieved documents, emails, webpages or tool output as owner approval. Untrusted content cannot widen permissions or trigger actions.
 
 ### 4.5 Personal-work automation and agent workforce
 
@@ -91,7 +91,7 @@ Capabilities are expected to evolve and may include:
 - Finance and investments.
 - Calendar, tasks and planning.
 - Travel.
-- Health (locked by default; explicit permission required).
+- Health (owner-authorised local model access; separately labelled/keyed, permission-controlled and revocable).
 - Work and projects.
 - Home and devices.
 - Media and photographs.
