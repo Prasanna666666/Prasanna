@@ -1,8 +1,8 @@
 # Atlas — Handover
 
-**Status:** Updated for single-application direction, personal-work Agent Workforce, macOS-first then iOS platform target, and documents-plus-Mail read-only first workflow  
+**Status:** Updated for single-application direction, owner MLX/model decisions, Claude's documentation review, and consolidated PR #8 delivery  
 **Repository:** `Prasanna666666/Prasanna`  
-**Documentation branch:** `genesis-architecture`  
+**Documentation branch:** `genesis-stage2-foundation` (documentation now consolidated into PR #8)  
 **Implementation baseline:** `atlas`
 
 ## Authoritative entry point
@@ -41,7 +41,7 @@ ChatGPT owns this table and must update it whenever the owner establishes a dura
 
 Do not delete branches, historical evidence, user data, databases or indexes as part of documentation cleanup. Retire obsolete app shells only through an approved, tested migration with data preservation and rollback.
 
-## PR #7 status and next gate
+## Historical PR #7 audit trail and current PR #8 gate
 
 **Stage 0 — documentation review and reconciliation: COMPLETE.** Claude's full-document consistency confirmation is recorded in PR #7 comment 7023445432.
 
@@ -51,7 +51,7 @@ The completed sequence is retained in the PR discussion as the audit trail. It d
 
 **Architecture decision and Stage 2 authority — COMPLETE.** Claude's technical challenge is recorded in PR #7 comment 7035425400 and its focused document verification in 7037231906. The owner accepted G-O17 and explicitly authorised Stage 2 on 2026-11-20; the owner waived the ChatGPT package-acceptance gate so implementation could proceed (decision recorded in PR #7 comment 7037299974 and subsequent owner instructions). These decisions are final; do not ask the owner to repeat them.
 
-**Current Stage 2 implementation gate — PR #8 independent acceptance review.** Stage 2 implementation is in [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8), draft and unmerged. The reviewed head is `92e61f8f57362971afd401508a5c1e9d4c433092`; exact-head CI run #883 completed successfully. The attempted-versus-confirmed retrieval correction is accepted. ChatGPT's subsequent independent review is recorded as PR review comment 5996187506 against that exact head and found three remaining blockers: (1) actual per-source sensitivity is not enforced—the policy uses only static source-type sensitivity; (2) a grant revoked after permit creation but before retrieval/model invocation can still allow content into model context; and (3) task state transitions and their SSE events are committed separately, so a crash can permanently lose a terminal/final event. Claude must address these on PR #8 in one frozen revision, with regression tests, then stop for exact-head re-review. The real macOS Keychain, macOS `LOCAL_PEERCRED`, Swift/Xcode client integration and target-Mac execution remain unverified. Do not claim production readiness. Stage 2 final acceptance is withheld; PR #8 stays draft and unmerged.
+**Current Stage 2 implementation gate — PR #8 exact-head review.** The only open PR is [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8), branch `genesis-stage2-foundation`. Claude's fix commit `1aa8aef` is byte-identical in `core/` at current review head `5cd8817`; Claude's summary is comment 7045588310. ChatGPT re-reviewed the three findings from review 5996187506 against that code: per-item sensitivity is filtered at retrieval, context construction and model boundary; current grants are revalidated before each source read and at the model door; task state/checkpoint/reason and associated stream events are committed in one transaction, including cancel, expiry and recovery. Exact-head CI for `5cd8817` completed successfully. The three previously identified code blockers are accepted. Claude's documentation review 7045420044 (old PR #7, head `a2a53ba`) has been reconciled into this branch: G-O01 benchmark criteria, G-O20 recommendation, MLX transparency/routing requirements and ADR wording are updated. Model identity in answer/safe-event contracts is an additive Stage 3 gate, not a Stage 2 blocker. PR #9 is closed/unmerged; its low-level design is being carried into this branch as a review-baseline document rather than merging a second PR. Real macOS Keychain, macOS `LOCAL_PEERCRED`, Swift/Xcode integration, target-Mac MLX performance and packaging/notarisation remain unverified. Do not claim production readiness. Stage 2 code blockers are cleared; remaining platform verification and release acceptance are still pending. PR #8 stays draft and unmerged.
 
 **Stage 3 is NOT AUTHORISED.** No Stage 3 implementation, real source ingestion/search, Mail attachment processing, remote exposure, data migration or destructive action is authorised by the Stage 2 decision. G-O18, G-O19, G-O14 and other feature-specific gates remain in force.
 
