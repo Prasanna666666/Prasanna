@@ -28,7 +28,7 @@ The existing application, its tests, security controls, data stores and PR revie
 
 ## Current decision/work-package status
 
-The G-O17 platform/runtime comparison and preliminary Swift/SwiftUI recommendation are recorded in `ADR-G-O17-PLATFORM-RUNTIME.md`. Claude technical challenge and owner acceptance are pending. The bounded Stage 2 foundation package is recorded in `STAGE-2-WORK-PACKAGE.md`; it is prepared for review only. Stage 2 remains **NOT AUTHORISED** until the accepted G-O17 ADR, ChatGPT package acceptance and explicit owner authorisation are all recorded.
+Claude's technical challenge is recorded in PR #7 comment 7035425400. ChatGPT has reconciled the findings in `ADR-G-O17-PLATFORM-RUNTIME.md`, `STAGE-2-WORK-PACKAGE.md` and `DECISIONS.md`. The recommendation is a shared Swift/SwiftUI macOS+iOS application, a language-neutral versioned API to the Mac-host Core, and a separate open decision (G-O20) for the Core language. The Stage 2 package now has explicit contract, persistence, authentication, streaming, provenance, testing and verification boundaries. One consolidated Claude verification remains; owner acceptance of G-O17 and explicit Stage 2 authorisation remain mandatory. Stage 2 is **NOT AUTHORISED**.
 
 ## Source-of-truth rules
 
