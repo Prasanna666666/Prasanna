@@ -30,7 +30,7 @@ class Harness:
         self, method: str, target: str, body: dict | bytes | None = None, headers: dict | None = None, sign: bool = True, key: Ed25519PrivateKey | None = None
     ):
         raw = body if isinstance(body, bytes) else (json.dumps(body).encode() if body is not None else b"")
-        head = signed(key or self.key, method, target, raw, self.w.clock()) if sign else {}
+        head = signed(signer or self.key, method, target, raw, self.w.clock()) if sign else {}
         return self.api.handle(Request(method, target, {**head, **(headers or {})}, raw))
 
     def json(self, method: str, target: str, body: dict | None = None, **kw):
@@ -116,7 +116,7 @@ def test_identity_requests_without_a_valid_signature_are_refused(h):
     assert unsigned.status == 401 and json.loads(unsigned.body)["code"] == "unauthenticated"
     browser_style = h.call("POST", "/v1/tasks", request(), headers={"origin": "http://localhost", "x-atlas": "1"}, sign=False)
     assert browser_style.status == 401  # an Origin header or a custom header is not an identity
-    stranger = h.call("GET", "/v1/version", key=Ed25519PrivateKey.generate())
+    stranger = h.call("GET", "/v1/version", signer=Ed25519PrivateKey.generate())
     assert stranger.status == 401 and h.w.retriever.calls == []
 
 
