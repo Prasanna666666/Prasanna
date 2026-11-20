@@ -187,7 +187,7 @@ The first slice has **no user actions or external side effects**. ExecutionRecei
 - ChatGPT package-acceptance gate: **WAIVED by the owner, 2026-11-20**. This waiver authorised implementation to start; it did not waive independent implementation review.
 - Explicit owner authorisation to start Stage 2: **GRANTED, 2026-11-20**.
 - Implementation status: **implemented in PR #8, draft and unmerged; acceptance pending**.
-- Independent implementation review: initial three blockers were fixed in PR #8 head `481610f`. Re-review found a remaining read-time revocation gap for zero-citation answers/events (PR #8 review 5992662031); Claude fixed it in `badb884`. Code-level re-review confirms the fix and its regression tests address that finding. Full CI run #864 is still in progress; macOS Keychain and peer-credential verification remain pending.
+- Independent implementation review: initial three blockers were fixed in PR #8 head `481610f`. Re-review found a remaining read-time revocation gap for zero-citation answers/events (PR #8 review 5992662031); Claude fixed it in `badb884`. Code-level re-review confirms the fix and its regression tests address that finding. Full CI run #864 passed all jobs. One user-facing wording correction remains open: post-revocation withholding currently reuses the pre-retrieval 'Nothing was searched' message; see PR #8 review 5992710870. macOS Keychain and peer-credential verification remain pending.
 - Platform verification: real macOS Keychain behaviour, Keychain prompts/item permissions, macOS `LOCAL_PEERCRED`, target-Mac execution and Swift/Xcode integration remain **NOT VERIFIED**.
 - Stage 3: **NOT AUTHORISED**.
 - Contract format: **OpenAPI 3.1 + JSON Schema, language-neutral**.
