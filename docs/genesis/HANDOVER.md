@@ -30,16 +30,13 @@ Do not delete branches, historical evidence, user data, databases or indexes as 
 
 The completed sequence is retained in the PR discussion as the audit trail. It does not grant implementation authority.
 
-**Architecture reconciliation complete — one final technical confirmation is requested.** Claude's review is recorded in PR #7 comment 7035425400. ChatGPT has incorporated the exact corrections into [ADR-G-O17-PLATFORM-RUNTIME.md](ADR-G-O17-PLATFORM-RUNTIME.md), [STAGE-2-WORK-PACKAGE.md](STAGE-2-WORK-PACKAGE.md) and this decision register. The consolidated revision is posted once on PR #7 for Claude to verify; no repeated broad review or new questionnaire is requested.
+**Architecture decision and Stage 2 authority — COMPLETE.** Claude's technical challenge is recorded in PR #7 comment 7035425400 and its focused document verification in 7037231906. The owner accepted G-O17 and explicitly authorised Stage 2 on 2026-11-20; the owner waived the ChatGPT package-acceptance gate so implementation could proceed (decision recorded in PR #7 comment 7037299974 and subsequent owner instructions). These decisions are final; do not ask the owner to repeat them.
 
-**Next gate — Stage 2 is NOT AUTHORISED.** Before any Stage 2 work:
-1. Claude confirms only that the consolidated corrections are accurately represented and no technical blocker was introduced. ChatGPT then records its final acceptance of the bounded Stage 2 package.
-2. The owner accepts or rejects G-O17. Recommendation: shared Swift/SwiftUI application codebase; versioned Core API; Core language deferred to G-O20; direct-download signed/notarised Mac distribution assumption.
-3. If G-O17 is accepted and ChatGPT records package acceptance, the owner separately and explicitly authorises Stage 2. No implied approval.
+**Current Stage 2 implementation gate — PR #8 review pending.** Stage 2 implementation is in [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8), draft and unmerged. The first independent review identified three blockers; Claude addressed them in head `481610f`. Re-review then found one remaining read-time revocation issue: zero-citation answers and final events can still expose text derived from a revoked source (review 5992662031). Claude must fix that issue and add regression tests; ChatGPT must independently re-review the resulting head. The actual macOS Keychain and `LOCAL_PEERCRED` paths, target-Mac execution and Swift/Xcode integration remain unverified and must not be claimed as passed.
 
-The Stage 1 audit included the iOS target in its assessment. Mobile implementation remains separately gated; secure remote access, device security, offline/sync and mobile release require their own ADRs and staged acceptance. Resolving G-O18 or G-O19 does not satisfy the Stage 2 gates.
+**Stage 3 is NOT AUTHORISED.** No Stage 3 implementation, real source ingestion/search, Mail attachment processing, remote exposure, data migration or destructive action is authorised by the Stage 2 decision. G-O18, G-O19, G-O14 and other feature-specific gates remain in force.
 
-**Current authority:** no Stage 2 work, code changes, migrations, app retirement, data movement or destructive action is authorised. Preserve all existing branches, user data, keys and history. The next Claude request is a single bounded verification of the reconciled documents, not another open-ended design cycle.
+The Stage 1 audit included the iOS target in its assessment. Mobile implementation and worldwide secure access remain separately gated by the remote-access threat model, device identity, offline/sync and mobile release decisions.
 
 ## Evidence status
 
