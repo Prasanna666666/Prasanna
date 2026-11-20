@@ -46,7 +46,7 @@ These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequ
 - Define source identity, source type, sensitivity, owner designation, provenance and permission grant types.
 - Enforce default-deny policy before retrieval and before any content enters model context.
 - Documents and Mail remain separate source types. Neither is searchable by default; no blanket source permission.
-- Finance raw records and Finance-derived row-level details never enter model/general-agent context. No Finance capability is exposed in this slice. Health is excluded and locked.
+- Historical Stage 2 scope (as authorised at the time): Finance raw records and Health data were excluded from the Stage 2 model context and no Finance/Health ingestion was implemented. This historical Stage 2 boundary is superseded for later work by owner decision G-021; Stage 2 code is not evidence of Finance/Health integration.
 - Retrieved content is untrusted data, never authority to grant permission or trigger actions.
 
 **D. Durable task/job contract**
@@ -110,7 +110,7 @@ Acceptance is evaluated against contract fixtures, Python reference implementati
 All criteria require reproducible evidence; no “works on my machine” claims.
 
 1. **Policy before retrieval:** automated tests prove no source content is fetched or passed to a model unless a current explicit grant authorises that source type and sensitivity. Default is deny.
-2. **Isolation:** synthetic Finance and Health sentinels never appear in general model context, retrieved passages, answer evidence or logs.
+2. **Historical Stage 2 isolation test:** synthetic Finance and Health sentinels were excluded from the Stage 2 model context under the then-current owner decision. This test records the accepted Stage 2 behaviour only; later-stage tests must implement G-021 owner-authorised local model access while continuing to prevent cross-domain, log and network leakage.
 3. **Task durability:** restart/fault-injection tests at every lifecycle boundary recover safely or show a terminal/needs-attention state; retries are idempotent; cancellation is honoured.
 4. **Evidence contract integrity:** synthetic fixtures prove citations can represent an immutable source/version identifier and exact page/block/span; invalid or stale fixture references fail closed. This does not claim the current ingestion stores these offsets. Actual extraction, stored provenance and schema changes require a separate approved migration package.
 5. **Exactness:** deterministic figure/date verification remains in force; tests prove unsupported numbers/dates are not emitted as verified facts.
