@@ -13,7 +13,7 @@
 - Run the whole repo test suites, including `kit/tests/test_architecture.py`, before pushing, not only `core/`.
 
 ## Product principles the owner has stated
-- One Atlas app, one user, fully local (no cloud inference). The local model may read all the owner's data, including Finance and Health.
+- One Atlas app, one user, local-only inference (no cloud inference). Public web research is allowed only through the Core egress policy; no private-data or secret egress. The local model may read owner-authorised Finance and Health data under G-021.
 - Exact numbers and dates are computed and checked by code, never by the model.
 - One first-run Get Started consent plus OS permission prompts; no repeated or per-folder prompts.
 - Approval is limited to the closed list in PRD §4.4; everything else is prompt-free. Only an enrolled owner client can change settings and grants; all such changes are audited and replay-protected.
