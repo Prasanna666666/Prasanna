@@ -27,7 +27,13 @@ class Harness:
         self.api = CoreApi(w.service, self.registry, w.log, w.clock, check_responses=True)
 
     def call(
-        self, method: str, target: str, body: dict | bytes | None = None, headers: dict | None = None, sign: bool = True, key: Ed25519PrivateKey | None = None
+        self,
+        method: str,
+        target: str,
+        body: dict | bytes | None = None,
+        headers: dict | None = None,
+        sign: bool = True,
+        signer: Ed25519PrivateKey | None = None,
     ):
         raw = body if isinstance(body, bytes) else (json.dumps(body).encode() if body is not None else b"")
         head = signed(signer or self.key, method, target, raw, self.w.clock()) if sign else {}
