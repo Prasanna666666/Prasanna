@@ -187,7 +187,7 @@
         "support_status": {"type": "string", "enum": ["measured", "unmeasured", "unsupported"], "description": "measured: a documented measurement exists for this language. unmeasured: none yet (the default; nothing is claimed). unsupported: a reader, OCR or model path is known not to work, or confidence is inadequate."}
       }
     },
-    "Limitation": {"type": "string", "enum": ["attachments_not_searched", "source_type_not_searched", "language_unmeasured", "language_unsupported", "low_confidence", "figures_unproven", "dates_unproven", "context_truncated", "partial_work", "answer_withheld"]},
+    "Limitation": {"type": "string", "enum": ["attachments_not_searched", "source_type_not_searched", "language_unmeasured", "language_unsupported", "low_confidence", "figures_unproven", "dates_unproven", "context_truncated", "partial_work", "answer_withheld", "task_stopped_no_answer"]},
     "NotSearched": {
       "type": "object",
       "additionalProperties": false,
@@ -205,7 +205,8 @@
         "verification": {"$ref": "#/$defs/Verification"},
         "language": {"$ref": "#/$defs/LanguageInfo"},
         "limitations": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/Limitation"}},
-        "not_searched": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}}
+        "not_searched": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}},
+        "withheld_sources": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}, "description": "Sources that WERE retrieved for this task but whose permission was revoked since; the answer built from them is withheld or was never produced. Not the same as not_searched."}
       }
     },
     "ExecutionReceipt": {

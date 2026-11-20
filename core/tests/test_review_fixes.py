@@ -51,10 +51,12 @@ def test_a_grant_revoked_while_another_stays_fails_closed_on_resume(tmp_path, bo
     assert (final["state"], final["terminal_reason"]) == ("failed", "denied"), boundary
     answer = w.service.answer(record["task_id"])
     events = w.service.events_after(record["task_id"], 0)
-    assert answer["answer"].startswith("This answer is no longer available") and "answer_withheld" in answer["limitations"] and answer["citations"] == []
-    assert "Nothing was searched" not in answer["answer"]  # retrieval did happen: only access is withheld
+    stopped = boundary == "after:retrieved"  # retrieval happened but no draft existed yet: the task stopped, there is no answer to withhold
+    assert answer["answer"].startswith("The task was stopped" if stopped else "This answer is no longer available")
+    assert ("task_stopped_no_answer" if stopped else "answer_withheld") in answer["limitations"] and answer["citations"] == []
+    assert "Nothing was searched" not in answer["answer"]  # retrieval did happen
+    assert any(n["source_type"] == revoked for n in answer["withheld_sources"]) and all(n["source_type"] != revoked for n in answer["not_searched"])
     assert SENTINEL_DOC not in repr(answer) + repr(events) and not any(e["type"] == "final" for e in events)
-    assert any(n["source_type"] == revoked for n in answer["not_searched"])
 
 
 @pytest.mark.criterion(1)
@@ -202,7 +204,7 @@ def test_an_uncited_answer_and_its_final_event_are_withheld_once_any_source_it_c
     events = w.service.events_after(record["task_id"], 0)
     assert answer["answer"].startswith("This answer is no longer available") and SENTINEL_DOC not in repr(answer) + repr(events)
     assert not any(e["type"] == "final" for e in events) and events[-1]["error"]["code"] == "source_denied"
-    assert any(n["source_type"] == revoked for n in answer["not_searched"])
+    assert any(n["source_type"] == revoked for n in answer["withheld_sources"]) and all(n["source_type"] != revoked for n in answer["not_searched"])
     assert w.store.answer(record["task_id"])["answer"] == UNCITED  # stored unchanged for audit; only what is served is gated
 
 
@@ -217,19 +219,25 @@ def test_a_single_source_uncited_answer_is_withheld_when_that_source_is_revoked(
 
 
 @pytest.mark.criterion(9)
-def test_the_wording_is_accurate_for_each_case_nothing_searched_before_retrieval_withheld_after(tmp_path):
+def test_the_wording_is_accurate_for_each_case_not_searched_stopped_and_withheld(tmp_path):
     before = World(tmp_path / "before", []) if (tmp_path / "before").mkdir() is None else None
     assert before is not None
-    assert before.service.answer(before.run_new(request(["documents"]))["task_id"])["answer"].startswith("Nothing was searched")
-    w = _world(tmp_path / "after") if (tmp_path / "after").mkdir() is None else None
-    assert w is not None
-    record, _ = w.service.submit(request(["documents", "mail"]))
-    w.faults.armed.add("after:retrieved")  # retrieval happened, then the process died
-    with pytest.raises(SimulatedCrash):
-        w.service.run(record["task_id"])
-    w.restart()
-    w.grants._grants.clear()  # every grant is revoked before the task resumes: no token at all
-    final = w.service.run(record["task_id"])
-    assert (final["state"], final["terminal_reason"]) == ("failed", "denied")
-    answer = w.service.answer(record["task_id"])
-    assert answer["answer"].startswith("This answer is no longer available") and "Nothing was searched" not in answer["answer"]
+    first = before.service.answer(before.run_new(request(["documents"]))["task_id"])
+    assert first["answer"].startswith("Nothing was searched") and first["not_searched"] and "withheld_sources" not in first
+    cases = {"after:retrieved": ("The task was stopped", "task_stopped_no_answer"), "after:drafted": ("This answer is no longer available", "answer_withheld")}
+    for boundary, (text, limitation) in cases.items():
+        folder = tmp_path / boundary.replace(":", "_")
+        folder.mkdir()
+        w = _world(folder)
+        record, _ = w.service.submit(request(["documents", "mail"]))
+        w.faults.armed.add(boundary)
+        with pytest.raises(SimulatedCrash):
+            w.service.run(record["task_id"])
+        w.restart()
+        w.grants._grants.clear()  # every grant is revoked before the task resumes: no token at all
+        final = w.service.run(record["task_id"])
+        answer = w.service.answer(record["task_id"])
+        assert (final["state"], final["terminal_reason"]) == ("failed", "denied")
+        assert answer["answer"].startswith(text) and limitation in answer["limitations"], boundary
+        assert "Nothing was searched" not in answer["answer"] and answer["not_searched"] == []
+        assert {n["source_type"] for n in answer["withheld_sources"]} == {"documents", "mail"}

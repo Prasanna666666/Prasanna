@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .answer import AnswerInput, build_envelope, denied_envelope, withheld_envelope
+from .answer import AnswerInput, build_envelope, denied_envelope, stopped_envelope, withheld_envelope
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import SourceStore
@@ -94,9 +94,16 @@ class TaskService:
         return d.store.record(task_id), True
 
     def _deny(self, task_id: str, requested: list[str], denied: list[dict[str, str]]) -> None:
-        """End a task whose sources are not permitted. 'Nothing was searched' is said only if that is true; once retrieval has happened the answer is 'withheld' instead."""
-        retrieved = STEPS.index(self._d.store.checkpoint(task_id)[0]) >= STEPS.index("retrieved")
-        envelope = (withheld_envelope if retrieved else denied_envelope)(task_id, requested, denied)
+        """End a task whose sources are not permitted, saying what actually happened: before retrieval 'nothing was searched'; after retrieval but before a draft the task 'was
+        stopped, no answer produced'; once a draft or answer existed it is 'withheld'."""
+        step, data = self._d.store.checkpoint(task_id)
+        rank, used = STEPS.index(step), frozenset(p["evidence"]["source_type"] for p in data.get("passages", []))
+        if rank < STEPS.index("retrieved"):
+            envelope = denied_envelope(task_id, requested, denied)
+        elif rank < STEPS.index("drafted"):
+            envelope = stopped_envelope(task_id, denied, used)
+        else:
+            envelope = withheld_envelope(task_id, denied, used)
         self._d.store.save_answer(task_id, envelope)
         self._to(task_id, "failed", reason="denied")
         self._d.store.append_event(task_id, {"type": "error", "error": user_error("source_denied", task_id)})
@@ -277,13 +284,16 @@ class TaskService:
         """The saved answer, unless a source it was built from is no longer permitted: then the owner gets a plain 'not allowed any more' answer, never the old content.
         'Built from' is every source type of the passages retrieved for the task, not only the cited ones: an uncited draft still came from them."""
         envelope = self._d.store.answer(task_id)
-        scope = self._d.store.record(task_id)["source_scope"]
+        record = self._d.store.record(task_id)
+        if record["terminal_reason"] == "denied":
+            return envelope  # already a safe answer (nothing searched, stopped, or withheld): it carries no source content
+        scope = record["source_scope"]
         decision, token = self._d.policy.decide(scope, self._d.clock())
         permitted = token.permitted if token is not None else frozenset()
         used = self._used_types(task_id, envelope)
         if used <= permitted:
             return envelope
-        return withheld_envelope(task_id, scope, _denied_now(decision, used - permitted))
+        return withheld_envelope(task_id, _denied_now(decision, used - permitted), used)
 
     def _used_types(self, task_id: str, envelope: dict[str, Any]) -> frozenset[str]:
         """Every source type the answer was constructed from: the retrieved passages saved with the task's checkpoint plus whatever the answer cites."""

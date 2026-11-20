@@ -7,7 +7,7 @@ fails replaces the answer with a plain refusal. Language support is never claime
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,6 +20,7 @@ from .values import LanguageIn
 
 SAFE_TEXT = "I could not check this answer against your sources, so I am not giving it."
 WITHHELD_TEXT = "This answer is no longer available because permission to one or more of the sources it was built from was revoked."
+STOPPED_TEXT = "The task was stopped because permission to one or more sources changed after it had started. No answer was produced."
 DENIED_TEXT = "Nothing was searched: Atlas is not allowed to search the kinds of source that were asked for."
 NUMERIC_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
 
@@ -124,16 +125,27 @@ def denied_envelope(task_id: str, requested: Sequence[str], denied: Sequence[dic
     return envelope
 
 
-def withheld_envelope(task_id: str, requested: Sequence[str], denied: Sequence[dict[str, str]]) -> dict[str, Any]:
-    """The answer served instead of one that was already produced (retrieval and drafting may have happened) when permission to a source it came from was revoked since."""
+def _after_retrieval(task_id: str, text: str, limitation: str, denied: Sequence[dict[str, str]], used: Collection[str]) -> dict[str, Any]:
+    """An answer for a task whose sources were retrieved before a permission changed. Retrieved sources are 'withheld', never 'not searched'."""
     envelope = {
         "task_id": task_id,
-        "answer": WITHHELD_TEXT,
+        "answer": text,
         "citations": [],
         "verification": {"status": "unverified", "unproven_figures": [], "unproven_dates": [], "citation_failures": []},
         "language": {"support_status": "unmeasured"},
-        "limitations": ["answer_withheld"],
-        "not_searched": [dict(d) for d in denied] or [{"source_type": s, "reason_code": "grant_revoked"} for s in requested],
+        "limitations": [limitation],
+        "not_searched": [dict(d) for d in denied if d["source_type"] not in used],
+        "withheld_sources": [dict(d) for d in denied if d["source_type"] in used],
     }
     validate("AnswerEnvelope", envelope)
     return envelope
+
+
+def withheld_envelope(task_id: str, denied: Sequence[dict[str, str]], used: Collection[str]) -> dict[str, Any]:
+    """An answer WAS produced, then permission to a source it was built from was revoked: the previous answer is withheld."""
+    return _after_retrieval(task_id, WITHHELD_TEXT, "answer_withheld", denied, used)
+
+
+def stopped_envelope(task_id: str, denied: Sequence[dict[str, str]], used: Collection[str]) -> dict[str, Any]:
+    """Retrieval happened but no answer had been produced when permission changed: the task stopped and there is nothing to withhold."""
+    return _after_retrieval(task_id, STOPPED_TEXT, "task_stopped_no_answer", denied, used)
