@@ -60,3 +60,27 @@ The Core language (G-O20), storage and key custody (G-O02/G-O05; the Stage 3 ind
 
 ## 6. If accepted: implementation order (each its own reviewed commit)
 1. Schema and OpenAPI 1.1 plus contract tests (no behaviour). 2. Consent routes, identity role, `consent.changed`. 3. Coverage and index-status types with a stub index. 4. Parser adapter and the tier-1 index (WP3.2) test-first on a synthetic corpus. 5. Locators, labels and citation resolution for documents. 6. Egress gateway with fakes. 7. Mail (WP3.3) once the Get Started designation and attachment format matrix are accepted.
+
+## 7. WP3.1 as a bounded work package (requested in PR #8 comment 7050978482)
+**Objective.** Specify and then implement, test-first and without behaviour, the additive API 1.1 contract and the threat-model tests in sections 2 to 4, so every later Stage 3 package builds on a reviewed contract. Mac-independent; synthetic data only.
+
+**Scope (in).** `contracts/atlas-contracts.schema.json` and `contracts/openapi.yaml` (API 1.1: coverage, consent routes, locators, model descriptor, index status, limitations, error codes, safe events); `src/atlas_core/__init__.py` version constants; `src/atlas_core/errors.py` (new user-safe texts); `src/atlas_core/identity.py` (`owner_interactive` role, check only); `src/atlas_core/policy-rules.json` (mail_attachment stays deferred; Finance and Health stay unconfigured); contract tests in `tests/test_contracts.py`; new tests per section 3 that need no new module; `docs/TRACEABILITY.md` and `docs/THREAT_REVIEW.md` rows.
+**Scope (out).** Any index, parser adapter, egress gateway, consent behaviour or model adapter (later packages); the Core language, storage or key custody; anything Mac-only; Finance and Health ingestion; the frozen 1.0 behaviour (it must not change).
+
+**Dependencies.** ChatGPT's WP3.1 brief (this document is input); no owner decision; Stage 2 head as baseline.
+
+**Acceptance criteria (measurable).**
+1. Every 1.0 contract fixture and test passes unchanged against the 1.1 schema (compatibility).
+2. Each new field, endpoint, limitation, error code and safe event has a schema test with a valid and an invalid example; additions are optional in 1.0 responses and required only when the client asks for 1.1.
+3. A 1.1 response carrying a `coverage` state other than `complete` without `indexing_incomplete` fails validation; an answer from a stub index states `searched` and `total`.
+4. `role: owner_interactive` is enforced by a test: any other client calling the consent routes receives `forbidden`, replay and stale requests are rejected (reuses Stage 2 identity tests).
+5. Header locators carry `authenticity: claimed`; a citation into quoted text cannot validate with the sender as its source (test).
+6. New safe events contain only enumerations and counts: the redaction sentinel scan passes over every new event type.
+7. T1 to T12 each map to a named test that is either present or listed as pending for the package that implements it, with its L/M label; `docs/TRACEABILITY.md` and `docs/THREAT_REVIEW.md` are updated.
+8. No new dependency, no network access in the Core, ruff and mypy clean, no function over 50 lines.
+
+**Tests and commands (from `core/` unless stated).** `ruff check .`; `mypy src`; `python -m pytest -q -p no:cacheprovider` on Python 3.13 and 3.11; from each of `kit/`, `images/`, `library/`, `atlas/`, `finance/`: `python -m pytest -q -p no:cacheprovider` (including `kit/tests/test_architecture.py`); exact-string mutation checks for each new rule.
+**Commit plan.** One commit for the contract and its tests, then one per further step in section 6, each reviewed on its exact SHA before the next.
+**Rollback.** Revert the commit; API 1.0 is untouched, so nothing depends on 1.1 until a later package uses it.
+**Evidence classification.** Schema, contract and identity tests: CI-verified once GitHub Actions completes for the exact head, developer-reported before. Real-model resistance (T1), OS-level egress and model-worker isolation (T8), real Keychain (T11), real load (T10): **Mac-only, pending**. No performance claim.
+**Stop conditions.** Stop and report if a required change would alter 1.0 behaviour, needs a new owner decision, or cannot be tested without real owner data or the Mac.
