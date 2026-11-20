@@ -240,20 +240,20 @@ The integration catalogue is capability-led, not a promise that every app is alr
 |---|---|---|---|
 | Stage 3 | Local files and folders | Search, read, extract, cite, progressive index | Organise/rename with undo; never destructive by default |
 | Stage 3 | Apple Mail | Search/read/summarise/draft; supported attachments after separate acceptance | Send/reply/forward only with exact approval |
-| Stage 3 | Apple Calendar | Read agenda, conflicts, availability | Create/move own events without approval; approval only when an invite/update is sent externally or an action matches the closed approval list |
-| Stage 3 | Reminders/tasks | Read, create, complete and reprioritise with undo | Delete without reliable undo requires approval |
+| Stage 3 | Apple Calendar | Read agenda, conflicts, availability only | Event creation/movement is Stage 5; own events are prompt-free, while sending invitations/updates follows PRD §4.4 |
+| Stage 5 | Reminders/tasks | Read, create, complete and reprioritise with undo | Delete without reliable undo requires approval |
 | Stage 3 | Public Internet | Search/fetch public pages, compare, cite, freshness checks | Downloads only to controlled staging; no arbitrary executable launch |
 | Stage 5 | Contacts | Resolve, create and edit local contacts with undo | Sharing/exporting contact data outside the Mac requires approval |
 | Stage 6 | Browser | Research, compare and fill forms to preview | Submit/send/upload, purchase or book only under the closed approval list |
 | Stage 5 | Notes | Search/read/create/edit notes with version history and undo | Delete without reliable undo or share outside the Mac requires approval |
-| Stage 5 | Photos/media | Search, describe, organise and delete with undo | Upload/share outside the Mac requires approval; destructive deletion without undo requires approval |
+| Stage 6 | Photos/media | Search, describe, organise and deduplicate proposals | Upload/share outside the Mac requires approval; deletion with reliable undo is reversible |
 | Stage 5 | Finance sources | Read owner-authorised statements, transactions, invoices and investment data; local-model interpretation plus code-checked analysis | Spend, pay, trade, purchase or book only with exact approval |
 | Stage 5 | Health sources | Read owner-authorised records and activity; local-model summaries/trends | No diagnosis claims; upload/share outside the Mac requires approval |
 | Stage 6 | Home/IoT | Device state, energy and environmental readings; reversible device control | Physical access unlock or disabling a safety/security system requires approval; paid changes require approval |
 | Stage 6 | Work platforms | Project/task/mail/document context; local drafts and reversible task updates | External posts/sends/uploads require approval |
 | Stage 6 | Travel providers | Research and itinerary context | Paid booking/payment requires exact approval; cancellation without external message or disclosure is prompt-free |
-| Deferred | Messaging/social | Read only where supported and explicitly connected | Send/post/share requires exact approval |
-| Deferred | Cloud storage | User-owned connector, least privilege | No cloud inference; external storage writes require approval |
+| Stage 6 | Messaging/social | Read/summarise/draft where supported and explicitly connected | Send/post/share outside the Mac requires exact approval |
+| Stage 6 | Cloud storage | User-owned connector, least privilege, read-first sync | No cloud inference; external upload/share follows PRD §4.4 |
 | Stage 8 | iOS client | Secure access to owner-controlled Mac Core | Offline cache/sync and remote threat model must be accepted first |
 
 Stage numbers are defined only in TARGET_ARCHITECTURE.md §11. Prioritise specific vendors within a stage by owner value, API stability, privacy, implementation effort, ongoing maintenance and reversibility.
@@ -279,7 +279,7 @@ Every delegated task has a bounded objective, source/tool scope, deadline, budge
 
 ## 7. Approval and autonomy contract
 
-Owner direction: single-user product; reading, searching, analysing, summarising, drafting and computing should not trigger approval prompts. Approval is reserved for consequential actions with effects outside Atlas or material irreversible change.
+Owner direction: single-user product; reading, searching, analysing, summarising, drafting and computing should not trigger approval prompts. Approval is limited to the exhaustive categories in PRD §4.4; no broader approval rule is implied.
 
 The closed approval list is defined canonically in PRD §4.4 and is intentionally exhaustive. Nothing else triggers an approval prompt. The action matrix below must be kept in sync with that list. Approval preview shows exact action, destination/recipient, content/attachments, amount, date and material terms. Approval is single-use and invalidated by any material change. Reversible local actions use an undo journal.
 
