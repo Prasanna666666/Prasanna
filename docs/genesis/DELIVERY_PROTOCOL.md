@@ -136,10 +136,10 @@ The following records the sequence already completed; it is retained as an audit
 
 ### Stage 2 entry gates — all mandatory
 
-Before any Stage 2 implementation begins:
+Before any Stage 2 work begins:
 
 1. **G-O17 runtime/platform ADR accepted:** compare candidate runtimes against the owner-set criteria, with Mac+iPhone code sharing as the top criterion, alongside local inference integration, performance, security, maintainability and migration cost.
 2. **ChatGPT review:** review and accept a bounded Stage 2 work package with objective, scope/non-goals, contracts, acceptance tests, evidence requirements, risks and rollback.
 3. **Explicit owner authorisation:** the owner must expressly approve starting Stage 2 after reviewing the ADR and bounded package.
 
-Documentation sign-off, Stage 0/1 completion, or resolution of G-O18/G-O19 does not satisfy these gates. Until all three gates are met, Claude must not begin Stage 2 implementation. No code changes, migration, app retirement, data movement or destructive action are authorised.
+Documentation sign-off, Stage 0/1 completion, or resolution of G-O18/G-O19 does not satisfy these gates. Until all three gates are met, Claude must not begin Stage 2 work. No code changes, migration, app retirement, data movement or destructive action are authorised.
