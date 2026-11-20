@@ -62,3 +62,11 @@ The Stage 1 audit included the iOS target in its assessment. Mobile implementati
 ## Evidence status
 
 This handover is a target/documentation instruction, not proof that legacy apps have already been retired or that the implementation has been consolidated. Current behaviour must be established from code, tests and CI. Target-Mac and local-model checks must be explicitly reported as owner-verified or pending.
+
+## Current owner direction update — 2026-11-20
+
+The canonical product scope extends beyond the original read-only Documents/Mail plan. See PRD.md, DECISIONS.md, USE_CASE_REGISTER.md, INTERNET_AND_NETWORK_POLICY.md, TARGET_ARCHITECTURE.md and STAGE-3-EXECUTION-PLAN.md.
+
+Key directions: single-user Atlas; one first-run Get Started flow; no routine approval prompts; local model access to owner-authorised Finance and Health; exact calculations code-checked; approval only for consequential external effects or materially irreversible changes; public Internet research under strict data-minimised egress; all supported Mail attachments in scope subject to technical acceptance; progressive newest-first indexing with visible coverage.
+
+The use-case and network-policy documents have been added to this branch. This is documentation progress, not a working app build. Stage 3 implementation remains subject to its explicit authorisation gate; target-Mac integration and performance remain unverified.
