@@ -1,3 +1,5 @@
-# One verified false positive (generic-api-key): core/tests/test_api.py line 30 in the first Stage 2 commit was a function-parameter annotation
-# ('key: Ed25519PrivateKey | None = None'), not a secret. The parameter was renamed in the next commit; this fingerprint only silences that one historical line.
+# Verified false positives of the generic-api-key rule (no secret is involved): a function-parameter type annotation in a test helper,
+# core/tests/test_api.py line 30 of the first Stage 2 commit (renamed in the next commit), and the line of this file's own first version that
+# described it. Each fingerprint silences one historical line only.
 8fc495e2de86800a82308382f4e4a11592c8d030:core/tests/test_api.py:generic-api-key:30
+7268350b57311a33e9bf46fd8c06d2302c4d0821:.gitleaksignore:generic-api-key:2
