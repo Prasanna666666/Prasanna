@@ -69,7 +69,7 @@ The canonical product scope extends beyond the original read-only Documents/Mail
 
 Key directions: single-user Atlas; one first-run Get Started flow; no routine approval prompts; local model access to owner-authorised Finance and Health; exact calculations code-checked; approval only for consequential external effects or materially irreversible changes; public Internet research under strict data-minimised egress; all supported Mail attachments in scope subject to technical acceptance; progressive newest-first indexing with visible coverage.
 
-The use-case and network-policy documents have been added to this branch. This is documentation progress, not a working app build. Stage 3 is authorised (G-027); target-Mac integration, performance, Keychain, signing/notarisation and other hardware-dependent checks remain unverified.
+The use-case and network-policy documents have been added to this branch. The Stage 3 preparation documents `STAGE-3-BASELINE-AUDIT.md` (the inspected repository gaps and reuse map) and `STAGE-3-CONTRACT-DELTA.md` (the architect's earlier contract proposal) were transplanted from the closed PR #10 branch `genesis-stage3-prep`. `STAGE-3-CONTRACT-DELTA.md` predates the approved WP3.1 contract and differs from it in route and event names; the approved WP3.1 contract (`core/docs/CONTRACT_1_1.md`, implemented in `core/contracts/`) governs until ChatGPT reconciles the two. This is documentation progress, not a working app build. Stage 3 is authorised (G-027); target-Mac integration, performance, Keychain, signing/notarisation and other hardware-dependent checks remain unverified.
 
 ## Always-on host and availability decision
 
