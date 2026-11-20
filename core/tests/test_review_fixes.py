@@ -169,3 +169,47 @@ def test_the_store_opens_with_a_key_from_any_provider_and_not_without_one(tmp_pa
     with pytest.raises(StoreKeyError):
         open_task_store(tmp_path / "other.db", KeychainKeyProvider("owner", FakeSecurity()))
     assert EnvKeyProvider({"ATLAS_TASK_KEY": KEY}).get() == KEY
+
+
+UNCITED = f"Note {SENTINEL_DOC} was in the file."
+
+
+def _uncited_world(tmp_path) -> World:
+    w = _world(tmp_path)
+    w.model.mode, w.model.answer_text = "no_citation", UNCITED
+    return w
+
+
+@pytest.mark.criterion(1)
+@pytest.mark.criterion(16)
+def test_an_uncited_answer_is_served_while_every_source_it_came_from_is_permitted(tmp_path):
+    w = _uncited_world(tmp_path)
+    record = w.run_new(request(["documents", "mail"]))
+    answer = w.service.answer(record["task_id"])
+    assert (record["state"], answer["verification"]["status"], answer["citations"]) == ("partially_completed", "unverified", [])
+    assert answer["answer"] == UNCITED and any(e["type"] == "final" and e["answer"]["answer"] == UNCITED for e in w.service.events_after(record["task_id"], 0))
+
+
+@pytest.mark.criterion(1)
+@pytest.mark.criterion(16)
+@pytest.mark.parametrize("revoked", ["documents", "mail"])
+def test_an_uncited_answer_and_its_final_event_are_withheld_once_any_source_it_came_from_is_revoked(tmp_path, revoked):
+    w = _uncited_world(tmp_path)
+    record = w.run_new(request(["documents", "mail"]))
+    _revoke(w, revoked)  # one source goes, the other stays allowed
+    answer = w.service.answer(record["task_id"])
+    events = w.service.events_after(record["task_id"], 0)
+    assert answer["answer"].startswith("Nothing was searched") and SENTINEL_DOC not in repr(answer) + repr(events)
+    assert not any(e["type"] == "final" for e in events) and events[-1]["error"]["code"] == "source_denied"
+    assert any(n["source_type"] == revoked for n in answer["not_searched"])
+    assert w.store.answer(record["task_id"])["answer"] == UNCITED  # stored unchanged for audit; only what is served is gated
+
+
+@pytest.mark.criterion(1)
+def test_a_single_source_uncited_answer_is_withheld_when_that_source_is_revoked(tmp_path):
+    w = World(tmp_path, [grant("documents"), grant("mail")])
+    w.model.mode, w.model.answer_text = "no_citation", UNCITED
+    record = w.run_new(request(["documents"]))
+    assert w.service.answer(record["task_id"])["answer"] == UNCITED
+    _revoke(w, "documents")
+    assert SENTINEL_DOC not in repr(w.service.answer(record["task_id"])) + repr(w.service.events_after(record["task_id"], 0))

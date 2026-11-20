@@ -272,26 +272,33 @@ class TaskService:
         return self._d.store.record(task_id)
 
     def answer(self, task_id: str) -> dict[str, Any]:
-        """The saved answer, unless a source it cites is no longer permitted: then the owner gets a plain 'not allowed any more' answer, never the old content."""
+        """The saved answer, unless a source it was built from is no longer permitted: then the owner gets a plain 'not allowed any more' answer, never the old content.
+        'Built from' is every source type of the passages retrieved for the task, not only the cited ones: an uncited draft still came from them."""
         envelope = self._d.store.answer(task_id)
         scope = self._d.store.record(task_id)["source_scope"]
         decision, token = self._d.policy.decide(scope, self._d.clock())
         permitted = token.permitted if token is not None else frozenset()
-        if _cited_types(envelope) <= permitted:
+        used = self._used_types(task_id, envelope)
+        if used <= permitted:
             return envelope
-        return denied_envelope(task_id, scope, _denied_now(decision, _cited_types(envelope) - permitted))
+        return denied_envelope(task_id, scope, _denied_now(decision, used - permitted))
+
+    def _used_types(self, task_id: str, envelope: dict[str, Any]) -> frozenset[str]:
+        """Every source type the answer was constructed from: the retrieved passages saved with the task's checkpoint plus whatever the answer cites."""
+        passages = self._d.store.checkpoint(task_id)[1].get("passages", [])
+        return frozenset(p["evidence"]["source_type"] for p in passages) | _cited_types(envelope)
 
     def receipt(self, task_id: str) -> dict[str, Any]:
         return self._d.store.receipt(task_id)
 
     def events_after(self, task_id: str, after: int) -> list[dict[str, Any]]:
-        """Stream events; a final answer that cites a source no longer permitted is replaced by a plain error event (same sequence number)."""
+        """Stream events; a final answer built from a source no longer permitted is replaced by a plain error event (same sequence number)."""
         scope = self._d.store.record(task_id)["source_scope"]
         _, token = self._d.policy.decide(scope, self._d.clock())
         permitted = token.permitted if token is not None else frozenset()
         out = []
         for event in self._d.store.events_after(task_id, after):
-            leaks = event["type"] == "final" and not _cited_types(event["answer"]) <= permitted
+            leaks = event["type"] == "final" and not self._used_types(task_id, event["answer"]) <= permitted
             out.append({"seq": event["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)} if leaks else event)
         return out
 
