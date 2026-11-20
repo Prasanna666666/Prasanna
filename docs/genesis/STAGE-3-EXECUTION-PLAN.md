@@ -1,6 +1,6 @@
 # Atlas — Stage 3 Execution Plan
 
-**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 specification/schema/tests **ACCEPTED** for exact reviewed scope (review 6000401465); WP3.2 document-only vertical path implementation brief issued on PR #8; implementation evidence pending  
+**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 specification/schema/tests **ACCEPTED** for exact reviewed scope (review 6000401465); WP3.2 document-only vertical path **ACCEPTED** at exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496); WP3.3 Mail conditional on G-O19  
 **Initiative:** Project Genesis  
 **Baseline:** PR #8, `genesis-stage2-foundation`, Stage 2 accepted at `58210223398a5715b618d1163397104efd358d49`  
 **Plan owner:** ChatGPT (architect/integrator)  
@@ -94,6 +94,8 @@ Work is sequential where dependencies or trust boundaries require it. Independen
 **Exit:** reviewed contract delta, threat model and test matrix; no unresolved high/critical security design issue. G-O18 scope and the G-O19 low-friction onboarding direction are already owner-set; implement and verify them rather than re-asking.
 
 ### WP3.2 — Document-only vertical path
+
+**Status: ACCEPTED** for exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496). Scope: UTF-8 text/Markdown only; encrypted index; exact block locators and content-version checks; explicit unsupported/failed coverage; descriptor-relative no-follow traversal; no model call when no usable passages; synthetic tests for policy, citations, hostile content, restart/idempotency and failure handling. Limits: coverage is not yet in the answer envelope, lexical ranking only, no PDF/Office/HTML/Mail, and no target-Mac/OS-level parser isolation evidence. This acceptance is not production or Stage 3 release approval.
 
 **Owner:** Claude implementation; ChatGPT independent review.
 
@@ -253,7 +255,7 @@ Stop the affected work and report with evidence if:
 
 - Stage 2 review: **ACCEPTED by ChatGPT** for exact head `58210223398a5715b618d1163397104efd358d49`; 22/22 exact-head CI checks successful. This is not production/release sign-off.
 - Stage 3 plan: **reconciled after technical challenge; owner authorisation granted in full under G-027 on 2026-11-20**.
-- Stage 3 implementation: **authorised; WP3.0 accepted; WP3.1 contract/schema/tests implemented (specification-only); exact-SHA independent acceptance and review findings remain; WP3.2 not started. API 1.1 is not served by Core.**
+- Stage 3 implementation: **authorised; WP3.0 accepted; WP3.1 accepted (specification-only); WP3.2 accepted for exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (review 6000818496). WP3.3 Mail is conditional on G-O19 designation/consent and explicit owner enablement. API 1.1 is not served by Core.**
 - Target-Mac verification: **pending hardware availability**.
 
 ## 12. Superseding owner direction and product-wide planning addendum (2026-11-20)
@@ -289,7 +291,7 @@ There is exactly one delivery roadmap: TARGET_ARCHITECTURE.md §11. Do not creat
 ChatGPT is accountable architect/integrator: canonical requirements, scenario-to-test traceability, cross-cutting design, exact-commit independent review and release recommendation. Claude Code owns implementation, developer challenge, tests, CI diagnosis, reproducible evidence and implementation documentation. GitHub Actions provides automated checks. The owner retains product direction, reserved decisions and final acceptance and is not a messenger between engineering roles.
 
 ### 12.8 Current gate
-Stage 3 is authorised under G-027 and proceeds package by package after a written implementation brief and exact-commit review. WP3.0 is accepted; WP3.1 is next. No Stage 3 application code has been implemented yet. Target-Mac-only claims remain pending hardware access.
+Stage 3 is authorised under G-027 and proceeds package by package after a written implementation brief and exact-commit review. WP3.0 and WP3.1 are accepted; WP3.2 is accepted at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. WP3.3 is next but Mail content retrieval remains blocked until G-O19's designation/consent mechanism and explicit owner enablement are active. The accepted WP3.2 work is a Mac-independent Core vertical path, not an installable or owner-tryable Mac application. Target-Mac-only claims remain pending hardware access.
 
 ### 12.9 First-useful-answer and indexing acceptance
 
