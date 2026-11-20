@@ -217,13 +217,13 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 
 The integration catalogue is capability-led, not a promise that every app is already connected. Each connector entry must state: read scopes; write scopes; authentication/storage; event/webhook support; rate limits; offline behaviour; data retention; revocation; failure semantics; and test evidence.
 
-| Priority wave | Integration/source | Initial useful capabilities | Later capabilities / constraints |
+| Canonical stage | Integration/source | Initial useful capabilities | Later capabilities / constraints |
 |---|---|---|---|
-| Foundation | Local files and folders | Search, read, extract, cite, progressive index | Organise/rename with undo; never destructive by default |
-| Foundation | Apple Mail | Search/read/summarise/draft; supported attachments after separate acceptance | Send/reply/forward only with exact approval |
+| Stage 3 | Local files and folders | Search, read, extract, cite, progressive index | Organise/rename with undo; never destructive by default |
+| Stage 3 | Apple Mail | Search/read/summarise/draft; supported attachments after separate acceptance | Send/reply/forward only with exact approval |
 | Stage 3 | Apple Calendar | Read agenda, conflicts, availability | Create/move own events without approval; approval only when an invite/update is sent externally or an action matches the closed approval list |
 | Stage 3 | Reminders/tasks | Read, create, complete and reprioritise with undo | Delete without reliable undo requires approval |
-| Foundation | Public Internet | Search/fetch public pages, compare, cite, freshness checks | Downloads only to controlled staging; no arbitrary executable launch |
+| Stage 3 | Public Internet | Search/fetch public pages, compare, cite, freshness checks | Downloads only to controlled staging; no arbitrary executable launch |
 | Stage 5 | Contacts | Resolve, create and edit local contacts with undo | Sharing/exporting contact data outside the Mac requires approval |
 | Stage 6 | Browser | Research, compare and fill forms to preview | Submit/send/upload, purchase or book only under the closed approval list |
 | Stage 5 | Notes | Search/read/create/edit notes with version history and undo | Delete without reliable undo or share outside the Mac requires approval |
@@ -233,11 +233,11 @@ The integration catalogue is capability-led, not a promise that every app is alr
 | Stage 6 | Home/IoT | Device state, energy and environmental readings; reversible device control | Physical access unlock or disabling a safety/security system requires approval; paid changes require approval |
 | Stage 6 | Work platforms | Project/task/mail/document context; local drafts and reversible task updates | External posts/sends/uploads require approval |
 | Wave 3 | Travel providers | Research and itinerary context | Booking, cancellation and payment require exact approval |
-| Later | Messaging/social | Read only where supported and explicitly connected | Send/post/share requires exact approval |
-| Later | Cloud storage | User-owned connector, least privilege | No cloud inference; external storage writes require approval |
-| Later | iOS client | Secure access to owner-controlled Mac Core | Offline cache/sync and remote threat model must be accepted first |
+| Deferred | Messaging/social | Read only where supported and explicitly connected | Send/post/share requires exact approval |
+| Deferred | Cloud storage | User-owned connector, least privilege | No cloud inference; external storage writes require approval |
+| Stage 8 | iOS client | Secure access to owner-controlled Mac Core | Offline cache/sync and remote threat model must be accepted first |
 
-“Wave” is a recommended sequence, not a commitment to a specific vendor API. Prioritise by owner value, API stability, privacy, implementation effort, ongoing maintenance and reversibility.
+Stage numbers are defined only in TARGET_ARCHITECTURE.md §11. Prioritise specific vendors within a stage by owner value, API stability, privacy, implementation effort, ongoing maintenance and reversibility.
 
 ## 6. Agent workforce and task contracts
 
@@ -279,16 +279,9 @@ The closed approval list is defined canonically in PRD §4.4 and is intentionall
 
 Acceptance: table-driven tests cover every action above and every action in the integration catalogue. UC-L01 must show zero approval prompts from after Get Started through a read-only answer. A prompt is permitted only for an action explicitly marked Yes above.
 
-## 8. Release prioritisation
+## 8. Roadmap alignment
 
-1. **First usable slice:** one Atlas conversation; local model adapter; source-backed memory; progressive document search; exact citations; transparent coverage; durable tasks; coherent Mac UI.
-2. **Personal information layer:** Mail and supported attachments; Calendar; unified search across owner-enabled sources; morning briefing and follow-up tracking.
-3. **Personal chief of staff:** Finance and Health analysis, tasks/projects, Internet research, specialist delegation, voice and notifications.
-4. **Action capability:** drafts, calendar/task/file operations, browser workflows and app actions; approval only for consequential actions; undo and audit.
-5. **Connected life:** Home, travel, shopping, work integrations and proactive monitoring.
-6. **Mobile and worldwide access:** iOS client, secure remote connectivity, offline/cache/sync and device revocation.
-
-Each wave is a capability milestone, not a separate app. Release order may change only with an explicit value/risk/effort rationale and updated dependencies.
+TARGET_ARCHITECTURE.md §11 is the sole canonical delivery roadmap, including stage numbers, scenario IDs, dependencies, exit evidence and first-tryable outcomes. This register does not define a competing wave or release sequence. Every integration row uses the canonical stage number; if an integration is not yet assigned, mark it deferred and record the reason.
 
 ## 9. Definition of done for every scenario
 
@@ -327,3 +320,11 @@ A scenario is “implemented” only when:
 | UC-049 | Calendar-invite prompt injection | Treat event title, description, attendees and links as untrusted data; they cannot trigger external actions or policy changes | Calendar stage; adversarial invite test |
 
 The scenario register is continuously extensible. A scenario is not accepted until its stage, permission boundary, normal path, failure path and test evidence are defined.
+
+### 7.1 Approval and autonomy test invariant
+
+The closed approval list in PRD §4.4 is authoritative. The table in §7 is the expected prompt matrix; the integration catalogue must not add a prompt category. The read-only UC-L01 journey has zero approval prompts after the one-time Get Started and OS permissions. Calendar create/move for the owner's own calendar is prompt-free; sending invitations/updates is approved as external sending.
+
+### 7.2 Agent execution integrity
+
+Only the Action Gateway executes. Agents propose; the coordinator checks conflicts; a durable unique action ledger and deterministic idempotency key prevent duplicate effects; per-target leases/fencing tokens and compare-and-set protect against concurrent changes; every reversible action has an undo record. Specialist deployment requires a frozen benchmark against the direct/single-model baseline. See TARGET_ARCHITECTURE.md §15.
