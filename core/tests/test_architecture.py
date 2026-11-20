@@ -23,6 +23,8 @@ LAYER = {
     "gate": 4,
     "evidence": 4,
     "documents": 4,
+    "designation": 4,
+    "access": 4,
     "answer": 5,
     "tasks": 5,
     "service": 6,
@@ -69,7 +71,16 @@ def test_there_are_no_import_cycles():
 
 @pytest.mark.criterion(8)
 def test_the_api_and_the_transport_cannot_reach_storage_retrieval_policy_or_a_model_directly():
-    forbidden = {"tasks", "gate", "evidence", "policy", "answer"}
+    forbidden = {
+        "tasks",
+        "gate",
+        "evidence",
+        "policy",
+        "answer",
+        "designation",
+        "access",
+        "documents",
+    }  # consent state is changed by the Core, never reached from the edge
     assert not (imports("api") & forbidden) and not (imports("transport") & (forbidden | {"service"}))
     assert imports("api") <= {"contracts", "errors", "events", "identity", "service", "__init__"}
 

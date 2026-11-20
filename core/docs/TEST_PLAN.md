@@ -7,7 +7,7 @@ All data is synthetic (invented sentinels in `tests/conftest.py`); no test needs
 |---|---|---|
 | Install | `pip install -e ../kit[secure] -e .[dev]` | no error |
 | Lint / format / types | `ruff check . && ruff format --check . && mypy src` | `All checks passed!`, files already formatted, `Success: no issues found` |
-| All tests | `python -m pytest -q -p no:cacheprovider` | `508 passed` |
+| All tests | `python -m pytest -q -p no:cacheprovider` | `565 passed` |
 | One criterion | `python -m pytest -q -k "policy"` etc. | per file |
 | Overhead benchmark | `python bench/overhead.py --runs 300 --json` | JSON report (see BENCHMARK.md) |
 | Legacy suites unaffected | `cd ../kit && python -m pytest -q` (and `library`, `finance`, `atlas`, `images`) | same counts as before this branch (165, 299, 701, 111, 100) |
@@ -17,6 +17,9 @@ Documents (two pages, a Dutch+Japanese text), a mail (headers/body parts), an at
 
 ## WP3.2 document index
 `tests/test_documents.py` (55 tests, synthetic files in a temp folder): extraction and exact locators, explicit unsupported/corrupt/oversized/link outcomes, newest-first and coverage truthfulness, a six-boundary crash matrix (`DocumentIndex.hook`: `scan:begin`, `scan:mid`, `doc:before`, `doc:extracted`, `doc:mid_commit`, `doc:after_commit`) that must converge to the clean-run index, idempotency, cancellation, disk pressure, slicing, changed/deleted sources, purge, encryption at rest, and the end-to-end path through the unchanged gate. Design and limits: `WP3_2_DOCUMENTS.md`.
+
+## G-O19 designation and access gate
+`tests/test_designation.py` (57 tests, synthetic, a deterministic fake OS-permission provider): default deny on a fresh install and after a restart, Documents-only / Mail-only / neither / declined choices, designable types, single-use request ids, OS evidence (absent, denied, stale, future-dated, wrong type, provider failure, loss after grant), withdrawal, expiry, revoke and regrant identity, purge failure and retry, crash atomicity (`DesignationStore.hook`), twelve tamper/downgrade cases that must withhold every grant, a no-folder-byte-touched matrix over consent x OS state, and withdrawal during a task at the search, model and between-document boundaries. Design and limits: `G_O19_DESIGNATION.md`.
 
 ## Fault injection
 `FaultInjector` crashes the pipeline the first time it passes a named boundary: `before|mid|after` x `retrieved|drafted|verified`, plus `before:final` (10 boundaries). After each crash the test builds a new service on the same encrypted store (a restart), runs `recover()` and expects one completed task, one answer, at most one repeated step. Retry budget 0 -> `failed/needs_attention`; a task stuck before it was queued -> `needs_attention`.

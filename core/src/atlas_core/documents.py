@@ -26,7 +26,9 @@ from typing import Any, Protocol
 
 from kit.db import connect
 
+from .access import AccessCheck
 from .evidence import StoredSource, sha256_text
+from .policy import PermissionRevoked
 from .rules import Rules, load_rules
 
 MAX_BYTES = 2_000_000  # a larger file is 'oversized': it is reported, never truncated
@@ -249,12 +251,14 @@ class DocumentIndex:
     """The encrypted, restart-safe index of one designated folder. Every document's state change (and its text) commits as ONE transaction, so a crash leaves each document
     either as it was or fully in its new state; re-running any step is harmless (same bytes -> same result)."""
 
-    def __init__(self, path: Path, key: str | None, root: Path, source_type: str, rules: Rules | None = None, sensitivity: str | None = None) -> None:
+    def __init__(
+        self, path: Path, key: str | None, root: Path, source_type: str, rules: Rules | None = None, sensitivity: str | None = None, *, access: AccessCheck
+    ) -> None:
         rules = rules or load_rules()
         label = sensitivity or rules.sensitivity_of(source_type)
         if label not in rules.raw["sensitivity_order"]:
             raise ValueError("unknown sensitivity")
-        self.source_type, self.label, self.scanner = source_type, label, Scanner(root)
+        self.source_type, self.label, self.scanner, self._access = source_type, label, Scanner(root), access
         self.hook: Callable[[str], None] | None = None  # tests: called at each boundary; an exception inside a transaction rolls it back (a simulated crash)
         self.free_bytes: Callable[[], int] = lambda: shutil.disk_usage(path.parent).free
         self.cancelled = threading.Event()
@@ -293,9 +297,15 @@ class DocumentIndex:
                 raise
 
     # -- scanning: what is in the folder now (cheap: names and times only) ------------------------------------------------------------------------
+    def _require(self) -> None:
+        """Nothing is scanned, indexed, searched or read unless the owner's grant AND the platform permission are current right now (checked again at every use)."""
+        if not self._access.permitted(self.source_type):
+            raise PermissionRevoked([{"source_type": self.source_type, "reason_code": "grant_revoked"}])
+
     def scan(self) -> None:
         """Record what the folder holds now. New or changed files become pending (their old text is dropped at once: a changed file is never answered from its old text),
         files that disappeared are forgotten, and the scan counts as complete only when this whole step has committed."""
+        self._require()
         with self._lock:
             self._transaction(lambda: self._set_meta("scan_state", "running"))
             self._hit("scan:begin")
@@ -331,10 +341,12 @@ class DocumentIndex:
     def run(self, max_docs: int = 10) -> dict[str, Any]:
         """Index at most `max_docs` pending documents, newest first, then return, so an interactive request is never queued behind a whole ingestion. Stops early, saying
         so, when cancelled or when the disk is nearly full; neither fails a document."""
+        self._require()
         done = 0
         with self._lock:
             self._set_pause(None)
         for rel_path in self._pending(max_docs):
+            self._require()  # withdrawn or lost between two documents: the next one is not touched
             if self.cancelled.is_set():
                 self._set_pause("cancelled")
                 break
@@ -418,6 +430,8 @@ class DocumentIndex:
     # -- the source store: what a citation is checked against ------------------------------------------------------------------------------------------
     def get(self, source_id: str) -> StoredSource | None:
         """The source as it was indexed, but only while the file on disk still has exactly the indexed bytes. Changed, deleted, replaced by a link or unreadable: None (fail closed)."""
+        if not self._access.permitted(self.source_type):
+            return None  # not permitted now: no stored text and no byte on disk is touched
         with self._lock:
             row = self._conn.execute("SELECT * FROM docs WHERE source_id=? AND status='indexed'", (source_id,)).fetchone()
         if row is None or not self._current(row):
@@ -437,6 +451,7 @@ class DocumentIndex:
         words = terms(query)
         if source_type != self.source_type or not words:
             return []
+        self._require()
         scored: list[tuple[int, float, str, int, dict[str, Any]]] = []
         for row in self._indexed():
             for number, (start, end) in enumerate(json.loads(row["blocks"])):

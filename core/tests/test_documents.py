@@ -11,6 +11,7 @@ import pytest
 from conftest import KEY, World, grant, request
 
 from atlas_core import documents
+from atlas_core.access import AllowAll
 from atlas_core.answer import NO_EVIDENCE_TEXT
 from atlas_core.contracts import validate
 from atlas_core.documents import DocumentIndex, ExtractionError, TextExtractor, source_id_for
@@ -44,7 +45,7 @@ def make(
         path.write_bytes(content if isinstance(content, bytes) else content.encode())
     for name, stamp in (times or {}).items():
         os.utime(root / name, (stamp, stamp))
-    return DocumentIndex(tmp_path / "index.db", KEY, root, "documents", sensitivity=sensitivity)
+    return DocumentIndex(tmp_path / "index.db", KEY, root, "documents", sensitivity=sensitivity, access=AllowAll())
 
 
 def build(index: DocumentIndex, slices: int = 50) -> dict[str, Any]:
@@ -64,7 +65,7 @@ def state(index: DocumentIndex) -> list[tuple]:
 
 def reopen(tmp_path: Path, old: DocumentIndex) -> DocumentIndex:
     old.close()
-    return DocumentIndex(tmp_path / "index.db", KEY, tmp_path / "docs", "documents")
+    return DocumentIndex(tmp_path / "index.db", KEY, tmp_path / "docs", "documents", access=AllowAll())
 
 
 # ---- extraction and exact evidence --------------------------------------------------------------------------------------------------------------
@@ -202,7 +203,7 @@ def test_coverage_is_not_complete_until_a_scan_finished_and_nothing_is_pending(t
     assert index.coverage()["complete"] is False  # nothing scanned yet: unknown, not complete
     cov = build(index)
     assert cov["complete"] is True and cov["searched"] == cov["total"] == 1
-    cut = DocumentIndex(tmp_path / "cut.db", KEY, tmp_path / "docs", "documents")
+    cut = DocumentIndex(tmp_path / "cut.db", KEY, tmp_path / "docs", "documents", access=AllowAll())
     cut.scanner._max_files = 0  # the folder holds more than the scan limit
     cut.scan()
     assert cut.coverage()["scan_complete"] is False and cut.coverage()["complete"] is False
