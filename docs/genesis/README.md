@@ -23,6 +23,12 @@ The existing application, its tests, security controls, data stores and PR revie
 6. [Decision register](DECISIONS.md) — settled owner decisions and open decisions.
 7. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, handshakes, issue resolution, change control and acceptance.
 8. [Handover](HANDOVER.md) — repository pointers, confirmed status and next gate.
+9. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — proposed macOS+iOS technology comparison and recommendation; not owner-accepted.
+10. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — bounded scope, contracts, acceptance criteria and stop conditions; not authorised to start.
+
+## Current decision/work-package status
+
+The G-O17 platform/runtime comparison and preliminary Swift/SwiftUI recommendation are recorded in `ADR-G-O17-PLATFORM-RUNTIME.md`. Claude technical challenge and owner acceptance are pending. The bounded Stage 2 foundation package is recorded in `STAGE-2-WORK-PACKAGE.md`; it is prepared for review only. Stage 2 remains **NOT AUTHORISED** until the accepted G-O17 ADR, ChatGPT package acceptance and explicit owner authorisation are all recorded.
 
 ## Source-of-truth rules
 
