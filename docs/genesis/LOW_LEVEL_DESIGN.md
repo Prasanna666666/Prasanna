@@ -45,8 +45,7 @@ These are navigation areas within one product, not separately installed applicat
 - No cloud inference, hosted “brain”, or automatic cloud failover.
 - No Android target.
 - No unrestricted autonomous outbound actions.
-- No general agent access to raw Finance records.
-- No Health access by default.
+- No unrestricted or cross-domain Finance/Health access; each domain is separately labelled/keyed and exposed only to an owner-authorised task under G-021.
 - No mandatory Kubernetes, microservices, distributed database or cloud workflow engine.
 - No automatic indexing merely because an account or folder is connected.
 - No claiming a language, model, connector or performance level without test evidence.
@@ -329,7 +328,7 @@ No model receives records and then gets told to ignore them. Filtering occurs be
 - Deleted/revoked source content is tombstoned immediately and excluded from retrieval while physical cleanup runs.
 
 ### 9.5 Finance boundary
-Finance ingestion, storage, calculations and query resolution live behind a deterministic Finance API. General model context, embeddings, shared retrieval, logs and agent scratch cannot contain raw Finance rows. Permitted answer data is a narrow computed result with provenance and policy authorisation. Enforce with separate process/database/key where the threat model requires it; add negative tests that inspect every model input and index.
+Finance ingestion, storage and retrieval use a separately labelled/keyed domain partition with purpose-bound owner grants. Under G-021, raw Finance records may enter only the local model context of the specifically authorised task; they must not enter unrelated agent contexts, shared memory, public web requests, cloud inference or content-bearing logs. Exact arithmetic, balances and reconciliations remain deterministic/code-checked. Revocation invalidates derived caches and active task grants. Enforce with tests that inspect every model input, index and egress boundary.
 
 ## 10. Intelligence Gateway and model runtime
 
