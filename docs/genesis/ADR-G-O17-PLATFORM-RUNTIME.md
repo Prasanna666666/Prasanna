@@ -5,7 +5,7 @@
 **Decision owner:** Atlas owner  
 **Prepared by:** ChatGPT, Architect / Integrator  
 **Technical challenge:** Claude review recorded in PR #7 comment 7035425400; reconciled by ChatGPT  
-**Scope:** macOS/iOS application language and UI runtime, shared application-code boundary, Core API boundary and packaging direction. The language/runtime of the Mac-host Core is explicitly deferred to G-O20. This ADR does not select the local LLM/inference engine, database, vector store, or remote-access topology.
+**Scope:** macOS/iOS application language and UI runtime, shared application-code boundary, Core API boundary and packaging direction. The language/runtime of the Mac-host Core is explicitly deferred to G-O20. The owner's later MLX inference-runtime direction and benchmark-led ~27B model strategy are recorded separately in G-020; this ADR does not select an exact model, quantisation, database, vector store, or remote-access topology.
 
 ## 1. Decision to make
 
@@ -27,7 +27,7 @@ Choose the application technology that best delivers one Atlas application on ma
 ## 3. Keep these technology decisions separate
 
 This ADR resolves the application layer and the boundary to the Mac-host Core. It does **not** select the Core's implementation language/runtime; that is a separate open decision, G-O20. G-O17 is therefore explicitly scoped to the application layer, Core API boundary and packaging direction. It does not decide:
-- Which local model or inference runtime Atlas uses (G-O01).
+- The exact local model family, quantisation, context length and fallback behaviour (G-O01). The owner has selected Apple MLX as the inference-runtime direction and a benchmark-led ~27B main-model class (G-020); this does not decide the Mac-host Core language (G-O20).
 - Storage/search/encryption/key architecture (G-O02).
 - Backup, restore and key recovery (G-O05).
 - Secure worldwide remote access, device identity or offline sync (G-O14/G-O15).
