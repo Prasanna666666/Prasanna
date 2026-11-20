@@ -11,11 +11,10 @@ import pytest
 from conftest import KEY, World, grant, request
 
 from atlas_core import documents
-from atlas_core.answer import LanguageIn
+from atlas_core.answer import NO_EVIDENCE_TEXT
 from atlas_core.contracts import validate
 from atlas_core.documents import DocumentIndex, ExtractionError, TextExtractor, source_id_for
 from atlas_core.evidence import CitationError, resolve
-from atlas_core.gate import ModelAnswer
 from atlas_core.service import SimulatedCrash
 
 SENTINEL = "DOCFILE-SENTINEL-7781"
@@ -328,15 +327,12 @@ def test_a_search_for_another_source_type_returns_nothing(tmp_path):
 
 
 # ---- through the existing Core path: policy, gate, model, verification -------------------------------------------------------------------------------------
-class NoEvidenceModel:
-    """A model that can be called with an empty context (the service still asks the model when every passage was excluded); it answers without citing anything."""
-
-    def __init__(self) -> None:
-        self.calls: list[Any] = []
-
-    def generate(self, context: Any) -> ModelAnswer:
-        self.calls.append(context)
-        return ModelAnswer("No source could be used.", (), LanguageIn(detected="en", requested="en", confidence=0.95))
+def assert_no_evidence_answer(answer: dict[str, Any], *, excluded: bool) -> None:
+    """The safe outcome when nothing usable was retrieved: a plain statement, no citation, nothing verified, and no content of an excluded document."""
+    assert answer["answer"] == NO_EVIDENCE_TEXT and answer["citations"] == []
+    assert answer["verification"]["status"] == "unverified" and "partial_work" in answer["limitations"]
+    assert ("sensitive_items_excluded" in answer["limitations"]) is excluded
+    assert SENTINEL not in json.dumps(answer) and "1250.50" not in json.dumps(answer)
 
 
 def world(
@@ -346,11 +342,10 @@ def world(
     idx_dir.mkdir()
     index = make(idx_dir, files, sensitivity=sensitivity)
     build(index)
-    w = World(tmp_path, [grant("documents", sensitivity="medium")] if grants is None else grants, model)
+    w = World(tmp_path, [grant("documents", sensitivity="medium")] if grants is None else grants)
     w.sources, w.retriever = index, Calls(index)
     w.service = w._service()
-    if model is None:
-        w.model.answer_text, w.model.quote = "The total due is 1250.50 euro.", "1250.50"
+    w.model.answer_text, w.model.quote = "The total due is 1250.50 euro.", "1250.50"
     return w, index
 
 
@@ -370,17 +365,18 @@ def test_without_a_grant_nothing_is_searched_or_read(tmp_path):
 
 
 def test_an_index_label_above_the_grant_excludes_the_documents_and_says_so(tmp_path):
-    w, _ = world(tmp_path, sensitivity="high", model=NoEvidenceModel())  # the owner labelled this folder high; the grant covers medium
+    w, _ = world(tmp_path, sensitivity="high")  # the owner labelled this folder high; the grant covers medium
     record = w.run_new(request(["documents"], objective="what is the total due invoice"))
-    assert all(ctx.passages == () for ctx in w.model.calls)
-    assert "sensitive_items_excluded" in w.service.answer(record["task_id"])["limitations"]
+    assert w.model.calls == []  # every passage was excluded: the model is not called at all
+    assert_no_evidence_answer(w.service.answer(record["task_id"]), excluded=True)
 
 
 def test_a_document_cannot_set_its_own_sensitivity(tmp_path):
     files = {"a.md": f"---\nsensitivity: low\n---\n{FACT}"}  # the file claims to be low; only the index's label counts
-    w, _ = world(tmp_path, files, sensitivity="high", model=NoEvidenceModel())
+    w, _ = world(tmp_path, files, sensitivity="high")
     record = w.run_new(request(["documents"], objective="what is the total due invoice"))
-    assert all(ctx.passages == () for ctx in w.model.calls) and "sensitive_items_excluded" in w.service.answer(record["task_id"])["limitations"]
+    assert w.model.calls == []
+    assert_no_evidence_answer(w.service.answer(record["task_id"]), excluded=True)
 
 
 def test_a_file_changed_after_retrieval_cannot_be_verified_or_cited(tmp_path):
@@ -430,3 +426,137 @@ def test_a_link_in_the_middle_of_a_path_is_never_followed_when_reading(tmp_path)
     (tmp_path / "docs" / "sub").symlink_to(outside, target_is_directory=True)
     with pytest.raises(ExtractionError):
         index.scanner.read("sub/x.txt")  # the last part is a plain file, but a folder on the way is a link
+
+
+# ---- review 6000541597: truthful coverage of what could not be inspected ----------------------------------------------------------------------------
+def test_an_unreadable_nested_directory_is_a_failed_outcome_and_blocks_complete(tmp_path):
+    index = make(tmp_path, {"ok.txt": FACT, "a/b.txt": "bravo budget", "a/locked/x.txt": "hidden budget"})
+
+    def deny(when: str, part: str) -> None:
+        if when == "before" and part == "locked":
+            raise PermissionError  # the folder cannot be opened (permission denied)
+
+    index.scanner.seam = deny
+    cov = build(index)
+    assert (cov["total"], cov["searched"], cov["failed"], cov["reasons"]) == (3, 2, 1, {"unreadable_directory": 1})
+    assert cov["complete"] is False and cov["scan_complete"] is True  # the scan ran, but part of the tree was NOT inspected
+    assert "locked" not in json.dumps(cov) and not any("hidden" in p["text"] for p in index.search("documents", "hidden budget"))
+    index.scanner.seam = None  # the owner fixes the permission: a rescan inspects it and the marker goes away
+    cov = build(index)
+    assert (cov["total"], cov["searched"], cov["failed"], cov["complete"]) == (3, 3, 0, True)
+
+
+def test_a_directory_whose_listing_fails_and_an_entry_that_cannot_be_examined_are_both_reported(tmp_path, monkeypatch):
+    index = make(tmp_path, {"ok.txt": FACT, "bad.txt": "x text", "d/in.txt": "inner text"})
+    real_classify, real_scandir = index.scanner._classify, os.scandir
+    calls = {"n": 0}
+
+    def classify(entry: Any, rel: str):
+        if entry.name == "bad.txt":
+            raise PermissionError  # stat of this one entry fails
+        return real_classify(entry, rel)
+
+    def scandir(target: Any):
+        calls["n"] += 1
+        if calls["n"] == 2:  # the second directory listed (d) cannot be read
+            raise PermissionError
+        return real_scandir(target)
+
+    monkeypatch.setattr(index.scanner, "_classify", classify)
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "scandir", scandir)
+        index.scan()
+    index.run(10)
+    cov = index.coverage()
+    assert cov["reasons"] == {"unreadable_entry": 1, "unreadable_directory": 1} and cov["searched"] == 1 and cov["complete"] is False
+
+
+def test_a_pipe_or_device_is_reported_and_never_opened(tmp_path):
+    index = make(tmp_path)
+    os.mkfifo(tmp_path / "docs" / "pipe.txt")  # opening it for reading would block forever
+    cov = build(index)
+    assert cov["reasons"] == {"unsupported_entry": 1} and cov["complete"] is False and cov["searched"] == 1
+
+
+# ---- review 6000541597: the root cannot be escaped, even while the tree changes under the scanner ----------------------------------------------------
+def _swap_for_link(root: Path, name: str, outside: Path) -> None:
+    (root / name).rename(root / f"{name}_moved")
+    (root / name).symlink_to(outside, target_is_directory=True)
+
+
+def _tree_with_outside(tmp_path: Path) -> tuple[DocumentIndex, Path, Path]:
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.txt").write_text("OUTSIDE secret text")
+    index = make(tmp_path, {"sub/x.txt": "INSIDE text"})
+    return index, tmp_path / "docs", outside
+
+
+def test_a_folder_swapped_for_a_link_after_it_was_opened_cannot_lead_outside(tmp_path):
+    index, root, outside = _tree_with_outside(tmp_path)
+    index.scanner.seam = lambda when, part: _swap_for_link(root, "sub", outside) if (when, part) == ("after", "sub") else None
+    assert index.scanner.read("sub/x.txt") == b"INSIDE text"  # the folder that was opened is the folder that is read, not the link that replaced it
+
+
+def test_a_folder_swapped_for_a_link_just_before_it_is_opened_is_refused(tmp_path):
+    index, root, outside = _tree_with_outside(tmp_path)
+    index.scanner.seam = lambda when, part: _swap_for_link(root, "sub", outside) if (when, part) == ("before", "sub") else None
+    with pytest.raises(ExtractionError):
+        index.scanner.read("sub/x.txt")
+
+
+def test_a_file_swapped_for_a_link_just_before_it_is_opened_is_refused(tmp_path):
+    index, root, outside = _tree_with_outside(tmp_path)
+
+    def swap(when: str, part: str) -> None:
+        if (when, part) == ("after", "sub"):
+            (root / "sub" / "x.txt").unlink()
+            (root / "sub" / "x.txt").symlink_to(outside / "x.txt")
+
+    index.scanner.seam = swap
+    with pytest.raises(ExtractionError):
+        index.scanner.read("sub/x.txt")
+
+
+def test_a_walk_does_not_list_a_folder_swapped_for_a_link_during_the_scan(tmp_path):
+    index, root, outside = _tree_with_outside(tmp_path)
+    index.scanner.seam = lambda when, part: _swap_for_link(root, "sub", outside) if (when, part) == ("before", "sub") else None
+    found, _ = index.scanner.walk()
+    assert [(f.rel_path, f.kind) for f in found] == [("sub", "unreadable_directory")]  # reported, and nothing of the outside folder was even listed
+
+
+def test_a_platform_that_cannot_guarantee_race_free_reads_refuses_to_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(documents, "race_safe_platform", lambda: False)
+    with pytest.raises(RuntimeError):
+        make(tmp_path)
+
+
+# ---- review 6000541597: no usable passage means no model call and no apparent answer ------------------------------------------------------------------
+def test_a_question_with_no_matching_document_never_calls_the_model(tmp_path):
+    w, _ = world(tmp_path)
+    record = w.run_new(request(["documents"], objective="zebra giraffe unrelated words"))
+    assert w.model.calls == [] and record["state"] == "partially_completed"
+    assert_no_evidence_answer(w.service.answer(record["task_id"]), excluded=False)
+
+
+def test_the_no_evidence_outcome_survives_a_crash_and_still_never_calls_the_model(tmp_path):
+    w, _ = world(tmp_path, sensitivity="high")
+    record, _ = w.service.submit(request(["documents"], objective="what is the total due invoice", max_retries=5))
+    w.faults.armed.add("after:drafted")
+    with pytest.raises(SimulatedCrash):
+        w.service.run(record["task_id"])
+    w.faults.armed.discard("after:drafted")
+    w.restart()
+    final = w.service.run(record["task_id"])
+    assert final["state"] == "partially_completed" and w.model.calls == []
+    assert_no_evidence_answer(w.service.answer(record["task_id"]), excluded=True)
+
+
+def test_a_file_swapped_for_a_pipe_after_indexing_is_refused_without_blocking(tmp_path):
+    index = make(tmp_path)
+    build(index)
+    (tmp_path / "docs" / "a.txt").unlink()
+    os.mkfifo(tmp_path / "docs" / "a.txt")
+    assert index.get(source_id_for("a.txt")) is None
+    with pytest.raises(ExtractionError):
+        index.scanner.read("a.txt")

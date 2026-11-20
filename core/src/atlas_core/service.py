@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .answer import AnswerInput, build_envelope, denied_envelope, stopped_envelope, withheld_envelope
+from .answer import NO_EVIDENCE_TEXT, AnswerInput, build_envelope, denied_envelope, stopped_envelope, withheld_envelope
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import SourceStore
@@ -237,10 +237,19 @@ class TaskService:
         d.faults.hit("after:retrieved")
         return result.passages
 
+    def _no_evidence(self, task_id: str) -> None:
+        """Retrieval produced nothing usable (no match, or every item excluded by sensitivity): the model is never called. The 'draft' is a fixed plain statement with no citation
+        and no source content, and the answer is marked partial and unverified, so nothing reads as an answer from sources."""
+        payload = {"draft": NO_EVIDENCE_TEXT, "citations": [], "truncated": False, "language": vars(LanguageIn()), "partial": True}
+        self._to(task_id, "drafted", step="drafted", data=payload)
+        self._d.faults.hit("after:drafted")
+
     def _draft(self, task_id: str, token: PermitToken, question: str, passages: list[dict[str, Any]]) -> None:
         d = self._d
         self._boundary(task_id)
         d.faults.hit("before:drafted")
+        if not passages:
+            return self._no_evidence(task_id)
         context = self._builder.build(token, question, passages, d.clock())
         d.log.emit("model.requested", "gate", task_id, count=len(context.passages))
         try:
@@ -266,7 +275,7 @@ class TaskService:
             denied,
             [p["evidence"] for p in passages],
             saved["truncated"],
-            False,
+            saved.get("partial", False),
             LanguageIn(**saved["language"]),
             saved.get("excluded_sensitive", 0),
         )

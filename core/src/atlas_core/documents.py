@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import threading
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
@@ -115,52 +116,112 @@ class Found:
     kind: str  # "file" or a refusal code (symlink_refused)
 
 
+def race_safe_platform() -> bool:
+    """Descriptor-relative, no-follow traversal is the only way to keep a file outside the root unreachable while the tree changes under us; without it the scanner refuses to run."""
+    return hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and os.open in os.supports_dir_fd and os.scandir in os.supports_fd
+
+
+_DIR_FLAGS = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+_FILE_FLAGS = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
+
+
 class Scanner:
-    """Reads only below one designated root. It never follows a link, never leaves the root, and refuses a file above the size limit instead of cutting it."""
+    """Reads only below one designated root. Every directory and file is opened RELATIVE TO THE ALREADY-OPEN PARENT descriptor with no-follow flags, so a link planted on any
+    component (also between a check and the open) cannot lead outside the root: the open fails and the item is reported. A file above the size limit is refused, never cut."""
 
     def __init__(self, root: Path, max_files: int = MAX_FILES) -> None:
+        if not race_safe_platform():
+            raise RuntimeError("this platform cannot guarantee race-free, root-confined reads; the document source is disabled")
         self.root, self._max_files = root.resolve(), max_files
         self.stat_time: Callable[[os.stat_result], float | None] = lambda st: st.st_mtime  # tests replace it to simulate a missing timestamp
+        self.seam: Callable[[str, str], None] | None = (
+            None  # tests: called before and after each component is opened, to change the tree at exactly that moment
+        )
+
+    def _open_dir(self, parts: tuple[str, ...]) -> int:
+        fd = os.open(self.root, _DIR_FLAGS)
+        try:
+            for part in parts:
+                if self.seam is not None:
+                    self.seam("before", part)
+                child = os.open(part, _DIR_FLAGS, dir_fd=fd)  # directory only, never a link
+                os.close(fd)
+                fd = child
+                if self.seam is not None:
+                    self.seam("after", part)
+        except BaseException:
+            os.close(fd)
+            raise
+        return fd
+
+    def _classify(self, entry: os.DirEntry[str], rel: str) -> Found | None:
+        """What one directory entry is. None for a sub-directory (it is walked); an unreadable entry is raised as OSError by the caller's guard."""
+        if entry.is_symlink():
+            return Found(rel, 0, None, "symlink_refused")
+        if entry.is_dir(follow_symlinks=False):
+            return None
+        if entry.is_file(follow_symlinks=False):
+            st = entry.stat(follow_symlinks=False)
+            return Found(rel, st.st_size, self.stat_time(st), "file")
+        return Found(rel, 0, None, "unsupported_entry")  # a device, socket or pipe: reported, never opened
+
+    def _listing(self, parts: tuple[str, ...]) -> list[tuple[str, Found | None]]:
+        """Each entry of one directory as (name, Found or None for a sub-directory). Entries are classified while the directory descriptor is still open; an entry that cannot be
+        examined becomes a failed item instead of being lost."""
+        fd = self._open_dir(parts)
+        out: list[tuple[str, Found | None]] = []
+        try:
+            with os.scandir(fd) as entries:
+                for entry in sorted(entries, key=lambda e: e.name):
+                    rel = "/".join((*parts, entry.name))
+                    try:
+                        out.append((entry.name, self._classify(entry, rel)))
+                    except OSError:
+                        out.append((entry.name, Found(rel, 0, None, "unreadable_entry")))
+        finally:
+            os.close(fd)
+        return out
 
     def walk(self) -> tuple[list[Found], bool]:
-        """Every file below the root (breadth first, sorted, so the result is deterministic) and whether the walk was cut off by the file limit."""
+        """Every item below the root (breadth first, sorted, so the result is deterministic) and whether the walk was cut off by the file limit. A directory or an entry that
+        cannot be read is NOT dropped: it becomes a failed item (`unreadable_directory` / `unreadable_entry`), so the scan can never look complete when part of the tree was not inspected."""
         found: list[Found] = []
-        queue = [self.root]
+        queue: list[tuple[str, ...]] = [()]
         while queue:
-            folder = queue.pop(0)
+            parts = queue.pop(0)
             try:
-                entries = sorted(os.scandir(folder), key=lambda e: e.name)
+                entries = self._listing(parts)
             except OSError:
+                found.append(Found("/".join(parts) or ".", 0, None, "unreadable_directory"))
                 continue
-            for entry in entries:
+            for name, item in entries:
                 if len(found) >= self._max_files:
                     return found, True
-                rel = str(PurePosixPath(Path(entry.path).relative_to(self.root)))
-                if entry.is_symlink():
-                    found.append(Found(rel, 0, None, "symlink_refused"))
-                elif entry.is_dir(follow_symlinks=False):
-                    queue.append(Path(entry.path))
-                elif entry.is_file(follow_symlinks=False):
-                    st = entry.stat(follow_symlinks=False)
-                    found.append(Found(rel, st.st_size, self.stat_time(st), "file"))
+                if item is None:
+                    queue.append((*parts, name))
+                else:
+                    found.append(item)
         return found, False
 
     def read(self, rel_path: str) -> bytes:
-        """The bytes of one file, or ExtractionError. No absolute path, no '..', no link anywhere on the way, and at most MAX_BYTES (a bigger file is oversized, not truncated)."""
-        parts = PurePosixPath(rel_path).parts
-        if not parts or PurePosixPath(rel_path).is_absolute() or ".." in parts or "\x00" in rel_path:
-            raise ExtractionError("corrupt")
-        path = self.root
-        for part in parts:
-            path = path / part
-            if path.is_symlink():
-                raise ExtractionError("corrupt")
+        """The bytes of one regular file, or ExtractionError. No absolute path, no '..', no link on ANY component (checked by the open itself, not beforehand), and at most MAX_BYTES
+        (a bigger file is oversized, not truncated)."""
+        pure = PurePosixPath(rel_path)
+        parts = pure.parts
+        if not parts or pure.is_absolute() or ".." in parts or "\x00" in rel_path:
+            raise ExtractionError("unreadable")
         try:
-            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            parent = self._open_dir(parts[:-1])
+            try:
+                fd = os.open(parts[-1], _FILE_FLAGS, dir_fd=parent)
+            finally:
+                os.close(parent)
             with os.fdopen(fd, "rb") as handle:
+                if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                    raise ExtractionError("unreadable")
                 data = handle.read(MAX_BYTES + 1)
         except OSError:
-            raise ExtractionError("corrupt") from None
+            raise ExtractionError("unreadable") from None
         if len(data) > MAX_BYTES:
             raise ExtractionError("oversized")
         return data

@@ -5,7 +5,7 @@ Scope: `STAGE-3-EXECUTION-PLAN.md` WP3.2 and the architect brief on PR #8 (comme
 ## What it is
 
 ```
-designated folder -> Scanner (no links, no escape, size cap) -> Extractor (bounded, stdlib) -> DocumentIndex (own encrypted SQLite file)
+designated folder -> Scanner (descriptor-relative, no-follow, size cap) -> Extractor (bounded, stdlib) -> DocumentIndex (own encrypted SQLite file)
                                                                                                      |-- search()  = Retriever
                                                                                                      `-- get()     = SourceStore (re-verifies the bytes on disk)
                                                   existing path unchanged: policy -> GatedRetrieval -> ContextBuilder -> GatedModel -> verification
@@ -14,11 +14,13 @@ designated folder -> Scanner (no links, no escape, size cap) -> Extractor (bound
 * **No parallel policy.** The index is only a `Retriever` and a `SourceStore` handed to the existing `TaskService`; the grant, the trusted per-item label (`StoredSource.sensitivity`, set by the index, never by file content) and the grant-bound checkpoint all apply unchanged. The source type is a constructor argument, not a literal in code (`test_architecture.py` rule).
 * **Exact evidence.** One passage = one block; `locator = {"kind": "block", "block": n}`, `span` = the block's exact character offsets, `version_sha256` = hash of the indexed text. This uses only the frozen 1.0 `EvidenceRef`; no contract change was needed.
 * **Never stale.** `get()` re-hashes the file's bytes on every resolution. A file that changed, vanished, became a link or is unreadable is unresolvable, so old citations stop resolving (`stale` / `unresolvable`) and `search()` skips it until it is rescanned and re-indexed.
-* **Explicit outcomes** (reason codes only, never content): `unsupported_format`, `corrupt` (invalid UTF-8, NUL byte, nothing extractable), `oversized` (bytes or block count: refused, not truncated), `symlink_refused`. All are counted in coverage and block `complete`.
+* **Race-safe confinement.** Every directory and file is opened relative to the already-open parent descriptor with no-follow flags (`O_DIRECTORY|O_NOFOLLOW` for folders, `O_NOFOLLOW|O_NONBLOCK` plus a regular-file check for files), and the walk lists through the directory descriptor. A link planted on any component, even between a check and the open, makes the open fail instead of leading outside the root. A platform without `dir_fd`/`O_NOFOLLOW`/`O_DIRECTORY` support refuses to construct the scanner (fail closed). A test seam (`Scanner.seam`) swaps the tree at exact moments to prove this deterministically.
+* **Explicit outcomes** (reason codes only, never content or paths): `unsupported_format`, `corrupt` (invalid UTF-8, NUL byte, nothing extractable), `oversized` (bytes or block count: refused, not truncated), `symlink_refused`, `unreadable_directory` and `unreadable_entry` (a folder or entry that cannot be opened, listed or examined is recorded, never dropped), `unsupported_entry` (pipe/device, never opened) and `unreadable` (a read refused or failed). All are counted in coverage and block `complete`.
 * **Ordering.** Newest first by file modification time. A date inside a document (`created:` front matter in Markdown) is stored separately and never replaces it. A file with no usable time is ordered after all timed files (then by path), counted as `missing_timestamps`.
 * **Coverage** (`coverage()`): `total, searched, pending, unsupported, failed, missing_timestamps, reasons, scan_complete, paused, complete`. `complete` is true only if a scan finished (and was not cut off by the file limit), nothing is pending, unsupported or failed, and nothing is paused.
 * **Restart-safe.** Each document's change commits with its text in one transaction; a scan commits as one transaction after a durable `running` marker. Crash tests at six boundaries converge to the same index as a clean run, with no duplicates; re-running is idempotent and does not reprocess unchanged files.
 * **Bounded and non-starving.** `run(max_docs)` processes a bounded slice, newest first, and returns; cancellation (`index.cancelled`) and low disk (`MIN_FREE_BYTES`) pause with a reason and lose nothing.
+* **No evidence, no model.** If retrieval yields no usable passage (no match, or every item excluded by sensitivity) the service does not call the model: it records a fixed plain statement ("No usable source was found for this question, so no answer was produced.") with no citation, status `unverified`, limitation `partial_work` (plus `sensitive_items_excluded` when applicable), and the task ends `partially_completed`. No excluded content appears in it. This is a change in `service.py`/`answer.py` (not the contract: only existing enum values are used).
 * **Revocation.** The gate stops searching and reusing; `purge()` additionally deletes all indexed text and status, so a later grant starts from an empty index. The index file is encrypted (SQLCipher, key supplied by the caller; the Keychain provider for real data is WP3.6).
 
 ## Supported formats (audited)
@@ -42,4 +44,4 @@ Plain UTF-8 text (`.txt`) and Markdown (`.md`), stdlib only. **PDF, Office, HTML
 
 ## Rollback
 
-Delete `core/src/atlas_core/documents.py`, `core/tests/test_documents.py`, this file, and revert the one-line additions to `test_architecture.py` (layer entry) and `test_tasks.py` (store allow-list). The index is a separate file; deleting it loses nothing else.
+Revert the `service.py`/`answer.py` no-evidence branch; delete `core/src/atlas_core/documents.py`, `core/tests/test_documents.py`, this file, and revert the one-line additions to `test_architecture.py` (layer entry) and `test_tasks.py` (store allow-list). The index is a separate file; deleting it loses nothing else.
