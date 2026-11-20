@@ -576,7 +576,7 @@ This mapping records what exists in `core/` at the Stage 2 foundation. It does n
 | SQLCipher durable task store, key separation, checkpoints and atomic state/event transitions | **Reference-only pending G-O02** | Assess schema, encryption, key lifecycle, backup/restore and migration; do not assume SQLCipher or its current key handling is the final storage design. |
 | Signed-request client identity and request authentication | **Reference-only pending macOS verification** | Real Keychain custody, `LOCAL_PEERCRED` peer binding, revocation and packaging remain unverified on the target Mac. |
 | Streaming, cancellation, API versioning and regression tests | **Reuse as behavioural/contract evidence where compatible** | Preserve tested semantics; reconcile with the target API and UI event model before implementation. |
-| Linux MLX stub and benchmark scaffolding | **Reference-only** | Linux CI does not validate Apple MLX runtime behaviour or target-Mac performance. |
+| Deterministic `StubModel` used by model-boundary tests and policy-overhead benchmark (`core/bench/overhead.py`); no MLX integration exists yet | **Reference-only** | Linux CI does not validate Apple MLX runtime behaviour or target-Mac performance. |
 
 No Stage 2 component is automatically promoted to production architecture by this table. The mapping is an input to the relevant ADRs and later authorised implementation plan.
 
