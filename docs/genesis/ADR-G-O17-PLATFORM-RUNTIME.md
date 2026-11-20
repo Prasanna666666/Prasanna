@@ -1,6 +1,7 @@
 # ADR G-O17 — macOS/iOS Core Language, UI Runtime and Packaging Boundary
 
 **Status:** PROPOSED — not owner-accepted  
+**Stage 2 authority:** NOT AUTHORISED; this ADR and the accompanying package are review-only  
 **Decision owner:** Atlas owner  
 **Prepared by:** ChatGPT, Architect / Integrator  
 **Technical challenge requested from:** Claude  
