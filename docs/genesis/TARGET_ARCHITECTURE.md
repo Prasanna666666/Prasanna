@@ -237,7 +237,7 @@ The owner has decided the target delivery experience is a **native macOS applica
 - User-facing error states must be understandable and actionable. Keep raw code, stack traces and sensitive diagnostics out of normal UI; diagnostic logging follows redaction requirements.
 - Do not use arbitrary hardcoded source/word/record caps that silently limit ingestion or memory. Resource controls must be explicit, observable, configurable where appropriate and fail safely without dropping data.
 
-## 14. Owner direction update — 2026-11-20
+## 17. Owner direction update — 2026-11-20
 
 This section supersedes conflicting earlier target-architecture statements:
 
@@ -252,11 +252,11 @@ This section supersedes conflicting earlier target-architecture statements:
 
 These are product requirements, not proof of implementation. Keep target-Mac, connector and release evidence pending until tested.
 
-## 15. Agent action integrity and measured workforce value
+## 18. Agent action integrity and measured workforce value
 
 Only the central Action Gateway may execute an action. Specialist agents may propose typed actions but cannot invoke external write tools directly.
 
-- Before delegation, freeze an evaluation set and thresholds for answer quality, task completion, citation correctness, p95 latency, peak memory and energy. A specialist is enabled only when it measurably beats the direct/single-model baseline for its task class without violating safety or resource budgets.
+- Before delegation, freeze a versioned evaluation set and numeric thresholds for answer quality, task completion, citation correctness, p95 latency, peak memory and energy. Proposed starting gate: at least +5 percentage points in task success or citation correctness on its target task class; zero new critical safety/policy failures; p95 latency no worse than 1.25× the direct baseline; peak memory remains within the predeclared model budget; energy per completed task no worse than 1.20× baseline. A specialist is enabled only if it passes the pre-registered gate; otherwise keep the direct/single-model path.
 - The coordinator detects conflicts before execution: same target, overlapping time, contradictory state changes or duplicate external effects.
 - Each action has a deterministic idempotency key derived from task ID, step ID, target identity and canonical payload hash; enforce a unique constraint in a durable action ledger.
 - Use per-target leases with fencing tokens for mutable targets (calendar event, file path, message thread, device). Stale workers cannot commit after losing a lease.
@@ -265,3 +265,7 @@ Only the central Action Gateway may execute an action. Specialist agents may pro
 - Tests cover duplicate specialist proposals, crash after provider success but before receipt, concurrent move/delete, owner edit during execution, and simultaneous command/watcher/rule triggers.
 
 These controls are internal and should not add owner prompts. The owner sees only the closed approval list in PRD §4.4.
+
+## 19. Owner-client authority and settings integrity
+
+Only an enrolled, authenticated owner client may change Atlas settings, source grants, connector scopes, model defaults, automation rules or approval policy. The Core—not the UI—validates the client identity, signed request, nonce/time window and current authority. Mutating requests are replay-protected and recorded in a redacted audit trail. Retrieved documents, emails, webpages and agent outputs can never change settings or grants. Local macOS owner-client enrolment is established during Get Started; iOS enrolment is separately gated by Stage 8. Tests cover forged clients, replayed requests, revoked devices and untrusted-content attempts to change grants.
