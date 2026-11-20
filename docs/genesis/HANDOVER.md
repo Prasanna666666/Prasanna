@@ -1,6 +1,6 @@
 # Atlas — Handover
 
-**Status:** Stage 2 review accepted; Stage 3 plan reconciled; fresh independent challenge and owner authorisation pending  
+**Status:** Stage 2 review accepted for reviewed scope; Stage 3 execution plan, baseline audit and contract proposal prepared; independent challenge and owner authorisation pending  
 **Repository:** `Prasanna666666/Prasanna`  
 **Documentation branch:** `genesis-stage2-foundation` (documentation now consolidated into PR #8)  
 **Implementation baseline:** `atlas`
@@ -69,7 +69,7 @@ The canonical product scope extends beyond the original read-only Documents/Mail
 
 Key directions: single-user Atlas; one first-run Get Started flow; no routine approval prompts; local model access to owner-authorised Finance and Health; exact calculations code-checked; approval only for consequential external effects or materially irreversible changes; public Internet research under strict data-minimised egress; all supported Mail attachments in scope subject to technical acceptance; progressive newest-first indexing with visible coverage.
 
-The use-case and network-policy documents have been added to this branch. This is documentation progress, not a working app build. Stage 3 implementation remains subject to its explicit authorisation gate; target-Mac integration and performance remain unverified.
+The use-case and network-policy documents have been added to the Stage 2 branch. The Stage 3 preparation branch adds `STAGE-3-BASELINE-AUDIT.md` and `STAGE-3-CONTRACT-DELTA.md`: the former records the inspected repository gaps and reuse map; the latter proposes additive API 1.1 contracts and a concrete security test matrix. Both are planning/review artefacts, not implementation. Stage 3 implementation remains subject to explicit owner authorisation; target-Mac integration and performance remain unverified.
 
 ## Always-on host and availability decision
 
