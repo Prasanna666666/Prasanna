@@ -251,3 +251,43 @@ Stop the affected work and report with evidence if:
 - Stage 3 plan: **prepared; technical challenge pending; owner authorisation pending**.
 - Stage 3 implementation: **NOT AUTHORISED / NOT STARTED**.
 - Target-Mac verification: **pending hardware availability**.
+
+## 12. Superseding owner direction and product-wide planning addendum (2026-11-20)
+
+This section is authoritative wherever earlier sections conflict. It does not mark features implemented or verified.
+
+### 12.1 Product boundary and consent
+Atlas is single-user. Remove requirements that exist only for multiple users, shared devices or bystanders. Routine read/search/summarise/analyse/draft/compute operations do not require approval. Use one first-run Get Started consent flow plus macOS system permission prompts; no repeated prompts or per-folder selection. Core still enforces current grants and immediate revocation internally.
+
+Approval is reserved for consequential external effects or materially irreversible changes: sending/publishing/sharing/uploading, spending/purchases/payments/trades/bookings, deletion/overwrite/destructive migration and equivalent actions. Preview the exact action, payload, destination/recipient, attachments, amount and terms. Any material change invalidates approval.
+
+### 12.2 Finance and Health
+The owner explicitly permits the local model to read owner-authorised Finance and Health data (PR #8 comment 7049796870). This supersedes the former Finance model exclusion and Health lock. Keep separately labelled/keyed stores, grants, provenance, redacted logs, cache invalidation and revocation. Use deterministic code for exact financial arithmetic. Never send these records to public web search, third-party services or cloud inference.
+
+### 12.3 Attachments and progressive usefulness
+The owner decided all supported Mail attachment formats are in scope. G-O18 is a technical design/acceptance gate, not an unanswered product preference. Keep attachment processing separate from Mail body processing. Define supported formats, parser isolation, provenance, exact locators, OCR confidence/limitations, malformed/encrypted/oversized behaviour, hostile-file tests and partial-coverage disclosure before exposure.
+
+Progressive usefulness is mandatory: tier-1 model-free full-text indexing begins with newest/recently-used content and expands in the background. Atlas must answer from the indexed subset without waiting for the entire corpus, while displaying items searched/total, pending categories and unsupported/failed items. Never represent partial coverage as complete.
+
+### 12.4 Internet and connected apps
+Public Internet search and retrieval are allowed when useful. INTERNET_AND_NETWORK_POLICY.md defines egress rules: no cloud inference, no raw private content in public queries, no secrets or Finance/Health data sent externally, Core-mediated network access, Keychain-held connector credentials, untrusted-page handling and exact approval for uploads/sends/purchases. Local-only work continues offline.
+
+### 12.5 Full capability coverage and agents
+USE_CASE_REGISTER.md is the canonical cross-domain scenario register and connector catalogue. It covers daily assistance, communication, calendar, files, Finance, Health, home, travel, work, research, shopping, family/social, legal/admin, media, security, memory, proactive work, lifecycle failures and recovery. It is an extensible coverage method, not a claim that every scenario is in the first release.
+
+Use Atlas Core as the single coordinator with on-demand specialists and a Guardian/verifier role. Do not deploy always-running or unrestricted agent swarms. Parallelise independent work, require structured evidence/limitations from specialists, and measure quality improvement against the simpler single-model path before adding orchestration overhead.
+
+### 12.6 Revised milestone sequence
+1. Product/architecture closure: reconcile PRD, decisions, architecture, scenario register, Internet policy, delivery protocol and Stage 3 plan; publish capability-to-test traceability.
+2. First usable local Atlas: coherent Mac conversation; local model adapter; memory/evidence; progressive newest-first document search; citations; coverage reporting; durable cancellable tasks; model identity; usable UI.
+3. Personal information integration: Mail body, supported attachments after acceptance, Calendar, Finance and Health under owner-authorised local access; unified search and briefing/follow-up workflows.
+4. Chief-of-staff workflows: public research, tasks/projects, voice, notifications, specialist delegation and proactive monitoring.
+5. Controlled action runtime: draft-first and reversible local actions; exact approval for consequential effects; undo, receipts and recovery.
+6. Connected-life integrations: home, travel, shopping and work systems, ranked by value, API stability, privacy and maintenance cost.
+7. Production and mobile: target-Mac quality/performance, Keychain/credential verification, signing/notarisation, backup/restore, secure iOS remote access and offline/sync gates.
+
+### 12.7 Updated work ownership
+ChatGPT is accountable architect/integrator: canonical requirements, scenario-to-test traceability, cross-cutting design, exact-commit independent review and release recommendation. Claude Code owns implementation, developer challenge, tests, CI diagnosis, reproducible evidence and implementation documentation. GitHub Actions provides automated checks. The owner retains product direction, reserved decisions and final acceptance and is not a messenger between engineering roles.
+
+### 12.8 Current gate
+Documentation and architecture reconciliation may proceed now. Stage 3 code must not be represented as started until the owner explicitly authorises that implementation stage. Target-Mac-only claims remain pending hardware access.
