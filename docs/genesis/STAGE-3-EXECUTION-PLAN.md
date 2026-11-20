@@ -281,17 +281,18 @@ USE_CASE_REGISTER.md is the canonical cross-domain scenario register and connect
 
 Use Atlas Core as the single coordinator with on-demand specialists and a Guardian/verifier role. Do not deploy always-running or unrestricted agent swarms. Parallelise independent work, require structured evidence/limitations from specialists, and measure quality improvement against the simpler single-model path before adding orchestration overhead.
 
-### 12.6 Revised milestone sequence
-1. Product/architecture closure: reconcile PRD, decisions, architecture, scenario register, Internet policy, delivery protocol and Stage 3 plan; publish capability-to-test traceability.
-2. First usable local Atlas: coherent Mac conversation; local model adapter; memory/evidence; progressive newest-first document search; citations; coverage reporting; durable cancellable tasks; model identity; usable UI.
-3. Personal information integration: Mail body, supported attachments after acceptance, Calendar, Finance and Health under owner-authorised local access; unified search and briefing/follow-up workflows.
-4. Chief-of-staff workflows: public research, tasks/projects, voice, notifications, specialist delegation and proactive monitoring.
-5. Controlled action runtime: draft-first and reversible local actions; exact approval for consequential effects; undo, receipts and recovery.
-6. Connected-life integrations: home, travel, shopping and work systems, ranked by value, API stability, privacy and maintenance cost.
-7. Production and mobile: target-Mac quality/performance, Keychain/credential verification, signing/notarisation, backup/restore, secure iOS remote access and offline/sync gates.
+### 12.6 Roadmap reference and Stage 3 scenario boundary
+
+There is exactly one delivery roadmap: TARGET_ARCHITECTURE.md §11. Do not create a second numbered stage sequence or wave-based roadmap in this plan. Scenario-to-stage mapping and first-tryable outcomes are defined in that canonical table. Stage 3 is the first owner-tryable Mac application; Stages 4–8 extend it in the order and with the gates recorded there.
 
 ### 12.7 Updated work ownership
 ChatGPT is accountable architect/integrator: canonical requirements, scenario-to-test traceability, cross-cutting design, exact-commit independent review and release recommendation. Claude Code owns implementation, developer challenge, tests, CI diagnosis, reproducible evidence and implementation documentation. GitHub Actions provides automated checks. The owner retains product direction, reserved decisions and final acceptance and is not a messenger between engineering roles.
 
 ### 12.8 Current gate
 Documentation and architecture reconciliation may proceed now. Stage 3 code must not be represented as started until the owner explicitly authorises that implementation stage. Target-Mac-only claims remain pending hardware access.
+
+### 12.9 First-useful-answer and indexing acceptance
+
+- Define “newest” per source: Mail by stored received timestamp for inbox chronology; files by filesystem modification time, with content-created dates retained as separate metadata and never substituted silently. Missing timestamps use a deterministic stable fallback and are counted in coverage.
+- Freeze the first-useful-answer threshold before the first baseline benchmark: warm local query p50 ≤2 seconds and p95 ≤5 seconds after the first tier is searchable. Report cold start separately and report retrieval/answer quality alongside latency.
+- The first tier must be useful before full import completes. Every answer reports source coverage: searched/total, pending categories and unsupported/failed items. A partial index must never be labelled complete.
