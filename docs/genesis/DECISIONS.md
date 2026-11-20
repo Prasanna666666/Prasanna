@@ -91,14 +91,14 @@ Do not remove existing security controls or owner data casually. Map each curren
 
 ## 5. Personal Agent Workforce direction
 
-The owner-established outcome is personal and professional work automation inside the single Atlas application. The recommended role catalogue, orchestration and phased delivery are defined once in `TARGET_ARCHITECTURE.md` §13 and the unified roadmap in §11. Do not duplicate the role list here. Finance follows G-015; Health remains locked by default. Consequential actions require the configured approval policy.
+The owner-established outcome is personal and professional work automation inside the single Atlas application. The recommended role catalogue, orchestration and phased delivery are defined once in `TARGET_ARCHITECTURE.md` §13 and the unified roadmap in §11. Do not duplicate the role list here. Finance and Health follow G-021: the local model may read owner-authorised data; keep separate stores/labels, provenance, redaction and revocation. Consequential actions follow G-022.
 
 ## 6. Change log
 
 - 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.
 - 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
 - 2026-11-19: Owner initially confirmed iOS and Android as future mobile platforms; this was superseded the same day by the owner's direction to drop Android. The committed sequence is macOS first, then iOS only. Secure global access remains gated by remote-access threat modelling and ADR; no cloud inference or hosted Atlas brain is authorised.
-- 2026-11-19: Owner confirmed the first read-only workflow includes local documents and Mail. Mail attachments remain excluded by default pending G-O18; document and Mail source types remain separately default-deny pending G-O19.
+- 2026-11-19: Owner confirmed the first read-only workflow includes local documents and Mail. Mail attachment contents remain unavailable until the separate technical package passes acceptance; owner scope is all supported formats. G-O19 source onboarding is delegated to a single Get Started flow plus OS permissions.
 - 2026-11-19: Added G-019 language support/evaluation requirement and recorded the legacy `docs/decisions.md` conflict with G-015 without modifying the historical file.
 - 2026-11-19: Owner relaxed the default-evolve/no-rewrite constraint. Choose the best Atlas architecture; assess existing components as reuse, reference-only or discard, while preserving owner data, keys and history through integrity-checked migration and rollback.
 - 2026-11-19: Owner intends the Atlas Core host to be an always-on Mac mini. Treat this as an operating assumption; provide normal reboot/update auto-start and a clear mobile unreachable state. Do not engineer for extreme outage scenarios; retain proportionate security controls for remote access.
