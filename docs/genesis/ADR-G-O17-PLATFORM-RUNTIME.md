@@ -1,7 +1,7 @@
 # ADR G-O17 — macOS/iOS Application Runtime and Core API Boundary
 
-**Status:** RECOMMENDED — Claude technical challenge reconciled; owner acceptance pending  
-**Stage 2 authority:** NOT AUTHORISED; this ADR is a decision proposal only  
+**Status:** ACCEPTED BY OWNER — 2026-11-20  
+**Stage 2 authority:** AUTHORISED BY OWNER — 2026-11-20; ChatGPT package-acceptance gate waived by owner  
 **Decision owner:** Atlas owner  
 **Prepared by:** ChatGPT, Architect / Integrator  
 **Technical challenge:** Claude review recorded in PR #7 comment 7035425400; reconciled by ChatGPT  
@@ -171,7 +171,7 @@ No target-Mac build, benchmark or packaging proof has been performed. These are 
 
 ## 11. Acceptance and consequences
 
-Owner acceptance of this ADR resolves G-O17 (application layer, Core API boundary and packaging direction) and satisfies only the runtime/platform decision gate. It does not decide G-O20 (Core language/runtime) and does not authorise Stage 2 by itself.
+The owner accepted this ADR on 2026-11-20, resolving G-O17 (application layer, Core API boundary and packaging direction). The owner separately authorised Stage 2 on the same date and waived the ChatGPT package-acceptance gate (recorded in PR #7 comment 7037299974 and subsequent owner instructions). This does not decide G-O20 (Core language/runtime), does not accept the Stage 2 implementation, and does not authorise Stage 3. PR #8 remains under independent implementation review.
 
 After acceptance:
 - Keep domain contracts independent of SwiftUI views and OS-specific adapters.
