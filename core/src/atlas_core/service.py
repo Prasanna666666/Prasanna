@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
-from .answer import AnswerInput, build_envelope, denied_envelope
+from .answer import AnswerInput, build_envelope, denied_envelope, withheld_envelope
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import SourceStore
@@ -94,7 +94,9 @@ class TaskService:
         return d.store.record(task_id), True
 
     def _deny(self, task_id: str, requested: list[str], denied: list[dict[str, str]]) -> None:
-        envelope = denied_envelope(task_id, requested, denied)
+        """End a task whose sources are not permitted. 'Nothing was searched' is said only if that is true; once retrieval has happened the answer is 'withheld' instead."""
+        retrieved = STEPS.index(self._d.store.checkpoint(task_id)[0]) >= STEPS.index("retrieved")
+        envelope = (withheld_envelope if retrieved else denied_envelope)(task_id, requested, denied)
         self._d.store.save_answer(task_id, envelope)
         self._to(task_id, "failed", reason="denied")
         self._d.store.append_event(task_id, {"type": "error", "error": user_error("source_denied", task_id)})
@@ -281,7 +283,7 @@ class TaskService:
         used = self._used_types(task_id, envelope)
         if used <= permitted:
             return envelope
-        return denied_envelope(task_id, scope, _denied_now(decision, used - permitted))
+        return withheld_envelope(task_id, scope, _denied_now(decision, used - permitted))
 
     def _used_types(self, task_id: str, envelope: dict[str, Any]) -> frozenset[str]:
         """Every source type the answer was constructed from: the retrieved passages saved with the task's checkpoint plus whatever the answer cites."""

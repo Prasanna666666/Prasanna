@@ -19,6 +19,7 @@ from .rules import Rules, load_rules
 from .values import LanguageIn
 
 SAFE_TEXT = "I could not check this answer against your sources, so I am not giving it."
+WITHHELD_TEXT = "This answer is no longer available because permission to one or more of the sources it was built from was revoked."
 DENIED_TEXT = "Nothing was searched: Atlas is not allowed to search the kinds of source that were asked for."
 NUMERIC_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b")
 
@@ -118,6 +119,21 @@ def denied_envelope(task_id: str, requested: Sequence[str], denied: Sequence[dic
         "language": {"support_status": "unmeasured"},
         "limitations": ["source_type_not_searched"],
         "not_searched": [dict(d) for d in denied] or [{"source_type": s, "reason_code": "no_grant"} for s in requested],
+    }
+    validate("AnswerEnvelope", envelope)
+    return envelope
+
+
+def withheld_envelope(task_id: str, requested: Sequence[str], denied: Sequence[dict[str, str]]) -> dict[str, Any]:
+    """The answer served instead of one that was already produced (retrieval and drafting may have happened) when permission to a source it came from was revoked since."""
+    envelope = {
+        "task_id": task_id,
+        "answer": WITHHELD_TEXT,
+        "citations": [],
+        "verification": {"status": "unverified", "unproven_figures": [], "unproven_dates": [], "citation_failures": []},
+        "language": {"support_status": "unmeasured"},
+        "limitations": ["answer_withheld"],
+        "not_searched": [dict(d) for d in denied] or [{"source_type": s, "reason_code": "grant_revoked"} for s in requested],
     }
     validate("AnswerEnvelope", envelope)
     return envelope

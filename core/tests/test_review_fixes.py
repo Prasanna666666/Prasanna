@@ -51,7 +51,8 @@ def test_a_grant_revoked_while_another_stays_fails_closed_on_resume(tmp_path, bo
     assert (final["state"], final["terminal_reason"]) == ("failed", "denied"), boundary
     answer = w.service.answer(record["task_id"])
     events = w.service.events_after(record["task_id"], 0)
-    assert answer["answer"].startswith("Nothing was searched") and answer["citations"] == []
+    assert answer["answer"].startswith("This answer is no longer available") and "answer_withheld" in answer["limitations"] and answer["citations"] == []
+    assert "Nothing was searched" not in answer["answer"]  # retrieval did happen: only access is withheld
     assert SENTINEL_DOC not in repr(answer) + repr(events) and not any(e["type"] == "final" for e in events)
     assert any(n["source_type"] == revoked for n in answer["not_searched"])
 
@@ -76,7 +77,7 @@ def test_an_answer_and_its_stream_are_withheld_once_a_source_it_cites_is_revoked
     _revoke(w, "documents")
     withheld = w.service.answer(record["task_id"])
     events = w.service.events_after(record["task_id"], 0)
-    assert withheld["answer"].startswith("Nothing was searched") and withheld["citations"] == [] and not any(e["type"] == "final" for e in events)
+    assert withheld["answer"].startswith("This answer is no longer available") and withheld["citations"] == [] and not any(e["type"] == "final" for e in events)
     assert [e["seq"] for e in events] == sorted({e["seq"] for e in events}) and events[-1]["error"]["code"] == "source_denied"
     assert w.store.answer(record["task_id"])["verification"]["status"] == "verified"  # stored as it was; only what is served is gated
 
@@ -199,7 +200,7 @@ def test_an_uncited_answer_and_its_final_event_are_withheld_once_any_source_it_c
     _revoke(w, revoked)  # one source goes, the other stays allowed
     answer = w.service.answer(record["task_id"])
     events = w.service.events_after(record["task_id"], 0)
-    assert answer["answer"].startswith("Nothing was searched") and SENTINEL_DOC not in repr(answer) + repr(events)
+    assert answer["answer"].startswith("This answer is no longer available") and SENTINEL_DOC not in repr(answer) + repr(events)
     assert not any(e["type"] == "final" for e in events) and events[-1]["error"]["code"] == "source_denied"
     assert any(n["source_type"] == revoked for n in answer["not_searched"])
     assert w.store.answer(record["task_id"])["answer"] == UNCITED  # stored unchanged for audit; only what is served is gated
@@ -213,3 +214,22 @@ def test_a_single_source_uncited_answer_is_withheld_when_that_source_is_revoked(
     assert w.service.answer(record["task_id"])["answer"] == UNCITED
     _revoke(w, "documents")
     assert SENTINEL_DOC not in repr(w.service.answer(record["task_id"])) + repr(w.service.events_after(record["task_id"], 0))
+
+
+@pytest.mark.criterion(9)
+def test_the_wording_is_accurate_for_each_case_nothing_searched_before_retrieval_withheld_after(tmp_path):
+    before = World(tmp_path / "before", []) if (tmp_path / "before").mkdir() is None else None
+    assert before is not None
+    assert before.service.answer(before.run_new(request(["documents"]))["task_id"])["answer"].startswith("Nothing was searched")
+    w = _world(tmp_path / "after") if (tmp_path / "after").mkdir() is None else None
+    assert w is not None
+    record, _ = w.service.submit(request(["documents", "mail"]))
+    w.faults.armed.add("after:retrieved")  # retrieval happened, then the process died
+    with pytest.raises(SimulatedCrash):
+        w.service.run(record["task_id"])
+    w.restart()
+    w.grants._grants.clear()  # every grant is revoked before the task resumes: no token at all
+    final = w.service.run(record["task_id"])
+    assert (final["state"], final["terminal_reason"]) == ("failed", "denied")
+    answer = w.service.answer(record["task_id"])
+    assert answer["answer"].startswith("This answer is no longer available") and "Nothing was searched" not in answer["answer"]

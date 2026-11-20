@@ -187,7 +187,7 @@
         "support_status": {"type": "string", "enum": ["measured", "unmeasured", "unsupported"], "description": "measured: a documented measurement exists for this language. unmeasured: none yet (the default; nothing is claimed). unsupported: a reader, OCR or model path is known not to work, or confidence is inadequate."}
       }
     },
-    "Limitation": {"type": "string", "enum": ["attachments_not_searched", "source_type_not_searched", "language_unmeasured", "language_unsupported", "low_confidence", "figures_unproven", "dates_unproven", "context_truncated", "partial_work"]},
+    "Limitation": {"type": "string", "enum": ["attachments_not_searched", "source_type_not_searched", "language_unmeasured", "language_unsupported", "low_confidence", "figures_unproven", "dates_unproven", "context_truncated", "partial_work", "answer_withheld"]},
     "NotSearched": {
       "type": "object",
       "additionalProperties": false,
