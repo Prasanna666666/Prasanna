@@ -38,6 +38,25 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 | UC-015 | Request a change then undo it | Provide an undo journal or compensating action where technically possible | Reversal tests |
 | UC-016 | Atlas cannot complete a task | Distinguish failed, partial, blocked, unavailable and completed; state next concrete step | State-contract tests |
 
+## 2.1 Domain scenario IDs for stage traceability
+
+| ID | Domain scenario | Expected outcome |
+|---|---|---|
+| UC-017 | Finance understanding | Explain balances, cash flow, recurring spend, bills and portfolio exposure from owner-authorised records; exact calculations are deterministic and cited |
+| UC-018 | Health understanding | Summarise owner-authorised records, measurements, medications and trends with dates, sources and uncertainty |
+| UC-019 | Home and energy | Explain device state, energy, heating and environmental patterns; propose or execute reversible device control under owner policy |
+| UC-020 | Travel planning | Research routes, lodging, entry rules, costs and accessible/vegetarian options; prepare exact booking preview |
+| UC-021 | Work and project management | Track deliverables, blockers, deadlines, decisions and dependencies across authorised work sources |
+| UC-022 | Research and learning | Search current public information, compare primary sources, cite and build learning/decision briefs |
+| UC-023 | Shopping and ownership | Compare total cost, quality, warranty, repairability and resale; track return/warranty windows |
+| UC-024 | Family and social commitments | Remember owner-approved dates/preferences, prepare messages and track commitments without sending |
+| UC-025 | Legal and government administration | Explain official correspondence, track renewals/deadlines and prepare evidence/form drafts |
+| UC-026 | Photos and personal archive | Search, describe, group and retrieve media using metadata and clearly labelled visual inference |
+| UC-027 | Digital security and account hygiene | Inventory connected apps/scopes/devices, detect permission changes and support revocation |
+| UC-028 | Governed memory | Retain useful facts/decisions with provenance, confidence, correction, expiry and deletion controls |
+| UC-029 | Proactive daily briefing | Summarise calendar, priority messages, deadlines, follow-ups, weather and travel context without notification noise |
+| UC-030 | Cross-app workflow automation | Plan and complete multi-step tasks across authorised apps; only Action Gateway executes and approval follows the closed list |
+
 ## 3. Domain scenario catalogue
 
 ### 3.1 Daily rhythm and executive assistance
@@ -279,6 +298,33 @@ The closed approval list is defined canonically in PRD §4.4 and is intentionall
 
 Acceptance: table-driven tests cover every action above and every action in the integration catalogue. UC-L01 must show zero approval prompts from after Get Started through a read-only answer. A prompt is permitted only for an action explicitly marked Yes above.
 
+### 7.1 Approval and autonomy test invariant
+
+The closed approval list in PRD §4.4 is authoritative. The table in §7 is the expected prompt matrix; the integration catalogue must not add a prompt category. The read-only UC-L01 journey has zero approval prompts after the one-time Get Started and OS permissions. Calendar create/move for the owner's own calendar is prompt-free; sending invitations/updates is approved as external sending.
+
+### 7.2 Agent execution integrity
+
+Only the Action Gateway executes. Agents propose; the coordinator checks conflicts; a durable unique action ledger and deterministic idempotency key prevent duplicate effects; per-target leases/fencing tokens and compare-and-set protect against concurrent changes; every reversible action has an undo record. Specialist deployment requires a frozen benchmark against the direct/single-model baseline. See TARGET_ARCHITECTURE.md §18.
+
+## 2.1 Domain scenario IDs for stage traceability
+
+| ID | Domain scenario | Expected outcome |
+|---|---|---|
+| UC-017 | Finance understanding | Explain balances, cash flow, recurring spend, bills and portfolio exposure from owner-authorised records; exact calculations are deterministic and cited |
+| UC-018 | Health understanding | Summarise owner-authorised records, measurements, medications and trends with dates, sources and uncertainty |
+| UC-019 | Home and energy | Explain device state, energy, heating and environmental patterns; propose or execute reversible device control under owner policy |
+| UC-020 | Travel planning | Research routes, lodging, entry rules, costs and accessible/vegetarian options; prepare exact booking preview |
+| UC-021 | Work and project management | Track deliverables, blockers, deadlines, decisions and dependencies across authorised work sources |
+| UC-022 | Research and learning | Search current public information, compare primary sources, cite and build learning/decision briefs |
+| UC-023 | Shopping and ownership | Compare total cost, quality, warranty, repairability and resale; track return/warranty windows |
+| UC-024 | Family and social commitments | Remember owner-approved dates/preferences, prepare messages and track commitments without sending |
+| UC-025 | Legal and government administration | Explain official correspondence, track renewals/deadlines and prepare evidence/form drafts |
+| UC-026 | Photos and personal archive | Search, describe, group and retrieve media using metadata and clearly labelled visual inference |
+| UC-027 | Digital security and account hygiene | Inventory connected apps/scopes/devices, detect permission changes and support revocation |
+| UC-028 | Governed memory | Retain useful facts/decisions with provenance, confidence, correction, expiry and deletion controls |
+| UC-029 | Proactive daily briefing | Summarise calendar, priority messages, deadlines, follow-ups, weather and travel context without notification noise |
+| UC-030 | Cross-app workflow automation | Plan and complete multi-step tasks across authorised apps; only Action Gateway executes and approval follows the closed list |
+
 ## 8. Roadmap alignment
 
 TARGET_ARCHITECTURE.md §11 is the sole canonical delivery roadmap, including stage numbers, scenario IDs, dependencies, exit evidence and first-tryable outcomes. This register does not define a competing wave or release sequence. Every integration row uses the canonical stage number; if an integration is not yet assigned, mark it deferred and record the reason.
@@ -320,30 +366,3 @@ A scenario is “implemented” only when:
 | UC-049 | Calendar-invite prompt injection | Treat event title, description, attendees and links as untrusted data; they cannot trigger external actions or policy changes | Calendar stage; adversarial invite test |
 
 The scenario register is continuously extensible. A scenario is not accepted until its stage, permission boundary, normal path, failure path and test evidence are defined.
-
-### 7.1 Approval and autonomy test invariant
-
-The closed approval list in PRD §4.4 is authoritative. The table in §7 is the expected prompt matrix; the integration catalogue must not add a prompt category. The read-only UC-L01 journey has zero approval prompts after the one-time Get Started and OS permissions. Calendar create/move for the owner's own calendar is prompt-free; sending invitations/updates is approved as external sending.
-
-### 7.2 Agent execution integrity
-
-Only the Action Gateway executes. Agents propose; the coordinator checks conflicts; a durable unique action ledger and deterministic idempotency key prevent duplicate effects; per-target leases/fencing tokens and compare-and-set protect against concurrent changes; every reversible action has an undo record. Specialist deployment requires a frozen benchmark against the direct/single-model baseline. See TARGET_ARCHITECTURE.md §18.
-
-## 2.1 Domain scenario IDs for stage traceability
-
-| ID | Domain scenario | Expected outcome |
-|---|---|---|
-| UC-017 | Finance understanding | Explain balances, cash flow, recurring spend, bills and portfolio exposure from owner-authorised records; exact calculations are deterministic and cited |
-| UC-018 | Health understanding | Summarise owner-authorised records, measurements, medications and trends with dates, sources and uncertainty |
-| UC-019 | Home and energy | Explain device state, energy, heating and environmental patterns; propose or execute reversible device control under owner policy |
-| UC-020 | Travel planning | Research routes, lodging, entry rules, costs and accessible/vegetarian options; prepare exact booking preview |
-| UC-021 | Work and project management | Track deliverables, blockers, deadlines, decisions and dependencies across authorised work sources |
-| UC-022 | Research and learning | Search current public information, compare primary sources, cite and build learning/decision briefs |
-| UC-023 | Shopping and ownership | Compare total cost, quality, warranty, repairability and resale; track return/warranty windows |
-| UC-024 | Family and social commitments | Remember owner-approved dates/preferences, prepare messages and track commitments without sending |
-| UC-025 | Legal and government administration | Explain official correspondence, track renewals/deadlines and prepare evidence/form drafts |
-| UC-026 | Photos and personal archive | Search, describe, group and retrieve media using metadata and clearly labelled visual inference |
-| UC-027 | Digital security and account hygiene | Inventory connected apps/scopes/devices, detect permission changes and support revocation |
-| UC-028 | Governed memory | Retain useful facts/decisions with provenance, confidence, correction, expiry and deletion controls |
-| UC-029 | Proactive daily briefing | Summarise calendar, priority messages, deadlines, follow-ups, weather and travel context without notification noise |
-| UC-030 | Cross-app workflow automation | Plan and complete multi-step tasks across authorised apps; only Action Gateway executes and approval follows the closed list |
