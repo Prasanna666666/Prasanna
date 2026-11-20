@@ -22,6 +22,7 @@ LAYER = {
     "policy": 3,
     "gate": 4,
     "evidence": 4,
+    "documents": 4,
     "answer": 5,
     "tasks": 5,
     "service": 6,

@@ -167,5 +167,6 @@ def test_no_source_file_names_an_existing_database_or_writes_outside_its_own_sto
     for path in SRC.glob("*.py"):
         text = path.read_text()
         assert not re.search(r"finance\.db|library\.db|aperture\.db|ATLAS_DB_KEY|database_key", text), path.name
-    assert [p.name for p in SRC.glob("*.py") if "connect(" in p.read_text() and "sqlite3" not in p.read_text()] == ["tasks.py"]
+    # the only two stores, each its own new file opened with the key it is given (the document index of WP3.2 is separate from the task store; neither touches an existing database)
+    assert sorted(p.name for p in SRC.glob("*.py") if "connect(" in p.read_text() and "sqlite3" not in p.read_text()) == ["documents.py", "tasks.py"]
     assert T0  # the fixtures are synthetic
