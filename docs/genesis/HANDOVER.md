@@ -30,16 +30,16 @@ Do not delete branches, historical evidence, user data, databases or indexes as 
 
 The completed sequence is retained in the PR discussion as the audit trail. It does not grant implementation authority.
 
-**Preparation complete — review and owner decisions are now the only gates.** A proposed G-O17 comparison/recommendation is in [ADR-G-O17-PLATFORM-RUNTIME.md](ADR-G-O17-PLATFORM-RUNTIME.md), and a bounded foundation package is in [STAGE-2-WORK-PACKAGE.md](STAGE-2-WORK-PACKAGE.md). Claude has been asked to challenge both on PR #7. Neither is accepted yet.
+**Architecture reconciliation complete — one final technical confirmation is requested.** Claude's review is recorded in PR #7 comment 7035425400. ChatGPT has incorporated the exact corrections into [ADR-G-O17-PLATFORM-RUNTIME.md](ADR-G-O17-PLATFORM-RUNTIME.md), [STAGE-2-WORK-PACKAGE.md](STAGE-2-WORK-PACKAGE.md) and this decision register. The consolidated revision is posted once on PR #7 for Claude to verify; no repeated broad review or new questionnaire is requested.
 
 **Next gate — Stage 2 is NOT AUTHORISED.** Before any Stage 2 work:
-1. The owner must accept the G-O17 ADR after Claude's technical challenge. The current recommendation is Swift/SwiftUI with shared Swift packages for the macOS+iOS application layer and the existing Python Core retained behind a versioned Mac-host API initially.
-2. ChatGPT must accept the bounded Stage 2 foundation package after Claude's technical challenge. The current package is prepared in `STAGE-2-WORK-PACKAGE.md`.
-3. The owner must explicitly authorise Stage 2.
+1. Claude confirms only that the consolidated corrections are accurately represented and no technical blocker was introduced. ChatGPT then records its final acceptance of the bounded Stage 2 package.
+2. The owner accepts or rejects G-O17. Recommendation: shared Swift/SwiftUI application codebase; versioned Core API; Core language deferred to G-O20; direct-download signed/notarised Mac distribution assumption.
+3. If G-O17 is accepted and ChatGPT records package acceptance, the owner separately and explicitly authorises Stage 2. No implied approval.
 
 The Stage 1 audit included the iOS target in its assessment. Mobile implementation remains separately gated; secure remote access, device security, offline/sync and mobile release require their own ADRs and staged acceptance. Resolving G-O18 or G-O19 does not satisfy the Stage 2 gates.
 
-**Current authority:** no Stage 2 work, code changes, migrations, app retirement, data movement or destructive action is authorised. Preserve all existing branches, user data, keys and history.
+**Current authority:** no Stage 2 work, code changes, migrations, app retirement, data movement or destructive action is authorised. Preserve all existing branches, user data, keys and history. The next Claude request is a single bounded verification of the reconciled documents, not another open-ended design cycle.
 
 ## Evidence status
 
