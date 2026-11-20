@@ -24,7 +24,7 @@ The existing application, its tests, security controls, data stores and PR revie
 7. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, handshakes, issue resolution, change control and acceptance.
 8. [Handover](HANDOVER.md) — repository pointers, confirmed status and next gate.
 9. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — owner-accepted shared Swift/SwiftUI application boundary; Core language remains open under G-O20.
-10. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — bounded scope, contracts, acceptance criteria and stop conditions.
+10. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — owner-authorised bounded implementation scope, contracts, acceptance criteria and stop conditions.
 11. [Detailed low-level technical design](LOW_LEVEL_DESIGN.md) — consolidated architecture-review baseline; recommendations only, not implementation/Stage 3 authorisation.
 
 ## Current decision/work-package status
