@@ -13,6 +13,25 @@ Start with [README.md](README.md), then read the canonical documents it indexes.
 
 There is exactly **one Atlas application**. Standalone Finance, Documents, Images and other legacy application shells are obsolete. Their useful features and data must be integrated into Atlas as internal capabilities. Hidden helper processes are allowed only when technically justified; they do not constitute separate apps. macOS is first, followed by an iOS client usable worldwide wherever secure connectivity is available. Android is out of scope. Atlas Core and AI inference remain under owner control; worldwide access must not introduce cloud inference.
 
+## Basic facts — current owner-approved baseline
+
+| Area | Current fact | Status / boundary |
+|---|---|---|
+| Product | One Atlas application; personal operating system / intelligent chief of staff | Owner decision |
+| Platforms | macOS first, iOS later; worldwide iOS access through secure connectivity; Android out of scope | Owner decision; remote-access ADR and threat model still required |
+| Hardware profile | 32 GB Apple-silicon Mac mini | Planning profile, not proof of a purchased/tested machine or verified minimum |
+| Inference locality | Local-only; no cloud inference or silent remote fallback | Owner decision |
+| Inference runtime | Apple MLX | Owner-selected direction; target-Mac integration still unverified |
+| Main model | Approximately 27B-parameter class, exact model selected by benchmark | Owner direction; exact family, quantisation, context and fallback remain open |
+| Model routing | Automatic task-based model switching; show which model answered | Owner decision; routing policy and measurements remain to be implemented |
+| Core boundary | Versioned, language-neutral API behind the shared Swift/SwiftUI macOS+iOS app | G-O17 accepted; Core implementation language is separate G-O20 decision |
+| Core language | Not yet decided for long-term production | Stage 2 Python reference implementation does not decide this; compare Python and Swift with MLX, packaging, security, reuse and migration evidence |
+| Mac distribution | Direct download; Developer ID signed and notarised | Owner-approved direction; packaging/update/rollback implementation remains G-O12 |
+| First workflow | Read-only questions over explicitly enabled local documents and Mail, with exact citations | Source designation and attachment gates remain closed until G-O19/G-O18 are resolved |
+| Sensitive domains | Finance raw records excluded from model/general-agent context; Health locked by default | Owner decisions; deterministic Finance boundary |
+
+ChatGPT owns this table and must update it whenever the owner establishes a durable product or technical fact. Distinguish owner decisions, recommendations, implementation status and verified evidence; never promote a target into a claim that it is already built or tested.
+
 ## Repository handling
 
 - `atlas` is the implementation baseline for gap analysis.
@@ -32,7 +51,7 @@ The completed sequence is retained in the PR discussion as the audit trail. It d
 
 **Architecture decision and Stage 2 authority — COMPLETE.** Claude's technical challenge is recorded in PR #7 comment 7035425400 and its focused document verification in 7037231906. The owner accepted G-O17 and explicitly authorised Stage 2 on 2026-11-20; the owner waived the ChatGPT package-acceptance gate so implementation could proceed (decision recorded in PR #7 comment 7037299974 and subsequent owner instructions). These decisions are final; do not ask the owner to repeat them.
 
-**Current Stage 2 implementation gate — PR #8 review pending.** Stage 2 implementation is in [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8), draft and unmerged. The first independent review identified three blockers; Claude addressed them in head `481610f`. Re-review then found one remaining read-time revocation issue: zero-citation answers and final events could expose text derived from a revoked source (review 5992662031). Claude fixed it in `badb884`; the code-level re-review confirms that the answer and event paths now gate on every retrieved source and that regression tests cover both revocation orders. Full CI run #864 passed all jobs. The wording correction in review 5992710870 was addressed in PR #8 head `b485e04`. Re-review found one edge case: if permission is revoked after retrieval but before a draft exists, the response incorrectly says an already-produced answer is withheld (review 5992743516). Claude's correction and CI run #871 are pending. The actual macOS Keychain and `LOCAL_PEERCRED` paths, target-Mac execution and Swift/Xcode integration remain unverified and must not be claimed as passed. Stage 2 implementation acceptance remains pending this final wording/contract correction and target-Mac checks.
+**Current Stage 2 implementation gate — PR #8 independent acceptance review.** Stage 2 implementation is in [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8), draft and unmerged. The latest head is `92e61f8f57362971afd401508a5c1e9d4c433092`. The latest independent review (PR #8 review comment 7040…; review submitted 2026-11-20 14:07 UTC) accepted the attempted-versus-confirmed retrieval correction: confirmed retrieved source types are derived only from durably saved passages; attempted-but-unconfirmed sources remain separate; exact-head CI run #883 completed successfully. This acceptance is limited to that review delta, not the full Stage 2 package. The full 16-criterion acceptance matrix, security/privacy boundaries, persistence/recovery, client identity, contracts, architecture and exact-head CI still require consolidated independent sign-off. Real macOS Keychain, macOS `LOCAL_PEERCRED`, Swift/Xcode client integration and target-Mac execution remain unverified. Do not claim production readiness. Stage 2 final acceptance is pending; PR #8 stays draft and unmerged.
 
 **Stage 3 is NOT AUTHORISED.** No Stage 3 implementation, real source ingestion/search, Mail attachment processing, remote exposure, data migration or destructive action is authorised by the Stage 2 decision. G-O18, G-O19, G-O14 and other feature-specific gates remain in force.
 
