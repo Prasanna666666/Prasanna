@@ -1,6 +1,6 @@
 # Atlas — Handover
 
-**Status:** Stage 2 review accepted; Stage 3 plan reconciled; fresh independent challenge and owner authorisation pending  
+**Status:** Stage 2 review accepted; Stage 3 authorised by owner (G-027); WP3.0 baseline accepted; WP3.1 contract brief is next  
 **Repository:** `Prasanna666666/Prasanna`  
 **Documentation branch:** `genesis-stage2-foundation` (documentation now consolidated into PR #8)  
 **Implementation baseline:** `atlas`
@@ -55,7 +55,7 @@ The completed sequence is retained in the PR discussion as the audit trail. It d
 
 **Still unverified:** real macOS Keychain and `LOCAL_PEERCRED`, Swift/Xcode integration, target-Mac MLX model quality/latency/memory under combined workload, signing/notarisation, and real process-kill/power-loss recovery. The local same-UID 64-slot exhaustion/no-rate-limit residual is documented. Do not claim production readiness.
 
-**Stage 3 — plan revised; implementation NOT AUTHORISED / NOT STARTED.** The execution plan is [STAGE-3-EXECUTION-PLAN.md](STAGE-3-EXECUTION-PLAN.md). The current product baseline includes the full use-case register, Internet/egress policy, single canonical roadmap and exact approval matrix. The prior Claude challenge produced material findings; the documents have been reconciled, and a fresh challenge of the current exact head is the next team action. After that, ChatGPT will close any remaining findings and present one bounded Stage 3 decision brief. The owner must explicitly authorise Stage 3 before implementation. G-O18 is a technical attachment-package acceptance gate (scope already decided: all supported formats); G-O19's low-friction design is delegated and recorded (one Get Started flow plus OS permissions). No Stage 3 code, Stage 4–8 work, remote exposure or destructive migration is authorised by this plan.
+**Stage 3 — AUTHORISED by the owner on 2026-11-20 (G-027).** The execution plan is [STAGE-3-EXECUTION-PLAN.md](STAGE-3-EXECUTION-PLAN.md). WP3.0 is accepted as a read-only baseline inventory. WP3.1 is the next bounded package: ChatGPT owns the target contract and issues its implementation brief; Claude challenges and implements only the approved scope, one reviewed exact commit at a time. Stage 3 proceeds in plan order. Mac-dependent work waits for target hardware. G-O18 remains a technical attachment-package acceptance gate (scope: all supported formats); G-O19's low-friction design is delegated (one Get Started flow plus OS permissions). This authorisation does not waive G-O12, G-O02/G-O05, real-owner-data restrictions before target-Mac verification, destructive-migration controls, or Stage 4–8 and remote-exposure gates.
 
 The Stage 1 audit included the iOS target in its assessment. Mobile implementation and worldwide secure access remain separately gated by the remote-access threat model, device identity, offline/sync and mobile release decisions.
 
@@ -69,7 +69,7 @@ The canonical product scope extends beyond the original read-only Documents/Mail
 
 Key directions: single-user Atlas; one first-run Get Started flow; no routine approval prompts; local model access to owner-authorised Finance and Health; exact calculations code-checked; approval only for consequential external effects or materially irreversible changes; public Internet research under strict data-minimised egress; all supported Mail attachments in scope subject to technical acceptance; progressive newest-first indexing with visible coverage.
 
-The use-case and network-policy documents have been added to this branch. This is documentation progress, not a working app build. Stage 3 implementation remains subject to its explicit authorisation gate; target-Mac integration and performance remain unverified.
+The use-case and network-policy documents have been added to this branch. This is documentation progress, not a working app build. Stage 3 is authorised (G-027); target-Mac integration, performance, Keychain, signing/notarisation and other hardware-dependent checks remain unverified.
 
 ## Always-on host and availability decision
 
