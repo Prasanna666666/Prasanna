@@ -22,7 +22,7 @@ Choose the application technology that best delivers one Atlas application on ma
 - 32 GB Apple-silicon Mac mini is a planning profile, not a benchmark result.
 - Existing Python capabilities and tests are migration assets, not constraints. Reuse them where they are the best choice; replace or rewrite components when requirement-level evidence supports doing so, with parity, data-preservation and rollback evidence.
 - The current app is Python services plus Docker/HTTP boundaries, web UI, SQLCipher SQLite, and Ollama integration (Stage 1 audit, PR #7 comments 7022436618 and 7022456916). Stage 1 evidence was code inspection and scratch-environment tests, not target-Mac verification.
-- All exact calculations remain deterministic. Finance stays outside model/general-agent context under G-015. Health remains locked by default.
+- All exact calculations remain deterministic. Under G-021, the local model may read owner-authorised Finance and Health data; keep separate domain controls, provenance, redaction and revocation.
 
 ## 3. Keep these technology decisions separate
 
