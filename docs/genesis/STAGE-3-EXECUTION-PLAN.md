@@ -1,6 +1,6 @@
 # Atlas — Stage 3 Execution Plan
 
-**Status:** Architecture plan prepared; **Stage 3 implementation is NOT AUTHORISED**  
+**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 contract brief pending; implementation has not started  
 **Initiative:** Project Genesis  
 **Baseline:** PR #8, `genesis-stage2-foundation`, Stage 2 accepted at `58210223398a5715b618d1163397104efd358d49`  
 **Plan owner:** ChatGPT (architect/integrator)  
@@ -15,7 +15,7 @@ This is a deliberately narrow vertical slice, not a general agent platform, broa
 
 **Recommendation:** deliver the slice incrementally, beginning with contract and source-boundary design, then document retrieval, then Mail retrieval only after its separate gates are satisfied. Keep the current Python Core behind the versioned API during this stage. Do not rewrite Core in Swift or change the owner-selected Apple MLX direction without a separate evidence-backed ADR and owner decision.
 
-Stage 3 remains gated on explicit owner authorisation. This document is a plan, not that authorisation.
+The owner explicitly authorised all of Stage 3 on 2026-11-20 (G-027). Work proceeds in plan order, package by package, with exact-commit review. This plan does not waive the separate gates in section 7 or authorise Stage 4 onwards.
 
 ## 2. User outcome and scope
 
@@ -246,14 +246,14 @@ Stop the affected work and report with evidence if:
 1. ChatGPT maintains the canonical plan, scenario register, network policy and requirement-to-test traceability.
 2. Claude independently challenges the reconciled product baseline and execution plan for omissions, contradictions, feasibility and security; do not code during that challenge.
 3. ChatGPT reconciles the findings, updates the canonical baseline and issues a bounded implementation brief.
-4. Stage 3 code begins only after explicit owner authorisation; the team must not infer release or destructive-migration authority from a documentation request.
+4. Stage 3 is authorised by G-027. Implementation proceeds only through bounded packages with ChatGPT's exact-commit review; this does not imply release, destructive-migration, or separately gated platform authority.
 5. After authorisation, work proceeds in dependency order, with exact-commit review and evidence at each package.
 
 ## 11. Approval record
 
 - Stage 2 review: **ACCEPTED by ChatGPT** for exact head `58210223398a5715b618d1163397104efd358d49`; 22/22 exact-head CI checks successful. This is not production/release sign-off.
-- Stage 3 plan: **revised after Claude's documented challenge; fresh independent challenge of the current reconciled head requested; owner authorisation pending**.
-- Stage 3 implementation: **NOT AUTHORISED / NOT STARTED**.
+- Stage 3 plan: **reconciled after technical challenge; owner authorisation granted in full under G-027 on 2026-11-20**.
+- Stage 3 implementation: **authorised; WP3.0 baseline accepted; WP3.1 is next. No Stage 3 application code has been implemented yet.**
 - Target-Mac verification: **pending hardware availability**.
 
 ## 12. Superseding owner direction and product-wide planning addendum (2026-11-20)
@@ -289,7 +289,7 @@ There is exactly one delivery roadmap: TARGET_ARCHITECTURE.md §11. Do not creat
 ChatGPT is accountable architect/integrator: canonical requirements, scenario-to-test traceability, cross-cutting design, exact-commit independent review and release recommendation. Claude Code owns implementation, developer challenge, tests, CI diagnosis, reproducible evidence and implementation documentation. GitHub Actions provides automated checks. The owner retains product direction, reserved decisions and final acceptance and is not a messenger between engineering roles.
 
 ### 12.8 Current gate
-Documentation and architecture reconciliation may proceed now. Stage 3 code must not be represented as started until the owner explicitly authorises that implementation stage. Target-Mac-only claims remain pending hardware access.
+Stage 3 is authorised under G-027 and proceeds package by package after a written implementation brief and exact-commit review. WP3.0 is accepted; WP3.1 is next. No Stage 3 application code has been implemented yet. Target-Mac-only claims remain pending hardware access.
 
 ### 12.9 First-useful-answer and indexing acceptance
 
