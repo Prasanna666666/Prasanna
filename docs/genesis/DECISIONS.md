@@ -42,7 +42,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-R07 | Hierarchical Agent Workforce: Atlas Core supervises on-demand personal-domain specialists through durable task contracts | RECOMMENDED | Enables delegation and parallel work without uncontrolled agent swarms |
 | G-R08 | Central Agent Registry, task scheduler and policy-enforced tool gateway | RECOMMENDED | Makes role, permission, resource, deadline and lifecycle constraints enforceable |
 | G-R09 | Start with a thin personal workflow and a small specialist set; expand by measured value | RECOMMENDED | Proves reliability before adding orchestration complexity |
-| G-R10 | Domain-scoped agent context; restricted Finance and Health trust boundaries | RECOMMENDED | Prevents one-app convenience from becoming unrestricted cross-domain access |
+| G-R10 | Domain-scoped agent context; separately labelled/keyed Finance and Health stores with owner-authorised local model access | RECOMMENDED | Prevents one-app convenience from becoming unrestricted cross-domain access while respecting G-021 |
 
 ## 3. Open decisions requiring investigation or owner input
 
