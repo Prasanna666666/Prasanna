@@ -236,3 +236,18 @@ The owner has decided the target delivery experience is a **native macOS applica
 - Define schema versioning, migration compatibility, preconditions, integrity checks, interruption recovery and rollback before changing persistent stores.
 - User-facing error states must be understandable and actionable. Keep raw code, stack traces and sensitive diagnostics out of normal UI; diagnostic logging follows redaction requirements.
 - Do not use arbitrary hardcoded source/word/record caps that silently limit ingestion or memory. Resource controls must be explicit, observable, configurable where appropriate and fail safely without dropping data.
+
+## 14. Owner direction update — 2026-11-20
+
+This section supersedes conflicting earlier target-architecture statements:
+
+- Atlas is single-user. Do not add multi-user roles, shared-device assumptions or bystander-presence workflows.
+- The local model may read owner-authorised Finance and Health information. Keep separate domain stores/labels, scoped grants, provenance, revocation, redacted logs and cache controls. These domains are not categorically hidden from local model context. Exact financial arithmetic remains deterministic and code-checked.
+- Routine read/search/analysis/summarise/draft/compute operations do not require approval. Approval is for consequential external effects and materially irreversible changes only, with exact-action previews.
+- First-run consent is one Get Started step plus OS permission prompts; no repeated incidental prompts or per-folder selection.
+- Public Internet research is allowed through a Core-mediated egress gateway under INTERNET_AND_NETWORK_POLICY.md. No cloud inference, raw private content in public queries or secret egress.
+- All supported Mail attachment formats are in scope, subject to separate technical design, parser isolation, provenance/OCR quality and acceptance.
+- Progressive, newest-first model-free full-text indexing is a first-slice requirement. Atlas must disclose coverage and remain useful before complete indexing.
+- USE_CASE_REGISTER.md is the complete scenario and connector inventory.
+
+These are product requirements, not proof of implementation. Keep target-Mac, connector and release evidence pending until tested.
