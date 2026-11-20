@@ -22,11 +22,11 @@ The existing application, its tests, security controls, data stores and PR revie
 5. [Ingestion and durable processing](INGESTION_PIPELINE.md) — reliable document and source processing.
 6. [Decision register](DECISIONS.md) — settled owner decisions and open decisions.
 7. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, handshakes, issue resolution, change control and acceptance.
-8. [Handover](HANDOVER.md) — repository pointers and immediate developer task.
+8. [Handover](HANDOVER.md) — repository pointers, confirmed status and next gate.
 
 ## Source-of-truth rules
 
-- Existing implementation and review records under `docs/` describe current behaviour and test evidence. During the implementation gap analysis, inventory and classify the standing rules, defect list, coverage matrix, comment tracker and any other legacy records: (a) still binding and migrated into a canonical Genesis document, (b) historical evidence retained and linked, (c) superseded by an explicit Genesis rule, or (d) obsolete duplicate to be archived only with owner-safe history preservation. Do not assume that an unreferenced legacy file is obsolete, and do not maintain competing live specifications.
+- Existing implementation and review records under `docs/` describe current behaviour and test evidence. The initial implementation gap analysis was completed in Stage 1 (PR #7 comment 7022436618, §3). Map the standing rules, defect list, coverage matrix, comment tracker and any other legacy records to Genesis requirement IDs during Stage 2 work: (a) still binding and migrated into a canonical Genesis document, (b) historical evidence retained and linked, (c) superseded by an explicit Genesis rule, or (d) obsolete duplicate to be archived only with owner-safe history preservation. Do not assume that an unreferenced legacy file is obsolete, and do not maintain competing live specifications.
 - `docs/genesis/` describes the evolved target. Where it differs from current implementation, the difference is intentional only when explicitly marked as a target-state change or migration item.
 - Code and executable tests determine what is implemented. Documentation must not claim otherwise.
 - Owner decisions override recommendations. A recommendation is not an approved requirement until the owner accepts it.
