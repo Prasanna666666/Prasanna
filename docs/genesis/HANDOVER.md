@@ -1,6 +1,6 @@
 # Atlas — Handover
 
-**Status:** Stage 2 review accepted; Stage 3 execution plan prepared, pending technical challenge and owner authorisation  
+**Status:** Stage 2 review accepted; Stage 3 plan reconciled; fresh independent challenge and owner authorisation pending  
 **Repository:** `Prasanna666666/Prasanna`  
 **Documentation branch:** `genesis-stage2-foundation` (documentation now consolidated into PR #8)  
 **Implementation baseline:** `atlas`
@@ -55,7 +55,7 @@ The completed sequence is retained in the PR discussion as the audit trail. It d
 
 **Still unverified:** real macOS Keychain and `LOCAL_PEERCRED`, Swift/Xcode integration, target-Mac MLX model quality/latency/memory under combined workload, signing/notarisation, and real process-kill/power-loss recovery. The local same-UID 64-slot exhaustion/no-rate-limit residual is documented. Do not claim production readiness.
 
-**Stage 3 — plan prepared; implementation NOT AUTHORISED / NOT STARTED.** The execution plan is [STAGE-3-EXECUTION-PLAN.md](STAGE-3-EXECUTION-PLAN.md). It defines the read-only documents-and-Mail vertical slice, work packages, source/privacy gates, acceptance criteria, test/evidence requirements, stop conditions and role ownership. Next sequence: Claude challenges the plan for feasibility and omissions without coding; ChatGPT reconciles findings and presents the final owner decision brief; the owner explicitly authorises Stage 3 before any implementation. G-O18 remains a technical attachment-package acceptance gate (owner scope: all supported formats). G-O19 requires the one-time Get Started onboarding and OS access to be implemented and verified; do not re-ask the owner for the design. No Stage 4–8 work, remote exposure, destructive migration or external side effects are authorised by this plan.
+**Stage 3 — plan revised; implementation NOT AUTHORISED / NOT STARTED.** The execution plan is [STAGE-3-EXECUTION-PLAN.md](STAGE-3-EXECUTION-PLAN.md). The current product baseline includes the full use-case register, Internet/egress policy, single canonical roadmap and exact approval matrix. The prior Claude challenge produced material findings; the documents have been reconciled, and a fresh challenge of the current exact head is the next team action. After that, ChatGPT will close any remaining findings and present one bounded Stage 3 decision brief. The owner must explicitly authorise Stage 3 before implementation. G-O18 is a technical attachment-package acceptance gate (scope already decided: all supported formats); G-O19's low-friction design is delegated and recorded (one Get Started flow plus OS permissions). No Stage 3 code, Stage 4–8 work, remote exposure or destructive migration is authorised by this plan.
 
 The Stage 1 audit included the iOS target in its assessment. Mobile implementation and worldwide secure access remain separately gated by the remote-access threat model, device identity, offline/sync and mobile release decisions.
 
