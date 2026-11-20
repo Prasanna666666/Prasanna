@@ -605,3 +605,84 @@ def test_a_six_field_message_can_never_equal_a_five_field_message():
 def test_the_contract_documentation_publishes_the_same_vectors():
     text = (contracts.contracts_dir().parent / "docs" / "CONTRACT_1_1.md").read_text()
     assert VECTOR_10_HEX in text and VECTOR_11_HEX in text
+
+
+# ---- SafeEvent.reason_code is a closed vocabulary in 1.1 -----------------------------------------------------------------------------------------------
+POLICY_REASONS = [
+    "granted",
+    "nothing_requested",
+    "unknown_source_type",
+    "restricted_domain",
+    "deferred_decision",
+    "no_grant",
+    "grant_revoked",
+    "grant_expired",
+    "sensitivity_exceeds_grant",
+]  # policy.decision (policy.py)
+RECOVERY_REASONS = ["requeued", "needs_attention"]  # task.recovered (tasks.py recover)
+VERIFICATION_REASONS = ["verified", "partially_verified", "unverified", "failed"]  # answer.verified (the Verification.status values)
+EGRESS_REASONS = [
+    "allowed", "not_a_typed_tool", "leak_check", "url_not_permitted", "private_address", "redirect_blocked", "length_cap", "header_not_allowed", "host_not_allowed", "provider_disabled", "budget_exceeded",
+]  # fmt: skip  # egress.decision: INTERNET_AND_NETWORK_POLICY.md sections 10.1 to 10.6
+ALL_REASONS = [*POLICY_REASONS, *RECOVERY_REASONS, *VERIFICATION_REASONS, *EGRESS_REASONS]
+
+
+def test_the_reason_code_enumeration_is_exactly_the_documented_vocabulary():
+    declared = contracts._document("1.1")["$defs"]["SafeEvent"]["properties"]["reason_code"]
+    assert declared["enum"] == ALL_REASONS and "pattern" not in declared and len(set(ALL_REASONS)) == len(ALL_REASONS)
+
+
+@pytest.mark.parametrize("reason", ALL_REASONS)
+def test_every_listed_reason_code_is_accepted(reason):
+    ok("SafeEvent", event(event="policy.decision", component="policy", reason_code=reason))
+    ok("SafeEvent", event(event="egress.decision", component="egress", decision="deny", reason_code=reason, destination_class="connector"))
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "made_up_reason",
+        "no_such_code",
+        "my_bank_statement",
+        "balance_1200",
+        "statement_pdf",
+        "Granted",
+        "no grant",
+        "../etc/passwd",
+        "a/b",
+        "granted;drop",
+        "",
+        "x" * 49,
+        7,
+        None,
+    ],
+)
+def test_an_unknown_slug_or_a_content_like_value_is_refused_as_a_reason_code(reason):
+    bad("SafeEvent", event(event="policy.decision", component="policy", reason_code=reason))
+    bad("SafeEvent", event(event="egress.decision", component="egress", reason_code=reason))
+
+
+def test_the_open_vocabulary_of_1_0_is_unchanged_and_only_1_1_closes_it():
+    ok("SafeEvent", event(reason_code="made_up_reason"), "1.0")  # frozen 1.0 keeps its pattern
+    bad("SafeEvent", event(reason_code="made_up_reason"), "1.1")
+
+
+def test_every_reason_the_policy_code_can_return_is_in_the_closed_list():
+    source = (contracts.contracts_dir().parent / "src" / "atlas_core" / "policy.py").read_text()
+    found = set(re.findall(r'return "([a-z_]+)", (?:None|str)', source)) | set(re.findall(r'reason = "([a-z_]+)"', source)) | {"nothing_requested"}
+    assert found and found <= set(POLICY_REASONS), found - set(POLICY_REASONS)
+
+
+def test_every_event_the_running_core_emits_fits_the_1_1_safe_event(tmp_path):
+    from conftest import World, grant, parse_events, request
+
+    events = []
+    for index, grants in enumerate(([grant("documents")], [])):  # an answered task, then a denied one
+        (tmp_path / str(index)).mkdir()
+        world = World(tmp_path / str(index), grants)
+        world.run_new(request())
+        events += parse_events(world.lines)
+    assert {e["event"] for e in events} >= {"task.created", "policy.decision", "answer.verified", "task.transition"}
+    for record in events:
+        ok("SafeEvent", record)
+    assert {e["reason_code"] for e in events if "reason_code" in e} >= {"granted", "no_grant", "verified"}

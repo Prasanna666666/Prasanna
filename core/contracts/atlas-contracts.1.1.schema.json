@@ -1307,7 +1307,35 @@
         },
         "reason_code": {
           "type": "string",
-          "pattern": "^[a-z_]{1,48}$"
+          "enum": [
+            "granted",
+            "nothing_requested",
+            "unknown_source_type",
+            "restricted_domain",
+            "deferred_decision",
+            "no_grant",
+            "grant_revoked",
+            "grant_expired",
+            "sensitivity_exceeds_grant",
+            "requeued",
+            "needs_attention",
+            "verified",
+            "partially_verified",
+            "unverified",
+            "failed",
+            "allowed",
+            "not_a_typed_tool",
+            "leak_check",
+            "url_not_permitted",
+            "private_address",
+            "redirect_blocked",
+            "length_cap",
+            "header_not_allowed",
+            "host_not_allowed",
+            "provider_disabled",
+            "budget_exceeded"
+          ],
+          "description": "A closed vocabulary: the policy decisions, recovery actions and verification statuses the Stage 2 Core emits, plus the egress decisions defined by the network policy. A new reason is a contract change, never a free-form string."
         },
         "error_code": {
           "$ref": "#/$defs/ErrorCode"

@@ -51,6 +51,16 @@ A pure, deterministic operation. It deep-copies the 1.0 document, keeps its root
 | `sheet_cell` | `sheet`, `cell` (A1 notation) | none | everything else |
 `sheet` is the **index** of the sheet, never its name, because names are content of the owner and a locator must stay content-free. A header value is what the message says about itself (claimed, not authenticated).
 
+### SafeEvent reason codes (a closed vocabulary in 1.1)
+In 1.0 `SafeEvent.reason_code` is any lowercase slug. **In 1.1 it is an enumeration**, so the event taxonomy is controlled and a content-like value cannot appear. The list is justified by where each value comes from; a new reason is a contract change, not a free-form string. Tightening applies to 1.1 only; 1.0 keeps its pattern (tested).
+| Event | Values | Origin |
+|---|---|---|
+| `policy.decision` | `granted`, `nothing_requested`, `unknown_source_type`, `restricted_domain`, `deferred_decision`, `no_grant`, `grant_revoked`, `grant_expired`, `sensitivity_exceeds_grant` | every reason `policy.py` returns (a test scans the source for them) |
+| `task.recovered` | `requeued`, `needs_attention` | `tasks.py` recovery |
+| `answer.verified` | `verified`, `partially_verified`, `unverified`, `failed` | the `Verification.status` values |
+| `egress.decision` | `allowed`, `not_a_typed_tool`, `leak_check`, `url_not_permitted`, `private_address`, `redirect_blocked`, `length_cap`, `header_not_allowed`, `host_not_allowed`, `provider_disabled`, `budget_exceeded` | `INTERNET_AND_NETWORK_POLICY.md` §10.1 (typed tools, leak check, URL, address, redirect, length and header rules), §10.3 (host allowlists), §10.4 (provider off until activated), §10.6 (budgets) |
+The enumeration is one list shared by all events; the tests check that every value is accepted, that an unknown slug and content-like values (a file-like name, a path, an amount, a capitalised or spaced string, a non-string) are refused, and that every event the running Core emits in an answered and in a denied task validates against it.
+
 ## Signing (specification; the Core does not enforce it in WP3.1)
 The applied version is part of the signed message for 1.1. LF is 0x0A; all fields are UTF-8; there is no trailing newline; a verifier refuses any field containing CR or LF.
 - **1.0, unchanged:** `METHOD_UPPERCASE LF target LF timestamp LF nonce LF lowercase_hex(SHA-256(body))` (five fields).
