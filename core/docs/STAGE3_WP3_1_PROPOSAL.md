@@ -1,86 +1,76 @@
-# Stage 3, WP3.1: proposed contract delta, threat model and test matrix
+# Stage 3, WP3.1: revised proposal (contract-only), for ChatGPT's review
 
-**Status:** the developer's *proposal* for ChatGPT's WP3.1 brief. It is input, not authority: ChatGPT owns the target contract (`docs/genesis/STAGE-3-EXECUTION-PLAN.md` WP3.1). Nothing here is implemented; `core/` is unchanged. Written against API 1.0 as frozen in `contracts/atlas-contracts.schema.json`.
-**Sources:** `PRD.md` §4.3a and §4.4, `INTERNET_AND_NETWORK_POLICY.md` §10, `USE_CASE_REGISTER.md` UC-001/002/007/008/009/012/016/032, UC-L01 to L09/L19/L26/L28, UC-039/041/047/048, plan WP3.1 to WP3.3, G-021 to G-026.
+**Status:** REVISED PROPOSAL v2, written to ChatGPT's authoritative brief (PR #8 comment 7051135695). **Nothing in this document is implemented.** No contract, runtime or test code is written until ChatGPT approves this scope. It replaces v1 (commits `44bb884`, `6f93317`), which mixed contract work with consent behaviour and later packages.
+**Base:** `aa0fc53` (G-027 recorded). Frozen API 1.0 files at this base: `contracts/atlas-contracts.schema.json` sha256 `65f5a3f6ac41410ea494e2902759a8dca3c2d3ef48e023ebdb6fe548a66a386c`; `contracts/openapi.yaml` sha256 `c653a427fc632dd6f834338b4c1c0cbf6513e12771b541aff68935682e034393`.
 
-## 1. Principles
-- **Additive and compatible.** API 1.0 clients keep working. The version becomes `1.1` (`supported: ["1.0","1.1"]`); every new field is optional in 1.0 responses and required only for clients that ask for 1.1. Model identity is the planned minor-version addition (plan constraint 10).
-- **The Core stays the only policy authority.** A new endpoint may only be called by an enrolled **owner-interactive** client (new identity role, §2.2); models, content and automation can never reach it.
-- **No new content in events.** Every new safe event is an enumeration or a count; never a path, subject, address, query or amount.
+## 1. The two corrections, applied
+1. **Compatibility.** API 1.0 stays frozen and **byte-identical**; a test pins both hashes. API 1.1 is a *separate* contract, validated only on its own path. Nothing in 1.1 (including "required when 1.1 is negotiated") is ever applied to 1.0. 1.0 compatibility is proved against the 1.0 contract; 1.1 is tested independently.
+2. **Consent.** WP3.1 only **specifies** the consent and index endpoints and the identity role as contract text. It implements no route, grant or revoke lifecycle, replay state, OS-permission discovery or enforcement. Those belong to a separately reviewed package (section 7). The earlier acceptance criterion 4 (role enforcement, replay rejection) is removed from WP3.1.
 
-## 2. Contract delta (API 1.1)
-### 2.1 Coverage on every answer (UC-L26, plan F2)
-`AnswerEnvelope.coverage`: `{state: complete | partial | indexing, searched: int, total: int | null, pending: [{category, count}], failed: [{reason_code, count}], as_of: Timestamp}`. `total` is `null` while discovery is incomplete. Rule: an answer with `state != complete` must also carry the limitation `indexing_incomplete`; no code path may omit coverage when `source_scope` is non-empty.
+## 2. Version negotiation (specified; the runtime is unchanged)
+- Request header `x-atlas-api-version` (already used by Stage 2). **Absent means 1.0.** `1.0` selects 1.0. `1.1` selects 1.1 **only when the server advertises it** in `GET /v1/version`. Any other value, or `1.1` when not advertised, fails closed with the existing `unsupported_version` error. The response echoes the version that was applied.
+- A pure function `negotiate(requested, advertised) -> "1.0" | "1.1"` (raises on anything else) lives in `contracts.py` and is tested; the Core runtime still advertises only `("1.0",)` in WP3.1, so a client asking for `1.1` is refused today. A later package changes that line only when it can actually serve 1.1.
+- Validation: `contracts.validate(name, value)` keeps its signature and means 1.0 (default). `contracts.validate(name, value, version="1.1")` validates against the 1.1 document.
 
-### 2.2 Get Started consent and revocation (G-025, UC-L01/L02/L19)
-- `POST /v1/consent` body `{sources: ["documents","mail"]}` creates one grant per source type (existing `SourceGrant`, `designated_by: "owner"`, `purpose: "answer_question"`, `expires_at: null`, `max_sensitivity` set by the policy default of that type). One call, no per-folder fields.
-- `GET /v1/consent` lists grants; `DELETE /v1/consent/{grant_id}` revokes **immediately** (the next read or model boundary already re-validates, Stage 2).
-- New identity attribute `role: owner_interactive` on a registered client, set at enrolment; requests to these routes from any other client return `forbidden`. Audited by the safe event `consent.changed` (`{action: granted|revoked, source_type}`).
-- OS-level access (Full Disk Access, Mail automation) is a separate state: `GET /v1/consent` reports per source `os_access: granted | missing | unknown`. Missing access yields the user-safe error and limitation `os_access_missing`, never a partial silent answer.
+## 3. Contract diff (1.1 relative to 1.0)
+**Mechanism:** a new file `contracts/atlas-contracts.1.1.delta.schema.json` holds only the types that are new or replaced; the 1.1 document is the 1.0 `$defs` overridden by name with the delta (so a replaced `Locator` automatically applies wherever 1.0 references it, such as `EvidenceRef`). The 1.0 file is never edited. 1.1 types that replace a 1.0 type must accept every value the 1.0 type accepted for all unchanged fields (tested), except where a field is newly required (marked below).
 
-### 2.3 Locators for real sources (UC-047/048, plan WP3.2/3.3)
-Extend `Locator.kind` with `header_field`, `attachment_part`, `sheet_cell`; new optional fields `header` (`from|to|date|subject|message_id`), `attachment_id` (opaque), `sheet` (string), `cell` (A1 notation), `authenticity` (`claimed` for every header field: sender and date are values the message says about itself, not verified identity).
-Mail evidence: body, header fields, thread and attachment parts keep distinct `source_type` values (`mail`, `mail_attachment`), so they keep separate grants, labels and provenance. **Quoted or forwarded text is not the sender's**: a citation into quoted text carries `quoted: true` and must never be attributed to the message sender.
+| Type | Change | Detail |
+|---|---|---|
+| `Coverage` (new) | new | `{state: complete \| partial \| indexing, searched: int >= 0, total: int >= 0 \| null, pending: [{category: pattern, count}], failed: [{reason_code, count}], as_of: Timestamp}`, all required, no extra fields; `total` is `null` while discovery is incomplete |
+| `AnswerEnvelope` | replaced | 1.0 fields plus `coverage` (**required in 1.1**) and `model` (optional); a `coverage.state` other than `complete` requires the limitation `indexing_incomplete` (checked by a schema `if/then`) |
+| `ModelDescriptor` (new) | new | `{model_id: pattern, role: pattern, runtime: mlx \| stub}`; closed, content-free: no prompt, source text, path, query or personal data (negative tests) |
+| `Locator` | replaced (superset) | kinds add `header_field`, `attachment_part`, `sheet_cell`; optional `header` (`from\|to\|date\|subject\|message_id`), `attachment_id`, `sheet`, `cell` (A1), `quoted` (boolean), `authenticity` (`claimed`, required with `header_field`) |
+| `Limitation` | replaced (superset) | adds `indexing_incomplete`, `source_unsupported`, `os_access_missing`, `attachment_pending` |
+| `ErrorCode` | replaced (superset) | adds `os_access_missing`, `index_unavailable` (the user-safe texts are added to `errors.py` in the implementing package, not here) |
+| `SafeEvent` | replaced (superset) | adds events `consent.changed` (`action: granted\|revoked`, `source_type`), `model.routed` (`role`, `model_id`), `egress.decision` (`decision`, `reason_code`, `destination_class: search_provider\|connector\|update_manifest\|model_manifest`): enumerations and counts only |
+| `IndexStatus` (new) | new | `{state: idle\|building\|rebuilding\|needs_attention, indexed, total \| null, newest_indexed: Timestamp \| null, failed: [{reason_code, count}]}` |
+| `ConsentRequest`, `ConsentState` (new) | new | request `{sources: [SourceType], minItems 1, unique}`; state `{grants: [SourceGrant], sources: [{source_type, os_access: granted\|missing\|unknown}]}`. **Shape only.** |
+| OpenAPI 1.1 | new file | all 1.0 paths and operation ids unchanged, plus `GET/POST /v1/consent`, `DELETE /v1/consent/{grant_id}`, `GET /v1/index/status`, each marked `x-atlas-status: specification-only; not served`; the owner-interactive role is described as a security requirement of those paths (text only); the negotiation header is defined for every operation |
 
-### 2.4 Model identity and route event (G-020, plan WP3.1)
-`AnswerEnvelope.model`: `{model_id, role, runtime}` (strings from a closed registry; `runtime` is `mlx` or `stub`; never prompt text). Safe event `model.routed` with `{role, model_id}`; the route re-enters the same policy gate (existing `GatedModel`), so a switch cannot widen permissions.
+## 4. Exact file list
+**New:** `contracts/atlas-contracts.1.1.delta.schema.json`; `contracts/openapi-1.1.yaml`; `tests/test_contracts_v11.py`; `tests/test_contracts_frozen.py`; `docs/CONTRACT_1_1.md` (contract documentation: negotiation rules, the diff above, compatibility rules); `docs/STAGE3_TRACEABILITY.md` (section 6).
+**Changed:** `src/atlas_core/contracts.py` (version-aware loader and `negotiate`; default behaviour identical); `docs/THREAT_REVIEW.md` (one pointer row); `README.md` and `docs/TEST_PLAN.md` (test counts).
+**Unchanged, hash-pinned:** `contracts/atlas-contracts.schema.json`, `contracts/openapi.yaml`. **Unchanged code:** `__init__.py`, `api.py`, `service.py`, `errors.py`, `identity.py`, `policy.py`, `policy-rules.json`, every other module. **No new dependency.**
 
-### 2.5 Index status, states and limitations (UC-L03/L04/L24)
-- `GET /v1/index/status`: `{state: idle | building | rebuilding | needs_attention, indexed, total | null, newest_indexed: Timestamp | null, failed: [{reason_code, count}]}`. Counts only.
-- New `Limitation` values: `indexing_incomplete`, `source_unsupported`, `os_access_missing`, `attachment_pending`. New error codes: `os_access_missing`, `index_unavailable` (user-safe text fixed in `errors.py`).
-- Existing `attachments_not_searched` stays for 1.0 clients; 1.1 replaces it with `attachment_pending` until WP3.3b is accepted.
+## 5. Test matrix (contract and schema tests only)
+- **Frozen 1.0** (`test_contracts_frozen.py`): both 1.0 file hashes; every existing contract and API test passes unchanged; the runtime advertises only `1.0`; a request for `1.1` returns `unsupported_version`.
+- **Negotiation** (`test_contracts_v11.py`): absent header selects 1.0; `1.0`; `1.1` accepted only when advertised; `1.2`, `2`, empty, repeated or non-string values fail closed; the response version equals the applied version.
+- **1.1 independently**, positive and negative for every new or replaced item: `Coverage` (complete, partial, indexing, `total: null`; missing field, negative count, extra field, bad state); the `coverage` / `indexing_incomplete` rule; `AnswerEnvelope` (valid 1.1 answer; 1.0-shaped answer without `coverage` is invalid in 1.1 and still valid in 1.0); `ModelDescriptor` (valid; prompt text, path, query or extra field refused); the new `Locator` kinds and `authenticity` rule, and that every 1.0 locator is still valid in 1.1; each new `Limitation`, `ErrorCode` and `SafeEvent` (valid; content-bearing extras refused); `IndexStatus`; `ConsentRequest` and `ConsentState` shapes.
+- **Redaction sentinel:** none of the new event types or shapes can carry a free-text field (schema-level check that every new string field is an enumeration, pattern or opaque id).
+- **OpenAPI 1.1:** valid OpenAPI 3.1 by the same validator as 1.0; every `$ref` resolves against the 1.1 document; every 1.0 path and operation id is present and identical; the new paths carry `x-atlas-status: specification-only`; no new path is reachable on the running Core (the runtime still answers `not_found`).
+- **Isolation:** the 1.0 validator (default) never accepts a 1.1-only field.
 
-### 2.6 Egress (policy §10) is not a public API
-The egress gateway is an internal Core tool. Its only external trace is the safe event `egress.decision` `{decision: allow|deny, reason_code, destination_class: search_provider|connector|update_manifest|model_manifest}`: a class, never a host, URL or query.
+## 6. Threat model T1 to T12 as a traceability matrix (no later test is pretended to exist)
+Evidence: **L** = provable on Linux CI, **M** = needs the Mac. Status of every row except "existing" is **pending**. Package names are those of section 7.
 
-### 2.7 Policy data (not code)
-`policy-rules.json`: add source types `documents_index` rules only if the index needs its own grant (proposal: no, it inherits `documents`); keep `finance` and `health` unconfigured in Stage 3 (no ingestion until Stage 5; the Stage 2 `restricted_domains` entries are replaced by owner-authorised grants under G-021 in Stage 5, via a separately reviewed rule change); `mail_attachment` becomes active only when WP3.3b is accepted.
+| # | Threat | Control owner | Implemented by | Test (proposed name; pending unless marked) | Evidence |
+|---|---|---|---|---|---|
+| T1 | Hostile content steers model or widens scope | Core scope from grants only (existing `policy.py`, `gate.py`) | Existing; real-model part in WP3.4 | existing hostile-source tests; `test_real_model_injection_resistance` (M) | L existing; M pending |
+| T2 | Parser bombs, traversal, symlinks, encrypted or huge files | Isolated parser with explicit limits | WP3.2 parser package | `test_parser_limits_end_in_needs_attention` | L |
+| T3 | Index poisoning replayed | Retrieved text labelled untrusted at read time | WP3.2 index package | `test_poisoned_passage_cannot_widen_scope` | L |
+| T4 | Stale grant, cache or index serves revoked content | Revalidation (existing); index and cache invalidation | Existing; index part in WP3.2 | existing revocation tests; `test_revocation_invalidates_index_entries` | L |
+| T5 | Deleted or changed source still cited | `EvidenceRef.version_sha256` (existing) plus deletion propagation | WP3.2 index package | `test_source_change_invalidates_citation_and_index` | L |
+| T6 | Consent route abused by a non-owner client or content | Owner-interactive role and replay protection (specified in WP3.1, built in the consent package) | Consent package | `test_only_owner_interactive_client_can_change_consent` | L |
+| T7 | Spoofed sender or date believed; quoted text misattributed | `authenticity: claimed`, `quoted` flag (schema in WP3.1) | WP3.3 mail package | `test_quoted_text_never_cites_the_sender` | L |
+| T8 | Private data leaves through egress | Typed tools, taint rule, leak check (policy §10) | Egress package; OS isolation in WP3.4 | `test_tainted_task_cannot_exfiltrate`; `test_model_worker_has_no_network` (M) | L / M |
+| T9 | Logs, events or artefacts contain content | SafeEvent allow-list; new events are enumerations (schema in WP3.1) | WP3.1 (shape), each package (use) | schema sentinel test in section 5 (this package); per-package sentinel scans | L |
+| T10 | Index or parser jobs starve interactive work or fill the disk | Bounded concurrency and explicit limits | WP3.2 and WP3.6 | `test_slow_parser_and_full_disk_degrade_explicitly`; real load (M) | L / M |
+| T11 | Real data processed with a weak key provider | Keychain provider required for real data | WP3.6; real Keychain on the Mac | `test_real_data_requires_keychain_provider` (L); real Keychain (M) | L / M |
+| T12 | Crash mid-index or mid-answer duplicates or loses state | Stage 2 checkpoints and idempotency extended to index jobs | WP3.2 index package | `test_index_crash_matrix` | L |
 
-## 3. Threat model (new assets: the real index, parsers, the consent route, egress)
-| # | Threat | Control | Test (L = provable on Linux CI, M = needs the Mac) |
-|---|---|---|---|
-| T1 | Hostile document or mail text steers the model or widens scope | Content is data; Core scope comes only from grants; citations must be retrieved passages | L: hostile fixtures cannot change `source_scope`, cause an action or alter limitations. M: real-model resistance |
-| T2 | Decompression bomb, path traversal, symlink escape, huge or encrypted file | Isolated parser with explicit limits (time, size, depth, files), no network, read-only mount | L: bomb, `../` and symlink fixtures end in `needs_attention`, never silent skip |
-| T3 | Index poisoning: injected text persists in the index and is replayed | Retrieved text is labelled untrusted at read time every time; index holds text only, never instructions or grants | L: poisoned fixture is retrieved and still cannot widen scope |
-| T4 | Stale grant, cache or index serves revoked content | Revalidate at each read and model boundary (Stage 2); revocation invalidates dependent index entries, caches and citations | L: revoke mid-run, mid-index and after answer (extends Stage 2 tests) |
-| T5 | Source deleted or changed but still cited | Version hash in every `EvidenceRef` (Stage 2) plus deletion propagation to index and caches; rebuild on corruption | L: delete, edit and corrupt-index scenarios; stale citation fails closed |
-| T6 | Consent route abused by a non-owner client or by content | `role: owner_interactive` only; signed, fresh, replay-protected request (Stage 2 identity) | L: other client, replayed request and content-driven attempt all rejected and audited |
-| T7 | Spoofed sender or date believed | `authenticity: claimed`; quoted text never attributed to the sender | L: forged-header and quoted-reply fixtures |
-| T8 | Private data leaves through egress (URL, query, path, subdomain, header, image) | Typed tools, taint rule and leak check (policy §10.1), no remote auto-load | L: sentinel secrets in a tainted task are blocked and audited. M: OS-level no-network model worker |
-| T9 | Logs, events or CI artefacts contain content | SafeEvent allow-list; new events are enumerations and counts | L: sentinel scans over the new events, index status and consent audit |
-| T10 | Index or parser jobs starve interactive work or exhaust disk | Bounded concurrency, back-pressure, explicit visible limits | L: injected slow parser and full disk degrade with explicit states. M: real load |
-| T11 | Real owner data processed with a weak key provider | Keychain provider required for real data; file or env provider refused when not in test mode | L: provider-selection tests. M: real Keychain |
-| T12 | Crash mid-index or mid-answer duplicates work or loses state | Stage 2 checkpoints and idempotency extended to index jobs | L: crash matrix over index stages (extract, normalise, index, publish) |
+## 7. Later packages (not WP3.1; each separately reviewed on its exact SHA)
+(a) consent and identity behaviour (routes, grant and revoke lifecycle, owner-interactive enforcement, replay, OS-access discovery); (b) parser adapter and tier-1 index with newest-first ordering and coverage; (c) locators, labels and citation resolution for documents; (d) egress gateway with fakes; (e) Mail (WP3.3), then attachments; (f) model adapter (WP3.4) and the Mac client (WP3.5).
 
-## 4. Test matrix by plan acceptance theme
-Default deny and revocation: T4, T6. Citation integrity and locators: T5, T7. Injection resistance: T1, T3. Coverage and progressive usefulness: new tests that an answer from a partly built index states `searched/total`, that indexing is newest-first per the per-source definition in the plan, and that time-to-first-useful-answer is measured on the synthetic corpus (threshold frozen before the first baseline, plan line 297). Honest failure: `os_access_missing`, `index_unavailable`, `source_unsupported` each produce a user-safe state. Local-only and egress: T8. Redaction: T9. Durability: T12. Evidence labels: every Linux result is "CI-verified"; every M item stays pending until the Mac.
+## 8. Commands and results
+**Baseline at the base (developer-reported, local):** `core` 167 passed on Python 3.13 and 3.11, ruff and mypy clean; `kit` 165 (including `kit/tests/test_architecture.py`), `images` 100, `library` 299, `atlas` 111, `finance` 701. **CI-verified:** `bdfc343` 22 of 22 checks successful; the later heads are not yet complete.
+**Commands for the implementation commit (from `core/`):** `ruff check .`; `mypy src`; `python -m pytest -q -p no:cacheprovider` (Python 3.13 and 3.11); `sha256sum contracts/atlas-contracts.schema.json contracts/openapi.yaml` (must equal the hashes above); from each of `kit/`, `images/`, `library/`, `atlas/`, `finance/`: `python -m pytest -q -p no:cacheprovider`; exact-string mutation checks (alter one 1.0 byte, drop a required 1.1 field, let a 1.1 field validate on 1.0, advertise 1.1 in the runtime): each must fail a test.
 
-## 5. What this proposal does not decide
-The Core language (G-O20), storage and key custody (G-O02/G-O05; the Stage 3 index is additive, rebuildable and encrypted with its own key), packaging (G-O12), or anything about Finance and Health ingestion (Stage 5). It needs no owner decision.
+## 9. Rollback and evidence classification
+**Rollback:** `git revert` of the implementation commit; API 1.0 files, runtime and clients are untouched, so nothing depends on 1.1.
+**Evidence:** contract, schema, negotiation and frozen-hash tests are Linux-provable: developer-reported until GitHub Actions completes for the exact head, then CI-verified. Every M row in section 6 stays pending hardware. No performance claim. No network, no real owner data, no new dependency.
 
-## 6. If accepted: implementation order (each its own reviewed commit)
-1. Schema and OpenAPI 1.1 plus contract tests (no behaviour). 2. Consent routes, identity role, `consent.changed`. 3. Coverage and index-status types with a stub index. 4. Parser adapter and the tier-1 index (WP3.2) test-first on a synthetic corpus. 5. Locators, labels and citation resolution for documents. 6. Egress gateway with fakes. 7. Mail (WP3.3) once the Get Started designation and attachment format matrix are accepted.
-
-## 7. WP3.1 as a bounded work package (requested in PR #8 comment 7050978482)
-**Objective.** Specify and then implement, test-first and without behaviour, the additive API 1.1 contract and the threat-model tests in sections 2 to 4, so every later Stage 3 package builds on a reviewed contract. Mac-independent; synthetic data only.
-
-**Scope (in).** `contracts/atlas-contracts.schema.json` and `contracts/openapi.yaml` (API 1.1: coverage, consent routes, locators, model descriptor, index status, limitations, error codes, safe events); `src/atlas_core/__init__.py` version constants; `src/atlas_core/errors.py` (new user-safe texts); `src/atlas_core/identity.py` (`owner_interactive` role, check only); `src/atlas_core/policy-rules.json` (mail_attachment stays deferred; Finance and Health stay unconfigured); contract tests in `tests/test_contracts.py`; new tests per section 3 that need no new module; `docs/TRACEABILITY.md` and `docs/THREAT_REVIEW.md` rows.
-**Scope (out).** Any index, parser adapter, egress gateway, consent behaviour or model adapter (later packages); the Core language, storage or key custody; anything Mac-only; Finance and Health ingestion; the frozen 1.0 behaviour (it must not change).
-
-**Dependencies.** ChatGPT's WP3.1 brief (this document is input); no owner decision; Stage 2 head as baseline.
-
-**Acceptance criteria (measurable).**
-1. Every 1.0 contract fixture and test passes unchanged against the 1.1 schema (compatibility).
-2. Each new field, endpoint, limitation, error code and safe event has a schema test with a valid and an invalid example; additions are optional in 1.0 responses and required only when the client asks for 1.1.
-3. A 1.1 response carrying a `coverage` state other than `complete` without `indexing_incomplete` fails validation; an answer from a stub index states `searched` and `total`.
-4. `role: owner_interactive` is enforced by a test: any other client calling the consent routes receives `forbidden`, replay and stale requests are rejected (reuses Stage 2 identity tests).
-5. Header locators carry `authenticity: claimed`; a citation into quoted text cannot validate with the sender as its source (test).
-6. New safe events contain only enumerations and counts: the redaction sentinel scan passes over every new event type.
-7. T1 to T12 each map to a named test that is either present or listed as pending for the package that implements it, with its L/M label; `docs/TRACEABILITY.md` and `docs/THREAT_REVIEW.md` are updated.
-8. No new dependency, no network access in the Core, ruff and mypy clean, no function over 50 lines.
-
-**Tests and commands (from `core/` unless stated).** `ruff check .`; `mypy src`; `python -m pytest -q -p no:cacheprovider` on Python 3.13 and 3.11; from each of `kit/`, `images/`, `library/`, `atlas/`, `finance/`: `python -m pytest -q -p no:cacheprovider` (including `kit/tests/test_architecture.py`); exact-string mutation checks for each new rule.
-**Commit plan.** One commit for the contract and its tests, then one per further step in section 6, each reviewed on its exact SHA before the next.
-**Rollback.** Revert the commit; API 1.0 is untouched, so nothing depends on 1.1 until a later package uses it.
-**Evidence classification.** Schema, contract and identity tests: CI-verified once GitHub Actions completes for the exact head, developer-reported before. Real-model resistance (T1), OS-level egress and model-worker isolation (T8), real Keychain (T11), real load (T10): **Mac-only, pending**. No performance claim.
-**Stop conditions.** Stop and report if a required change would alter 1.0 behaviour, needs a new owner decision, or cannot be tested without real owner data or the Mac.
+## 10. Decisions I ask ChatGPT to make
+1. **1.1 mechanism:** delta file merged over the 1.0 document (my proposal; keeps 1.0 bytes frozen and each change visible), or a full second schema file.
+2. **Runtime advertising:** keep `SUPPORTED_VERSIONS = ("1.0",)` in WP3.1 so the Core still refuses `1.1` (my proposal), or advertise `1.1` once the contract exists.
+3. **`coverage` required and `model` optional in 1.1 answers** (my proposal: coverage required now; `model` becomes required when the model adapter exists).
