@@ -168,7 +168,7 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 - Explain what data each integration can access and why.
 - Support token revocation, device revocation and secure recovery workflows.
 - Never expose secrets in model context, logs, notifications or web requests.
-- Security-sensitive changes require explicit approval and a recoverable plan.
+- Routine local security hygiene and reversible settings do not prompt. Approval is limited to the closed list in PRD §4.4; no catch-all approval category is added.
 
 ### 3.16 Memory, preferences and personalisation
 - Retain useful facts, preferences, decisions, routines and ongoing project context.
@@ -221,17 +221,17 @@ The integration catalogue is capability-led, not a promise that every app is alr
 |---|---|---|---|
 | Foundation | Local files and folders | Search, read, extract, cite, progressive index | Organise/rename with undo; never destructive by default |
 | Foundation | Apple Mail | Search/read/summarise/draft; supported attachments after separate acceptance | Send/reply/forward only with exact approval |
-| Foundation | Apple Calendar | Read agenda, conflicts, availability | Create/move/cancel only with approval |
-| Foundation | Reminders/tasks | Read and create proposed tasks | Complete/delete/reprioritise under reversible policy |
+| Stage 3 | Apple Calendar | Read agenda, conflicts, availability | Create/move own events without approval; approval only when an invite/update is sent externally or an action matches the closed approval list |
+| Stage 3 | Reminders/tasks | Read, create, complete and reprioritise with undo | Delete without reliable undo requires approval |
 | Foundation | Public Internet | Search/fetch public pages, compare, cite, freshness checks | Downloads only to controlled staging; no arbitrary executable launch |
-| Wave 2 | Contacts | Resolve people and contact context | Create/edit/share contacts with approval where consequential |
-| Wave 2 | Browser | Research and fill forms to preview | Submit, purchase, book or send only with exact approval |
-| Wave 2 | Notes | Search/read/create notes | Edit/delete with undo; external sharing approval |
-| Wave 2 | Photos/media | Search metadata, describe, organise proposals | Upload/share/delete requires approval |
-| Wave 2 | Finance sources | Read statements, transactions, invoices and investment data; code-checked analysis | Transfers, payments, trades and purchases require approval |
-| Wave 2 | Health sources | Read owner-authorised records and activity; summaries/trends | No diagnosis claims; external sharing requires approval |
-| Wave 3 | Home/IoT | Device state, energy and environmental readings | Reversible control under policy; security/paid changes require approval |
-| Wave 3 | Work platforms | Project/task/mail/document context | Issue/PR/task updates and external posts require policy/approval |
+| Stage 5 | Contacts | Resolve, create and edit local contacts with undo | Sharing/exporting contact data outside the Mac requires approval |
+| Stage 6 | Browser | Research, compare and fill forms to preview | Submit/send/upload, purchase or book only under the closed approval list |
+| Stage 5 | Notes | Search/read/create/edit notes with version history and undo | Delete without reliable undo or share outside the Mac requires approval |
+| Stage 5 | Photos/media | Search, describe, organise and delete with undo | Upload/share outside the Mac requires approval; destructive deletion without undo requires approval |
+| Stage 5 | Finance sources | Read owner-authorised statements, transactions, invoices and investment data; local-model interpretation plus code-checked analysis | Spend, pay, trade, purchase or book only with exact approval |
+| Stage 5 | Health sources | Read owner-authorised records and activity; local-model summaries/trends | No diagnosis claims; upload/share outside the Mac requires approval |
+| Stage 6 | Home/IoT | Device state, energy and environmental readings; reversible device control | Physical access unlock or disabling a safety/security system requires approval; paid changes require approval |
+| Stage 6 | Work platforms | Project/task/mail/document context; local drafts and reversible task updates | External posts/sends/uploads require approval |
 | Wave 3 | Travel providers | Research and itinerary context | Booking, cancellation and payment require exact approval |
 | Later | Messaging/social | Read only where supported and explicitly connected | Send/post/share requires exact approval |
 | Later | Cloud storage | User-owned connector, least privilege | No cloud inference; external storage writes require approval |
@@ -262,13 +262,22 @@ Every delegated task has a bounded objective, source/tool scope, deadline, budge
 
 Owner direction: single-user product; reading, searching, analysing, summarising, drafting and computing should not trigger approval prompts. Approval is reserved for consequential actions with effects outside Atlas or material irreversible change.
 
-Approval required for:
-- Sending, forwarding, publishing, sharing or disclosing information outside the owner's controlled Atlas environment.
-- Spending money, making payments, trades, purchases or paid bookings.
-- Deleting or overwriting source data, destructive migration or irreversible changes.
-- Similar consequential actions where a mistaken execution would be materially costly or difficult to reverse.
+The closed approval list is defined canonically in PRD §4.4 and is intentionally exhaustive. Nothing else triggers an approval prompt. The action matrix below must be kept in sync with that list. Approval preview shows exact action, destination/recipient, content/attachments, amount, date and material terms. Approval is single-use and invalidated by any material change. Reversible local actions use an undo journal.
 
-Approval preview must show the exact action, destination/recipient, content/attachments, amount, date, relevant terms and scope. Approval is single-use, short-lived and invalidated by any material change. Atlas must not ask again for routine read-only work or low-risk internal computation. Reversible local actions should use an undo journal and owner-configured policy.
+| Action | Prompt? | Reason |
+|---|---|---|
+| Read/search/summarise/analyse/draft/compute | No | Routine work |
+| Create/move own calendar event | No | Local reversible change |
+| Send calendar invitation/update | Yes | Sends outside the Mac |
+| Create/edit/rename/organise files or notes with undo | No | Reversible local change |
+| Delete/overwrite with reliable undo | No | Reversible local change |
+| Delete/overwrite without reliable undo; destructive migration | Yes | Irreversible data loss |
+| Send/share/publish/upload outside the Mac | Yes | External disclosure |
+| Spend/pay/trade/purchase/paid booking | Yes | Financial commitment |
+| Unlock external door/disarm alarm/disable safety system | Yes | Physical safety/security boundary |
+| Ordinary device control, reminders, task updates, local settings | No | Not on the closed list |
+
+Acceptance: table-driven tests cover every action above and every action in the integration catalogue. UC-L01 must show zero approval prompts from after Get Started through a read-only answer. A prompt is permitted only for an action explicitly marked Yes above.
 
 ## 8. Release prioritisation
 
@@ -292,3 +301,29 @@ A scenario is “implemented” only when:
 - Performance is measured on the appropriate environment.
 - User documentation and support/recovery steps exist.
 - Evidence is labelled as developer-reported, CI-verified, architect-reviewed or owner-verified.
+
+## 10. Additional scenario coverage added after independent challenge
+
+| ID | Scenario | Expected behaviour | Stage / evidence |
+|---|---|---|---|
+| UC-031 | Conversation-history management | Search, pin, archive and owner-requested deletion of conversations; explain retention and preserve audit where required | Stage 3+; history and deletion tests |
+| UC-032 | Capability discovery | Owner asks “what can Atlas do?”; show available, connected, gated and future capabilities without implying unavailable features work | Stage 3; capability-registry/UI test |
+| UC-033 | Mac-to-iPhone task handoff | Continue a durable task on iOS without duplicating actions or exposing data to an untrusted device | Stage 8; sync/idempotency/device-revocation tests |
+| UC-034 | Accessibility | VoiceOver, keyboard-only, dictation, large text, contrast and reduced-motion paths remain usable | Every client stage; accessibility test matrix |
+| UC-035 | Bulk operation preview | Preview scope, sample and affected count for batch rename/organise; reversible changes have undo; destructive no-undo actions follow PRD approval list | Stage 5+; dry-run/undo tests |
+| UC-036 | Ambient context | User explicitly invokes “summarise what I’m looking at”; no continuous screen capture by default; sensitive fields are not captured without task scope | Later/deferred; explicit invocation and redaction tests |
+| UC-037 | Location/arrival trigger | Run only when an owner-configured location trigger is enabled; disclose platform permission and battery implications | Stage 8/later; trigger/permission tests |
+| UC-038 | External-source watcher | Watch a connected source with a visible cadence/budget; deduplicate changes and stop immediately on disconnect | Stage 6; event/poll-budget tests |
+| UC-039 | Folder-arrival watcher | Notice new files in owner-designated folders; process incrementally and report unsupported files | Stage 3+; file-event/restart tests |
+| UC-040 | Replace the Mac | Restore Atlas on replacement hardware from verified backup; re-enrol device, restore keys safely and reconcile counts/hashes | Stage 4/7; full restore drill |
+| UC-041 | macOS permission reset/upgrade | Detect revoked/reset Full Disk Access or other grants; pause affected source reads and guide the owner once without repeated prompts | Stage 3/7; OS permission reset test |
+| UC-042 | Model/quantisation update | Run frozen answer-quality, citation, safety, latency and resource regression suite before changing default model | Stage 6/7; model release gate |
+| UC-043 | Apple ID/iCloud change | Detect changed account context and connector authentication; do not silently bind a different account | Stage 5+; account identity tests |
+| UC-044 | Data growth and storage pressure | Show source/index/cache usage, keep originals, tier derived data and pause/rebuild caches without silent retention loss | Stage 4; storage budget and pressure tests |
+| UC-045 | Trusted-person/emergency access | Not applicable to the single-user product; no delegated emergency access in current scope | Deferred by single-user boundary |
+| UC-046 | Headless Mac mini reboot and Keychain availability | Keep FileVault enabled. Atlas Core starts as a user LaunchAgent after owner login/unlock; after reboot before login, remote clients show “Mac needs owner sign-in”. Do not enable auto-login or disable FileVault to gain unattended startup. Revisit only with a separately reviewed system-keychain design. | Stage 7; target-Mac reboot/FileVault/Keychain test |
+| UC-047 | Quoted/forwarded sender attribution | Distinguish actual stored sender/header from quoted or forwarded text; never attribute a quoted instruction to the current sender | Stage 3; adversarial Mail fixture |
+| UC-048 | Attachment-borne prompt injection | Treat text in PDF/Office/image/OCR attachments as untrusted; it cannot widen source access or cause actions | Attachment package; hostile-format test suite |
+| UC-049 | Calendar-invite prompt injection | Treat event title, description, attendees and links as untrusted data; they cannot trigger external actions or policy changes | Calendar stage; adversarial invite test |
+
+The scenario register is continuously extensible. A scenario is not accepted until its stage, permission boundary, normal path, failure path and test evidence are defined.
