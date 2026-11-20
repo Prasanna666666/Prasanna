@@ -23,6 +23,7 @@ class StoredSource:
     page_starts: tuple[int, ...] = ()
     blocks: tuple[tuple[int, int], ...] = ()
     parts: dict[str, tuple[int, int]] = field(default_factory=dict)
+    sensitivity: str | None = None  # the TRUSTED label of this source, set by the side that stored it (never by a retriever); None means the type's default
 
     @property
     def version_sha256(self) -> str:

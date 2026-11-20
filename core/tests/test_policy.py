@@ -15,6 +15,7 @@ from conftest import (
     World,
     all_output,
     grant,
+    labels,
     passage,
     request,
 )
@@ -87,11 +88,11 @@ def test_the_model_gate_refuses_an_expired_token_and_the_builder_refuses_a_passa
     assert token is not None and decision["decision"] == "allow"
     from conftest import CORPUS
 
-    context = ContextBuilder().build(token, "q", [passage(CORPUS[0], 0, 10)], T0)
+    context = ContextBuilder(labels()).build(token, "q", [passage(CORPUS[0], 0, 10)], T0)
     with pytest.raises(PolicyViolation):
-        GatedModel(StubModel()).generate(token, context, T0 + timedelta(hours=1))
+        GatedModel(StubModel(), labels()).generate(token, context, T0 + timedelta(hours=1))
     with pytest.raises(PolicyViolation):
-        ContextBuilder().build(token, "q", [passage(CORPUS[4], 0, 10)], T0)
+        ContextBuilder(labels()).build(token, "q", [passage(CORPUS[4], 0, 10)], T0)
 
 
 @pytest.mark.criterion(1)
@@ -114,7 +115,7 @@ def test_gated_retrieval_never_calls_a_retriever_for_a_type_the_token_does_not_a
             calls.append(source_type)
             return []
 
-    GatedRetrieval().fetch(token, Spy(), "q", T0)
+    GatedRetrieval(labels()).fetch(token, Spy(), "q", T0)
     assert calls == ["documents"] and decision["denied"] == [{"source_type": "mail", "reason_code": "no_grant"}]
 
 

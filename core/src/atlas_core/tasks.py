@@ -30,6 +30,7 @@ KEY_ENV, KEY_FILE_ENV = "ATLAS_TASK_KEY", "ATLAS_TASK_KEY_FILE"
 KEYCHAIN_ITEM = "atlas-task-key"  # the dedicated Keychain item that supplies the key on the Mac (provisioning script: not part of this stage)
 STEPS = ("none", "policy_checked", "retrieved", "drafted", "verified")
 TERMINAL = frozenset({"completed", "partially_completed", "failed", "cancelled", "expired"})
+CLOSING_EVENTS = frozenset({"final", "error"})  # the stream event that closes a task: its answer, or its user-safe error
 _ANY_END = {"failed", "cancelled", "expired"}
 TRANSITIONS: dict[str, frozenset[str]] = {
     "requested": frozenset({"policy_checked"} | _ANY_END),
@@ -249,7 +250,7 @@ class TaskStore:
         validate("StreamEvent", full)
         self._conn.execute("INSERT INTO task_events (task_id, seq, payload) VALUES (?,?,?)", (task_id, seq, json.dumps(full)))
 
-    def transition(
+    def transition(  # noqa: PLR0913  (everything that describes one change is committed together, so it is passed together)
         self,
         task_id: str,
         to: str,
@@ -259,13 +260,18 @@ class TaskStore:
         data: dict[str, Any] | None = None,
         reason: str | None = None,
         events: Sequence[dict[str, Any]] = (),
+        answer: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Move a task to a new state if the lifecycle allows it. Atomic: the state, checkpoint, terminal reason AND the stream events that describe the change commit together or not
-        at all, so a crash can never leave a finished task without its final event."""
+        """Move a task to a new state if the lifecycle allows it. Atomic: the state, checkpoint, terminal reason, the stream events that describe the change AND (when given) the
+        answer envelope commit together or not at all, so a crash can never leave a finished task without its closing event, or an answer without its state."""
+        if to in TERMINAL and sorted(e.get("type", "") for e in events if e.get("type") in CLOSING_EVENTS) not in (["error"], ["final"]):
+            raise CoreError("conflict")  # a terminal state is only ever committed together with exactly one closing event (final or error)
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 self._apply(task_id, to, now, step, data, reason)
+                if answer is not None:
+                    self._conn.execute("INSERT OR REPLACE INTO answers (task_id, envelope) VALUES (?,?)", (task_id, json.dumps(answer)))
                 self._fire("after_state")
                 for event in events:
                     self._append_in_txn(task_id, event)
@@ -312,8 +318,10 @@ class TaskStore:
                     self._conn.execute("UPDATE tasks SET cancel_requested=1, updated_at=? WHERE task_id=?", (_iso(now), task_id))
                     if row["state"] in ("requested", "policy_checked", "queued"):
                         self._apply(task_id, "cancelled", now, None, None, "cancelled")
+                        self._fire("after_state")
                         self._append_in_txn(task_id, {"type": "state", "state": "cancelled"})
                         self._append_in_txn(task_id, _error("task_cancelled", task_id))
+                        self._fire("after_events")
                 self._conn.execute("COMMIT")
             except BaseException:
                 self._conn.execute("ROLLBACK")
@@ -349,17 +357,6 @@ class TaskStore:
         return done
 
     # -- events and answers --------------------------------------------------------------------------------------------------------------
-    def append_event(self, task_id: str, event: dict[str, Any]) -> int:
-        """Append a StreamEvent (it may carry content, so it lives only in this encrypted store). Returns its sequence number."""
-        with self._lock:
-            seq = self._conn.execute("SELECT COALESCE(MAX(seq),0)+1 FROM task_events WHERE task_id=?", (task_id,)).fetchone()[0]
-            if seq > self._rules.limit("max_events_per_task"):
-                return seq - 1
-            full = {**event, "seq": seq, "task_id": task_id}
-            validate("StreamEvent", full)
-            self._conn.execute("INSERT INTO task_events (task_id, seq, payload) VALUES (?,?,?)", (task_id, seq, json.dumps(full)))
-            return int(seq)
-
     def events_after(self, task_id: str, after: int) -> list[dict[str, Any]]:
         with self._lock:
             self._row(task_id)

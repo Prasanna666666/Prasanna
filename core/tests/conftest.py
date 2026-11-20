@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from atlas_core.answer import LanguageIn
 from atlas_core.events import SafeLog
 from atlas_core.evidence import StoredSource, sha256_text
-from atlas_core.gate import ModelAnswer, ModelContext, ModelUnavailable
+from atlas_core.gate import ModelAnswer, ModelContext, ModelUnavailable, SourceLabels
 from atlas_core.identity import ClientRegistry, sign_request
 from atlas_core.policy import InMemoryGrants, PolicyEngine
 from atlas_core.service import Deps, FaultInjector, TaskService
@@ -239,3 +239,8 @@ def _everything_logged(caplog: pytest.LogCaptureFixture) -> None:
 
 def parse_events(lines: list[str]) -> list[dict[str, Any]]:
     return [json.loads(line) for line in lines]
+
+
+def labels(store: FixtureStore | None = None) -> SourceLabels:
+    """The trusted labels of the fixture sources (what the gate uses; a retriever's own claim about sensitivity is never read)."""
+    return SourceLabels(store or FixtureStore())

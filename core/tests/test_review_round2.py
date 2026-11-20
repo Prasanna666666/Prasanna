@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 
 import pytest
-from conftest import CORPUS, T0, StubModel, World, grant, passage, request
+from conftest import CORPUS, T0, FixtureStore, StubModel, World, grant, labels, passage, request
 
 from atlas_core.gate import ContextBuilder, GatedModel
 from atlas_core.policy import InMemoryGrants, PermissionRevoked, PolicyEngine, PolicyViolation
@@ -27,7 +27,7 @@ def _dutch_answer(w: World) -> None:
 @pytest.mark.criterion(1)
 def test_an_item_more_sensitive_than_the_grant_is_excluded_at_the_gate_and_disclosed(tmp_path):
     w = World(tmp_path, [grant("documents", sensitivity="medium")])
-    w.retriever.sens = {"doc00001": "high"}  # a highly sensitive document that arrives as source type 'documents'
+    w.sources.sources["doc00001"] = dataclasses.replace(DOC, sensitivity="high")  # a highly sensitive document, labelled by the store that holds it
     _dutch_answer(w)
     record = w.run_new(request(["documents"]))
     sent = {p["evidence"]["source_id"] for ctx in w.model.calls for p in ctx.passages}
@@ -39,7 +39,7 @@ def test_an_item_more_sensitive_than_the_grant_is_excluded_at_the_gate_and_discl
 @pytest.mark.criterion(1)
 def test_the_same_item_is_used_when_the_grant_covers_its_sensitivity(tmp_path):
     w = World(tmp_path, [grant("documents", sensitivity="high")])
-    w.retriever.sens = {"doc00001": "high"}
+    w.sources.sources["doc00001"] = dataclasses.replace(DOC, sensitivity="high")
     record = w.run_new(request(["documents"]))
     assert "doc00001" in {p["evidence"]["source_id"] for ctx in w.model.calls for p in ctx.passages}
     assert "sensitive_items_excluded" not in w.service.answer(record["task_id"])["limitations"]
@@ -51,14 +51,17 @@ def test_the_builder_and_the_model_door_each_refuse_an_item_above_the_grant():
     _, medium = engine.decide(["documents"], T0)
     _, high = PolicyEngine(InMemoryGrants([grant("documents", sensitivity="high")])).decide(["documents"], T0)
     assert medium is not None and high is not None
-    item = {**passage(DOC, 0, 10), "sensitivity": "high"}
+    store = FixtureStore()
+    store.sources[DOC.source_id] = dataclasses.replace(DOC, sensitivity="high")
+    trusted = labels(store)
+    item = passage(DOC, 0, 10)
     with pytest.raises(PolicyViolation):
-        ContextBuilder().build(medium, "q", [item], T0)
-    context = ContextBuilder().build(high, "q", [item], T0)  # legitimately built under the broad grant
+        ContextBuilder(trusted).build(medium, "q", [item], T0)
+    context = ContextBuilder(trusted).build(high, "q", [item], T0)  # legitimately built under the broad grant
     forged = dataclasses.replace(context, permit_id=medium.permit_id)  # then presented with the narrow token and its id
     model = StubModel()
     with pytest.raises(PolicyViolation):
-        GatedModel(model).generate(medium, forged, T0)
+        GatedModel(model, trusted).generate(medium, forged, T0)
     assert model.calls == []
 
 
@@ -96,13 +99,13 @@ def test_the_model_door_with_a_policy_refuses_a_token_whose_grant_was_revoked_af
     engine = PolicyEngine(grants)
     _, token = engine.decide(["documents"], T0)
     assert token is not None
-    context = ContextBuilder().build(token, "q", [passage(DOC, 0, 10)], T0)
+    context = ContextBuilder(labels()).build(token, "q", [passage(DOC, 0, 10)], T0)
     grants._grants.clear()  # revoked while the token (valid for minutes) is still in hand
     model = StubModel()
     with pytest.raises(PermissionRevoked):
-        GatedModel(model, engine).generate(token, context, T0)
+        GatedModel(model, labels(), engine).generate(token, context, T0)
     assert model.calls == []
-    GatedModel(model).generate(token, context, T0)  # without a policy only the token's own snapshot is checked: why the service always passes one
+    GatedModel(model, labels()).generate(token, context, T0)  # without a policy only the token's own snapshot is checked: why the service always passes one
     assert len(model.calls) == 1
 
 

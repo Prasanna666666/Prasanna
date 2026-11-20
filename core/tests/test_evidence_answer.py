@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import CORPUS, DOC_PAGE1, DOC_TEXT, DUTCH_TEXT, MAIL_BODY, FixtureStore, World, evidence, grant, request
+from conftest import CORPUS, DOC_PAGE1, DOC_TEXT, DUTCH_TEXT, MAIL_BODY, FixtureStore, World, evidence, grant, labels, request
 
 from atlas_core.answer import AnswerInput, build_envelope
 from atlas_core.contracts import validate
@@ -171,7 +171,7 @@ def test_context_truncation_and_partial_work_are_disclosed_never_silent():
     tiny = Rules({**load_rules().raw, "limits": {**load_rules().raw["limits"], "context_chars": 20}})
     from conftest import T0, passage
 
-    context = ContextBuilder(tiny).build(token, "q", [passage(DOC, 0, 10, PAGE1), passage(DOC, 0, len(DOC_PAGE1), PAGE1)], T0)
+    context = ContextBuilder(labels(), tiny).build(token, "q", [passage(DOC, 0, 10, PAGE1), passage(DOC, 0, len(DOC_PAGE1), PAGE1)], T0)
     assert context.truncated and len(context.passages) == 1
     envelope = build_envelope(_item("answer", [], truncated=True, partial=True), STORE)
     assert {"context_truncated", "partial_work"} <= set(envelope["limitations"])

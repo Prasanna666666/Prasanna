@@ -15,7 +15,7 @@ from .answer import AnswerInput, build_envelope, denied_envelope, stopped_envelo
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import SourceStore
-from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever
+from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .tasks import STEPS, TERMINAL, TaskStore
 from .values import LanguageIn
@@ -67,8 +67,9 @@ class Deps:
 class TaskService:
     def __init__(self, deps: Deps) -> None:
         self._d = deps
-        self._retrieval, self._builder = GatedRetrieval(), ContextBuilder()
-        self._model = GatedModel(deps.model, deps.policy, deps.clock)
+        labels = SourceLabels(deps.sources)
+        self._retrieval, self._builder = GatedRetrieval(labels), ContextBuilder(labels)
+        self._model = GatedModel(deps.model, labels, deps.policy, deps.clock)
 
     # -- submitting, cancelling, recovering ------------------------------------------------------------------------------------------------
     def submit(self, request: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -109,8 +110,9 @@ class TaskService:
             envelope = stopped_envelope(task_id, denied, confirmed, attempted)
         else:
             envelope = withheld_envelope(task_id, denied, confirmed, attempted)
-        self._d.store.save_answer(task_id, envelope)
-        self._to(task_id, "failed", reason="denied", events=[{"type": "error", "error": user_error("source_denied", task_id)}])
+        self._to(
+            task_id, "failed", reason="denied", events=[{"type": "error", "error": user_error("source_denied", task_id)}], answer=envelope
+        )  # the safe answer commits with the state
 
     def cancel(self, task_id: str) -> dict[str, Any]:
         return self._d.store.request_cancel(task_id, self._d.clock())  # an immediate cancellation and its event commit together
@@ -274,8 +276,9 @@ class TaskService:
         data: dict[str, Any] | None = None,
         reason: str | None = None,
         events: Sequence[dict[str, Any]] = (),
+        answer: dict[str, Any] | None = None,
     ) -> None:
-        """Change state; the state event, a progress event and any extra events are committed in the SAME transaction as the change."""
+        """Change state; the state event, a progress event, any extra events and the answer (when given) are committed in the SAME transaction as the change."""
         d = self._d
         before = d.store.record(task_id)["state"]
         if before == state:
@@ -283,7 +286,7 @@ class TaskService:
         journal: list[dict[str, Any]] = [{"type": "state", "state": state}]
         if step in ("retrieved", "drafted", "verified"):
             journal.append({"type": "progress", "step": step})
-        d.store.transition(task_id, state, d.clock(), step=step, data=data, reason=reason, events=[*journal, *events])
+        d.store.transition(task_id, state, d.clock(), step=step, data=data, reason=reason, events=[*journal, *events], answer=answer)
         d.log.emit("task.transition", "tasks", task_id, state_from=before, state_to=state)
 
     # -- reading (what the API serves) -----------------------------------------------------------------------------------------------------
@@ -293,8 +296,12 @@ class TaskService:
     def answer(self, task_id: str) -> dict[str, Any]:
         """The saved answer, unless a source it was built from is no longer permitted: then the owner gets a plain 'not allowed any more' answer, never the old content.
         'Built from' is every source type of the passages retrieved for the task, not only the cited ones: an uncited draft still came from them."""
-        envelope = self._d.store.answer(task_id)
         record = self._d.store.record(task_id)
+        if record["state"] not in TERMINAL:
+            raise CoreError(
+                "conflict"
+            )  # an answer is served only once the task has finished: a saved envelope of an unfinished task is a checkpoint, not a result
+        envelope = self._d.store.answer(task_id)
         if record["terminal_reason"] == "denied":
             return envelope  # already a safe answer (nothing searched, stopped, or withheld): it carries no source content
         scope = record["source_scope"]

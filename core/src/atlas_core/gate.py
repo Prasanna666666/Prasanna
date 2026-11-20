@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
+from .evidence import SourceStore
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .rules import Rules, load_rules
 from .values import LanguageIn
@@ -20,6 +21,23 @@ _CONTEXT_MINT = object()
 
 class Retriever(Protocol):
     def search(self, source_type: str, query: str) -> Iterable[dict[str, Any]]: ...
+
+
+class SourceLabels:
+    """The trusted sensitivity of a passage. It is read from the source store (written by the side that stored the source, immutable per version) and NEVER from what a retriever
+    returned: a retriever cannot make a sensitive item look less sensitive. An item whose source is unknown to the store, or whose source type disagrees with the one it claims,
+    has no label, and an item without a label is never covered by any grant (it fails closed)."""
+
+    def __init__(self, sources: SourceStore, rules: Rules | None = None) -> None:
+        self._sources, self._rules = sources, rules or load_rules()
+
+    def of(self, passage: dict[str, Any]) -> str | None:
+        claimed = passage["evidence"]
+        source = self._sources.get(claimed["source_id"])
+        if source is None or source.source_type != claimed["source_type"]:
+            return None
+        label = source.sensitivity or self._rules.sensitivity_of(source.source_type)
+        return label if label in self._rules.raw["sensitivity_order"] else None
 
 
 class ModelUnavailable(Exception):
@@ -59,6 +77,9 @@ class Retrieved:
 
 
 class GatedRetrieval:
+    def __init__(self, labels: SourceLabels) -> None:
+        self._labels = labels
+
     def fetch(
         self,
         token: PermitToken,
@@ -83,7 +104,7 @@ class GatedRetrieval:
             for passage in retriever.search(source_type, query):
                 if not token.allows(passage["evidence"]["source_type"], moment):
                     raise PolicyViolation("retriever_returned_denied_source")
-                if not token.allows_item(passage["evidence"]["source_type"], passage.get("sensitivity"), moment):
+                if not token.allows_item(passage["evidence"]["source_type"], self._labels.of(passage), moment):
                     excluded += 1
                     continue
                 out.append(passage)
@@ -91,14 +112,14 @@ class GatedRetrieval:
 
 
 class ContextBuilder:
-    def __init__(self, rules: Rules | None = None) -> None:
-        self._budget = (rules or load_rules()).limit("context_chars")
+    def __init__(self, labels: SourceLabels, rules: Rules | None = None) -> None:
+        self._labels, self._budget = labels, (rules or load_rules()).limit("context_chars")
 
     def build(self, token: PermitToken, question: str, passages: Sequence[dict[str, Any]], now: datetime) -> ModelContext:
         kept: list[dict[str, Any]] = []
         used = 0
         for passage in passages:
-            if not token.allows_item(passage["evidence"]["source_type"], passage.get("sensitivity"), now):
+            if not token.allows_item(passage["evidence"]["source_type"], self._labels.of(passage), now):
                 raise PolicyViolation("passage_not_permitted")
             if used + len(passage["text"]) > self._budget:
                 continue  # dropped, and said so: truncated is carried to the answer's limitations
@@ -110,8 +131,8 @@ class ContextBuilder:
 class GatedModel:
     """The one door to a model. It re-checks the token, and (with a policy) the grants as they are now, so a model is never called under an expired, missing or revoked permission."""
 
-    def __init__(self, model: ModelGateway, policy: PolicyEngine | None = None, clock: Callable[[], datetime] | None = None) -> None:
-        self._model, self._policy, self._clock = model, policy, clock
+    def __init__(self, model: ModelGateway, labels: SourceLabels, policy: PolicyEngine | None = None, clock: Callable[[], datetime] | None = None) -> None:
+        self._model, self._labels, self._policy, self._clock = model, labels, policy, clock
 
     def generate(self, token: PermitToken, context: ModelContext, now: datetime) -> ModelAnswer:
         moment = self._clock() if self._clock is not None else now
@@ -120,7 +141,7 @@ class GatedModel:
         if context.permit_id != token.permit_id:
             raise PolicyViolation("context_built_under_another_authorisation")
         for passage in context.passages:  # re-checked at the door itself: a context carried over from a broader token cannot pass
-            if not token.allows_item(passage["evidence"]["source_type"], passage.get("sensitivity"), moment):
+            if not token.allows_item(passage["evidence"]["source_type"], self._labels.of(passage), moment):
                 raise PolicyViolation("passage_not_permitted")
         if self._policy is not None:
             current, denied = self._policy.revalidate(token, moment)

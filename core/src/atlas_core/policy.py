@@ -53,7 +53,9 @@ class PermitToken:
     expires_at: datetime
     decision: dict[str, Any] = field(repr=False)
     permit_id: str = field(default_factory=lambda: uuid.uuid4().hex)  # identifies this one authorisation: a context is bound to it
-    max_sensitivity: Mapping[str, str] = field(default_factory=dict, repr=False)  # per source type: the most sensitive item the grant covers
+    grants: Mapping[str, tuple[str, str]] = field(
+        default_factory=dict, repr=False
+    )  # per source type: (grant id, the most sensitive item that grant covers) AT MINT
     order: tuple[str, ...] = field(default=(), repr=False)  # sensitivity order, lowest first
     _mint: object = field(repr=False, default=None)
 
@@ -65,12 +67,11 @@ class PermitToken:
         return source_type in self.permitted and now < self.expires_at
 
     def allows_item(self, source_type: str, sensitivity: str | None, now: datetime) -> bool:
-        """The source type is permitted AND an item of this sensitivity is covered by the grant. No sensitivity means the type's default, which was already judged."""
-        if not self.allows(source_type, now):
+        """The source type is permitted AND an item of this sensitivity is covered by the grant. The sensitivity must be the TRUSTED label of the item (from the source store, see
+        gate.SourceLabels); a missing or unknown label is never covered, so an unlabelled item fails closed."""
+        if not self.allows(source_type, now) or sensitivity not in self.order:
             return False
-        if sensitivity is None:
-            return True
-        return self.order.index(sensitivity) <= self.order.index(self.max_sensitivity[source_type])
+        return self.order.index(sensitivity) <= self.order.index(self.grants[source_type][1])
 
 
 def _parse(stamp: str | None) -> datetime | None:
@@ -86,13 +87,13 @@ class PolicyEngine:
         permitted: list[str] = []
         denied: list[dict[str, str]] = []
         grant_ids: list[str] = []
-        ceilings: dict[str, str] = {}
+        bound: dict[str, tuple[str, str]] = {}
         for source_type in dict.fromkeys(requested):
             reason, grant_id, ceiling = self._judge(source_type, now, purpose)
             if reason == "granted":
                 permitted.append(source_type)
                 grant_ids.append(grant_id or "")
-                ceilings[source_type] = ceiling or ""
+                bound[source_type] = (grant_id or "", ceiling or "")
             else:
                 denied.append({"source_type": source_type, "reason_code": reason})
         decision: dict[str, Any] = {
@@ -108,15 +109,19 @@ class PolicyEngine:
             return decision, None
         expiry = now + timedelta(seconds=self._rules.limit("token_seconds"))
         order = tuple(self._rules.raw["sensitivity_order"])
-        return decision, PermitToken(frozenset(permitted), expiry, decision, max_sensitivity=ceilings, order=order, _mint=_MINT)
+        return decision, PermitToken(frozenset(permitted), expiry, decision, grants=bound, order=order, _mint=_MINT)
 
     def revalidate(self, token: PermitToken, now: datetime, purpose: str = PURPOSE) -> tuple[frozenset[str], list[dict[str, str]]]:
         """Re-check, against the grants as they are NOW, every source type the token was minted for. Used immediately before a source is read and again at the model door,
-        so a revocation after the token was minted takes effect before anything more is read or sent."""
+        so a change after the token was minted takes effect before anything more is read or sent. A source type stays valid only while the SAME grant (its identity) with the SAME
+        ceiling still allows it: a revoke followed by a new grant, or a changed scope or ceiling, ends the token's authority for that type (reported as grant_revoked), even
+        though the type itself would still be allowed under the new grant. A token never gains anything from a broader or newer grant."""
         still: set[str] = set()
         denied: list[dict[str, str]] = []
         for source_type in sorted(token.permitted):
-            reason, _, _ = self._judge(source_type, now, purpose)
+            reason, grant_id, ceiling = self._judge(source_type, now, purpose)
+            if reason == "granted" and token.grants.get(source_type) != (grant_id, ceiling):
+                reason = "grant_revoked"  # the grant this authorisation was minted under is gone or changed
             if reason == "granted":
                 still.add(source_type)
             else:

@@ -8,7 +8,7 @@ from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
-from conftest import CORPUS, KEY, SENTINEL_DOC, T0, StubModel, World, grant, passage, request
+from conftest import CORPUS, KEY, SENTINEL_DOC, T0, StubModel, World, grant, labels, passage, request
 
 from atlas_core.gate import ContextBuilder, GatedModel
 from atlas_core.policy import InMemoryGrants, PolicyEngine, PolicyViolation
@@ -94,9 +94,9 @@ def _tokens(*grants_):
 def test_a_context_built_under_a_broad_token_cannot_be_used_with_a_narrow_one():
     broad, narrow = _tokens(grant("documents"), grant("mail"))
     assert broad is not None and narrow is not None and broad.permit_id != narrow.permit_id
-    context = ContextBuilder().build(broad, "q", [passage(DOC, 0, 10), passage(MAIL, 0, 10)], T0)
+    context = ContextBuilder(labels()).build(broad, "q", [passage(DOC, 0, 10), passage(MAIL, 0, 10)], T0)
     model = StubModel()
-    gated = GatedModel(model)
+    gated = GatedModel(model, labels())
     for attempt in (context, dataclasses.replace(context, permit_id=narrow.permit_id)):  # even a copy that claims the narrow token's id
         with pytest.raises(PolicyViolation):
             gated.generate(narrow, attempt, T0)
@@ -108,12 +108,12 @@ def test_a_context_built_under_a_broad_token_cannot_be_used_with_a_narrow_one():
 @pytest.mark.criterion(1)
 def test_a_token_that_expired_or_belongs_to_another_decision_never_reaches_the_model():
     broad, narrow = _tokens(grant("documents"), grant("mail"))
-    context = ContextBuilder().build(narrow, "q", [passage(DOC, 0, 10)], T0)
+    context = ContextBuilder(labels()).build(narrow, "q", [passage(DOC, 0, 10)], T0)
     model = StubModel()
     with pytest.raises(PolicyViolation):
-        GatedModel(model).generate(broad, context, T0)  # same scope or broader, but a different authorisation
+        GatedModel(model, labels()).generate(broad, context, T0)  # same scope or broader, but a different authorisation
     with pytest.raises(PolicyViolation):
-        GatedModel(model).generate(narrow, context, T0 + timedelta(hours=1))
+        GatedModel(model, labels()).generate(narrow, context, T0 + timedelta(hours=1))
     assert model.calls == []
 
 
