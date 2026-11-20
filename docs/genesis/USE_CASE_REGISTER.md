@@ -80,7 +80,7 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 ### 3.3 Calendar, time and tasks
 - Read agenda, identify conflicts, travel buffers and preparation time.
 - Find candidate meeting slots across availability and constraints.
-- Create, move or cancel events only under the consequential-action approval rule.
+- Create, move and cancel the owner's own calendar events without approval. Sending an invitation or update outside the Mac requires approval under PRD §4.4.
 - Turn messages and documents into tasks with source links, owner, due date and confidence.
 - Maintain projects, dependencies, recurring tasks and waiting-for lists.
 - Detect schedule overload and propose realistic rescheduling.
@@ -122,7 +122,7 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 - Recommend heating/device schedules with cost, comfort and safety trade-offs.
 - Detect abnormal energy use, offline devices or environmental patterns.
 - Execute reversible device changes within owner-defined automation; explain and log them.
-- Ask approval for purchases, paid services, security changes or consequential access changes.
+- Purchases, payments and paid services require approval only because they spend money. Only unlocking external physical access or disabling a safety/security system requires approval under the physical-security category; other local security or access-setting changes remain prompt-free unless they also match another category in PRD §4.4.
 - Keep platform-specific integrations behind adapters; never claim HomeKit or device control until tested.
 
 ### 3.8 Travel and mobility
@@ -141,7 +141,7 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 - Draft proposals, emails, meeting agendas and status updates.
 - Track blockers, owners and due dates; escalate only material risks.
 - Coordinate specialist work with explicit task contracts and independent verification.
-- Never merge, deploy, publish or change production systems without the required approval and release controls.
+- Apply release controls and tests to merges, deployments and production changes. Approval is required only when the specific operation matches PRD §4.4 (for example, publishing externally or a destructive change without reliable undo); ordinary local reversible development actions do not prompt.
 
 ### 3.10 Research, learning and decision support
 - Search the web, compare primary sources, assess recency and produce cited briefs.
@@ -172,7 +172,7 @@ A scenario is not complete until its happy path, ambiguity, denial, partial-data
 - Prepare forms and evidence packs; preserve source documents.
 - Research current official procedures and cite the relevant authority.
 - Flag when professional legal/tax advice is needed.
-- Submitting forms, signing, paying fees or making declarations requires exact-action approval.
+- Submitting a form or declaration to an external recipient requires approval because information is sent outside the Mac. Paying a fee requires approval because it spends money. A local draft or signature preparation is prompt-free; a signature alone is not an additional approval category unless the operation also matches PRD §4.4.
 
 ### 3.14 Photos, media and personal archive
 - Search and organise photos by date, place, event and owner-provided labels.
@@ -341,7 +341,7 @@ A scenario is “implemented” only when:
 | UC-043 | Apple ID/iCloud change | Detect changed account context and connector authentication; do not silently bind a different account | Stage 5+; account identity tests |
 | UC-044 | Data growth and storage pressure | Show source/index/cache usage, keep originals, tier derived data and pause/rebuild caches without silent retention loss | Stage 4; storage budget and pressure tests |
 | UC-045 | Trusted-person/emergency access | Not applicable to the single-user product; no delegated emergency access in current scope | Deferred by single-user boundary |
-| UC-046 | Headless Mac mini reboot and Keychain availability | Keep FileVault enabled. Atlas Core starts as a user LaunchAgent after owner login/unlock; after reboot before login, remote clients show “Mac needs owner sign-in”. Do not enable auto-login or disable FileVault to gain unattended startup. Revisit only with a separately reviewed system-keychain design. | Stage 7; target-Mac reboot/FileVault/Keychain test |
+| UC-046 | Headless Mac mini reboot and Keychain availability | Keep FileVault enabled. Atlas Core starts as a user LaunchAgent after owner login/unlock; after reboot before login, remote clients show “Mac needs owner sign-in”. This means Atlas is unavailable from iPhone after a reboot or macOS update until the owner signs in locally; while travelling, an unattended reboot may leave it unavailable for the rest of the trip. Do not enable auto-login or disable FileVault to gain unattended startup. A system-keychain alternative must be separately threat-modelled and owner-approved. | Stage 7; target-Mac reboot/FileVault/Keychain test plus authenticated-update restart test |
 | UC-047 | Quoted/forwarded sender attribution | Distinguish actual stored sender/header from quoted or forwarded text; never attribute a quoted instruction to the current sender | Stage 3; adversarial Mail fixture |
 | UC-048 | Attachment-borne prompt injection | Treat text in PDF/Office/image/OCR attachments as untrusted; it cannot widen source access or cause actions | Attachment package; hostile-format test suite |
 | UC-049 | Calendar-invite prompt injection | Treat event title, description, attendees and links as untrusted data; they cannot trigger external actions or policy changes | Calendar stage; adversarial invite test |
