@@ -18,7 +18,7 @@ Atlas is one native Apple application with a local, owner-controlled Core runtim
 - **Core:** a local macOS-hosted modular monolith behind a versioned, language-neutral API. The long-term Core implementation language remains an ADR decision; use a narrow reference implementation only where needed to validate contracts. Do not commit to Python or Swift by assumption.
 - **Persistence:** SQLite as the transactional system of record, accessed through GRDB from Swift where appropriate. Use explicit migrations, WAL, foreign keys, integrity checks and backup/restore tests. Do not use a vector database as the source of truth.
 - **Search:** SQLite FTS5 for lexical search; a replaceable vector-index adapter for semantic retrieval; deterministic metadata filters and optional relationship traversal. Hybrid ranking is explicit and evaluated.
-- **Inference:** local-only Intelligence Gateway with replaceable runtime adapters. Benchmark MLX/MLX Swift, llama.cpp and applicable Apple-native runtimes on the actual target Mac. No cloud inference or silent fallback. Select the default runtime/model only from reproducible measurements.
+- **Inference:** local-only Intelligence Gateway using the owner-selected Apple MLX runtime, behind a replaceable adapter boundary. Benchmark the `mlx-lm` (Python) and `mlx-swift-lm` (Swift) integration paths on the actual target Mac; benchmark other runtimes only as bounded risk checks, not as equal selection candidates. Changing away from MLX requires an explicit owner decision. The benchmark selects the model, quantisation, context and task routing—not the runtime. No cloud inference or silent fallback.
 - **Orchestration:** Atlas-owned deterministic workflow/state-machine engine backed by SQLite jobs, checkpoints, leases and an outbox. Do not add Temporal, LangGraph, CrewAI or a distributed workflow server to a single-user desktop product unless measured requirements later justify them.
 - **Connectors:** capability-scoped adapters; OAuth secrets in Keychain; read-only by default; explicit source designation; durable incremental sync; source provenance retained.
 - **Actions:** a single Action Gateway enforces permissions, approval, idempotency and audit. Models never execute tools directly.
@@ -199,7 +199,7 @@ Full JSON Schemas are a required generated artefact in the API contract package;
 ## 7. Data architecture and persistence
 
 ### 7.1 System of record
-Use SQLite for transactional metadata and durable state. Recommendation: GRDB for Swift-facing migrations, typed queries and transaction handling; benchmark it against direct SQLite for critical paths. SQLite is available across Apple platforms and supports a shared portability strategy (Apple structured-data guidance: https://developer.apple.com/documentation/technologyoverviews/structured-data-models).
+Use SQLite for transactional metadata and durable state as the logical storage direction. GRDB is a conditional recommendation only if/when the Mac-host Core language is decided to be Swift; if Core remains Python or another language, select the appropriate maintained SQLite binding after the G-O20 decision. The current Stage 2 reference task store uses SQLCipher with a separately managed key; that implementation is evidence to assess, not an automatic target-storage decision. Select the at-rest encryption mechanism, key ownership/rotation and backup treatment in the G-O02 storage/encryption ADR before production adoption. SQLite is available across Apple platforms and supports a shared portability strategy (Apple structured-data guidance: https://developer.apple.com/documentation/technologyoverviews/structured-data-models).
 
 Use:
 - WAL mode for concurrent readers and serialized writers.
@@ -358,13 +358,11 @@ Finance ingestion, storage, calculations and query resolution live behind a dete
 No model decides its own permission or selects arbitrary tools. Routing policy is deterministic, versioned and inspectable. The user can see which model answered.
 
 ### 10.3 Runtime selection
-Candidate runtime arms:
-1. MLX / MLX Swift — likely strong Apple Silicon integration; evaluate packaging, supported architectures, model ecosystem, memory pressure and maintenance.
-2. llama.cpp — broad model/quantisation coverage and mature portability; evaluate speed, tool-call reliability and integration complexity.
-3. Apple-native Core ML / current Apple on-device model APIs — evaluate supported model size, export constraints, language/task coverage and future iOS parity.
-4. Other runtimes only if they demonstrate a measurable advantage and acceptable maintenance/security.
+**Selected runtime: Apple MLX (owner decision G-020).** This is not an open runtime-selection bake-off. Benchmark the two relevant integration paths—`mlx-lm` (Python) and `mlx-swift-lm` (Swift)—against the same candidate models and workload on the actual target Mac. The benchmark determines the viable model, quantisation, context, routing and integration path; it does not silently reverse the owner's MLX decision.
 
-**Architecture recommendation:** keep `InferenceRuntime` protocol independent of the UI, Core API and domain modules. The first production runtime is selected only after target-Mac benchmarks. A second runtime is not added merely for theoretical redundancy. No cloud adapter is shipped.
+`llama.cpp`, Core ML and other runtimes may be examined only as bounded risk/feasibility checks where a concrete compatibility or performance concern warrants it. They are not equal candidate arms and must not become the production runtime without an explicit owner decision to change G-020.
+
+**Architecture rule:** keep `InferenceRuntime` protocol independent of the UI, Core API and domain modules. No cloud adapter is shipped.
 
 ### 10.4 Model descriptor and lifecycle
 Descriptor includes model artifact hash, license, architecture, quantisation, context, tokenizer, supported modalities, structured-output/tool capability, language scores, measured RAM, cold/warm load time, TTFT, prefill/decode throughput and runtime compatibility.
@@ -491,7 +489,7 @@ These are initial design targets, not measured claims. Revise only with evidence
 | Restart integrity | Zero lost committed outputs and zero duplicate records across fault suite | Automated tests |
 | Availability | App/Core recover from ordinary crash/reboot without manual database repair in ≥99.9% test cycles | Repeated fault tests |
 
-The local-model SLOs may be infeasible for a 27B-class model on 32 GB. If so, do not fake compliance: define task-specific quality/latency trade-offs, use a smaller model for fast paths, or revise the hardware profile. The user must see which model answered.
+The local-model SLOs may be infeasible for a 27B-class model on 32 GB. If so, do not fake compliance: present measured task-specific quality/latency trade-offs and return the proposed fallback model class, smaller fast-path model, or hardware-profile change to the owner for explicit approval. Do not silently downsize, alter the routing policy or revise the hardware target. The user must see which model answered.
 
 ### 14.3 Quality evaluation
 - Retrieval: Recall@5/10, Precision@5, MRR/nDCG, stale-source rate, duplicate rate.
@@ -565,6 +563,22 @@ Before migration:
 8. Obtain owner approval for cutover.
 9. Cut over with rollback plan and post-migration verification.
 10. Retire old app shells only after data and workflow acceptance.
+
+### 18.1 Stage 2 reference implementation disposition (initial mapping)
+
+This mapping records what exists in `core/` at the Stage 2 foundation. It does not approve wholesale reuse or make the Python implementation an architectural constraint. Final dispositions require the relevant ADRs, target-Mac verification and migration evidence.
+
+| Existing Stage 2 mechanism | Initial disposition | Conditions / rationale |
+|---|---|---|
+| OpenAPI 3.1 / JSON Schema API 1.0 contract | **Reuse as the current contract baseline** | Preserve compatibility; any later contract evolution is versioned and reviewed. |
+| Python `atlas_core` reference implementation and its module boundaries | **Reference-only pending G-O20** | Retain as executable contract/policy evidence; do not commit to Python as the long-term Core language or rewrite before benchmark and signed/notarised packaging evidence. |
+| Core policy gate and sensitivity/revocation enforcement | **Reference-only; security properties must be preserved** | Reuse or reimplement only after mapping each control to the target architecture and proving equivalent boundary tests. |
+| SQLCipher durable task store, key separation, checkpoints and atomic state/event transitions | **Reference-only pending G-O02** | Assess schema, encryption, key lifecycle, backup/restore and migration; do not assume SQLCipher or its current key handling is the final storage design. |
+| Signed-request client identity and request authentication | **Reference-only pending macOS verification** | Real Keychain custody, `LOCAL_PEERCRED` peer binding, revocation and packaging remain unverified on the target Mac. |
+| Streaming, cancellation, API versioning and regression tests | **Reuse as behavioural/contract evidence where compatible** | Preserve tested semantics; reconcile with the target API and UI event model before implementation. |
+| Linux MLX stub and benchmark scaffolding | **Reference-only** | Linux CI does not validate Apple MLX runtime behaviour or target-Mac performance. |
+
+No Stage 2 component is automatically promoted to production architecture by this table. The mapping is an input to the relevant ADRs and later authorised implementation plan.
 
 ## 19. Architecture decisions required before implementation
 
