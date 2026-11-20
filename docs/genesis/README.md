@@ -26,11 +26,11 @@ The existing application, its tests, security controls, data stores and PR revie
 9. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — owner-accepted shared Swift/SwiftUI application boundary; Core language remains open under G-O20.
 10. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — owner-authorised bounded implementation scope, contracts, acceptance criteria and stop conditions.
 11. [Detailed low-level technical design](LOW_LEVEL_DESIGN.md) — consolidated architecture-review baseline; recommendations only, not implementation authority.
-12. [Stage 3 execution plan](STAGE-3-EXECUTION-PLAN.md) — staged implementation plan, owner gates, acceptance criteria and stop conditions; planning only, not implementation authorisation.
+12. [Stage 3 execution plan](STAGE-3-EXECUTION-PLAN.md) — owner-authorised staged implementation plan, work packages, acceptance criteria and stop conditions.
 13. [Use-case and scenario register](USE_CASE_REGISTER.md) — cross-domain capabilities, interaction modes, lifecycle cases and integrations.
 14. [Internet and network policy](INTERNET_AND_NETWORK_POLICY.md) — public web access, data egress, connector credentials, downloads and approval boundaries.
 15. [Stage 3 baseline audit](STAGE-3-BASELINE-AUDIT.md) — exact repository inventory, reuse map, implementation gaps and Mac-independent/Mac-dependent evidence.
-16. [Stage 3 contract delta](STAGE-3-CONTRACT-DELTA.md) — proposed additive API 1.1, source-grant lifecycle, evidence/model metadata and security acceptance matrix.
+16. [Stage 3 contract delta](STAGE-3-CONTRACT-DELTA.md) — superseded historical proposal; WP3.1 authority is `core/docs/CONTRACT_1_1.md`.
 
 The sole delivery sequence is TARGET_ARCHITECTURE.md §11. Stage 3 is the first owner-tryable Mac application; later stages are mapped to scenario IDs and first-tryable outcomes there.
 
