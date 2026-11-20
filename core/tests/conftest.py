@@ -87,13 +87,14 @@ class StubRetriever:
     store: FixtureStore
     calls: list[str] = field(default_factory=list)
     misbehave: str | None = None
+    only: set[str] | None = None  # return passages only for these source types (the others are searched but find nothing)
 
     def search(self, source_type: str, query: str) -> list[dict[str, Any]]:
         self.calls.append(source_type)
         wanted = self.misbehave or source_type
         out = []
         for src in self.store.sources.values():
-            if src.source_type != wanted:
+            if src.source_type != wanted or (self.only is not None and src.source_type not in self.only):
                 continue
             if src.page_starts:
                 out.append(passage(src, 0, len(DOC_PAGE1), {"kind": "page", "page": 1}))

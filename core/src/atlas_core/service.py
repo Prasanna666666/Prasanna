@@ -99,8 +99,9 @@ class TaskService:
         step, data = self._d.store.checkpoint(task_id)
         rank = STEPS.index(step)
         attempted = frozenset(data.get("retrieval_started", []))
-        # CONFIRMED retrieval means the retrieval step completed and was durably recorded (passages saved): then every source searched is known. A marker alone proves only an attempt.
-        confirmed = attempted | frozenset(p["evidence"]["source_type"] for p in data["passages"]) if "passages" in data else frozenset()
+        # CONFIRMED means retrieved content from that source type is durably recorded (it appears in the saved passages). The marker alone proves only that a search was attempted:
+        # a source that returned nothing, or whose passages were never saved, stays 'attempted'; it is never promoted to confirmed.
+        confirmed = frozenset(p["evidence"]["source_type"] for p in data.get("passages", []))
         if rank < STEPS.index("retrieved") and not attempted:
             envelope = denied_envelope(task_id, requested, denied)
         elif rank < STEPS.index("drafted"):

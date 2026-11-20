@@ -299,3 +299,24 @@ def test_a_crash_before_the_search_starts_is_still_nothing_searched(tmp_path):
     w.service.run(record["task_id"])
     answer = w.service.answer(record["task_id"])
     assert answer["answer"].startswith("Nothing was searched") and "withheld_sources" not in answer
+
+
+@pytest.mark.criterion(9)
+@pytest.mark.parametrize(("only", "confirmed", "attempted"), [(set(), set(), {"documents", "mail"}), ({"documents"}, {"documents"}, {"mail"})])
+def test_only_source_types_actually_represented_in_the_saved_passages_are_confirmed(tmp_path, only, confirmed, attempted):
+    w = _world(tmp_path)
+    w.retriever.only = only  # both types are searched; the retriever returns passages for only some of them (or none)
+    record, _ = w.service.submit(request(["documents", "mail"]))
+    w.faults.armed.add("after:retrieved")  # the retrieval step completed and was saved
+    with pytest.raises(SimulatedCrash):
+        w.service.run(record["task_id"])
+    step, data = w.store.checkpoint(record["task_id"])
+    assert step == "retrieved" and data["retrieval_started"] == ["documents", "mail"]
+    assert {p["evidence"]["source_type"] for p in data["passages"]} == confirmed
+    w.restart()
+    w.grants._grants.clear()
+    w.service.run(record["task_id"])
+    answer = w.service.answer(record["task_id"])
+    assert {n["source_type"] for n in answer["withheld_sources"]} == confirmed  # nothing is promoted to confirmed because it was merely attempted
+    assert {n["source_type"] for n in answer["search_attempted_sources"]} == attempted and answer["not_searched"] == []
+    assert answer["answer"].startswith("The task was stopped") and "Nothing was searched" not in answer["answer"]
