@@ -17,7 +17,7 @@ from email.message import Message
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
-from .api import MAX_BODY_BYTES, CoreApi, Request, framing_error
+from .api import MAX_BODY_BYTES, CoreApi, Request, Response, framing_error
 
 SOL_LOCAL, LOCAL_PEERCRED = 0, 0x001  # macOS
 XUCRED_FORMAT = "=II"  # cr_version, cr_uid (the groups that follow are not needed)
@@ -56,69 +56,81 @@ def declared_length(headers: Message) -> int | None:
     return length if length <= MAX_BODY_BYTES else None
 
 
-def make_handler(api: CoreApi, allowed_uids: Iterable[int], read_timeout: float = READ_TIMEOUT) -> type[BaseHTTPRequestHandler]:
-    allowed = frozenset(allowed_uids)
+class LocalHandler(BaseHTTPRequestHandler):
+    """One connection: peer check, request framing, the API call, the reply. The API, the allowed users and the read timeout are set by `make_handler`."""
 
-    class Handler(BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
-        timeout = read_timeout  # a client that stops sending (headers or declared body) is dropped instead of holding a thread forever
+    protocol_version = "HTTP/1.1"
+    api: CoreApi
+    allowed: frozenset[int] = frozenset()
 
-        def setup(self) -> None:
-            super().setup()
-            uid = peer_uid(self.request)
-            self._peer_ok = uid is not None and uid in allowed
+    def setup(self) -> None:
+        super().setup()
+        uid = peer_uid(self.request)
+        self._peer_ok = uid is not None and uid in self.allowed
 
-        def log_message(self, format: str, *args: object) -> None:
-            return
+    def log_message(self, format: str, *args: object) -> None:
+        return
 
-        def _serve(self) -> None:
-            if not self._peer_ok:
-                self.send_response(403)
-                self.send_header("content-length", "0")
-                self.end_headers()
-                return
-            length = declared_length(self.headers)
-            if length is None:
-                self._refuse()
-                return
-            try:
-                body = self.rfile.read(length) if length else b""
-            except OSError:  # includes the read timeout: the client did not send what it declared
-                self.close_connection = True
-                return
-            if len(body) != length:  # the client closed early
-                self.close_connection = True
-                return
-            response = api.handle(Request(self.command, self.path, dict(self.headers.items()), body))
-            self.send_response(response.status)
-            for key, value in response.headers.items():
-                self.send_header(key, value)
-            if response.stream is None:
-                self.send_header("content-length", str(len(response.body)))
-                self.end_headers()
-                self.wfile.write(response.body)
-                return
-            self.send_header("connection", "close")
+    def _serve(self) -> None:
+        if not self._peer_ok:
+            self.send_response(403)
+            self.send_header("content-length", "0")
             self.end_headers()
-            for chunk in response.stream:
-                self.wfile.write(chunk)
-                self.wfile.flush()
-            self.close_connection = True
+            return
+        length = declared_length(self.headers)
+        if length is None:
+            self._refuse()
+            return
+        body = self._read_body(length)
+        if body is None:
+            self.close_connection = True  # the client stopped sending, or closed early, before the declared body arrived
+            return
+        response = self.api.handle(Request(self.command, self.path, dict(self.headers.items()), body))
+        self._reply(response)
 
-        def _refuse(self) -> None:
-            """Bad framing: a fixed client error, then the connection is closed (an unread body would otherwise be mistaken for the next request)."""
-            response = framing_error()
-            self.send_response(response.status)
-            for key, value in response.headers.items():
-                self.send_header(key, value)
+    def _read_body(self, length: int) -> bytes | None:
+        try:
+            body = self.rfile.read(length) if length else b""
+        except OSError:  # includes the read timeout
+            return None
+        return body if len(body) == length else None
+
+    def _reply(self, response: Response) -> None:
+        self.send_response(response.status)
+        for key, value in response.headers.items():
+            self.send_header(key, value)
+        if response.stream is None:
             self.send_header("content-length", str(len(response.body)))
-            self.send_header("connection", "close")
             self.end_headers()
             self.wfile.write(response.body)
-            self.close_connection = True
+            return
+        self.send_header("connection", "close")
+        self.end_headers()
+        for chunk in response.stream:
+            self.wfile.write(chunk)
+            self.wfile.flush()
+        self.close_connection = True
 
-        do_GET = do_POST = _serve
+    def _refuse(self) -> None:
+        """Bad framing: a fixed client error, then the connection is closed (an unread body would otherwise be mistaken for the next request)."""
+        response = framing_error()
+        self.send_response(response.status)
+        for key, value in response.headers.items():
+            self.send_header(key, value)
+        self.send_header("content-length", str(len(response.body)))
+        self.send_header("connection", "close")
+        self.end_headers()
+        self.wfile.write(response.body)
+        self.close_connection = True
 
+    do_GET = do_POST = _serve
+
+
+def make_handler(api: CoreApi, allowed_uids: Iterable[int], read_timeout: float = READ_TIMEOUT) -> type[BaseHTTPRequestHandler]:
+    class Handler(LocalHandler):
+        timeout = read_timeout  # a client that stops sending (headers or declared body) is dropped instead of holding a thread forever
+
+    Handler.api, Handler.allowed = api, frozenset(allowed_uids)
     return Handler
 
 
