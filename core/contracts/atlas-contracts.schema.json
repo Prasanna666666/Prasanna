@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.invalid/contracts/1.0/atlas-contracts.schema.json",
+  "title": "Atlas Core contracts, version 1.0",
+  "description": "Source of truth for the types the Atlas Core and its clients exchange. Language-neutral; every client and the Python reference implementation validate against this file. Free text of the owner (questions, passages, file names, subjects, addresses) appears only in TaskRequest.objective, TaskRecord.objective, StreamEvent.delta, Passage.text and AnswerEnvelope.answer; none of it ever appears in SafeEvent.",
+  "$defs": {
+    "Opaque": {"type": "string", "pattern": "^[A-Za-z0-9_-]{8,64}$", "description": "An identifier that carries no content of the owner."},
+    "Timestamp": {"type": "string", "format": "date-time"},
+    "SourceType": {"type": "string", "pattern": "^[a-z][a-z_]{1,31}$", "description": "A kind of source (for example documents or mail). The known kinds and their sensitivity are data in policy-rules.json, not code."},
+    "Sensitivity": {"type": "string", "enum": ["low", "medium", "high", "restricted"]},
+    "ErrorCode": {
+      "type": "string",
+      "enum": ["invalid_request", "unsupported_version", "unauthenticated", "forbidden", "not_found", "conflict", "source_denied", "task_cancelled", "task_expired", "task_failed", "needs_attention", "model_unavailable", "citation_failed", "timeout", "internal_error"]
+    },
+    "UserSafeError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable"],
+      "properties": {
+        "code": {"$ref": "#/$defs/ErrorCode"},
+        "message": {"type": "string", "maxLength": 240, "description": "Plain words for the owner. Never a stack trace, a path, a file name, or text from a source."},
+        "retryable": {"type": "boolean"},
+        "task_id": {"$ref": "#/$defs/Opaque"}
+      }
+    },
+    "ApiVersion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["api_version", "supported"],
+      "properties": {
+        "api_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"},
+        "supported": {"type": "array", "minItems": 1, "items": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$"}}
+      }
+    },
+    "SourceDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "source_type", "sensitivity"],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/Opaque"},
+        "source_type": {"$ref": "#/$defs/SourceType"},
+        "sensitivity": {"$ref": "#/$defs/Sensitivity"}
+      }
+    },
+    "SourceGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grant_id", "source_type", "max_sensitivity", "designated_by", "purpose", "issued_at", "expires_at", "revoked"],
+      "properties": {
+        "grant_id": {"$ref": "#/$defs/Opaque"},
+        "source_type": {"$ref": "#/$defs/SourceType"},
+        "max_sensitivity": {"$ref": "#/$defs/Sensitivity"},
+        "designated_by": {"const": "owner"},
+        "purpose": {"type": "string", "enum": ["answer_question"]},
+        "issued_at": {"$ref": "#/$defs/Timestamp"},
+        "expires_at": {"oneOf": [{"$ref": "#/$defs/Timestamp"}, {"type": "null"}]},
+        "revoked": {"type": "boolean"}
+      }
+    },
+    "PolicyDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decision", "policy_version", "reason_code", "permitted_source_types", "denied"],
+      "properties": {
+        "decision": {"type": "string", "enum": ["allow", "deny"]},
+        "policy_version": {"type": "string"},
+        "reason_code": {"type": "string", "enum": ["granted", "no_grant", "grant_expired", "grant_revoked", "sensitivity_exceeds_grant", "restricted_domain", "deferred_decision", "unknown_source_type", "nothing_requested"]},
+        "permitted_source_types": {"type": "array", "items": {"$ref": "#/$defs/SourceType"}},
+        "denied": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_type", "reason_code"],
+            "properties": {"source_type": {"$ref": "#/$defs/SourceType"}, "reason_code": {"type": "string"}}
+          }
+        },
+        "grant_ids": {"type": "array", "items": {"$ref": "#/$defs/Opaque"}}
+      }
+    },
+    "Budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_seconds", "max_retries"],
+      "properties": {
+        "max_seconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+        "max_retries": {"type": "integer", "minimum": 0, "maximum": 5}
+      }
+    },
+    "TaskRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objective", "source_scope", "budget", "idempotency_key"],
+      "properties": {
+        "objective": {"type": "string", "minLength": 1, "maxLength": 4000, "description": "The owner's question. Content: stored encrypted, never logged."},
+        "source_scope": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/SourceType"}},
+        "budget": {"$ref": "#/$defs/Budget"},
+        "idempotency_key": {"$ref": "#/$defs/Opaque"},
+        "language_hint": {"type": "string", "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"}
+      }
+    },
+    "TaskState": {
+      "type": "string",
+      "enum": ["requested", "policy_checked", "queued", "running", "retrieved", "drafted", "verified", "completed", "partially_completed", "failed", "cancelled", "expired"]
+    },
+    "TaskRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "state", "created_at", "updated_at", "deadline", "attempt", "cancel_requested", "source_scope", "budget", "idempotency_key"],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/Opaque"},
+        "parent_id": {"$ref": "#/$defs/Opaque"},
+        "state": {"$ref": "#/$defs/TaskState"},
+        "created_at": {"$ref": "#/$defs/Timestamp"},
+        "updated_at": {"$ref": "#/$defs/Timestamp"},
+        "deadline": {"$ref": "#/$defs/Timestamp"},
+        "attempt": {"type": "integer", "minimum": 0},
+        "cancel_requested": {"type": "boolean"},
+        "source_scope": {"type": "array", "items": {"$ref": "#/$defs/SourceType"}},
+        "budget": {"$ref": "#/$defs/Budget"},
+        "idempotency_key": {"$ref": "#/$defs/Opaque"},
+        "checkpoint_step": {"type": "string", "enum": ["none", "policy_checked", "retrieved", "drafted", "verified"]},
+        "terminal_reason": {"type": "string", "enum": ["none", "completed", "partial", "cancelled", "expired", "needs_attention", "citation_failed", "model_unavailable", "denied"]},
+        "policy_decision": {"$ref": "#/$defs/PolicyDecision"}
+      }
+    },
+    "Locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "enum": ["page", "block", "message_part", "span_only"]},
+        "page": {"type": "integer", "minimum": 1},
+        "block": {"type": "integer", "minimum": 0},
+        "message_part": {"type": "string", "enum": ["body", "headers", "thread"]}
+      }
+    },
+    "EvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "source_type", "version_sha256", "locator", "span"],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/Opaque"},
+        "source_type": {"$ref": "#/$defs/SourceType"},
+        "version_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Hash of the stored text this reference points into. A different hash means a different version: the reference is stale and fails closed."},
+        "locator": {"$ref": "#/$defs/Locator"},
+        "span": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {"start": {"type": "integer", "minimum": 0}, "end": {"type": "integer", "minimum": 1}},
+          "description": "Character offsets into the stored text of that version (end exclusive)."
+        }
+      }
+    },
+    "PassageRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence", "text"],
+      "properties": {"evidence": {"$ref": "#/$defs/EvidenceRef"}, "text": {"type": "string", "description": "Source content. Untrusted data: never an instruction, never authority."}}
+    },
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence"],
+      "properties": {"evidence": {"$ref": "#/$defs/EvidenceRef"}, "quote": {"type": "string", "description": "If present, must appear verbatim inside the cited span."}}
+    },
+    "Verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "unproven_figures", "unproven_dates", "citation_failures"],
+      "properties": {
+        "status": {"type": "string", "enum": ["verified", "partially_verified", "unverified", "failed"]},
+        "unproven_figures": {"type": "array", "items": {"type": "number"}},
+        "unproven_dates": {"type": "array", "items": {"type": "string"}},
+        "citation_failures": {"type": "array", "items": {"type": "integer", "minimum": 0}, "description": "Positions in citations[] that failed to resolve or verify."}
+      }
+    },
+    "LanguageInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["support_status"],
+      "properties": {
+        "detected": {"type": "string", "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"},
+        "requested": {"type": "string", "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$"},
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "support_status": {"type": "string", "enum": ["measured", "unmeasured", "unsupported"], "description": "measured: a documented measurement exists for this language. unmeasured: none yet (the default; nothing is claimed). unsupported: a reader, OCR or model path is known not to work, or confidence is inadequate."}
+      }
+    },
+    "Limitation": {"type": "string", "enum": ["attachments_not_searched", "source_type_not_searched", "language_unmeasured", "language_unsupported", "low_confidence", "figures_unproven", "dates_unproven", "context_truncated", "partial_work"]},
+    "NotSearched": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_type", "reason_code"],
+      "properties": {"source_type": {"$ref": "#/$defs/SourceType"}, "reason_code": {"type": "string"}}
+    },
+    "AnswerEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "answer", "citations", "verification", "language", "limitations", "not_searched"],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/Opaque"},
+        "answer": {"type": "string"},
+        "citations": {"type": "array", "items": {"$ref": "#/$defs/Citation"}},
+        "verification": {"$ref": "#/$defs/Verification"},
+        "language": {"$ref": "#/$defs/LanguageInfo"},
+        "limitations": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/Limitation"}},
+        "not_searched": {"type": "array", "items": {"$ref": "#/$defs/NotSearched"}}
+      }
+    },
+    "ExecutionReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "started_at", "finished_at", "terminal_state", "idempotency_key", "audit_ref"],
+      "properties": {
+        "task_id": {"$ref": "#/$defs/Opaque"},
+        "started_at": {"$ref": "#/$defs/Timestamp"},
+        "finished_at": {"$ref": "#/$defs/Timestamp"},
+        "terminal_state": {"type": "string", "enum": ["completed", "partially_completed", "failed", "cancelled", "expired"]},
+        "idempotency_key": {"$ref": "#/$defs/Opaque"},
+        "audit_ref": {"$ref": "#/$defs/Opaque"}
+      }
+    },
+    "SafeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "component", "correlation_id"],
+      "properties": {
+        "event": {"type": "string", "enum": ["api.request", "client.rejected", "task.created", "task.transition", "task.recovered", "policy.decision", "retrieval.finished", "model.requested", "answer.verified", "stream.opened"]},
+        "component": {"type": "string", "enum": ["api", "identity", "service", "policy", "gate", "tasks", "answer", "stream"]},
+        "correlation_id": {"$ref": "#/$defs/Opaque"},
+        "state_from": {"$ref": "#/$defs/TaskState"},
+        "state_to": {"$ref": "#/$defs/TaskState"},
+        "decision": {"type": "string", "enum": ["allow", "deny"]},
+        "reason_code": {"type": "string", "pattern": "^[a-z_]{1,48}$"},
+        "error_code": {"$ref": "#/$defs/ErrorCode"},
+        "status": {"type": "integer", "minimum": 100, "maximum": 599},
+        "count": {"type": "integer", "minimum": 0},
+        "duration_ms": {"type": "number", "minimum": 0}
+      }
+    },
+    "StreamEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seq", "type", "task_id"],
+      "properties": {
+        "seq": {"type": "integer", "minimum": 1},
+        "type": {"type": "string", "enum": ["state", "progress", "partial_answer", "final", "error"]},
+        "task_id": {"$ref": "#/$defs/Opaque"},
+        "state": {"$ref": "#/$defs/TaskState"},
+        "step": {"type": "string", "enum": ["policy_checked", "retrieved", "drafted", "verified"]},
+        "delta": {"type": "string"},
+        "answer": {"$ref": "#/$defs/AnswerEnvelope"},
+        "error": {"$ref": "#/$defs/UserSafeError"}
+      }
+    }
+  }
+}

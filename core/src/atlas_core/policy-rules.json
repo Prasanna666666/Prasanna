@@ -1,0 +1,51 @@
+{
+  "policy_version": "2026-11-20.1",
+  "sensitivity_order": [
+    "low",
+    "medium",
+    "high",
+    "restricted"
+  ],
+  "source_types": {
+    "documents": {
+      "sensitivity": "medium"
+    },
+    "mail": {
+      "sensitivity": "high"
+    },
+    "mail_attachment": {
+      "sensitivity": "high"
+    },
+    "finance": {
+      "sensitivity": "restricted"
+    },
+    "health": {
+      "sensitivity": "restricted"
+    }
+  },
+  "restricted_domains": [
+    "finance",
+    "health"
+  ],
+  "deferred": {
+    "mail_attachment": "G-O18"
+  },
+  "language": {
+    "measured": [],
+    "low_confidence_below": 0.5
+  },
+  "limits": {
+    "token_seconds": 300,
+    "clock_skew_seconds": 60,
+    "nonce_ttl_seconds": 300,
+    "context_chars": 6000,
+    "max_events_per_task": 1000
+  },
+  "disclosures": {
+    "attachment_type": "mail_attachment",
+    "attachments_not_searched_when_requested": [
+      "mail",
+      "mail_attachment"
+    ]
+  }
+}
