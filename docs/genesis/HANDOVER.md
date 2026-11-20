@@ -73,7 +73,7 @@ The use-case and network-policy documents have been added to this branch. This i
 
 ## Always-on host and availability decision
 
-Keep FileVault enabled. Atlas Core starts automatically as a user LaunchAgent after the owner logs in and unlocks the login Keychain. After a reboot but before owner login, the Mac host is locked and remote clients must show that sign-in is required. Do not enable automatic login or weaken FileVault to make background services available before login. Any system-keychain alternative requires a separate security design and target-Mac verification.
+**Recommendation: keep FileVault enabled.** This protects data at rest if the Mac is lost or stolen. The availability trade-off is material: after a reboot (including a macOS update that restarts the machine), Atlas Core cannot start as the owner LaunchAgent until the owner signs in locally and unlocks the login Keychain. Until then, iPhone access is unavailable; while travelling, an unattended reboot can leave Atlas unreachable for the remainder of the trip. Do not enable automatic login or weaken FileVault to make background services available before login. Before release, test on the target Mac whether authenticated software-update restarts preserve Core/Keychain availability; assume they do not until verified. A system-keychain alternative is a separate security design with its own threat model and owner decision, not an automatic workaround.
 
 ## Owner-client authority
 
