@@ -1,6 +1,6 @@
 # Atlas — Stage 3 Execution Plan
 
-**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 contract brief pending; implementation has not started  
+**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 specification/schema/tests implemented; independent exact-SHA acceptance and outstanding findings remain; WP3.2 not started  
 **Initiative:** Project Genesis  
 **Baseline:** PR #8, `genesis-stage2-foundation`, Stage 2 accepted at `58210223398a5715b618d1163397104efd358d49`  
 **Plan owner:** ChatGPT (architect/integrator)  
@@ -253,7 +253,7 @@ Stop the affected work and report with evidence if:
 
 - Stage 2 review: **ACCEPTED by ChatGPT** for exact head `58210223398a5715b618d1163397104efd358d49`; 22/22 exact-head CI checks successful. This is not production/release sign-off.
 - Stage 3 plan: **reconciled after technical challenge; owner authorisation granted in full under G-027 on 2026-11-20**.
-- Stage 3 implementation: **authorised; WP3.0 baseline accepted; WP3.1 is next. No Stage 3 application code has been implemented yet.**
+- Stage 3 implementation: **authorised; WP3.0 accepted; WP3.1 contract/schema/tests implemented (specification-only); exact-SHA independent acceptance and review findings remain; WP3.2 not started. API 1.1 is not served by Core.**
 - Target-Mac verification: **pending hardware availability**.
 
 ## 12. Superseding owner direction and product-wide planning addendum (2026-11-20)
