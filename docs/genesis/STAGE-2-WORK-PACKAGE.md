@@ -1,11 +1,11 @@
 # Stage 2 Work Package — Foundation Contracts
 
-**Status:** REVISED AFTER CLAUDE TECHNICAL CHALLENGE — Stage 2 is NOT authorised  
+**Status:** OWNER-AUTHORISED — Stage 2 implementation in PR #8 is under independent review; implementation not yet accepted  
 **Product:** One Atlas application  
 **Package owner:** ChatGPT — Architect / Integrator  
 **Implementer after authorisation:** Claude  
 **Owner / final authority:** User  
-**Prerequisites:** Accepted G-O17 ADR; ChatGPT acceptance of this bounded package; explicit owner authorisation to begin Stage 2.
+**Approval basis:** G-O17 accepted by the owner on 2026-11-20; the owner waived the ChatGPT package-acceptance gate and explicitly authorised Stage 2 on 2026-11-20. Implementation acceptance remains subject to independent review; Stage 3 is not authorised.
 
 ## 1. Objective
 
@@ -15,13 +15,13 @@ This is a bounded foundation step, not a broad rewrite or a general Agent Workfo
 
 ## 2. Entry gates — all mandatory
 
-Claude must not start this package until all are true:
+The owner has explicitly satisfied the implementation-start authority for this package on 2026-11-20:
 
-1. **G-O17 accepted by the owner:** the platform/runtime ADR is explicitly accepted, or amended and accepted.
-2. **ChatGPT package review complete:** this package is accepted by ChatGPT after Claude's technical challenge and any required revisions.
-3. **Explicit owner authorisation:** the owner expressly says to start Stage 2 after seeing the accepted ADR and package.
+1. **G-O17 accepted by the owner:** ACCEPTED. The platform/runtime ADR records the shared Swift/SwiftUI application boundary and defers the Core language to G-O20.
+2. **ChatGPT package-acceptance gate:** WAIVED by the owner on 2026-11-20. This waiver allowed Stage 2 implementation to begin; it is not acceptance of the resulting implementation.
+3. **Explicit owner authorisation:** GRANTED on 2026-11-20.
 
-No implied approval from “continue”, PR activity, documentation acceptance, Stage 0/1 completion or resolving G-O18/G-O19. If any gate is missing, Claude remains in review-only mode.
+These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequent instructions. Do not ask the owner to repeat them. Stage 2 implementation acceptance remains a separate evidence-based review gate; Stage 3 remains unauthorised.
 
 ## 3. Scope
 
@@ -154,7 +154,7 @@ All criteria require reproducible evidence; no “works on my machine” claims.
 ## 8. Stop conditions
 
 Claude must stop and report before proceeding if:
-- G-O17 or package authorisation is absent.
+- The owner's G-O17 acceptance or explicit Stage 2 authorisation is withdrawn or shown to be invalid.
 - The chosen runtime cannot support a shared macOS/iOS codebase as required.
 - Existing data or keys would need migration or modification.
 - A proposed contract weakens G-015, Health isolation, default-deny or local-only inference.
@@ -183,11 +183,14 @@ The first slice has **no user actions or external side effects**. ExecutionRecei
 
 ## 11. Approval record
 
-- G-O17 ADR owner acceptance: **PENDING**.
-- ChatGPT package review: **PENDING final verification of this revision; acceptance will be recorded by ChatGPT after review**.
-- Explicit owner authorisation to start Stage 2: **NOT GRANTED**.
-- Implementation status: **NOT STARTED**.
+- G-O17 ADR owner acceptance: **ACCEPTED by the owner, 2026-11-20**.
+- ChatGPT package-acceptance gate: **WAIVED by the owner, 2026-11-20**. This waiver authorised implementation to start; it did not waive independent implementation review.
+- Explicit owner authorisation to start Stage 2: **GRANTED, 2026-11-20**.
+- Implementation status: **implemented in PR #8, draft and unmerged; acceptance pending**.
+- Independent implementation review: initial three blockers were fixed in PR #8 head `481610f`; re-review found a remaining read-time revocation gap for zero-citation answers/events (PR #8 review 5992662031). Fix and re-review are pending.
+- Platform verification: real macOS Keychain behaviour, Keychain prompts/item permissions, macOS `LOCAL_PEERCRED`, target-Mac execution and Swift/Xcode integration remain **NOT VERIFIED**.
+- Stage 3: **NOT AUTHORISED**.
 - Contract format: **OpenAPI 3.1 + JSON Schema, language-neutral**.
 - Reference implementation: **Python; Swift client verification deferred until Mac/macOS CI is available**.
-- Task persistence: **separate additive encrypted store and dedicated Keychain item; no existing DB/key changes**.
+- Task persistence: **separate additive encrypted store with a dedicated Keychain provider; real macOS Keychain path still requires target-Mac verification**.
 - Provenance: **synthetic contract fixtures only; stored extraction/provenance changes deferred**.
