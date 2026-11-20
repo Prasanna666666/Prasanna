@@ -327,7 +327,7 @@ The closed approval list in PRD §4.4 is authoritative. The table in §7 is the 
 
 ### 7.2 Agent execution integrity
 
-Only the Action Gateway executes. Agents propose; the coordinator checks conflicts; a durable unique action ledger and deterministic idempotency key prevent duplicate effects; per-target leases/fencing tokens and compare-and-set protect against concurrent changes; every reversible action has an undo record. Specialist deployment requires a frozen benchmark against the direct/single-model baseline. See TARGET_ARCHITECTURE.md §15.
+Only the Action Gateway executes. Agents propose; the coordinator checks conflicts; a durable unique action ledger and deterministic idempotency key prevent duplicate effects; per-target leases/fencing tokens and compare-and-set protect against concurrent changes; every reversible action has an undo record. Specialist deployment requires a frozen benchmark against the direct/single-model baseline. See TARGET_ARCHITECTURE.md §18.
 
 ## 2.1 Domain scenario IDs for stage traceability
 
