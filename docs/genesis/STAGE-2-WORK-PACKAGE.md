@@ -76,7 +76,7 @@ These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequ
 
 - No user-facing UI rebuild or redesign beyond contract compatibility.
 - No iOS app implementation, remote-access deployment, VPN/relay, push notifications or offline sync.
-- No model/runtime selection, model routing, MoE, agent workforce expansion or autonomous background agents.
+- No model integration, model routing implementation, model benchmarking, MoE/agent-workforce expansion or autonomous background agents. The owner has since selected MLX and a benchmark-led ~27B main-model direction with automatic task-based switching (G-020); this package does not implement or validate that runtime/model stack. The Python reference implementation here is a contract test/reference surface, not a permanent production Core-language decision; G-O20 remains open.
 - No Mail attachment indexing or exposure. G-O18 must be resolved before any attachment processing.
 - No actual document/Mail ingestion or search implementation until G-O19 source designation and G-O18 attachment handling are resolved.
 - No Finance integration into model context; no raw Finance access, no Finance agent, and no new computed Finance output permissions.
@@ -88,7 +88,7 @@ These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequ
 
 ## 4. Proposed contract set (design target, not pre-approved API names)
 
-The source-of-truth contract is language-neutral OpenAPI 3.1 plus JSON Schema, versioned in the repository. Python is the reference implementation for this slice. Swift client generation/build verification is deferred until a Mac or macOS CI runner is available; it is not a Stage 2 acceptance claim.
+The source-of-truth contract is language-neutral OpenAPI 3.1 plus JSON Schema, versioned in the repository. Python is the reference implementation for this slice only; it does not decide the long-term Mac-host Core language (G-O20), which must be evaluated separately in light of the owner's MLX direction. Swift client generation/build verification is deferred until a Mac or macOS CI runner is available; it is not a Stage 2 acceptance claim.
 
 Claude should propose the smallest set of typed contracts, avoiding over-abstraction:
 
