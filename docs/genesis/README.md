@@ -1,10 +1,10 @@
 # Project Genesis — Atlas target documentation
 
-**Status:** Architecture baseline in progress  
+**Status:** Consolidated architecture baseline; implementation/release gates remain  
 **Product:** Atlas  
 **Initiative:** Project Genesis  
 **Baseline branch:** `atlas`  
-**Documentation branch:** `genesis-architecture`  
+**Documentation branch:** `genesis-stage2-foundation` (sole open PR #8)  
 **Audience:** Product owner, architecture/review, Claude development and maintenance
 
 ## Purpose
@@ -23,12 +23,13 @@ The existing application, its tests, security controls, data stores and PR revie
 6. [Decision register](DECISIONS.md) — settled owner decisions and open decisions.
 7. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, handshakes, issue resolution, change control and acceptance.
 8. [Handover](HANDOVER.md) — repository pointers, confirmed status and next gate.
-9. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — proposed macOS+iOS technology comparison and recommendation; not owner-accepted.
-10. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — bounded scope, contracts, acceptance criteria and stop conditions; not authorised to start.
+9. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — owner-accepted shared Swift/SwiftUI application boundary; Core language remains open under G-O20.
+10. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — bounded scope, contracts, acceptance criteria and stop conditions.
+11. [Detailed low-level technical design](LOW_LEVEL_DESIGN.md) — consolidated architecture-review baseline; recommendations only, not implementation/Stage 3 authorisation.
 
 ## Current decision/work-package status
 
-Claude's technical challenge is recorded in PR #7 comment 7035425400. ChatGPT has reconciled the findings in `ADR-G-O17-PLATFORM-RUNTIME.md`, `STAGE-2-WORK-PACKAGE.md` and `DECISIONS.md`. The recommendation is a shared Swift/SwiftUI macOS+iOS application, a language-neutral versioned API to the Mac-host Core, and a separate open decision (G-O20) for the Core language. The Stage 2 package now has explicit contract, persistence, authentication, streaming, provenance, testing and verification boundaries. One consolidated Claude verification remains; owner acceptance of G-O17 and explicit Stage 2 authorisation remain mandatory. Stage 2 is **NOT AUTHORISED**.
+G-O17 and Stage 2 authority were accepted by the owner. Claude's documentation review 7045420044 has been reconciled in this branch. The owner-selected MLX/~27B direction, model transparency and routing policy are recorded; G-O01 benchmark and G-O20 Core-language evidence gates remain open. PR #9 is closed/unmerged; its detailed low-level design is now included here as a review baseline, not as an approved implementation plan. PR #8 is the only open PR. Stage 2 code blockers have been accepted by independent review, while macOS/target-Mac verification and release readiness remain pending. Stage 3 is **NOT AUTHORISED**.
 
 ## Source-of-truth rules
 
