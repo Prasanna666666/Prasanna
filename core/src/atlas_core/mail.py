@@ -74,8 +74,9 @@ class ListPage:
 class Mailbox(Protocol):
     """The platform seam. The real Apple Mail adapter (not built, never pointed at a real mailbox in this stage) returns ONLY these fields; the Core ignores any other key.
 
-    Listing is PAGED and BOUNDED: `list_page(cursor, limit)` returns at most `limit` entries and a cursor for the next page. The adapter SHOULD return newest first by stored date;
-    the Core does not rely on it (it checks the order as it goes, keeps only the newest it has seen, and never examines more than a fixed amount of work)."""
+    Listing is PAGED and BOUNDED: `list_page(cursor, limit)` returns at most `limit` entries and a cursor for the next page. Newest-first is a hope, never a guarantee, and the Core
+    never relies on it: it examines up to a fixed amount of work (MAX_LIST_WORK entries) whatever the order, keeps the newest of what it saw, and reports the scan incomplete when
+    the mailbox was not fully seen. An adapter that DOES list newest first therefore gets the newest messages admitted, and one that does not still gets the newest of its window."""
 
     def list_page(self, cursor: str | None, limit: int) -> ListPage: ...
 
@@ -289,14 +290,14 @@ class MailIndex(IndexStore):
         """The newest MAX_MESSAGES VALID entries of the mailbox, by consuming bounded pages, plus how many entries were malformed, plus whether the mailbox was NOT fully admitted.
         Memory is bounded by MAX_MESSAGES and work by MAX_LIST_WORK (and the number of pages by a fixed count), whatever the adapter returns. Everything the adapter returns is
         untrusted: a page of the wrong shape ends the scan with a non-content error before anything is written; an entry of the wrong shape or type is counted, never used.
-        If the adapter really lists newest first, consumption stops as soon as enough are held (nothing later can be newer); if it is ever seen to break that order, it is read on
-        (up to the work bound) while only the newest are kept."""
+        There is NO early stop: a sorted prefix proves nothing about the pages not yet seen, so the work budget is always used (and only the newest entries seen are kept). Entries
+        beyond the work bound are never seen; that makes the scan incomplete, never complete."""
         heap: list[
             tuple[float, str, int, Listed]
         ] = []  # a min-heap: the oldest admitted entry is the one to drop (the counter keeps ties from ever comparing entries)
         cursor: str | None = None
         work = pages = malformed = 0
-        ordered, last, over, exhausted = True, float("inf"), False, False
+        over, exhausted = False, False
         while pages <= 2 * (MAX_LIST_WORK // PAGE_SIZE) + 2:
             pages += 1
             page = self._mailbox.list_page(cursor, PAGE_SIZE)
@@ -309,16 +310,14 @@ class MailIndex(IndexStore):
                 if item is None:
                     malformed += 1
                     continue
-                key = _epoch_or_floor(item.date)
-                ordered, last = ordered and key <= last, key
-                heapq.heappush(heap, (key, item.message_id, work, item))
+                heapq.heappush(heap, (_epoch_or_floor(item.date), item.message_id, work, item))
                 if len(heap) > MAX_MESSAGES:
                     heapq.heappop(heap)
             cursor = page.next_cursor
             if cursor is None:
                 exhausted = True
                 break
-            if (ordered and len(heap) >= MAX_MESSAGES) or work >= MAX_LIST_WORK:
+            if work >= MAX_LIST_WORK:
                 break
         newest = [entry[3] for entry in sorted(heap, key=lambda e: (e[0], e[1], e[2]), reverse=True)]
         return newest, malformed, not exhausted or over or work - malformed > MAX_MESSAGES

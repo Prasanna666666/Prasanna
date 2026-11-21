@@ -635,13 +635,35 @@ def _admitted(index: MailIndex) -> set[str]:
     return {r[0] for r in index._conn.execute("SELECT message_id FROM msgs")}
 
 
-def test_a_listing_in_date_order_stops_early_and_admits_exactly_the_newest(tmp_path, small):
+def test_a_listing_in_date_order_admits_exactly_the_newest_within_the_bounded_work(tmp_path, small):
     mailbox = many(100, "newest_first")
     index, _ = make(tmp_path, mailbox)
     index.scan()
     assert _admitted(index) == {f"m{i:03d}@x.invalid" for i in range(95, 100)}  # the five newest
-    assert mailbox.max_page <= 3 and mailbox.listed <= 6 and mailbox.lists <= 2  # not the whole mailbox: two pages
+    assert mailbox.max_page <= 3 and mailbox.listed <= 30 and mailbox.lists <= 10  # a fixed work budget, never the whole mailbox and never an early stop
     assert index.coverage()["scan_complete"] is False and index.coverage()["complete"] is False  # and it says it is not everything
+
+
+def _sorted_prefix_then_a_newer_message(extra_old: int = 0) -> InMemoryMailbox:
+    """The first MAX_MESSAGES entries (plus `extra_old`) are correctly descending and OLD; a later page holds one NEWER message."""
+    old = [dict(MEETING, message_id=f"old{i:02d}@x.invalid", date=f"2026-01-{20 - i:02d}T00:00:00+00:00", body=f"old item {i}") for i in range(5 + extra_old)]
+    newer = dict(MEETING, message_id="newer@x.invalid", date="2026-03-01T00:00:00+00:00", body="the newer item")
+    return InMemoryMailbox([*old, newer], "as_given")
+
+
+def test_a_sorted_prefix_followed_by_a_later_newer_message_still_admits_the_newer_one(tmp_path, small):
+    index, mailbox = make(tmp_path, _sorted_prefix_then_a_newer_message())
+    index.scan()
+    assert "newer@x.invalid" in _admitted(index)  # a sorted prefix proved nothing about the next page, so the Core kept reading
+    assert len(_admitted(index)) == 5 and mailbox.lists == 2
+
+
+def test_a_newer_message_beyond_the_work_bound_is_not_seen_and_the_scan_says_so(tmp_path, small):
+    index, mailbox = make(tmp_path, _sorted_prefix_then_a_newer_message(extra_old=30))  # 35 sorted old entries, then the newer one at position 36
+    index.scan()
+    assert "newer@x.invalid" not in _admitted(index) and mailbox.listed <= 30  # the boundary of the guarantee, stated and tested
+    cov = index.coverage()
+    assert cov["scan_complete"] is False and cov["complete"] is False  # truthful: not everything was seen
 
 
 @pytest.mark.parametrize("order", ["by_id", "as_given"])
