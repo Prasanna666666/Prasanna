@@ -62,7 +62,7 @@ class Extractor(Protocol):
     def extract(self, data: bytes) -> Extracted: ...
 
 
-def _blocks(text: str) -> tuple[tuple[int, int], ...]:
+def paragraph_blocks(text: str) -> tuple[tuple[int, int], ...]:
     out: list[tuple[int, int]] = []
     edges = [0, *(i for m in _BREAK.finditer(text) for i in (m.start(), m.end())), len(text)]
     for low, high in zip(edges[::2], edges[1::2], strict=True):
@@ -101,7 +101,7 @@ class TextExtractor:
             text = data.decode("utf-8-sig")  # a leading byte-order mark is dropped; evidence offsets are into this exact text, whose hash is the version
         except UnicodeDecodeError:
             raise ExtractionError("corrupt") from None
-        blocks = _blocks(text)
+        blocks = paragraph_blocks(text)
         if not blocks:
             raise ExtractionError("corrupt")  # nothing extractable: a file that yields no text is not 'indexed'
         return Extracted(text, blocks, _created(text))
@@ -252,7 +252,37 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
-class DocumentIndex:
+class IndexStore:
+    """The plumbing the two local indexes (documents, mail) share: a lock, an optional test hook, a key/value `meta` table and one transaction helper. A subclass sets `_conn`
+    (an encrypted connection opened with explicit transactions) and `_lock`."""
+
+    _conn: Any
+    _lock: threading.RLock
+    hook: Callable[[str], None] | None = None
+
+    def _hit(self, name: str) -> None:
+        if self.hook is not None:
+            self.hook(name)
+
+    def _meta(self, key: str, default: str = "") -> str:
+        row = self._conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
+        return str(row["value"]) if row else default
+
+    def _set_meta(self, key: str, value: str) -> None:
+        self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)", (key, value))
+
+    def _transaction(self, body: Callable[[], None]) -> None:
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                body()
+                self._conn.execute("COMMIT")
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+
+
+class DocumentIndex(IndexStore):
     """The encrypted, restart-safe index of one designated folder. Every document's state change (and its text) commits as ONE transaction, so a crash leaves each document
     either as it was or fully in its new state; re-running any step is harmless (same bytes -> same result)."""
 
@@ -281,26 +311,6 @@ class DocumentIndex:
         self._conn.close()
 
     # -- plumbing ----------------------------------------------------------------------------------------------------------------------------
-    def _hit(self, name: str) -> None:
-        if self.hook is not None:
-            self.hook(name)
-
-    def _meta(self, key: str, default: str = "") -> str:
-        row = self._conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
-        return str(row["value"]) if row else default
-
-    def _set_meta(self, key: str, value: str) -> None:
-        self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)", (key, value))
-
-    def _transaction(self, body: Callable[[], None]) -> None:
-        with self._lock:
-            self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                body()
-                self._conn.execute("COMMIT")
-            except BaseException:
-                self._conn.execute("ROLLBACK")
-                raise
 
     # -- scanning: what is in the folder now (cheap: names and times only) ------------------------------------------------------------------------
     def _require(self) -> None:

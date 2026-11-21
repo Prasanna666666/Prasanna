@@ -25,6 +25,7 @@ LAYER = {
     "documents": 4,
     "designation": 4,
     "access": 4,
+    "mail": 4,
     "answer": 5,
     "tasks": 5,
     "service": 6,

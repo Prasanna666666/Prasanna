@@ -7,7 +7,7 @@ All data is synthetic (invented sentinels in `tests/conftest.py`); no test needs
 |---|---|---|
 | Install | `pip install -e ../kit[secure] -e .[dev]` | no error |
 | Lint / format / types | `ruff check . && ruff format --check . && mypy src` | `All checks passed!`, files already formatted, `Success: no issues found` |
-| All tests | `python -m pytest -q -p no:cacheprovider` | `617 passed` |
+| All tests | `python -m pytest -q -p no:cacheprovider` | `670 passed` |
 | One criterion | `python -m pytest -q -k "policy"` etc. | per file |
 | Overhead benchmark | `python bench/overhead.py --runs 300 --json` | JSON report (see BENCHMARK.md) |
 | Legacy suites unaffected | `cd ../kit && python -m pytest -q` (and `library`, `finance`, `atlas`, `images`) | same counts as before this branch (165, 299, 701, 111, 100) |
@@ -20,6 +20,9 @@ Documents (two pages, a Dutch+Japanese text), a mail (headers/body parts), an at
 
 ## G-O19 designation and access gate
 `tests/test_designation.py` (109 tests, synthetic, a deterministic fake OS-permission provider and a fake rollback anchor): default deny on a fresh install and after a restart, Documents-only / Mail-only / neither / declined choices, designable types, single-use request ids, OS evidence (absent, denied, stale, future-dated, wrong type, provider failure, loss after grant), withdrawal, expiry, revoke and regrant identity, purge failure and retry, crash atomicity (`DesignationStore.hook`), fifteen tamper/downgrade cases, whole-database snapshot restores and two-phase anchor failures (prepare refused, finish refused, process death before/after the commit, restore against an unfinished withdrawal or enable) that must withhold every grant or complete a recorded restriction, audited OS-observation and purge-completion events (snapshot restore, tampering, forged but correctly hashed events, purge died or unrecorded), one-transaction withdrawal crash points, open-counting boundary tests (consent withdrawn or OS permission lost at `doc:before`, between path components, before the file open), a no-folder-byte-touched matrix over consent x OS state, and withdrawal during a task at the search, model and between-document boundaries. Design and limits: `G_O19_DESIGNATION.md`.
+
+## WP3.3 mail index (synthetic)
+`tests/test_mail.py` (53 tests, synthetic messages, `InMemoryMailbox`, the fake OS provider and fake anchor): stored-field headers vs body with exact `message_part` locators, forged sender/date in a body, malformed/smuggled/oversized/mismatched records, a leaky adapter and zero attachment access, changed/deleted messages, default deny and independent grants over the real `SourceAccess`, OS evidence faults, revocation at `scan:begin`/`msg:before`/search/model, hostile instructions end to end, a six-boundary crash matrix, idempotency, cancellation, slices, redaction and encryption at rest. Design and limits: `WP3_3_MAIL.md`.
 
 ## Fault injection
 `FaultInjector` crashes the pipeline the first time it passes a named boundary: `before|mid|after` x `retrieved|drafted|verified`, plus `before:final` (10 boundaries). After each crash the test builds a new service on the same encrypted store (a restart), runs `recover()` and expects one completed task, one answer, at most one repeated step. Retry budget 0 -> `failed/needs_attention`; a task stuck before it was queued -> `needs_attention`.
