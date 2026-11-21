@@ -131,7 +131,8 @@ class Scanner:
     """Reads only below one designated root. Every directory and file is opened RELATIVE TO THE ALREADY-OPEN PARENT descriptor with no-follow flags, so a link planted on any
     component (also between a check and the open) cannot lead outside the root: the open fails and the item is reported. A file above the size limit is refused, never cut."""
 
-    def __init__(self, root: Path, max_files: int = MAX_FILES) -> None:
+    def __init__(self, root: Path, max_files: int = MAX_FILES, *, guard: Callable[[], None]) -> None:
+        self._guard = guard  # called immediately before EVERY directory open, listing and file open; it raises when access is no longer current. There is no way to scan without one.
         if not race_safe_platform():
             raise RuntimeError("this platform cannot guarantee race-free, root-confined reads; the document source is disabled")
         self.root, self._max_files = root.resolve(), max_files
@@ -141,11 +142,13 @@ class Scanner:
         )
 
     def _open_dir(self, parts: tuple[str, ...]) -> int:
+        self._guard()
         fd = os.open(self.root, _DIR_FLAGS)
         try:
             for part in parts:
                 if self.seam is not None:
                     self.seam("before", part)
+                self._guard()  # after any hook, immediately before the open
                 child = os.open(part, _DIR_FLAGS, dir_fd=fd)  # directory only, never a link
                 os.close(fd)
                 fd = child
@@ -173,6 +176,7 @@ class Scanner:
         fd = self._open_dir(parts)
         out: list[tuple[str, Found | None]] = []
         try:
+            self._guard()
             with os.scandir(fd) as entries:
                 for entry in sorted(entries, key=lambda e: e.name):
                     rel = "/".join((*parts, entry.name))
@@ -215,6 +219,7 @@ class Scanner:
         try:
             parent = self._open_dir(parts[:-1])
             try:
+                self._guard()  # the final check: after every hook and directory step, immediately before the file is opened
                 fd = os.open(parts[-1], _FILE_FLAGS, dir_fd=parent)
             finally:
                 os.close(parent)
@@ -258,7 +263,8 @@ class DocumentIndex:
         label = sensitivity or rules.sensitivity_of(source_type)
         if label not in rules.raw["sensitivity_order"]:
             raise ValueError("unknown sensitivity")
-        self.source_type, self.label, self.scanner, self._access = source_type, label, Scanner(root), access
+        self.source_type, self.label, self._access = source_type, label, access
+        self.scanner = Scanner(root, guard=self._require)
         self.hook: Callable[[str], None] | None = None  # tests: called at each boundary; an exception inside a transaction rolls it back (a simulated crash)
         self.free_bytes: Callable[[], int] = lambda: shutil.disk_usage(path.parent).free
         self.cancelled = threading.Event()
@@ -441,8 +447,8 @@ class DocumentIndex:
     def _current(self, row: Any) -> bool:
         try:
             return hashlib.sha256(self.scanner.read(row["rel_path"])).hexdigest() == row["content_sha"]
-        except ExtractionError:
-            return False
+        except (ExtractionError, PermissionRevoked):
+            return False  # unreadable, changed, or access ended just now: not a current source
 
     # -- the retriever: a ranked search over what is indexed so far -------------------------------------------------------------------------------------
     def search(self, source_type: str, query: str) -> Iterable[dict[str, Any]]:

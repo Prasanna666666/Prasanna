@@ -20,7 +20,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from kit.db import connect
 
@@ -38,6 +38,48 @@ class DesignationError(Exception):
 
 class StoreCorrupt(DesignationError):
     """The record cannot be trusted. Every grant is withheld until it is repaired or replaced."""
+
+
+class AnchorError(Exception):
+    """The anchor refused a write that would move it backwards or fork it."""
+
+
+class RollbackAnchor(Protocol):
+    """A tiny monotonic record kept OUTSIDE the designation database: the newest (sequence, head hash) the store has committed. Restoring an older copy of the whole database
+    cannot also restore it, so a database older than the anchor is a rollback and is refused. On the Mac this is a secure-storage item (Keychain; WP3.6, NOT implemented or
+    verified here); in CI it is `InMemoryAnchor`, a deterministic fake that only models the contract."""
+
+    def read(self) -> tuple[int, str] | None: ...
+
+    def advance(self, seq: int, head: str) -> None: ...  # monotonic: never backwards, never a different head for the same sequence
+
+    def reset(self) -> None: ...  # the owner starts over with a new, empty store
+
+
+class InMemoryAnchor:
+    """CI stand-in for the platform anchor. `fail` makes every call error; `fail_advance` makes only writes error (the platform store is unavailable)."""
+
+    def __init__(self) -> None:
+        self.value: tuple[int, str] | None = None
+        self.fail = False
+        self.fail_advance = False
+
+    def read(self) -> tuple[int, str] | None:
+        if self.fail:
+            raise OSError("anchor unavailable")
+        return self.value
+
+    def advance(self, seq: int, head: str) -> None:
+        if self.fail or self.fail_advance:
+            raise OSError("anchor unavailable")
+        if self.value is not None and (seq < self.value[0] or (seq == self.value[0] and head != self.value[1])):
+            raise AnchorError("backwards")
+        self.value = (seq, head)
+
+    def reset(self) -> None:
+        if self.fail:
+            raise OSError("anchor unavailable")
+        self.value = None
 
 
 class PurgePending(DesignationError):
@@ -85,8 +127,8 @@ def _grant_digest(row: Any) -> str:
 
 
 class DesignationStore:
-    def __init__(self, path: Path, key: str | None, clock: Callable[[], datetime] = _now, rules: Rules | None = None) -> None:
-        self._rules, self._clock = rules or load_rules(), clock
+    def __init__(self, path: Path, key: str | None, clock: Callable[[], datetime] = _now, rules: Rules | None = None, *, anchor: RollbackAnchor) -> None:
+        self._rules, self._clock, self._anchor = rules or load_rules(), clock, anchor
         self._lock = threading.RLock()
         self._purges: dict[str, Callable[[], None]] = {}
         self.hook: Callable[[str], None] | None = None  # tests: called inside a transaction; an exception rolls it back (a simulated crash)
@@ -98,6 +140,7 @@ class DesignationStore:
             if fresh:
                 self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?)", (str(SCHEMA_VERSION),))
                 self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('head', ?)", (f"0:{GENESIS}",))
+                self._pin(0, GENESIS)  # a brand-new store anchors its start (an existing anchor is left alone: see _verify_anchor)
 
     def close(self) -> None:
         self._conn.close()
@@ -139,8 +182,32 @@ class DesignationStore:
             if row["to_state"] == "revoked":
                 revoked_ids.add(row["grant_id"])
         if self._meta("head") != f"{len(rows)}:{prev}":
-            raise StoreCorrupt("head")  # rows were removed (a rollback) or added outside a transaction
+            raise StoreCorrupt("head")  # rows were removed or added outside a transaction
+        self._verify_anchor(rows, prev)
         self._verify_tables(derived, revoked_ids, issued)
+
+    def _pin(self, seq: int, head: str) -> None:
+        """Move the external anchor forward. A failure is tolerated: the database is then ahead of the anchor, which the next verification catches up (never behind)."""
+        try:
+            self._anchor.advance(seq, head)
+        except (OSError, AnchorError):
+            return
+
+    def _verify_anchor(self, rows: list[Any], head: str) -> None:
+        """The database must not be OLDER than the anchor. A whole-database restore brings back matching rows, chain and head, but not the anchor outside it."""
+        try:
+            pinned = self._anchor.read()
+        except Exception as error:  # any anchor failure means rollback cannot be ruled out: fail closed
+            raise StoreCorrupt("anchor_unavailable") from error
+        if pinned is None:
+            if rows:
+                raise StoreCorrupt("anchor_missing")  # a used store with no anchor cannot show it was not rolled back
+            return
+        seq, anchored = pinned
+        if seq > len(rows) or (seq > 0 and rows[seq - 1]["hash"] != anchored) or (seq == 0 and anchored != GENESIS):
+            raise StoreCorrupt("rollback")
+        if len(rows) > seq:
+            self._pin(len(rows), head)  # the database is ahead (a crash between a commit and the anchor write): catch the anchor up
 
     def _verify_tables(self, derived: dict[str, tuple[str, str | None]], revoked_ids: set[str | None], issued: dict[str | None, str]) -> None:
         states = {r["source_type"]: (r["state"], r["grant_id"]) for r in self._conn.execute("SELECT * FROM state")}
@@ -152,6 +219,14 @@ class DesignationStore:
         for grant in grants:
             if _grant_digest(grant) != issued[grant["grant_id"]] or bool(grant["revoked"]) != (grant["grant_id"] in revoked_ids):
                 raise StoreCorrupt("grant")
+
+    def reset_anchor(self) -> None:
+        """The owner deliberately starts over after losing the old database: allowed only on an EMPTY store (nothing is enabled, so nothing can be resurrected)."""
+        with self._lock:
+            if self._conn.execute("SELECT count(*) FROM audit").fetchone()[0] != 0:
+                raise DesignationError("store_not_empty")
+            self._anchor.reset()
+            self._pin(0, GENESIS)
 
     def health(self) -> str:
         try:
@@ -178,10 +253,14 @@ class DesignationStore:
                 if self.hook is not None:
                     self.hook("before_commit")
                 self._conn.execute("COMMIT")
-                return result
             except BaseException:
                 self._conn.execute("ROLLBACK")
                 raise
+            if self.hook is not None:
+                self.hook("after_commit")  # tests: a crash here leaves the database ahead of the anchor
+            count, head = self._meta("head").split(":")
+            self._pin(int(count), head)
+            return result
 
     def _state_of(self, source_type: str) -> tuple[str, str | None]:
         row = self._conn.execute("SELECT state, grant_id FROM state WHERE source_type=?", (source_type,)).fetchone()
@@ -248,17 +327,21 @@ class DesignationStore:
         return True
 
     def withdraw(self, source_type: str, request_id: str) -> bool:
-        """The owner withdraws access: the grant is revoked at once and the data derived from it is purged."""
+        """The owner withdraws access. Consuming the request id, revoking the grant, the audit row and the purge marker are ONE transaction (a crash leaves either all of it or
+        none, so a failed withdrawal can be retried with the same request id); the purge runs only after that commit."""
         if not 8 <= len(request_id) <= 64:  # noqa: PLR2004
             raise DesignationError("invalid_request_id")
 
-        def body() -> None:
+        def body() -> bool:
             if self._conn.execute("SELECT 1 FROM requests WHERE request_id=?", (request_id,)).fetchone():
                 raise DesignationError("replayed")
             self._conn.execute("INSERT INTO requests (request_id) VALUES (?)", (request_id,))
+            return self._revoke(source_type, "owner_withdrawn")
 
-        self._transaction(body)
-        return self.revoke(source_type, "owner_withdrawn")
+        revoked = bool(self._transaction(body))
+        if revoked:
+            self._run_purge(source_type)
+        return revoked
 
     def revoke(self, source_type: str, reason: str) -> bool:
         """End the enabled grant of a source type (owner withdrawal, expiry, or loss of the OS permission) and purge what was derived from it. True if something was revoked."""

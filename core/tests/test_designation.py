@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
+import shutil
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -12,10 +14,11 @@ from typing import Any
 import pytest
 from conftest import KEY, Clock, World, request
 
+from atlas_core import documents as docs_module
 from atlas_core.access import GRANTED, MISSING, UNKNOWN, FakeOSPermissions, SourceAccess
 from atlas_core.contracts import validate
-from atlas_core.designation import DesignationError, DesignationStore, OnboardingDecision, PurgePending, StoreCorrupt
-from atlas_core.documents import DocumentIndex
+from atlas_core.designation import AnchorError, DesignationError, DesignationStore, InMemoryAnchor, OnboardingDecision, PurgePending, StoreCorrupt
+from atlas_core.documents import DocumentIndex, source_id_for
 from atlas_core.policy import InMemoryGrants, PermissionRevoked, PolicyEngine
 
 DOCS, MAIL = "documents", "mail"
@@ -29,7 +32,8 @@ class Env:
 
     def __init__(self, folder: Path) -> None:
         self.folder, self.clock = folder, Clock()
-        self.store = DesignationStore(folder / "designation.db", KEY, self.clock)
+        self.anchor = InMemoryAnchor()  # stands in for the platform secure-storage anchor that lives OUTSIDE the database
+        self.store = DesignationStore(folder / "designation.db", KEY, self.clock, anchor=self.anchor)
         self.os = FakeOSPermissions(self.clock)
         self.access = SourceAccess(self.store, self.os, self.clock)
         self.n = 0
@@ -46,7 +50,7 @@ class Env:
 
     def reopen(self) -> None:
         self.store.close()
-        self.store = DesignationStore(self.folder / "designation.db", KEY, self.clock)
+        self.store = DesignationStore(self.folder / "designation.db", KEY, self.clock, anchor=self.anchor)
         self.access = SourceAccess(self.store, self.os, self.clock)
 
 
@@ -278,7 +282,7 @@ def test_the_designation_survives_a_restart_and_a_missing_file_means_nothing_is_
     assert env.access.permitted(DOCS) is True
     env.reopen()
     assert env.store.lifecycle(DOCS) == "enabled" and env.access.permitted(DOCS) is True
-    fresh = DesignationStore(tmp_path / "fresh.db", KEY, env.clock)
+    fresh = DesignationStore(tmp_path / "fresh.db", KEY, env.clock, anchor=InMemoryAnchor())
     assert fresh.lifecycle(DOCS) == "not_configured" and fresh.grants_for(DOCS) == []
 
 
@@ -416,9 +420,9 @@ def test_access_lost_between_two_documents_stops_before_the_next_one(tmp_path):
     index.hook = lambda name: env.store.withdraw(DOCS, env.rid()) if name == "doc:before" and env.store.lifecycle(DOCS) == "enabled" else None
     with pytest.raises(PermissionRevoked):
         index.run(10)
-    reads = touched.touches.count("read")
-    assert reads <= 1  # at most the document already in hand; none after the withdrawal
-    assert index.coverage()["searched"] == 0 and index.coverage()["total"] == 0
+    assert (
+        touched.touches.count("read") == 1 and index.coverage()["searched"] == 0 and index.coverage()["total"] == 0
+    )  # (the one call is the refused one: see the boundary tests)
 
 
 def world(tmp_path: Path, env: Env) -> tuple[World, DocumentIndex]:
@@ -511,3 +515,302 @@ def test_a_platform_permission_that_is_not_current_blocks_reading_even_while_the
     assert index.coverage()["searched"] == 1  # the rows are still there (consent was not withdrawn)
     env.os.set(DOCS, GRANTED)
     assert index.get(p["evidence"]["source_id"]) is not None  # and they are usable again as soon as the platform evidences access
+
+
+# ---- review 6001015567, blocker 1: a restored whole-database snapshot must not resurrect withdrawn consent -----------------------------------------------
+def _snapshot(env: Env, name: str) -> Path:
+    env.store.close()  # a clean close leaves one complete database file (no side files)
+    copy = env.folder / name
+    shutil.copy(env.folder / "designation.db", copy)
+    env.reopen()
+    return copy
+
+
+def _restore(env: Env, snapshot: Path) -> None:
+    env.store.close()
+    for suffix in ("-wal", "-shm", "-journal"):
+        (env.folder / f"designation.db{suffix}").unlink(missing_ok=True)
+    shutil.copy(snapshot, env.folder / "designation.db")
+    env.reopen()
+
+
+def test_restoring_an_older_complete_database_cannot_bring_back_withdrawn_consent(env):
+    env.store.register_purge(DOCS, lambda: None)
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    enabled = _snapshot(env, "while_enabled.db")  # the complete database, with the source enabled
+    assert env.access.permitted(DOCS) is True
+    env.store.withdraw(DOCS, env.rid())
+    assert env.access.permitted(DOCS) is False
+    _restore(env, enabled)  # the old file is internally consistent: its rows, chain, head and state all match
+    assert env.store.health() == "corrupt"
+    assert env.store.grants_for(DOCS) == [] and env.access.permitted(DOCS) is False and env.store.lifecycle(DOCS) == "not_configured"
+    with pytest.raises(StoreCorrupt):
+        env.enable(DOCS)  # and nothing can be built on it
+
+
+def test_a_restored_snapshot_is_caught_even_when_it_only_loses_the_last_change(env):
+    env.store.register_purge(DOCS, lambda: None)
+    env.enable(DOCS)
+    before = _snapshot(env, "before_mail.db")
+    env.enable(MAIL)
+    _restore(env, before)
+    assert env.store.health() == "corrupt" and env.store.grants_for(MAIL) == [] and env.store.grants_for(DOCS) == []
+
+
+def test_a_used_store_with_no_anchor_cannot_show_it_was_not_rolled_back(env):
+    env.enable(DOCS)
+    env.anchor.value = None  # the secure-storage item is gone
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+
+
+def test_an_anchor_that_cannot_be_read_fails_closed_and_recovers_when_it_can(env):
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    env.anchor.fail = True
+    assert env.store.health() == "corrupt" and env.access.permitted(DOCS) is False
+    env.anchor.fail = False
+    assert env.store.health() == "ok" and env.access.permitted(DOCS) is True
+
+
+def test_an_anchor_for_the_same_sequence_with_another_head_is_a_rollback_or_fork(env):
+    env.enable(DOCS)
+    env.anchor.value = (env.anchor.value[0], "e" * 64)
+    assert env.store.health() == "corrupt"
+
+
+def test_a_new_empty_database_under_an_older_anchor_is_refused_until_the_owner_starts_over(env, tmp_path):
+    env.enable(DOCS)
+    env.store.close()
+    (tmp_path / "designation.db").unlink()  # the database was deleted or replaced by an empty one
+    for suffix in ("-wal", "-shm"):
+        (tmp_path / f"designation.db{suffix}").unlink(missing_ok=True)
+    env.reopen()
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+    env.store.reset_anchor()  # deliberate: only possible on an empty store (nothing to resurrect)
+    assert env.store.health() == "ok" and env.store.lifecycle(DOCS) == "not_configured"
+    env.enable(DOCS)
+    with pytest.raises(DesignationError):
+        env.store.reset_anchor()  # never on a store that holds anything
+
+
+def test_the_anchor_only_moves_forward():
+    anchor = InMemoryAnchor()
+    anchor.advance(3, "a" * 64)
+    anchor.advance(3, "a" * 64)
+    anchor.advance(4, "b" * 64)
+    for seq, head in ((3, "a" * 64), (4, "c" * 64)):
+        with pytest.raises(AnchorError):
+            anchor.advance(seq, head)
+
+
+@pytest.mark.parametrize("failing", ["crash_after_commit", "anchor_unavailable"])
+def test_a_database_ahead_of_its_anchor_is_safe_and_the_anchor_catches_up(env, failing):
+    env.enable(DOCS)
+    if failing == "crash_after_commit":
+
+        def die(name: str) -> None:
+            if name == "after_commit":
+                raise RuntimeError(name)
+
+        env.store.hook = die
+        with pytest.raises(RuntimeError):
+            env.enable(MAIL)
+        env.store.hook = None
+    else:
+        env.anchor.fail_advance = True
+        env.enable(MAIL)
+        env.anchor.fail_advance = False
+    assert env.anchor.value[0] < len(env.store.audit_log())  # the anchor is one change behind the database (never ahead)
+    assert env.store.health() == "ok" and env.store.lifecycle(MAIL) == "enabled"
+    assert env.anchor.value[0] == len(env.store.audit_log())  # and the next verification caught it up
+
+
+# ---- review 6001015567, blocker 2: a withdrawal is one transaction --------------------------------------------------------------------------------------
+def _consumed(env: Env, rid: str) -> bool:
+    return env.store._conn.execute("SELECT 1 FROM requests WHERE request_id=?", (rid,)).fetchone() is not None
+
+
+def test_a_crash_before_the_withdrawal_commits_leaves_the_source_enabled_and_the_request_retryable(env):
+    purged: list[str] = []
+    env.store.register_purge(DOCS, lambda: purged.append(DOCS))
+    env.enable(DOCS)
+    rid = env.rid()
+
+    def die(name: str) -> None:
+        raise RuntimeError(name)
+
+    env.store.hook = die
+    with pytest.raises(RuntimeError):
+        env.store.withdraw(DOCS, rid)
+    env.store.hook = None
+    assert env.store.lifecycle(DOCS) == "enabled" and not _consumed(env, rid) and purged == []  # never 'enabled with the request consumed'
+    assert env.store.withdraw(DOCS, rid) is True  # the same request can be retried and now takes effect
+    assert env.store.lifecycle(DOCS) == "revoked" and purged == [DOCS]
+
+
+def test_a_crash_right_after_the_withdrawal_commits_leaves_it_whole_and_the_purge_pending(env):
+    env.enable(DOCS)
+    rid = env.rid()
+
+    def die(name: str) -> None:
+        if name == "after_commit":
+            raise RuntimeError(name)
+
+    env.store.hook = die
+    with pytest.raises(RuntimeError):
+        env.store.withdraw(DOCS, rid)
+    env.store.hook = None
+    assert env.store.lifecycle(DOCS) == "revoked" and _consumed(env, rid)  # the revocation and the request id are committed together
+    assert env.store.pending_purges() == [DOCS] and env.access.permitted(DOCS) is False  # revoked, with the purge still owed
+    purged: list[str] = []
+    env.store.register_purge(DOCS, lambda: purged.append(DOCS))
+    assert env.store.run_pending_purges() == [] and purged == [DOCS]
+
+
+@pytest.mark.parametrize("point", ["before_commit", "after_commit"])
+def test_a_withdrawal_never_consumes_its_request_without_revoking(env, point):
+    env.enable(DOCS)
+    rid = env.rid()
+
+    def die(name: str) -> None:
+        if name == point:
+            raise RuntimeError(name)
+
+    env.store.hook = die
+    with pytest.raises(RuntimeError):
+        env.store.withdraw(DOCS, rid)
+    env.store.hook = None
+    assert (env.store.lifecycle(DOCS) == "enabled") == (not _consumed(env, rid))  # consumed if and only if revoked
+
+
+# ---- review 6001015567, blocker 3: the access check sits at the actual open, after every hook ------------------------------------------------------
+class Opens:
+    """Records every open of a directory or file below the folder (the real os.open calls), so 'no byte was read after revocation' is a count of zero."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, root: Path) -> None:
+        self.calls: list[Any] = []
+        real = os.open
+
+        def recording(path: Any, flags: int, mode: int = 0o777, *, dir_fd: int | None = None) -> int:
+            if dir_fd is not None or str(path).startswith(str(root)):
+                self.calls.append(path)
+            return real(path, flags, mode, dir_fd=dir_fd)
+
+        monkeypatch.setattr(docs_module.os, "open", recording)
+
+
+def _ready(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Env, DocumentIndex, Opens]:
+    env = Env(tmp_path)
+    index, _ = documents(tmp_path, env)
+    (tmp_path / "docs" / "sub").mkdir()
+    (tmp_path / "docs" / "sub" / "b.txt").write_text("sub budget text")
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    opens = Opens(monkeypatch, tmp_path / "docs")
+    return env, index, opens
+
+
+def test_a_scanner_cannot_be_built_without_an_access_guard(tmp_path):
+    with pytest.raises(TypeError):
+        docs_module.Scanner(tmp_path)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("how", ["consent_withdrawn", "os_permission_lost"])
+def test_access_ending_at_the_pre_read_boundary_means_zero_reads_and_no_indexed_text(tmp_path, monkeypatch, how):
+    env, index, opens = _ready(tmp_path, monkeypatch)
+    index.scan()
+    assert env.access.permitted(DOCS)  # (also records that the platform permission was seen, so its loss below is a revocation)
+
+    def end_access(name: str) -> None:
+        if name != "doc:before":
+            return
+        if how == "consent_withdrawn":
+            env.store.withdraw(DOCS, env.rid())
+        else:
+            env.os.set(DOCS, MISSING)
+
+    index.hook = end_access
+    opens.calls.clear()
+    with pytest.raises(PermissionRevoked):
+        index.run(10)
+    assert opens.calls == []  # not one directory or file was opened after access ended, not even the document already in hand
+    assert index.coverage()["searched"] == 0 and index.coverage()["total"] == 0  # and nothing was indexed (the revocation purged the index)
+    assert env.store.lifecycle(DOCS) == "revoked"
+
+
+@pytest.mark.parametrize("component", ["sub", "b.txt-open"])
+def test_access_ending_inside_a_directory_walk_or_just_before_the_file_open_means_no_further_open(tmp_path, monkeypatch, component):
+    env, index, opens = _ready(tmp_path, monkeypatch)
+    index.scan()
+    sid = source_id_for("sub/b.txt")
+    index.run(10)
+    assert index.get(sid) is not None  # the whole tree was readable
+    fired: list[str] = []
+
+    def end_access(when: str, part: str) -> None:
+        wanted = ("before", "sub") if component == "sub" else ("after", "sub")
+        if (when, part) == wanted and not fired:
+            fired.append(part)
+            env.store.withdraw(DOCS, env.rid())
+
+    index.scanner.seam = end_access
+    opens.calls.clear()
+    if component == "sub":
+        with pytest.raises(PermissionRevoked):
+            index.scanner.walk()  # the walk reaches 'sub'; access ends at that very moment
+    else:
+        with pytest.raises(PermissionRevoked):
+            index.scanner.read("sub/b.txt")  # the directory was opened; access ends before the file is
+    assert fired and all("b.txt" not in str(c) for c in opens.calls)  # the file itself was never opened
+    if component == "sub":
+        assert len(opens.calls) <= 2  # at most the root and what was already open before the check (never 'sub' or anything below it)
+
+
+def test_a_withdrawal_during_a_scan_stops_it_and_it_never_reports_complete(tmp_path, monkeypatch):
+    env, index, opens = _ready(tmp_path, monkeypatch)
+    index.hook = lambda name: env.store.withdraw(DOCS, env.rid()) if name == "scan:begin" else None  # right after the scan was started
+    opens.calls.clear()
+    with pytest.raises(PermissionRevoked):
+        index.scan()
+    assert opens.calls == [] and index.coverage()["complete"] is False
+
+
+def test_access_ending_right_after_a_directory_was_opened_stops_it_being_listed(tmp_path, monkeypatch):
+    env, index, _ = _ready(tmp_path, monkeypatch)
+    listed: list[Any] = []
+    real = os.scandir
+    monkeypatch.setattr(docs_module.os, "scandir", lambda target: (listed.append(target), real(target))[1])
+    fired: list[str] = []
+
+    def end_access(when: str, part: str) -> None:
+        if (when, part) == ("after", "sub") and not fired:
+            fired.append(part)
+            env.store.withdraw(DOCS, env.rid())
+
+    index.scanner.seam = end_access
+    with pytest.raises(PermissionRevoked):
+        index.scanner.walk()
+    assert fired and len(listed) == 1  # only the root was listed; 'sub' was opened but never listed once access had ended
+
+
+class FlipAccess:
+    """Permits the first N checks, then none: access ends between a caller's own check and the guarded read."""
+
+    def __init__(self, allowed: int) -> None:
+        self.allowed, self.n = allowed, 0
+
+    def permitted(self, source_type: str) -> bool:
+        self.n += 1
+        return self.n <= self.allowed
+
+
+def test_get_returns_nothing_rather_than_raising_when_access_ends_between_its_check_and_the_read(tmp_path):
+    index = DocumentIndex(tmp_path / "i.db", KEY, tmp_path / "docs", DOCS, access=FlipAccess(10**6))
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "a.txt").write_text(FACT)
+    index.scan()
+    index.run(5)
+    sid = source_id_for("a.txt")
+    index._access = FlipAccess(1)  # get() is allowed once, then the guard in front of the file open is refused
+    assert index.get(sid) is None
