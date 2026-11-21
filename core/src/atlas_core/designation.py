@@ -12,6 +12,7 @@ tail or a store from another version makes every grant disappear (fail closed).
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import threading
@@ -41,45 +42,109 @@ class StoreCorrupt(DesignationError):
 
 
 class AnchorError(Exception):
-    """The anchor refused a write that would move it backwards or fork it."""
+    """The anchor refused a write that would move it backwards, fork it or overwrite an unresolved record."""
+
+
+@dataclass(frozen=True)
+class Intent:
+    """A RESTRICTING change (a revocation) recorded in the anchor before it is committed, so that it can be completed after a crash or a snapshot restore instead of being undone."""
+
+    source_type: str
+    reason: str
+    request_id: str | None = None
+
+
+@dataclass(frozen=True)
+class Pending:
+    seq: int
+    head: str
+    intent: Intent | None  # None: an ordinary change (an enable or a decline), which is dropped, never replayed, if it did not commit
+
+
+@dataclass(frozen=True)
+class AnchorRecord:
+    seq: int  # the newest (sequence, head hash) the store has durably committed AND recorded here
+    head: str
+    pending: Pending | None = None  # a change that was recorded as intended and is not yet recorded as committed
 
 
 class RollbackAnchor(Protocol):
-    """A tiny monotonic record kept OUTSIDE the designation database: the newest (sequence, head hash) the store has committed. Restoring an older copy of the whole database
-    cannot also restore it, so a database older than the anchor is a rollback and is refused. On the Mac this is a secure-storage item (Keychain; WP3.6, NOT implemented or
-    verified here); in CI it is `InMemoryAnchor`, a deterministic fake that only models the contract."""
+    """A small record kept OUTSIDE the designation database. A change is written in two phases: `prepare` records the intended (sequence, head) BEFORE the database commits, `commit`
+    records it as done AFTER. So the database is never trusted beyond what the anchor has recorded, and a restored older database is detected (older than the anchor) or, if it is
+    exactly one change behind an unfinished one, resolved by the recorded intent. On the Mac this is a secure-storage item (Keychain; WP3.6, NOT implemented or verified here);
+    in CI it is `InMemoryAnchor`, a deterministic fake that only models the contract."""
 
-    def read(self) -> tuple[int, str] | None: ...
+    def read(self) -> AnchorRecord | None: ...
 
-    def advance(self, seq: int, head: str) -> None: ...  # monotonic: never backwards, never a different head for the same sequence
+    def initialize(self, seq: int, head: str) -> None: ...  # first record of a new store; does nothing if a record already exists
+
+    def prepare(
+        self, seq: int, head: str, intent: Intent | None
+    ) -> None: ...  # refused unless seq is ahead and nothing else is pending (or the same restriction is replayed)
+
+    def commit(self, seq: int, head: str) -> None: ...  # the pending change becomes the committed record
+
+    def abort(self) -> None: ...  # drop the pending record (the change did not happen)
 
     def reset(self) -> None: ...  # the owner starts over with a new, empty store
 
 
 class InMemoryAnchor:
-    """CI stand-in for the platform anchor. `fail` makes every call error; `fail_advance` makes only writes error (the platform store is unavailable)."""
+    """CI stand-in for the platform anchor. `fail` makes every call error; `fail_prepare` / `fail_commit` make only that write error (the platform store is unavailable)."""
 
     def __init__(self) -> None:
-        self.value: tuple[int, str] | None = None
+        self.record: AnchorRecord | None = None
         self.fail = False
-        self.fail_advance = False
+        self.fail_prepare = False
+        self.fail_commit = False
 
-    def read(self) -> tuple[int, str] | None:
-        if self.fail:
+    def _check(self, failing: bool = False) -> None:
+        if self.fail or failing:
             raise OSError("anchor unavailable")
-        return self.value
 
-    def advance(self, seq: int, head: str) -> None:
-        if self.fail or self.fail_advance:
-            raise OSError("anchor unavailable")
-        if self.value is not None and (seq < self.value[0] or (seq == self.value[0] and head != self.value[1])):
+    def read(self) -> AnchorRecord | None:
+        self._check()
+        return self.record
+
+    def initialize(self, seq: int, head: str) -> None:
+        self._check()
+        if self.record is None:
+            self.record = AnchorRecord(seq, head)
+
+    def prepare(self, seq: int, head: str, intent: Intent | None) -> None:
+        self._check(self.fail_prepare)
+        current = self.record
+        if current is None or seq <= current.seq:
             raise AnchorError("backwards")
-        self.value = (seq, head)
+        old = current.pending
+        replay = old is not None and old.seq == seq and old.intent is not None and intent is not None and old.intent.source_type == intent.source_type
+        if old is not None and not replay:
+            raise AnchorError("pending")
+        self.record = AnchorRecord(current.seq, current.head, Pending(seq, head, intent))
+
+    def commit(self, seq: int, head: str) -> None:
+        self._check(self.fail_commit)
+        current = self.record
+        if current is None or current.pending is None or (current.pending.seq, current.pending.head) != (seq, head):
+            raise AnchorError("nothing to commit")
+        self.record = AnchorRecord(seq, head)
+
+    def abort(self) -> None:
+        self._check()
+        if self.record is not None:
+            self.record = AnchorRecord(self.record.seq, self.record.head)
 
     def reset(self) -> None:
-        if self.fail:
-            raise OSError("anchor unavailable")
-        self.value = None
+        self._check()
+        self.record = None
+
+
+class _Ambiguous(Exception):
+    """The database is at the last committed state while the anchor holds a pending change: it either never committed, or the database was restored from before it."""
+
+    def __init__(self, pending: Pending) -> None:
+        super().__init__("pending")
+        self.pending = pending
 
 
 class PurgePending(DesignationError):
@@ -140,7 +205,6 @@ class DesignationStore:
             if fresh:
                 self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('schema', ?)", (str(SCHEMA_VERSION),))
                 self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES ('head', ?)", (f"0:{GENESIS}",))
-                self._pin(0, GENESIS)  # a brand-new store anchors its start (an existing anchor is left alone: see _verify_anchor)
 
     def close(self) -> None:
         self._conn.close()
@@ -157,14 +221,25 @@ class DesignationStore:
         return str(row["value"]) if row else ""
 
     def verify(self) -> None:
-        """Raise StoreCorrupt unless the audit chain, the head, the states and the grants all agree."""
+        """Raise StoreCorrupt unless the audit chain, the head, the states, the grants AND the external anchor all agree. A change the anchor holds as pending but the database lacks is
+        resolved here: a restriction is applied (rolled forward), anything else is dropped."""
         with self._lock:
             try:
-                self._verify()
-            except StoreCorrupt:
-                raise
-            except Exception as error:  # an unreadable or malformed record is corrupt, whatever the cause
-                raise StoreCorrupt("unreadable") from error
+                self._checked()
+            except _Ambiguous as ambiguity:
+                self._resolve(ambiguity.pending)
+                try:
+                    self._checked()
+                except _Ambiguous:
+                    raise StoreCorrupt("pending_unresolved") from None
+
+    def _checked(self) -> None:
+        try:
+            self._verify()
+        except (StoreCorrupt, _Ambiguous):
+            raise
+        except Exception as error:  # an unreadable or malformed record is corrupt, whatever the cause
+            raise StoreCorrupt("unreadable") from error
 
     def _verify(self) -> None:
         if self._meta("schema") != str(SCHEMA_VERSION):
@@ -186,28 +261,67 @@ class DesignationStore:
         self._verify_anchor(rows, prev)
         self._verify_tables(derived, revoked_ids, issued)
 
-    def _pin(self, seq: int, head: str) -> None:
-        """Move the external anchor forward. A failure is tolerated: the database is then ahead of the anchor, which the next verification catches up (never behind)."""
+    def _anchor_do(self, action: Callable[[], None], why: str) -> None:
         try:
-            self._anchor.advance(seq, head)
-        except (OSError, AnchorError):
-            return
+            action()
+        except (OSError, AnchorError) as error:
+            raise StoreCorrupt(why) from error  # the store cannot be shown to match the anchor: nothing is trusted until it can
 
     def _verify_anchor(self, rows: list[Any], head: str) -> None:
-        """The database must not be OLDER than the anchor. A whole-database restore brings back matching rows, chain and head, but not the anchor outside it."""
+        """The database must match the anchor EXACTLY: not older (a restored snapshot brings back matching rows, chain and head, but not the anchor outside it), and not ahead of what the
+        anchor has recorded. A change the anchor holds as pending is either finalised (the database has it) or resolved (it does not)."""
         try:
-            pinned = self._anchor.read()
+            record = self._anchor.read()
         except Exception as error:  # any anchor failure means rollback cannot be ruled out: fail closed
             raise StoreCorrupt("anchor_unavailable") from error
-        if pinned is None:
+        if record is None:
             if rows:
                 raise StoreCorrupt("anchor_missing")  # a used store with no anchor cannot show it was not rolled back
+            self._anchor_do(lambda: self._anchor.initialize(0, GENESIS), "anchor_unavailable")  # a new, empty store anchors its start
             return
-        seq, anchored = pinned
-        if seq > len(rows) or (seq > 0 and rows[seq - 1]["hash"] != anchored) or (seq == 0 and anchored != GENESIS):
+        seq = record.seq
+        if seq > len(rows) or (seq > 0 and rows[seq - 1]["hash"] != record.head) or (seq == 0 and record.head != GENESIS):
             raise StoreCorrupt("rollback")
-        if len(rows) > seq:
-            self._pin(len(rows), head)  # the database is ahead (a crash between a commit and the anchor write): catch the anchor up
+        pending = record.pending
+        if pending is None:
+            if len(rows) != seq:
+                raise StoreCorrupt("unanchored")  # the database holds a change the anchor never recorded
+            return
+        if len(rows) == pending.seq and head == pending.head:
+            self._anchor_do(lambda: self._anchor.commit(pending.seq, pending.head), "anchor_unsynced")  # committed in the database: record it, or trust nothing
+        elif len(rows) == seq:
+            raise _Ambiguous(pending)
+        else:
+            raise StoreCorrupt("pending_mismatch")
+
+    def _resolve(self, pending: Pending) -> None:
+        """The anchor holds a change the database does not. An ordinary change (an enable, a decline) is dropped: nothing is granted. A RESTRICTION (withdrawal, expiry, loss of the OS
+        permission) is applied now, so restoring an older snapshot, or dying before the commit, can never undo it."""
+        intent = pending.intent
+        if intent is None:
+            self._anchor_do(self._anchor.abort, "anchor_unavailable")
+            return
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            if intent.request_id is not None:
+                self._conn.execute("INSERT OR IGNORE INTO requests (request_id) VALUES (?)", (intent.request_id,))
+            if not self._revoke(intent.source_type, intent.reason):
+                self._conn.execute("ROLLBACK")
+                self._anchor_do(self._anchor.abort, "anchor_unavailable")  # nothing to restrict (the source is not enabled in this database)
+                return
+            seq, head = self._head()
+            self._anchor_do(lambda: self._anchor.prepare(seq, head, intent), "anchor_unavailable")  # replaces the pending record for the same position
+            self._conn.execute("COMMIT")
+        except BaseException:
+            with contextlib.suppress(Exception):
+                self._conn.execute("ROLLBACK")
+            raise
+        self._anchor_do(lambda: self._anchor.commit(seq, head), "anchor_unsynced")
+        self._run_purge(intent.source_type)
+
+    def _head(self) -> tuple[int, str]:
+        count, head = self._meta("head").split(":")
+        return int(count), head
 
     def _verify_tables(self, derived: dict[str, tuple[str, str | None]], revoked_ids: set[str | None], issued: dict[str | None, str]) -> None:
         states = {r["source_type"]: (r["state"], r["grant_id"]) for r in self._conn.execute("SELECT * FROM state")}
@@ -225,8 +339,8 @@ class DesignationStore:
         with self._lock:
             if self._conn.execute("SELECT count(*) FROM audit").fetchone()[0] != 0:
                 raise DesignationError("store_not_empty")
-            self._anchor.reset()
-            self._pin(0, GENESIS)
+            self._anchor_do(self._anchor.reset, "anchor_unavailable")
+            self._anchor_do(lambda: self._anchor.initialize(0, GENESIS), "anchor_unavailable")
 
     def health(self) -> str:
         try:
@@ -244,22 +358,38 @@ class DesignationStore:
         self._conn.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?,?,?,?)", (*row, prev, digest))
         self._conn.execute("UPDATE meta SET value=? WHERE key='head'", (f"{row[0]}:{digest}",))
 
-    def _transaction(self, body: Callable[[], Any]) -> Any:
+    def _transaction(self, body: Callable[[], Any], intent: Intent | None = None) -> Any:
+        """One change and its audit row, in two phases with the external anchor: the anchor records the intended state BEFORE the commit and the finished state AFTER it. If the anchor
+        cannot record the intent the change is not made; if it cannot record the finish, the store is not trusted (reads and writes fail closed) until it can."""
         with self._lock:
             self.verify()  # never build on a record that cannot be trusted
+            before = self._head()
             self._conn.execute("BEGIN IMMEDIATE")
+            prepared: tuple[int, str] | None = None
             try:
                 result = body()
+                after = self._head()
+                if after != before:
+                    self._anchor.prepare(after[0], after[1], intent)
+                    prepared = after
                 if self.hook is not None:
                     self.hook("before_commit")
                 self._conn.execute("COMMIT")
-            except BaseException:
+            except Exception:
                 self._conn.execute("ROLLBACK")
+                if prepared is not None:
+                    with contextlib.suppress(Exception):
+                        self._anchor.abort()  # the change did not happen and we know it
+                raise
+            except BaseException:  # the process dies: the anchor's record is left for the next start to resolve (a restriction is then completed)
+                with contextlib.suppress(Exception):
+                    self._conn.execute("ROLLBACK")
                 raise
             if self.hook is not None:
-                self.hook("after_commit")  # tests: a crash here leaves the database ahead of the anchor
-            count, head = self._meta("head").split(":")
-            self._pin(int(count), head)
+                self.hook("after_commit")
+            if prepared is not None:
+                with contextlib.suppress(OSError, AnchorError):
+                    self._anchor.commit(*prepared)  # if this fails the store is not trusted until the next verification manages it
             return result
 
     def _state_of(self, source_type: str) -> tuple[str, str | None]:
@@ -338,14 +468,14 @@ class DesignationStore:
             self._conn.execute("INSERT INTO requests (request_id) VALUES (?)", (request_id,))
             return self._revoke(source_type, "owner_withdrawn")
 
-        revoked = bool(self._transaction(body))
+        revoked = bool(self._transaction(body, Intent(source_type, "owner_withdrawn", request_id)))
         if revoked:
             self._run_purge(source_type)
         return revoked
 
     def revoke(self, source_type: str, reason: str) -> bool:
         """End the enabled grant of a source type (owner withdrawal, expiry, or loss of the OS permission) and purge what was derived from it. True if something was revoked."""
-        revoked = self._transaction(lambda: self._revoke(source_type, reason))
+        revoked = self._transaction(lambda: self._revoke(source_type, reason), Intent(source_type, reason))
         if revoked:
             self._run_purge(source_type)
         return bool(revoked)

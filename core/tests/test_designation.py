@@ -17,7 +17,18 @@ from conftest import KEY, Clock, World, request
 from atlas_core import documents as docs_module
 from atlas_core.access import GRANTED, MISSING, UNKNOWN, FakeOSPermissions, SourceAccess
 from atlas_core.contracts import validate
-from atlas_core.designation import AnchorError, DesignationError, DesignationStore, InMemoryAnchor, OnboardingDecision, PurgePending, StoreCorrupt
+from atlas_core.designation import (
+    AnchorError,
+    AnchorRecord,
+    DesignationError,
+    DesignationStore,
+    InMemoryAnchor,
+    Intent,
+    OnboardingDecision,
+    Pending,
+    PurgePending,
+    StoreCorrupt,
+)
 from atlas_core.documents import DocumentIndex, source_id_for
 from atlas_core.policy import InMemoryGrants, PermissionRevoked, PolicyEngine
 
@@ -558,12 +569,6 @@ def test_a_restored_snapshot_is_caught_even_when_it_only_loses_the_last_change(e
     assert env.store.health() == "corrupt" and env.store.grants_for(MAIL) == [] and env.store.grants_for(DOCS) == []
 
 
-def test_a_used_store_with_no_anchor_cannot_show_it_was_not_rolled_back(env):
-    env.enable(DOCS)
-    env.anchor.value = None  # the secure-storage item is gone
-    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
-
-
 def test_an_anchor_that_cannot_be_read_fails_closed_and_recovers_when_it_can(env):
     env.enable(DOCS)
     env.os.set(DOCS, GRANTED)
@@ -571,12 +576,6 @@ def test_an_anchor_that_cannot_be_read_fails_closed_and_recovers_when_it_can(env
     assert env.store.health() == "corrupt" and env.access.permitted(DOCS) is False
     env.anchor.fail = False
     assert env.store.health() == "ok" and env.access.permitted(DOCS) is True
-
-
-def test_an_anchor_for_the_same_sequence_with_another_head_is_a_rollback_or_fork(env):
-    env.enable(DOCS)
-    env.anchor.value = (env.anchor.value[0], "e" * 64)
-    assert env.store.health() == "corrupt"
 
 
 def test_a_new_empty_database_under_an_older_anchor_is_refused_until_the_owner_starts_over(env, tmp_path):
@@ -592,38 +591,6 @@ def test_a_new_empty_database_under_an_older_anchor_is_refused_until_the_owner_s
     env.enable(DOCS)
     with pytest.raises(DesignationError):
         env.store.reset_anchor()  # never on a store that holds anything
-
-
-def test_the_anchor_only_moves_forward():
-    anchor = InMemoryAnchor()
-    anchor.advance(3, "a" * 64)
-    anchor.advance(3, "a" * 64)
-    anchor.advance(4, "b" * 64)
-    for seq, head in ((3, "a" * 64), (4, "c" * 64)):
-        with pytest.raises(AnchorError):
-            anchor.advance(seq, head)
-
-
-@pytest.mark.parametrize("failing", ["crash_after_commit", "anchor_unavailable"])
-def test_a_database_ahead_of_its_anchor_is_safe_and_the_anchor_catches_up(env, failing):
-    env.enable(DOCS)
-    if failing == "crash_after_commit":
-
-        def die(name: str) -> None:
-            if name == "after_commit":
-                raise RuntimeError(name)
-
-        env.store.hook = die
-        with pytest.raises(RuntimeError):
-            env.enable(MAIL)
-        env.store.hook = None
-    else:
-        env.anchor.fail_advance = True
-        env.enable(MAIL)
-        env.anchor.fail_advance = False
-    assert env.anchor.value[0] < len(env.store.audit_log())  # the anchor is one change behind the database (never ahead)
-    assert env.store.health() == "ok" and env.store.lifecycle(MAIL) == "enabled"
-    assert env.anchor.value[0] == len(env.store.audit_log())  # and the next verification caught it up
 
 
 # ---- review 6001015567, blocker 2: a withdrawal is one transaction --------------------------------------------------------------------------------------
@@ -814,3 +781,195 @@ def test_get_returns_nothing_rather_than_raising_when_access_ends_between_its_ch
     sid = source_id_for("a.txt")
     index._access = FlipAccess(1)  # get() is allowed once, then the guard in front of the file open is refused
     assert index.get(sid) is None
+
+
+# ---- review 6001660112: the database is trusted only as far as the external anchor has recorded it (two-phase) ------------------------------------------
+class ProcessDied(BaseException):
+    """A simulated process death: not an ordinary error, so nothing in the store gets to clean up after it."""
+
+
+def _die_at(env: Env, point: str) -> None:
+    def hook(name: str) -> None:
+        if name == point:
+            raise ProcessDied(name)
+
+    env.store.hook = hook
+
+
+def _row_hash(env: Env, seq: int) -> str:
+    return str(env.store._conn.execute("SELECT hash FROM audit WHERE seq=?", (seq,)).fetchone()[0])
+
+
+def test_a_used_store_with_no_anchor_cannot_show_it_was_not_rolled_back(env):
+    env.enable(DOCS)
+    env.anchor.record = None  # the secure-storage item is gone
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+
+
+def test_an_anchor_for_the_same_sequence_with_another_head_is_a_rollback_or_fork(env):
+    env.enable(DOCS)
+    env.anchor.record = AnchorRecord(env.anchor.record.seq, "e" * 64)
+    assert env.store.health() == "corrupt"
+
+
+def test_a_database_that_holds_a_change_the_anchor_never_recorded_is_refused(env):
+    env.enable(DOCS)
+    env.enable(MAIL)
+    env.anchor.record = AnchorRecord(1, _row_hash(env, 1))  # the anchor knows only the first change and has nothing pending
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == [] and env.store.grants_for(MAIL) == []
+
+
+def test_a_pending_record_that_matches_neither_state_is_refused(env):
+    env.enable(DOCS)
+    env.enable(MAIL)
+    env.anchor.record = AnchorRecord(1, _row_hash(env, 1), Pending(5, "f" * 64, None))  # the database is two changes in; the anchor expects a fifth
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+
+
+def test_the_anchor_contract_is_forward_only_and_two_phase():
+    anchor = InMemoryAnchor()
+    anchor.initialize(0, "0" * 64)
+    anchor.initialize(9, "9" * 64)  # an existing record is never replaced by a new store's start
+    assert anchor.read() == AnchorRecord(0, "0" * 64)
+    with pytest.raises(AnchorError):
+        anchor.commit(1, "a" * 64)  # nothing was prepared
+    anchor.prepare(1, "a" * 64, None)
+    with pytest.raises(AnchorError):
+        anchor.prepare(2, "b" * 64, None)  # one unresolved change at a time
+    with pytest.raises(AnchorError):
+        anchor.commit(1, "c" * 64)  # the finished state must be the intended one
+    anchor.commit(1, "a" * 64)
+    with pytest.raises(AnchorError):
+        anchor.prepare(1, "d" * 64, None)  # never backwards or sideways
+    restriction = Intent(MAIL, "owner_withdrawn", "request-000001")
+    anchor.prepare(2, "e" * 64, restriction)
+    anchor.prepare(2, "f" * 64, restriction)  # the same restriction may be replayed in the same position (that is how it is completed)
+    anchor.abort()
+    assert anchor.read() == AnchorRecord(1, "a" * 64)
+
+
+@pytest.mark.parametrize("change", ["enable", "withdrawal"])
+def test_a_committed_change_the_anchor_could_not_record_is_not_trusted_for_reads_or_writes(env, change):
+    env.os.set(DOCS, GRANTED)
+    purged: list[str] = []
+    env.store.register_purge(DOCS, lambda: purged.append(DOCS))
+    if change == "withdrawal":
+        env.enable(DOCS)
+        assert env.access.permitted(DOCS) is True
+    env.anchor.fail_commit = True  # the platform store refuses to record the FINISH of the change
+    if change == "enable":
+        env.enable(DOCS)
+    else:
+        assert env.store.withdraw(DOCS, env.rid()) is True and purged == [DOCS]  # the withdrawal committed and its purge still ran
+    assert env.store.grants_for(DOCS) == [] and env.access.permitted(DOCS) is False and env.store.lifecycle(DOCS) == "not_configured"  # nothing is trusted
+    assert env.store.health() == "corrupt"
+    with pytest.raises(StoreCorrupt):
+        env.enable(MAIL)  # and nothing can be built on it
+    env.anchor.fail_commit = False  # reconciled: now (and only now) the committed state is trusted
+    assert env.store.health() == "ok"
+    assert env.store.lifecycle(DOCS) == ("enabled" if change == "enable" else "revoked")
+    assert env.access.permitted(DOCS) is (change == "enable")
+
+
+@pytest.mark.parametrize("change", ["enable", "withdrawal"])
+def test_a_change_the_anchor_cannot_record_in_advance_is_not_made_at_all(env, change):
+    env.enable(DOCS)
+    rid = env.rid()
+    env.anchor.fail_prepare = True
+    with pytest.raises(OSError):
+        env.enable(MAIL) if change == "enable" else env.store.withdraw(DOCS, rid)
+    env.anchor.fail_prepare = False
+    assert env.store.health() == "ok" and env.store.lifecycle(MAIL) == "not_configured" and env.store.lifecycle(DOCS) == "enabled"
+    assert not _consumed(env, rid) and len(env.store.audit_log()) == 1
+
+
+def test_dying_right_after_the_commit_is_finalised_at_the_next_start(env):
+    _die_at(env, "after_commit")
+    with pytest.raises(ProcessDied):
+        env.enable(DOCS)
+    env.store.hook = None
+    env.reopen()
+    assert env.store.health() == "ok" and env.store.lifecycle(DOCS) == "enabled" and env.anchor.record.pending is None
+
+
+def test_dying_before_an_enable_commits_leaves_nothing_granted_and_a_clean_store(env):
+    _die_at(env, "before_commit")
+    with pytest.raises(ProcessDied):
+        env.enable(DOCS)
+    env.store.hook = None
+    assert env.anchor.record.pending is not None  # the intent was recorded before the commit
+    env.reopen()
+    assert env.store.health() == "ok" and env.store.lifecycle(DOCS) == "not_configured" and env.anchor.record.pending is None
+    env.enable(DOCS)  # and the owner can simply enable again
+    assert env.store.lifecycle(DOCS) == "enabled"
+
+
+def test_dying_before_a_withdrawal_commits_still_completes_the_withdrawal_at_the_next_start(env):
+    purged: list[str] = []
+    env.store.register_purge(DOCS, lambda: purged.append(DOCS))
+    env.enable(DOCS)
+    rid = env.rid()
+    _die_at(env, "before_commit")
+    with pytest.raises(ProcessDied):
+        env.store.withdraw(DOCS, rid)
+    env.store.hook = None
+    env.reopen()
+    env.store.register_purge(DOCS, lambda: purged.append(DOCS))
+    assert env.store.lifecycle(DOCS) == "revoked" and env.store.health() == "ok"  # a restriction recorded as intended is never lost
+    assert _consumed(env, rid) and purged == [DOCS] and env.store.pending_purges() == []
+    with pytest.raises(DesignationError, match="replayed"):
+        env.store.withdraw(DOCS, rid)
+
+
+@pytest.mark.parametrize("anchor_unfinished", ["commit_refused", "process_died"])
+def test_restoring_the_snapshot_from_before_an_unfinished_withdrawal_cannot_resurrect_consent(env, anchor_unfinished):
+    purged: list[str] = []
+    env.store.register_purge(DOCS, lambda: purged.append(DOCS))
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    snapshot = _snapshot(env, "while_enabled.db")
+    assert env.access.permitted(DOCS) is True
+    if anchor_unfinished == "commit_refused":
+        env.anchor.fail_commit = True
+        env.store.withdraw(DOCS, env.rid())
+    else:
+        _die_at(env, "after_commit")
+        with pytest.raises(ProcessDied):
+            env.store.withdraw(DOCS, env.rid())
+        env.store.hook = None
+    _restore(env, snapshot)  # the anchor holds the withdrawal as pending; the restored database is one change behind it
+    if anchor_unfinished == "commit_refused":
+        assert env.store.grants_for(DOCS) == [] and env.access.permitted(DOCS) is False  # completing it cannot be recorded yet: nothing is trusted
+        env.anchor.fail_commit = False
+    assert env.store.health() == "ok"
+    assert env.store.lifecycle(DOCS) == "revoked" and env.access.permitted(DOCS) is False  # the withdrawal was applied to the restored database
+    assert env.store.grants_for(DOCS)[-1]["revoked"] is True
+
+
+def test_restoring_the_snapshot_from_before_an_unfinished_enable_grants_nothing(env):
+    env.enable(DOCS)
+    snapshot = _snapshot(env, "before_mail.db")
+    env.anchor.fail_commit = True
+    env.enable(MAIL)
+    _restore(env, snapshot)
+    env.anchor.fail_commit = False
+    assert env.store.health() == "ok" and env.store.lifecycle(MAIL) == "not_configured" and env.store.grants_for(MAIL) == []  # an unrealised enable is dropped
+    assert env.store.lifecycle(DOCS) == "enabled"
+
+
+@pytest.mark.parametrize("cause", ["os_permission_lost", "grant_expired"])
+def test_dying_before_an_automatic_revocation_commits_still_completes_it_at_the_next_start(env, cause):
+    env.enable(DOCS, expires=env.clock() + timedelta(seconds=60) if cause == "grant_expired" else None)
+    env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True  # (the permission is seen, so its loss below is a revocation)
+    if cause == "os_permission_lost":
+        env.os.set(DOCS, MISSING)
+    else:
+        env.clock.advance(61)
+    _die_at(env, "before_commit")
+    with pytest.raises(ProcessDied):
+        env.access.permitted(DOCS)
+    env.store.hook = None
+    env.reopen()
+    assert env.store.lifecycle(DOCS) == "revoked" and env.store.health() == "ok"
+    assert env.store.audit_log()[-1]["reason"] == cause
