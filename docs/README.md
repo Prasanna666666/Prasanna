@@ -18,4 +18,20 @@
 | [REVIEW_PROMPT.md](REVIEW_PROMPT.md) | The prompt used to ask other AIs for the first review |
 | [RE_REVIEW_PROMPT.md](RE_REVIEW_PROMPT.md) | The prompt to send reviewers (people and AIs) for the re-review of this pull request |
 
+## Project Genesis — evolved Atlas target
+
+The following documents define the evolved product direction. They are target-state specifications and must be read alongside the current implementation records above; they do not claim that target capabilities are already implemented.
+
+- [Genesis documentation index](genesis/README.md)
+- [Product requirements (PRD)](genesis/PRD.md)
+- [Target architecture](genesis/TARGET_ARCHITECTURE.md)
+- [Intelligence, response quality and performance](genesis/INTELLIGENCE_AND_PERFORMANCE.md)
+- [Memory, knowledge and privacy](genesis/MEMORY_PRIVACY_KNOWLEDGE.md)
+- [Ingestion and durable processing](genesis/INGESTION_PIPELINE.md)
+- [Delivery and collaboration protocol](genesis/DELIVERY_PROTOCOL.md)
+- [Decision register](genesis/DECISIONS.md)
+- [Project handover](genesis/HANDOVER.md)
+
+**Important:** Existing documents describe the current implementation and review evidence. Genesis documents describe the evolved target. Reconcile differences explicitly; do not silently replace historical decisions or test evidence.
+
 Read in this order if you have ten minutes: `defects.md` (what was wrong), `design.md` (how the assistant is kept safe), `ui-review.md` (what it looks like).

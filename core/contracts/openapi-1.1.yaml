@@ -1,0 +1,331 @@
+# API 1.1 specification (additive over the frozen 1.0). Hand-maintained from here on; derived once from openapi.yaml, which is not changed.
+openapi: 3.1.0
+info:
+  title: Atlas Core API
+  version: '1.1'
+  summary: API 1.1 (specification of the additive delta over the frozen 1.0). Version negotiation is explicit; the Core still serves 1.0 only.
+  description: 'Language-neutral source of truth, with atlas-contracts.schema.json. A client is never trusted: the Core enforces
+
+    the source policy before retrieval and before any model context is built. Every request is signed by a per-client key
+
+    (no localhost or Origin trust). Remote iOS connectivity is NOT specified here (G-O14); the same signed-request scheme is
+
+    the seam a remote transport would reuse.
+
+
+    Version 1.1 is validated only against atlas-contracts.1.1.schema.json (the 1.0 document with the 1.1 delta applied by contracts.build_1_1). The 1.0 files are
+    frozen and unchanged.
+
+    The operations marked x-atlas-status are specification only: no route serves them yet. Hand-maintained; it was derived once from openapi.yaml.
+
+    '
+servers:
+- url: unix:///run/atlas/core.sock
+  description: Local transport (Unix domain socket, owner-only, peer-credential checked).
+security:
+- SignedRequest: []
+paths:
+  /v1/version:
+    get:
+      operationId: getVersion
+      summary: Version negotiation. The only call that does not need a supported X-Atlas-Api-Version.
+      responses:
+        '200':
+          description: Versions this Core speaks
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.schema.json#/$defs/ApiVersion
+        '401':
+          $ref: '#/components/responses/Error'
+  /v1/tasks:
+    post:
+      operationId: createTask
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/TaskRequest
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/TaskRecord
+          description: Same idempotency key and same request returned the existing task
+          headers: &id001
+            X-Atlas-Api-Version:
+              $ref: '#/components/headers/ApiVersionEcho'
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/TaskRecord
+          description: Task created
+          headers: *id001
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '409':
+          $ref: '#/components/responses/ErrorVersioned'
+        '426':
+          $ref: '#/components/responses/ErrorVersioned'
+      summary: Create a task (idempotent on idempotency_key). The source policy is evaluated before anything is retrieved.
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+  /v1/tasks/{task_id}:
+    get:
+      operationId: getTask
+      parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/TaskRecord
+          description: The task
+          headers: *id001
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/tasks/{task_id}/cancel:
+    post:
+      operationId: cancelTask
+      parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/TaskRecord
+          description: The task after the request
+          headers: *id001
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+      summary: Request cancellation. Honoured at the next step boundary; always safe to repeat.
+  /v1/tasks/{task_id}/answer:
+    get:
+      operationId: getAnswer
+      parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/AnswerEnvelope
+          description: The answer
+          headers: *id001
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+        '409':
+          $ref: '#/components/responses/ErrorVersioned'
+      summary: The answer envelope of a finished task.
+  /v1/tasks/{task_id}/receipt:
+    get:
+      operationId: getReceipt
+      parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ExecutionReceipt
+          description: The receipt
+          headers: *id001
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+        '409':
+          $ref: '#/components/responses/ErrorVersioned'
+      summary: The execution receipt of a finished task (audit envelope only; this slice has no actions).
+  /v1/tasks/{task_id}/events:
+    get:
+      operationId: streamEvents
+      parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - in: query
+        name: after
+        required: false
+        schema:
+          minimum: 0
+          type: integer
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          content:
+            text/event-stream:
+              schema:
+                description: 'Lines ''id: <seq>'' and ''data: <StreamEvent JSON>'''
+                type: string
+          description: Event stream
+          headers: *id001
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+      summary: Progress and state as Server-Sent Events; each data line is one StreamEvent. Resume with ?after=<seq>.
+  /v1/consent:
+    get:
+      operationId: getConsent
+      summary: The grants the owner has made and, per source, whether macOS access is granted. Only an owner-interactive client may call it (text only in WP3.1).
+      x-atlas-status: specification-only; not served
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The consent state
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConsentState
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+    post:
+      operationId: createConsent
+      summary: 'The single Get Started consent: enable the listed source types. Only an owner-interactive client may call it (text only in WP3.1).'
+      x-atlas-status: specification-only; not served
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConsentRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '201':
+          description: The consent state after the request
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConsentState
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/consent/{grant_id}:
+    delete:
+      operationId: revokeConsent
+      summary: Revoke one grant, effective at the next read or model boundary. Only an owner-interactive client may call it (text only in WP3.1).
+      x-atlas-status: specification-only; not served
+      parameters:
+      - $ref: '#/components/parameters/GrantId'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The consent state after the revocation
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConsentState
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/index/status:
+    get:
+      operationId: getIndexStatus
+      summary: 'Counts about the search index: indexed, total, newest indexed, failed. Never content.'
+      x-atlas-status: specification-only; not served
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The index status
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/IndexStatus
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+components:
+  securitySchemes:
+    SignedRequest:
+      type: apiKey
+      in: header
+      name: X-Atlas-Signature
+      description: "Ed25519 signature, base64, over: METHOD, PATH (with query), X-Atlas-Timestamp, X-Atlas-Nonce and the SHA-256 hex of the body,\njoined by newlines.\
+        \ Also required: X-Atlas-Client (registered client id), X-Atlas-Timestamp (seconds), X-Atlas-Nonce (single use).\nA missing, invalid, replayed, stale or revoked\
+        \ identity is refused. The optional X-Atlas-Api-Version selects the contract version.\n        API 1.1 signing: when the applied version is 1.1 the signed\
+        \ message has SIX fields, joined by LF (0x0A), UTF-8, no trailing newline, in this order:\n        the literal text 1.1, METHOD (uppercase), PATH (with query),\
+        \ X-Atlas-Timestamp, X-Atlas-Nonce, the lowercase hex SHA-256 of the body.\n        API 1.0 requests keep the five-field message unchanged. The Core builds\
+        \ the message from the version it applies, so a request signed for 1.1\n        whose version header is stripped or changed fails verification. A 1.1 client\
+        \ rejects a response whose X-Atlas-Api-Version is absent or differs\n        from the version it requested. /v1/version is the unversioned discovery call:\
+        \ it keeps the 1.0 signing and has no echo. Any field containing CR or LF is refused.\n        The consent routes may be called only by an enrolled owner-interactive\
+        \ client (specification only; enforcement belongs to a later package)."
+  parameters:
+    TaskId:
+      in: path
+      name: task_id
+      required: true
+      schema:
+        $ref: ./atlas-contracts.1.1.schema.json#/$defs/Opaque
+    ApiVersion:
+      name: X-Atlas-Api-Version
+      in: header
+      required: false
+      schema:
+        type: string
+        enum:
+        - '1.0'
+        - '1.1'
+      description: Selects the contract version. Absent means 1.0. 1.1 is accepted only when the Core advertises it in GET /v1/version; anything else is refused with
+        unsupported_version.
+    GrantId:
+      name: grant_id
+      in: path
+      required: true
+      schema:
+        $ref: ./atlas-contracts.1.1.schema.json#/$defs/Opaque
+  responses:
+    Error:
+      description: A user-safe error (never internals).
+      content:
+        application/json:
+          schema:
+            $ref: ./atlas-contracts.schema.json#/$defs/UserSafeError
+    ErrorVersioned:
+      description: A user-safe error (never internals).
+      headers: *id001
+      content:
+        application/json:
+          schema:
+            $ref: ./atlas-contracts.1.1.schema.json#/$defs/UserSafeError
+  headers:
+    ApiVersionEcho:
+      description: The contract version applied to this request.
+      schema:
+        type: string
+        enum:
+        - '1.0'
+        - '1.1'
