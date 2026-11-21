@@ -208,7 +208,8 @@ def test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_pur
     env.os.set(DOCS, MISSING)  # revoked in System Settings
     assert env.access.permitted(DOCS) is False
     assert env.store.lifecycle(DOCS) == "revoked" and purged == [DOCS]
-    assert [(r["from_state"], r["to_state"], r["reason"]) for r in env.store.audit_log()][-1] == ("enabled", "revoked", "os_permission_lost")
+    log = [(r["from_state"], r["to_state"], r["reason"]) for r in env.store.audit_log()]
+    assert log[-2:] == [("enabled", "revoked", "os_permission_lost"), ("revoked", "revoked", "purge_completed")]  # the revocation, then the recorded purge
     env.os.set(DOCS, GRANTED)  # the permission comes back, but the old grant does not
     assert env.access.permitted(DOCS) is False and env.decision(DOCS)[0]["reason_code"] == "grant_revoked"
     env.enable(DOCS)  # the owner enables again: a NEW grant identity
@@ -253,7 +254,7 @@ def test_a_grant_expires_is_revoked_and_its_data_purged(env):
     assert env.access.permitted(DOCS) is True
     env.clock.advance(61)
     assert env.access.permitted(DOCS) is False and purged == [DOCS]
-    assert env.store.audit_log()[-1]["reason"] == "grant_expired" and env.store.lifecycle(DOCS) == "revoked"
+    assert [r["reason"] for r in env.store.audit_log()][-2:] == ["grant_expired", "purge_completed"] and env.store.lifecycle(DOCS) == "revoked"
 
 
 def test_a_failed_purge_leaves_the_source_revoked_blocks_a_new_grant_and_is_retried(env):
@@ -927,8 +928,8 @@ def test_restoring_the_snapshot_from_before_an_unfinished_withdrawal_cannot_resu
     env.store.register_purge(DOCS, lambda: purged.append(DOCS))
     env.enable(DOCS)
     env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True  # (this records that the platform permission was seen: an audited change)
     snapshot = _snapshot(env, "while_enabled.db")
-    assert env.access.permitted(DOCS) is True
     if anchor_unfinished == "commit_refused":
         env.anchor.fail_commit = True
         env.store.withdraw(DOCS, env.rid())
@@ -973,3 +974,215 @@ def test_dying_before_an_automatic_revocation_commits_still_completes_it_at_the_
     env.reopen()
     assert env.store.lifecycle(DOCS) == "revoked" and env.store.health() == "ok"
     assert env.store.audit_log()[-1]["reason"] == cause
+
+
+# ---- review 6006012296: nothing security-relevant lives outside the audited, anchored record -----------------------------------------------------------
+def _forge(env: Env, source_type: str, before: str, after: str, grant_id: str | None, reason: str, *, anchored: bool) -> None:
+    """Append a row with a VALID hash to the chain (an attacker who holds the database key), optionally also moving the anchor (an attacker who controls the anchor too)."""
+    count, prev = env.store._meta("head").split(":")
+    row = (int(count) + 1, "2026-01-01T00:00:00+00:00", source_type, before, after, grant_id, reason, "")
+    from atlas_core.designation import _digest
+
+    digest = _digest(prev, *row)
+    env.store._conn.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?,?,?,?)", (*row, prev, digest))
+    env.store._conn.execute("UPDATE meta SET value=? WHERE key='head'", (f"{row[0]}:{digest}",))
+    if anchored:
+        env.anchor.record = AnchorRecord(row[0], digest)
+
+
+def test_the_fact_that_the_os_permission_was_seen_is_an_audited_event_not_a_loose_flag(env):
+    env.enable(DOCS)
+    assert env.store.os_was_granted(DOCS) is False
+    env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True
+    assert env.store.os_was_granted(DOCS) is True
+    assert [(r["reason"], r["from_state"], r["to_state"]) for r in env.store.audit_log()][-1] == ("os_permission_seen", "enabled", "enabled")
+    before = len(env.store.audit_log())
+    assert env.access.permitted(DOCS) is True and len(env.store.audit_log()) == before  # recorded once per grant, not on every check
+    assert "os_seen" not in {r[1] for r in env.store._conn.execute("PRAGMA table_info(grants)")}  # there is no mutable column to roll back
+
+
+def test_restoring_a_snapshot_from_before_the_os_loss_cannot_make_old_consent_effective_again(env):
+    env.store.register_purge(DOCS, lambda: None)
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True  # the permission is observed and recorded
+    snapshot = _snapshot(env, "seen.db")
+    env.os.set(DOCS, MISSING)  # the platform takes it back: the grant is revoked and purged, and that is anchored
+    assert env.access.permitted(DOCS) is False and env.store.lifecycle(DOCS) == "revoked"
+    _restore(env, snapshot)  # the old file still says: enabled, permission seen. The anchor outside it has moved on
+    env.os.set(DOCS, GRANTED)  # and the permission comes back
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == [] and env.access.permitted(DOCS) is False
+    assert env.store.lifecycle(DOCS) == "not_configured"
+
+
+def test_a_snapshot_from_before_the_permission_was_seen_cannot_hide_the_loss_either(env):
+    env.enable(DOCS)
+    snapshot = _snapshot(env, "never_seen.db")  # the owner said yes; the platform permission was never observed
+    env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True  # now it is observed (audited, anchored)
+    env.os.set(DOCS, MISSING)
+    assert env.access.permitted(DOCS) is False  # revoked
+    _restore(env, snapshot)  # this snapshot knows nothing of either event: if it were trusted, a missing permission would not revoke
+    env.os.set(DOCS, GRANTED)
+    assert env.store.health() == "corrupt" and env.access.permitted(DOCS) is False
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "UPDATE audit SET reason='something_else' WHERE reason='os_permission_seen'",
+        "DELETE FROM audit WHERE reason='os_permission_seen'",
+    ],
+)
+def test_tampering_with_the_recorded_os_observation_is_detected(env, tamper):
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True
+    env.store._conn.execute(tamper)
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+
+
+@pytest.mark.parametrize("anchored", [False, True])
+def test_a_forged_but_correctly_hashed_event_is_refused_with_or_without_the_anchor(env, anchored):
+    env.enable(DOCS)
+    grant = env.store.grants_for(DOCS)[0]["grant_id"]
+    _forge(env, DOCS, "enabled", "enabled", grant, "os_permission_seen", anchored=anchored)  # (the first one is legal)
+    assert env.store.health() == ("ok" if anchored else "corrupt")
+    _forge(env, DOCS, "enabled", "enabled", grant, "os_permission_seen", anchored=anchored)  # a second observation of the same grant is not
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        ("enabled", "enabled", "purge_completed"),  # a purge cannot complete for a grant that is still enabled
+        ("enabled", "enabled", "os_permission_seen"),  # (a second one)
+        ("not_configured", "enabled", "owner_enabled"),  # an enable from a state the chain is not in
+        ("enabled", "revoked", "owner_withdrawn"),  # a revoke of a grant the chain does not show enabled
+        ("revoked", "revoked", "purge_completed"),  # a second purge completion for the same grant (after a genuine one)
+        ("revoked", "enabled", "owner_enabled"),  # a new grant forged over a revoked one whose purge was never recorded
+    ],
+)
+def test_events_that_are_not_legal_from_the_state_the_chain_has_reached_are_refused_even_when_hashed_and_anchored(env, event):
+    env.enable(DOCS)
+    env.os.set(DOCS, GRANTED)
+    assert env.access.permitted(DOCS) is True
+    grant = env.store.grants_for(DOCS)[0]["grant_id"]
+    if event[0] == "revoked":
+        purges = [lambda: None] if event[2] == "purge_completed" else [lambda: (_ for _ in ()).throw(OSError("never"))]
+        env.store.register_purge(DOCS, purges[0])
+        env.store.withdraw(DOCS, env.rid())  # revoked; its purge is recorded (second case: never completed)
+    elif event[2] == "owner_withdrawn":
+        env.store.register_purge(DOCS, lambda: None)
+        env.store.withdraw(DOCS, env.rid())
+    _forge(env, DOCS, event[0], event[1], grant if event[2] != "owner_enabled" else "gforged00000000002", event[2], anchored=True)
+    assert env.store.health() == "corrupt"
+
+
+def test_a_new_grant_is_refused_until_the_purge_completion_is_durably_recorded(env):
+    purged: list[str] = []
+
+    def purge() -> None:
+        purged.append(DOCS)
+        env.anchor.fail_prepare = env.anchor.fail_prepare or env.flaky  # the platform store dies right after the data was purged
+
+    env.flaky = False
+    env.store.register_purge(DOCS, purge)
+    env.enable(DOCS)
+    env.store.withdraw(DOCS, env.rid())
+    assert purged == [DOCS] and env.store.pending_purges() == []  # purged AND recorded: a new grant is allowed
+    env.enable(DOCS)
+    env.flaky = True
+    env.store.withdraw(DOCS, env.rid())  # the purge runs, but its completion cannot be recorded
+    env.anchor.fail_prepare = False
+    assert purged == [DOCS, DOCS] and env.store.pending_purges() == [DOCS]  # still owed: running it is not the same as recording it
+    with pytest.raises(PurgePending):
+        env.enable(DOCS)
+    env.flaky = False
+    assert env.store.run_pending_purges() == []  # run again (idempotent) and now recorded
+    env.enable(DOCS)
+    assert env.store.lifecycle(DOCS) == "enabled"
+
+
+def test_a_purge_that_died_before_it_was_recorded_is_run_again_not_assumed_done(env):
+    state = {"die": True, "runs": 0}
+
+    def purge() -> None:
+        state["runs"] += 1
+        if state["die"]:
+            raise ProcessDied("purge")
+
+    env.store.register_purge(DOCS, purge)
+    env.enable(DOCS)
+    with pytest.raises(ProcessDied):
+        env.store.withdraw(DOCS, env.rid())
+    env.reopen()
+    env.store.register_purge(DOCS, purge)
+    assert env.store.lifecycle(DOCS) == "revoked" and env.store.pending_purges() == [DOCS]
+    with pytest.raises(PurgePending):
+        env.enable(DOCS)
+    state["die"] = False
+    assert env.store.run_pending_purges() == [] and state["runs"] == 2
+    env.enable(DOCS)
+
+
+def test_an_older_snapshot_cannot_show_a_purge_as_done_or_not_owed(env):
+    state = {"ok": False}
+
+    def purge() -> None:
+        if not state["ok"]:
+            raise OSError("not yet")
+
+    env.store.register_purge(DOCS, purge)
+    env.enable(DOCS)
+    env.store.withdraw(DOCS, env.rid())
+    owed = _snapshot(env, "owed.db")  # revoked, purge owed (the snapshot reopens the store, so the purge function is registered again)
+    env.store.register_purge(DOCS, purge)
+    state["ok"] = True
+    assert env.store.run_pending_purges() == []  # recorded: not owed any more
+    env.enable(DOCS)  # a new grant, which is allowed only because the completion is recorded
+    _restore(env, owed)  # an older database in which the purge is still owed
+    assert (
+        env.store.health() == "corrupt" and env.store.pending_purges() == [] and env.store.grants_for(DOCS) == []
+    )  # not 'owed' and not 'done': nothing is trusted
+
+
+@pytest.mark.parametrize("anchored", [False, True])
+def test_a_forged_purge_completion_cannot_unlock_a_new_grant_without_the_anchor(env, anchored):
+    env.store.register_purge(DOCS, lambda: (_ for _ in ()).throw(OSError("never")))
+    env.enable(DOCS)
+    env.store.withdraw(DOCS, env.rid())
+    grant = env.store.grants_for(DOCS)[0]["grant_id"]
+    _forge(env, DOCS, "revoked", "revoked", grant, "purge_completed", anchored=anchored)  # the data was never purged
+    if anchored:
+        # an attacker who also controls the anchor is outside the claim (documented); the forgery is at least a legal, recorded event
+        assert env.store.health() == "ok"
+    else:
+        assert env.store.health() == "corrupt"
+        with pytest.raises(StoreCorrupt):
+            env.enable(DOCS)
+
+
+def test_a_fully_consistent_forged_enable_over_an_owed_purge_is_refused_by_the_chain_rules_alone(env):
+    """Grant row, state row, audit digest, chain hash and anchor all agree; only the rule 'a new grant needs the old grant's recorded purge' can reject it."""
+    from atlas_core.designation import _digest, _grant_digest
+
+    env.store.register_purge(DOCS, lambda: (_ for _ in ()).throw(OSError("never")))
+    env.enable(DOCS)
+    env.store.withdraw(DOCS, env.rid())  # revoked, purge owed
+    assert env.store.pending_purges() == [DOCS]
+    conn = env.store._conn
+    conn.execute(
+        "INSERT INTO grants (grant_id, source_type, max_sensitivity, purpose, issued_at, expires_at) VALUES (?,?,?,?,?,NULL)",
+        ("gforged00000000009", DOCS, "medium", "answer_question", "2026-01-01T00:00:00+00:00"),
+    )
+    detail = _grant_digest(conn.execute("SELECT * FROM grants WHERE grant_id='gforged00000000009'").fetchone())
+    conn.execute("UPDATE state SET state='enabled', grant_id='gforged00000000009' WHERE source_type=?", (DOCS,))
+    count, prev = env.store._meta("head").split(":")
+    row = (int(count) + 1, "2026-01-01T00:00:00+00:00", DOCS, "revoked", "enabled", "gforged00000000009", "owner_enabled", detail)
+    digest = _digest(prev, *row)
+    conn.execute("INSERT INTO audit VALUES (?,?,?,?,?,?,?,?,?,?)", (*row, prev, digest))
+    conn.execute("UPDATE meta SET value=? WHERE key='head'", (f"{row[0]}:{digest}",))
+    env.anchor.record = AnchorRecord(row[0], digest)
+    assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []

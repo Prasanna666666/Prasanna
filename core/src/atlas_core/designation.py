@@ -28,7 +28,7 @@ from kit.db import connect
 from .policy import PURPOSE
 from .rules import Rules, load_rules
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 GENESIS = "0" * 64
 STATES = ("enabled", "declined", "revoked")  # a source type with no row is 'not_configured'
 
@@ -172,7 +172,7 @@ class OnboardingDecision:
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS grants (
   grant_id TEXT PRIMARY KEY, source_type TEXT NOT NULL, max_sensitivity TEXT NOT NULL, purpose TEXT NOT NULL, issued_at TEXT NOT NULL,
-  expires_at TEXT, revoked INTEGER NOT NULL DEFAULT 0, revoke_reason TEXT, os_seen INTEGER NOT NULL DEFAULT 0, purge_pending INTEGER NOT NULL DEFAULT 0);
+  expires_at TEXT, revoked INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS state (source_type TEXT PRIMARY KEY, state TEXT NOT NULL, grant_id TEXT);
 CREATE TABLE IF NOT EXISTS audit (
   seq INTEGER PRIMARY KEY, at TEXT NOT NULL, source_type TEXT NOT NULL, from_state TEXT NOT NULL, to_state TEXT NOT NULL, grant_id TEXT, reason TEXT NOT NULL,
@@ -244,22 +244,52 @@ class DesignationStore:
     def _verify(self) -> None:
         if self._meta("schema") != str(SCHEMA_VERSION):
             raise StoreCorrupt("version")
-        prev, derived, revoked_ids, issued = GENESIS, {}, set(), {}
+        prev = GENESIS
+        derived: dict[str, tuple[str, str | None]] = {}
+        revoked_ids: set[str | None] = set()
+        issued: dict[str | None, str] = {}
+        seen: set[str | None] = set()  # grants for which the OS permission was observed (an audited event, so it cannot be rolled back unseen)
+        purged: set[str | None] = set()  # revoked grants whose derived data has been purged (an audited event, for the same reason)
         rows = self._conn.execute("SELECT * FROM audit ORDER BY seq").fetchall()
         for number, row in enumerate(rows, 1):
             body = (row["seq"], row["at"], row["source_type"], row["from_state"], row["to_state"], row["grant_id"], row["reason"], row["detail"])
             if row["seq"] != number or row["prev_hash"] != prev or row["hash"] != _digest(prev, *body):
                 raise StoreCorrupt("chain")
+            self._legal(row, derived, seen, purged)
             prev = row["hash"]
             derived[row["source_type"]] = (row["to_state"], row["grant_id"])
-            if row["to_state"] == "enabled":
+            if row["reason"] == "owner_enabled":
                 issued[row["grant_id"]] = row["detail"]
-            if row["to_state"] == "revoked":
+            if row["to_state"] == "revoked" and row["from_state"] == "enabled":
                 revoked_ids.add(row["grant_id"])
         if self._meta("head") != f"{len(rows)}:{prev}":
             raise StoreCorrupt("head")  # rows were removed or added outside a transaction
         self._verify_anchor(rows, prev)
         self._verify_tables(derived, revoked_ids, issued)
+
+    @staticmethod
+    def _legal(row: Any, derived: dict[str, tuple[str, str | None]], seen: set[str | None], purged: set[str | None]) -> None:
+        """Every audit event must be a legal step from the state the chain has reached so far (so a forged or reordered event cannot be accepted even with a valid hash)."""
+        current = derived.get(row["source_type"], ("not_configured", None))
+        reason, grant = row["reason"], row["grant_id"]
+        if reason == "os_permission_seen":
+            ok = current == ("enabled", grant) and (row["from_state"], row["to_state"]) == ("enabled", "enabled") and grant not in seen
+            seen.add(grant)
+        elif reason == "purge_completed":
+            ok = current == ("revoked", grant) and (row["from_state"], row["to_state"]) == ("revoked", "revoked") and grant not in purged
+            purged.add(grant)
+        elif row["to_state"] == "enabled":
+            ok = row["from_state"] == current[0] != "enabled" and (
+                current[0] != "revoked" or current[1] in purged
+            )  # a new grant only after the old one's data was purged
+        elif row["to_state"] == "revoked":
+            ok = current == ("enabled", grant) and row["from_state"] == "enabled"
+        else:
+            ok = row["to_state"] == "declined" and row["from_state"] == current[0] != "enabled"
+        if row["from_state"] != current[0] and reason not in ("os_permission_seen", "purge_completed"):
+            ok = False
+        if not ok:
+            raise StoreCorrupt("event")
 
     def _anchor_do(self, action: Callable[[], None], why: str) -> None:
         try:
@@ -433,7 +463,7 @@ class DesignationStore:
         state, _ = self._state_of(source_type)
         if state == "enabled":
             return False  # already enabled: the same grant stays (no second grant, no new identity)
-        if self._conn.execute("SELECT 1 FROM grants WHERE source_type=? AND purge_pending=1", (source_type,)).fetchone():
+        if self._purge_owed(source_type):
             raise PurgePending(source_type)
         grant_id = "g" + uuid.uuid4().hex[:24]
         ceiling = self._rules.sensitivity_of(source_type) or ""
@@ -484,7 +514,7 @@ class DesignationStore:
         state, grant_id = self._state_of(source_type)
         if state != "enabled":
             return False
-        self._conn.execute("UPDATE grants SET revoked=1, revoke_reason=?, purge_pending=1 WHERE grant_id=?", (reason, grant_id))
+        self._conn.execute("UPDATE grants SET revoked=1 WHERE grant_id=?", (grant_id,))
         self._set_state(source_type, "revoked", grant_id)
         self._audit(source_type, "enabled", "revoked", grant_id, reason)
         return True
@@ -501,38 +531,68 @@ class DesignationStore:
             ]
         return [t for t in sorted(due) if self.revoke(t, "grant_expired")]
 
-    # -- the OS permission seen at least once (so a later loss is a revocation, not a first-run state) ------------------------------------------------------
+    # -- the OS permission seen at least once (so a later loss is a revocation, not a first-run state): an AUDITED, anchored event, never a loose flag -------------------
     def note_os_granted(self, source_type: str) -> None:
+        """Record, once per grant, that the platform permission was positively observed. It goes through the same anchored transaction as every other change, so restoring an
+        older database cannot silently forget it."""
         with self._lock:
-            self._conn.execute("UPDATE grants SET os_seen=1 WHERE source_type=? AND revoked=0", (source_type,))
+            if not self.os_was_granted(source_type):
+                self._transaction(lambda: self._record_os_seen(source_type))
+
+    def _record_os_seen(self, source_type: str) -> None:
+        state, grant_id = self._state_of(source_type)
+        if state == "enabled":
+            self._audit(source_type, "enabled", "enabled", grant_id, "os_permission_seen")
 
     def os_was_granted(self, source_type: str) -> bool:
         with self._lock:
-            row = self._conn.execute("SELECT 1 FROM grants WHERE source_type=? AND revoked=0 AND os_seen=1", (source_type,)).fetchone()
+            row = self._conn.execute(
+                "SELECT 1 FROM audit a JOIN state s ON a.source_type=s.source_type AND a.grant_id=s.grant_id "
+                "WHERE a.reason='os_permission_seen' AND s.state='enabled' AND a.source_type=?",
+                (source_type,),
+            ).fetchone()
         return row is not None
 
-    # -- purging what a revoked grant produced -------------------------------------------------------------------------------------------------------------
+    # -- purging what a revoked grant produced: completion is an AUDITED, anchored event too ------------------------------------------------------------------------
     def register_purge(self, source_type: str, purge: Callable[[], None]) -> None:
         """The function that deletes everything derived from a source type (its index, caches). Called after a revocation commits."""
         self._purges[source_type] = purge
 
+    _OWED = (
+        "SELECT g.source_type, g.grant_id FROM grants g WHERE g.revoked=1 AND NOT EXISTS "
+        "(SELECT 1 FROM audit a WHERE a.reason='purge_completed' AND a.grant_id=g.grant_id)"
+    )
+
+    def _purge_owed(self, source_type: str) -> bool:
+        return any(r["source_type"] == source_type for r in self._conn.execute(self._OWED))
+
     def _run_purge(self, source_type: str) -> None:
         purge = self._purges.get(source_type)
         if purge is None:
-            return  # stays pending, and a new grant for this type is refused until it has run
+            return  # stays owed, and a new grant for this type is refused until it has run and been recorded
         try:
             purge()
-        except Exception:  # noqa: BLE001  (whatever the purge raised, the source stays revoked and the purge stays pending) a failed purge leaves the source revoked and the purge pending; it is retried by run_pending_purges
+        except Exception:  # noqa: BLE001  (whatever the purge raised, the source stays revoked and the purge stays owed; it is retried by run_pending_purges)
             return
-        with self._lock:
-            self._conn.execute("UPDATE grants SET purge_pending=0 WHERE source_type=?", (source_type,))
+        with contextlib.suppress(DesignationError, OSError, AnchorError):
+            self._transaction(lambda: self._record_purged(source_type))  # not recorded (anchor or store unavailable): it stays owed and is simply run again
+
+    def _record_purged(self, source_type: str) -> None:
+        for row in self._conn.execute(self._OWED).fetchall():
+            if row["source_type"] == source_type:
+                self._audit(source_type, "revoked", "revoked", row["grant_id"], "purge_completed")
 
     def pending_purges(self) -> list[str]:
+        """Source types whose revoked grant has no recorded purge completion (derived from the audited chain, so an older snapshot cannot show a purge as done)."""
         with self._lock:
-            return sorted({r["source_type"] for r in self._conn.execute("SELECT source_type FROM grants WHERE purge_pending=1")})
+            try:
+                self.verify()
+            except StoreCorrupt:
+                return []
+            return sorted({r["source_type"] for r in self._conn.execute(self._OWED)})
 
     def run_pending_purges(self) -> list[str]:
-        """Run at start-up: finish any purge a crash or a failure left pending. Returns the source types still pending afterwards."""
+        """Run at start-up: finish any purge a crash or a failure left owed. Returns the source types still owed afterwards."""
         for source_type in self.pending_purges():
             self._run_purge(source_type)
         return self.pending_purges()
