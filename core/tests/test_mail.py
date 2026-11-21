@@ -715,5 +715,131 @@ def test_the_core_never_iterates_past_the_limit_of_an_oversized_page(tmp_path, s
 
 def test_the_bounded_listing_returns_the_newest_first(tmp_path, small):
     index, _ = make(tmp_path, many(12, "by_id"))
-    listed, cut_off = index._list_bounded()
+    listed, malformed, cut_off = index._list_bounded()
+    assert malformed == 0
     assert [x.message_id for x in listed] == [f"m{i:03d}@x.invalid" for i in (11, 10, 9, 8, 7)] and cut_off is True
+
+
+# ---- review 6008714381: nothing the adapter returns when LISTING is trusted: malformed entries and pages fail safe -------------------------------------------------
+class Weird:
+    """An object of an unsupported type where an identity should be (its text must never be stored)."""
+
+    def __repr__(self) -> str:
+        return "WEIRD-IDENTITY-SENTINEL"
+
+    __str__ = __repr__
+
+
+def paged(mailbox: InMemoryMailbox, transform: Any) -> InMemoryMailbox:
+    """The mailbox, but its listing pages are passed through `transform` (to inject malformed entries or pages)."""
+    real = mailbox.list_page
+    mailbox.list_page = lambda cursor, limit: transform(real(cursor, limit))  # type: ignore[method-assign]
+    return mailbox
+
+
+BAD_IDS = [None, 42, 3.5, b"bytes-id", ["a-list"], Weird(), "", "x" * 201, "bad id with spaces", "new\nline@x.invalid"]
+
+
+@pytest.mark.parametrize("bad", range(len(BAD_IDS)))
+def test_a_listing_entry_with_a_malformed_identity_becomes_a_safe_failed_row_and_the_scan_survives(tmp_path, bad):
+    entry = Listed(BAD_IDS[bad], "v1", "2026-01-01T00:00:00+00:00")  # type: ignore[arg-type]
+    mailbox = paged(box(INVOICE), lambda page: ListPage([*page.items, entry], page.next_cursor))
+    index, _ = make(tmp_path, mailbox)
+    cov = build(index)  # must not raise
+    assert cov["failed"] == 1 and cov["reasons"] == {"malformed_message": 1} and cov["searched"] == 1
+    assert cov["scan_complete"] is True and cov["complete"] is False  # the listing finished, and it is NOT represented as complete
+    stored = json.dumps([list(map(str, r)) for r in index._conn.execute("SELECT * FROM msgs")])
+    assert (
+        "WEIRD-IDENTITY-SENTINEL" not in stored and "bytes-id" not in stored and "a-list" not in stored and "bad id" not in stored
+    )  # the raw value is never an identity
+    assert {r[0] for r in index._conn.execute("SELECT message_id FROM msgs WHERE status='failed'")} == {"malformed-listing-0"}
+    assert next(iter(index.search(MAIL, "invoice")))["evidence"]["source_id"] == source_id_for(INVOICE["message_id"])
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        None,
+        "just-a-string",
+        {"message_id": "m@x.invalid", "version": "v", "date": None},
+        ("m@x.invalid", "v", None),
+        Listed("m1@x.invalid", None, None),  # type: ignore[arg-type]
+        Listed("m1@x.invalid", "", None),
+        Listed("m1@x.invalid", 7, None),  # type: ignore[arg-type]
+        Listed("m1@x.invalid", "v", 5),  # type: ignore[arg-type]
+        Listed("m1@x.invalid", "v", ["2026"]),  # type: ignore[arg-type]
+    ],
+)
+def test_a_listing_entry_of_the_wrong_shape_or_field_type_is_never_used(tmp_path, entry):
+    mailbox = paged(box(INVOICE), lambda page: ListPage([entry, *page.items], page.next_cursor))
+    index, mb = make(tmp_path, mailbox)
+    cov = build(index)
+    assert cov["failed"] == 1 and cov["searched"] == 1 and cov["complete"] is False
+    assert mb.reads == 1  # only the genuine message was ever read: the malformed entry was not looked up
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        None,
+        {"items": [], "next_cursor": None},
+        ListPage(None, None),  # type: ignore[arg-type]
+        ListPage("not-a-list", None),  # type: ignore[arg-type]
+        ListPage((x for x in []), None),  # type: ignore[arg-type]
+        ListPage([], 7),  # type: ignore[arg-type]
+    ],
+)
+def test_a_page_of_the_wrong_shape_ends_the_scan_with_a_non_content_error_and_leaves_the_previous_index_intact(tmp_path, page):
+    index, mailbox = make(tmp_path, box(INVOICE, MEETING))
+    build(index)
+    before = state(index)
+    assert before and index.coverage()["complete"] is True
+    mailbox.list_page = lambda cursor, limit: page  # type: ignore[method-assign]
+    with pytest.raises(mail_module.MailError) as caught:
+        index.scan()
+    assert caught.value.reason == "malformed_listing"
+    assert state(index) == before and len(list(index.search(MAIL, "total due"))) >= 1  # nothing was partially written or lost
+    assert index.coverage()["complete"] is False and index.coverage()["scan_complete"] is False  # and it is never shown as complete
+    del mailbox.list_page  # the adapter recovers
+    assert build(index)["complete"] is True
+
+
+def test_an_adapter_error_while_listing_leaves_the_previous_index_intact_and_incomplete(tmp_path):
+    index, mailbox = make(tmp_path, box(INVOICE))
+    build(index)
+    before = state(index)
+
+    def boom(cursor: str | None, limit: int) -> ListPage:
+        raise RuntimeError("adapter exploded")
+
+    mailbox.list_page = boom  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError):
+        index.scan()
+    assert state(index) == before and index.coverage()["complete"] is False
+
+
+def test_duplicate_identities_in_a_listing_do_not_crash_and_leave_one_row(tmp_path):
+    entry = Listed(INVOICE["message_id"], "v", "2026-03-14T09:30:00+00:00")  # the same identity and the same date, three times
+    mailbox = paged(box(INVOICE), lambda page: ListPage([entry, entry, entry, *page.items], page.next_cursor))
+    index, _ = make(tmp_path, mailbox)
+    cov = build(index)
+    assert cov["total"] == 1 and cov["searched"] == 1
+
+
+def test_an_adapter_that_returns_empty_pages_forever_is_stopped_by_the_page_bound(tmp_path, monkeypatch):
+    monkeypatch.setattr(mail_module, "PAGE_SIZE", 3)
+    monkeypatch.setattr(mail_module, "MAX_LIST_WORK", 30)
+    mailbox = box(INVOICE)
+    mailbox.list_page = lambda cursor, limit: ListPage([], "again")  # type: ignore[method-assign]
+    index, _ = make(tmp_path, mailbox)
+    index.scan()  # terminates
+    cov = index.coverage()
+    assert cov["scan_complete"] is False and cov["complete"] is False and cov["total"] == 0
+
+
+def test_more_malformed_entries_than_can_be_recorded_still_never_look_complete(tmp_path, monkeypatch):
+    monkeypatch.setattr(mail_module, "MAX_MALFORMED_ROWS", 3)
+    mailbox = paged(box(INVOICE), lambda page: ListPage([*page.items, *([None] * 10)], page.next_cursor))
+    index, _ = make(tmp_path, mailbox)
+    cov = build(index)
+    assert cov["failed"] == 3 and cov["scan_complete"] is False and cov["complete"] is False  # (the rest are counted only as 'not everything was admitted')

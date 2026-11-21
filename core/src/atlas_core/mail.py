@@ -37,6 +37,9 @@ from .rules import Rules, load_rules
 MAX_BODY_CHARS = 1_000_000  # a larger body is 'oversized': reported, never truncated
 MAX_FIELD_CHARS = 500
 MAX_MESSAGES = 50_000  # at most this many messages are ever admitted to one scan: the NEWEST ones; a larger mailbox says so and coverage is never complete
+MAX_MALFORMED_ROWS = (
+    1_000  # at most this many malformed listing entries are recorded (as identity-free failed rows); the rest only keep the scan from being complete
+)
 PAGE_SIZE = 500  # the most the Core asks for, and accepts, in one adapter call: nothing unbounded is ever materialised
 MAX_LIST_WORK = 200_000  # the most listing entries examined in one scan, whatever the adapter does
 SCHEMA_VERSION = 1
@@ -195,6 +198,14 @@ def parse(raw: dict[str, Any] | None) -> Parsed:
     return Parsed(message_id, _field(raw, "sender"), date, _field(raw, "subject"), body, stamp)
 
 
+def _valid_entry(item: Any) -> Listed | None:
+    """A listing entry is used only if it has exactly the right shape: a `Listed` with a well-formed string identity, a non-empty string change marker and a string-or-absent date."""
+    if not isinstance(item, Listed):
+        return None
+    ok = isinstance(item.message_id, str) and bool(_ID.match(item.message_id)) and isinstance(item.version, str) and bool(item.version)
+    return item if ok and (item.date is None or isinstance(item.date, str)) else None
+
+
 def source_id_for(message_id: str) -> str:
     """An opaque identifier that carries none of the message (the contract's Opaque pattern)."""
     return "m" + hashlib.sha256(message_id.encode("utf-8")).hexdigest()[:24]
@@ -271,24 +282,36 @@ class MailIndex(IndexStore):
         self._require()
         self._transaction(lambda: self._set_meta("scan_state", "running"))
         self._hit("scan:begin")
-        listed, cut_off = self._list_bounded()
-        self._transaction(lambda: self._apply_scan(listed, cut_off))
+        listed, malformed, cut_off = self._list_bounded()
+        self._transaction(lambda: self._apply_scan(listed, malformed, cut_off))
 
-    def _list_bounded(self) -> tuple[list[Listed], bool]:
-        """The newest MAX_MESSAGES entries of the mailbox, by consuming bounded pages. Memory is bounded by MAX_MESSAGES and work by MAX_LIST_WORK, whatever the adapter returns.
+    def _list_bounded(self) -> tuple[list[Listed], int, bool]:
+        """The newest MAX_MESSAGES VALID entries of the mailbox, by consuming bounded pages, plus how many entries were malformed, plus whether the mailbox was NOT fully admitted.
+        Memory is bounded by MAX_MESSAGES and work by MAX_LIST_WORK (and the number of pages by a fixed count), whatever the adapter returns. Everything the adapter returns is
+        untrusted: a page of the wrong shape ends the scan with a non-content error before anything is written; an entry of the wrong shape or type is counted, never used.
         If the adapter really lists newest first, consumption stops as soon as enough are held (nothing later can be newer); if it is ever seen to break that order, it is read on
-        (up to the work bound) while only the newest are kept. The second value says the mailbox was NOT fully admitted, so coverage can never be complete."""
-        heap: list[tuple[float, str, Listed]] = []  # a min-heap: the oldest admitted entry is the one to drop
+        (up to the work bound) while only the newest are kept."""
+        heap: list[
+            tuple[float, str, int, Listed]
+        ] = []  # a min-heap: the oldest admitted entry is the one to drop (the counter keeps ties from ever comparing entries)
         cursor: str | None = None
-        work, ordered, last, over, exhausted = 0, True, float("inf"), False, False
-        while True:
+        work = pages = malformed = 0
+        ordered, last, over, exhausted = True, float("inf"), False, False
+        while pages <= 2 * (MAX_LIST_WORK // PAGE_SIZE) + 2:
+            pages += 1
             page = self._mailbox.list_page(cursor, PAGE_SIZE)
+            if not (isinstance(page, ListPage) and isinstance(page.items, (list, tuple)) and (page.next_cursor is None or isinstance(page.next_cursor, str))):
+                raise MailError("malformed_listing")  # nothing has been written: the previous index stands, and this scan never completes
             over = over or len(page.items) > PAGE_SIZE  # a page larger than asked for is never consumed past the limit
-            for item in page.items[:PAGE_SIZE]:
+            for raw in page.items[:PAGE_SIZE]:
                 work += 1
-                key = _epoch_or_floor(item.date) if isinstance(item.message_id, str) else float("-inf")
+                item = _valid_entry(raw)
+                if item is None:
+                    malformed += 1
+                    continue
+                key = _epoch_or_floor(item.date)
                 ordered, last = ordered and key <= last, key
-                heapq.heappush(heap, (key, str(item.message_id), item))
+                heapq.heappush(heap, (key, item.message_id, work, item))
                 if len(heap) > MAX_MESSAGES:
                     heapq.heappop(heap)
             cursor = page.next_cursor
@@ -297,23 +320,32 @@ class MailIndex(IndexStore):
                 break
             if (ordered and len(heap) >= MAX_MESSAGES) or work >= MAX_LIST_WORK:
                 break
-        return [entry[2] for entry in sorted(heap, key=lambda e: (e[0], e[1]), reverse=True)], not exhausted or over or work > MAX_MESSAGES
+        newest = [entry[3] for entry in sorted(heap, key=lambda e: (e[0], e[1], e[2]), reverse=True)]
+        return newest, malformed, not exhausted or over or work - malformed > MAX_MESSAGES
 
-    def _apply_scan(self, listed: list[Listed], cut_off: bool) -> None:
+    def _apply_scan(self, listed: list[Listed], malformed: int, cut_off: bool) -> None:
         gen = int(self._meta("generation", "0")) + 1
         for item in listed:
             self._note(item, gen)
+        for ordinal in range(min(malformed, MAX_MALFORMED_ROWS)):
+            self._note_malformed(ordinal, gen)  # a failed row with a synthetic identity: the malformed value itself is never stored
         self._hit("scan:mid")
         self._conn.execute("DELETE FROM msgs WHERE seen_gen < ?", (gen,))
         self._set_meta("generation", str(gen))
-        self._set_meta("scan_cut_off", "1" if cut_off else "0")
+        self._set_meta("scan_cut_off", "1" if cut_off or malformed > MAX_MALFORMED_ROWS else "0")
         self._set_meta("scan_state", "done")
 
+    def _note_malformed(self, ordinal: int, gen: int) -> None:
+        placeholder = f"malformed-listing-{ordinal}"
+        self._conn.execute(
+            "INSERT OR REPLACE INTO msgs (message_id, source_id, status, reason, version, sort_ts, seen_gen) VALUES (?,?,?,?,?,?,?)",
+            (placeholder, source_id_for(placeholder), "failed", "malformed_message", None, None, gen),
+        )
+
     def _note(self, item: Listed, gen: int) -> None:
+        """A VALID listing entry (its identity is a well-formed string): new or changed ones become pending, unchanged ones are kept."""
         row = self._conn.execute("SELECT status, version FROM msgs WHERE message_id=?", (item.message_id,)).fetchone()
-        valid = isinstance(item.message_id, str) and bool(_ID.match(item.message_id))
-        status, reason = ("pending", None) if valid else ("failed", "malformed_message")
-        if row is not None and row["version"] == item.version and row["status"] in ("indexed", status):
+        if row is not None and row["version"] == item.version and row["status"] in ("indexed", "pending"):
             self._conn.execute("UPDATE msgs SET seen_gen=? WHERE message_id=?", (gen, item.message_id))
             return  # unchanged since it was last indexed (or judged)
         try:
@@ -322,7 +354,7 @@ class MailIndex(IndexStore):
             stamp = None
         self._conn.execute(
             "INSERT OR REPLACE INTO msgs (message_id, source_id, status, reason, version, sort_ts, seen_gen) VALUES (?,?,?,?,?,?,?)",
-            (item.message_id, source_id_for(item.message_id), status, reason, item.version, stamp, gen),
+            (item.message_id, source_id_for(item.message_id), "pending", None, item.version, stamp, gen),
         )
 
     # -- indexing: parse and store, a bounded slice at a time, newest first ----------------------------------------------------------------------------------------
