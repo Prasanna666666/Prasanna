@@ -259,6 +259,7 @@ class IndexStore:
     _conn: Any
     _lock: threading.RLock
     hook: Callable[[str], None] | None = None
+    _write_guard: Callable[[], None] | None = None  # the access check that must pass INSIDE every write (see _transaction)
 
     def _hit(self, name: str) -> None:
         if self.hook is not None:
@@ -271,8 +272,13 @@ class IndexStore:
     def _set_meta(self, key: str, value: str) -> None:
         self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)", (key, value))
 
-    def _transaction(self, body: Callable[[], None]) -> None:
+    def _transaction(self, body: Callable[[], None], *, guarded: bool = True) -> None:
+        """One atomic write. Unless `guarded=False` (only the purge that a revocation triggers), access is checked again while the index lock is held and immediately before the
+        transaction begins, so material read or listed before a revocation can never be written after it: a concurrent purge either runs after this write and clears it, or a
+        completed revocation makes the check fail and nothing is written."""
         with self._lock:
+            if guarded and self._write_guard is not None:
+                self._write_guard()
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 body()
@@ -295,6 +301,7 @@ class DocumentIndex(IndexStore):
             raise ValueError("unknown sensitivity")
         self.source_type, self.label, self._access = source_type, label, access
         self.scanner = Scanner(root, guard=self._require)
+        self._write_guard = self._require
         self.hook: Callable[[str], None] | None = None  # tests: called at each boundary; an exception inside a transaction rolls it back (a simulated crash)
         self.free_bytes: Callable[[], int] = lambda: shutil.disk_usage(path.parent).free
         self.cancelled = threading.Event()
@@ -419,7 +426,7 @@ class DocumentIndex(IndexStore):
             self._conn.execute("DELETE FROM docs")
             self._conn.execute("DELETE FROM meta")
 
-        self._transaction(wipe)
+        self._transaction(wipe, guarded=False)  # the purge is what a revocation triggers: it must always be able to run
 
     # -- coverage: what was searched, and what was not --------------------------------------------------------------------------------------------------
     def coverage(self) -> dict[str, Any]:

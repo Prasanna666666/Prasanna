@@ -1186,3 +1186,31 @@ def test_a_fully_consistent_forged_enable_over_an_owed_purge_is_refused_by_the_c
     conn.execute("UPDATE meta SET value=? WHERE key='head'", (f"{row[0]}:{digest}",))
     env.anchor.record = AnchorRecord(row[0], digest)
     assert env.store.health() == "corrupt" and env.store.grants_for(DOCS) == []
+
+
+def _count(index: DocumentIndex) -> tuple[int, int]:
+    return index._conn.execute("SELECT count(*) FROM docs").fetchone()[0], index._conn.execute("SELECT count(*) FROM meta").fetchone()[0]
+
+
+def test_access_ending_between_a_walk_and_its_write_leaves_nothing_in_the_index(tmp_path, monkeypatch):
+    env, index, _ = _ready(tmp_path, monkeypatch)
+    real_walk = index.scanner.walk
+
+    def walk_then_revoked() -> Any:
+        found = real_walk()
+        env.store.withdraw(DOCS, env.rid())  # the folder was listed while permitted; consent ends before the result is written
+        return found
+
+    index.scanner.walk = walk_then_revoked  # type: ignore[method-assign]
+    with pytest.raises(PermissionRevoked):
+        index.scan()
+    assert _count(index) == (0, 0)
+
+
+def test_access_ending_between_a_read_and_its_write_stores_no_text(tmp_path, monkeypatch):
+    env, index, _ = _ready(tmp_path, monkeypatch)
+    index.scan()
+    index.hook = lambda name: env.store.withdraw(DOCS, env.rid()) if name == "doc:extracted" else None  # the file was read; now consent ends
+    with pytest.raises(PermissionRevoked):
+        index.run(10)
+    assert _count(index) == (0, 0)

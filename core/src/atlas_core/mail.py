@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import hashlib
+import heapq
 import json
 import re
 import threading
@@ -35,7 +36,9 @@ from .rules import Rules, load_rules
 
 MAX_BODY_CHARS = 1_000_000  # a larger body is 'oversized': reported, never truncated
 MAX_FIELD_CHARS = 500
-MAX_MESSAGES = 50_000  # a larger mailbox is listed only that far and says so: coverage is never complete
+MAX_MESSAGES = 50_000  # at most this many messages are ever admitted to one scan: the NEWEST ones; a larger mailbox says so and coverage is never complete
+PAGE_SIZE = 500  # the most the Core asks for, and accepts, in one adapter call: nothing unbounded is ever materialised
+MAX_LIST_WORK = 200_000  # the most listing entries examined in one scan, whatever the adapter does
 SCHEMA_VERSION = 1
 _ID = re.compile(r"[A-Za-z0-9._@<>+=-]{1,200}\Z")
 _WORD = re.compile(r"\w+", re.UNICODE)
@@ -59,28 +62,55 @@ class Listed:
     date: str | None
 
 
-class Mailbox(Protocol):
-    """The platform seam. The real Apple Mail adapter (not built, never pointed at a real mailbox in this stage) returns ONLY these fields; the Core ignores any other key."""
+@dataclass(frozen=True)
+class ListPage:
+    items: list[Listed]
+    next_cursor: str | None  # None: this was the last page
 
-    def list(self) -> list[Listed]: ...
+
+class Mailbox(Protocol):
+    """The platform seam. The real Apple Mail adapter (not built, never pointed at a real mailbox in this stage) returns ONLY these fields; the Core ignores any other key.
+
+    Listing is PAGED and BOUNDED: `list_page(cursor, limit)` returns at most `limit` entries and a cursor for the next page. The adapter SHOULD return newest first by stored date;
+    the Core does not rely on it (it checks the order as it goes, keeps only the newest it has seen, and never examines more than a fixed amount of work)."""
+
+    def list_page(self, cursor: str | None, limit: int) -> ListPage: ...
 
     def read(self, message_id: str) -> dict[str, Any] | None: ...
 
 
 class InMemoryMailbox:
-    """SYNTHETIC fixtures only. `attachment_reads` counts any access to the attachments a fixture may carry: the Core must leave it at zero."""
+    """SYNTHETIC fixtures only. `attachment_reads` counts any access to the attachments a fixture may carry: the Core must leave it at zero. `order` is how listing orders the
+    messages: "newest_first" (the contract), "by_id" or "as_given" (deliberately NOT date-ordered, to prove the Core does not rely on it)."""
 
-    def __init__(self, messages: Iterable[dict[str, Any]] = ()) -> None:
+    def __init__(self, messages: Iterable[dict[str, Any]] = (), order: str = "newest_first") -> None:
         self.messages = {m["message_id"]: dict(m) for m in messages}
-        self.lists = 0
+        self.order = order
+        self.lists = 0  # list_page calls
+        self.listed = 0  # entries handed out
+        self.max_page = 0  # the largest page handed out
         self.reads = 0
         self.attachment_reads = 0
+        self.overshoot = 0  # a misbehaving adapter returns this many more than asked
 
-    def list(self) -> list[Listed]:
+    def _sequence(self) -> list[str]:
+        ids = list(self.messages)
+        if self.order == "by_id":
+            return sorted(ids)
+        if self.order == "as_given":
+            return ids
+        return sorted(ids, key=lambda i: (_epoch_or_floor(self.messages[i].get("date")), i), reverse=True)
+
+    def list_page(self, cursor: str | None, limit: int) -> ListPage:
         self.lists += 1
-        return [
-            Listed(i, hashlib.sha256(json.dumps(self._stored(i), sort_keys=True).encode()).hexdigest(), m.get("date")) for i, m in sorted(self.messages.items())
-        ]
+        start = int(cursor or 0)
+        ids = self._sequence()
+        take = ids[start : start + limit + self.overshoot]
+        self.listed += len(take)
+        self.max_page = max(self.max_page, len(take))
+        items = [Listed(i, hashlib.sha256(json.dumps(self._stored(i), sort_keys=True).encode()).hexdigest(), self.messages[i].get("date")) for i in take]
+        end = start + limit
+        return ListPage(items, str(end) if end < len(ids) else None)
 
     def read(self, message_id: str) -> dict[str, Any] | None:
         self.reads += 1
@@ -135,6 +165,14 @@ def to_epoch(stamp: str) -> float:
     return (moment if moment.tzinfo else moment.replace(tzinfo=UTC)).timestamp()
 
 
+def _epoch_or_floor(stamp: Any) -> float:
+    """The order key of a listed date: an unusable or missing date sorts as the oldest."""
+    try:
+        return to_epoch(stamp) if isinstance(stamp, str) and stamp else float("-inf")
+    except ValueError:
+        return float("-inf")
+
+
 def parse(raw: dict[str, Any] | None) -> Parsed:
     """Strict and bounded. Only five fields are read; a missing, mistyped, oversized, control-character or unparseable-date record is an explicit outcome, never repaired."""
     if not isinstance(raw, dict):
@@ -168,9 +206,9 @@ class _Guarded:
     def __init__(self, mailbox: Mailbox, guard: Callable[[], None]) -> None:
         self._mailbox, self._guard = mailbox, guard
 
-    def list(self) -> list[Listed]:
+    def list_page(self, cursor: str | None, limit: int) -> ListPage:
         self._guard()
-        return self._mailbox.list()
+        return self._mailbox.list_page(cursor, limit)
 
     def read(self, message_id: str) -> dict[str, Any] | None:
         self._guard()
@@ -206,6 +244,7 @@ class MailIndex(IndexStore):
             raise ValueError("unknown sensitivity")
         self.source_type, self.label, self._access = source_type, label, access
         self._mailbox = _Guarded(mailbox, self._require)
+        self._write_guard = self._require
         self.hook: Callable[[str], None] | None = None  # tests: called at each boundary; an exception inside a transaction rolls it back (a simulated crash)
         self.cancelled = threading.Event()
         self._lock = threading.RLock()
@@ -226,18 +265,42 @@ class MailIndex(IndexStore):
 
     # -- scanning: what the mailbox lists now (identities, change markers, dates: no body) ---------------------------------------------------------------------
     def scan(self) -> None:
-        """Record what the mailbox holds now. New or changed messages become pending (their stored text is dropped at once), vanished ones are forgotten, and the scan counts as
-        complete only when this whole step has committed."""
+        """Record what the mailbox holds now: at most MAX_MESSAGES, the newest. New or changed messages become pending (their stored text is dropped at once), vanished ones are
+        forgotten, and the scan counts as complete only when this whole step has committed. The (possibly slow) listing runs OUTSIDE the index lock, and every write re-checks
+        access inside its own transaction, so a revocation during the listing can never leave listed metadata behind."""
         self._require()
-        with self._lock:
-            self._transaction(lambda: self._set_meta("scan_state", "running"))
-            self._hit("scan:begin")
-            listed = self._mailbox.list()
-            cut_off = len(listed) > MAX_MESSAGES
-            gen = int(self._meta("generation", "0")) + 1
-            self._transaction(lambda: self._apply_scan(listed[:MAX_MESSAGES], cut_off, gen))
+        self._transaction(lambda: self._set_meta("scan_state", "running"))
+        self._hit("scan:begin")
+        listed, cut_off = self._list_bounded()
+        self._transaction(lambda: self._apply_scan(listed, cut_off))
 
-    def _apply_scan(self, listed: list[Listed], cut_off: bool, gen: int) -> None:
+    def _list_bounded(self) -> tuple[list[Listed], bool]:
+        """The newest MAX_MESSAGES entries of the mailbox, by consuming bounded pages. Memory is bounded by MAX_MESSAGES and work by MAX_LIST_WORK, whatever the adapter returns.
+        If the adapter really lists newest first, consumption stops as soon as enough are held (nothing later can be newer); if it is ever seen to break that order, it is read on
+        (up to the work bound) while only the newest are kept. The second value says the mailbox was NOT fully admitted, so coverage can never be complete."""
+        heap: list[tuple[float, str, Listed]] = []  # a min-heap: the oldest admitted entry is the one to drop
+        cursor: str | None = None
+        work, ordered, last, over, exhausted = 0, True, float("inf"), False, False
+        while True:
+            page = self._mailbox.list_page(cursor, PAGE_SIZE)
+            over = over or len(page.items) > PAGE_SIZE  # a page larger than asked for is never consumed past the limit
+            for item in page.items[:PAGE_SIZE]:
+                work += 1
+                key = _epoch_or_floor(item.date) if isinstance(item.message_id, str) else float("-inf")
+                ordered, last = ordered and key <= last, key
+                heapq.heappush(heap, (key, str(item.message_id), item))
+                if len(heap) > MAX_MESSAGES:
+                    heapq.heappop(heap)
+            cursor = page.next_cursor
+            if cursor is None:
+                exhausted = True
+                break
+            if (ordered and len(heap) >= MAX_MESSAGES) or work >= MAX_LIST_WORK:
+                break
+        return [entry[2] for entry in sorted(heap, key=lambda e: (e[0], e[1]), reverse=True)], not exhausted or over or work > MAX_MESSAGES
+
+    def _apply_scan(self, listed: list[Listed], cut_off: bool) -> None:
+        gen = int(self._meta("generation", "0")) + 1
         for item in listed:
             self._note(item, gen)
         self._hit("scan:mid")
@@ -315,7 +378,7 @@ class MailIndex(IndexStore):
             self._conn.execute("DELETE FROM msgs")
             self._conn.execute("DELETE FROM meta")
 
-        self._transaction(wipe)
+        self._transaction(wipe, guarded=False)  # the purge is what a revocation triggers: it must always be able to run
 
     # -- coverage ------------------------------------------------------------------------------------------------------------------------------------------
     def coverage(self) -> dict[str, Any]:
@@ -411,4 +474,4 @@ class MailIndex(IndexStore):
         ]
 
 
-__all__ = ["InMemoryMailbox", "Listed", "MailError", "MailIndex", "Mailbox", "Parsed", "parse", "source_id_for"]
+__all__ = ["InMemoryMailbox", "ListPage", "Listed", "MailError", "MailIndex", "Mailbox", "Parsed", "parse", "source_id_for"]

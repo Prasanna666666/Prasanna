@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,7 @@ from atlas_core import mail as mail_module
 from atlas_core.access import GRANTED, MISSING, UNKNOWN, AllowAll
 from atlas_core.contracts import validate
 from atlas_core.evidence import CitationError, resolve
-from atlas_core.mail import InMemoryMailbox, Listed, MailIndex, source_id_for
+from atlas_core.mail import InMemoryMailbox, Listed, ListPage, MailIndex, source_id_for
 from atlas_core.policy import PermissionRevoked
 from atlas_core.service import SimulatedCrash
 
@@ -110,8 +111,11 @@ def test_newest_first_by_stored_date_and_a_message_without_a_usable_date_is_last
         dict(MEETING, message_id=f"m{i}@x.invalid", date=f"2026-01-0{i + 1}T00:00:00+00:00", subject=f"budget {i}", body=f"budget item {i}") for i in range(3)
     ]
     mailbox = box(*msgs)
-    real_list = mailbox.list
-    mailbox.list = lambda: [Listed(x.message_id, x.version, None if x.message_id == "m1@x.invalid" else x.date) for x in real_list()]  # type: ignore[method-assign]
+    real_page = mailbox.list_page
+    mailbox.list_page = lambda cursor, limit: ListPage(  # type: ignore[method-assign]
+        [Listed(x.message_id, x.version, None if x.message_id == "m1@x.invalid" else x.date) for x in real_page(cursor, limit).items],
+        real_page(cursor, limit).next_cursor,
+    )
     index, _ = make(tmp_path, mailbox)
     index.scan()
     assert index.run(1)["missing_timestamps"] == 1
@@ -156,8 +160,8 @@ def test_a_record_for_another_message_and_an_invalid_identity_are_refused(tmp_pa
     mailbox = box(INVOICE, MEETING)
     real_read = mailbox.read
     mailbox.read = lambda mid: real_read("msg-0001@example.invalid") if mid == MEETING["message_id"] else real_read(mid)  # type: ignore[method-assign]
-    real_list = mailbox.list
-    mailbox.list = lambda: [*real_list(), Listed("bad id with spaces", "v", None)]  # type: ignore[method-assign]
+    real_page = mailbox.list_page
+    mailbox.list_page = lambda cursor, limit: ListPage([*real_page(cursor, limit).items, Listed("bad id with spaces", "v", None)], None)  # type: ignore[method-assign]
     index, _ = make(tmp_path, mailbox)
     cov = build(index)
     assert cov["reasons"] == {"malformed_message": 2} and cov["searched"] == 1 and cov["complete"] is False
@@ -524,3 +528,192 @@ def test_a_search_for_another_source_type_returns_nothing_and_touches_nothing(tm
     build(index)
     reads = mailbox.reads
     assert list(index.search(DOCS, "invoice")) == [] and mailbox.reads == reads
+
+
+# ---- review 6008667627, blocker 1: a revocation DURING a listing (or between a read and its write) can never leave mailbox-derived data behind -------------
+class Blocking(InMemoryMailbox):
+    """A slow adapter: the first listing blocks inside the adapter until the test releases it."""
+
+    def __init__(self, messages: Any) -> None:
+        super().__init__(messages)
+        self.entered = threading.Event()
+        self.release = threading.Event()
+
+    def list_page(self, cursor: str | None, limit: int) -> ListPage:
+        page = super().list_page(cursor, limit)
+        self.entered.set()
+        assert self.release.wait(5)
+        return page
+
+
+def _scan_in_a_thread(index: MailIndex) -> tuple[threading.Thread, list[BaseException]]:
+    errors: list[BaseException] = []
+
+    def target() -> None:
+        try:
+            index.scan()
+        except BaseException as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=target)
+    thread.start()
+    return thread, errors
+
+
+def _rows(index: MailIndex) -> tuple[int, int]:
+    return index._conn.execute("SELECT count(*) FROM msgs").fetchone()[0], index._conn.execute("SELECT count(*) FROM meta").fetchone()[0]
+
+
+@pytest.mark.parametrize("how", ["consent_withdrawn", "os_permission_lost"])
+def test_access_ending_while_a_listing_is_in_flight_leaves_no_row_and_no_scan_metadata_and_reads_no_body(tmp_path, how):
+    env = Env(tmp_path)
+    mailbox = Blocking([copy.deepcopy(INVOICE), copy.deepcopy(MEETING)])
+    index = MailIndex(tmp_path / "mail.db", KEY, mailbox, MAIL, access=env.access)
+    env.store.register_purge(MAIL, index.purge)
+    env.enable(MAIL)
+    env.os.set(MAIL, GRANTED)
+    assert env.access.permitted(MAIL)  # (records that the platform permission was seen, so its loss is a revocation)
+    thread, errors = _scan_in_a_thread(index)
+    assert mailbox.entered.wait(5)  # the scan is inside adapter.list_page(), permitted when it began
+    if how == "consent_withdrawn":
+        env.store.withdraw(MAIL, env.rid())  # revoked, and the purge has COMPLETED, while the listing is still in flight
+        assert env.store.pending_purges() == [] and _rows(index) == (0, 0)
+    else:
+        env.os.set(MAIL, MISSING)
+    mailbox.release.set()
+    thread.join(5)
+    assert not thread.is_alive() and len(errors) == 1 and isinstance(errors[0], PermissionRevoked)
+    assert _rows(index) == (0, 0)  # nothing was recreated: no message id, no version marker, no date, no scan metadata
+    assert mailbox.reads == 0 and env.store.lifecycle(MAIL) == "revoked"
+
+
+def test_access_ending_between_two_listing_pages_stops_the_next_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(mail_module, "PAGE_SIZE", 2)
+    env, index, mailbox = gated(tmp_path, *[dict(MEETING, message_id=f"m{i}@x.invalid", date=f"2026-03-0{i + 1}T00:00:00+00:00") for i in range(6)])
+    real = mailbox.list_page
+
+    def page(cursor: str | None, limit: int) -> ListPage:
+        result = real(cursor, limit)
+        if mailbox.lists == 1:
+            env.store.withdraw(MAIL, env.rid())  # revoked right after the first page was handed out
+        return result
+
+    mailbox.list_page = page  # type: ignore[method-assign]
+    with pytest.raises(PermissionRevoked):
+        index.scan()
+    assert mailbox.lists == 1 and _rows(index) == (0, 0)  # no second page was requested
+
+
+def test_access_ending_between_a_read_and_its_write_stores_nothing(tmp_path):
+    env, index, mailbox = gated(tmp_path)
+    index.scan()
+    index.hook = lambda name: env.store.withdraw(MAIL, env.rid()) if name == "msg:extracted" else None  # the body has been read; now consent ends
+    with pytest.raises(PermissionRevoked):
+        index.run(5)
+    assert mailbox.reads == 1 and _rows(index) == (0, 0)  # the one read was permitted when it happened; its result was never written
+
+
+# ---- review 6008667627, blocker 2: listing is paged and bounded, and the NEWEST messages are admitted first --------------------------------------------------
+@pytest.fixture
+def small(monkeypatch):
+    monkeypatch.setattr(mail_module, "MAX_MESSAGES", 5)
+    monkeypatch.setattr(mail_module, "PAGE_SIZE", 3)
+    monkeypatch.setattr(mail_module, "MAX_LIST_WORK", 30)
+
+
+def many(n: int, order: str) -> InMemoryMailbox:
+    return InMemoryMailbox(
+        [
+            dict(MEETING, message_id=f"m{i:03d}@x.invalid", date=f"2026-01-01T00:{i // 60:02d}:{i % 60:02d}+00:00", subject=f"s{i}", body=f"item {i}")
+            for i in range(n)
+        ],
+        order,
+    )
+
+
+def _admitted(index: MailIndex) -> set[str]:
+    return {r[0] for r in index._conn.execute("SELECT message_id FROM msgs")}
+
+
+def test_a_listing_in_date_order_stops_early_and_admits_exactly_the_newest(tmp_path, small):
+    mailbox = many(100, "newest_first")
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    assert _admitted(index) == {f"m{i:03d}@x.invalid" for i in range(95, 100)}  # the five newest
+    assert mailbox.max_page <= 3 and mailbox.listed <= 6 and mailbox.lists <= 2  # not the whole mailbox: two pages
+    assert index.coverage()["scan_complete"] is False and index.coverage()["complete"] is False  # and it says it is not everything
+
+
+@pytest.mark.parametrize("order", ["by_id", "as_given"])
+def test_a_listing_that_is_not_in_date_order_still_admits_the_newest_it_examines_within_the_work_bound(tmp_path, small, order):
+    mailbox = many(20, order)
+    mailbox.messages = (
+        dict(reversed(list(mailbox.messages.items()))) if order == "as_given" else mailbox.messages
+    )  # newest first by accident, then oldest first
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    assert len(_admitted(index)) == 5 and mailbox.max_page <= 3 and mailbox.listed <= 30  # bounded memory and bounded work
+    assert index.coverage()["scan_complete"] is False
+    assert _admitted(index) == {f"m{i:03d}@x.invalid" for i in range(15, 20)}  # all 20 fit in the work bound, so the five newest are exactly the newest
+
+
+def test_a_huge_unordered_mailbox_is_never_consumed_past_the_work_bound(tmp_path, small):
+    mailbox = many(500, "by_id")  # oldest first: the worst case for a cap that keeps 'the first N'
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    assert mailbox.listed <= 30 and mailbox.max_page <= 3  # 500 messages, 30 entries examined, 3 at a time
+    assert len(_admitted(index)) == 5 and index.coverage()["scan_complete"] is False
+    index.run(10)
+    assert index.coverage()["pending"] == 0 and index.coverage()["complete"] is False  # indexed what was admitted, and still not complete
+
+
+def test_a_page_larger_than_the_limit_is_never_consumed_past_the_limit(tmp_path, small):
+    mailbox = many(4, "newest_first")
+    mailbox.overshoot = 50  # a misbehaving adapter hands out far more than it was asked for
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    assert len(_admitted(index)) <= 5 and index.coverage()["scan_complete"] is False  # (it cannot be shown complete after such a page)
+
+
+def test_a_mailbox_that_fits_is_listed_whole_and_can_be_complete(tmp_path, small):
+    mailbox = many(5, "as_given")
+    index, _ = make(tmp_path, mailbox)
+    cov = build(index)
+    assert len(_admitted(index)) == 5 and cov["scan_complete"] is True and cov["complete"] is True
+
+
+def test_the_newest_are_indexed_first_after_a_capped_scan(tmp_path, small):
+    mailbox = many(60, "newest_first")
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    index.run(2)
+    got = {r[0] for r in index._conn.execute("SELECT message_id FROM msgs WHERE status='indexed'")}
+    assert got == {"m059@x.invalid", "m058@x.invalid"}
+
+
+class Counted(list):
+    """A page whose entries are counted as the Core iterates them (the Core must never walk past the limit it asked for)."""
+
+    iterated = 0
+
+    def __iter__(self):
+        for item in super().__iter__():
+            Counted.iterated += 1
+            yield item
+
+
+def test_the_core_never_iterates_past_the_limit_of_an_oversized_page(tmp_path, small):
+    mailbox = many(4, "newest_first")
+    mailbox.overshoot = 1000
+    real = mailbox.list_page
+    mailbox.list_page = lambda cursor, limit: ListPage(Counted(real(cursor, limit).items), real(cursor, limit).next_cursor)  # type: ignore[method-assign]
+    Counted.iterated = 0
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    assert Counted.iterated == 0  # the page is cut to the limit before anything is walked (the entries beyond it are never touched)
+
+
+def test_the_bounded_listing_returns_the_newest_first(tmp_path, small):
+    index, _ = make(tmp_path, many(12, "by_id"))
+    listed, cut_off = index._list_bounded()
+    assert [x.message_id for x in listed] == [f"m{i:03d}@x.invalid" for i in (11, 10, 9, 8, 7)] and cut_off is True
