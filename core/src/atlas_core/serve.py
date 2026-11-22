@@ -17,12 +17,13 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from .app import Core, CoreConfig
+from .app import Core, CoreAlreadyRunning, CoreConfig
 from .host import HostOptions
 
 CODE_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
 FactoryT = Callable[[Path, Path, str | None, HostOptions], CoreConfig]
 EXIT_REFUSED = 4
+EXIT_BUSY = 5  # another Core owns this data folder
 
 
 def _factory(spec: str, allow_custom: bool) -> FactoryT:
@@ -70,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
         core = Core(config)
     except ValueError:
         return EXIT_REFUSED  # no owner enrolled and no usable code: it does not start
+    except CoreAlreadyRunning:
+        return EXIT_BUSY  # a live Core has this folder: this one touches nothing
     core.start()
     stop = threading.Event()
     for number in (signal.SIGTERM, signal.SIGINT):

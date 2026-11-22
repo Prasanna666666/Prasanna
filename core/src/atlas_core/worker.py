@@ -98,11 +98,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--engine", default="mlx")
     parser.add_argument("--allow-custom-engine", action="store_true")
-    parser.add_argument("--skip-self-sandbox", action="store_true", help="the parent already launched this under an OS sandbox (macOS sandbox-exec)")
     args = parser.parse_args(argv)
     channel = _Channel()
     try:
-        mechanism = "launcher" if args.skip_self_sandbox else sandbox.install_network_deny()
+        mechanism = sandbox.install_network_deny()  # Linux: installs the filter; macOS: verifies with the OS that the launcher's profile really is in force
     except sandbox.SandboxUnavailable:
         channel.send({"hello": False})
         return 2

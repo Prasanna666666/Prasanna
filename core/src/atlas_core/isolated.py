@@ -39,8 +39,6 @@ class IsolatedEngine:
         command = [*prefix, self._python, "-m", "atlas_core.worker", "--engine", self._spec]
         if self._custom:
             command.append("--allow-custom-engine")
-        if prefix:
-            command.append("--skip-self-sandbox")
         return command
 
     def _start(self) -> subprocess.Popen[bytes]:

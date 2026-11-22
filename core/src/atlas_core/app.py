@@ -8,6 +8,8 @@ this file is verified on Linux with the deterministic fakes and the Mac pieces p
 
 from __future__ import annotations
 
+import fcntl
+import os
 import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -62,6 +64,20 @@ class CoreConfig:
     log: SafeLog = field(default_factory=SafeLog)
 
 
+class CoreAlreadyRunning(RuntimeError):
+    """Another Core already owns this data folder (its stores, its socket). The second one must not start, bind, or unlink anything."""
+
+
+def _lock_data_dir(data_dir: Path) -> int:
+    fd = os.open(data_dir / "core.lock", os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)  # released by the OS if the holder dies, so a crash never leaves a stale lock
+    except OSError:
+        os.close(fd)
+        raise CoreAlreadyRunning("another Core owns this data folder") from None
+    return fd
+
+
 class _Retriever:
     def __init__(self, indexes: dict[str, Any]) -> None:
         self._indexes = indexes
@@ -104,6 +120,14 @@ class Core:
     def __init__(self, config: CoreConfig) -> None:
         c = config
         c.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self._lock_fd = _lock_data_dir(c.data_dir)  # one Core per data folder: taken before any store is opened, held until close() or the process ends
+        try:
+            self._build(c)
+        except BaseException:
+            self._release_lock()
+            raise
+
+    def _build(self, c: CoreConfig) -> None:
         self.mode = _Mode()
         self.config, self.clock = c, c.clock
         self.designation = DesignationStore(c.data_dir / "designation.db", c.designation_key, c.clock, anchor=c.anchor)
@@ -190,6 +214,11 @@ class Core:
                 self.config.log.emit("api.request", "service", "worker-loop", error_code="internal_error")
             self._stop.wait(0.05)
 
+    def _release_lock(self) -> None:
+        fd, self._lock_fd = self._lock_fd, -1
+        if fd >= 0:
+            os.close(fd)
+
     def close(self) -> None:
         self._stop.set()
         if self.server is not None:
@@ -201,3 +230,4 @@ class Core:
             index.close()
         self.tasks.close()
         self.designation.close()
+        self._release_lock()

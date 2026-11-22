@@ -74,6 +74,7 @@ final class ConversationModel: ObservableObject {
     @Published var answer: AnswerView?
     @Published var failure: String?
     @Published var busy = false
+    private var gate = SubmissionGate()
     @Published var needsGetStarted = true
     @Published var passage: String?
     private var taskID: String?
@@ -148,9 +149,9 @@ final class ConversationModel: ObservableObject {
     }
 
     func ask(scope: [String]) async {
-        guard let client, !question.isEmpty else { return }
+        guard let client, !question.isEmpty, gate.begin() else { return }  // a second submission while one runs (Enter in the field, a double click) is ignored here, not just by the button
         busy = true; failure = nil; answer = nil; passage = nil
-        defer { busy = false }
+        defer { busy = false; gate.end() }
         let text = question
         do {
             let id = try await Task.detached { try client.ask(question: text, scope: scope) }.value

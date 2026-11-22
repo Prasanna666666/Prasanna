@@ -297,3 +297,50 @@ def test_on_macos_the_worker_cannot_read_a_home_folder_file_run_another_program_
         "blocked:"
     )  # (a refusal either way: this does not prove the DNS service is unreachable, only that no answer comes back)
     assert "SENTINEL" not in json.dumps(result)
+
+
+def test_the_launcher_verification_trusts_only_what_the_os_refuses():
+    refuse = lambda: (_ for _ in ()).throw(PermissionError(1, "denied"))  # noqa: E731
+    allow = lambda: None  # noqa: E731
+    other_error = lambda: (_ for _ in ()).throw(ConnectionRefusedError(61, "refused"))  # noqa: E731  (what an UNCONFINED connect to a closed port gives)
+    assert sandbox.verify_launcher_sandbox({"a": refuse, "b": refuse}) == "launcher"
+    for failing in (allow, other_error):
+        with pytest.raises(sandbox.SandboxUnavailable):
+            sandbox.verify_launcher_sandbox({"a": refuse, "b": failing})
+    with pytest.raises(sandbox.SandboxUnavailable):
+        sandbox.verify_launcher_sandbox(
+            {"a": refuse, "b": lambda: (_ for _ in ()).throw(FileNotFoundError(2, "gone"))}
+        )  # a probe that cannot be made fails closed
+
+
+def test_the_worker_has_no_flag_that_skips_its_confinement():
+    import subprocess
+
+    env = {"PATH": os.environ["PATH"], "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
+    done = subprocess.run(
+        [sys.executable, "-m", "atlas_core.worker", "--engine", "mlx", "--skip-self-sandbox"],
+        input=b"",
+        capture_output=True,
+        timeout=30,
+        check=False,
+        cwd="/",
+        env=env,
+    )
+    assert done.returncode == 2 and b"hello" not in done.stdout and b"unrecognized arguments" in done.stderr  # argparse refuses an unknown flag: nothing runs
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="on macOS the worker's confinement comes from sandbox-exec, which a direct start does not have")
+def test_on_macos_a_worker_started_directly_without_the_sandbox_refuses_to_run():
+    import subprocess
+
+    env = {"PATH": os.environ["PATH"], "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
+    done = subprocess.run(
+        [sys.executable, "-m", "atlas_core.worker", "--engine", "EchoEngine", "--allow-custom-engine"],
+        input=b"",
+        capture_output=True,
+        timeout=60,
+        check=False,
+        env=env,
+        cwd="/",
+    )
+    assert done.returncode == 2 and b'"hello": false' in done.stdout  # it asked the OS, found it unconfined, and said so

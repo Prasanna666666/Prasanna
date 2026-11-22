@@ -164,6 +164,19 @@ class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
             self._slots.release()
 
 
+def _answers(path: Path) -> bool:
+    """True if something is listening on this Unix socket path right now."""
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    probe.settimeout(2)
+    try:
+        probe.connect(str(path))
+    except OSError:
+        return False  # refused, no such file, not a socket: nobody is listening
+    finally:
+        probe.close()
+    return True
+
+
 def serve_unix(
     path: str | Path,
     api: CoreApi,
@@ -180,8 +193,10 @@ def serve_unix(
         )
     sock_path.parent.mkdir(parents=True, exist_ok=True, mode=DIR_MODE)
     os.chmod(sock_path.parent, DIR_MODE)
-    if sock_path.exists():
-        sock_path.unlink()
+    if os.path.lexists(sock_path):
+        if _answers(sock_path):
+            raise OSError("a Core is already answering on this socket; it is not replaced")  # never unlink a live owner's socket
+        sock_path.unlink()  # a leftover file nothing listens on
     server = UnixServer(str(sock_path), make_handler(api, allowed_uids if allowed_uids is not None else [os.getuid()], read_timeout), max_connections)
     os.chmod(sock_path, SOCKET_MODE)
     return server

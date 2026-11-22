@@ -12,9 +12,10 @@ import ctypes
 import json
 import os
 import platform
+import socket
 import struct
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 PR_SET_NO_NEW_PRIVS = 38
 PR_SET_SECCOMP = 22
@@ -101,6 +102,8 @@ def filter_program(arch: int, socket_nr: int) -> bytes:
 
 def install_network_deny() -> str:
     """Apply the filter to THIS process (and everything it starts). Returns the mechanism name, or raises SandboxUnavailable. Linux only; macOS uses `launch_prefix`."""
+    if sys.platform == "darwin":
+        return verify_launcher_sandbox()  # the confinement was applied from outside by `sandbox-exec`; this process asks the OS instead of believing anyone
     if not sys.platform.startswith("linux"):
         raise SandboxUnavailable("platform")
     known = ARCHES.get(platform.machine())
@@ -119,6 +122,43 @@ def install_network_deny() -> str:
     if libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, ctypes.byref(fprog), 0, 0) != 0:
         raise SandboxUnavailable("seccomp")
     return "seccomp"
+
+
+def _refused(action: Callable[[], object]) -> bool:
+    """True only if the operating system itself refused the action with a permission error (an unconfined process gets a different error or succeeds)."""
+    try:
+        action()
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return False
+
+
+def _try_write() -> None:
+    path = "/private/tmp/.atlas-sandbox-probe"
+    open(path, "w").close()
+    os.unlink(path)  # reached only if the write was allowed
+
+
+def _try_network() -> None:
+    probe = socket.socket()
+    try:
+        probe.connect(("127.0.0.1", 9))
+    finally:
+        probe.close()
+
+
+MAC_CHECKS: dict[str, Callable[[], object]] = {"network": _try_network, "write": _try_write, "private_read": lambda: os.listdir("/Users")}
+
+
+def verify_launcher_sandbox(checks: dict[str, Callable[[], object]] | None = None) -> str:
+    """macOS: the worker must be running under the `sandbox-exec` profile. Nothing the caller says counts (there is no flag for it): the worker attempts a network connect, a file write and a read
+    of /Users and refuses to run unless the operating system refuses all three. Any other result, including a probe that cannot be made, fails closed."""
+    for name, action in (checks or MAC_CHECKS).items():
+        if not _refused(action):
+            raise SandboxUnavailable(name)
+    return "launcher"
 
 
 def launch_prefix(read_roots: Sequence[str] = ()) -> list[str]:

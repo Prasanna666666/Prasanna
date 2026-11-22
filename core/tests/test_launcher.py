@@ -198,3 +198,27 @@ def test_stop_terminates_waits_for_and_reaps_the_core(launched):
     pid = core.process.pid
     core.stop()
     assert core.process.returncode == 0 and not _alive(pid)  # a clean exit, reaped: no zombie left behind
+
+
+def test_a_second_core_on_the_same_data_folder_does_not_start_and_touches_nothing(launched):
+    start, tmp_path, sock = launched
+    first = start()
+    done = subprocess.run(  # same data folder, same socket, a perfectly valid code: it must still refuse
+        [sys.executable, "-m", "atlas_core.serve", "--data-dir", str(tmp_path / "core"), "--socket", str(sock), "--config-factory", FACTORY, "--allow-custom-factory"],
+        input=b"a-valid-looking-code-0123456789\n", capture_output=True, timeout=30, env={"PATH": os.environ["PATH"], "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}, check=False,
+    )  # fmt: skip
+    assert done.returncode == 5 and b"READY" not in done.stdout
+    code = first.bootstrap_code
+    owner = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), OWNER_ID)
+    assert owner.enrol_self(bootstrap_code=code)["role"] == "owner"  # the first Core still owns its socket and answers
+
+
+def test_a_data_folder_lock_dies_with_its_holder_so_a_crash_never_blocks_the_next_start(launched):
+    start, _tmp, sock = launched
+    first = start()
+    first.process.kill()  # no cleanup of any kind runs: the socket file stays behind
+    first.process.wait(10)
+    assert sock.exists()  # stale
+    second = start()  # the OS released the lock; the stale socket is recognised as stale and replaced
+    owner = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), OWNER_ID)
+    assert owner.enrol_self(bootstrap_code=second.bootstrap_code)["role"] == "owner"

@@ -201,3 +201,14 @@ def test_a_running_core_logs_which_model_answered_and_why_and_nothing_else_about
     routed = [json.loads(x) for x in seen if '"model.routed"' in x]
     assert routed and routed[0]["model_id"] == "primary-1" and routed[0]["reason_code"] == "primary_model" and routed[0]["role"] == "primary"
     assert "1250.50" not in "".join(seen) and "invoice" not in "".join(seen).lower()
+
+
+def test_only_one_core_may_hold_a_data_folder_and_it_is_released_on_close(tmp_path):
+    from atlas_core.app import CoreAlreadyRunning
+
+    w = World(tmp_path)
+    first = w.build()
+    with pytest.raises(CoreAlreadyRunning):
+        w.build()  # the same folder, while the first is alive
+    first.close()
+    w.build().close()  # released: a new Core may take it

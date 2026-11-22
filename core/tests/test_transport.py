@@ -208,3 +208,31 @@ def test_connections_are_bounded_and_the_server_recovers_when_they_close(served)
         sock.close()
     time.sleep(0.3)
     _still_healthy(path, key, world)
+
+
+def test_a_live_sockets_path_is_never_unlinked_but_a_stale_one_is_replaced(tmp_path):
+    import socket as socketlib
+
+    from atlas_core.transport import serve_unix
+
+    path = tmp_path / "run" / "core.sock"
+    path.parent.mkdir()
+    live = socketlib.socket(socketlib.AF_UNIX, socketlib.SOCK_STREAM)
+    live.bind(str(path))
+    live.listen(1)
+    try:
+        with pytest.raises(OSError, match="already answering"):
+            serve_unix(path, object())  # type: ignore[arg-type]
+        assert path.exists()  # the live owner's socket file is untouched
+        probe = socketlib.socket(socketlib.AF_UNIX, socketlib.SOCK_STREAM)
+        probe.connect(str(path))  # and still answers
+        probe.close()
+    finally:
+        live.close()
+    # now it is stale (a bound socket file with nothing listening), and a plain leftover file is stale too
+    assert path.exists()
+    server = serve_unix(path, object())  # type: ignore[arg-type]
+    server.server_close()
+    path.unlink()
+    path.write_text("leftover")
+    serve_unix(path, object()).server_close()  # type: ignore[arg-type]
