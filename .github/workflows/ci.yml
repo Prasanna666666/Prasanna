@@ -183,7 +183,7 @@ jobs:
         run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
       - name: Worker diagnostic summary
         if: always()
-        run: tail -45 /tmp/diag.out || true
+        run: head -14 /tmp/diag.out | cut -c1-600 || true
   security:
     runs-on: ubuntu-latest
     defaults:
