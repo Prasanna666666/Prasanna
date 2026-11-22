@@ -27,7 +27,7 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-017 | Planning/minimum-support profile is a 32 GB Apple-silicon Mac mini | DECIDED (planning profile) | Not yet owner-verified or benchmarked; actual test machine and results must be recorded separately |
 | G-018 | Atlas must ultimately provide mobile access through an iOS app, usable worldwide wherever secure connectivity is available | DECIDED | macOS first, then iOS; keep domain logic portable and design secure remote access to owner-controlled Atlas Core without cloud inference. Android is not a target (owner, 2026-11-19) |
 | G-019 | Language support and evaluation requirement: Atlas is intended to support English, Dutch and other languages present in the owner's documents. Support is measured per language and reported honestly; no language is claimed as supported until measured. | DECIDED | Evaluate readers, OCR, retrieval, local model and answer quality per language; disclose unsupported paths or inadequate confidence. No fixed language list in code |
-| G-020 | Local model strategy: use a ~27B-parameter main-model class selected by benchmark on the target Mac; automatically switch models by task and show which model answered; use Apple MLX as the inference runtime. | DECIDED — direction (2026-11-20) | Exact model family, quantisation, context length, task-routing map and fallback remain benchmark decisions. No model, performance or memory claim is accepted without target-Mac measurements. MLX is Apple-silicon-only; Linux CI uses a stub. The selected model identity (model ID and routing role only; never prompt/content) must be visible in answers and the safe event contract as a backward-compatible minor API addition, gated for Stage 3. Every routed model invocation must pass through the same policy gate; model selection cannot widen permissions. |
+| G-020 | Local model strategy: use a ~27B-parameter main-model class, Apple MLX for local inference, and visibly identify the model that answered. | DECIDED — direction (2026-11-20); exact stack ratified under G-O01 (2026-11-22) | The selected hardware, model roles, fallback-by-capability, deterministic routing, context and quantisation policy are recorded in §8. This is an architecture selection, not proof of MLX compatibility, performance, memory fit or production readiness; those require target-Mac gates. MLX is Apple-silicon-only; Linux CI uses a deterministic stub. Model identity (model ID and routing role only; never prompt/content) remains a later compatible API/event addition. Every routed model call re-enters the same policy gate; model selection cannot widen permissions. |
 
 ## 2. Architecture recommendations
 
@@ -48,7 +48,6 @@ This register distinguishes explicit owner decisions from architecture recommend
 
 | ID | Question | Proposed next step | Owner input needed now? |
 |---|---|---|---|
-| G-O01 | Which exact local model(s), quantisation, context and fallback meet quality/latency/memory needs? | Benchmark ~27B candidates on the actual Mac using MLX. Before selection, define a pass/fail memory budget and measure free-memory headroom under combined macOS + Atlas Core + retrieval/ingestion + interactive workload; report peak/steady memory, KV cache/context, cold load/unload and task-switch latency, throughput, first-token latency, thermal/energy impact, and quality. Include English, Dutch and non-Latin language evaluation plus hostile-input/prompt-injection and policy-boundary tests. Verify that every routed model re-enters the same policy gate. If no candidate passes, stop and return the fallback model class/relaxation to the owner; do not silently downsize or switch runtime. Record safe model ID/routing role in audit metadata. Compare Ollama only as a bounded risk check, not as a change to the owner's MLX direction. | No; investigate first; owner decision required if no candidate passes |
 | G-O02 | What storage, full-text, vector and relationship-query stack is appropriate? | Produce a storage/encryption/key-boundary ADR after auditing data volume, query patterns, backup and restore | No |
 | G-O03 | Which external sources/connectors should be supported first? | Inventory existing sources and rank by value/risk; current owner direction is local documents read-only, Mail read-only and Calendar read-only/propose-only | Only when prioritising a release |
 | G-O04 | What is the multi-device sync and conflict model? | Define offline cache, sync, conflict resolution, queued actions and device-loss behaviour before mobile beta | No; required before mobile beta |
@@ -124,3 +123,64 @@ These decisions supersede conflicting earlier rows and prose above.
 ### Supersession notes
 
 G-015 is superseded by G-021 and remains only as historical rationale. G-008 still requires owner control, provenance and revocation, but Health is no longer categorically locked from local model context. Earlier approval language requiring confirmation for routine or every privacy-sensitive action is superseded by G-022. G-O18 is answered as product scope (“all supported formats”); remaining work is technical specification and acceptance, not another preference question. G-O19 is delegated: implement one Get Started flow and do not repeatedly ask the owner to choose internal permission mechanisms. Public web access is allowed under INTERNET_AND_NETWORK_POLICY.md, but this does not authorise uploading personal content or cloud inference.
+
+
+## 8. G-O01 — Final hardware and model architecture (2026-11-22)
+
+**Decision authority:** The owner explicitly delegated the final model/hardware choice to Claude Code (PR #8 comment [7071570360](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7071570360)), then asked ChatGPT to finalize and document it. ChatGPT's reconciliation is recorded in [PR #8 comment 7071815030](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7071815030). This closes the *selection* question G-O01. It does not waive any validation or release gate below.
+
+### 8.1 Hardware selection
+
+**Selected target:** Mac mini with **M6, 32 GB unified memory, 256 GB internal SSD**, plus a fast external SSD for model storage.
+
+- Do not select 24 GB. The 32 GB configuration is the planning target; it has not yet been purchased or tested.
+- Do not select 48 GB: it is outside the owner's budget. External SSD adds storage, never RAM.
+- The M5 Pro 32 GB comparison is not a purchasable configuration. Apple's current Mac mini specifications list M5 Pro memory at 24 GB, configurable to 48 GB or 64 GB; M6 is configurable to 24 GB or 32 GB. Apple lists 170 GB/s for the M6 32 GB configuration and 307 GB/s for M5 Pro. The higher-bandwidth M5 Pro is a different memory/price tier, not an equivalent 32 GB alternative.
+- Official hardware reference: [Apple Mac mini technical specifications](https://support.apple.com/en-us/128108) (2026 specification page).
+
+### 8.2 Selected model stack
+
+| Role | Selection | Capability and operating rule |
+|---|---|---|
+| Resident primary | **Google Gemma 4 26B-A4B, 4-bit** | Default model for free-text work; text and image input. One resident primary. Prefer a verified QAT quantisation only when its provenance is verified; otherwise convert/quantise from the vendor's source weights through Atlas's controlled, reproducible process. |
+| First fallback — text | **OpenAI GPT-OSS-20B, MXFP4** | Text-only fallback. Never route image/audio/video input here while silently dropping the modality. |
+| First fallback — multimodal | **Google Gemma 4 12B, 4-bit** | Capability-preserving fallback for image and audio tasks; use only after its own MLX and quality gates pass. |
+| On-demand deep tier | **Google Gemma 4 31B, Q4** | Only inside an owner-selected, explicitly typed Research mode. Research mode first uses the primary with a larger reasoning budget; swap to 31B only if the blinded research/debate evaluation demonstrates a material quality gain. Unload the primary first; never keep a second large model resident. |
+
+The fallback chain is capability-aware: text tasks use Gemma 4 26B-A4B → GPT-OSS-20B → Gemma 4 12B; tasks requiring image/audio capability use Gemma 4 26B-A4B → Gemma 4 12B. If no eligible model can satisfy the required modality and policy gates, Atlas reports local model unavailability rather than dropping input or using a remote model.
+
+**Excluded from the planned dependency graph:** Qwen; Ministral 3 14B as a supposed fast tier (it is a dense-model comparator only if separately benchmarked); and Nemotron 3 Nano (optional research candidate only after a separate licence and lineage review). No resident coding model and no default small-model router.
+
+### 8.3 Routing, verification and resource policy
+
+- Typed deterministic capabilities (exact search, calendar/status queries, calculator, approve/cancel and fixed-grammar commands) skip model inference but still pass through the applicable Core policy gate.
+- Free-text chat always uses retrieval first, then the resident primary. No semantic model router and no model switching inferred from task wording.
+- Research/deep inference is entered only through owner-selected Research mode. The 31B swap is a deterministic, disclosed decision within that mode, based on the pre-registered evaluation result.
+- No always-on verifier model. Deterministic arithmetic/date/unit/schema/citation checks always run. Same-model span checking is optional; a different-family check is enabled only if a blinded ablation demonstrates a material benefit.
+- Concurrency is capped at two jobs initially: one interactive and one background. Interactive work has priority and must not wait behind background inference. Do not co-reside a second large model; swap specialists in/out.
+- Context defaults to 32K. 64K/128K profiles require separate recall, latency and memory acceptance.
+- Cache only in memory, keyed by domain, grant identity/version, model and quantisation. Flush on session end, grant/policy change, revocation and model unload. No persistent user-content KV cache.
+- Each model has one explicit, fixed quantisation. Never silently lower precision or change model for Finance, Health, permissions, code changes or evidence-critical work.
+- Degradation order: stop new background inference; evict rebuildable caches; pause background work and unload specialists; reduce context and rely on scoped retrieval; use only a pre-benchmarked disclosed profile; otherwise refuse. Never rely on memory swapping or cloud fallback.
+
+### 8.4 Model supply chain and privacy
+
+Every imported model must have a manifest recording developer and accountable release organisation, model ID/revision, disclosed base/derivative/distillation lineage, licence text and usage terms, quantisation source/conversion chain, runtime compatibility and SHA-256 digest. Verify the full digest on import and remount/identity change; load only from verified read-only bytes. No unmanifested model loads. A missing external drive means “model unavailable”; deterministic typed capabilities may continue.
+
+Use safetensors or GGUF only; no pickle and no `trust_remote_code`. Pin runtime/package versions in a dedicated environment. Inference runs in a separate process under network-deny isolation; downloads happen only in an explicit owner-approved import step. Verify that the inference process opens no network socket during model load or inference. No remote inference or silent fallback, ever.
+
+**Lineage standard and accepted residual risk:** eligible releases must have a developer and accountable release organisation outside the PRC, and their model card/technical report must disclose no PRC-origin base, derivative or distillation source. Derivatives and community quantisations of a PRC-origin base are ineligible regardless of distributor. The owner accepted that undisclosed post-training and synthetic-data provenance cannot be proven absent for the selected Google and OpenAI releases; this is a named residual risk, not a claim that the training data has been exhaustively verified. Record the exact upstream revision and quantisation chain.
+
+Vendor documentation identifies Gemma 4 and GPT-OSS as Apache 2.0 releases; the exact release licence files, Gemma terms and usage policies must still be read and archived before import/use. A publisher, licence or open-weights label does not make a model “safe”; Atlas's sandbox, manifest, policy gate and evaluation remain mandatory.
+
+### 8.5 Disqualifiers and acceptance
+
+The selected stack is overturned only if one of these conditions is evidenced:
+1. A primary-source model card/technical report discloses a PRC-origin base, derivative or distillation source for a selected model.
+2. The exact licence/terms do not permit Atlas's intended local use.
+3. A selected model fails a hard acceptance gate on the target M6: any policy/permission bypass, fabricated source reference, evidence-integrity failure, critical-failure bound above the pre-registered limit, memory above the declared budget, memory pressure not green, or any swap.
+4. MLX cannot run the selected model stably on the target Mac.
+
+Before deployment, run paired, frozen, pre-registered evaluations per task class and language. Quality and time-to-useful-answer are reported together; a faster model cannot win by reducing correctness, and a more accurate model cannot pass if it is unusably slow. Hard policy/evidence gates come first. For each critical class, target at least 300 independent cases and report the one-sided 95% binomial upper confidence bound (0/300 is approximately 0.994%, not proof of zero risk). The provisional everyday decode floor is 30 tokens/second at a fixed 32K context, quantisation, runtime, output length and concurrency; also report time-to-first-token, time-to-first-useful-answer, p50/p95 completion latency, peak/steady memory, KV cache, cold load/unload, energy and thermals. Freeze numeric thresholds before the benchmark; these are gates to measure, not performance promises.
+
+The purchase-window smoke test is a separate hardware check: load the primary at 32K context, sustain a 20-minute run, and record memory pressure, swap (must be zero), time-to-first-token and decode speed. A smoke test does not replace the per-class accuracy/evidence suite. Do not put real personal data into the system until licence/lineage checks, offline enforcement and hard security gates pass.
