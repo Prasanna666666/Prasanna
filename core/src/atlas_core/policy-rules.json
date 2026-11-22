@@ -17,10 +17,24 @@
       "sensitivity": "high"
     },
     "finance": {
-      "sensitivity": "restricted"
+      "sensitivity": "restricted",
+      "requires_adapter": true
     },
     "health": {
-      "sensitivity": "restricted"
+      "sensitivity": "restricted",
+      "requires_adapter": true
+    },
+    "calendar": {
+      "sensitivity": "medium",
+      "requires_adapter": true
+    },
+    "contacts": {
+      "sensitivity": "high",
+      "requires_adapter": true
+    },
+    "notes": {
+      "sensitivity": "medium",
+      "requires_adapter": true
     }
   },
   "restricted_domains": [
@@ -47,5 +61,81 @@
       "mail",
       "mail_attachment"
     ]
+  },
+  "records": {
+    "finance": {
+      "fields": [
+        "amount",
+        "currency",
+        "kind",
+        "category",
+        "merchant",
+        "note"
+      ],
+      "required": [
+        "amount",
+        "currency",
+        "kind"
+      ],
+      "money": [
+        "amount"
+      ],
+      "kinds": {
+        "kind": [
+          "expense",
+          "income"
+        ]
+      }
+    },
+    "health": {
+      "fields": [
+        "measure",
+        "value",
+        "unit",
+        "source",
+        "note"
+      ],
+      "required": [
+        "measure",
+        "value",
+        "unit"
+      ],
+      "numbers": [
+        "value"
+      ]
+    },
+    "calendar": {
+      "fields": [
+        "starts",
+        "ends",
+        "location",
+        "attendees",
+        "note"
+      ],
+      "required": [
+        "starts"
+      ]
+    },
+    "contacts": {
+      "fields": [
+        "name",
+        "organisation",
+        "role",
+        "email",
+        "phone",
+        "note"
+      ],
+      "required": [
+        "name"
+      ]
+    },
+    "notes": {
+      "fields": [
+        "text"
+      ],
+      "required": [
+        "text"
+      ]
+    }
   }
 }

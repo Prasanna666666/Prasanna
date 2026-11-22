@@ -225,6 +225,7 @@ def _grant_digest(row: Any) -> str:
 class DesignationStore:
     def __init__(self, path: Path, key: str | None, clock: Callable[[], datetime] = _now, rules: Rules | None = None, *, anchor: RollbackAnchor) -> None:
         self._rules, self._clock, self._anchor = rules or load_rules(), clock, anchor
+        self._adapters: frozenset[str] = frozenset()
         self._lock = threading.RLock()
         self._purges: dict[str, Callable[[], None]] = {}
         self.hook: Callable[[str], None] | None = None  # tests: called inside a transaction; an exception rolls it back (a simulated crash)
@@ -242,9 +243,22 @@ class DesignationStore:
 
     # -- what can be designated -----------------------------------------------------------------------------------------------------------------
     def designable(self) -> list[str]:
-        """The source types an owner may enable: known to the rules, not a restricted domain, not deferred. (Attachments, Finance and Health are never designated here.)"""
+        """The source types an owner may enable: known to the rules, not deferred, and either an ordinary type or one whose adapter this Core has (see `allow_adapter_types`). Attachments are never designated here."""
         types = self._rules.raw["source_types"]
-        return sorted(t for t in types if not self._rules.is_restricted(t) and self._rules.deferred_to(t) is None)
+        built = self._adapters
+        return sorted(
+            t
+            for t, entry in types.items()
+            if self._rules.deferred_to(t) is None
+            and (
+                (not self._rules.is_restricted(t) and not entry.get("requires_adapter")) or t in built
+            )  # a type with no adapter in this Core is not offered; a restricted domain only when its adapter is configured
+        )
+
+    def allow_adapter_types(self, source_types: Iterable[str]) -> None:
+        """The composition root names the source types it has a real adapter for (Finance, Health, Calendar, Contacts, Notes). Only those can be designated, and a restricted domain among them is still
+        judged by the policy (a grant for exactly that domain with a `restricted` ceiling, G-021)."""
+        self._adapters = frozenset(t for t in source_types if t in self._rules.raw["source_types"])
 
     # -- verification: the record is trusted only while it is internally consistent ------------------------------------------------------------------------
     def _meta(self, key: str) -> str:
