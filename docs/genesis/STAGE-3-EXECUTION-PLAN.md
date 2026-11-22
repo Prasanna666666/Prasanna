@@ -1,6 +1,6 @@
 # Atlas — Stage 3 Execution Plan
 
-**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 specification/schema/tests **ACCEPTED** for exact reviewed scope (review 6000401465); WP3.2 document-only vertical path **ACCEPTED** at exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496); WP3.3 Mail conditional on G-O19  
+**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 specification/schema/tests **ACCEPTED** for exact reviewed scope (review 6000401465); WP3.2 document-only vertical path **ACCEPTED** at exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496); WP3.3 synthetic-only Mail path implemented but **NOT ACCEPTED** at `60c77018752082be8e8df033df4213fe3b955a35` due to a regression-test boundary gap (ChatGPT review 6009249858); WP3.4 remains blocked.  
 **Initiative:** Project Genesis  
 **Baseline:** PR #8, `genesis-stage2-foundation`, Stage 2 accepted at `58210223398a5715b618d1163397104efd358d49`  
 **Plan owner:** ChatGPT (architect/integrator)  
@@ -112,6 +112,8 @@ Work is sequential where dependencies or trust boundaries require it. Independen
 ### WP3.3 — Mail read-only path (conditional)
 
 **Owner:** Claude implementation after gates; ChatGPT reviews.
+
+**Exact-SHA review status (2026-11-22):** Synthetic-only WP3.3 code is present at `60c77018752082be8e8df033df4213fe3b955a35`; CI reports 22/22 successful checks. ChatGPT's exact-SHA review (PR #8 review 6009249858) found that the sorted-prefix regression test does not put the newer message on a later page: with `MAX_MESSAGES=5` and `PAGE_SIZE=3`, item 6 is still in page 2, so the previous page-boundary early-stop bug would not be caught. Correct the test so the sorted prefix ends exactly at a page boundary (e.g. `MAX_MESSAGES=6`, `PAGE_SIZE=3`, newer item on page 3), prove the test fails under the old early-stop behaviour, retain the beyond-work-bound test, then request a new exact-SHA review. **WP3.3 is not accepted; WP3.4 must not start.** Synthetic CI does not validate a real mailbox, Apple Mail adapter, attachments, macOS TCC, target-Mac Keychain or target hardware.
 
 - Do not begin Mail content retrieval until G-O19 has an accepted Mail designation mechanism and explicit owner enablement.
 - Treat Mail body, stored headers/metadata, thread context and attachment content as distinct source types with distinct provenance and policy.
@@ -291,7 +293,7 @@ There is exactly one delivery roadmap: TARGET_ARCHITECTURE.md §11. Do not creat
 ChatGPT is accountable architect/integrator: canonical requirements, scenario-to-test traceability, cross-cutting design, exact-commit independent review and release recommendation. Claude Code owns implementation, developer challenge, tests, CI diagnosis, reproducible evidence and implementation documentation. GitHub Actions provides automated checks. The owner retains product direction, reserved decisions and final acceptance and is not a messenger between engineering roles.
 
 ### 12.8 Current gate
-Stage 3 is authorised under G-027 and proceeds package by package after a written implementation brief and exact-commit review. WP3.0 and WP3.1 are accepted; WP3.2 is accepted at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. WP3.3 is next but Mail content retrieval remains blocked until G-O19's designation/consent mechanism and explicit owner enablement are active. The accepted WP3.2 work is a Mac-independent Core vertical path, not an installable or owner-tryable Mac application. Target-Mac-only claims remain pending hardware access.
+Stage 3 is authorised under G-027 and proceeds package by package after a written implementation brief and exact-commit review. WP3.0 and WP3.1 are accepted; WP3.2 is accepted at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. G-O19's designation/consent mechanism has been accepted, and the synthetic-only WP3.3 Mail body path is implemented. However, WP3.3 is **not accepted** at exact head `60c77018752082be8e8df033df4213fe3b955a35`: review 6009249858 requires a regression test whose sorted prefix ends at a page boundary and whose later page contains the newer message. CI 22/22 green does not close this review finding. **WP3.4 remains blocked** until the test correction is committed and the new exact head is reviewed. The accepted WP3.2 work is a Mac-independent Core vertical path, not an installable or owner-tryable Mac application. Real Mail, attachments, macOS TCC/Keychain and target-Mac-only claims remain unverified.
 
 ### 12.9 First-useful-answer and indexing acceptance
 
