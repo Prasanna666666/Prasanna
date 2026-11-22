@@ -11,3 +11,8 @@ What it is: a Swift package with `AtlasKit` (signing, catalogue, Unix-socket HTT
 
 ## Known gaps
 Enrolment of further devices from the app, macOS permission (TCC) prompts, app packaging/signing/notarisation, settings, localisation, accessibility audit beyond the labels set here, and SSE streaming (the app polls task state every 0.3 s).
+
+## Consent and lifecycle (review 6013382016)
+- **Get Started is opt-in.** Every source starts off; "Continue" is always available (with nothing selected it reads "Continue without enabling anything", makes no request to the Core, creates no grant, and is remembered). The logic is `GetStartedChoice`/`GetStartedFlow` in AtlasKit, covered by `GetStartedTests` (no selection, one source, both, and "not shown again after an empty choice").
+- **The app owns its Core.** Quitting the app (delegate `applicationWillTerminate`, last window closed) stops the Core, waits for it and reaps it. `CoreLauncher.start` is idempotent and first reaps a Core a previous instance left behind (pid file next to the socket, only if that pid is really `atlas_core.serve`; an unrelated pid is never touched) and a stale socket. If the app crashes instead, the Core stops by itself within a second (it watches its parent). Covered by `EndToEndTests` (stop/reap, duplicate start, relaunch after a crash, stale socket and pid file) on the macOS runner and by `tests/test_launcher.py` (parent killed → Core exits; mutation-checked). The quit path itself (a real app being quit) has not been exercised.
+

@@ -159,36 +159,11 @@ jobs:
           pip install -e kit -e "core[dev]" mlx-lm huggingface_hub
           python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mlx-community/SmolLM-135M-Instruct-4bit', local_dir='/tmp/atlas-model'))"
           ls -la /tmp/atlas-model
-      - name: Diagnose the worker under the read-restricted profile (stderr and kernel sandbox denials)
-        continue-on-error: true
-        working-directory: core
-        run: |
-          cat > /tmp/diag_worker.py <<'PY'
-          import os, subprocess, sys
-          from atlas_core import sandbox
-          home = os.path.expanduser("~")
-          code = "import mlx_lm; m, t = mlx_lm.load('/tmp/atlas-model'); print('GEN', repr(''.join(getattr(r, 'text', '') for r in mlx_lm.stream_generate(m, t, prompt='Hello', max_tokens=4))))"
-          extras = {
-              "a current profile": [],
-              "b + /private/var/folders": ["/private/var/folders"],
-              "c + ~/Library": [home + "/Library"],
-              "d + both": ["/private/var/folders", home + "/Library"],
-          }
-          for name, extra in extras.items():
-              profile = sandbox.mac_profile(["/tmp/atlas-model", *extra])
-              done = subprocess.run(["/usr/bin/sandbox-exec", "-p", profile, sys.executable, "-c", code], capture_output=True, timeout=120, cwd="/", env={**os.environ, "HF_HUB_OFFLINE": "1"})
-              tail = (done.stdout.decode() + done.stderr.decode()).strip().replace("\n", " | ")
-              print(name, "-> rc", done.returncode, tail[-260:])
-          PY
-          python /tmp/diag_worker.py > /tmp/diag.out 2>&1 || true
       - name: Real MLX inference inside the sandboxed worker
         working-directory: core
         env:
           ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
         run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
-      - name: Worker diagnostic summary
-        if: always()
-        run: head -12 /tmp/diag.out | cut -c1-500 || true
   security:
     runs-on: ubuntu-latest
     defaults:

@@ -51,8 +51,13 @@ def test_the_sandboxed_worker_with_the_real_library_still_cannot_reach_the_netwo
         from atlas_core import sandbox
 
         done = subprocess.run(
-            [*sandbox.launch_prefix(), sys.executable, "-c", probe, str(listener.getsockname()[1])], capture_output=True, text=True, check=False, timeout=60
-        )
+            [*sandbox.launch_prefix([MODEL or ""]), sys.executable, "-c", probe, str(listener.getsockname()[1])],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+            cwd="/",
+        )  # from / (not the checkout, which the profile rightly forbids reading); fmt: skip
         assert json.loads(done.stdout) == {"tcp": "blocked", "write": "blocked"}
         listener.close()
     finally:
