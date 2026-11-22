@@ -6,6 +6,7 @@ import json
 import socket
 import sys
 import time
+from pathlib import Path
 
 import pytest
 from conftest import CORPUS, T0, grant, labels, passage
