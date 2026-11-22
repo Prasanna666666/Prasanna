@@ -34,10 +34,16 @@ def test_the_app_never_names_a_remote_host_or_cloud_service():
         assert not re.search(r"https?://|URLSession|api\.openai|anthropic", path.read_text()), path.name
 
 
-def test_the_packaging_script_parses_says_it_is_unverified_and_fetches_nothing_but_the_local_packages():
+def test_the_packaging_script_parses_says_it_is_only_ad_hoc_signed_and_fetches_nothing_but_the_local_packages():
     import subprocess
 
     script = APP.parent / "scripts" / "package_mac.sh"
     assert subprocess.run(["bash", "-n", str(script)], check=False).returncode == 0
     text = script.read_text()
-    assert "UNVERIFIED" in text and "notaris" in text and "curl" not in text and "http" not in text.replace("http://www.apple.com", "")
+    assert (
+        "smoke-tested" in text
+        and "NOT a release signature" in text
+        and "notaris" in text
+        and "curl" not in text
+        and "http" not in text.replace("http://www.apple.com", "")
+    )
