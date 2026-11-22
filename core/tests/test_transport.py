@@ -25,7 +25,7 @@ from atlas_core.api import CoreApi
 from atlas_core.identity import ClientRegistry
 from atlas_core.transport import peer_uid, serve_unix
 
-pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="peer credentials are only verified on Linux in this stage")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="peer credentials are implemented for Linux and macOS only")
 
 
 class UnixConnection(http.client.HTTPConnection):

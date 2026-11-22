@@ -17,7 +17,7 @@ from atlas_core import contracts
 from atlas_core.api import Request
 from atlas_core.identity import sign_request
 
-pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="peer credentials are only verified on Linux in this stage")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="peer credentials are implemented for Linux and macOS only")
 
 
 @pytest.fixture

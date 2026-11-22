@@ -37,7 +37,7 @@ import harness  # noqa: E402
 from atlas_client import CATALOGUE, AtlasClient, ClientError  # noqa: E402
 from test_models import entry_dict, signed  # noqa: E402
 
-pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="peer credentials are only verified on Linux in this stage")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="peer credentials are implemented for Linux and macOS only")
 
 
 # ---- the catalogue is complete and plain ----------------------------------------------------------------------------------------------------------------

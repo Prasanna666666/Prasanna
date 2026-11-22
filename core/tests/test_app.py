@@ -22,7 +22,7 @@ from atlas_core.identity import ClientRegistry
 from atlas_core.mail import InMemoryMailbox
 from atlas_core.models import ModelStore
 
-pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="peer credentials are only verified on Linux in this stage")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="peer credentials are implemented for Linux and macOS only")
 MAIL_MESSAGE = {
     "message_id": "msg-9001@example.invalid",
     "sender": "alice@example.invalid",
