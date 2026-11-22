@@ -19,9 +19,7 @@ from atlas_core.mlx_runtime import MlxRuntime
 from atlas_core.models import ModelStore
 from atlas_core.policy import InMemoryGrants, PolicyEngine
 
-pytestmark = pytest.mark.skipif(
-    not sys.platform.startswith("linux"), reason="the enforced network denial is verified on Linux (seccomp); the macOS sandbox profile is unverified"
-)
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="network confinement exists for Linux (seccomp) and macOS (sandbox-exec) only")
 
 
 @pytest.fixture

@@ -16,7 +16,7 @@ from test_app import atlas_client
 from atlas_core.launcher import CoreProcess, LaunchFailed
 from atlas_core.serve import CODE_SHAPE
 
-pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the child-process hand-off is verified on Linux; /proc is used to inspect it")
+pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="the child-process hand-off is implemented for Linux and macOS")
 FACTORY = "core_factory:build_config"
 OWNER_ID = "owner-launch-0001"
 INTRUDER_ID = "intruder-launch01"
@@ -39,6 +39,9 @@ def launched(tmp_path):
 
 
 def read_proc(pid: int, name: str) -> bytes:
+    """What another process of this user can read about the child: /proc on Linux; `ps -E` (command line and environment) on macOS."""
+    if sys.platform == "darwin":
+        return subprocess.run(["/bin/ps", "-E", "-ww", "-p", str(pid), "-o", "command="], capture_output=True, check=False).stdout
     return Path(f"/proc/{pid}/{name}").read_bytes()
 
 
