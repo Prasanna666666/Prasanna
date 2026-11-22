@@ -5,6 +5,8 @@ the owner's instruction of 2026-11-23 ("Do it"). `TARGET_ARCHITECTURE.md` §11 s
 package: **these stages are therefore implemented on the owner's instruction and are NOT architect-reviewed, NOT accepted, and Stage 3 is still not accepted.** Nothing here is a release, an owner-tryable build or a
 claim about real hardware.
 
+**CI:** push run [45078151927](https://github.com/Prasanna666666/Prasanna/actions/runs/45078151927) on `049fd58` passed every job, including Core on Python 3.11 and 3.13, the hosted macOS Swift and Core jobs, the MLX sandbox job and the app packaging job (hosted-runner evidence only). An earlier run on `88d02d2` failed only the secret scanner on a test variable name, fixed in `049fd58`.
+
 Evidence classes as in `STAGE3_ACCEPTANCE.md`: **L** = automated test on Linux with synthetic data and deterministic stubs. **R** = hosted macOS runner (CI on this branch is read separately; until then every
 result is developer-reported). Statuses: **MET-L** (met for its stated testable scope), **PARTIAL**, **NOT BUILT**, **DEFERRED-FINAL** (cannot be tested without hardware, accounts, a real model or a person; stays
 release-blocking).
