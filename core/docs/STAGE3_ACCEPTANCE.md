@@ -47,3 +47,18 @@ The owner accepts the following known limitations as carry-forward items rather 
 - **Criterion 6:** accepted for the exact-read restriction already documented: if a non-text MIME part precedes the first text/plain part, the message is unreadable and is not indexed; attachment bytes are not read.
 
 **Carry-forward rule:** subsequent stages may proceed under this owner disposition, but must preserve these distinctions. No stage or release may claim the open properties above. The egress defect must be fixed before any public-search integration or gateway enablement. Real-model, target-Mac and owner-facing checks remain required before any claim of owner-tryability or release readiness. This decision is recorded so the owner does not need to relay or repeat it.
+
+**Update after the final review of `14b471b`:** the egress taint defect named above is fixed in code with regression tests (single private names, 2-3 word phrases, URL path and query; mutation-checked), see `EGRESS_GATEWAY.md`. The gateway is still not wired or enabled, and the narrower remaining boundary needs owner approval before search is connected.
+
+## Remaining gates: what each needs (consolidated close-out)
+
+Implementation is complete for the CI-verifiable subset. Criteria 4, 11, 12 and 13 are not reclassified: each stays open until the evidence below exists, or the owner records an explicit scope change.
+
+| Gate | Needs | Who / where | Cannot be done in hosted CI because |
+|---|---|---|---|
+| Criterion 4 | Prompt-injection evaluation against the selected real model, with an accepted pass threshold | owner's Mac or an architect-approved runner with that model; thresholds set by the architect | the hosted runner can only run a 135M-parameter stand-in, which says nothing about the selected model |
+| Criterion 11 | (a) a least-privilege macOS profile, measured; (b) owner-Mac and owner-model verification; (c) egress wired into the answer flow (needs an API contract extension, architect decision) and run against the real Internet, after the owner approves the narrower taint boundary in `EGRESS_GATEWAY.md` | (a) developer, hosted runner for measurement; (b) owner's Mac; (c) architect decision, then developer | (b) and the real-Internet run need the owner's hardware and a deliberate decision to connect search |
+| Criterion 12 | Latency, memory, quality and thermal measurements with the real model on the target Mac, and accepted pass thresholds | owner's Mac; thresholds by the architect | hosted-runner numbers do not describe the target hardware |
+| Criterion 13 | A person's UI and accessibility walkthrough, real TCC prompts, real Mail-store behaviour, signing and notarisation, a self-contained Python and model installation | owner's Mac; Apple developer account for signing; installation work by the developer | no person has used the app; signing needs the owner's Apple account |
+
+Deliberately deferred to later stages (not Stage 3 requirements as written): attachment processing (G-O18), Finance and Health source adapters, model-initiated typed tools, PDF/Office locators.

@@ -32,7 +32,7 @@ def gateway(transport=None, hosts=None, audit=None):
 def private_context() -> TaintSet:
     taint = TaintSet()
     taint.add(f"Invoice {SENTINEL_DOC}: the total due is 1250.50 euro to {SENTINEL_EMAIL} account 4929 1234 5678 9010")
-    taint.add("what is the secret total of my purchase")
+    taint.add("what is the secret total of my purchase", question=True)
     return taint
 
 
@@ -170,7 +170,62 @@ def test_a_network_failure_is_a_code_without_the_error_text():
     assert e.value.code == "unavailable" and "SECRET-DETAIL" not in repr(e.value) + repr(audit)
 
 
+@pytest.mark.criterion(11)
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Alexandra",  # a one-word private name on its own
+        "alexandra",  # in lower case
+        "who is Alexandra Janssen",  # two names
+        "Dr Janssen clinic opening hours",  # a name inside a longer query
+        "oncology appointment follow-up",  # a 3-word run from a private passage
+    ],
+    ids=["name", "name-lower", "two-names", "name-in-query", "short-phrase"],
+)
+def test_a_private_name_or_a_short_private_phrase_is_refused_in_the_query(query):
+    taint = TaintSet()
+    taint.add("Alexandra Janssen booked an oncology appointment follow-up for March at the clinic.")
+    taint.add("what are the museum opening hours", question=True)
+    transport = FakeTransport()
+    with pytest.raises(Denied) as e:
+        gateway(transport).search(query, taint)
+    assert e.value.code == "private_content_in_request" and transport.calls == []
+
+
+@pytest.mark.criterion(11)
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://museum.example.invalid/people/Alexandra",
+        "https://museum.example.invalid/hours?who=alexandra",
+        "https://museum.example.invalid/oncology-appointment-follow-up",
+    ],
+    ids=["path-name", "query-name", "path-phrase"],
+)
+def test_a_private_name_or_phrase_in_a_url_path_or_query_is_refused(url):
+    taint = TaintSet()
+    taint.add("Alexandra Janssen booked an oncology appointment follow-up for March at the clinic.")
+    transport = FakeTransport()
+    with pytest.raises(Denied) as e:
+        gateway(transport).fetch(url, taint)
+    assert (
+        e.value.code in ("private_content_in_request", "identifier_in_request") and transport.calls == []
+    )  # a long slug is refused as an identifier, a short one as private content
+
+
+@pytest.mark.criterion(11)
+def test_ordinary_words_and_the_question_itself_do_not_block_a_public_query():
+    taint = TaintSet()
+    taint.add("Invoice total due. The invoice was paid by Alexandra on Monday.")  # "Invoice" is also written in lower case, so it is a common word, not a name
+    taint.add("what are the museum opening hours", question=True)
+    assert not taint.leaks("museum opening hours Amsterdam") and not taint.leaks("weather in Amsterdam tomorrow") and not taint.leaks("invoice template")
+    assert taint.leaks("Alexandra") and taint.leaks("monday")  # a name and a capitalised mid-sentence word are refused
+
+
 def test_the_taint_set_keeps_fingerprints_not_text():
     taint = private_context()
     assert SENTINEL_DOC not in repr(taint.shingles) + repr(taint.identifiers) and "1250" not in repr(taint.shingles)
     assert taint.leaks(f"{SENTINEL_DOC}") and not taint.leaks("weather in Amsterdam tomorrow")
+    named = TaintSet()
+    named.add("Alexandra Janssen booked an oncology appointment")
+    assert "alexandra" not in repr(named.names) + repr(named.shingles) and len(named.names) == 2

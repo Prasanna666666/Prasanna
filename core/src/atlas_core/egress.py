@@ -68,27 +68,56 @@ def _candidates(text: str) -> list[str]:
     return PRIVATE_TOKEN.findall(text) + IDENTIFIER.findall(text)
 
 
+SENTENCE_END = re.compile(r"[.!?\n]+")
+SHORT_PHRASE_WORDS = 3  # a passage's 3-word runs are fingerprinted too (not the question's: it legitimately shares words with a public query)
+MIN_NAME_CHARS = 3
+
+
+def _names(text: str) -> set[str]:
+    """Proper-name-like words: capitalised, not at the start of a sentence; a sentence-initial capitalised word counts only if the text never writes it in lower case (so "Alexandra called"
+    is a name and "The" or "Invoice ... invoice" is not). Fingerprints of the words, the words themselves are not returned for storage."""
+    found: set[str] = set()
+    lowercase = {w.casefold() for w in re.findall(r"\w+", text) if w[0].islower()}
+    for sentence in SENTENCE_END.split(text):
+        for position, word in enumerate(re.findall(r"\w+", sentence)):
+            if len(word) < MIN_NAME_CHARS or not word[0].isupper() or word.isdigit():
+                continue
+            if position == 0 and word.casefold() in lowercase:
+                continue
+            found.add(_fingerprint([word.casefold()]))
+    return found
+
+
 @dataclass
 class TaintSet:
-    """What a task has read in private, kept as FINGERPRINTS (the text is not kept): word shingles and identifier-like tokens (any token of 8+ characters that contains a digit, an e-mail address,
-    a long number), plus whether Finance/Health data is in its context."""
+    """What a task has read in private, kept as FINGERPRINTS (the text is not kept): 4-word shingles (3-word runs for passages), identifier-like tokens (any token of 8+ characters that contains a
+    digit, an e-mail address, a long number), proper-name-like single words, plus whether Finance/Health data is in its context.
+
+    Not detected: a paraphrase, a private two-word phrase made of ordinary lower-case words, and names in scripts without letter case. The gateway over-refuses within what it can see."""
 
     shingles: set[str] = field(default_factory=set)
     identifiers: set[str] = field(default_factory=set)
+    names: set[str] = field(default_factory=set)
     restricted_in_context: bool = False
 
-    def add(self, text: str, *, restricted: bool = False) -> None:
+    def add(self, text: str, *, restricted: bool = False, question: bool = False) -> None:
         words = _words(text)
-        for i in range(len(words) - SHINGLE_WORDS + 1):
-            self.shingles.add(_fingerprint(words[i : i + SHINGLE_WORDS]))
+        runs = (SHINGLE_WORDS,) if question else (SHINGLE_WORDS, SHORT_PHRASE_WORDS)
+        for size in runs:
+            for i in range(len(words) - size + 1):
+                self.shingles.add(_fingerprint(words[i : i + size]))
         for token in _candidates(text):
             if any(c.isdigit() for c in token) or "@" in token:
                 self.identifiers.add(_token_fingerprint(token))
+        self.names |= _names(text)
         self.restricted_in_context = self.restricted_in_context or restricted
 
     def leaks(self, text: str) -> bool:
         words = _words(text)
-        if any(_fingerprint(words[i : i + SHINGLE_WORDS]) in self.shingles for i in range(len(words) - SHINGLE_WORDS + 1)):
+        for size in (SHINGLE_WORDS, SHORT_PHRASE_WORDS):
+            if any(_fingerprint(words[i : i + size]) in self.shingles for i in range(len(words) - size + 1)):
+                return True
+        if any(_fingerprint([w]) in self.names for w in words):
             return True
         return any(_token_fingerprint(token) in self.identifiers for token in _candidates(text))
 
