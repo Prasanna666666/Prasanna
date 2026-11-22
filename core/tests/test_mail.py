@@ -644,18 +644,33 @@ def test_a_listing_in_date_order_admits_exactly_the_newest_within_the_bounded_wo
     assert index.coverage()["scan_complete"] is False and index.coverage()["complete"] is False  # and it says it is not everything
 
 
-def _sorted_prefix_then_a_newer_message(extra_old: int = 0) -> InMemoryMailbox:
-    """The first MAX_MESSAGES entries (plus `extra_old`) are correctly descending and OLD; a later page holds one NEWER message."""
-    old = [dict(MEETING, message_id=f"old{i:02d}@x.invalid", date=f"2026-01-{20 - i:02d}T00:00:00+00:00", body=f"old item {i}") for i in range(5 + extra_old)]
+def _sorted_prefix_then_a_newer_message(old: int = 5, extra_old: int = 0) -> InMemoryMailbox:
+    """`old` (plus `extra_old`) correctly descending OLD entries first, then one NEWER message after them (as_given order)."""
+    old = [dict(MEETING, message_id=f"old{i:02d}@x.invalid", date=f"2026-01-{20 - i:02d}T00:00:00+00:00", body=f"old item {i}") for i in range(old + extra_old)]
     newer = dict(MEETING, message_id="newer@x.invalid", date="2026-03-01T00:00:00+00:00", body="the newer item")
     return InMemoryMailbox([*old, newer], "as_given")
 
 
-def test_a_sorted_prefix_followed_by_a_later_newer_message_still_admits_the_newer_one(tmp_path, small):
-    index, mailbox = make(tmp_path, _sorted_prefix_then_a_newer_message())
+def test_a_sorted_prefix_that_ends_exactly_at_a_page_boundary_does_not_stop_the_scan_before_a_newer_message_on_the_next_page(tmp_path, small, monkeypatch):
+    """The regression the early stop caused: with MAX_MESSAGES = 6 and PAGE_SIZE = 3 the six OLD entries fill pages 1 and 2 exactly and are correctly descending; the NEWER
+    message is alone on page 3. An implementation that stops once a sorted prefix of MAX_MESSAGES entries has been seen would stop after page 2 and never see it."""
+    monkeypatch.setattr(mail_module, "MAX_MESSAGES", 6)
+    mailbox = _sorted_prefix_then_a_newer_message(old=6)
+    index, _ = make(tmp_path, mailbox)
     index.scan()
-    assert "newer@x.invalid" in _admitted(index)  # a sorted prefix proved nothing about the next page, so the Core kept reading
-    assert len(_admitted(index)) == 5 and mailbox.lists == 2
+    assert "newer@x.invalid" in _admitted(index)  # admitted: the third page was read
+    assert len(_admitted(index)) == 6 and mailbox.lists == 3  # (the oldest of the seven was dropped to stay within the bound)
+    assert "old05@x.invalid" not in _admitted(index)
+    assert (
+        index.coverage()["scan_complete"] is False and index.coverage()["complete"] is False
+    )  # seven entries were examined for six slots: not everything fits
+
+
+def test_a_sorted_prefix_followed_by_a_newer_message_inside_the_last_page_still_admits_it(tmp_path, small):
+    mailbox = _sorted_prefix_then_a_newer_message()  # five old entries: the newer message shares page 2 with the end of the prefix
+    index, _ = make(tmp_path, mailbox)
+    index.scan()
+    assert "newer@x.invalid" in _admitted(index) and len(_admitted(index)) == 5 and mailbox.lists == 2
 
 
 def test_a_newer_message_beyond_the_work_bound_is_not_seen_and_the_scan_says_so(tmp_path, small):
