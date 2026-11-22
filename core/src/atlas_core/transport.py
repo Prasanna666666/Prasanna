@@ -1,7 +1,7 @@
 """Local transport: HTTP over a Unix domain socket in an owner-only folder, with the peer's user id checked on every connection.
 
 This is the local seam only. A remote iOS transport is a separate, gated design (G-O14); it would reuse the same signed requests.
-Linux (SO_PEERCRED) is tested; the macOS branch (LOCAL_PEERCRED) is written from the documented struct layout and is NOT VERIFIED until it runs on a Mac.
+Linux (SO_PEERCRED) and macOS (LOCAL_PEERCRED) are both exercised by the CI test suites (the macOS one on a GitHub-hosted macOS runner).
 """
 
 from __future__ import annotations

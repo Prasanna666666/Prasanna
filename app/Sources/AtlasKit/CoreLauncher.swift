@@ -3,7 +3,7 @@ import Security
 
 /// Starts the Core as a child process of the app and hands it a one-time bootstrap code over the child's standard input: a pipe only the app and that child hold. The code is never on a
 /// command line, in the environment, in a file or in a log, and lives in this object's memory until `forgetCode()`. Mirrors `core/src/atlas_core/launcher.py` (the verified Python
-/// counterpart, tested with a real child process). UNBUILT: never compiled or run.
+/// counterpart, tested with a real child process). Compiles on the macOS CI runner; never run.
 public final class CoreLauncher {
     public private(set) var bootstrapCode: String?
     private var process: Process?

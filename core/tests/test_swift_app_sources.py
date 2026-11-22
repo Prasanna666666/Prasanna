@@ -23,8 +23,10 @@ def test_the_swift_signing_vectors_are_the_ones_in_the_specification_and_the_pyt
     assert vectors == [identity.canonical(*fields).hex(), identity.canonical(*fields, version="1.1").hex()]
 
 
-def test_the_app_never_claims_to_be_built_or_verified():
-    assert "UNBUILT" in (APP / "README.md").read_text() and "UNBUILT" in (APP / "Package.swift").read_text()
+def test_the_app_claims_only_what_the_macos_ci_job_proves_it_builds_and_has_never_been_launched():
+    readme, package = (APP / "README.md").read_text(), (APP / "Package.swift").read_text()
+    assert "never launched" in readme and "never launched" in package  # nobody has seen it run
+    assert "macOS CI runner" in readme and "macos:" in (APP.parent / ".github" / "workflows" / "ci.yml").read_text()  # the claim has a job behind it
 
 
 def test_the_app_never_names_a_remote_host_or_cloud_service():

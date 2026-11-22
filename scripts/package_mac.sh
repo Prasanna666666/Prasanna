@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Atlas.app: the Swift app plus a private Python with the Core inside it. UNVERIFIED: written on Linux, never run (needs a Mac with Xcode command line tools and Python 3.11+).
+# Build Atlas.app: the Swift app plus a private Python with the Core inside it. UNVERIFIED: never run (needs a Mac with Xcode command line tools and Python 3.11+).
 # Not done here: Developer ID signing with the hardened runtime, notarisation, the update channel, the model manifest/key installation (G-O12).
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"

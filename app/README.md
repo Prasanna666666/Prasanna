@@ -1,6 +1,6 @@
-# Atlas macOS app (SwiftUI) — UNBUILT, UNVERIFIED
+# Atlas macOS app (SwiftUI) — builds and passes its tests on a macOS CI runner; never launched
 
-**Status: written on Linux, never compiled or run.** This environment has no Swift toolchain, no macOS and no SwiftUI. Nothing in this folder is evidence of anything until it is built and run on a Mac. It exists so that the Mac step is *build, run, fix* rather than *start*.
+**Status: CI-verified to build and to pass `swift test` on a GitHub-hosted macOS runner (the `macos` job); never launched, so nothing about how it looks or behaves is verified.** The first compile on the runner found and fixed three real Swift errors (the Unix socket address code, a `@State` declaration, and a `self` capture before init); a Linux container cannot compile Swift. The app has not been run: no window, Keychain access, Get Started flow or accessibility behaviour has been seen.
 
 What it is: a Swift package with `AtlasKit` (signing, catalogue, Unix-socket HTTP client, view models) and `AtlasApp` (Get Started, conversation, progress, cancel, citations with "show the source passage", model line, coverage and notices). It speaks the same signed API 1.1 as the verified Python reference client (`core/client/atlas_client.py`) and reads the same `ux_catalogue.json` (copy of `core/client/ux_catalogue.json`; keep in sync).
 

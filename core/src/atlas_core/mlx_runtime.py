@@ -2,7 +2,7 @@
 
 What it guarantees, and what it does not: it loads only the staged folder the model store verified (only the manifest's files), with remote code disabled, and it asks the model for
 a structured answer that the Core then checks itself. It does NOT by itself keep the network off: `MlxEngine` only sets best-effort offline variables, which are not a guarantee.
-The guarantee is `isolated.IsolatedEngine` (a separate process whose network sockets the operating system refuses; verified on Linux by seccomp, UNVERIFIED on macOS). It makes NO
+The guarantee is `isolated.IsolatedEngine` (a separate process whose network sockets the operating system refuses; verified by seccomp on Linux and by `sandbox-exec` on a macOS CI runner). It makes NO
 claim about speed, memory or quality: those are measured on the target Mac (nothing here has run a real model; the tests use fake engines).
 """
 

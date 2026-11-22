@@ -2,7 +2,7 @@
 
 Linux: a seccomp filter, installed by the worker on itself before it loads anything, makes `socket()` fail for every domain except AF_UNIX and blocks `io_uring_setup` (which can
 create sockets without the `socket` call). The filter cannot be removed (no_new_privs) and is inherited by every thread and child. macOS: the worker is launched under
-`sandbox-exec` with a profile that denies network and writes; that path is written from the documentation and has NOT been run (no Mac here), so it is marked as such.
+`sandbox-exec` with a profile that denies network and writes; its network denial (TCP connect and UDP send) is exercised by the isolated-worker tests on a macOS CI runner.
 Anything else, or an architecture the filter does not know, FAILS CLOSED: the worker refuses to start instead of running unconfined.
 """
 
@@ -82,7 +82,7 @@ def install_network_deny() -> str:
 
 
 def launch_prefix() -> list[str]:
-    """What must precede the worker's command line so the OS confines it from the start. Empty on Linux (the worker confines itself); `sandbox-exec` on macOS (UNVERIFIED there)."""
+    """What must precede the worker's command line so the OS confines it from the start. Empty on Linux (the worker confines itself); `sandbox-exec` on macOS (network denial CI-verified on a macOS runner)."""
     if sys.platform == "darwin":
         exe = "/usr/bin/sandbox-exec"
         if not os.access(exe, os.X_OK):

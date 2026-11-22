@@ -17,4 +17,4 @@ Requirement: only an enrolled, authenticated owner client may change settings an
 - iOS and remote devices: Stage 8 (G-O14/G-O15). Nothing here is remote enrolment.
 
 ## Evidence
-`tests/test_enrolment.py` (23 tests, including the code tests; mutation checks: the lock-level one-owner rule, member-only rule, file mode), `tests/test_consent_api.py`. Swift: `app/Sources/AtlasApp/AtlasApp.swift` (`KeyStore.identity`, `ConversationModel.refreshConsent`) and `CoreClient.enrolSelf`, **never compiled or run**.
+`tests/test_enrolment.py` (23 tests, including the code tests; mutation checks: the lock-level one-owner rule, member-only rule, file mode), `tests/test_consent_api.py`. Swift: `app/Sources/AtlasApp/AtlasApp.swift` (`KeyStore.identity`, `ConversationModel.refreshConsent`) and `CoreClient.enrolSelf`, compiles on a macOS CI runner; never run.

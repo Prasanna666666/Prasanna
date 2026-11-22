@@ -205,9 +205,9 @@ def test_the_filter_program_fails_closed_on_an_unknown_architecture_and_names_th
     assert set(sandbox.ARCHES) == {"x86_64", "aarch64"} and len(sandbox.filter_program(*sandbox.ARCHES["x86_64"])) == 12 * 8
 
 
-def test_the_macos_launch_prefix_denies_network_and_is_marked_unverified(monkeypatch):
+def test_the_macos_launch_prefix_denies_network_and_says_where_it_is_verified(monkeypatch):
     monkeypatch.setattr("atlas_core.sandbox.sys.platform", "darwin")
     monkeypatch.setattr("atlas_core.sandbox.os.access", lambda *a: True)
     prefix = sandbox.launch_prefix()
     assert prefix[0] == "/usr/bin/sandbox-exec" and "(deny network*)" in prefix[2] and "(deny default)" in prefix[2]
-    assert "UNVERIFIED" in (sandbox.__doc__ or "").upper() or "NOT been run" in (sandbox.__doc__ or "")
+    assert "macOS CI runner" in (sandbox.__doc__ or "")  # the claim names the job that proves it (the isolated-worker tests on the runner)

@@ -1,5 +1,5 @@
 // swift-tools-version: 5.9
-// UNBUILT: written on Linux where no Swift toolchain exists. Build and test on a Mac: `swift build && swift test` (see README.md).
+// Built and tested on a macOS CI runner (`swift build && swift test`, see README.md); never launched.
 import PackageDescription
 
 let package = Package(
