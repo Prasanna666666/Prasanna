@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -294,9 +296,10 @@ def test_a_whole_core_built_by_the_host_indexes_documents_and_apple_mail_after_c
     (docs / "invoice.txt").write_text("Invoice ACME-2041: the total due is 1250.50 euro.")
     emlx(mail / "x/1.emlx", PLAIN, 1_700_000_000)
     sec = FakeSecurity()
+    short = Path(tempfile.mkdtemp(prefix="atl", dir="/tmp"))  # macOS limits a Unix socket path to 104 bytes; pytest's tmp_path is longer
     config = build_config(
         tmp_path / "data",
-        tmp_path / "s",
+        short / "s",
         "boot-code-0123456789abc",
         HostOptions(("documents", docs), ("mail", mail)),
         HostEnv("darwin", sec, "owner", runtime=StubRuntime()),
@@ -314,3 +317,4 @@ def test_a_whole_core_built_by_the_host_indexes_documents_and_apple_mail_after_c
         assert core.indexes["mail"].coverage()["total"] == 0 and core.indexes["documents"].coverage()["searched"] == 1
     finally:
         core.close()
+        shutil.rmtree(short, ignore_errors=True)

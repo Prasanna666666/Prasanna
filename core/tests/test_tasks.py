@@ -144,6 +144,7 @@ def test_the_task_store_is_a_new_encrypted_file_with_its_own_key_and_nothing_els
 def test_the_store_always_needs_its_own_key_never_the_database_key(monkeypatch, tmp_path):
     for name in ("ATLAS_TASK_KEY", "ATLAS_TASK_KEY_FILE"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ATLAS_TASK_KEY_SOURCE", "env")  # on macOS the default is the Keychain; the environment is an explicit development opt-in
     monkeypatch.setenv("ATLAS_DB_KEY", "the-other-databases-key")
     with pytest.raises(StoreKeyError):
         task_store_key()

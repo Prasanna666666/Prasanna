@@ -137,6 +137,9 @@ def make_handler(api: CoreApi, allowed_uids: Iterable[int], read_timeout: float 
 Connection = socket.socket | tuple[bytes, socket.socket]
 
 
+MAX_SOCKET_PATH = 103 if sys.platform == "darwin" else 107  # sun_path is 104 bytes on macOS and 108 on Linux, including the terminating NUL
+
+
 class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
     daemon_threads = True
 
@@ -171,6 +174,10 @@ def serve_unix(
 ) -> UnixServer:
     """Bind the socket (owner-only, in an owner-only folder) and return the server; the caller runs serve_forever()."""
     sock_path = Path(path)
+    if len(os.fsencode(sock_path)) > MAX_SOCKET_PATH:
+        raise OSError(
+            f"The Core socket path is {len(os.fsencode(sock_path))} bytes; a Unix socket path may be at most {MAX_SOCKET_PATH} on this system. Use a shorter data folder."
+        )
     sock_path.parent.mkdir(parents=True, exist_ok=True, mode=DIR_MODE)
     os.chmod(sock_path.parent, DIR_MODE)
     if sock_path.exists():
