@@ -576,6 +576,64 @@ def test_an_attachment_before_the_text_makes_the_message_unreadable_and_its_payl
     assert len(reads.everything) <= _count_prefix(raw) + raw.index(b"Content-Transfer-Encoding: base64\n\n") + len(b"Content-Transfer-Encoding: base64\n\n")
 
 
+def test_in_a_nested_multipart_reading_stops_at_the_delimiter_after_the_text_and_never_reaches_the_html_or_the_attachment(tmp_path, monkeypatch):
+    raw = (
+        b"From: A <a@example.invalid>\nSubject: Nested\nMessage-ID: <nest2@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=OUT\n\n"
+        b"--OUT\nContent-Type: multipart/alternative; boundary=IN\n\n--IN\nContent-Type: text/plain; charset=utf-8\n\nThe total due is 1250.50 euro.\n--IN\n"
+        b"Content-Type: text/html\n\n<p>HTML-AFTER-TEXT</p>\n--IN--\n--OUT\nContent-Type: application/pdf\nContent-Disposition: attachment; filename=a.pdf\n\n"
+        + SENT
+        + b"\n--OUT--\n"
+    )
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
+    box = EmlxMailbox(tmp_path)
+    box.list_page(None, 10)
+    reads = _Reads(monkeypatch)
+    got = box.read("<nest2@example.invalid>")
+    assert got is not None and "1250.50" in got["body"]
+    assert SENT not in reads.everything and b"HTML-AFTER-TEXT" not in reads.everything and b"application/pdf" not in reads.everything
+    assert len(reads.everything) == _count_prefix(raw) + raw.index(b"--IN\nContent-Type: text/html") + len(
+        b"--IN\n"
+    )  # exactly through the delimiter line that ends the text part
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        b"",  # the file ends right after the text part: no closing delimiter at all
+        b"--B\nContent-Type: application/pdf\nContent-Disp",  # truncated in the middle of the next part's headers
+    ],
+    ids=["no-closing-delimiter", "truncated-next-headers"],
+)
+def test_a_truncated_message_never_reads_beyond_the_end_of_the_file_and_is_not_an_exception(tmp_path, monkeypatch, tail):
+    head = (
+        b"From: A <a@example.invalid>\nSubject: Cut\nMessage-ID: <cut@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=B\n\n"
+        b"--B\nContent-Type: text/plain; charset=utf-8\n\nThe total due is 1250.50 euro.\n"
+    )
+    emlx(tmp_path / "a/1.emlx", head + tail, 1_700_000_000)
+    box = EmlxMailbox(tmp_path)
+    box.list_page(None, 10)
+    reads = _Reads(monkeypatch)
+    got = box.read(
+        "<cut@example.invalid>"
+    )  # unreadable, text, or an empty body (a text part never closed by a delimiter): any is acceptable, an exception is not
+    assert got is None or got["body"] in ("", "The total due is 1250.50 euro.") or "1250.50" in got["body"]
+    assert len(reads.everything) <= _count_prefix(head + tail) + len(head + tail)
+
+
+def test_a_multipart_without_a_boundary_never_reads_a_following_attachment(tmp_path, monkeypatch):
+    raw = (
+        b"From: A <a@example.invalid>\nSubject: NoB\nMessage-ID: <nob@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nMIME-Version: 1.0\nContent-Type: multipart/mixed\n\n"
+        b"--B\nContent-Type: application/pdf\nContent-Disposition: attachment; filename=a.pdf\n\n" + SENT + b"\n--B--\n"
+    )
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
+    box = EmlxMailbox(tmp_path)
+    box.list_page(None, 10)
+    reads = _Reads(monkeypatch)
+    got = box.read("<nob@example.invalid>")
+    assert got is None or SENT.decode() not in got["body"]
+    assert SENT not in reads.everything
+
+
 def test_reading_a_large_text_body_stays_fast_enough_to_index(tmp_path):
     import time
 

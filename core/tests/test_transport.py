@@ -112,13 +112,13 @@ def _raw(path: str, head: bytes, body: bytes = b"", timeout: float = 3.0) -> tup
     """Send hand-written bytes over the socket; return the status line's code (None if the server closed without replying) and whatever else came back."""
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.settimeout(timeout)
-        sock.connect(path)
-        sock.sendall(head + body)
         data = b""
         try:
+            sock.connect(path)
+            sock.sendall(head + body)
             while chunk := sock.recv(65536):
                 data += chunk
-        except (TimeoutError, ConnectionResetError):
+        except (TimeoutError, ConnectionResetError, BrokenPipeError):  # a server that closes at once may do so before the request is even sent
             pass
     return (int(data.split(b" ", 2)[1]) if data.startswith(b"HTTP/") else None), data
 

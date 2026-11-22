@@ -14,7 +14,7 @@ Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Writte
 | WP3.7 | acceptance traceability and this handover | `STAGE3_ACCEPTANCE.md` |
 
 ## How to reproduce (from `core/`)
-`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (1156 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
+`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (1160 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
 
 ## Rollback
 Additive: revert the branch commits (nothing outside `core/` and the CI job changed). New stores only; no legacy store, key or component was migrated or retired (criterion 15). One behaviour changed inside the new Core: finished tasks no longer keep passage text, draft or quotes (no migration; earlier checkpoints are scrubbed when their task ends). API 1.0 behaviour and bytes are unchanged; 1.1 is opt-in per request.
@@ -40,9 +40,5 @@ What I need from you only if something looks wrong: say what you saw. You do not
 Streaming EMLX reader (attachments after the text are never read; byte count validated), worker without any skip flag (it asks the OS), per-data-folder Core lock and live-socket protection, app submission gate and bounded launcher cleanup, CI artefact scan, and the egress gateway (`EGRESS_GATEWAY.md`, not wired into the answer flow). See the PR response for the finding-by-finding mapping.
 
 
-## Owner disposition — Stage 3 closure (2026-11-22)
-
-The owner has closed Stage 3 for project sequencing at PR #8 head `14b471bf589303cf25f5d781f8aaf62b0f5654e0`. This carries the known limitations in `STAGE3_ACCEPTANCE.md` forward; it does not convert the remaining PARTIAL/PENDING-M criteria into technical passes. Hosted CI built and launched the app and checked Core lifecycle, but there has been no human UI/accessibility walkthrough, no owner-Mac/TCC or real Mail-store validation, and packaging is not release-ready (ad-hoc signed only; no notarisation or self-contained Python/model installation). Keep these limitations visible in future handovers. The egress private-name/short-phrase taint defect remains unwaived and must be fixed and reviewed before the gateway is wired or enabled.
-
-## Owner decision 2026-11-22: untestable items move to the final stage
-Criteria 4, 11, 12 and 13 are now judged on what can be tested now; the real-model, target-hardware, human-walkthrough, signing and real-Internet parts are moved to the final stage and remain release-blocking there (`STAGE3_ACCEPTANCE.md`, "Remaining gates"). This is a scope decision, not new evidence. The egress gateway stays disconnected and disabled.
+## Current status (supersedes earlier closure wording)
+Stage 3 is **NOT ACCEPTED / OPEN**. The owner directed that work which cannot be tested now (real model, target hardware, a person using the app, signing, the real Internet) is carried to the final stage and does not block the testable Stage 3 scope; that is a sequencing decision, not evidence, and each deferred item stays release-blocking there. See "Current status" in `STAGE3_ACCEPTANCE.md` and `PROGRAMME_AUDIT.md`. The egress gateway is disconnected and disabled; its guarantee is bounded and stated in `EGRESS_GATEWAY.md` (not a general no-private-egress guarantee). Packaging is not release-ready (ad-hoc signed only; no notarisation or self-contained Python/model installation).
