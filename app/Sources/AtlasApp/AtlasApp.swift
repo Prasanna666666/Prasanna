@@ -28,15 +28,15 @@ enum KeyStore {
         guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { throw AtlasError.local("keychain") }
     }
 
-    static func identity() throws -> (id: String, key: Curve25519.Signing.PrivateKey) {
-        let key: Curve25519.Signing.PrivateKey
-        if let data = read("atlas-owner-client") { key = try Curve25519.Signing.PrivateKey(rawRepresentation: data) } else {
-            key = Curve25519.Signing.PrivateKey(); try write("atlas-owner-client", key.rawRepresentation)
+    static func identity() throws -> (id: String, signer: Curve25519.Signing.PrivateKey) {
+        let signer: Curve25519.Signing.PrivateKey
+        if let data = read("atlas-owner-client") { signer = try Curve25519.Signing.PrivateKey(rawRepresentation: data) } else {
+            signer = Curve25519.Signing.PrivateKey(); try write("atlas-owner-client", signer.rawRepresentation)
         }
-        if let data = read("atlas-owner-client-id"), let id = String(data: data, encoding: .utf8) { return (id, key) }
+        if let data = read("atlas-owner-client-id"), let id = String(data: data, encoding: .utf8) { return (id, signer) }
         let id = "owner-" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(16)
         try write("atlas-owner-client-id", Data(id.utf8))
-        return (id, key)
+        return (id, signer)
     }
 }
 
@@ -54,7 +54,7 @@ final class ConversationModel: ObservableObject {
     private let socket = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas/run/core.sock").path
 
     init() {
-        client = (try? KeyStore.identity()).map { CoreClient(socketPath: socket, key: $0.key, clientID: $0.id) }
+        client = (try? KeyStore.identity()).map { CoreClient(socketPath: socket, signer: $0.signer, clientID: $0.id) }
         Task { await refreshConsent() }
     }
 

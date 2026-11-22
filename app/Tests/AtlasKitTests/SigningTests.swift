@@ -18,13 +18,13 @@ final class SigningTests: XCTestCase {
     }
 
     func testTheSignatureVerifiesUnderThePublicKeyAndTheHeaderIsSentOnlyFor11() throws {
-        let key = Curve25519.Signing.PrivateKey()
-        let h = try Signing.headers(key: key, clientID: "owner-mac-0001", version: "1.1", method: "GET", target: "/v1/consent", body: Data())
+        let signer = Curve25519.Signing.PrivateKey()
+        let h = try Signing.headers(signer: signer, clientID: "owner-mac-0001", version: "1.1", method: "GET", target: "/v1/consent", body: Data())
         let signature = Data(base64Encoded: h["x-atlas-signature"]!)!
         let message = Signing.message(version: "1.1", method: "GET", target: "/v1/consent", timestamp: h["x-atlas-timestamp"]!, nonce: h["x-atlas-nonce"]!, body: Data())
-        XCTAssertTrue(key.publicKey.isValidSignature(signature, for: message))
+        XCTAssertTrue(signer.publicKey.isValidSignature(signature, for: message))
         XCTAssertEqual(h["x-atlas-api-version"], "1.1")
-        XCTAssertNil(try Signing.headers(key: key, clientID: "c", version: "1.0", method: "GET", target: "/v1/version", body: Data())["x-atlas-api-version"])
+        XCTAssertNil(try Signing.headers(signer: signer, clientID: "c", version: "1.0", method: "GET", target: "/v1/version", body: Data())["x-atlas-api-version"])
     }
 
     func testTheCatalogueLoadsAndAnswerViewsUsePlainWords() {

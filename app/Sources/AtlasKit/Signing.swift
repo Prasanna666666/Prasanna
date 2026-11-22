@@ -13,12 +13,12 @@ public enum Signing {
     }
 
     /// The headers a request carries. `version` "1.1" also sends the version header (it is part of the signed message).
-    public static func headers(key: Curve25519.Signing.PrivateKey, clientID: String, version: String, method: String, target: String, body: Data, now: Date = Date()) throws -> [String: String] {
+    public static func headers(signer: Curve25519.Signing.PrivateKey, clientID: String, version: String, method: String, target: String, body: Data, now: Date = Date()) throws -> [String: String] {
         let timestamp = String(Int(now.timeIntervalSince1970))
         var bytes = [UInt8](repeating: 0, count: 12)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw AtlasError.local("no random nonce") }
         let nonce = bytes.map { String(format: "%02x", $0) }.joined()
-        let signature = try key.signature(for: message(version: version, method: method, target: target, timestamp: timestamp, nonce: nonce, body: body))
+        let signature = try signer.signature(for: message(version: version, method: method, target: target, timestamp: timestamp, nonce: nonce, body: body))
         var out = ["x-atlas-client": clientID, "x-atlas-timestamp": timestamp, "x-atlas-nonce": nonce, "x-atlas-signature": signature.base64EncodedString()]
         if version != "1.0" { out["x-atlas-api-version"] = version }
         return out

@@ -4,17 +4,17 @@ import Foundation
 /// The conversation path over the signed contract: ask, poll, cancel, answer, passage, consent. Mirrors core/client/atlas_client.py (the verified reference).
 public final class CoreClient {
     public let transport: UnixHTTP
-    private let key: Curve25519.Signing.PrivateKey
+    private let signer: Curve25519.Signing.PrivateKey
     private let clientID: String
     private let version = "1.1"
 
-    public init(socketPath: String, key: Curve25519.Signing.PrivateKey, clientID: String) {
-        transport = UnixHTTP(path: socketPath); self.key = key; self.clientID = clientID
+    public init(socketPath: String, signer: Curve25519.Signing.PrivateKey, clientID: String) {
+        transport = UnixHTTP(path: socketPath); self.signer = signer; self.clientID = clientID
     }
 
     private func call(_ method: String, _ target: String, _ body: [String: Any]? = nil, signed: Bool = true) throws -> Any {
         let data = try body.map { try JSONSerialization.data(withJSONObject: $0) } ?? Data()
-        let headers = signed ? try Signing.headers(key: key, clientID: clientID, version: version, method: method, target: target, body: data) : ["x-atlas-api-version": version]
+        let headers = signed ? try Signing.headers(signer: signer, clientID: clientID, version: version, method: method, target: target, body: data) : ["x-atlas-api-version": version]
         let response = try transport.send(method: method, target: target, headers: headers.merging(["content-type": "application/json"]) { $1 }, body: data)
         guard response.headers["x-atlas-api-version"] == version else { throw AtlasError.core(code: "unsupported_version") }  // a 1.1 client rejects a missing or different echo
         let value = (try? JSONSerialization.jsonObject(with: response.body)) ?? [:]
@@ -42,7 +42,7 @@ public final class CoreClient {
     public func compute(kind: String, args: [String]) throws -> [String: Any] { try object(call("POST", "/v1/compute", ["kind": kind, "args": args])) }
     /// First run: enrol this client's public key as the OWNER client. Unsigned and accepted once, over the owner-only socket, while no owner client exists; afterwards the Core refuses it.
     public func enrolSelf() throws {
-        _ = try call("POST", "/v1/enrol", ["client_id": clientID, "public_key": key.publicKey.rawRepresentation.base64EncodedString(), "role": "owner"], signed: false)
+        _ = try call("POST", "/v1/enrol", ["client_id": clientID, "public_key": signer.publicKey.rawRepresentation.base64EncodedString(), "role": "owner"], signed: false)
     }
 
     public func consent() throws -> [String: Any] { try object(call("GET", "/v1/consent")) }
