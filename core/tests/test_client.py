@@ -331,3 +331,13 @@ def test_the_passage_route_does_not_exist_for_1_0_and_for_an_unfinished_task(tmp
         assert old.value.code == "not_found"
     finally:
         c.close()
+
+
+def test_exact_computations_go_through_the_signed_contract_and_never_through_a_model(core):
+    client = core.client(core.serve())
+    assert client.compute("arithmetic", "1250.50 + 3.25")["value"] == "1253.75"
+    assert client.compute("add_months", "2026-01-31", "1") == {"kind": "add_months", "value": "2026-02-28", "exact": True, "approximate": None, "clamped": True}
+    with pytest.raises(ClientError) as bad:
+        client.compute("arithmetic", "1 / 0")
+    assert bad.value.code == "invalid_request" and "0" not in bad.value.message
+    assert core.runtime.loaded() == frozenset()  # no model was loaded or asked

@@ -225,3 +225,35 @@ def add_months(start: str, months: int) -> tuple[str, bool]:
 
 def weekday(text: str) -> str:
     return ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")[parse_date(text).weekday()]
+
+
+KINDS = ("arithmetic", "convert", "days_between", "add_days", "add_months", "weekday")
+_ARITY = {"arithmetic": 1, "convert": 3, "days_between": 2, "add_days": 2, "add_months": 2, "weekday": 1}
+
+
+def _whole(text: str) -> int:
+    if not re.fullmatch(r"-?[0-9]{1,9}", text):
+        raise ExactError("bad_number")
+    return int(text)
+
+
+def compute(kind: str, args: list[str]) -> dict[str, object]:
+    """One typed computation, as the API serves it (`ComputeResult`). Anything that cannot be computed exactly raises ExactError."""
+    if kind not in _ARITY or len(args) != _ARITY[kind]:
+        raise ExactError("bad_request")
+    exact, approximate, clamped = True, None, False
+    if kind in ("arithmetic", "convert"):
+        number = calculate(args[0]) if kind == "arithmetic" else convert(args[0], args[1], args[2])
+        decimal = number.exact_decimal
+        value = decimal if decimal is not None else f"{number.value.numerator}/{number.value.denominator}"
+        if decimal is None:  # no finite decimal form: the value is the exact fraction and the rounded decimal is labelled approximate
+            exact, approximate = False, number.rounded()
+    elif kind == "days_between":
+        value = str(days_between(args[0], args[1]))
+    elif kind == "add_days":
+        value = add_days(args[0], _whole(args[1]))
+    elif kind == "add_months":
+        value, clamped = add_months(args[0], _whole(args[1]))
+    else:
+        value = weekday(args[0])
+    return {"kind": kind, "value": value, "exact": exact, "approximate": approximate, "clamped": clamped}

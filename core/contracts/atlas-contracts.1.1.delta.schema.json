@@ -13,7 +13,9 @@
     "ConsentState",
     "IndexStatus",
     "ModelDescriptor",
-    "PassageText"
+    "PassageText",
+    "ComputeRequest",
+    "ComputeResult"
   ],
   "$defs": {
     "AnswerEnvelope": {
@@ -1131,6 +1133,85 @@
         }
       },
       "description": "The text of one cited span, for the owner to inspect a citation. Served only while every source the answer used is still permitted and the span still resolves exactly; otherwise the call fails closed. Never logged."
+    },
+    "ComputeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "args"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "arithmetic",
+            "convert",
+            "days_between",
+            "add_days",
+            "add_months",
+            "weekday"
+          ]
+        },
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "pattern": "^[^\\u0000-\\u001f]{1,200}$"
+          }
+        }
+      },
+      "description": "A typed, deterministic computation done by code, never by a model: arithmetic [expression], convert [value, from, to], days_between [start, end], add_days [start, days], add_months [start, months], weekday [date]. Dates are ISO calendar dates. No source is read and nothing is logged."
+    },
+    "ComputeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value",
+        "exact",
+        "approximate",
+        "clamped"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "arithmetic",
+            "convert",
+            "days_between",
+            "add_days",
+            "add_months",
+            "weekday"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[-0-9a-z./]{1,500}$"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "approximate": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^-?[0-9.]{1,100}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A labelled rounded form, present only when the exact value has no finite decimal form (for example 1/3)."
+        },
+        "clamped": {
+          "type": "boolean",
+          "description": "True when month arithmetic had to move to the last day of the month."
+        }
+      },
+      "description": "The result. `exact` is true when `value` is a finite decimal, an integer, a date or a weekday; false when it is a fraction (numerator/denominator) with no finite decimal form, in which case `approximate` is a labelled rounded decimal. `value` is a decimal, a fraction (numerator/denominator), an ISO date, an integer or a weekday name."
     }
   }
 }

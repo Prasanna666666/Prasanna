@@ -31,6 +31,7 @@ HTTP_ERROR = 400  # a code whose status is below this is a task outcome, reporte
 ROUTE = re.compile(r"^/v1/(?:(version)|(tasks)|tasks/([A-Za-z0-9_-]{8,64})(?:/(cancel|answer|receipt|events)|/citations/([0-9]{1,4}))?)$")
 CONSENT = re.compile(r"^/v1/(?:(consent)|consent/([A-Za-z0-9_-]{8,64})|(index/status))$")  # API 1.1 only, and only when the Core was given a consent service
 H_NONCE_NAME = "x-atlas-nonce"
+COMPUTE = "/v1/compute"  # API 1.1 only
 
 
 @dataclass(frozen=True)
@@ -108,6 +109,8 @@ class CoreApi:
         client = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
         parts = urlsplit(request.target)
         match = ROUTE.match(parts.path)
+        if parts.path == COMPUTE and version == "1.1":
+            return self._compute(request)
         if match is None:
             owned = CONSENT.match(parts.path)
             if owned is None or version != "1.1" or self._consent is None:
@@ -175,6 +178,16 @@ class CoreApi:
         if action == "events" and method == "GET":
             return self._events(task_id, query, correlation, version)
         raise CoreError("invalid_request")
+
+    def _compute(self, request: Request) -> Response:
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        validate("ComputeRequest", body, "1.1")
+        return self._reply(200, self._service.compute(body["kind"], body["args"]), "ComputeResult", "1.1")
 
     def _passage(self, method: str, task_id: str, index: int, version: str) -> Response:
         """`/citations/{index}`: API 1.1 only."""

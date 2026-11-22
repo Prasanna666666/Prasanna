@@ -39,6 +39,7 @@ public final class CoreClient {
     public func cancel(_ taskID: String) throws { _ = try call("POST", "/v1/tasks/\(taskID)/cancel") }
     public func answer(_ taskID: String) throws -> [String: Any] { try object(call("GET", "/v1/tasks/\(taskID)/answer")) }
     public func passage(_ taskID: String, index: Int) throws -> String { try object(call("GET", "/v1/tasks/\(taskID)/citations/\(index)"))["text"] as? String ?? "" }
+    public func compute(kind: String, args: [String]) throws -> [String: Any] { try object(call("POST", "/v1/compute", ["kind": kind, "args": args])) }
     public func consent() throws -> [String: Any] { try object(call("GET", "/v1/consent")) }
     public func enable(_ sources: [String]) throws -> [String: Any] { try object(call("POST", "/v1/consent", ["sources": sources])) }
     public func withdraw(grantID: String) throws -> [String: Any] { try object(call("DELETE", "/v1/consent/\(grantID)")) }

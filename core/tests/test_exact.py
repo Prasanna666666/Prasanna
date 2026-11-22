@@ -95,3 +95,42 @@ def test_month_arithmetic_clamps_and_says_so():
     assert add_months("2026-03-31", -1) == ("2026-02-28", True) and add_months("2026-01-31", 12) == ("2027-01-31", False)
     assert code(add_months, "9999-12-01", 1) == "bad_date" and code(add_days, "9999-12-31", 1) == "bad_date"
     assert code(add_days, "2026-01-01", True) == "bad_number"
+
+
+# ---- the typed computation as the API serves it ----------------------------------------------------------------------------------------------------------------
+def test_compute_results_have_the_contract_shape_and_say_when_a_value_is_not_a_finite_decimal():
+    from atlas_core import contracts
+    from atlas_core.exact import compute
+
+    cases = [
+        (("arithmetic", ["1250.50 + 3.25"]), ("1253.75", True, None, False)),
+        (("arithmetic", ["1 / 3"]), ("1/3", False, "0.333333", False)),
+        (("convert", ["1", "in", "cm"]), ("2.54", True, None, False)),
+        (("days_between", ["2026-01-01", "2026-03-01"]), ("59", True, None, False)),
+        (("add_days", ["2026-12-31", "1"]), ("2027-01-01", True, None, False)),
+        (("add_months", ["2026-01-31", "1"]), ("2026-02-28", True, None, True)),
+        (("weekday", ["2026-11-22"]), ("sunday", True, None, False)),
+    ]
+    for (kind, args), (value, exact, approx, clamped) in cases:
+        result = compute(kind, args)
+        contracts.validate("ComputeResult", result, "1.1")
+        assert (result["value"], result["exact"], result["approximate"], result["clamped"]) == (value, exact, approx, clamped), kind
+
+
+@pytest.mark.parametrize(
+    ("kind", "args"),
+    [
+        ("nope", ["1"]),
+        ("arithmetic", []),
+        ("arithmetic", ["1", "2"]),
+        ("add_days", ["2026-01-01", "1.5"]),
+        ("add_days", ["2026-01-01", "x"]),
+        ("add_months", ["2026-01-01", "99999999999"]),
+        ("convert", ["1", "m", "kg"]),
+    ],
+)
+def test_compute_refuses_a_bad_request_with_a_short_code(kind, args):
+    from atlas_core.exact import compute
+
+    with pytest.raises(ExactError):
+        compute(kind, args)

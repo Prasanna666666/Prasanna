@@ -114,6 +114,10 @@ class AtlasClient:
         """The cited span's text, for the "show the source passage" action (API 1.1)."""
         return str(self._json("GET", f"/v1/tasks/{task_id}/citations/{index}")["text"])
 
+    def compute(self, kind: str, *args: str) -> dict[str, Any]:
+        """An exact computation done by code (never by a model): arithmetic, convert, days_between, add_days, add_months, weekday (API 1.1)."""
+        return self._json("POST", "/v1/compute", {"kind": kind, "args": list(args)})
+
     def consent(self) -> dict[str, Any]:
         """The owner's grants and, per source, whether macOS access is granted (an enrolled owner client only)."""
         return self._json("GET", "/v1/consent")

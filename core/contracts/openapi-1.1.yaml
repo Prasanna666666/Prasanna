@@ -276,6 +276,33 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '409':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/compute:
+    post:
+      operationId: compute
+      summary: A typed, deterministic computation (exact arithmetic, unit conversion, date arithmetic) done by code. Reads no source.
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/ComputeRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The exact result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ComputeResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/index/status:
     get:
       operationId: getIndexStatus

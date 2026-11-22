@@ -17,6 +17,7 @@ from .coverage import build_coverage, required_limitations
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import CitationError, SourceStore, resolve
+from .exact import ExactError, compute
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .tasks import STEPS, TERMINAL, TaskStore
@@ -368,6 +369,14 @@ class TaskService:
         if used <= permitted:
             return envelope
         return withheld_envelope(task_id, _denied_now(decision, used - permitted), used)
+
+    @staticmethod
+    def compute(kind: str, args: list[str]) -> dict[str, Any]:
+        """A typed deterministic computation (API 1.1 `/v1/compute`): exact arithmetic, units and dates by code, never a model. Reads no source; the text of an error is never echoed."""
+        try:
+            return compute(kind, args)
+        except ExactError:
+            raise CoreError("invalid_request") from None
 
     def passage(self, task_id: str, index: int) -> dict[str, Any]:
         """The text of one cited span of a finished task's answer (API 1.1), for the owner to inspect a citation. Fails closed: an unfinished task is a conflict, an answer withheld because

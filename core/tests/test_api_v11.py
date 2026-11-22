@@ -162,3 +162,26 @@ def test_complete_coverage_has_searched_equal_to_total():
         contracts.validate("Coverage", c, "1.1")
         if c["state"] == "complete":
             assert c["searched"] == c["total"] and c["pending"] == [] and c["failed"] == []
+
+
+def test_the_compute_route_is_1_1_only_exact_validated_and_leaks_nothing(h, caplog):
+    def post(body, version="1.1"):
+        return h.call("POST", "/v1/compute", body, version=version, headers={H: version} if version == "1.1" else None)
+
+    ok = post({"kind": "arithmetic", "args": ["0.1 + 0.2"]})
+    assert ok.status == 200 and json.loads(ok.body)["value"] == "0.3" and ok.headers[H] == "1.1"
+    assert post({"kind": "arithmetic", "args": ["0.1 + 0.2"]}, version="1.0").status == 404
+    for bad in (
+        {"kind": "arithmetic", "args": ["1 / 0"]},
+        {"kind": "weekday", "args": ["2026-02-30"]},
+        {"kind": "x", "args": ["1"]},
+        {"kind": "arithmetic"},
+        {"kind": "arithmetic", "args": ["1"], "extra": 1},
+        {"kind": "arithmetic", "args": ["\\u0000"]},
+    ):
+        r = post(bad)
+        assert r.status == 400 and json.loads(r.body)["code"] == "invalid_request"
+    assert h.call("GET", "/v1/compute", version="1.1", headers={H: "1.1"}).status == 400
+    assert "SECRET-EXPR-77" not in "\\n".join([*h.w.lines, *(r.getMessage() for r in caplog.records)])
+    post({"kind": "arithmetic", "args": ["SECRET-EXPR-77"]})
+    assert "SECRET-EXPR-77" not in "\\n".join([*h.w.lines, *(r.getMessage() for r in caplog.records)])
