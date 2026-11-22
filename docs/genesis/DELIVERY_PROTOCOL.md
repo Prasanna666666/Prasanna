@@ -143,3 +143,35 @@ Before any Stage 2 work begins:
 3. **Explicit owner authorisation:** the owner must expressly approve starting Stage 2 after reviewing the ADR and bounded package.
 
 Documentation sign-off, Stage 0/1 completion, or resolution of G-O18/G-O19 does not satisfy these gates. Until all three gates are met, Claude must not begin Stage 2 work. No code changes, migration, app retirement, data movement or destructive action are authorised.
+
+## 10. Mandatory stage-level acceptance and closure gate
+
+This section governs every Atlas stage and supersedes any earlier wording that could be read as allowing a stage to be closed for sequencing while mandatory acceptance criteria remain open.
+
+### 10.1 Binary stage status
+A stage is **COMPLETE / ACCEPTED** only when every mandatory criterion in its approved scope is implemented, tested, documented, independently reviewed and evidenced against one exact commit, and the owner has given final stage acceptance. Otherwise the stage is **NOT ACCEPTED**. There is no partial stage acceptance, percentage-based completion, or closure-for-sequencing that can be represented as completion. A work package may be accepted for its exact bounded scope without accepting the containing stage.
+
+Use only these criterion states: **ACCEPTED** (all required implementation and evidence verified), **REJECTED** (acceptance test fails or implementation is deficient), **PENDING** (work or evidence is missing), or **BLOCKED** (a named dependency prevents completion). Do not mark a criterion accepted based on a weaker substitute test.
+
+### 10.2 Mandatory closure checklist
+Before a stage can be declared COMPLETE, the stage register and PR must show all of the following:
+1. Approved scope, non-goals, dependencies and measurable acceptance criteria are recorded before implementation.
+2. Every mandatory criterion maps to implementation locations, exact tests, results and evidence URLs.
+3. All implementation-owned requirements are implemented; no required work is silently deferred or reclassified.
+4. Full relevant repository regression suites, static checks, security/privacy checks and platform-specific integration tests pass on the exact reviewed commit. Skipped, flaky, unavailable or externally failed checks are disclosed and resolved or explicitly classified as owner-approved residual risk; they are never reported as passed.
+5. Security, privacy, data integrity, recovery, migration and rollback requirements are verified at the level required by the criterion.
+6. Documentation, stage register, PR description and actual code/test evidence agree; contradictions are blockers.
+7. All blocking/high-severity findings are fixed and regression-tested. No unresolved required review thread remains.
+8. ChatGPT completes one full-stage independent PR review of the exact final head and records ACCEPT or REQUEST_CHANGES directly on the PR. Review of isolated patches is not a substitute.
+9. All owner-only acceptance steps are completed by the owner with recorded evidence. If target hardware, real accounts, real data stores or human UX evaluation are required but unavailable, the stage remains NOT ACCEPTED.
+10. The owner explicitly accepts the complete stage. The final record names the exact commit SHA, CI run(s), review, evidence and closure date.
+11. The PR is merged only after the above gates and any repository-required merge checks pass. A draft/open/unmerged PR is not a merged delivery.
+
+### 10.3 Evidence labels
+Label each claim as developer-reported, CI-verified (name platform and exact SHA), architect-inspected, owner-verified on target hardware, or independently reproduced. Do not promote evidence between levels. Hosted CI is not target-Mac evidence; a successful app process launch is not a human UI/accessibility walkthrough; synthetic security tests are not real-model or real-transport verification unless the criterion explicitly defines that scope.
+
+### 10.4 Ownership and communication
+Claude owns implementation, regression tests, full-suite execution and the criterion-by-criterion evidence report. ChatGPT owns the canonical stage register and requirements/document consistency, independently reviews the complete PR, communicates one consolidated remediation brief with exact acceptance tests, and verifies the resulting exact head. The owner is not a message relay or routine project coordinator; escalate only genuine product decisions and owner-only physical acceptance. Do not ask the owner to chase reviews or discover outstanding work.
+
+### 10.5 Stage register is authoritative
+HANDOVER.md contains the current stage register. It must be updated whenever a stage or work package changes status. Historical snapshots remain labelled as historical. If any PR description, comment, handover paragraph or work-package note conflicts with the current register or this gate, the stage is NOT ACCEPTED until the conflict is reconciled. Never infer stage acceptance from green CI, a merged work package, the next stage being discussed, or a sequencing decision.
