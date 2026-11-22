@@ -269,3 +269,69 @@ These controls are internal and should not add owner prompts. The owner sees onl
 ## 19. Owner-client authority and settings integrity
 
 Only an enrolled, authenticated owner client may change Atlas settings, source grants, connector scopes, model defaults, automation rules or approval policy. The Core—not the UI—validates the client identity, signed request, nonce/time window and current authority. Mutating requests are replay-protected and recorded in a redacted audit trail. Retrieved documents, emails, webpages and agent outputs can never change settings or grants. Local macOS owner-client enrolment is established during Get Started; iOS enrolment is separately gated by Stage 8. Tests cover forged clients, replayed requests, revoked devices and untrusted-content attempts to change grants.
+
+## 20. App and browser automation architecture
+
+This section defines the target automation architecture. It is a product/architecture decision, not a claim that these engines are implemented or accepted. Automation is a first-class Atlas Core capability; it is not a separate assistant, independent application or unrestricted desktop-control process.
+
+### 20.1 Control and execution boundary
+
+All automation requests enter through Atlas Core and the same typed capability registry, policy engine, durable job system and central Action Runtime used by other Atlas capabilities. The model may propose a plan and typed operations; deterministic Core code validates scope, permissions, arguments, current state, risk, approval, idempotency and execution. An automation adapter never grants authority to its caller.
+
+Use a common, versioned automation contract for:
+- capability discovery and health;
+- target application/browser and session identity;
+- typed read, navigation, interaction and write operations;
+- required permissions and sensitivity;
+- preconditions, observed state and expected postconditions;
+- cancellation, timeout, retry and idempotency;
+- evidence references, redacted activity receipts and recoverable outcomes.
+
+The execution engine returns structured observations and receipts, not an unqualified “success”. Atlas verifies postconditions independently where possible and reports completed, partially completed, blocked, failed or uncertain outcomes truthfully.
+
+### 20.2 Browser automation
+
+**Recommended primary engine: Playwright**, hosted locally on the owner's Mac behind a narrow Atlas browser adapter. Use supported browser automation APIs and accessibility/DOM semantics before visual interaction. Keep browser engine/version and automation dependencies pinned and tested.
+
+- Prefer a dedicated Atlas-managed browser profile with an explicit local session lifecycle. Do not silently attach to or reuse the owner's everyday browser profile. Reuse an existing profile only after explicit owner authorisation and with a clearly disclosed scope.
+- Store profile data and session material locally with OS file protections; keep credentials and secrets in Keychain or the relevant OS credential store. Never place passwords, cookies, bearer tokens or session secrets in model context, prompts, logs or screenshots.
+- Expose only typed browser capabilities: navigate, inspect page structure, locate controls, read visible content, fill fields, upload/download files, manage tabs and submit operations. Arbitrary JavaScript/eval, unrestricted CDP, unrestricted shell and arbitrary network access are not model-facing tools.
+- Browser page text, DOM, downloaded files, accessibility labels and screenshots are untrusted input. They cannot modify Atlas policy, grant permissions, reveal secrets, approve actions or instruct the agent to exceed the owner's request. Apply prompt-injection and data-taint handling to both page content and outgoing form/query data.
+- Public research uses the separately governed Core egress gateway and its data-minimisation rules. Authenticated/private sites use only explicitly authorised sessions and must not leak private content to public search providers.
+- Respect site access controls, rate limits, robots/terms and applicable law. Do not bypass CAPTCHAs, MFA, paywalls, anti-bot controls or other access restrictions. If a human challenge or unsupported control appears, pause and ask the owner rather than attempting circumvention.
+- Downloads are quarantined/treated as untrusted until safely inspected. Uploads, sends, purchases, bookings and other consequential external effects use the exact-action preview and approval policy in PRD §4.4.
+
+### 20.3 Native macOS application automation
+
+Use a capability ladder, choosing the narrowest and most reliable supported mechanism for each application:
+1. Official application APIs, URL schemes and supported integration interfaces.
+2. Apple Shortcuts/App Intents and supported automation interfaces.
+3. AppleScript or JavaScript for Automation (JXA), only for applications that expose a suitable dictionary/interface and only through typed, allow-listed operations.
+4. macOS Accessibility APIs (AXUIElement) for semantic inspection and interaction with accessible controls.
+5. Screenshot/coordinate-based visual computer control only as a last resort, with foreground-window checks, bounded actions and post-action verification.
+
+Keep application-specific adapters separate from the Core policy authority. Do not assume every app supports every mechanism. Detect missing permissions, unsupported controls and ambiguous state and stop safely. macOS TCC permissions (Accessibility, Automation, Screen Recording, Files and Folders, etc.) are granted by the owner through OS prompts; Atlas must explain why a permission is needed and must never attempt to evade or silently reset TCC.
+
+### 20.4 Isolation, secrets and least privilege
+
+- Run browser and desktop automation workers as unprivileged, short-lived or restartable helper processes with the minimum filesystem, network and application access required. Separate browser sessions and untrusted content from Core and model processes.
+- No blanket Full Disk Access, administrator/root execution, unrestricted shell, arbitrary code execution or unrestricted browser debugging port. Any exceptional capability requires a specific threat model, narrow contract and owner-visible permission.
+- Core enforces per-capability and per-target grants, source sensitivity, task scope, action class and expiry. A child task inherits no more authority than its parent.
+- Secrets remain in Keychain/OS credential storage and are resolved only inside the authorised adapter at execution time. Redact credentials, personal content and sensitive page state from logs and telemetry.
+- Network access is denied by default for desktop automation workers; browser network access is mediated by the browser's narrowly scoped networking policy and Core egress rules. Local inference remains local; no automation engine may invoke cloud inference or silently send page/context data to third parties.
+- Retrieved content and automation results cannot change policy or settings. Only the authenticated owner client may change grants, browser profiles, automation rules or connector scopes.
+
+### 20.5 Approval, audit and recovery
+
+Use the existing closed approval categories in PRD §4.4 without adding a generic “automation” approval category. Routine reads, research, drafting and reversible local changes remain prompt-free within granted permissions. Consequential external effects and materially irreversible changes require approval bound to the exact action, target, payload, destination, amount/terms and validity window. Any material change invalidates approval.
+
+Every run has a durable task ID and step IDs, a plan, policy decision, target identity, preconditions, redacted observations, action receipts, verification result, timestamps and terminal status. Use deterministic idempotency keys, per-target leases/fencing and compare-and-set where targets can change concurrently. Never blindly retry a non-idempotent external action after an ambiguous timeout; reconcile provider state or stop for owner input. Provide cancellation and undo/compensation where technically possible.
+
+### 20.6 Delivery sequence and technology stance
+
+Automation is a target capability; it is not a Stage 3 completion claim. Deliver incrementally:
+- **Stage 3:** only the bounded browser/research capability already specified for the first usable Mac app, through the Core egress gateway; no general-purpose arbitrary browser agent or desktop-control promise.
+- **Stage 6:** implement general browser workflows with Playwright; add native macOS application adapters, first using official APIs/Shortcuts and then Accessibility APIs; add visual control only where justified. Include durable workflow orchestration, approval, audit, verification and recovery.
+- **Later:** expand app coverage and proactive workflows only when each adapter has a threat model, permission contract, test fixtures and measurable reliability.
+
+OpenClaw is **not an adopted runtime or architectural dependency**. It may be evaluated as a replaceable reference or optional adapter only after a security, locality, licensing, maintainability and capability assessment. Atlas Core, policy, memory, task state and audit remain Atlas-owned regardless of any third-party engine. Do not introduce an OpenClaw dependency without a separate ADR and explicit owner approval.
