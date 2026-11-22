@@ -97,3 +97,8 @@ This register supersedes historical or contradictory stage-status wording elsewh
 | Stage 4 and later | **NOT STARTED / NOT ACCEPTED** | No stage acceptance may be inferred from Stage 3 sequencing, roadmap placement or work in progress. Each requires its own approved scope and closure gate. |
 
 **Current rule:** only a stage with every mandatory criterion ACCEPTED, exact-commit evidence, full-stage independent PR review and explicit owner acceptance may be marked COMPLETE. Any missing, partial, blocked, waived-without-owner-approval or unverified mandatory item keeps the stage NOT ACCEPTED.
+
+
+## App and browser automation architecture decision (2026-11-22)
+
+The canonical target is defined in [TARGET_ARCHITECTURE.md §20](TARGET_ARCHITECTURE.md) and the product requirement in [PRD.md §4.8](PRD.md). Atlas Core owns planning, typed capability contracts, permissions, durable task state, Action Runtime execution, verification and audit. Browser automation is local and Playwright-based by recommendation; macOS app automation uses a capability ladder (official APIs, Shortcuts/App Intents, AppleScript/JXA, Accessibility APIs, then visual control as a last resort). Workers are isolated and least-privileged; secrets stay in OS credential storage; web/app content is untrusted; the existing closed approval policy is unchanged. General-purpose browser/app workflows are Stage 6 target scope, not Stage 3 implementation or acceptance. OpenClaw is not an adopted dependency; any future use requires a separate ADR and explicit owner approval. G-R11/G-R12 record these recommendations in DECISIONS.md.
