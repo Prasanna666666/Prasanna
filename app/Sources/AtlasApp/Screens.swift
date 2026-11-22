@@ -9,7 +9,7 @@ struct HomeView: View {
 
     var body: some View {
         let theme = Theme(scheme)
-        let attention = ActivityFeed.needingAttention(model.activity)
+        let attention = ActivityFeed.needingAttention(model.activity + model.attention)
         let recent = ActivityFeed.recentTasks(model.activity)
         let updates = ActivityFeed.merged(model.activity).filter { $0.kind == .update || $0.kind == .action }.prefix(5)
         ScrollView {
@@ -34,6 +34,7 @@ struct HomeView: View {
             }
             .padding(Space.xl).readingColumn()
         }
+        .task { await model.loadAttention() }
     }
 
     @ViewBuilder private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

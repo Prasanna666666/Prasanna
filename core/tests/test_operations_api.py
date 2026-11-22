@@ -191,3 +191,20 @@ def test_a_device_pairs_over_the_socket_checks_the_core_syncs_and_is_revoked_for
     with pytest.raises(atlas_client.ClientError) as last:
         owner.revoke_device("client-mac-0001")
     assert last.value.code in ("forbidden", "invalid_request")  # the last owner client cannot be revoked
+
+
+def test_overlapping_calendar_events_need_attention_and_touching_ones_do_not(world):
+    owner = world.client()
+    assert owner.attention() == []  # nothing to say: nothing is invented
+    for rid, title, start, end in (
+        ("e1", "Dentist", "2026-10-20T09:00:00+00:00", "2026-10-20T10:00:00+00:00"),
+        ("e2", "Team call", "2026-10-20T09:30:00+00:00", "2026-10-20T10:30:00+00:00"),
+        ("e3", "Lunch", "2026-10-20T10:30:00+00:00", "2026-10-20T11:30:00+00:00"),
+    ):
+        owner.act("calendar.create", {"id": rid, "date": start, "title": title, "fields": {"starts": start, "ends": end}})
+    items = owner.attention()
+    assert [(i["kind"], i["record_id"], i["priority"]) for i in items] == [("calendar_conflict", "e2", "normal")]  # e3 only touches e2's end
+    assert items[0]["title"] == "“Dentist” overlaps “Team call”" and items[0]["key"] == "conflict:e1:e2"
+    with pytest.raises(atlas_client.ClientError) as e:
+        world.device().attention()
+    assert e.value.code == "forbidden"

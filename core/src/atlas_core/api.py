@@ -40,6 +40,7 @@ COMPUTE = "/v1/compute"  # API 1.1 only
 RESEARCH = re.compile(r"^/v1/tasks/([A-Za-z0-9_-]{8,64})/research$")  # API 1.1 only
 ENROL = "/v1/enrol"  # API 1.1 only
 LIBRARY_SEARCH = "/v1/library/search"  # API 1.1 only, an enrolled client
+ATTENTION = "/v1/attention"  # API 1.1 only, an enrolled OWNER client, and only when the Core has the owner's edits store
 DEVICE_PAIR = "/v1/devices/pair"  # API 1.1 only, unsigned (the device is not enrolled yet), guarded by the single-use code
 DEVICE_PATHS = frozenset({"/v1/devices", "/v1/devices/offer", "/v1/devices/revoke"})  # API 1.1 only, an enrolled OWNER client only
 OPS_PATHS = frozenset(
@@ -130,19 +131,21 @@ class CoreApi:
         return response
 
     def _extension_route(self, request: Request, path: str, client: str, version: str) -> Response | None:
-        """The API 1.1 routes outside the task and consent families: compute, the owner's actions and sync, and public research. None means the path is not one of them."""
+        """The API 1.1 routes outside the task and consent families: compute, library, attention, the owner's actions and sync, device management and public research. None means the path is not one of them."""
         if version != "1.1":
             return None
-        if path == COMPUTE:
-            return self._compute(request)
-        if path == LIBRARY_SEARCH:
-            return self._library(request)
-        if path in OPS_PATHS:
-            return self._ops_route(request, path, client)
-        if path in DEVICE_PATHS:
-            return self._device_route(request, path, client)
-        research = RESEARCH.match(path)
-        return None if research is None else self._research(request, research.group(1), client, version)
+        handlers: dict[str, Callable[[], Response]] = {
+            COMPUTE: lambda: self._compute(request),
+            LIBRARY_SEARCH: lambda: self._library(request),
+            ATTENTION: lambda: self._attention(request, client),
+        }
+        handlers.update({p: lambda: self._ops_route(request, path, client) for p in OPS_PATHS})
+        handlers.update({p: lambda: self._device_route(request, path, client) for p in DEVICE_PATHS})
+        handler = handlers.get(path)
+        if handler is None:
+            research = RESEARCH.match(path)
+            return None if research is None else self._research(request, research.group(1), client, version)
+        return handler()
 
     def _dispatch(self, request: Request, headers: dict[str, str], correlation: str, version: str) -> Response:
         if len(request.body) > MAX_BODY_BYTES:
@@ -283,6 +286,15 @@ class CoreApi:
             raise CoreError("invalid_request") from None
         validate("ComputeRequest", body, "1.1")
         return self._reply(200, self._service.compute(body["kind"], body["args"]), "ComputeResult", "1.1")
+
+    def _attention(self, request: Request, client: str) -> Response:
+        if self._ops is None:
+            raise CoreError("not_found")
+        if request.method != "GET":
+            raise CoreError("invalid_request")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        return self._reply(200, self._ops.attention(), "AttentionList", "1.1")
 
     def _library(self, request: Request) -> Response:
         if request.method != "POST":

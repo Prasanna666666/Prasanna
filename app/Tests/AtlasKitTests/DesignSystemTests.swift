@@ -254,6 +254,18 @@ final class ActivityTests: XCTestCase {
         XCTAssertEqual(ActivityFeed.recentTasks(items).map { $0.id }, ["t6", "t5", "t4"])
     }
 
+    func testAnAttentionItemFromTheCoreBecomesAMaterialItemAndAnUnknownKindIsNotShown() {
+        let now = Date(timeIntervalSince1970: 100)
+        let known: [String: Any] = ["kind": "calendar_conflict", "key": "conflict:e1:e2", "title": "“Dentist” overlaps “Team call”", "record_id": "e2", "priority": "normal"]
+        let item = ActivityItem.fromAttention(known, now: now)
+        XCTAssertEqual(item?.needsAttention, true)
+        XCTAssertEqual(item?.kind, .risk)
+        XCTAssertEqual(item?.detail, "“Dentist” overlaps “Team call”")
+        XCTAssertEqual(item?.dedupeKey, "conflict:e1:e2")
+        XCTAssertNil(ActivityItem.fromAttention(["kind": "something_new", "key": "k", "title": "x"], now: now))
+        XCTAssertNil(ActivityItem.fromAttention(["kind": "calendar_conflict"], now: now))
+    }
+
     func testTheGreetingNeedsALocalTimeAndEveryItemHasASymbol() {
         XCTAssertEqual(Greeting.text(hour: nil), "Your Atlas")
         XCTAssertEqual(Greeting.text(hour: 9), "Good morning")

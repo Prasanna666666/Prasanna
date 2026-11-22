@@ -2473,6 +2473,58 @@
         }
       },
       "description": "What a Library search found, and how much of each source has been read so far: an incomplete index is never presented as a complete search."
+    },
+    "AttentionList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "record_id",
+              "title",
+              "priority",
+              "key"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "calendar_conflict"
+                ]
+              },
+              "record_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,120}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,200}$"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "urgent"
+                ]
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,300}$"
+              }
+            }
+          }
+        }
+      },
+      "description": "What needs the owner's attention, computed by code from the owner's own records (today: overlapping calendar events). Owner client only; a push to another device carries only a kind and an id."
     }
   }
 }

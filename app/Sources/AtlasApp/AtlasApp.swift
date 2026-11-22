@@ -111,6 +111,7 @@ final class AppModel: ObservableObject {
     @Published var evidence: EvidenceState?
     // Activity and approvals
     @Published var activity: [ActivityItem] = []
+    @Published var attention: [ActivityItem] = []
     @Published var approval: ApprovalFlow?
     private var approvalPayload: [String: Any] = [:]  // the exact payload the Core asked approval for: it is what runs, never a rebuilt copy
     // Settings
@@ -306,7 +307,15 @@ final class AppModel: ObservableObject {
             research = (try await Task.detached { try client.mode() }.value) == "research"
             indexLine = "Indexed \(status["indexed"] as? Int ?? 0) of \(status["total"] as? Int ?? 0), \(status["state"] as? String ?? "")."
             await loadDevices()
+            await loadAttention()
         } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    /// What needs the owner's attention, from the Core (computed by code from the owner's own records). If the Core has none or cannot say, the group stays hidden.
+    func loadAttention() async {
+        guard let client else { return }
+        let raw = (try? await Task.detached { try client.attention() }.value) ?? []
+        attention = raw.compactMap { ActivityItem.fromAttention($0, now: Date()) }
     }
 
     func loadDevices() async {

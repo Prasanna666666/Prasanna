@@ -141,6 +141,10 @@ class AtlasClient:
         """Send a device's offline queue (API 1.1): each operation is applied once, in order; the results say applied, duplicate, conflict or rejected."""
         return list(self._json("POST", "/v1/sync", {"ops": ops})["results"])
 
+    def attention(self) -> list[dict[str, Any]]:
+        """What needs the owner's attention (API 1.1; owner client only): today, overlapping calendar events."""
+        return list(self._json("GET", "/v1/attention")["items"])
+
     def library_search(self, query: str, scope: list[str]) -> dict[str, Any]:
         """Search the enabled sources (API 1.1): results with a title and excerpt, plus how much of each source has been read."""
         return self._json("POST", "/v1/library/search", {"query": query, "scope": scope})

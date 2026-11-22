@@ -8,6 +8,7 @@ itself with the `untrusted_content` origin, which the gateway refuses.
 from __future__ import annotations
 
 import base64
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -15,7 +16,13 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from .actions import ActionGateway, Outcome
 from .devices import DeviceDirectory, DeviceError
 from .errors import CoreError
+from .recordstore import RecordStore
 from .sync import QueuedOp, SyncService
+from .watchers import calendar_conflicts
+
+
+def _line(text: str) -> str:
+    return " ".join(text.split())[:200]
 
 
 def _outcome(o: Outcome) -> dict[str, Any]:
@@ -30,9 +37,46 @@ def _outcome(o: Outcome) -> dict[str, Any]:
     }
 
 
+DEFAULT_EVENT = timedelta(hours=1)  # an event with no end is treated as an hour long
+
+
+def _moment(text: str) -> datetime | None:
+    try:
+        value = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
 class Operations:
-    def __init__(self, gateway: ActionGateway, sync: SyncService) -> None:
-        self._gateway, self._sync = gateway, sync
+    def __init__(self, gateway: ActionGateway, sync: SyncService, store: RecordStore | None = None) -> None:
+        self._gateway, self._sync, self._store = gateway, sync, store
+
+    def attention(self) -> dict[str, Any]:
+        """What needs the owner's attention, by code, from the owner's own calendar: events whose times overlap. Records without a usable start are skipped, never guessed."""
+        if self._store is None:
+            return {"items": []}
+        titles, events = {}, []
+        for stored in self._store.in_domain("calendar"):
+            start = _moment(stored.record.fields.get("starts", ""))
+            if start is None:
+                continue
+            end = _moment(stored.record.fields.get("ends", "")) or start + DEFAULT_EVENT
+            titles[stored.record.record_id] = stored.record.title
+            events.append((stored.record.record_id, start, max(end, start)))
+        items = []
+        for n in calendar_conflicts(events)[:50]:
+            first = n.dedupe_key.split(":")[1]
+            items.append(
+                {
+                    "kind": n.kind,
+                    "record_id": n.record_id,
+                    "title": _line(f"“{titles.get(first, '')}” overlaps “{titles.get(n.record_id, '')}”"),
+                    "priority": n.priority,
+                    "key": n.dedupe_key,
+                }
+            )
+        return {"items": items}
 
     def act(self, action: str, payload: dict[str, Any], idempotency_key: str, approval_id: str | None) -> dict[str, Any]:
         return _outcome(self._gateway.propose(action, payload, origin="owner_request", idempotency_key=idempotency_key, approval_id=approval_id))

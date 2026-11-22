@@ -249,7 +249,7 @@ class Core:
             except StoreError:
                 return None
 
-        return Operations(gateway, SyncService(gateway, self.clients, version_of))
+        return Operations(gateway, SyncService(gateway, self.clients, version_of), self.edits)
 
     def _purger(self, source_type: str, index: Any) -> Callable[[], None]:
         def purge() -> None:

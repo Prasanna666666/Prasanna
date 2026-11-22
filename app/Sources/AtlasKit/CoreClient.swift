@@ -65,6 +65,9 @@ public final class CoreClient {
     public func approve(approvalID: String) throws -> Bool { (try object(call("POST", "/v1/actions/approve", ["approval_id": approvalID])))["granted"] as? Bool ?? false }
     public func undo(actionID: String) throws -> [String: Any] { try object(call("POST", "/v1/actions/undo", ["action_id": actionID])) }
 
+    /// What needs the owner's attention, computed by the Core from the owner's own records.
+    public func attention() throws -> [[String: Any]] { (try object(call("GET", "/v1/attention")))["items"] as? [[String: Any]] ?? [] }
+
     /// Library search over the enabled sources: results plus how much of each source has been read.
     public func librarySearch(_ query: String, scope: [String]) throws -> [String: Any] { try object(call("POST", "/v1/library/search", ["query": query, "scope": scope])) }
 
