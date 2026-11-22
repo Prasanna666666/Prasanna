@@ -220,7 +220,7 @@ def test_a_live_sockets_path_is_never_unlinked_but_a_stale_one_is_replaced(tmp_p
     path = Path(tempfile.mkdtemp(prefix="atl", dir="/tmp")) / "core.sock"  # macOS limits a Unix socket path to 104 bytes; pytest's tmp_path is longer
     live = socketlib.socket(socketlib.AF_UNIX, socketlib.SOCK_STREAM)
     live.bind(str(path))
-    live.listen(1)
+    live.listen(16)  # room for the gateway's liveness probe and the test's own connection (macOS refuses once a backlog of 1 is full)
     try:
         with pytest.raises(OSError, match="already answering"):
             serve_unix(path, object())  # type: ignore[arg-type]
