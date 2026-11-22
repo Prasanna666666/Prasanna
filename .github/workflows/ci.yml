@@ -203,6 +203,11 @@ jobs:
         env:
           ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
         run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
+      - name: Mach discovery result (temporarily fails the job so the log can be read)
+        if: always()
+        run: |
+          head -14 /tmp/mach.out | cut -c1-1200
+          exit 1
   security:
     runs-on: ubuntu-latest
     defaults:

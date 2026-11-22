@@ -212,11 +212,12 @@ def test_connections_are_bounded_and_the_server_recovers_when_they_close(served)
 
 def test_a_live_sockets_path_is_never_unlinked_but_a_stale_one_is_replaced(tmp_path):
     import socket as socketlib
+    import tempfile
+    from pathlib import Path
 
     from atlas_core.transport import serve_unix
 
-    path = tmp_path / "run" / "core.sock"
-    path.parent.mkdir()
+    path = Path(tempfile.mkdtemp(prefix="atl", dir="/tmp")) / "core.sock"  # macOS limits a Unix socket path to 104 bytes; pytest's tmp_path is longer
     live = socketlib.socket(socketlib.AF_UNIX, socketlib.SOCK_STREAM)
     live.bind(str(path))
     live.listen(1)

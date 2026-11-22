@@ -60,6 +60,14 @@ def test_a_public_query_is_sent_and_returns_untrusted_data_with_provenance_and_a
         ("lookup EXAMPLE-LONG-TOKEN-abcdefghijklmnopqrstuvwxyz0123", "identifier_in_request"),  # a long token
         ("   ", "bad_request"),
     ],
+    ids=[
+        "private-token",
+        "private-shingle",
+        "email",
+        "long-number",
+        "long-token",
+        "blank",
+    ],  # neutral ids: a sentinel must not appear in a test name, which lands in the CI report
 )
 def test_a_query_with_private_content_or_an_identifier_is_refused_before_anything_is_sent(query, code):
     audit: list[AuditRecord] = []
