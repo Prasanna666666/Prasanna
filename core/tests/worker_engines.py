@@ -34,14 +34,15 @@ class ProbeEngine(EchoEngine):
     def stream(self, prompt, max_tokens):
         host, _, port = prompt.partition(":")
         result: dict[str, object] = {}
-        for label, family, kind in (("tcp", socket.AF_INET, socket.SOCK_STREAM), ("udp6", socket.AF_INET6, socket.SOCK_DGRAM)):
+        for label, kind in (("tcp", socket.SOCK_STREAM), ("udp", socket.SOCK_DGRAM)):
             try:
-                s = socket.socket(family, kind)
+                s = socket.socket(socket.AF_INET, kind)
                 if label == "tcp":
                     s.connect((host, int(port)))
                     result[label] = "CONNECTED"
-                else:
-                    result[label] = "CREATED"
+                else:  # creating a datagram socket is not the leak; sending data out is
+                    s.sendto(b"exfiltrated", (host, int(port)))
+                    result[label] = "SENT"
                 s.close()
             except OSError as e:
                 result[label] = f"blocked:{e.errno}"

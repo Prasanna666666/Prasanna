@@ -23,12 +23,32 @@ pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason=
 MECHANISM = "launcher" if sys.platform == "darwin" else "seccomp"  # macOS confines the worker from the outside with sandbox-exec; Linux filters inside it
 
 
+class Target(str):
+    """host:port, plus the UDP receiver bound to that port, so a test can see whether anything arrived."""
+
+    def __new__(cls, address: str, datagrams: socket.socket):
+        self = super().__new__(cls, address)
+        self.datagrams = datagrams
+        return self
+
+    def received(self) -> bytes | None:
+        try:
+            return self.datagrams.recv(100)
+        except TimeoutError:
+            return None
+
+
 @pytest.fixture
 def listener():
     server = socket.socket()
     server.bind(("127.0.0.1", 0))
     server.listen(5)
-    yield f"127.0.0.1:{server.getsockname()[1]}"
+    port = server.getsockname()[1]
+    datagrams = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # a UDP receiver on the same port number: what a leak would arrive at
+    datagrams.bind(("127.0.0.1", port))
+    datagrams.settimeout(0.5)
+    yield Target(f"127.0.0.1:{port}", datagrams)
+    datagrams.close()
     server.close()
 
 
@@ -47,6 +67,10 @@ def test_without_isolation_the_same_code_can_open_a_network_connection(listener)
     s = socket.socket()
     s.connect((host, int(port)))
     s.close()
+    u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    u.sendto(b"exfiltrated", (host, int(port)))
+    u.close()
+    assert listener.received() == b"exfiltrated"  # the receiver does see a leak when nothing stops it
 
 
 def test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_pipes_work(listener):
@@ -54,7 +78,9 @@ def test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_
     try:
         result = probe(e, listener)
         assert e.network_denied == MECHANISM
-        assert result["tcp"].startswith("blocked:") and result["udp6"].startswith("blocked:") and result["unix"] == "ok"
+        assert result["tcp"].startswith("blocked:") and result["unix"] == "ok"
+        assert result["udp"].startswith("blocked:")  # no datagram could be sent either (Linux refuses the socket; macOS refuses the send)
+        assert listener.received() is None  # and nothing arrived at the receiver
     finally:
         e.close()
 
