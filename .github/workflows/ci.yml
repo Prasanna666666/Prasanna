@@ -124,7 +124,7 @@ jobs:
       - run: mypy src
       - run: pytest -q
   macos:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
