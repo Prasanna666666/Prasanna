@@ -13,6 +13,8 @@ import sys
 import time
 from pathlib import Path
 
+EXIT_NEEDS_SIGNIN = 6  # kept equal to `serve.EXIT_NEEDS_SIGNIN` (a test asserts it); the parent does not import the child's module
+
 
 class LaunchFailed(RuntimeError):
     """The Core did not come up. Carries no output of the child."""
@@ -72,11 +74,18 @@ class CoreProcess:
                 raise LaunchFailed("timeout")
             block = os.read(self.process.stdout.fileno(), 4096)
             if not block:
+                code_out = self.process.poll() if self.process.poll() is not None else self._reap_status()
                 self._kill()
-                raise LaunchFailed("exited")
+                raise LaunchFailed("needs_owner_signin" if code_out == EXIT_NEEDS_SIGNIN else "exited")
             seen += block
         self.bootstrap_code = code
         return str(self.socket_path)
+
+    def _reap_status(self) -> int | None:
+        try:
+            return self.process.wait(timeout=5) if self.process is not None else None
+        except subprocess.TimeoutExpired:
+            return None
 
     def forget_code(self) -> None:
         self.bootstrap_code = None

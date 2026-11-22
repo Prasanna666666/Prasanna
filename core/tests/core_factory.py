@@ -34,3 +34,10 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         data_dir=data_dir, socket_path=socket_path, task_key="t" * 40, designation_key="d" * 40, documents_key="o" * 40, mail_key="m" * 40, anchor=InMemoryAnchor(),
         os_permissions=FakeOSPermissions(), manifest=manifest, model_record_key=b"k" * 32, runtime=StubRuntime(), bootstrap_code=bootstrap_code,
     )  # fmt: skip
+
+
+def keychain_locked(data_dir, socket_path, bootstrap_code, options=None):
+    """A Mac that has restarted and not been signed in to: the Keychain gives no keys."""
+    from atlas_core.host import KeychainLocked
+
+    raise KeychainLocked("locked")

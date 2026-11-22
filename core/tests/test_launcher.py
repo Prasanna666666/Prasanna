@@ -222,3 +222,19 @@ def test_a_data_folder_lock_dies_with_its_holder_so_a_crash_never_blocks_the_nex
     second = start()  # the OS released the lock; the stale socket is recognised as stale and replaced
     owner = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), OWNER_ID)
     assert owner.enrol_self(bootstrap_code=second.bootstrap_code)["role"] == "owner"
+
+
+def test_a_locked_keychain_makes_the_core_exit_with_its_own_code_and_the_launcher_says_the_mac_needs_sign_in(tmp_path):
+    from atlas_core import launcher, serve
+
+    assert launcher.EXIT_NEEDS_SIGNIN == serve.EXIT_NEEDS_SIGNIN == 6
+    env = {"PATH": os.environ["PATH"], "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
+    direct = subprocess.run(
+        [sys.executable, "-m", "atlas_core.serve", "--data-dir", str(tmp_path / "c"), "--socket", str(tmp_path / "s"), "--config-factory", "core_factory:keychain_locked", "--allow-custom-factory"],
+        input=b"a-valid-looking-code-0123456789\n", capture_output=True, timeout=30, env=env, check=False,
+    )  # fmt: skip
+    assert direct.returncode == 6 and b"READY" not in direct.stdout and not (tmp_path / "c").exists()  # nothing was created
+    process = launcher.CoreProcess(tmp_path / "core", tmp_path / "run" / "core.sock", config_factory="core_factory:keychain_locked", allow_custom_factory=True)
+    with pytest.raises(launcher.LaunchFailed) as e:
+        process.start(timeout=30)
+    assert str(e.value) == "needs_owner_signin" and process.bootstrap_code is None

@@ -30,6 +30,11 @@ class HostUnavailable(RuntimeError):
     """This machine cannot provide the real platform parts."""
 
 
+class KeychainLocked(HostUnavailable):
+    """The Keychain would not give the store keys. On a Mac that has just restarted this is the normal state until the owner signs in (FileVault stays on; there is no auto-login): the Core does not start,
+    says so with its own exit code, and the app shows "Mac needs owner sign-in"."""
+
+
 @dataclass
 class HostOptions:
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, the folder designated for it)
@@ -64,7 +69,7 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         keys = {name: items.secret(name) for name in ("task-store", "designation-store", "documents-index", "mail-index")}
         record_key = bytes.fromhex(items.secret("model-record"))
     except KeychainError:
-        raise HostUnavailable("the Keychain could not provide the store keys") from None
+        raise KeychainLocked("the Keychain could not provide the store keys") from None
     folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
     return CoreConfig(
         data_dir=data_dir,

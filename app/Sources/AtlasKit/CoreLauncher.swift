@@ -8,6 +8,8 @@ import Security
 /// Lifecycle: `start` is idempotent (a second call while the child runs does nothing) and first reaps a Core a previous app instance left behind (recorded in a pid file next to the socket, and
 /// only if that pid still runs this Core); `stop` asks the child to terminate, waits, kills it if it does not, and reaps it. The Core also stops by itself when its parent is gone.
 public final class CoreLauncher {
+    /// The Core's exit status when the Keychain is locked (`serve.EXIT_NEEDS_SIGNIN`).
+    public static let needsOwnerSignInStatus: Int32 = 6
     public private(set) var bootstrapCode: String?
     private var process: Process?
     private let executable: URL
@@ -103,7 +105,8 @@ public final class CoreLauncher {
             while child.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
             if child.isRunning { kill(child.processIdentifier, SIGKILL) }
             child.waitUntilExit()  // a Core that did not become ready is stopped and reaped, never left behind
-            throw AtlasError.local("the Core did not start")
+            // exit code 6: the Keychain would not give the store keys, which is the normal state of a Mac that restarted and has not been signed in to (FileVault stays on; no auto-login)
+            throw AtlasError.local(child.terminationStatus == CoreLauncher.needsOwnerSignInStatus ? "Mac needs owner sign-in" : "the Core did not start")
         }
         process = child
         bootstrapCode = code
