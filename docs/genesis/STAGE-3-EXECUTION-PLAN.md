@@ -1,6 +1,6 @@
 # Atlas — Stage 3 Execution Plan
 
-**Status:** Stage 3 authorised by owner (G-027); WP3.0 accepted; WP3.1 specification/schema/tests **ACCEPTED** for exact reviewed scope (review 6000401465); WP3.2 document-only vertical path **ACCEPTED** at exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496); WP3.3 synthetic-only Mail path implemented but **NOT ACCEPTED** at `60c77018752082be8e8df033df4213fe3b955a35` due to a regression-test boundary gap (ChatGPT review 6009249858); WP3.4 remains blocked.  
+**Status:** Stage 3 was authorised under G-027 and is **CLOSED FOR PROJECT SEQUENCING BY OWNER DECISION (2026-11-22)** at PR #8 head `14b471bf589303cf25f5d781f8aaf62b0f5654e0`, with criteria 4, 11, 12 and 13 carried forward as explicit known limitations. This is not a technical pass of those criteria or release acceptance. The evidence matrix and carry-forward gates below remain authoritative.  
 **Initiative:** Project Genesis  
 **Baseline:** PR #8, `genesis-stage2-foundation`, Stage 2 accepted at `58210223398a5715b618d1163397104efd358d49`  
 **Plan owner:** ChatGPT (architect/integrator)  
@@ -300,3 +300,16 @@ Stage 3 is authorised under G-027 and proceeds package by package after a writte
 - Define “newest” per source: Mail by stored received timestamp for inbox chronology; files by filesystem modification time, with content-created dates retained as separate metadata and never substituted silently. Missing timestamps use a deterministic stable fallback and are counted in coverage.
 - Freeze the first-useful-answer threshold before the first baseline benchmark: warm local query p50 ≤2 seconds and p95 ≤5 seconds after the first tier is searchable. Report cold start separately and report retrieval/answer quality alongside latency.
 - The first tier must be useful before full import completes. Every answer reports source coverage: searched/total, pending categories and unsupported/failed items. A partial index must never be labelled complete.
+
+
+## 12.10 Stage 3 closure and carry-forward disposition (2026-11-22)
+
+The owner explicitly instructed that Stage 3 be closed now. This section records that decision at exact PR #8 head `14b471bf589303cf25f5d781f8aaf62b0f5654e0` so it is not repeatedly reopened or relayed. Stage 3 is closed for project sequencing; the owner accepts the following known limitations as carry-forward items. **This is not a claim that the original owner-tryable outcome has been demonstrated, that the open criteria passed, or that the product is release-ready.** The criterion statuses and evidence classes in `core/docs/STAGE3_ACCEPTANCE.md` remain unchanged.
+
+- **Criterion 4:** selected-real-model prompt-injection resistance is not evaluated.
+- **Criterion 11:** the macOS sandbox remains allow-by-default and is not least-privilege; egress is not connected to the answer flow and has not been tested against the real Internet. In addition, a P1 defect remains in the built gateway: `TaintSet.add()` does not fingerprint ordinary private names or short 2–3 word phrases. This defect is not waived. Keep public search disconnected and the gateway disabled until the defect is fixed, regression-tested (single private names and short phrases in queries and URL path/query), and independently reviewed. Do not store or log raw private text as part of the fix.
+- **Criterion 12:** no target-Mac real-model latency, memory, quality or thermal measurements exist; no pass thresholds have been accepted.
+- **Criterion 13:** no human UI/accessibility walkthrough or owner-Mac acceptance has occurred. Hosted CI app build/launch/Core lifecycle is not owner acceptance. Real TCC prompts and a real Apple Mail store remain unverified. The app is ad-hoc signed only; notarisation and self-contained Python/model installation are incomplete.
+- **Criterion 6:** accepted for the exact-read restriction: if a non-text MIME part precedes the first text/plain part, that message is unreadable and is not indexed; attachment bytes are not read.
+
+Subsequent roadmap stages may proceed under this explicit owner disposition without pretending these items are complete. They remain required before any claim of owner-tryability/release readiness, and the egress defect must be closed before any public-search integration or gateway enablement. Do not ask the owner to repeat this decision; ask only for genuinely reserved product decisions.
