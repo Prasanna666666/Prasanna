@@ -7,6 +7,7 @@ mailbox in CI.
 
 from __future__ import annotations
 
+import base64
 import email.policy
 import email.utils
 import getpass
@@ -34,6 +35,27 @@ NOT_FOUND = 44  # `security` exit status for a missing item
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
 
 
+_PLAIN = re.compile(r"[A-Za-z0-9._-]+")
+_ENCODED = "b64:"
+
+
+def _encode(value: str) -> str:
+    """What reaches `security -i`. Its command parser is not a shell's (a real macOS run showed single quotes and `$` in a value break it), so a value is sent as is only if it is
+    made of letters, digits, `.`, `_` and `-` (the hex store keys); anything else travels as `b64:` plus base64 and is decoded on read."""
+    if _PLAIN.fullmatch(value) and not value.startswith(_ENCODED):
+        return value
+    return _ENCODED + base64.b64encode(value.encode()).decode()
+
+
+def _decode(stored: str) -> str:
+    if stored.startswith(_ENCODED):
+        try:
+            return base64.b64decode(stored[len(_ENCODED) :], validate=True).decode()
+        except (ValueError, UnicodeDecodeError):
+            raise KeychainError("decode") from None
+    return stored
+
+
 class KeychainError(Exception):
     """The Keychain could not be read or written. Carries no secret and no output of the tool."""
 
@@ -50,10 +72,10 @@ class KeychainItems:
             return None
         if done.returncode != 0:
             raise KeychainError("read")
-        return str(done.stdout).strip()
+        return _decode(str(done.stdout).strip())
 
     def write(self, service: str, value: str) -> None:
-        command = f"add-generic-password -U -a {shlex.quote(self._account)} -s {shlex.quote(service)} -w {shlex.quote(value)}\n"
+        command = f"add-generic-password -U -a {shlex.quote(self._account)} -s {shlex.quote(service)} -w {_encode(value)}\n"
         done = self._run([SECURITY_TOOL, "-i"], input=command, capture_output=True, text=True, check=False)
         if done.returncode != 0:
             raise KeychainError("write")

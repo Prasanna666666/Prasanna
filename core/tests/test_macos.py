@@ -421,3 +421,25 @@ def test_the_size_limit_and_a_fifo_and_a_symlinked_root_are_handled_without_foll
     link = tmp_path / "RootLink"
     link.symlink_to(root)
     assert EmlxMailbox(link).list_page(None, 10).items == []  # a designated root that is itself a link is not followed
+
+
+def test_a_value_that_is_not_plain_is_encoded_before_it_reaches_the_security_command_parser_and_decoded_on_read():
+    """A real macOS run showed `security -i` does not parse single quotes or `$` as a shell does; only letters, digits `.`, `_`, `-` go through as they are."""
+    sent: list[str] = []
+    stored: dict[str, str] = {}
+
+    def runner(command, input=None, **kwargs):
+        if input:
+            sent.append(input)
+            service = input.split(" -s ")[1].split(" ")[0]
+            stored[service] = input.rsplit(" -w ", 1)[1].strip()
+            return subprocess.CompletedProcess(command, 0, "", "")
+        return subprocess.CompletedProcess(command, 0, stored["svc"] + "\n", "")
+
+    box = KeychainItems("owner", runner=runner)
+    hostile = 'it\'s a $(whoami) "value" with spaces; and `ticks`'
+    box.write("svc", hostile)
+    assert hostile not in sent[0] and "$(" not in sent[0] and "'" not in sent[0].split(" -w ")[1]  # nothing the parser could misread
+    assert box.read("svc") == hostile
+    box.write("svc", "a" * 64)  # a hex store key travels unchanged
+    assert sent[1].rstrip().endswith(" -w " + "a" * 64) and box.read("svc") == "a" * 64
