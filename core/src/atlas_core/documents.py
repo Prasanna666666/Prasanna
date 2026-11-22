@@ -433,6 +433,10 @@ class DocumentIndex(IndexStore):
         with self._lock:
             counts = {r["status"]: r["n"] for r in self._conn.execute("SELECT status, count(*) AS n FROM docs GROUP BY status")}
             reasons = {r["reason"]: r["n"] for r in self._conn.execute("SELECT reason, count(*) AS n FROM docs WHERE reason IS NOT NULL GROUP BY reason")}
+            failed_reasons = {
+                r["reason"]: r["n"]
+                for r in self._conn.execute("SELECT reason, count(*) AS n FROM docs WHERE status='failed' AND reason IS NOT NULL GROUP BY reason")
+            }
             missing = self._conn.execute("SELECT count(*) AS n FROM docs WHERE mtime IS NULL AND status != 'failed'").fetchone()["n"]
             scan_done = self._meta("scan_state") == "done" and self._meta("scan_cut_off") != "1"
             paused = self._meta("paused") or None
@@ -444,6 +448,7 @@ class DocumentIndex(IndexStore):
             "failed": counts.get("failed", 0),
             "missing_timestamps": missing,
             "reasons": reasons,
+            "failed_reasons": failed_reasons,
             "scan_complete": scan_done,
             "paused": paused,
         }

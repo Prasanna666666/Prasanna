@@ -34,9 +34,10 @@ class Harness:
         headers: dict | None = None,
         sign: bool = True,
         signer: Ed25519PrivateKey | None = None,
+        version: str = "1.0",
     ):
         raw = body if isinstance(body, bytes) else (json.dumps(body).encode() if body is not None else b"")
-        head = signed(signer or self.key, method, target, raw, self.w.clock()) if sign else {}
+        head = signed(signer or self.key, method, target, raw, self.w.clock(), version=version) if sign else {}
         return self.api.handle(Request(method, target, {**head, **(headers or {})}, raw))
 
     def json(self, method: str, target: str, body: dict | None = None, **kw):
@@ -57,7 +58,7 @@ def h(tmp_path) -> Harness:
 
 @pytest.mark.criterion(13)
 def test_version_negotiation_and_safe_failure_for_an_unsupported_client_version(h):
-    assert h.json("GET", "/v1/version") == (200, {"api_version": "1.0", "supported": ["1.0"]})
+    assert h.json("GET", "/v1/version") == (200, {"api_version": "1.0", "supported": ["1.0", "1.1"]})
     for wanted in ("2.0", "0.9", "garbage"):
         status, body = h.json("POST", "/v1/tasks", request(), headers={"x-atlas-api-version": wanted})
         assert status == 426 and body["code"] == "unsupported_version" and h.w.retriever.calls == []

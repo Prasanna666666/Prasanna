@@ -1,5 +1,5 @@
-"""WP3.1: API 1.0 is frozen. Its two files are byte-identical to the accepted baseline, the default validator means 1.0, and the running Core still serves only 1.0
-(a request for 1.1 fails closed) until a later reviewed package serves 1.1."""
+"""WP3.1: API 1.0 is frozen. Its two files are byte-identical to the accepted baseline, the default validator means 1.0, and the running Core serves 1.1 only when a client asks for exactly
+1.1 and signs it (WP3.4b); anything else falls to 1.0 or is refused."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from conftest import World, grant, request
 from test_api import Harness
 
-from atlas_core import SUPPORTED_VERSIONS, contracts
+from atlas_core import API_VERSION, SUPPORTED_VERSIONS, contracts
 
 FROZEN_SHA256 = {
     "atlas-contracts.schema.json": "65f5a3f6ac41410ea494e2902759a8dca3c2d3ef48e023ebdb6fe548a66a386c",
@@ -34,14 +34,14 @@ def test_the_default_validator_is_1_0_and_never_applies_a_1_1_requirement():
         contracts.type_names("1.2")
 
 
-def test_the_runtime_still_advertises_only_1_0():
-    assert SUPPORTED_VERSIONS == ("1.0",)
+def test_the_runtime_advertises_1_0_and_1_1_and_1_0_stays_the_default():
+    assert SUPPORTED_VERSIONS == ("1.0", "1.1") and API_VERSION == "1.0"
 
 
-def test_a_request_for_1_1_is_refused_today_but_the_discovery_call_still_answers_it(h):
-    status, body = h.json("POST", "/v1/tasks", request(), headers={"x-atlas-api-version": "1.1"})
+def test_a_request_for_a_version_the_core_does_not_serve_is_refused_and_the_discovery_call_still_answers(h):
+    status, body = h.json("POST", "/v1/tasks", request(), headers={"x-atlas-api-version": "1.2"})
     assert status == 426 and body["code"] == "unsupported_version" and h.w.retriever.calls == []
-    assert h.json("GET", "/v1/version", headers={"x-atlas-api-version": "1.1"}) == (200, {"api_version": "1.0", "supported": ["1.0"]})
+    assert h.json("GET", "/v1/version", headers={"x-atlas-api-version": "1.2"}) == (200, {"api_version": "1.0", "supported": ["1.0", "1.1"]})
     assert h.json("POST", "/v1/tasks", request(), headers={"x-atlas-api-version": "1.0"})[0] == 201
 
 

@@ -6,12 +6,14 @@ evidence checks.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from .answer import NO_EVIDENCE_TEXT, AnswerInput, build_envelope, denied_envelope, stopped_envelope, withheld_envelope
+from .coverage import Provider as CoverageProvider
+from .coverage import build_coverage, required_limitations
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import SourceStore
@@ -62,6 +64,7 @@ class Deps:
     log: SafeLog = field(default_factory=SafeLog)
     faults: FaultInjector = field(default_factory=FaultInjector)
     clock: Callable[[], datetime] = _now
+    coverage: Mapping[str, CoverageProvider] = field(default_factory=dict)  # per source type: what that index reports (used only to build the API 1.1 coverage)
 
 
 class TaskService:
@@ -259,6 +262,8 @@ class TaskService:
             raise _Stop(d.store.record(task_id)) from None
         d.faults.hit("mid:drafted")
         payload = {"draft": answer.text, "citations": list(answer.citations), "truncated": context.truncated, "language": vars(answer.language)}
+        if answer.identity is not None:
+            payload["model"] = dict(zip(("model_id", "role", "runtime"), answer.identity, strict=True))  # which local model wrote it (content-free)
         self._to(task_id, "drafted", step="drafted", data=payload)
         d.faults.hit("after:drafted")
 
@@ -283,7 +288,10 @@ class TaskService:
         d.log.emit("answer.verified", "answer", task_id, reason_code=envelope["verification"]["status"])
         d.store.save_answer(task_id, envelope)
         d.faults.hit("mid:verified")
-        self._to(task_id, "verified", step="verified")
+        coverage = build_coverage(
+            {p["evidence"]["source_type"] for p in passages} | (set(record["source_scope"]) - {x["source_type"] for x in denied}), d.coverage, d.clock()
+        )
+        self._to(task_id, "verified", step="verified", data={"coverage": coverage})
         d.faults.hit("after:verified")
         return envelope
 
@@ -345,6 +353,20 @@ class TaskService:
             return envelope
         return withheld_envelope(task_id, _denied_now(decision, used - permitted), used)
 
+    def answer_v11(self, task_id: str) -> dict[str, Any]:
+        """The API 1.1 form of the answer: the same envelope plus the coverage the answer was made under and, when a model wrote it, which model. The coverage limitations the
+        1.1 contract ties to that coverage are added. An answer that was withheld, denied or stopped carries an empty coverage, never the index size of a source no longer permitted."""
+        return self._upgrade(task_id, self.answer(task_id))
+
+    def _upgrade(self, task_id: str, envelope: dict[str, Any]) -> dict[str, Any]:
+        saved = self._d.store.checkpoint(task_id)[1]
+        own = envelope == self._d.store.answer(task_id)  # the saved answer itself, not a withheld/denied replacement
+        coverage = saved["coverage"] if own and "coverage" in saved else build_coverage((), self._d.coverage, self._d.clock())
+        out = {**envelope, "coverage": coverage, "limitations": list(dict.fromkeys([*envelope["limitations"], *required_limitations(coverage)]))}
+        if own and "model" in saved:
+            out["model"] = saved["model"]
+        return out
+
     def _used_types(self, task_id: str, envelope: dict[str, Any]) -> frozenset[str]:
         """Every source type the answer was constructed from: the retrieved passages saved with the task's checkpoint plus whatever the answer cites."""
         passages = self._d.store.checkpoint(task_id)[1].get("passages", [])
@@ -353,15 +375,19 @@ class TaskService:
     def receipt(self, task_id: str) -> dict[str, Any]:
         return self._d.store.receipt(task_id)
 
-    def events_after(self, task_id: str, after: int) -> list[dict[str, Any]]:
+    def events_after(self, task_id: str, after: int, version: str = "1.0") -> list[dict[str, Any]]:
         """Stream events; a final answer built from a source no longer permitted is replaced by a plain error event (same sequence number)."""
         scope = self._d.store.record(task_id)["source_scope"]
         _, token = self._d.policy.decide(scope, self._d.clock())
         permitted = self._valid_types(self._d.store.checkpoint(task_id)[1], token, self._d.clock()) if token is not None else frozenset()
         out = []
-        for event in self._d.store.events_after(task_id, after):
-            leaks = event["type"] == "final" and not self._used_types(task_id, event["answer"]) <= permitted
-            out.append({"seq": event["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)} if leaks else event)
+        for stored in self._d.store.events_after(task_id, after):
+            event = stored
+            if event["type"] == "final" and not self._used_types(task_id, event["answer"]) <= permitted:
+                event = {"seq": stored["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)}
+            elif version == "1.1" and event["type"] == "final":
+                event = {**event, "answer": self._upgrade(task_id, event["answer"])}
+            out.append(event)
         return out
 
 

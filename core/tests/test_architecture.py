@@ -18,6 +18,7 @@ LAYER = {
     "rules": 1,
     "values": 1,
     "models": 1,
+    "coverage": 1,
     "events": 2,
     "identity": 2,
     "policy": 3,
@@ -28,6 +29,7 @@ LAYER = {
     "access": 4,
     "mail": 4,
     "intelligence": 4,
+    "mlx_runtime": 4,
     "answer": 5,
     "tasks": 5,
     "service": 6,
@@ -303,3 +305,19 @@ def test_the_prompt_table_in_the_use_case_register_agrees_with_the_matrix_on_eve
     for action in never_asked_in_register:
         assert not categories_in(action) or "with reliable undo" in action.lower(), f"{action!r} sounds like a prompting action but is marked No"
     assert any("Create/move own calendar event" in a for a in never_asked_in_register)  # the case the owner objected to is prompt-free
+
+
+@pytest.mark.criterion(11)
+def test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_can_reach_the_network_or_unpickle():
+    forbidden = ("socket", "urllib", "http.client", "requests", "httpx", "aiohttp", "pickle", "marshal", "torch", "transformers", "huggingface_hub")
+    for module in ("models", "intelligence", "mlx_runtime", "coverage"):
+        tree = ast.parse((SRC / f"{module}.py").read_text())
+        names = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names} | {
+            n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)
+        }
+        assert not {x for x in names if x.split(".")[0] in {f.split(".")[0] for f in forbidden}}, module
+    for path in SRC.glob("*.py"):
+        text = path.read_text()
+        assert 'trust_remote_code": True' not in text and "trust_remote_code=True" not in text, path.name
+        if path.stem != "mlx_runtime":
+            assert "mlx_lm" not in text and "import mlx" not in text, path.name

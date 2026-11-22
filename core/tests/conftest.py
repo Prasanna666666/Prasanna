@@ -221,9 +221,17 @@ def registry_and_key() -> tuple[ClientRegistry, Ed25519PrivateKey]:
 
 
 def signed(
-    key: Ed25519PrivateKey, method: str, target: str, body: bytes, now: datetime, client: str = "client-mac-0001", nonce: str | None = None
+    key: Ed25519PrivateKey,
+    method: str,
+    target: str,
+    body: bytes,
+    now: datetime,
+    client: str = "client-mac-0001",
+    nonce: str | None = None,
+    *,
+    version: str = "1.0",
 ) -> dict[str, str]:
-    return sign_request(key, client, method, target, body, now, nonce)
+    return sign_request(key, client, method, target, body, now, nonce, version=version)
 
 
 def all_output(world: World, caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]) -> str:

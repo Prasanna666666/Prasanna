@@ -6,4 +6,4 @@ Layers, lowest first (a module may import only from layers below it; tests enfor
 """
 
 API_VERSION = "1.0"
-SUPPORTED_VERSIONS = ("1.0",)
+SUPPORTED_VERSIONS = ("1.0", "1.1")

@@ -133,6 +133,17 @@ def _still_healthy(path: str, key, world) -> None:
 
 
 @pytest.mark.criterion(14)
+def test_a_1_1_request_is_served_over_the_socket_with_the_echo_header(served):
+    start, key, world, _folder = served
+    path = start()
+    raw = json.dumps(request()).encode()
+    conn = UnixConnection(path)
+    conn.request("POST", "/v1/tasks", body=raw, headers=signed(key, "POST", "/v1/tasks", raw, world.clock(), version="1.1"))
+    response = conn.getresponse()
+    assert response.status == 201 and response.getheader("x-atlas-api-version") == "1.1"
+
+
+@pytest.mark.criterion(14)
 @pytest.mark.parametrize(
     "framing",
     [
@@ -150,6 +161,7 @@ def _still_healthy(path: str, key, world) -> None:
         "Transfer-Encoding: gzip, chunked",
         "Content-Length: 5\r\nContent-Length: 6",
         "Content-Length: 5\r\nTransfer-Encoding: chunked",
+        "X-Atlas-Api-Version: 1.1\r\nX-Atlas-Api-Version: 1.1",
     ],
 )
 def test_bad_request_framing_is_refused_before_any_body_is_read_and_the_server_stays_up(served, framing):

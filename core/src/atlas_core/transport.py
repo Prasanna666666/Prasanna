@@ -78,7 +78,7 @@ class LocalHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         length = declared_length(self.headers)
-        if length is None:
+        if length is None or len(self.headers.get_all("x-atlas-api-version") or []) > 1:  # a repeated version header is never guessed at
             self._refuse()
             return
         body = self._read_body(length)

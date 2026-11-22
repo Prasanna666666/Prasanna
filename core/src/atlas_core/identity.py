@@ -20,15 +20,22 @@ from .rules import Rules, load_rules
 H_CLIENT, H_TIME, H_NONCE, H_SIG, H_VERSION = "x-atlas-client", "x-atlas-timestamp", "x-atlas-nonce", "x-atlas-signature", "x-atlas-api-version"
 
 
-def canonical(method: str, target: str, timestamp: str, nonce: str, body: bytes) -> bytes:
-    return "\n".join([method.upper(), target, timestamp, nonce, hashlib.sha256(body).hexdigest()]).encode()
+def canonical(method: str, target: str, timestamp: str, nonce: str, body: bytes, version: str = "1.0") -> bytes:
+    """The signed message: five fields for 1.0, six for 1.1 with the applied version first (CONTRACT_1_1.md, Signing). No field may contain CR or LF."""
+    fields = [method.upper(), target, timestamp, nonce, hashlib.sha256(body).hexdigest()]
+    if any("\r" in f or "\n" in f for f in fields):
+        raise ValueError("line break in a signed field")
+    return "\n".join(fields if version == "1.0" else [version, *fields]).encode()
 
 
-def sign_request(key: Ed25519PrivateKey, client_id: str, method: str, target: str, body: bytes, now: datetime, nonce: str | None = None) -> dict[str, str]:
-    """What a client sends (used by clients and by the tests)."""
+def sign_request(  # noqa: PLR0913
+    key: Ed25519PrivateKey, client_id: str, method: str, target: str, body: bytes, now: datetime, nonce: str | None = None, *, version: str = "1.0"
+) -> dict[str, str]:
+    """What a client sends (used by clients and by the tests). For 1.1 the version is signed and sent in the version header."""
     stamp, one_time = str(int(now.timestamp())), nonce or secrets.token_hex(12)
-    signature = key.sign(canonical(method, target, stamp, one_time, body))
-    return {H_CLIENT: client_id, H_TIME: stamp, H_NONCE: one_time, H_SIG: base64.b64encode(signature).decode()}
+    signature = key.sign(canonical(method, target, stamp, one_time, body, version))
+    out = {H_CLIENT: client_id, H_TIME: stamp, H_NONCE: one_time, H_SIG: base64.b64encode(signature).decode()}
+    return out if version == "1.0" else {**out, H_VERSION: version}
 
 
 @dataclass
@@ -66,14 +73,14 @@ class ClientRegistry:
         if client_id in self._clients:
             self._clients[client_id].revoked = True
 
-    def verify(self, method: str, target: str, headers: Mapping[str, str], body: bytes, now: datetime) -> str:
+    def verify(self, method: str, target: str, headers: Mapping[str, str], body: bytes, now: datetime, version: str = "1.0") -> str:
         """The client id of a valid request. Raises CoreError('unauthenticated') for anything missing, wrong, stale or replayed, and 'forbidden' for a revoked client."""
         client_id, stamp, nonce, signature = (headers.get(h, "") for h in (H_CLIENT, H_TIME, H_NONCE, H_SIG))
         client = self._clients.get(client_id)
         if client is None or not (stamp and nonce and signature) or not self._fresh(stamp, now):
             raise CoreError("unauthenticated")
         try:
-            client.key.verify(base64.b64decode(signature, validate=True), canonical(method, target, stamp, nonce, body))
+            client.key.verify(base64.b64decode(signature, validate=True), canonical(method, target, stamp, nonce, body, version))
         except (InvalidSignature, ValueError):
             raise CoreError("unauthenticated") from None
         if client.revoked:
