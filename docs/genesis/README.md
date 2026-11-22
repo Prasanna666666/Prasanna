@@ -15,6 +15,8 @@ The existing application, its tests, security controls, data stores and PR revie
 
 ## Read in this order
 
+0. [UI/UX product and design specification](UI_UX_SPECIFICATION.md) — canonical visual direction, information architecture, screen and state inventory, interaction/accessibility requirements, implementation ownership and visual acceptance gates. Documentation is complete; implementation and owner visual acceptance are not.
+
 1. [Product requirements](PRD.md) — product intent, users, scope and requirements.
 2. [Target architecture](TARGET_ARCHITECTURE.md) — boundaries, components and system flows.
 3. [Intelligence and performance](INTELLIGENCE_AND_PERFORMANCE.md) — local models, routing, latency and answer quality.
