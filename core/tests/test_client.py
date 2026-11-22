@@ -111,6 +111,7 @@ class RunScripted:
 class Core:
     def __init__(self, tmp: Path, start_worker: bool = True) -> None:
         data = json.loads(harness.SET_FILE.read_text(encoding="utf-8"))
+        self.lines: list[str] = []
         self.folder = Path(tempfile.mkdtemp(prefix="atl"))
         docs = tmp / "docs"
         docs.mkdir()
@@ -137,15 +138,16 @@ class Core:
                 self.index,
                 Gateway(store, Router(manifest.entries()), self.runtime, signals=Signals),
                 self.index,
-                SafeLog(lambda _: None),
+                SafeLog(self.lines.append),
                 clock=self.clock,
+                coverage={"documents": self.index.coverage},
             )
         )
         self.key = Ed25519PrivateKey.generate()
         registry = ClientRegistry()
         registry.register("client-mac-0001", self.key.public_key())
         self.registry = registry
-        self.api = CoreApi(self.service, registry, SafeLog(lambda _: None), self.clock, check_responses=True)
+        self.api = CoreApi(self.service, registry, SafeLog(self.lines.append), self.clock, check_responses=True)
         self.server = None
         self.stop = threading.Event()
         self.worker = threading.Thread(target=self._work, daemon=True)

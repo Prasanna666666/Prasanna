@@ -144,3 +144,21 @@ def test_a_task_without_a_model_identity_has_no_model_field(tmp_path):
 
 def test_a_gateway_less_answer_has_no_identity():
     assert ModelAnswer("x").identity is None
+
+
+def test_complete_coverage_has_searched_equal_to_total():
+    rng = __import__("random").Random(3)
+    for _ in range(300):
+        indexed, pending, unsupported, failed = (rng.choice([0, 0, 1, 5]) for _ in range(4))
+        rep = report(
+            total=indexed + pending + unsupported + failed,
+            searched=indexed,
+            pending=pending,
+            unsupported=unsupported,
+            failed=failed,
+            scan_complete=rng.random() < 0.8,
+        )
+        c = build_coverage(["documents"], {"documents": lambda rep=rep: rep}, T0)
+        contracts.validate("Coverage", c, "1.1")
+        if c["state"] == "complete":
+            assert c["searched"] == c["total"] and c["pending"] == [] and c["failed"] == []
