@@ -20,10 +20,18 @@ class LaunchFailed(RuntimeError):
 
 class CoreProcess:
     def __init__(
-        self, data_dir: Path, socket_path: Path, *, config_factory: str = "host", allow_custom_factory: bool = False, python: str | None = None
+        self,
+        data_dir: Path,
+        socket_path: Path,
+        *,
+        config_factory: str = "host",
+        allow_custom_factory: bool = False,
+        python: str | None = None,
+        extra_args: tuple[str, ...] = (),
     ) -> None:
         self.data_dir, self.socket_path = data_dir, socket_path
         self._factory, self._custom, self._python = config_factory, allow_custom_factory, python or sys.executable
+        self._extra = extra_args  # e.g. --documents-source documents=FOLDER; never a secret (the code goes over stdin)
         self.bootstrap_code: str | None = None
         self.process: subprocess.Popen[bytes] | None = None
 
@@ -43,6 +51,7 @@ class CoreProcess:
         ]
         if self._custom:
             command.append("--allow-custom-factory")
+        command.extend(self._extra)
         env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "TMPDIR") if k in os.environ}
         env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
         self.process = subprocess.Popen(  # noqa: S603

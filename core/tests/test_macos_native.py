@@ -96,3 +96,64 @@ def test_an_unreadable_keychain_fails_closed_with_no_output_of_the_tool():
     with pytest.raises(KeychainError) as e:
         box.read("atlas-anything")
     assert "SECRET" not in str(e.value)
+
+
+# --- the whole production Core as a real child process on macOS: real Keychain, real sockets, real folders -------------------------------------------------------
+
+
+def test_the_production_core_starts_enrols_indexes_withdraws_stops_and_restarts_on_a_real_mac(tmp_path):
+    import shutil
+    import tempfile
+    import time
+    from pathlib import Path
+
+    from atlas_client import AtlasClient
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from atlas_core.launcher import CoreProcess
+
+    short = Path(tempfile.mkdtemp(prefix="atl", dir="/tmp"))  # macOS limits a Unix socket path to 104 bytes
+    docs = tmp_path / "Documents"
+    docs.mkdir()
+    (docs / "invoice.txt").write_text("Invoice ACME-2041: the total due is 1250.50 euro.")
+    sock = short / "run" / "core.sock"
+    data = tmp_path / "core-data"
+    signer, owner_id = Ed25519PrivateKey.generate(), "owner-native-0001"
+    items = KeychainItems()
+    names = ("task-store", "designation-store", "documents-index", "mail-index", "model-record")
+    created = [f"atlas-{n}" for n in names] + [KeychainAnchor.SERVICE]
+    for service in created:  # a clean runner has none; do not disturb anyone's real items
+        assert items.read(service) is None, "refusing to run against a Mac that already holds Atlas Keychain items"
+    cores: list[CoreProcess] = []
+
+    def launch() -> CoreProcess:
+        core = CoreProcess(data, sock, extra_args=("--documents-source", f"documents={docs}"))
+        cores.append(core)
+        core.start()
+        return core
+
+    try:
+        first = launch()
+        client = AtlasClient(str(sock), signer, owner_id)
+        assert client.enrol_self(bootstrap_code=first.bootstrap_code)["role"] == "owner"
+        grant = client.enable(["documents"])["grants"][0]["grant_id"]
+        for _ in range(300):
+            if client.index_status()["state"] == "idle":
+                break
+            time.sleep(0.1)
+        assert client.index_status()["state"] == "idle"
+        first.stop()
+        assert first.process.returncode == 0  # a clean shutdown on SIGTERM
+        second = launch()  # restart: no code is needed, the owner and the consent are still there, the Keychain keys open the encrypted stores
+        again = AtlasClient(str(sock), signer, owner_id)
+        state = again.consent()
+        assert [g["source_type"] for g in state["grants"]] == ["documents"] and state["grants"][0]["revoked"] is False
+        assert again.withdraw(grant)["grants"][0]["revoked"] is True
+        second.stop()
+        assert second.process.returncode == 0
+    finally:
+        for core in cores:
+            core.stop()
+        for service in created:
+            items.delete(service)
+        shutil.rmtree(short, ignore_errors=True)
