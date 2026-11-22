@@ -11,7 +11,7 @@ from __future__ import annotations
 import fcntl
 import os
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -60,6 +60,9 @@ class CoreConfig:
     clients: ClientRegistry | None = None  # None: a durable registry in the data folder (the normal case); tests inject one
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, folder)
     mailbox: tuple[str, Mailbox] | None = None  # (source type name, adapter)
+    records: Mapping[str, tuple[Mailbox, str]] = field(
+        default_factory=dict
+    )  # Stage 5 domains: source type -> (read-only record source, that store's own key); one encrypted index per type
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     allowed_uids: Iterable[int] | None = None
     egress: EgressGateway | None = None  # public-web research; None (the default) means the Core makes no outbound request at all
@@ -144,6 +147,12 @@ class Core:
         if c.mailbox is not None:
             name, adapter = c.mailbox
             self.indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
+        for name, (
+            source,
+            key,
+        ) in c.records.items():  # Finance, Health, Calendar, Contacts, Notes: the same guarded, exact, purgeable index as Mail, one store and one key per type
+            self.indexes[name] = MailIndex(c.data_dir / f"{name}.db", key, source, name, access=self.access)
+        self.designation.allow_adapter_types(c.records)
         self.tasks = TaskStore(c.data_dir / "tasks.db", c.task_key)
         models = ModelStore(c.data_dir / "models", c.manifest, c.model_record_key)
         self.gateway = Gateway(models, Router(c.manifest.entries()), c.runtime, signals=lambda: Signals(mode=self.mode.get()), log=c.log)

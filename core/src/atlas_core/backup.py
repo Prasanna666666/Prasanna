@@ -168,7 +168,7 @@ def create_backup(
             out = temp / name
             if name in DB_FILES:
                 if name not in db_keys:
-                    raise BackupError("missing_database_key")
+                    raise BackupError("missing_db_key")
                 rows: dict[str, int] | None = _snapshot(data_dir / name, out, db_keys[name])
             else:
                 shutil.copyfile(data_dir / name, out)
