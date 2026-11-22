@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 from .answer import NO_EVIDENCE_TEXT, AnswerInput, build_envelope, denied_envelope, stopped_envelope, withheld_envelope
 from .coverage import Provider as CoverageProvider
@@ -24,6 +24,15 @@ from .values import LanguageIn
 
 FINAL_STATE = {"verified": "completed", "partially_verified": "partially_completed", "unverified": "partially_completed"}
 FAIL_REASON = {"failed": "citation_failed"}
+
+
+class ConsentPort(Protocol):
+    """What the API needs for the owner's consent and the index status (implemented by `consent.ConsentService`; every call is audited and single-use by request id)."""
+
+    def state(self) -> dict[str, Any]: ...
+    def enable(self, sources: list[str], request_id: str) -> dict[str, Any]: ...
+    def revoke(self, grant_id: str, request_id: str) -> dict[str, Any]: ...
+    def index_status(self) -> dict[str, Any]: ...
 
 
 class SimulatedCrash(Exception):

@@ -186,7 +186,7 @@ paths:
     get:
       operationId: getConsent
       summary: The grants the owner has made and, per source, whether macOS access is granted. Only an owner-interactive client may call it (text only in WP3.1).
-      x-atlas-status: specification-only; not served
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
       parameters:
       - $ref: '#/components/parameters/ApiVersion'
       responses:
@@ -206,7 +206,7 @@ paths:
     post:
       operationId: createConsent
       summary: 'The single Get Started consent: enable the listed source types. Only an owner-interactive client may call it (text only in WP3.1).'
-      x-atlas-status: specification-only; not served
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
       requestBody:
         required: true
         content:
@@ -233,7 +233,7 @@ paths:
     delete:
       operationId: revokeConsent
       summary: Revoke one grant, effective at the next read or model boundary. Only an owner-interactive client may call it (text only in WP3.1).
-      x-atlas-status: specification-only; not served
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
       parameters:
       - $ref: '#/components/parameters/GrantId'
       - $ref: '#/components/parameters/ApiVersion'
@@ -255,7 +255,7 @@ paths:
     get:
       operationId: getIndexStatus
       summary: 'Counts about the search index: indexed, total, newest indexed, failed. Never content.'
-      x-atlas-status: specification-only; not served
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
       parameters:
       - $ref: '#/components/parameters/ApiVersion'
       responses:

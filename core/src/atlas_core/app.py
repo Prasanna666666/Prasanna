@@ -17,6 +17,7 @@ from typing import Any
 
 from .access import OSPermissionProvider, SourceAccess
 from .api import CoreApi
+from .consent import ConsentService
 from .designation import DesignationStore, RollbackAnchor
 from .documents import DocumentIndex
 from .events import SafeLog
@@ -113,7 +114,8 @@ class Core:
         )
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it
             self.designation.register_purge(source_type, self._purger(source_type, index))
-        self.api = CoreApi(self.service, c.clients, c.log, c.clock)
+        self.consent = ConsentService(self.designation, self.access, self.indexes)
+        self.api = CoreApi(self.service, c.clients, c.log, c.clock, consent=self.consent)
         self.server: UnixServer | None = None
         self._scanned: dict[str, datetime] = {}
         self._stop = threading.Event()

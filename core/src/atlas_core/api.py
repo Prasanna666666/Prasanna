@@ -20,7 +20,7 @@ from .contracts import ContractError, validate
 from .errors import CoreError, status_of, user_error
 from .events import SafeLog, new_id
 from .identity import H_VERSION, ClientRegistry
-from .service import TERMINAL, TaskService
+from .service import TERMINAL, ConsentPort, TaskService
 
 JSON = "application/json"
 SSE = "text/event-stream"
@@ -29,6 +29,8 @@ FOLLOW_SECONDS = 30.0  # a stream of an unfinished task is followed this long, t
 FOLLOW_POLL = 0.05
 HTTP_ERROR = 400  # a code whose status is below this is a task outcome, reported on the stream; as a direct reply it is a conflict
 ROUTE = re.compile(r"^/v1/(?:(version)|(tasks)|tasks/([A-Za-z0-9_-]{8,64})(?:/(cancel|answer|receipt|events))?)$")
+CONSENT = re.compile(r"^/v1/(?:(consent)|consent/([A-Za-z0-9_-]{8,64})|(index/status))$")  # API 1.1 only, and only when the Core was given a consent service
+H_NONCE_NAME = "x-atlas-nonce"
 
 
 @dataclass(frozen=True)
@@ -69,9 +71,15 @@ def _applied(request: Request, headers: dict[str, str]) -> str:
 
 class CoreApi:
     def __init__(
-        self, service: TaskService, registry: ClientRegistry, log: SafeLog, clock: Callable[[], datetime] | None = None, check_responses: bool = False
+        self,
+        service: TaskService,
+        registry: ClientRegistry,
+        log: SafeLog,
+        clock: Callable[[], datetime] | None = None,
+        check_responses: bool = False,
+        consent: ConsentPort | None = None,
     ) -> None:
-        self._service, self._registry, self._log = service, registry, log
+        self._service, self._registry, self._log, self._consent = service, registry, log, consent
         self._clock = clock or (lambda: datetime.now(UTC))
         self._check = check_responses  # tests: every JSON response must match its contract type
 
@@ -97,17 +105,46 @@ class CoreApi:
     def _dispatch(self, request: Request, headers: dict[str, str], correlation: str, version: str) -> Response:
         if len(request.body) > MAX_BODY_BYTES:
             raise CoreError("invalid_request")
-        self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
+        client = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
         parts = urlsplit(request.target)
         match = ROUTE.match(parts.path)
         if match is None:
-            raise CoreError("not_found")
+            owned = CONSENT.match(parts.path)
+            if owned is None or version != "1.1" or self._consent is None:
+                raise CoreError("not_found")
+            return self._consent_route(request, owned, client, headers.get(H_NONCE_NAME, ""))
         if match.group(1):
             return self._version(request)
         wanted = headers.get(H_VERSION)
         if wanted is not None and wanted not in SUPPORTED_VERSIONS:
             raise CoreError("unsupported_version")
         return self._route(request, match, parse_qs(parts.query), correlation, version)
+
+    def _consent_route(self, request: Request, match: re.Match[str], client: str, nonce: str) -> Response:
+        """The consent and index-status routes (1.1). Reading the index status is for any enrolled client; the consent state and every change need an enrolled OWNER client.
+        The signed request's nonce is the single-use id of a change, so replaying a request changes nothing (the identity layer already refuses it, the store refuses it again)."""
+        port, method = self._consent, request.method
+        if port is None:
+            raise CoreError("not_found")
+        if match.group(3):
+            if method != "GET":
+                raise CoreError("invalid_request")
+            return self._reply(200, port.index_status(), "IndexStatus", "1.1")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        request_id = f"n-{client}-{nonce}"[-64:] if nonce else ""
+        if match.group(1) and method == "GET":
+            return self._reply(200, port.state(), "ConsentState", "1.1")
+        if match.group(1) and method == "POST":
+            try:
+                body = json.loads(request.body)
+            except ValueError:
+                raise CoreError("invalid_request") from None
+            validate("ConsentRequest", body, "1.1")
+            return self._reply(201, port.enable(list(body["sources"]), request_id), "ConsentState", "1.1")
+        if match.group(2) and method == "DELETE":
+            return self._reply(200, port.revoke(match.group(2), request_id), "ConsentState", "1.1")
+        raise CoreError("invalid_request")
 
     def _version(self, request: Request) -> Response:
         if request.method != "GET":

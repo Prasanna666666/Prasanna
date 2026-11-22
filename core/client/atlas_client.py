@@ -110,6 +110,20 @@ class AtlasClient:
         )
         return str(record["task_id"])
 
+    def consent(self) -> dict[str, Any]:
+        """The owner's grants and, per source, whether macOS access is granted (an enrolled owner client only)."""
+        return self._json("GET", "/v1/consent")
+
+    def enable(self, sources: list[str]) -> dict[str, Any]:
+        """The single Get Started consent: enable these source types."""
+        return self._json("POST", "/v1/consent", {"sources": sources})
+
+    def withdraw(self, grant_id: str) -> dict[str, Any]:
+        return self._json("DELETE", f"/v1/consent/{grant_id}")
+
+    def index_status(self) -> dict[str, Any]:
+        return self._json("GET", "/v1/index/status")
+
     def cancel(self, task_id: str) -> dict[str, Any]:
         return self._json("POST", f"/v1/tasks/{task_id}/cancel")
 

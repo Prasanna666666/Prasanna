@@ -24,4 +24,4 @@ Status: implemented and tested on Linux CI with synthetic data. **The SwiftUI ma
 3. Client private key in the Keychain, enrolment of the owner client, and macOS peer-credential check (`LOCAL_PEERCRED`) on the socket.
 4. Source inspection that opens the cited passage: needs the cited span's text; API 1.0/1.1 carry only the quote, so the app shows the quote and locator, and a "show passage" call is **not in the contract** (a contract decision for the architect, recorded as a limitation).
 5. Real model behaviour, speed and memory (MLX): see `docs/genesis/INTELLIGENCE_AND_PERFORMANCE.md`; nothing in this package measures it.
-6. The consent and index-status routes (`/v1/consent`, `/v1/index/status`) remain specification-only; the client does not call them.
+6. The consent and index-status routes are served (`tests/test_consent_api.py`) and the reference client calls them (`consent`, `enable`, `withdraw`, `index_status`); the Get Started *screen* and the owner-client enrolment on a Mac are not built.

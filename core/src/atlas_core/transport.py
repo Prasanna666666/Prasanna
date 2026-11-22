@@ -123,7 +123,7 @@ class LocalHandler(BaseHTTPRequestHandler):
         self.wfile.write(response.body)
         self.close_connection = True
 
-    do_GET = do_POST = _serve
+    do_GET = do_POST = do_DELETE = _serve  # DELETE is used only by the 1.1 consent route; the API refuses it everywhere else
 
 
 def make_handler(api: CoreApi, allowed_uids: Iterable[int], read_timeout: float = READ_TIMEOUT) -> type[BaseHTTPRequestHandler]:

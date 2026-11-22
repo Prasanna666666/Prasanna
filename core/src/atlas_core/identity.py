@@ -42,6 +42,7 @@ def sign_request(  # noqa: PLR0913
 class _Client:
     key: Ed25519PublicKey
     revoked: bool = False
+    owner: bool = False  # an enrolled owner-interactive client: the only kind that may change consent
 
 
 class NonceCache:
@@ -66,8 +67,12 @@ class ClientRegistry:
         self._clients: dict[str, _Client] = {}
         self._nonces = NonceCache(self._rules.limit("nonce_ttl_seconds"))
 
-    def register(self, client_id: str, public_key: Ed25519PublicKey) -> None:
-        self._clients[client_id] = _Client(public_key)
+    def register(self, client_id: str, public_key: Ed25519PublicKey, *, owner: bool = False) -> None:
+        self._clients[client_id] = _Client(public_key, owner=owner)
+
+    def is_owner(self, client_id: str) -> bool:
+        client = self._clients.get(client_id)
+        return client is not None and client.owner and not client.revoked
 
     def revoke(self, client_id: str) -> None:
         if client_id in self._clients:

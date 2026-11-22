@@ -1,6 +1,6 @@
 # API 1.1: contract documentation (WP3.1, specification only)
 
-**Status:** specified and tested as a contract; **not served**. The Core still advertises only `1.0` (`SUPPORTED_VERSIONS = ("1.0",)`), a request for `1.1` is refused with `unsupported_version`, and none of the new endpoints exists on the running Core. Approved scope: PR #8 comments 7051135695, 7051242604, 7051300100, 7051339291; proposal `STAGE3_WP3_1_PROPOSAL.md` (v4).
+**Status:** specified, tested as a contract and **served since WP3.4** (additively, per request): the Core advertises `1.0` and `1.1`, applies 1.1 only to a request that asks for exactly `1.1` and signs it (six-field message), echoes the version, serves coverage and the model descriptor in the answer, and serves `/v1/consent`, `/v1/consent/{grant_id}` (an enrolled OWNER client only; the signed request's nonce is the single-use request id) and `/v1/index/status`. 1.0 behaviour and files are unchanged. `newest_indexed` is always null (not tracked). The text below was written when the contract was specification-only; where it says "not served" it is historical. Approved scope: PR #8 comments 7051135695, 7051242604, 7051300100, 7051339291; proposal `STAGE3_WP3_1_PROPOSAL.md` (v4).
 
 ## Files
 | File | Role |
@@ -14,7 +14,7 @@
 - Request header `X-Atlas-Api-Version`. **Absent means 1.0.** `1.0` selects 1.0. `1.1` selects 1.1 only when `GET /v1/version` advertises it. Any other value (another version, empty, repeated, non-text) is refused with `unsupported_version`; nothing is guessed (`contracts.negotiate`, tested).
 - **Echo.** In the 1.1 OpenAPI file only, every operation except `/v1/version` takes the optional `ApiVersion` parameter and every response carries `X-Atlas-Api-Version` with the version **applied**. A 1.1 client rejects a response whose echo is absent or different from the version it requested.
 - **`/v1/version` is the exception:** it is the unversioned discovery call, never negotiated, never refused for its version header, has no echo, and answers `{api_version, supported}` as in 1.0.
-- **Compatibility invariant (OpenAPI):** every 1.0 path and `operationId` is preserved. The only permitted differences on an existing operation are the `ApiVersion` parameter, the response echo header, the versioned error response, and schema references pointing at the 1.1 document. Three new paths are added and marked `x-atlas-status: specification-only; not served`.
+- **Compatibility invariant (OpenAPI):** every 1.0 path and `operationId` is preserved. The only permitted differences on an existing operation are the `ApiVersion` parameter, the response echo header, the versioned error response, and schema references pointing at the 1.1 document. Three new paths are added and marked `x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)` (they were `specification-only; not served` in WP3.1).
 - **Validation:** `contracts.validate(name, value)` means 1.0 and never applies a 1.1 requirement; `validate(name, value, version="1.1")` uses the 1.1 document.
 
 ## The merge (`contracts.build_1_1`)

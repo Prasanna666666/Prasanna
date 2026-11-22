@@ -34,6 +34,7 @@ LAYER = {
     "answer": 5,
     "tasks": 5,
     "service": 6,
+    "consent": 6,
     "api": 7,
     "transport": 8,
     "app": 9,
