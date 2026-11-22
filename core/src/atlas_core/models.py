@@ -216,6 +216,10 @@ class ModelStore:
         self.root, self._manifest, self._key = root, manifest, record_key
         self.full_hashes = 0  # tests: how many full digests were computed (a load of an unchanged, read-only model computes none)
 
+    def entry(self, model_id: str) -> ManifestEntry:
+        """The approved entry (raises ModelRejected `not_in_manifest`)."""
+        return self._manifest.get(model_id)
+
     def _dir(self, entry: ManifestEntry) -> Path:
         return self.root / entry.model_id
 
@@ -280,11 +284,7 @@ class ModelStore:
         return True
 
 
-def mode_is_read_only(path: Path) -> bool:
-    return _read_only(path)
-
-
 __all__ = [
     "ALLOWED_SUFFIXES", "CAPABILITIES", "EXCLUDED_JURISDICTIONS", "ROLES", "RUNTIMES", "FileDigest", "Manifest", "ManifestEntry", "ModelRejected", "ModelStore",
-    "VerifiedModel", "canonical", "mode_is_read_only", "parse_entry", "sha256_file",
+    "VerifiedModel", "canonical", "parse_entry", "sha256_file",
 ]  # fmt: skip

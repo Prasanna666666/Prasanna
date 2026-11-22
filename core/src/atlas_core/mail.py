@@ -20,7 +20,7 @@ import heapq
 import json
 import re
 import threading
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +29,7 @@ from typing import Any, Protocol
 from kit.db import connect
 
 from .access import AccessCheck
-from .documents import _WORD, RESULT_LIMIT, IndexStore, paragraph_blocks, terms
+from .documents import FETCH_CHUNK, IndexStore, paragraph_blocks, terms
 from .evidence import StoredSource, sha256_text
 from .policy import PermissionRevoked
 from .rules import Rules, load_rules
@@ -42,7 +42,7 @@ MAX_MALFORMED_ROWS = (
 )
 PAGE_SIZE = 500  # the most the Core asks for, and accepts, in one adapter call: nothing unbounded is ever materialised
 MAX_LIST_WORK = 200_000  # the most listing entries examined in one scan, whatever the adapter does
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: the postings table (term -> message)
 _ID = re.compile(r"[A-Za-z0-9._@<>+=-]{1,200}\Z")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -265,7 +265,7 @@ class MailIndex(IndexStore):
             self._conn.executescript(_SCHEMA)
             if self._conn.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:
                 raise ValueError("newer index than this code understands")
-            self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        self._prepare_postings(self._texts)
 
     def close(self) -> None:
         self._conn.close()
@@ -328,6 +328,7 @@ class MailIndex(IndexStore):
         for ordinal in range(min(malformed, MAX_MALFORMED_ROWS)):
             self._note_malformed(ordinal, gen)  # a failed row with a synthetic identity: the malformed value itself is never stored
         self._hit("scan:mid")
+        self._conn.execute("DELETE FROM postings WHERE key IN (SELECT message_id FROM msgs WHERE seen_gen < ?)", (gen,))
         self._conn.execute("DELETE FROM msgs WHERE seen_gen < ?", (gen,))
         self._set_meta("generation", str(gen))
         self._set_meta("scan_cut_off", "1" if cut_off or malformed > MAX_MALFORMED_ROWS else "0")
@@ -350,6 +351,7 @@ class MailIndex(IndexStore):
             stamp = to_epoch(item.date) if item.date else None
         except ValueError:
             stamp = None
+        self._conn.execute("DELETE FROM postings WHERE key=?", (item.message_id,))
         self._conn.execute(
             "INSERT OR REPLACE INTO msgs (message_id, source_id, status, reason, version, sort_ts, seen_gen) VALUES (?,?,?,?,?,?,?)",
             (item.message_id, source_id_for(item.message_id), "pending", None, item.version, stamp, gen),
@@ -395,10 +397,12 @@ class MailIndex(IndexStore):
         fields: tuple[Any, ...] = (None, None, None, None, None, None)
         if parsed is not None:
             fields = (sha256_text(parsed.text()), parsed.sort_ts, parsed.sender, parsed.date, parsed.subject, parsed.body)
-        self._conn.execute(
+        changed = self._conn.execute(
             "UPDATE msgs SET status=?, reason=?, content_sha=?, sort_ts=COALESCE(?, sort_ts), sender=?, date=?, subject=?, body=? WHERE message_id=? AND status='pending'",
             (status, reason, *fields, message_id),
-        )
+        ).rowcount
+        if changed and parsed is not None:
+            self._post(message_id, parsed.text())
         self._hit("msg:mid_commit")
 
     def purge(self) -> None:
@@ -406,6 +410,7 @@ class MailIndex(IndexStore):
 
         def wipe() -> None:
             self._conn.execute("DELETE FROM msgs")
+            self._conn.execute("DELETE FROM postings")
             self._conn.execute("DELETE FROM meta")
 
         self._transaction(wipe, guarded=False)  # the purge is what a revocation triggers: it must always be able to run
@@ -465,28 +470,19 @@ class MailIndex(IndexStore):
         if source_type != self.source_type or not words:
             return []
         self._require()
-        scored: list[tuple[int, float, str, int, dict[str, Any]]] = []
-        for row in self._indexed():
-            for ordinal, passage in enumerate(self._passages(row)):
-                hits = sum(1 for w in words if w in set(_WORD.findall(passage["text"].lower())))
-                if hits:
-                    scored.append((-hits, -(row["sort_ts"] or 0.0), row["message_id"], ordinal, passage))
-        scored.sort(key=lambda s: s[:4])
-        verified: dict[str, bool] = {}
-        out: list[dict[str, Any]] = []
-        for *_, passage in scored:
-            sid = passage["evidence"]["source_id"]
-            if sid not in verified:
-                verified[sid] = self.get(sid) is not None  # re-read and re-hashed once per message
-            if verified[sid]:
-                out.append(passage)
-            if len(out) >= RESULT_LIMIT:
-                break
-        return out
+        return self._rank(words, self._fetch, self._passages, lambda row: (-(row["sort_ts"] or 0.0), row["message_id"]), lambda sid: self.get(sid) is not None)
 
-    def _indexed(self) -> list[Any]:
+    def _fetch(self, keys: list[str]) -> list[Any]:
+        rows: list[Any] = []
         with self._lock:
-            return self._conn.execute("SELECT * FROM msgs WHERE status='indexed' ORDER BY (sort_ts IS NULL), sort_ts DESC, message_id").fetchall()
+            for at in range(0, len(keys), FETCH_CHUNK):
+                part = keys[at : at + FETCH_CHUNK]
+                rows += self._conn.execute(f"SELECT * FROM msgs WHERE status='indexed' AND message_id IN ({','.join('?' for _ in part)})", part).fetchall()
+        return rows
+
+    def _texts(self) -> Iterator[tuple[str, str]]:
+        for row in self._conn.execute("SELECT * FROM msgs WHERE status='indexed'"):
+            yield row["message_id"], Parsed(row["message_id"], row["sender"], row["date"], row["subject"], row["body"], row["sort_ts"] or 0.0).text()
 
     def _passages(self, row: Any) -> list[dict[str, Any]]:
         parsed = Parsed(row["message_id"], row["sender"], row["date"], row["subject"], row["body"], row["sort_ts"] or 0.0)

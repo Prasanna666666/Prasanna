@@ -13,6 +13,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
+from functools import partial
 from typing import Protocol
 
 from .gate import ModelAnswer, ModelContext, ModelUnavailable
@@ -20,9 +21,6 @@ from .models import ManifestEntry, ModelRejected, ModelStore, VerifiedModel
 
 ROUTE_POLICY_VERSION = "1"
 MODES = ("default", "research")
-REASONS = (  # closed; content-free
-    "primary", "research_deep", "fallback_unavailable", "fallback_memory", "fallback_failed", "capability_required", "reduced_context", "refused_memory",
-)  # fmt: skip
 MAX_CONCURRENCY = 2  # one interactive plus one background
 DEFAULT_CONTEXT = 32768
 
@@ -38,15 +36,6 @@ class ModelRuntime(Protocol):
     def unload(self, model_id: str) -> None: ...
     def loaded(self) -> frozenset[str]: ...
     def complete(self, model_id: str, context: ModelContext, max_context: int) -> ModelAnswer: ...
-
-
-@dataclass(frozen=True)
-class Identity:
-    """Content-free description of the model that answered (maps to the API 1.1 ModelDescriptor)."""
-
-    model_id: str
-    role: str
-    runtime: str
 
 
 @dataclass(frozen=True)
@@ -168,7 +157,14 @@ class DegradationPlanner:
 
 
 class Gateway:
-    """`ModelGateway` implementation: verified models only, deterministic routing, capability-preserving fallback, one answer per call carrying the model identity."""
+    """`ModelGateway` implementation: verified models only, deterministic routing, capability-preserving fallback, one answer per call carrying the model identity.
+
+    Two models are never resident together and a model is never unloaded while an inference is using it: a request that needs a different model waits until the running ones finish.
+    When memory is short the recorded degradation order is followed step by step (`DegradationPlanner`): background work is held, rebuildable caches are evicted (`evict`), the
+    context shrinks, then the next model in the chain (a smaller, pre-approved profile, disclosed by the identity on the answer) is tried, then the request is refused. Never swap
+    to disk, never go remote."""
+
+    MIN_CONTEXT = 4096
 
     def __init__(
         self,
@@ -178,16 +174,19 @@ class Gateway:
         scheduler: Scheduler | None = None,
         memory: MemoryProbe | None = None,
         signals: Callable[[], Signals] | None = None,
-        deep_extra_bytes: int = 0,
+        evict: Callable[[], None] | None = None,
     ) -> None:
         self._store, self._router, self._rt = store, router, runtime
         self._sched = scheduler or Scheduler()
-        self._memory, self._signals = memory, signals or Signals
+        self._memory, self._signals, self._evict = memory, signals or Signals, evict or (lambda: None)
         self.context_tokens = DEFAULT_CONTEXT
-        self._lock = threading.Lock()
-        self._deep_extra = deep_extra_bytes
+        self.background_held = False  # set while memory is short: background requests are refused (ModelUnavailable "held") instead of competing
+        self._planner = DegradationPlanner()
+        self._cond = threading.Condition()
+        self._active: dict[str, int] = {}  # model id -> inferences running on it
 
-    def _ensure_loaded(self, entry: ManifestEntry) -> None:
+    def _prepare(self, entry: ManifestEntry) -> None:
+        """Make `entry` the one loaded model. Called with the condition held and no other model in use."""
         if entry.model_id in self._rt.loaded():
             if not self._store.still_verified(self._store.verify_for_load(entry.model_id)):
                 self._rt.unload(entry.model_id)
@@ -195,20 +194,40 @@ class Gateway:
             return
         for other in sorted(self._rt.loaded()):  # one resident model at a time (the deep tier: the primary is unloaded first): a fallback replaces, never joins
             self._rt.unload(other)
-        if self._memory is not None and self._memory.available_bytes() < entry.resident_bytes + self._deep_extra:
-            raise RuntimeFailure("memory")
+        self._make_room(entry.resident_bytes)
         verified = self._store.verify_for_load(entry.model_id)
         self._rt.load(verified)
         if not self._store.still_verified(verified):
             self._rt.unload(entry.model_id)
             raise ModelRejected("identity_changed")
 
+    def _make_room(self, needed: int) -> None:
+        if self._memory is None:
+            return
+        self._planner.reset()
+        while (missing := needed - self._memory.available_bytes()) > 0:
+            step = self._planner.next_step(missing).action
+            if step in ("stop_background", "pause_background"):
+                self.background_held = True
+            elif step == "evict_caches":
+                self._evict()
+            elif step == "shrink_context":
+                self.context_tokens = max(self.MIN_CONTEXT, self.context_tokens // 2)
+            else:  # reduced_profile: this model does not fit, the caller moves to the next one in the chain; refuse: there is none (the caller reports unavailable)
+                raise RuntimeFailure("memory")
+        self.background_held, self.context_tokens = False, DEFAULT_CONTEXT
+
+    def _only_using(self, model_id: str) -> bool:
+        return all(m == model_id for m, n in self._active.items() if n)
+
     def _entry(self, model_id: str) -> ManifestEntry:
-        return self._store._manifest.get(model_id)
+        return self._store.entry(model_id)
 
     def generate(self, context: ModelContext) -> ModelAnswer:
         signals = self._signals()
         route = self._router.route(signals)
+        if signals.priority == "background" and self.background_held:
+            raise ModelUnavailable("held")
         kind = signals.priority
         if not self._sched.acquire(kind, timeout=30):
             raise ModelUnavailable("busy")
@@ -221,9 +240,17 @@ class Gateway:
         for model_id in route.chain:
             entry = self._entry(model_id)
             try:
-                with self._lock:
-                    self._ensure_loaded(entry)
-                answer = self._rt.complete(model_id, context, min(self.context_tokens, entry.context_tokens))
+                with self._cond:
+                    self._cond.wait_for(partial(self._only_using, entry.model_id))  # nobody is using a different model
+                    self._prepare(entry)
+                    self._active[entry.model_id] = self._active.get(entry.model_id, 0) + 1
+                context_tokens = min(self.context_tokens, entry.context_tokens)
+                try:
+                    answer = self._rt.complete(model_id, context, context_tokens)
+                finally:
+                    with self._cond:
+                        self._active[entry.model_id] -= 1
+                        self._cond.notify_all()
             except (RuntimeFailure, ModelRejected):
                 continue
             return replace(answer, identity=(entry.model_id, entry.role, entry.runtime))
@@ -231,6 +258,6 @@ class Gateway:
 
 
 __all__ = [
-    "DEFAULT_CONTEXT", "MAX_CONCURRENCY", "MODES", "ORDER", "REASONS", "ROUTE_POLICY_VERSION", "DegradationPlanner", "DegradationStep", "Gateway", "Identity", "MemoryProbe",
+    "DEFAULT_CONTEXT", "MAX_CONCURRENCY", "MODES", "ORDER", "ROUTE_POLICY_VERSION", "DegradationPlanner", "DegradationStep", "Gateway", "MemoryProbe",
     "ModelRuntime", "Route", "Router", "RuntimeFailure", "Scheduler", "Signals",
 ]  # fmt: skip

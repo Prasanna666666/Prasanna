@@ -249,3 +249,84 @@ def test_rejection_reasons_are_codes_not_paths(tmp_path):
     with pytest.raises(ModelRejected) as e:
         store.import_model("tfb")
     assert str(tmp_path) not in str(e.value) and e.value.reason == "digest_mismatch"
+
+
+class Shrinking:
+    """Free memory that grows by one step each time the gateway takes a degradation action."""
+
+    def __init__(self, free: int, gain: int) -> None:
+        self.free, self.gain, self.log = free, gain, []
+
+    def available_bytes(self) -> int:
+        return self.free
+
+    def freed(self, action: str) -> None:
+        self.log.append(action)
+        self.free += self.gain
+
+
+def test_memory_pressure_follows_the_recorded_order_and_stops_as_soon_as_the_model_fits(tmp_path):
+    mem = Shrinking(0, 40)  # the primary needs 100: three actions free enough
+    gw, *_ = world(tmp_path, memory=mem, evict=lambda: mem.freed("evict_caches"))
+    gw._memory = mem
+    real_next = gw._planner.next_step
+
+    def next_step(missing):
+        step = real_next(missing)
+        if step.action != "evict_caches":
+            mem.freed(step.action)
+        return step
+
+    gw._planner.next_step = next_step
+    assert gw.generate(context()[0]).identity[0] == "prim"
+    assert mem.log == ["stop_background", "evict_caches", "pause_background"] and gw.background_held is False and gw.context_tokens == 32768
+
+
+def test_when_nothing_frees_enough_the_next_smaller_model_is_tried_then_the_request_is_refused(tmp_path):
+    class Fixed:
+        def available_bytes(self):
+            return 50  # every model in this world needs 100
+
+    gw, rt, *_ = world(tmp_path, memory=Fixed())
+    with pytest.raises(ModelUnavailable):
+        gw.generate(context()[0])
+    assert (
+        gw.context_tokens == 4096 and gw.background_held is True and rt.loaded() == frozenset()
+    )  # shrunk, background held, nothing loaded; never swapped, never remote
+    bg = Signals(priority="background")
+    gw._signals = lambda: bg
+    with pytest.raises(ModelUnavailable, match="held"):
+        gw.generate(context()[0])
+
+
+def test_a_model_is_never_unloaded_while_another_request_is_using_it(tmp_path):
+    gw, rt, *_ = world(tmp_path)
+    inside, release, order = threading.Event(), threading.Event(), []
+    real = rt.complete
+
+    def slow(model_id, ctx, n):
+        order.append(("start", model_id))
+        if model_id == "prim":
+            inside.set()
+            release.wait(5)
+        order.append(("end", model_id))
+        return real(model_id, ctx, n)
+
+    rt.complete = slow
+    first = threading.Thread(target=lambda: gw.generate(context()[0]))
+    first.start()
+    assert inside.wait(5)
+    results = {}
+
+    def deep():
+        gw._signals = lambda: Signals(mode="research", priority="background")
+        results["x"] = gw.generate(context()[0]).identity[0]
+
+    second = threading.Thread(target=deep)
+    second.start()
+    time.sleep(0.2)
+    assert ("unload", "prim") not in rt.history and rt.max_resident == 1  # the deep model waits for the primary's inference to finish
+    release.set()
+    first.join(5)
+    second.join(5)
+    assert results["x"] == "deep" and order.index(("end", "prim")) < order.index(("start", "deep")) and rt.max_resident == 1

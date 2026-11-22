@@ -18,7 +18,7 @@ import re
 import shutil
 import stat
 import threading
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path, PurePosixPath
@@ -37,10 +37,18 @@ MAX_BLOCKS = 5_000  # a document that would need more blocks is 'oversized' (a p
 MAX_FILES = 20_000  # a folder with more files is scanned only that far and says so: coverage is never complete
 MIN_FREE_BYTES = 64 * 1024 * 1024  # below this much free disk, indexing pauses (and says so) instead of failing halfway
 RESULT_LIMIT = 8
-SCHEMA_VERSION = 1
+FETCH_CHUNK = 500  # keys per query (well under SQLite's limit on bound parameters)
+MIN_WORD = 2  # words shorter than this are neither indexed nor searched
+SCHEMA_VERSION = 2  # 2: the postings table (term -> document) that keeps search from reading every document
 _BREAK = re.compile(r"\n[ \t\r]*\n")  # a blank line ends a paragraph
+
+
 # A word is letters and digits plus the combining marks that belong to a letter (Python's \w leaves these out, which cut Hindi, Thai, Hebrew-with-points and Arabic-with-vowels
 # words into fragments). The Devanagari danda (U+0964, U+0965) is punctuation, not a word character.
+def _tokens(text: str) -> list[str]:
+    return _WORD.findall(text.lower())
+
+
 _WORD = re.compile(
     r"[\w\u0300-\u036f\u0483-\u0489\u0591-\u05c7\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06dc\u0900-\u0963\u0966-\u0dff\u0e00-\u0e7f\u0f00-\u0fff\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff]+"
 )
@@ -244,7 +252,7 @@ def source_id_for(rel_path: str) -> str:
 
 
 def terms(query: str) -> list[str]:
-    return sorted({w for w in (m.group(0).lower() for m in _WORD.finditer(query)) if len(w) >= 2})  # noqa: PLR2004
+    return sorted({w for w in (m.group(0).lower() for m in _WORD.finditer(query)) if len(w) >= MIN_WORD})
 
 
 _SCHEMA = """
@@ -253,6 +261,10 @@ CREATE TABLE IF NOT EXISTS docs (
   mtime REAL, created TEXT, text TEXT, blocks TEXT, seen_gen INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS docs_order ON docs (status, mtime DESC, rel_path);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+"""
+POSTINGS_DDL = """
+CREATE TABLE IF NOT EXISTS postings (term TEXT NOT NULL, key TEXT NOT NULL, PRIMARY KEY (term, key)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS postings_key ON postings (key);
 """
 
 
@@ -275,6 +287,77 @@ class IndexStore:
 
     def _set_meta(self, key: str, value: str) -> None:
         self._conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)", (key, value))
+
+    # -- the term index: which documents contain a word, so a search reads only those ----------------------------------------------------------------------
+    def _post(self, key: str, text: str) -> None:
+        """Record the words of one indexed text (inside the caller's transaction, replacing any earlier record of that key)."""
+        self._conn.execute("DELETE FROM postings WHERE key=?", (key,))
+        self._conn.executemany("INSERT OR IGNORE INTO postings (term, key) VALUES (?,?)", [(w, key) for w in {w for w in _tokens(text) if len(w) >= MIN_WORD}])
+
+    def _prepare_postings(self, texts: Callable[[], Iterable[tuple[str, str]]]) -> None:
+        """Create the term table; an index written before it existed is filled from what it already holds (one transaction)."""
+        with self._lock:
+            self._conn.executescript(POSTINGS_DDL)
+            if self._conn.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:
+                self._conn.execute("BEGIN IMMEDIATE")
+                try:
+                    self._conn.execute("DELETE FROM postings")
+                    for key, text in texts():
+                        self._post(key, text)
+                    self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+                    self._conn.execute("COMMIT")
+                except BaseException:
+                    self._conn.execute("ROLLBACK")
+                    raise
+
+    def _bounds(self, words: Sequence[str]) -> list[tuple[str, int]]:
+        """(key, number of the query words the document contains) for every document that contains at least one, most first. The count is an upper bound on any one passage's hits."""
+        marks = ",".join("?" for _ in words)
+        with self._lock:
+            rows = self._conn.execute(
+                f"SELECT key, count(*) AS n FROM postings WHERE term IN ({marks}) GROUP BY key ORDER BY n DESC, key", list(words)
+            ).fetchall()
+        return [(r["key"], r["n"]) for r in rows]
+
+    def _rank(
+        self,
+        words: Sequence[str],
+        fetch: Callable[[list[str]], list[Any]],
+        passages_of: Callable[[Any], Iterable[dict[str, Any]]],
+        order: Callable[[Any], tuple[Any, ...]],
+        verify: Callable[[str], bool],
+    ) -> list[dict[str, Any]]:
+        """The best `RESULT_LIMIT` verified passages: most query words first, then `order` (newest first), then position. Documents are examined in groups from the most promising
+        down, and the search stops as soon as the best passages found so far have more hits than any remaining group could reach, so a common word never makes it read everything.
+        The result is exactly what ranking every passage of every document would give."""
+        bounds = self._bounds(words)
+        scored: list[tuple[Any, ...]] = []
+        verified: dict[str, bool] = {}
+        start = 0
+        while start < len(bounds):
+            end = start
+            while end < len(bounds) and bounds[end][1] == bounds[start][1]:
+                end += 1
+            for row in fetch([key for key, _ in bounds[start:end]]):
+                for number, passage in enumerate(passages_of(row)):
+                    found = set(_tokens(passage["text"]))
+                    hits = sum(1 for w in words if w in found)
+                    if hits:
+                        scored.append((-hits, *order(row), number, passage))
+            start = end
+            best: list[tuple[Any, ...]] = []
+            for item in sorted(scored, key=lambda s: s[:-1]):
+                sid = item[-1]["evidence"]["source_id"]
+                if sid not in verified:
+                    verified[sid] = verify(sid)  # re-checked against the source itself, once per document
+                if verified[sid]:
+                    best.append(item)
+                if len(best) >= RESULT_LIMIT:
+                    break
+            remaining = bounds[start][1] if start < len(bounds) else 0
+            if len(best) >= RESULT_LIMIT and -best[-1][0] > remaining:
+                break
+        return [item[-1] for item in best] if bounds else []
 
     def _transaction(self, body: Callable[[], None], *, guarded: bool = True) -> None:
         """One atomic write. Unless `guarded=False` (only the purge that a revocation triggers), access is checked again while the index lock is held and immediately before the
@@ -316,7 +399,7 @@ class DocumentIndex(IndexStore):
             self._conn.executescript(_SCHEMA)
             if self._conn.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:
                 raise ValueError("newer index than this code understands")
-            self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        self._prepare_postings(lambda: ((r["rel_path"], r["text"]) for r in self._conn.execute("SELECT rel_path, text FROM docs WHERE status='indexed'")))
 
     def close(self) -> None:
         self._conn.close()
@@ -344,6 +427,7 @@ class DocumentIndex(IndexStore):
         for item in found:
             self._note_file(item, gen)
         self._hit("scan:mid")
+        self._conn.execute("DELETE FROM postings WHERE key IN (SELECT rel_path FROM docs WHERE seen_gen < ?)", (gen,))
         self._conn.execute("DELETE FROM docs WHERE seen_gen < ?", (gen,))  # a source that is gone is gone: its text and passages with it
         self._set_meta("generation", str(gen))
         self._set_meta("scan_cut_off", "1" if cut_off else "0")
@@ -359,6 +443,7 @@ class DocumentIndex(IndexStore):
         if row is not None and (row["size"], row["mtime"]) == (item.size, item.mtime) and row["status"] in ("indexed", status):
             self._conn.execute("UPDATE docs SET seen_gen=? WHERE rel_path=?", (gen, item.rel_path))
             return  # unchanged since it was last indexed (or last judged): nothing to redo
+        self._conn.execute("DELETE FROM postings WHERE key=?", (item.rel_path,))  # a changed file is answered from nothing until it is indexed again
         self._conn.execute(
             "INSERT OR REPLACE INTO docs (rel_path, source_id, status, reason, size, mtime, seen_gen) VALUES (?,?,?,?,?,?,?)",
             (item.rel_path, source_id_for(item.rel_path), status, reason, item.size, item.mtime, gen),
@@ -416,10 +501,12 @@ class DocumentIndex(IndexStore):
         text = json_blocks = created = None
         if extracted is not None:
             text, json_blocks, created = extracted.text, json.dumps(extracted.blocks), extracted.created
-        self._conn.execute(
+        changed = self._conn.execute(
             "UPDATE docs SET status=?, reason=?, content_sha=?, text=?, blocks=?, created=? WHERE rel_path=? AND status='pending'",
             (status, reason, content_sha, text, json_blocks, created, rel_path),
-        )
+        ).rowcount
+        if changed and text is not None:
+            self._post(rel_path, text)
         self._hit("doc:mid_commit")
 
     # -- the owner revokes the designation: nothing stays behind ------------------------------------------------------------------------------------
@@ -428,6 +515,7 @@ class DocumentIndex(IndexStore):
 
         def wipe() -> None:
             self._conn.execute("DELETE FROM docs")
+            self._conn.execute("DELETE FROM postings")
             self._conn.execute("DELETE FROM meta")
 
         self._transaction(wipe, guarded=False)  # the purge is what a revocation triggers: it must always be able to run
@@ -484,24 +572,21 @@ class DocumentIndex(IndexStore):
         if source_type != self.source_type or not words:
             return []
         self._require()
-        scored: list[tuple[int, float, str, int, dict[str, Any]]] = []
-        for row in self._indexed():
-            for number, (start, end) in enumerate(json.loads(row["blocks"])):
-                hits = sum(1 for w in words if w in set(_WORD.findall(row["text"][start:end].lower())))
-                if hits:
-                    scored.append((-hits, -(row["mtime"] or 0.0), row["rel_path"], number, self._passage(row, number, start, end)))
-        scored.sort(key=lambda s: s[:4])
-        verified: dict[str, bool] = {}
-        out: list[dict[str, Any]] = []
-        for *_, passage in scored:
-            sid = passage["evidence"]["source_id"]
-            if sid not in verified:
-                verified[sid] = self.get(sid) is not None  # re-checked against the bytes on disk, once per document
-            if verified[sid]:
-                out.append(passage)
-            if len(out) >= RESULT_LIMIT:
-                break
-        return out
+        return self._rank(
+            words, self._fetch, self._block_passages, lambda row: (-(row["mtime"] or 0.0), row["rel_path"]), lambda sid: self.get(sid) is not None
+        )
+
+    def _fetch(self, keys: list[str]) -> list[Any]:
+        rows: list[Any] = []
+        with self._lock:
+            for at in range(0, len(keys), FETCH_CHUNK):
+                part = keys[at : at + FETCH_CHUNK]
+                rows += self._conn.execute(f"SELECT * FROM docs WHERE status='indexed' AND rel_path IN ({','.join('?' for _ in part)})", part).fetchall()
+        return rows
+
+    def _block_passages(self, row: Any) -> Iterator[dict[str, Any]]:
+        for number, (start, end) in enumerate(json.loads(row["blocks"])):
+            yield self._passage(row, number, start, end)
 
     def _indexed(self) -> Iterator[Any]:
         with self._lock:

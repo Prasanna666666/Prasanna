@@ -32,6 +32,12 @@ Machine: Linux x86_64, Python 3.13, 4 CPUs (a cloud development container). Run 
 | Documents (plain text) | 1,400 | 0.7 s | 285 / 311 / 315 ms | 6 MB |
 Peak resident memory of the benchmark process: 142 MB.
 
-**Finding.** Search reads every indexed row (a linear scan), so its time grows with the amount indexed: about 2.9 s per mail search at the owner's stated scale on this machine. The plan's provisional target for a simple request is first useful output under 2 s *including the model*; retrieval alone already exceeds that here. This does not predict the Mac, but it shows the lexical scan will not scale to the owner's mailbox and needs an inverted index (for example SQLite FTS5 if the encrypted-database build provides it) before the performance gate can be met. This is recorded as a limitation and a recommended follow-up; it is not fixed in this package because retrieval ranking semantics are covered by reviewed tests and no threshold has been agreed. Quality was not measured with this run (retrieval and answer quality are in `evals/harness.py`).
+**Finding and fix.** The first run (above, before the fix) showed search reading every indexed row: **2,927 ms p50 for 26,000 mail items**. That was fixed in the same stage: both indexes now keep a term table (`postings`: word → item, encrypted with the rest of the index) and search reads only items that contain a query word, in groups from most matching words down, stopping when the best passages found cannot be beaten. Ranking is unchanged: `tests/test_search_index.py` compares the result with the old rank-everything algorithm on random corpora (ties included, English, Greek, Cyrillic and Devanagari words) and mutation checks prove the tests notice a missing update, a changed tie rule or a stale term row; an older database is upgraded in place.
+
+| Source | Items | Index time | Search p50 / p95 / max (50 queries) | Database size |
+|---|---|---|---|---|
+| Mail | 26,000 | 198 s | **41 / 59 / 62 ms** | 312 MB |
+| Documents | 1,400 | 14.8 s | **7.6 / 10.5 / 15.6 ms** | 35 MB |
+Same machine and generator, single run, **measured while other test jobs were running on the same 4 CPUs**, so the index times are inflated by an unknown factor and must not be compared with the first run's 23.5 s and 0.7 s; the search times are less sensitive. Cost of the fix: the database is about 5.5x larger (the term table). Queries here use rare tokens; a query made only of very common words reads more, but never more than the old scan. Quality was not measured with this run (retrieval and answer quality are in `evals/harness.py`).
 
 Not measured: cold vs warm, p99, a real Mail store, real files, FileVault, concurrency under indexing load on the Mac, and any model latency.

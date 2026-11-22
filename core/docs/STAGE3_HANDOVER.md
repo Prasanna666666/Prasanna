@@ -13,17 +13,18 @@ Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Writte
 | WP3.7 | acceptance traceability and this handover | `STAGE3_ACCEPTANCE.md` |
 
 ## How to reproduce (from `core/`)
-`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (900 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
+`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (913 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
 
 ## Rollback
 Additive: revert the branch commits (nothing outside `core/` and the CI job changed). New stores only; no legacy store, key or component was migrated or retired (criterion 15). One behaviour changed inside the new Core: finished tasks no longer keep passage text, draft or quotes (no migration; earlier checkpoints are scrubbed when their task ends). API 1.0 behaviour and bytes are unchanged; 1.1 is opt-in per request.
 
 ## Decisions I need from the architect (not the owner)
-1. **Criterion 5 / G-021:** the policy denies Finance and Health (`restricted_domain`) and an existing test pins that; the plan says owner-authorised Finance/Health may enter the local model context. Confirm the intended change (policy data plus a source package), since I have not touched policy semantics.
-2. **Typed capabilities (criterion 7):** the contract has no field to request one, so exact services are not reachable from a request. Decide an additive 1.2 delta (or keep them as verifier-only).
-3. **Source inspection:** answers carry the quote and locator; "show the passage" has no route. Decide whether to add one.
-4. **Retrieval scale:** a search scans every indexed item (2.9 s p50 for 26,000 mail items on a development container). Decide the index design (FTS5 or other) and the numeric thresholds, which the plan says must be proposed from a measured baseline and accepted first.
-5. **`SafeEvent.reason_code`** is closed: routing reasons (`fallback_memory` etc.) cannot be emitted as events without an additive change; the gateway keeps them internal for now.
+Each has a recommended default so that a plain "approved" settles it:
+1. **Criterion 5 / G-021 (recommended: approve a separate Finance/Health source package; do not loosen policy first):** the policy denies Finance and Health (`restricted_domain`) and an existing test pins that; the plan says owner-authorised Finance/Health may enter the local model context. Confirm the intended change (policy data plus a source package), since I have not touched policy semantics.
+2. **Typed capabilities (criterion 7) (recommended: additive 1.2 field `capability`, closed enum, always through the same policy gate):** the contract has no field to request one, so exact services are not reachable from a request. Decide an additive 1.2 delta (or keep them as verifier-only).
+3. **Source inspection (recommended: `GET /v1/tasks/{id}/citations/{n}` returning the cited span's text, revalidated against grants):** answers carry the quote and locator; "show the passage" has no route. Decide whether to add one.
+4. **Performance thresholds:** retrieval scale is **fixed** (term index; 2.9 s to 41 ms p50 at 26,000 synthetic mail items, 285 to 7.6 ms at 1,400 documents, developer container). Numeric pass thresholds still need to be proposed from a Mac baseline and accepted; I have not invented any.
+5. **`SafeEvent.reason_code` (recommended: add the routing reasons in 1.2):** it is closed: routing reasons (`fallback_memory` etc.) cannot be emitted as events without an additive change; the gateway keeps them internal for now.
 
 ## Owner acceptance brief (plain language; about 15 minutes, needs the Mac)
 Nothing below has been done by me. These are the things only you or a Mac can confirm; I will not report them as verified until they are.
