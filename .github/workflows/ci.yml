@@ -176,25 +176,23 @@ jobs:
           import os, re, subprocess, sys
           from atlas_core import sandbox
           code = "import mlx_lm; m, t = mlx_lm.load('/tmp/atlas-model'); print('GEN', repr(''.join(getattr(r, 'text', '') for r in mlx_lm.stream_generate(m, t, prompt='Hello', max_tokens=4))))"
-          allowed: list[str] = []
-          for round_ in range(1, 9):
-              base = sandbox.mac_profile(["/tmp/atlas-model"])
-              base = base[: base.index("(deny mach-lookup")]
-              allow = "(allow mach-lookup " + "".join(f'(global-name "{n}")' for n in allowed) + ")" if allowed else ""
-              profile = base + "(deny mach-lookup (with report))" + allow
+          base = sandbox.mac_profile(["/tmp/atlas-model"])
+          base = base[: base.index("(deny mach-lookup")]
+          def run(profile):
               proc = subprocess.Popen(["/usr/bin/sandbox-exec", "-p", profile, sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd="/", env={**os.environ, "HF_HUB_OFFLINE": "1"})
               out, _ = proc.communicate(timeout=180)
-              log = subprocess.run(["log", "show", "--last", "2m", "--style", "compact", "--predicate", 'eventMessage CONTAINS "mach-lookup"'], capture_output=True, text=True).stdout
-              found = sorted({m for pid, m in re.findall(r"\((\d+)\) deny\(\d+\) mach-lookup (\S+)", log) if int(pid) == proc.pid} - set(allowed))
-              ok = proc.returncode == 0 and b"GEN" in out
-              print(f"round {round_}: rc={proc.returncode} ok={ok} new={found}")
-              if ok:
-                  break
-              if not found:
-                  print("no new services reported; output tail:", out[-300:].decode("utf-8", "replace").replace("\n", " | "))
-                  break
-              allowed += found
-          print("FINAL", allowed)
+              return proc, out
+          # 1. allow every lookup but report each one: the report names the services MLX/Metal really uses
+          proc, out = run(base + "(allow mach-lookup (with report))")
+          log = subprocess.run(["log", "show", "--last", "3m", "--style", "compact", "--predicate", 'eventMessage CONTAINS "mach-lookup"'], capture_output=True, text=True).stdout
+          used = sorted({m for pid, m in re.findall(r"\((\d+)\) \w+(?:\(\d+\))? mach-lookup (\S+)", log) if int(pid) == proc.pid})
+          print("discovery run rc", proc.returncode, "services used:", len(used), used)
+          print("log sample:", log[-400:].replace("\n", " | "))
+          # 2. verify: deny every lookup except those
+          if used:
+              allow = "(allow mach-lookup " + "".join(f'(global-name "{n}")' for n in used) + ")"
+              proc2, out2 = run(base + "(deny mach-lookup)" + allow)
+              print("allow-list run rc", proc2.returncode, "ok=", proc2.returncode == 0 and b"GEN" in out2, out2[-200:].decode("utf-8", "replace").replace("\n", " | "))
           PY
           python /tmp/mach_discover.py > /tmp/mach.out 2>&1 || true
           cat /tmp/mach.out | cut -c1-900
@@ -203,6 +201,9 @@ jobs:
         env:
           ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
         run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
+      - name: Mach discovery result
+        if: always()
+        run: cut -c1-1500 /tmp/mach.out | head -8
   security:
     runs-on: ubuntu-latest
     defaults:
