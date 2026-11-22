@@ -99,7 +99,7 @@ class Core:
             self.indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
         self.tasks = TaskStore(c.data_dir / "tasks.db", c.task_key)
         models = ModelStore(c.data_dir / "models", c.manifest, c.model_record_key)
-        self.gateway = Gateway(models, Router(c.manifest.entries()), c.runtime, signals=lambda: Signals(mode=c.owner_mode()))
+        self.gateway = Gateway(models, Router(c.manifest.entries()), c.runtime, signals=lambda: Signals(mode=c.owner_mode()), log=c.log)
         self.service = TaskService(
             Deps(
                 self.tasks,

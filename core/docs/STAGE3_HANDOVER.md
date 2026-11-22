@@ -14,7 +14,7 @@ Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Writte
 | WP3.7 | acceptance traceability and this handover | `STAGE3_ACCEPTANCE.md` |
 
 ## How to reproduce (from `core/`)
-`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (955 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
+`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (963 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
 
 ## Rollback
 Additive: revert the branch commits (nothing outside `core/` and the CI job changed). New stores only; no legacy store, key or component was migrated or retired (criterion 15). One behaviour changed inside the new Core: finished tasks no longer keep passage text, draft or quotes (no migration; earlier checkpoints are scrubbed when their task ends). API 1.0 behaviour and bytes are unchanged; 1.1 is opt-in per request.
@@ -25,7 +25,7 @@ Each has a recommended default so that a plain "approved" settles it:
 2. **Typed capabilities (criterion 7): done as an additive 1.1 route**, `POST /v1/compute` (exact arithmetic, units, dates by code; no source read, no model). Model-initiated tool use during an answer is not built (no tools exist in this slice). Please confirm the contract addition.
 3. **Source inspection: done as recommended** (additive 1.1 `PassageText`, `GET /v1/tasks/{id}/citations/{n}`, fails closed). Please confirm the contract addition.
 4. **Performance thresholds:** retrieval scale is **fixed** (term index; 2.9 s to 41 ms p50 at 26,000 synthetic mail items, 285 to 7.6 ms at 1,400 documents, developer container). Numeric pass thresholds still need to be proposed from a Mac baseline and accepted; I have not invented any.
-5. **`SafeEvent.reason_code` (recommended: add the routing reasons in 1.2):** it is closed: routing reasons (`fallback_memory` etc.) cannot be emitted as events without an additive change; the gateway keeps them internal for now.
+5. **`SafeEvent.reason_code`: done** (five additive routing values on `model.routed`, one event per answer: model, role, reason; tests in `tests/test_intelligence.py` and `tests/test_app.py`). Please confirm the contract addition. Previously: it was closed: routing reasons (`fallback_memory` etc.) cannot be emitted as events without an additive change; the gateway keeps them internal for now.
 
 ## Owner acceptance brief (plain language; about 15 minutes, needs the Mac)
 Nothing below has been done by me. These are the things only you or a Mac can confirm; I will not report them as verified until they are.

@@ -60,14 +60,14 @@ SPECS = [
 ]
 
 
-def world(tmp_path: Path, specs=SPECS, **kw):
+def world(tmp_path: Path, specs=SPECS, sizes=None, **kw):
     entries = []
     for mid, role, caps in specs:
         files = {"w.safetensors": mid.encode()}
         d = tmp_path / mid
         d.mkdir()
         (d / "w.safetensors").write_bytes(files["w.safetensors"])
-        entries.append(entry_dict(mid, files, role=role, capabilities=caps, resident_bytes=100))
+        entries.append(entry_dict(mid, files, role=role, capabilities=caps, resident_bytes=(sizes or {}).get(mid, 100)))
     manifest = signed(entries)
     store = ModelStore(tmp_path, manifest, RECORD_KEY)
     for mid, *_ in specs:
@@ -330,3 +330,52 @@ def test_a_model_is_never_unloaded_while_another_request_is_using_it(tmp_path):
     first.join(5)
     second.join(5)
     assert results["x"] == "deep" and order.index(("end", "prim")) < order.index(("start", "deep")) and rt.max_resident == 1
+
+
+def routed_events(lines):
+    import json as _json
+
+    return [_json.loads(x) for x in lines if '"model.routed"' in x]
+
+
+def test_every_answer_logs_one_content_free_routing_event_with_a_closed_reason(tmp_path):
+    from atlas_core import contracts
+    from atlas_core.events import SafeLog
+
+    lines: list[str] = []
+    gw, rt, sig, _ = world(tmp_path)
+    gw._log = SafeLog(lines.append)
+    gw.generate(context()[0])  # the primary
+    rt.fail = {"prim"}
+    gw.generate(context()[0])  # a fallback after the primary failed
+    sig["s"] = Signals(mode="research")
+    rt.fail = set()
+    gw.generate(context()[0])  # the deep tier
+    rt.fail = {"deep", "prim", "mfb", "tfb"}
+    with pytest.raises(ModelUnavailable):
+        gw.generate(context()[0])
+    events = routed_events(lines)
+    assert [(e.get("model_id"), e["reason_code"]) for e in events] == [
+        ("prim", "primary_model"),
+        ("mfb", "fallback_model"),
+        ("deep", "deep_model"),
+        (None, "model_refused"),
+    ]
+    for e in events:
+        contracts.validate("SafeEvent", e, "1.1")
+    assert "from prim" not in "".join(lines) and "question" not in "".join(lines)
+
+
+def test_a_memory_driven_fallback_is_logged_as_such(tmp_path):
+    from atlas_core.events import SafeLog
+
+    class Tight:
+        def available_bytes(self):
+            return 200  # the primary needs 500 and nothing the gateway can do frees more; the next model needs 100
+
+    lines: list[str] = []
+    gw, *_ = world(tmp_path, sizes={"prim": 500}, memory=Tight())
+    gw._log = SafeLog(lines.append)
+    assert gw.generate(context()[0]).identity[0] == "mfb"
+    assert [e["reason_code"] for e in routed_events(lines)] == ["memory_fallback"]
+    assert gw.context_tokens == 32768 and gw.background_held is False  # relieved once a model fitted

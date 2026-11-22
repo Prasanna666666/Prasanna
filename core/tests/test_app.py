@@ -187,3 +187,16 @@ def test_only_the_owner_only_socket_serves_and_a_stopped_core_leaves_nothing_lis
     with pytest.raises(atlas_client.ClientError) as e:
         world.client().discover()
     assert e.value.code == "connection"
+
+
+def test_a_running_core_logs_which_model_answered_and_why_and_nothing_else_about_the_answer(world, caplog):
+    seen: list[str] = []
+    core = world.build()
+    core.config.log._sink = seen.append  # the event sink of the running Core
+    core.start()
+    world.enable(core, "documents")
+    world.wait_indexed(core)
+    world.client().run_question(*world.question("en-total"))
+    routed = [json.loads(x) for x in seen if '"model.routed"' in x]
+    assert routed and routed[0]["model_id"] == "primary-1" and routed[0]["reason_code"] == "primary_model" and routed[0]["role"] == "primary"
+    assert "1250.50" not in "".join(seen) and "invoice" not in "".join(seen).lower()

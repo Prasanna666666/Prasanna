@@ -37,7 +37,7 @@ class SafeLog:
     def emit(self, event: str, component: str, correlation_id: str, **fields: Any) -> None:
         record = {"event": event, "component": component, "correlation_id": correlation_id, **fields}
         try:
-            validate("SafeEvent", record)
+            validate("SafeEvent", record, "1.1")  # a superset of 1.0: the 1.1 events (model.routed, consent.changed, egress.decision) are logged too
         except ContractError as e:
             raise UnsafeEvent(f"event does not fit the allow-list at {e.where}") from None
         self._sink(json.dumps(record, sort_keys=True, separators=(",", ":")))

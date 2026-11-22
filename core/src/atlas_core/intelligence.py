@@ -16,6 +16,7 @@ from dataclasses import dataclass, replace
 from functools import partial
 from typing import Protocol
 
+from .events import SafeLog, new_id
 from .gate import ModelAnswer, ModelContext, ModelUnavailable
 from .models import ManifestEntry, ModelRejected, ModelStore, VerifiedModel
 
@@ -166,7 +167,7 @@ class Gateway:
 
     MIN_CONTEXT = 4096
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917  (each part is a separate injected seam)
         self,
         store: ModelStore,
         router: Router,
@@ -175,10 +176,12 @@ class Gateway:
         memory: MemoryProbe | None = None,
         signals: Callable[[], Signals] | None = None,
         evict: Callable[[], None] | None = None,
+        log: SafeLog | None = None,
     ) -> None:
         self._store, self._router, self._rt = store, router, runtime
         self._sched = scheduler or Scheduler()
         self._memory, self._signals, self._evict = memory, signals or Signals, evict or (lambda: None)
+        self._log = log
         self.context_tokens = DEFAULT_CONTEXT
         self.background_held = False  # set while memory is short: background requests are refused (ModelUnavailable "held") instead of competing
         self._planner = DegradationPlanner()
@@ -237,7 +240,8 @@ class Gateway:
             self._sched.release(kind)
 
     def _run(self, route: Route, context: ModelContext) -> ModelAnswer:
-        for model_id in route.chain:
+        skipped: str | None = None  # why an earlier model in the chain was not used
+        for position, model_id in enumerate(route.chain):
             entry = self._entry(model_id)
             try:
                 with self._cond:
@@ -251,10 +255,25 @@ class Gateway:
                     with self._cond:
                         self._active[entry.model_id] -= 1
                         self._cond.notify_all()
-            except (RuntimeFailure, ModelRejected):
+            except (RuntimeFailure, ModelRejected) as error:
+                skipped = "memory_fallback" if str(error) == "memory" else "fallback_model"
                 continue
+            reason = (
+                skipped if position else ("deep_model" if route.reason == "research_deep" else "primary_model")
+            )  # position > 0 only after a failure, which set `skipped`
+            self._routed(context, reason, entry)
             return replace(answer, identity=(entry.model_id, entry.role, entry.runtime))
+        self._routed(context, "model_refused", None)
         raise ModelUnavailable("no_model")
+
+    def _routed(self, context: ModelContext, reason: str, entry: ManifestEntry | None) -> None:
+        """One content-free `model.routed` event per answer: which model, in which role, and why (a closed vocabulary). Never a prompt, path or passage."""
+        if self._log is None:
+            return
+        fields: dict[str, str] = {"reason_code": reason}
+        if entry is not None:
+            fields |= {"role": entry.role, "model_id": entry.model_id}
+        self._log.emit("model.routed", "model", context.permit_id or new_id(), **fields)
 
 
 __all__ = [

@@ -30,7 +30,7 @@ A pure, deterministic operation. It deep-copies the 1.0 document, keeps its root
 | `PassageText` | new (WP3.4 hardening): `{citation_index, text, evidence}`, the cited span for `GET /v1/tasks/{task_id}/citations/{index}`; fails closed (`source_denied` when a source is no longer permitted or changed, `not_found`, `conflict` for an unfinished task). Its `text` is source content by design: owner-only socket, never logged |
 | `AnswerEnvelope` | replaced: 1.0 fields plus `coverage` (**required**) and `model` (optional), with the rules below |
 | `Locator` | replaced: the four 1.0 kinds unchanged, three strict new kinds |
-| `Limitation`, `ErrorCode`, `SafeEvent` | replaced: only values and fields added |
+| `Limitation`, `ErrorCode`, `SafeEvent` | replaced: only values and fields added. WP3.4 hardening adds five routing values to `SafeEvent.reason_code` (`primary_model`, `deep_model`, `fallback_model`, `memory_fallback`, `model_refused`), emitted by the gateway on `model.routed` together with `role` and `model_id`; `SafeLog` now validates against 1.1 (a superset of 1.0) |
 
 ### Coverage and limitations
 `indexing_incomplete` is present **if and only if** `coverage.state` is `indexing`. `complete` requires empty `pending` and `failed`; `partial` requires something pending or failed and never carries `indexing_incomplete`.

@@ -627,7 +627,8 @@ VERIFICATION_REASONS = ["verified", "partially_verified", "unverified", "failed"
 EGRESS_REASONS = [
     "allowed", "not_a_typed_tool", "leak_check", "url_not_permitted", "private_address", "redirect_blocked", "length_cap", "header_not_allowed", "host_not_allowed", "provider_disabled", "budget_exceeded",
 ]  # fmt: skip  # egress.decision: INTERNET_AND_NETWORK_POLICY.md sections 10.1 to 10.6
-ALL_REASONS = [*POLICY_REASONS, *RECOVERY_REASONS, *VERIFICATION_REASONS, *EGRESS_REASONS]
+ROUTING_REASONS = ["primary_model", "deep_model", "fallback_model", "memory_fallback", "model_refused"]  # model.routed (intelligence.py)
+ALL_REASONS = [*POLICY_REASONS, *RECOVERY_REASONS, *VERIFICATION_REASONS, *EGRESS_REASONS, *ROUTING_REASONS]
 
 
 def test_the_reason_code_enumeration_is_exactly_the_documented_vocabulary():

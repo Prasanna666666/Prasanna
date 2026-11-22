@@ -1063,7 +1063,12 @@
             "header_not_allowed",
             "host_not_allowed",
             "provider_disabled",
-            "budget_exceeded"
+            "budget_exceeded",
+            "primary_model",
+            "deep_model",
+            "fallback_model",
+            "memory_fallback",
+            "model_refused"
           ],
           "description": "A closed vocabulary: the policy decisions, recovery actions and verification statuses the Stage 2 Core emits, plus the egress decisions defined by the network policy. A new reason is a contract change, never a free-form string."
         },
