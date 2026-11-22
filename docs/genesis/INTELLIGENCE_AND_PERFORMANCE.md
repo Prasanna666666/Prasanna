@@ -44,20 +44,47 @@ These are proposed product targets, not claims about current hardware or models.
 
 ## 5. Model strategy
 
-**Owner-selected direction (2026-11-20):** Atlas uses Apple MLX for local inference; its main-model class is approximately 27B parameters, with the exact model selected by benchmark on the actual Mac mini. Atlas automatically routes/switches models by task and visibly identifies which model answered. The exact model family, quantisation, context length, per-task routing map and fallback behaviour remain open until benchmarked and approved. This is a direction decision, not evidence that MLX or a 27B model has been installed, integrated or tested. Model identity exposed to the owner is limited to model ID and routing role; never expose prompt text or personal content in routing/audit events. Every routed model call must re-enter the same policy gate: switching models must never widen source permissions.
+**Final selection (G-O01, 2026-11-22):** one resident local primary, Apple MLX, no cloud inference and no remote fallback. The selected target hardware and model roles are recorded in `DECISIONS.md` §8. This is a fixed architecture selection with explicit disqualifiers; it is not a claim that the model has been installed, that MLX compatibility is proven, or that target performance has been measured.
 
-The G-O01 benchmark must compare the available MLX Python (`mlx-lm`) and Swift (`mlx-swift-lm`) integration paths on the same model candidates and actual target Mac. Measure free/peak memory while macOS, Atlas Core, embeddings, OCR and indexing are active together—not just model file size or isolated inference. Define pass/fail memory and latency limits before choosing. Include per-language quality, hostile-input/prompt-injection resistance and policy-boundary tests alongside answer quality and speed. If no ~27B candidate meets the agreed envelope, stop and ask the owner to choose the fallback model class; do not silently downsize or substitute another runtime.
+### 5.1 Model roles and capability-preserving fallback
 
-MLX runs on Apple silicon. Linux CI must use a deterministic stub for model-boundary tests; it cannot establish MLX runtime or real inference behaviour. Benchmark the existing Ollama path against MLX as a bounded risk check if useful, but do not silently replace the owner's MLX direction. On the 32 GB planning profile, do not assume two large models can remain resident simultaneously: measure model load/unload, switching latency, KV-cache/context memory, peak memory and interactive contention. Do not invent speed or memory estimates as acceptance evidence.
+- **Primary:** Gemma 4 26B-A4B, 4-bit. It is the resident default for free-text work and supports text and image input. Its 26B total parameter count (about 3.8B active) does not mean it occupies only 3.8B parameters in memory: the full weights must be loaded.
+- **Text fallback:** GPT-OSS-20B MXFP4. It is text-only; it must not receive a task whose image/audio/video input would be silently discarded.
+- **Multimodal fallback:** Gemma 4 12B Q4 for tasks requiring image/audio capability, subject to its own MLX and acceptance gates.
+- **Deep tier:** Gemma 4 31B Q4, unloaded by default. It may be swapped in only inside owner-selected Research mode, and only if the blinded research/debate evaluation demonstrates a material gain. The primary is unloaded first; two large models are never kept resident together.
+- Qwen is excluded. Ministral 3 14B is not the fast tier and is not a planned dependency. Nemotron 3 Nano is not a dependency. No resident coding model and no default separate small model.
 
-Model architecture is an implementation choice, not the product architecture:
-- Dense and Mixture-of-Experts (MoE) models are both eligible.
-- Select by measured task quality, latency, memory footprint, context capacity, structured-output reliability and energy/resource cost.
-- Active parameters do not equal memory requirements; benchmark actual quantised model footprint and runtime overhead.
-- Support model/runtime adapters so a model can be replaced without changing domain capabilities.
-- Use small models for low-risk routing/classification only when their error rate is acceptable; escalate when confidence or task complexity requires it.
-- Avoid unnecessary serial model calls. Prefer one capable model plus deterministic tools over elaborate agent chains when quality is comparable.
-- Local inference only. A missing or unavailable local model must produce an honest local-unavailable state, not remote fallback.
+The fallback must preserve the task's required modality and policy guarantees. Text tasks may fall back from Gemma 4 26B-A4B to GPT-OSS-20B and then Gemma 4 12B. Multimodal tasks fall back to Gemma 4 12B; if no eligible model can handle the input, Atlas reports local model unavailability rather than dropping modality or going remote.
+
+### 5.2 Deterministic routing and verification
+
+- Typed deterministic capabilities (exact search, calendar/status, calculator, approve/cancel and fixed-grammar commands) skip model inference, but never skip Core policy.
+- Free-text chat uses retrieval first and then the resident primary. No semantic model router and no model switch inferred from free-text task wording.
+- Research mode is explicitly selected by the owner. It first runs the primary with a larger reasoning budget; a deterministic, disclosed gate inside that mode decides whether to unload it and load the 31B deep tier.
+- No always-on verifier model. Deterministic arithmetic/date/unit/schema/citation checks always run. Same-model span checking is optional; a different-family verifier is permitted only if a blinded ablation shows material benefit.
+- Start with at most two jobs (one interactive, one background), with interactive priority. Never let background work starve an interactive request.
+
+### 5.3 Memory, context and degradation
+
+- Default context is 32K. 64K/128K require separate recall, latency and memory tests.
+- Only one large model is resident. Specialists are swapped in/out; do not assume two large models can co-reside.
+- Caches are in-memory only and keyed by domain, grant identity/version, model and quantisation. Flush on session end, grant/policy change, revocation and model unload. No persistent user-content KV cache.
+- One explicit fixed quantisation per model; no silent precision/model changes for Finance, Health, permissions, code changes or evidence-critical work.
+- Degradation order: stop new background inference; evict rebuildable caches; pause background work and unload specialists; shrink context and use scoped retrieval; switch only to a pre-benchmarked profile with disclosure; otherwise refuse. Never rely on memory swapping and never fall back to cloud inference.
+
+### 5.4 Supply chain, lineage and offline execution
+
+Maintain a manifest for every model: developer/accountable release organisation, model ID and upstream revision, disclosed base/derivative/distillation lineage, exact licence/usage terms, quantisation source and conversion chain, runtime compatibility and SHA-256. Verify full digests on import and remount/identity change; load only verified read-only bytes. A missing model drive means “model unavailable”; typed deterministic capabilities can continue.
+
+Accept safetensors or GGUF only; never pickle or `trust_remote_code`. Pin runtime and package versions in a dedicated environment. Run inference in a separate process under network-deny isolation and verify no network socket is opened during load/inference. Downloads require an explicit owner-approved import step. No unmanifested model may load.
+
+The lineage eligibility rule requires the developer and accountable release organisation to be outside the PRC and the public model card/technical report to disclose no PRC-origin base, derivative or distillation source. Derivatives/community quants of a PRC-origin base remain ineligible. The owner accepted the residual risk that undisclosed post-training/synthetic-data provenance cannot be proven absent for the selected Google and OpenAI releases; this is not a claim that training data was exhaustively verified. Exact upstream revision and quantisation chain remain recorded.
+
+### 5.5 Evidence and validation status
+
+Vendor sources describe Gemma 4 and GPT-OSS as Apache 2.0 releases, but the exact release licence files, Gemma terms and usage policies must be read and archived before import/use. Model publisher, licence or open weights are not a safety guarantee. Target-Mac MLX stability, memory, latency, accuracy, thermal behaviour and zero-swap operation are all **unverified** until measured.
+
+The only model-selection disqualifiers are: (1) primary-source disclosure of PRC-origin base/derivative/distillation; (2) licence/terms incompatible with Atlas's local use; (3) failure of a hard target-Mac policy/evidence/critical-failure/memory/zero-swap gate; or (4) unstable/unavailable MLX execution. A disqualifier moves to the pre-decided capability-preserving fallback chain; it does not trigger an open-ended model-selection contest.
 
 ## 6. Interactive responsiveness
 
@@ -86,6 +113,20 @@ Maintain a versioned evaluation set covering:
 Every model, prompt, quantisation, retrieval or routing change must be compared against the baseline. Report quality and latency together; do not optimise speed by silently reducing accuracy. Set numeric accuracy thresholds only after a representative evaluation set exists and the owner accepts the trade-off.
 
 
+### 7.1 G-O01 model acceptance gates
+
+Evaluate the selected stack with paired, frozen, pre-registered tests **per task class and per language**. Report quality and time-to-useful-answer together; do not pool unrelated classes. Hard policy/evidence gates precede speed ranking:
+
+- Zero policy/permission bypasses, fabricated source references or evidence-integrity failures.
+- For each critical class, target at least 300 independent cases and report the one-sided 95% binomial upper confidence bound. Zero failures in 300 cases gives an upper bound of approximately 0.994%; it does not prove zero risk.
+- A faster model is disqualified if it fails correctness, evidence or policy gates. A more accurate model is also unacceptable if its latency makes it unusable.
+- The provisional everyday decode floor is 30 tokens/second at a fixed 32K context, quantisation, runtime, output length and concurrency. Treat this as a threshold to measure, not a promise.
+- Report time-to-first-token, time-to-first-useful-answer, decode tokens/second, p50/p95 completion latency, peak/steady memory, KV-cache use, cold load/unload, concurrency, energy and thermals. Freeze thresholds before running the benchmark.
+- Require zero swap and green memory pressure under the declared combined workload. The one-hour purchase-window smoke test (32K primary load, 20-minute sustained run, memory pressure, swap, TTFT and decode speed) is a hardware sanity check, not a substitute for the full accuracy/evidence suite.
+- Evaluate English, Dutch and at least one non-Latin-script path, retrieval/source attribution, contradictory/stale evidence, abstention, prompt injection, cross-domain policy boundaries and tool use. No language or task class is declared supported until measured.
+- Before real personal data is used, archive/read exact model licence/terms, verify lineage manifest and quantisation provenance, and pass offline/no-network enforcement tests.
+
+
 ## 8. Agent execution efficiency and quality
 
 The Agent Workforce must not turn every request into a multi-agent chain. The orchestrator selects the least expensive execution plan that meets the task's quality and safety needs:
@@ -104,6 +145,8 @@ Benchmark single-agent/direct execution against delegated execution for quality,
 
 ### 9.1 Hardware evidence
 The owner has specified a **32 GB Apple-silicon Mac mini** as the planning/minimum-support profile. This is an owner decision about the intended profile, not evidence that the machine is purchased, configured or used for tests. It is not a verified compatibility floor until release testing. Every report must separately identify:
+
+**Selected configuration under G-O01 (2026-11-22):** Mac mini M6, 32 GB unified memory, 256 GB internal SSD plus a fast external SSD for model files. Apple lists 170 GB/s memory bandwidth for the M6 32 GB configuration. Apple's M5 Pro Mac mini configurations are 24 GB, 48 GB or 64 GB—not 32 GB—and the 48 GB tier is outside the owner's budget. M5 Pro's 307 GB/s bandwidth does not make its 24 GB configuration equivalent to the selected 32 GB target. External storage adds no memory. See [Apple Mac mini technical specifications](https://support.apple.com/en-us/128108).
 - intended target/minimum-support profile (32 GB Mac mini) and actual test machine;
 - actual test machine, chip, unified memory, storage and free disk;
 - macOS version, power state and thermal conditions;
