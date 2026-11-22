@@ -1,5 +1,5 @@
 // swift-tools-version: 5.9
-// Built and tested on a macOS CI runner (`swift build && swift test`, see README.md); never launched.
+// Built and tested on a macOS CI runner (`swift build && swift test`, see README.md); launched in the CI `app` job; no person has walked through its UI.
 import PackageDescription
 
 let package = Package(

@@ -513,32 +513,84 @@ class _Reads:
         return b"".join(self.chunks)
 
 
-def test_attachment_octets_after_the_text_part_are_never_read_from_the_file(tmp_path, monkeypatch):
-    emlx(tmp_path / "a/1.emlx", _mixed(), 1_700_000_000)
+def _small_attachment_after_short_text() -> bytes:
+    """A short text body immediately followed by a SMALL attachment: both lie inside one 4 KiB window, which is where a fixed-size read-ahead would swallow attachment bytes."""
+    return (
+        b"From: Alice <alice@example.invalid>\nSubject: Short\nMessage-ID: <short@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=B\n\n"
+        b"--B\nContent-Type: text/plain; charset=utf-8\n\nThe total due is 1250.50 euro.\n--B\n"
+        b'Content-Type: application/pdf\nContent-Disposition: attachment; filename="a.pdf"\nContent-Transfer-Encoding: base64\n\n' + SENT + b"\n--B--\n"
+    )
+
+
+def _count_prefix(message: bytes) -> int:
+    return len(str(len(message)).encode()) + 1  # the byte-count line before the message
+
+
+def test_not_one_attachment_byte_is_read_even_when_it_lies_within_the_same_4k_window_as_the_text(tmp_path, monkeypatch):
+    raw = _small_attachment_after_short_text()
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
     box = EmlxMailbox(tmp_path)
     box.list_page(None, 10)
     reads = _Reads(monkeypatch)
-    got = box.read("<big@example.invalid>")
+    got = box.read("<short@example.invalid>")
     assert got is not None and "1250.50" in got["body"]
-    assert SENT not in reads.everything  # the unique attachment sentinel never reached the parser or a buffer
-    assert len(reads.everything) < 6_000 < _mixed().__len__()  # reading stopped just after the text part (at most one chunk beyond it)
+    assert SENT not in reads.everything and b"application/pdf" not in reads.everything  # not the sentinel, not even the next part's headers
+    end_of_text_part = _count_prefix(raw) + raw.index(b"--B\nContent-Type: application/pdf") + len(b"--B\n")
+    assert len(reads.everything) == end_of_text_part  # reading stopped exactly after the delimiter line that ends the text part: not one byte further
 
 
-def test_listing_a_message_reads_only_its_headers(tmp_path, monkeypatch):
-    emlx(tmp_path / "a/1.emlx", _mixed(), 1_700_000_000)
+def test_listing_reads_exactly_the_count_line_and_the_headers_and_not_the_body(tmp_path, monkeypatch):
+    raw = _small_attachment_after_short_text()
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
     reads = _Reads(monkeypatch)
     page = EmlxMailbox(tmp_path).list_page(None, 10)
-    assert [i.message_id for i in page.items] == ["<big@example.invalid>"]
-    assert SENT not in reads.everything and len(reads.everything) <= 2 * 4096 + 64
+    assert [i.message_id for i in page.items] == ["<short@example.invalid>"]
+    assert len(reads.everything) == _count_prefix(raw) + raw.index(b"\n\n") + 2  # through the blank line that ends the headers
+    assert b"--B" not in reads.everything and SENT not in reads.everything
 
 
-def test_an_attachment_before_the_text_is_scanned_past_and_never_decoded_or_returned(tmp_path, monkeypatch):
-    """The limit of 'never read': to find a text part that follows an attachment the reader must scan past it (bounded chunks, discarded, never decoded). Stated in the acceptance record."""
-    emlx(tmp_path / "a/1.emlx", _mixed(attachment_first=True), 1_700_000_000)
+def test_a_header_block_is_read_up_to_its_blank_line_and_no_prefetch_reaches_the_payload_behind_it(tmp_path, monkeypatch):
+    raw = (
+        b"From: A <a@example.invalid>\nSubject: pdf only\nMessage-ID: <pdf@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nContent-Type: application/pdf\n\n"
+        + SENT
+        + b"\n"
+    )  # a tiny payload right behind the headers
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
+    box = EmlxMailbox(tmp_path)
+    reads = _Reads(monkeypatch)
+    box.list_page(None, 10)
+    got = box.read("<pdf@example.invalid>")
+    assert got is not None and got["body"] == ""
+    assert SENT not in reads.everything  # across both the listing and the read
+
+
+def test_an_attachment_before_the_text_makes_the_message_unreadable_and_its_payload_is_never_read(tmp_path, monkeypatch):
+    """Finding the text behind an attachment would mean reading the attachment, so the reader refuses: the message is unreadable (and counted as such), not scanned."""
+    raw = _mixed(attachment_first=True)
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
     box = EmlxMailbox(tmp_path)
     box.list_page(None, 10)
-    got = box.read("<big@example.invalid>")
-    assert got is not None and "1250.50" in got["body"] and SENT.decode() not in repr(got)
+    reads = _Reads(monkeypatch)
+    assert box.read("<big@example.invalid>") is None
+    assert SENT not in reads.everything and b"QUJD" not in reads.everything  # not one byte of the payload
+    assert len(reads.everything) <= _count_prefix(raw) + raw.index(b"Content-Transfer-Encoding: base64\n\n") + len(b"Content-Transfer-Encoding: base64\n\n")
+
+
+def test_reading_a_large_text_body_stays_fast_enough_to_index(tmp_path):
+    import time
+
+    body = b"The total due is 1250.50 euro and the rest of the line is ordinary words.\n" * 3000  # about 220 KB of text
+    raw = (
+        b"From: A <a@example.invalid>\nSubject: Long\nMessage-ID: <long@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nContent-Type: text/plain; charset=utf-8\n\n"
+        + body
+    )
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
+    box = EmlxMailbox(tmp_path)
+    box.list_page(None, 10)
+    started = time.monotonic()
+    got = box.read("<long@example.invalid>")
+    assert got is not None and got["body"].count("1250.50") == 3000
+    assert time.monotonic() - started < 2.0
 
 
 def test_nested_alternative_parts_choose_the_plain_text_and_skip_html_and_attachments(tmp_path):
@@ -554,20 +606,6 @@ def test_nested_alternative_parts_choose_the_plain_text_and_skip_html_and_attach
     got = box.read("<nest@example.invalid>")
     assert got is not None and "€1250.50 due" in got["body"]
     assert b"HTML-NEVER-READ-5512" not in got["body"].encode() and SENT.decode() not in repr(got)
-
-
-def test_a_single_part_message_that_is_not_text_is_not_read_beyond_its_headers(tmp_path, monkeypatch):
-    raw = (
-        b"From: A <a@example.invalid>\nSubject: pdf only\nMessage-ID: <pdf@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nContent-Type: application/pdf\n\n"
-        + b"X" * 9000
-        + SENT
-    )
-    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
-    box = EmlxMailbox(tmp_path)
-    box.list_page(None, 10)
-    reads = _Reads(monkeypatch)
-    got = box.read("<pdf@example.invalid>")
-    assert got is not None and got["body"] == "" and SENT not in reads.everything
 
 
 @pytest.mark.parametrize("count_line", [b"9" * 5000, b"\xd9\xa3\xd9\xa0", b"-5", b"12 34", b"", b"0x20"])

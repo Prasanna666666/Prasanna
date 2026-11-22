@@ -199,95 +199,124 @@ def open_confined(root_fd: int, parts: Parts) -> int:
 
 
 MAX_COUNT_DIGITS = 10  # the byte-count line is ASCII decimal digits only, and short
-CHUNK = 4096  # reads are at most this large: after the text part, at most one more chunk is read before reading stops
 
 
 class _Region:
-    """Sequential, bounded reader over an open descriptor: it never reads past `left` bytes, reads in chunks, and counts what it consumed. Nothing is ever read twice or by name."""
+    """Sequential, bounded reader over an open descriptor. It reads EXACTLY what it is asked for: `line()` takes one byte per `os.read` and stops at the newline, so a read can never run on past a
+    MIME delimiter or past the blank line that ends a header block into a part nobody asked for (a buffered reader's read-ahead would). It never reads past the declared message length."""
 
-    def __init__(self, fd: int, left: int, buf: bytes = b"") -> None:
-        self.fd, self.left, self.buf = fd, left, buf
-        self.at_line_start = False
+    def __init__(self, fd: int, left: int) -> None:
+        self.fd, self.left = fd, left
 
-    def fill(self, want: int) -> None:
-        while len(self.buf) < want and self.left > 0:
-            chunk = os.read(self.fd, min(CHUNK, self.left))
-            if not chunk:
+    def line(self, limit: int = MAX_EMLX_BYTES) -> bytes | None:
+        """One line including its newline (or what is left of the message if it ends without one); None at the end of the message."""
+        out = bytearray()
+        while self.left > 0 and len(out) < limit:
+            byte = os.read(self.fd, 1)
+            if not byte:
                 self.left = 0
                 break
+            self.left -= 1
+            out += byte
+            if byte == b"\n":
+                break
+        return bytes(out) if out else None
+
+    def rest(self) -> bytes:
+        """Everything that remains of the message. Only used where all of it is permitted text (a single-part text message)."""
+        out = bytearray()
+        while self.left > 0:
+            chunk = os.read(self.fd, min(65536, self.left))
+            if not chunk:
+                break
             self.left -= len(chunk)
-            self.buf += chunk
+            out += chunk
+        return bytes(out)
+
+
+def _count_line(fd: int) -> int | None:
+    """The byte-count line, read exactly (ASCII digits, at most MAX_COUNT_DIGITS, at most MAX_EMLX_BYTES) and checked against the file's real size; None if malformed or truncated."""
+    digits = bytearray()
+    while len(digits) <= MAX_COUNT_DIGITS:
+        byte = os.read(fd, 1)
+        if byte == b"\n":
+            break
+        if not byte:
+            return None
+        digits += byte
+    else:
+        return None
+    text = bytes(digits).strip()
+    if not text or not text.isascii() or not text.isdigit() or len(text) > MAX_COUNT_DIGITS:
+        return None
+    declared = int(text)
+    return declared if declared <= MAX_EMLX_BYTES and os.fstat(fd).st_size >= len(digits) + 1 + declared else None
 
 
 def _open_message(fd: int) -> tuple[_Region, Message] | None:
-    """The byte-count line (ASCII digits, at most MAX_COUNT_DIGITS, at most MAX_EMLX_BYTES, and that many bytes must really be in the file) and the top-level headers; nothing else is read."""
-    head = os.read(fd, MAX_COUNT_DIGITS + 2)
-    line, newline, rest = head.partition(b"\n")
-    if not newline or not line.strip().isascii() or not line.strip().isdigit() or len(line.strip()) > MAX_COUNT_DIGITS:
+    """The count line and the top-level headers, nothing past the blank line that ends them."""
+    declared = _count_line(fd)
+    if declared is None:
         return None
-    declared = int(line.strip())
-    if declared > MAX_EMLX_BYTES or os.fstat(fd).st_size < len(line) + 1 + declared:
-        return None  # larger than we read, or truncated: unreadable, never a partial message
-    region = _Region(fd, declared - min(len(rest), declared), rest[:declared])
+    region = _Region(fd, declared)
     header = _header_block(region)
     return None if header is None else (region, header)
 
 
 def _header_block(region: _Region) -> Message | None:
-    """Read one MIME header block (up to the blank line, at most MAX_HEADER_BYTES) and leave the region at the start of the body."""
+    """One MIME header block, read line by line up to and including its blank line (at most MAX_HEADER_BYTES); the region is left exactly at the start of the part's body."""
+    raw = bytearray()
     while True:
-        match = re.search(rb"\r?\n\r?\n", region.buf)
-        if match:
-            raw, region.buf = region.buf[: match.start()], region.buf[match.end() :]
-            region.at_line_start = True
-            return email.parser.BytesHeaderParser(policy=email.policy.default).parsebytes(raw + b"\n")
-        if len(region.buf) > MAX_HEADER_BYTES or region.left == 0:
+        line = region.line(MAX_HEADER_BYTES)
+        if line is None or len(raw) + len(line) > MAX_HEADER_BYTES:
             return None
-        region.fill(len(region.buf) + CHUNK)
+        if line in (b"\n", b"\r\n"):
+            return email.parser.BytesHeaderParser(policy=email.policy.default).parsebytes(bytes(raw) + b"\n")
+        raw += line
+
+
+def _delimiter(boundaries: list[bytes]) -> re.Pattern[bytes]:
+    return re.compile(rb"--(" + b"|".join(re.escape(b) for b in boundaries) + rb")(--)?[ \t]*\r?\n?$")
 
 
 def _scan_to_delimiter(region: _Region, boundaries: list[bytes], collect: bool) -> tuple[bytes, bytes | None, bool] | None:
-    """Advance to the next MIME delimiter line of any open boundary. Returns (bytes before it if `collect` else b'', the boundary, whether it was the closing one), or None at the end of the message.
-    Skipped bytes are discarded as they are read (a part that is not wanted is scanned past in bounded chunks, never decoded or kept)."""
-    names = b"|".join(re.escape(b) for b in boundaries)
-    pattern = re.compile(rb"\n--(" + names + rb")(--)?[ \t]*\r?(?:\n|$)")
-    keep, out = max(len(b) for b in boundaries) + 8, bytearray()
-    while True:
-        view = (b"\n" if region.at_line_start else b"") + region.buf
-        offset = 1 if region.at_line_start else 0
-        match = pattern.search(view)
-        if match:
-            before = view[offset : match.start()]
-            if collect:
-                out += before
-            consumed = match.end() - offset
-            region.buf, region.at_line_start = region.buf[consumed:], False
-            return bytes(out), match.group(1), match.group(2) is not None
-        if region.left == 0:
-            return None
-        discard = max(len(region.buf) - keep, 0)
+    """Read line by line to the next MIME delimiter line of any open boundary and consume that line exactly, nothing more. Returns (the lines before it if `collect`, the boundary, whether it was the
+    closing delimiter), or None at the end of the message. Only text parts are ever scanned this way: a part that is not text stops the read before its payload (see `_text_body`)."""
+    pattern, out = _delimiter(boundaries), bytearray()
+    while (line := region.line()) is not None:
+        found = pattern.match(line)
+        if found:
+            body = bytes(out)
+            for ending in (b"\r\n", b"\n"):  # the line ending before a delimiter belongs to the delimiter
+                if body.endswith(ending):
+                    body = body[: -len(ending)]
+                    break
+            return body, found.group(1), found.group(2) is not None
         if collect:
-            out += region.buf[:discard]
-        region.buf, region.at_line_start = region.buf[discard:], region.at_line_start and discard == 0
-        region.fill(len(region.buf) + CHUNK)
+            out += line
+    return None
+
+
+def _is_attachment_like(part: Message) -> bool:
+    """Anything that is not plain readable text, or is marked as an attachment, is a payload this reader must not read."""
+    return part.get_content_disposition() == "attachment" or part.get_content_maintype() != "text"
 
 
 def _text_body(header: Message, region: _Region, boundaries: list[bytes]) -> str | None:
-    """The first text/plain, non-attachment part, found by walking the structure in order; reading stops once it is complete. Attachments after it are never read at all; one before it is scanned past."""
+    """The first text/plain part, found by walking the structure in order. Reading stops exactly after the delimiter line that ends it, so nothing of a later part is read. If a payload that is not
+    text (an attachment, an image, any binary part) comes before it, the walk stops at that part's headers and the message is unreadable (None): its bytes are never read to look for the text."""
     stack = list(boundaries)
 
-    def decode(part: Message, raw: bytes) -> str | None:
+    def decode(part: Message, raw: bytes) -> str:
         rebuilt = email.parser.BytesParser(policy=email.policy.default).parsebytes(
             part.as_bytes(policy=email.policy.default).split(b"\n\n", 1)[0] + b"\n\n" + raw
         )
-        content = rebuilt.get_content() if rebuilt.get_content_maintype() == "text" else ""
-        return str(content)
+        return str(rebuilt.get_content())
 
-    if not stack:  # a single-part message
-        if header.get_content_type() != "text/plain" or header.get_content_disposition() == "attachment":
-            return ""  # not text: its payload is not read at all
-        region.fill(region.left + len(region.buf))
-        return decode(header, region.buf)
+    if not stack:  # a single-part message: all that remains is that part
+        if header.get_content_type() != "text/plain" or _is_attachment_like(header):
+            return ""
+        return decode(header, region.rest())
     found = _scan_to_delimiter(region, stack, collect=False)  # the preamble
     while found is not None:
         _, boundary, closing = found
@@ -299,17 +328,17 @@ def _text_body(header: Message, region: _Region, boundaries: list[bytes]) -> str
         part = _header_block(region)
         if part is None:
             return None
-        kind = part.get_content_type()
         inner = part.get_boundary()
-        if kind.startswith("multipart/") and inner:
+        if part.get_content_maintype() == "multipart" and inner:
             stack.append(inner.encode())
             found = _scan_to_delimiter(region, stack, collect=False)
             continue
-        if kind == "text/plain" and part.get_content_disposition() != "attachment":
+        if _is_attachment_like(part):
+            return None  # a non-text payload before the text: never read it to find the text
+        if part.get_content_type() == "text/plain":
             scanned = _scan_to_delimiter(region, stack, collect=True)
-            raw = scanned[0] if scanned is not None else region.buf
-            return decode(part, raw)
-        found = _scan_to_delimiter(region, stack, collect=False)  # an attachment or other part: scanned past, not decoded
+            return decode(part, scanned[0] if scanned is not None else b"")
+        found = _scan_to_delimiter(region, stack, collect=False)  # other TEXT (HTML) before the plain text: body content, read through to its delimiter
     return ""
 
 
