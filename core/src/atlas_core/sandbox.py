@@ -34,10 +34,25 @@ ARCHES = {  # machine -> (AUDIT_ARCH, number of the socket syscall)
 # The macOS profile. Measured on macOS runners: a deny-by-default profile stops the Metal shader compiler (MLX then reports "No Metal device available"), and a read allow-list that starts
 # from "deny everything" aborts Python at start-up, so the profile is allow-by-default with explicit denials: no network, no file writes (except /dev/null), no reading of the places private
 # data lives (every user's home folder with Documents, Mail and browser data, external volumes, the temporary folders and root's home) except the model folder and the Python runtime's own
-# folders, no executing a program that is not part of the Python runtime, and no Mach lookup of the system services that make network requests for a process. NOT a least-privilege
-# profile: reading system files outside those places, other Mach lookups, IOKit and signals stay allowed; the Mach deny list is best effort and not proven complete.
+# folders, no executing a program that is not part of the Python runtime, and no Mach lookup except a measured list of ten services none of which makes network requests. NOT a least-privilege
+# profile: reading system files outside those places, IOKit and signals stay allowed.
 PRIVATE_READ_ROOTS = ("/Users", "/Volumes", "/private/tmp", "/private/var/folders", "/private/var/root", "/home")
-NETWORK_SERVICES = (
+# The Mach services the sandboxed MLX worker may look up: MEASURED on a macOS runner (the CI `macos-mlx` job lets every lookup through with reporting on, records what a load plus a generation uses,
+# then re-runs under a deny-all-lookups profile with only these allowed and requires generation to succeed). Every other lookup is denied, so no network-capable service (DNS, CFNetwork, URL sessions,
+# configd, networkd) can be asked to act for the worker. Other hardware or macOS versions may need more; the worker then fails closed (the model is unavailable) rather than widening this list.
+MACH_ALLOWED = (
+    "com.apple.CoreServices.coreservicesd",
+    "com.apple.MTLCompilerService",
+    "com.apple.analyticsd",
+    "com.apple.cfprefsd.agent",
+    "com.apple.cfprefsd.daemon",
+    "com.apple.logd",
+    "com.apple.lsd.mapdb",
+    "com.apple.system.notification_center",
+    "com.apple.system.opendirectoryd.libinfo",
+    "com.apple.system.opendirectoryd.membership",
+)
+NETWORK_SERVICES = (  # known network-capable services; a test asserts none is in MACH_ALLOWED
     "com.apple.dnssd.service",
     "com.apple.SystemConfiguration.configd",
     "com.apple.SystemConfiguration.DNSConfiguration",
@@ -67,7 +82,9 @@ def mac_profile(read_roots: Sequence[str] = ()) -> str:
         "(deny file-read-data " + "".join(f"(subpath {quote(p)})" for p in PRIVATE_READ_ROOTS) + ")",
         "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",  # only the model folder and what Python itself needs
         "(deny process-exec*)(allow process-exec* " + "".join(f"(subpath {quote(p)})" for p in python) + ")",  # only programs inside the Python runtime
-        "(deny mach-lookup " + "".join(f"(global-name {quote(n)})" for n in NETWORK_SERVICES) + ")",
+        "(deny mach-lookup)(allow mach-lookup "
+        + "".join(f"(global-name {quote(n)})" for n in MACH_ALLOWED)
+        + ")",  # every lookup denied except the measured list
     ]
     return "".join(parts)
 

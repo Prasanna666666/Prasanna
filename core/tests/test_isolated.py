@@ -241,7 +241,10 @@ def test_the_macos_profile_denies_private_places_except_the_model_folder_and_the
     assert (
         os.path.realpath(sys.prefix) in exec_rule and "/bin/sh" not in exec_rule and "/usr/bin" not in exec_rule
     )  # only programs inside the Python runtime may be executed
-    assert 'global-name "com.apple.dnssd.service"' in profile  # the DNS service is not reachable
+    assert "(deny mach-lookup)(allow mach-lookup" in profile and not set(sandbox.NETWORK_SERVICES) & set(
+        sandbox.MACH_ALLOWED
+    )  # every lookup denied except a measured list with no network service
+    assert profile.count("(allow mach-lookup") == 1 and all(f'"{name}"' in profile for name in sandbox.MACH_ALLOWED)
     assert sandbox.mac_profile([]) != profile  # the model folder is the only thing that varies per worker
 
 
