@@ -85,6 +85,18 @@ def test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_
         e.close()
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="the macOS profile denies file writes; the Linux filter confines the network only (documented in MODEL_RUNTIME.md)"
+)
+def test_on_macos_the_worker_cannot_write_files_outside_dev_null(listener):
+    e = engine("ProbeEngine")
+    try:
+        result = probe(e, listener)
+        assert result["write_tmp"].startswith("blocked:") and result["write_home"].startswith("blocked:")
+    finally:
+        e.close()
+
+
 def test_the_worker_gets_a_clean_environment_with_no_secrets(listener, monkeypatch):
     monkeypatch.setenv("ATLAS_TEST_SECRET", "hunter2")
     e = engine("ProbeEngine")

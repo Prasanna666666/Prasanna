@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import tempfile
 import time
 
 
@@ -53,6 +54,17 @@ class ProbeEngine(EchoEngine):
             result["unix"] = "ok"
         except OSError as e:
             result["unix"] = f"blocked:{e.errno}"
+        for label, where in (
+            ("write_tmp", tempfile.gettempdir()),
+            ("write_home", os.path.expanduser("~")),
+        ):  # file writes: denied by the macOS profile; Linux confines the network only
+            try:
+                with open(os.path.join(where, f"atlas-probe-{os.getpid()}"), "w") as handle:
+                    handle.write("x")
+                os.unlink(handle.name)
+                result[label] = "WROTE"
+            except OSError as e:
+                result[label] = f"blocked:{e.errno}"
         result["secret_in_env"] = "ATLAS_TEST_SECRET" in os.environ
         result["env_keys"] = sorted(os.environ)
         yield json.dumps(result)

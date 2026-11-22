@@ -147,6 +147,23 @@ jobs:
       - name: Core tests on macOS
         working-directory: core
         run: pytest -q -p no:cacheprovider
+  macos-mlx:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install the real MLX library and a small public model (downloaded OUTSIDE the sandbox)
+        run: |
+          pip install -e kit -e "core[dev]" mlx-lm huggingface_hub
+          python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mlx-community/SmolLM-135M-Instruct-4bit', local_dir='/tmp/atlas-model'))"
+          ls -la /tmp/atlas-model
+      - name: Real MLX inference inside the sandboxed worker
+        working-directory: core
+        env:
+          ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
+        run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
   security:
     runs-on: ubuntu-latest
     defaults:
