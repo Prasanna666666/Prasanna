@@ -13,8 +13,11 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
+import shutil
 import stat
+import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -184,30 +187,79 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _identity(path: Path) -> list[int]:
-    st = path.stat()
+_NOFOLLOW = os.O_NOFOLLOW
+_DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | _NOFOLLOW
+_FILE_FLAGS = os.O_RDONLY | _NOFOLLOW | os.O_NONBLOCK
+
+
+def _identity_of(st: os.stat_result) -> list[int]:
     return [st.st_size, st.st_mtime_ns, st.st_ino, st.st_dev]
 
 
-def _read_only(path: Path) -> bool:
-    return stat.S_IMODE(path.stat().st_mode) & 0o222 == 0  # mode bits, not os.access (a privileged user can always write)
+def _walk(root_fd: int, parts: tuple[str, ...]) -> int:
+    """The directory descriptor of `parts` below `root_fd`, opened one component at a time with O_NOFOLLOW: no component (a parent included) may be a link."""
+    current = os.dup(root_fd)
+    try:
+        for part in parts:
+            nxt = os.open(part, _DIR_FLAGS, dir_fd=current)
+            os.close(current)
+            current = nxt
+        return current
+    except BaseException:
+        os.close(current)
+        raise
+
+
+def _open_confined(root_fd: int, rel: str) -> int:
+    """A read-only descriptor of the regular file `rel` below `root_fd`, no link followed at ANY component. ModelRejected `digest_mismatch` otherwise (a content-free code)."""
+    parts = Path(rel).parts
+    try:
+        parent = _walk(root_fd, parts[:-1])
+        try:
+            fd = os.open(parts[-1], _FILE_FLAGS, dir_fd=parent)
+        finally:
+            os.close(parent)
+    except OSError:
+        raise ModelRejected("digest_mismatch") from None
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise ModelRejected("digest_mismatch")
+    return fd
+
+
+def _hash_fd(fd: int) -> str:
+    """The digest of what the descriptor holds, read from the start (the very bytes the descriptor points at, whatever happens to the name)."""
+    digest = hashlib.sha256()
+    os.lseek(fd, 0, os.SEEK_SET)
+    while block := os.read(fd, _CHUNK):
+        digest.update(block)
+    return digest.hexdigest()
+
+
+def _read_only_mode(st: os.stat_result) -> bool:
+    return stat.S_IMODE(st.st_mode) & 0o222 == 0  # mode bits, not os.access (a privileged user can always write)
 
 
 @dataclass(frozen=True)
 class VerifiedModel:
-    """The exact files that were verified, for the runtime to load. `root` is the folder; nothing outside `files` belongs to the model."""
+    """The exact files that were verified, for the runtime to load. `root` is the folder the runtime may read: for a staged model it holds ONLY the manifest's files, as links to
+    (or hash-checked copies of) the verified bytes, so nothing unmanifested can be consumed. `identities` are those files' size, modification time, inode and device."""
 
     entry: ManifestEntry
     root: Path
     identities: tuple[tuple[str, tuple[int, ...]], ...]
+    staged: bool = False
 
 
 class ModelStore:
     """Imports models into a read-only store and decides, at load, whether the bytes on disk are still the bytes that were verified.
 
-    `import_model` hashes every file (full digest), compares it to the signed manifest, makes the files read-only and writes an HMAC-protected record of each file's identity.
-    `verify_for_load` then checks the record (so a tampered record is refused), that each file's identity (size, modification time, inode, device) and read-only state are
-    unchanged, and otherwise re-hashes the whole file instead of trusting metadata: a changed identity is never accepted without a fresh full digest.
+    Every path is opened one component at a time without following a link (a symlinked parent directory cannot redirect a manifest path out of the model folder) and every digest is
+    computed from the open descriptor, so what is hashed is exactly what that descriptor holds. `import_model` hashes each file against the signed manifest, makes it read-only and
+    records an HMAC-protected identity. `verify_for_load` re-checks the record and identities and re-hashes any file whose identity changed. `stage` then builds the directory the
+    runtime loads from: only manifest files, hard-linked (same inode, so a later rename or replacement of the original name cannot change what was verified) and confirmed to be the
+    inode that was hashed, or, where links are impossible, copied while hashing. `still_verified` detects an in-place change after loading. Threat model: other processes and
+    accidents; a process running as the same user that deliberately rewrites a read-only file and its timestamps is not defended against here.
     """
 
     def __init__(self, root: Path, manifest: Manifest, record_key: bytes) -> None:
@@ -215,13 +267,11 @@ class ModelStore:
             raise ValueError("record key too short")
         self.root, self._manifest, self._key = root, manifest, record_key
         self.full_hashes = 0  # tests: how many full digests were computed (a load of an unchanged, read-only model computes none)
+        shutil.rmtree(root / ".load", ignore_errors=True)  # staging left behind by a crash
 
     def entry(self, model_id: str) -> ManifestEntry:
         """The approved entry (raises ModelRejected `not_in_manifest`)."""
         return self._manifest.get(model_id)
-
-    def _dir(self, entry: ManifestEntry) -> Path:
-        return self.root / entry.model_id
 
     def _record_path(self, entry: ManifestEntry) -> Path:
         return self.root / f"{entry.model_id}.import.json"
@@ -230,29 +280,44 @@ class ModelStore:
         body = json.dumps({"model_id": entry.model_id, "files": identities}, sort_keys=True, separators=(",", ":")).encode()
         return hmac.new(self._key, body, hashlib.sha256).hexdigest()
 
-    def _check_file(self, entry: ManifestEntry, item: FileDigest) -> Path:
-        path = self._dir(entry) / item.path
-        if not path.is_file() or path.is_symlink() or path.stat().st_size != item.size:
-            raise ModelRejected("digest_mismatch")
-        return path
+    def _model_fd(self, entry: ManifestEntry) -> int:
+        """The model's own folder, opened below the (trusted) store root without following a link."""
+        try:
+            top = os.open(self.root, os.O_RDONLY | os.O_DIRECTORY)
+        except OSError:
+            raise ModelRejected("digest_mismatch") from None
+        try:
+            return _walk(top, (entry.model_id,))
+        except OSError:
+            raise ModelRejected("digest_mismatch") from None
+        finally:
+            os.close(top)
 
     def import_model(self, model_id: str) -> VerifiedModel:
         """Full digest of every file against the signed manifest; on success the files become read-only and the import is recorded."""
         entry = self._manifest.get(model_id)
         identities: list[list[Any]] = []
-        for item in entry.files:
-            path = self._check_file(entry, item)
-            self.full_hashes += 1
-            if sha256_file(path) != item.sha256:
-                raise ModelRejected("digest_mismatch")
-            path.chmod(0o444)
-            identities.append([item.path, _identity(path)])
+        model = self._model_fd(entry)
+        try:
+            for item in entry.files:
+                fd = _open_confined(model, item.path)
+                try:
+                    self.full_hashes += 1
+                    if os.fstat(fd).st_size != item.size or _hash_fd(fd) != item.sha256:
+                        raise ModelRejected("digest_mismatch")
+                    os.fchmod(fd, 0o444)
+                    identities.append([item.path, _identity_of(os.fstat(fd))])
+                finally:
+                    os.close(fd)
+        finally:
+            os.close(model)
         record = {"model_id": entry.model_id, "files": identities, "mac": self._mac(entry, identities)}
-        self._record_path(entry).write_text(json.dumps(record))
-        return VerifiedModel(entry, self._dir(entry), tuple((p, tuple(i)) for p, i in identities))
+        temporary = self._record_path(entry).with_suffix(".tmp")
+        temporary.write_text(json.dumps(record))
+        temporary.replace(self._record_path(entry))
+        return VerifiedModel(entry, self.root / entry.model_id, tuple((p, tuple(i)) for p, i in identities))
 
-    def verify_for_load(self, model_id: str) -> VerifiedModel:
-        entry = self._manifest.get(model_id)
+    def _recorded(self, entry: ManifestEntry) -> dict[str, tuple[int, ...]]:
         try:
             record = json.loads(self._record_path(entry).read_text())
         except (OSError, ValueError):
@@ -262,26 +327,128 @@ class ModelStore:
         recorded = record["files"]
         if not hmac.compare_digest(str(record.get("mac")), self._mac(entry, recorded)):
             raise ModelRejected("record_tampered")
-        known = {p: tuple(i) for p, i in recorded}
+        return {p: tuple(i) for p, i in recorded}
+
+    def verify_for_load(self, model_id: str) -> VerifiedModel:
+        """Check the model in the store against the signed manifest and the import record (no staging yet)."""
+        entry = self._manifest.get(model_id)
+        known = self._recorded(entry)
         identities: list[tuple[str, tuple[int, ...]]] = []
-        for item in entry.files:
-            path = self._check_file(entry, item)
-            if known.get(item.path) != tuple(_identity(path)) or not _read_only(path):
-                self.full_hashes += 1  # the identity changed or the file became writable: metadata is no proof, so hash the whole file again
-                if sha256_file(path) != item.sha256:
-                    raise ModelRejected("digest_mismatch")
-                if not _read_only(path):
-                    raise ModelRejected("not_read_only")  # correct bytes, but not protected from being replaced during use
-            identities.append((item.path, tuple(_identity(path))))
-        return VerifiedModel(entry, self._dir(entry), tuple(identities))
+        model = self._model_fd(entry)
+        try:
+            for item in entry.files:
+                fd = _open_confined(model, item.path)
+                try:
+                    st = os.fstat(fd)
+                    if st.st_size != item.size:
+                        raise ModelRejected("digest_mismatch")
+                    if known.get(item.path) != tuple(_identity_of(st)) or not _read_only_mode(st):
+                        self.full_hashes += 1  # the identity changed or the file became writable: metadata is no proof, so hash the whole file again
+                        if _hash_fd(fd) != item.sha256:
+                            raise ModelRejected("digest_mismatch")
+                        if not _read_only_mode(st):
+                            raise ModelRejected("not_read_only")  # correct bytes, but not protected from being replaced during use
+                    identities.append((item.path, tuple(_identity_of(st))))
+                finally:
+                    os.close(fd)
+        finally:
+            os.close(model)
+        return VerifiedModel(entry, self.root / entry.model_id, tuple(identities))
+
+    def stage(self, verified: VerifiedModel) -> VerifiedModel:
+        """The directory the runtime loads from: only the manifest's files, each the verified inode (hard link) or a hash-checked copy. The caller must `release` it."""
+        entry = verified.entry
+        stage_root = self.root / ".load"
+        stage_root.mkdir(mode=0o700, exist_ok=True)
+        target = Path(tempfile.mkdtemp(prefix=f"{entry.model_id}-", dir=stage_root))
+        target.chmod(0o700)
+        wanted = dict(verified.identities)
+        source, out = self._model_fd(entry), []
+        try:
+            for item in entry.files:
+                destination = target / item.path
+                destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                parts = Path(item.path).parts
+                parent = _walk(source, parts[:-1])
+                try:
+                    try:
+                        os.link(parts[-1], destination, src_dir_fd=parent, follow_symlinks=False)
+                    except OSError:
+                        self._copy(parent, parts[-1], destination, item)  # a different filesystem, or links not allowed: a copy that is hashed as it is written
+                finally:
+                    os.close(parent)
+                out.append((item.path, self._check_staged(destination, item, wanted.get(item.path))))
+        except BaseException:
+            shutil.rmtree(target, ignore_errors=True)
+            raise
+        finally:
+            os.close(source)
+        return VerifiedModel(entry, target, tuple(out), staged=True)
+
+    def _copy(self, parent: int, name: str, destination: Path, item: FileDigest) -> None:
+        try:
+            fd = os.open(name, _FILE_FLAGS, dir_fd=parent)
+        except OSError:
+            raise ModelRejected("digest_mismatch") from None
+        digest = hashlib.sha256()
+        try:
+            self.full_hashes += 1
+            with destination.open("wb") as out:
+                while block := os.read(fd, _CHUNK):
+                    digest.update(block)
+                    out.write(block)
+        finally:
+            os.close(fd)
+        if digest.hexdigest() != item.sha256:
+            raise ModelRejected("digest_mismatch")
+        destination.chmod(0o444)
+
+    def _check_staged(self, path: Path, item: FileDigest, verified_identity: tuple[int, ...] | None) -> tuple[int, ...]:
+        """The staged file must be a regular, read-only file of the right size; a link must be the very inode that was verified (a name swapped between verification and linking is
+        caught here); anything else (a copy) was hashed while it was written."""
+        try:
+            fd = os.open(path, _FILE_FLAGS)
+        except OSError:
+            raise ModelRejected("digest_mismatch") from None
+        try:
+            st = os.fstat(fd)
+            linked = st.st_nlink > 1
+            if not stat.S_ISREG(st.st_mode) or st.st_size != item.size or not _read_only_mode(st):
+                raise ModelRejected("digest_mismatch")
+            identity = tuple(_identity_of(st))
+            if linked and identity != verified_identity:
+                raise ModelRejected("identity_changed")
+            return identity
+        finally:
+            os.close(fd)
+
+    def release(self, verified: VerifiedModel) -> None:
+        """Remove a staged directory (the links go; the verified originals stay)."""
+        if verified.staged and verified.root.parent == self.root / ".load":
+            shutil.rmtree(verified.root, ignore_errors=True)
 
     def still_verified(self, verified: VerifiedModel) -> bool:
-        """After a load: are the files still exactly the verified ones? (A swap during the load window means the model must be unloaded and rejected.)"""
-        for path, identity in verified.identities:
-            file = verified.root / path
-            if not file.is_file() or tuple(_identity(file)) != identity or not _read_only(file):
-                return False
-        return True
+        """After a load: are the files still exactly the verified ones? An in-place change (size, modification time, inode) or a writable file means the model must be unloaded and
+        rejected. A staged directory is checked without following links."""
+        try:
+            top = os.open(verified.root, os.O_RDONLY | os.O_DIRECTORY)
+        except OSError:
+            return False
+        try:
+            for path, identity in verified.identities:
+                try:
+                    fd = _open_confined(top, path)
+                except ModelRejected:
+                    return False
+                try:
+                    st = os.fstat(fd)
+                    if tuple(_identity_of(st)) != identity or not _read_only_mode(st):
+                        return False
+                finally:
+                    os.close(fd)
+            return True
+        finally:
+            os.close(top)
 
 
 __all__ = [

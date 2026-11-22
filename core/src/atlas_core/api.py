@@ -6,6 +6,7 @@ UserSafeError from the fixed taxonomy; the text of an exception, a question or a
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import time
@@ -14,6 +15,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from . import API_VERSION, SUPPORTED_VERSIONS
 from .contracts import ContractError, validate
@@ -32,6 +35,7 @@ ROUTE = re.compile(r"^/v1/(?:(version)|(tasks)|tasks/([A-Za-z0-9_-]{8,64})(?:/(c
 CONSENT = re.compile(r"^/v1/(?:(consent)|consent/([A-Za-z0-9_-]{8,64})|(index/status))$")  # API 1.1 only, and only when the Core was given a consent service
 H_NONCE_NAME = "x-atlas-nonce"
 COMPUTE = "/v1/compute"  # API 1.1 only
+ENROL = "/v1/enrol"  # API 1.1 only
 
 
 @dataclass(frozen=True)
@@ -106,8 +110,10 @@ class CoreApi:
     def _dispatch(self, request: Request, headers: dict[str, str], correlation: str, version: str) -> Response:
         if len(request.body) > MAX_BODY_BYTES:
             raise CoreError("invalid_request")
-        client = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
         parts = urlsplit(request.target)
+        if parts.path == ENROL and request.method == "POST" and version == "1.1":
+            return self._enrol(request, headers, version)  # decides for itself whether a signature is required
+        client = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
         match = ROUTE.match(parts.path)
         if parts.path == COMPUTE and version == "1.1":
             return self._compute(request)
@@ -178,6 +184,33 @@ class CoreApi:
         if action == "events" and method == "GET":
             return self._events(task_id, query, correlation, version)
         raise CoreError("invalid_request")
+
+    def _enrol(self, request: Request, headers: dict[str, str], version: str) -> Response:
+        """Enrol a client by its public key. While NO owner client is enrolled, an unsigned request (it still arrives over the owner-only socket, whose peer user was checked) may enrol
+        the first owner client, exactly once. After that only a signed request from an enrolled owner client may enrol a client, and only as a member."""
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        validate("EnrolRequest", body, version)
+        try:
+            key = Ed25519PublicKey.from_public_bytes(base64.b64decode(body["public_key"], validate=True))
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        if not self._registry.has_owner():
+            if body["role"] != "owner":
+                raise CoreError("invalid_request")
+            if not self._registry.enrol_first_owner(body["client_id"], key):
+                raise CoreError("conflict")
+        else:
+            caller = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
+            if not self._registry.is_owner(caller):
+                raise CoreError("forbidden")
+            if body["role"] != "member":
+                raise CoreError("invalid_request")
+            if not self._registry.enrol(body["client_id"], key):
+                raise CoreError("conflict")
+        return self._reply(201, {"client_id": body["client_id"], "role": body["role"]}, "EnrolResponse", version)
 
     def _compute(self, request: Request) -> Response:
         if request.method != "POST":

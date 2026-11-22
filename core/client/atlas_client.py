@@ -8,6 +8,7 @@ path or a source's content other than the cited quote.
 
 from __future__ import annotations
 
+import base64
 import http.client
 import json
 import socket
@@ -18,7 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from atlas_core.identity import sign_request
 
@@ -59,10 +60,10 @@ class AtlasClient:
         self._clock = clock or (lambda: datetime.now(UTC))
 
     # -- transport -------------------------------------------------------------------------------------------------------------------------
-    def _call(self, method: str, target: str, body: dict[str, Any] | None = None, *, discovery: bool = False) -> http.client.HTTPResponse:
+    def _call(self, method: str, target: str, body: dict[str, Any] | None = None, *, discovery: bool = False, signed: bool = True) -> http.client.HTTPResponse:
         raw = json.dumps(body).encode() if body is not None else b""
         applied = "1.0" if discovery else self.version
-        headers = sign_request(self._key, self._id, method, target, raw, self._clock(), version=applied)
+        headers = sign_request(self._key, self._id, method, target, raw, self._clock(), version=applied) if signed else {"x-atlas-api-version": applied}
         connection = _Unix(self._path, self._timeout)
         try:
             connection.request(method, target, body=raw or None, headers={**headers, "content-type": "application/json"})
@@ -81,8 +82,8 @@ class AtlasClient:
         response.close()
         response._conn.close()  # type: ignore[attr-defined]
 
-    def _json(self, method: str, target: str, body: dict[str, Any] | None = None, *, discovery: bool = False) -> Any:
-        response = self._call(method, target, body, discovery=discovery)
+    def _json(self, method: str, target: str, body: dict[str, Any] | None = None, *, discovery: bool = False, signed: bool = True) -> Any:
+        response = self._call(method, target, body, discovery=discovery, signed=signed)
         try:
             status, data = response.status, response.read()
         finally:
@@ -117,6 +118,18 @@ class AtlasClient:
     def compute(self, kind: str, *args: str) -> dict[str, Any]:
         """An exact computation done by code (never by a model): arithmetic, convert, days_between, add_days, add_months, weekday (API 1.1)."""
         return self._json("POST", "/v1/compute", {"kind": kind, "args": list(args)})
+
+    def enrol_self(self, role: str = "owner") -> dict[str, Any]:
+        """First run: enrol THIS client's public key with the Core (unsigned, once, while no owner client exists; over the owner-only socket). Afterwards an owner client may
+        enrol a member with a signed call (`enrol`)."""
+        return self._json("POST", "/v1/enrol", self._enrol_body(self._id, role), signed=False)
+
+    def enrol(self, client_id: str, public_key: Ed25519PublicKey, role: str = "member") -> dict[str, Any]:
+        return self._json("POST", "/v1/enrol", self._enrol_body(client_id, role, public_key))
+
+    def _enrol_body(self, client_id: str, role: str, public_key: Ed25519PublicKey | None = None) -> dict[str, Any]:
+        raw = (public_key or self._key.public_key()).public_bytes_raw()
+        return {"client_id": client_id, "public_key": base64.b64encode(raw).decode(), "role": role}
 
     def consent(self) -> dict[str, Any]:
         """The owner's grants and, per source, whether macOS access is granted (an enrolled owner client only)."""

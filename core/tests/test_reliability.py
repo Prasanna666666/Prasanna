@@ -35,7 +35,7 @@ class Counting:
         self.calls = 0
         inner = core.runtime.complete
 
-        def complete(model_id, context, max_context):
+        def complete(model_id, context, max_context, should_stop=lambda: False):
             self.calls += 1
             return inner(model_id, context, max_context)
 
@@ -180,7 +180,7 @@ def test_concurrent_interactive_and_background_requests_never_exceed_two_inferen
             self.now = self.peak = 0
             self.lock = threading.Lock()
 
-        def complete(self, model_id, context, max_context):
+        def complete(self, model_id, context, max_context, should_stop=lambda: False):
             with self.lock:
                 self.now += 1
                 self.peak = max(self.peak, self.now)

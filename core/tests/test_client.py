@@ -101,7 +101,7 @@ class RunScripted:
     def loaded(self):
         return frozenset(self._loaded)
 
-    def complete(self, model_id, context, max_context):
+    def complete(self, model_id, context, max_context, should_stop=lambda: False):
         if self.fail:
             raise RuntimeFailure("x")
         script = self.scripts[self.current]  # several cases share a question and differ in what the model does, so the case is chosen explicitly

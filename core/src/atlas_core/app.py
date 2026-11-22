@@ -47,10 +47,10 @@ class CoreConfig:
     mail_key: str
     anchor: RollbackAnchor
     os_permissions: OSPermissionProvider
-    clients: ClientRegistry
     manifest: Manifest
     model_record_key: bytes
     runtime: ModelRuntime
+    clients: ClientRegistry | None = None  # None: a durable registry in the data folder (the normal case); tests inject one
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, folder)
     mailbox: tuple[str, Mailbox] | None = None  # (source type name, adapter)
     owner_mode: Callable[[], str] = lambda: "default"  # the owner's selected mode ("default" or "research"); never inferred from a question
@@ -115,7 +115,8 @@ class Core:
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it
             self.designation.register_purge(source_type, self._purger(source_type, index))
         self.consent = ConsentService(self.designation, self.access, self.indexes)
-        self.api = CoreApi(self.service, c.clients, c.log, c.clock, consent=self.consent)
+        self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
+        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent)
         self.server: UnixServer | None = None
         self._scanned: dict[str, datetime] = {}
         self._stop = threading.Event()

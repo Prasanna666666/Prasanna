@@ -15,7 +15,9 @@
     "ModelDescriptor",
     "PassageText",
     "ComputeRequest",
-    "ComputeResult"
+    "ComputeResult",
+    "EnrolRequest",
+    "EnrolResponse"
   ],
   "$defs": {
     "AnswerEnvelope": {
@@ -1217,6 +1219,55 @@
         }
       },
       "description": "The result. `exact` is true when `value` is a finite decimal, an integer, a date or a weekday; false when it is a fraction (numerator/denominator) with no finite decimal form, in which case `approximate` is a labelled rounded decimal. `value` is a decimal, a fraction (numerator/denominator), an ISO date, an integer or a weekday name."
+    },
+    "EnrolRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "public_key",
+        "role"
+      ],
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$",
+          "description": "The client's Ed25519 public key, 32 raw bytes in base64."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "member"
+          ]
+        }
+      },
+      "description": "Enrol a client. First run: while NO owner client is enrolled, an unsigned request over the owner-only socket may enrol the first OWNER client, once. After that only a signed request from an enrolled owner client may enrol a client (role member). Public keys only; never a secret."
+    },
+    "EnrolResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "role"
+      ],
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "member"
+          ]
+        }
+      }
     }
   }
 }

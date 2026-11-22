@@ -12,9 +12,9 @@ public final class CoreClient {
         transport = UnixHTTP(path: socketPath); self.key = key; self.clientID = clientID
     }
 
-    private func call(_ method: String, _ target: String, _ body: [String: Any]? = nil) throws -> Any {
+    private func call(_ method: String, _ target: String, _ body: [String: Any]? = nil, signed: Bool = true) throws -> Any {
         let data = try body.map { try JSONSerialization.data(withJSONObject: $0) } ?? Data()
-        let headers = try Signing.headers(key: key, clientID: clientID, version: version, method: method, target: target, body: data)
+        let headers = signed ? try Signing.headers(key: key, clientID: clientID, version: version, method: method, target: target, body: data) : ["x-atlas-api-version": version]
         let response = try transport.send(method: method, target: target, headers: headers.merging(["content-type": "application/json"]) { $1 }, body: data)
         guard response.headers["x-atlas-api-version"] == version else { throw AtlasError.core(code: "unsupported_version") }  // a 1.1 client rejects a missing or different echo
         let value = (try? JSONSerialization.jsonObject(with: response.body)) ?? [:]
@@ -40,6 +40,11 @@ public final class CoreClient {
     public func answer(_ taskID: String) throws -> [String: Any] { try object(call("GET", "/v1/tasks/\(taskID)/answer")) }
     public func passage(_ taskID: String, index: Int) throws -> String { try object(call("GET", "/v1/tasks/\(taskID)/citations/\(index)"))["text"] as? String ?? "" }
     public func compute(kind: String, args: [String]) throws -> [String: Any] { try object(call("POST", "/v1/compute", ["kind": kind, "args": args])) }
+    /// First run: enrol this client's public key as the OWNER client. Unsigned and accepted once, over the owner-only socket, while no owner client exists; afterwards the Core refuses it.
+    public func enrolSelf() throws {
+        _ = try call("POST", "/v1/enrol", ["client_id": clientID, "public_key": key.publicKey.rawRepresentation.base64EncodedString(), "role": "owner"], signed: false)
+    }
+
     public func consent() throws -> [String: Any] { try object(call("GET", "/v1/consent")) }
     public func enable(_ sources: [String]) throws -> [String: Any] { try object(call("POST", "/v1/consent", ["sources": sources])) }
     public func withdraw(grantID: String) throws -> [String: Any] { try object(call("DELETE", "/v1/consent/\(grantID)")) }

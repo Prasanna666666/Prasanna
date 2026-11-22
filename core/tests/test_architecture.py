@@ -31,6 +31,9 @@ LAYER = {
     "mail": 4,
     "intelligence": 4,
     "mlx_runtime": 4,
+    "isolated": 4,
+    "worker": 4,
+    "sandbox": 1,
     "answer": 5,
     "tasks": 5,
     "service": 6,
@@ -313,7 +316,7 @@ def test_the_prompt_table_in_the_use_case_register_agrees_with_the_matrix_on_eve
 @pytest.mark.criterion(11)
 def test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_can_reach_the_network_or_unpickle():
     forbidden = ("socket", "urllib", "http.client", "requests", "httpx", "aiohttp", "pickle", "marshal", "torch", "transformers", "huggingface_hub")
-    for module in ("models", "intelligence", "mlx_runtime", "coverage"):
+    for module in ("models", "intelligence", "mlx_runtime", "coverage", "isolated", "worker", "sandbox"):
         tree = ast.parse((SRC / f"{module}.py").read_text())
         names = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names} | {
             n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)

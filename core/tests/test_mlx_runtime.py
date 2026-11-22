@@ -13,7 +13,7 @@ from test_models import entry_dict, sha, signed  # noqa: F401
 
 from atlas_core.gate import ContextBuilder
 from atlas_core.intelligence import RuntimeFailure
-from atlas_core.mlx_runtime import MlxRuntime, build_prompt, parse_answer
+from atlas_core.mlx_runtime import MlxEngine, MlxRuntime, build_prompt, parse_answer
 from atlas_core.models import ModelStore
 from atlas_core.policy import InMemoryGrants, PolicyEngine
 
@@ -28,11 +28,12 @@ class FakeMlx:
         self.loads.append((path, tokenizer_config))
         return "M", "T"
 
-    def generate(self, model, tokenizer, prompt, max_tokens):
+    def stream_generate(self, model, tokenizer, prompt, max_tokens):
         if self.fail == "run":
             raise RuntimeError("secret content in message")
         self.runs.append((model, tokenizer, prompt, max_tokens))
-        return self.reply
+        for piece in (self.reply[: len(self.reply) // 2], self.reply[len(self.reply) // 2 :]):  # a real engine yields pieces
+            yield SimpleNamespace(text=piece)
 
 
 def verified(tmp_path, runtime="mlx"):
@@ -44,7 +45,7 @@ def verified(tmp_path, runtime="mlx"):
     manifest = signed([entry_dict("m1", {"w.safetensors": b"w"}, runtime=runtime)])
     store = ModelStore(tmp_path, manifest, b"k" * 32)
     store.import_model("m1")
-    return store.verify_for_load("m1")
+    return store.stage(store.verify_for_load("m1"))
 
 
 def ctx():
@@ -53,7 +54,7 @@ def ctx():
 
 
 def runtime(fake: FakeMlx) -> MlxRuntime:
-    return MlxRuntime(lambda name: SimpleNamespace(load=fake.load, generate=fake.generate) if name == "mlx_lm" else pytest.fail(name))
+    return MlxRuntime(MlxEngine(lambda name: SimpleNamespace(load=fake.load, stream_generate=fake.stream_generate) if name == "mlx_lm" else pytest.fail(name)))
 
 
 def test_load_passes_only_the_verified_folder_with_remote_code_off_and_offline_env(tmp_path):
@@ -79,7 +80,7 @@ def test_missing_mlx_and_library_errors_become_content_free_failures(tmp_path):
         raise ModuleNotFoundError(name)
 
     with pytest.raises(RuntimeFailure) as e:
-        MlxRuntime(missing).load(verified(tmp_path))
+        MlxRuntime(MlxEngine(missing)).load(verified(tmp_path))
     assert str(e.value) == "load_failed"
     rt = runtime(FakeMlx(fail="load"))
     with pytest.raises(RuntimeFailure) as e:

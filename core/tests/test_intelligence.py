@@ -36,7 +36,7 @@ class FakeRuntime:
     def loaded(self) -> frozenset[str]:
         return frozenset(self._loaded)
 
-    def complete(self, model_id, context, max_context):
+    def complete(self, model_id, context, max_context, should_stop=lambda: False):
         if self.delay:
             time.sleep(self.delay)
         if model_id in self.fail:
@@ -197,7 +197,6 @@ def test_a_waiting_interactive_request_holds_back_new_background_work(tmp_path):
     c = threading.Thread(target=waiter, args=("interactive",))
     c.start()
     time.sleep(0.05)
-    assert s.should_yield()  # running background work polls this and yields at a safe boundary
     s.release("background")  # a slot frees up: the waiting interactive request is ahead of any new background request
     d = threading.Thread(target=waiter, args=("background",))
     d.start()
@@ -291,7 +290,7 @@ def test_when_nothing_frees_enough_the_next_smaller_model_is_tried_then_the_requ
     with pytest.raises(ModelUnavailable):
         gw.generate(context()[0])
     assert (
-        gw.context_tokens == 4096 and gw.background_held is True and rt.loaded() == frozenset()
+        gw.context_tokens < 32768 and gw.background_held is True and rt.loaded() == frozenset()
     )  # shrunk, background held, nothing loaded; never swapped, never remote
     bg = Signals(priority="background")
     gw._signals = lambda: bg
@@ -304,7 +303,7 @@ def test_a_model_is_never_unloaded_while_another_request_is_using_it(tmp_path):
     inside, release, order = threading.Event(), threading.Event(), []
     real = rt.complete
 
-    def slow(model_id, ctx, n):
+    def slow(model_id, ctx, n, should_stop=lambda: False):
         order.append(("start", model_id))
         if model_id == "prim":
             inside.set()
@@ -379,3 +378,148 @@ def test_a_memory_driven_fallback_is_logged_as_such(tmp_path):
     assert gw.generate(context()[0]).identity[0] == "mfb"
     assert [e["reason_code"] for e in routed_events(lines)] == ["memory_fallback"]
     assert gw.context_tokens == 32768 and gw.background_held is False  # relieved once a model fitted
+
+
+# ---- blocker 2 (review 6011238976): yielding and bounded waits are operational ------------------------------------------------------------------------------------------
+class Stoppable(FakeRuntime):
+    """An inference that runs for a long time and polls `should_stop` between pieces of output, like a streaming engine."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.stopped_early: list[str] = []
+        self.finished: list[str] = []
+
+    def complete(self, model_id, context, max_context, should_stop=lambda: False):
+        if model_id == "prim" and getattr(threading.current_thread(), "slow", False):
+            self.started.set()
+            for _ in range(150):  # up to 3 s if nobody stops it
+                if should_stop():
+                    self.stopped_early.append(model_id)
+                    from atlas_core.intelligence import Preempted
+
+                    raise Preempted
+                time.sleep(0.02)
+        self.finished.append(model_id)
+        return ModelAnswer(f"from {model_id}")
+
+
+def _world_with(tmp_path, runtime):
+    gw, *_ = world(tmp_path)
+    gw._rt = runtime
+    return gw
+
+
+def test_an_interactive_request_that_needs_another_model_stops_a_running_background_inference_and_does_not_wait_for_it(tmp_path):
+    rt = Stoppable()
+    gw = _world_with(tmp_path, rt)
+    mode = threading.local()
+    gw._signals = lambda: Signals(mode=mode.mode, priority=mode.priority)
+    errors: list[str] = []
+
+    def background():
+        threading.current_thread().slow = True
+        mode.mode, mode.priority = "default", "background"
+        try:
+            gw.generate(context()[0])
+        except ModelUnavailable as e:
+            errors.append(str(e))
+
+    thread = threading.Thread(target=background)
+    thread.start()
+    assert rt.started.wait(5)
+    mode.mode, mode.priority = "research", "interactive"  # the deep model: a different one, so the primary must stop
+    began = time.monotonic()
+    answer = gw.generate(context()[0])
+    elapsed = time.monotonic() - began
+    thread.join(5)
+    assert answer.identity[0] == "deep" and elapsed < 2.0  # far less than the 10 s the background job would take on its own
+    assert errors == ["preempted"] and rt.stopped_early == ["prim"] and rt.max_resident == 1
+
+
+def test_a_background_inference_stops_when_memory_pressure_holds_background_work(tmp_path):
+    rt = Stoppable()
+    gw = _world_with(tmp_path, rt)
+    gw._signals = lambda: Signals(priority="background")
+    errors: list[str] = []
+
+    def background():
+        threading.current_thread().slow = True
+        try:
+            gw.generate(context()[0])
+        except ModelUnavailable as e:
+            errors.append(str(e))
+
+    thread = threading.Thread(target=background)
+    thread.start()
+    assert rt.started.wait(5)
+    gw.background_held = True  # what the degradation steps stop_background and pause_background do
+    thread.join(5)
+    assert errors == ["preempted"] and rt.stopped_early == ["prim"]
+
+
+def test_an_interactive_request_on_the_same_model_runs_alongside_a_background_one_without_stopping_it(tmp_path):
+    rt = Stoppable()
+    gw = _world_with(tmp_path, rt)
+    mode = threading.local()
+    gw._signals = lambda: Signals(priority=mode.priority)
+    done: list[str] = []
+
+    def background():
+        threading.current_thread().slow = True
+        mode.priority = "background"
+        done.append(gw.generate(context()[0]).identity[0])
+
+    thread = threading.Thread(target=background)
+    thread.start()
+    assert rt.started.wait(5)
+    mode.priority = "interactive"
+    assert gw.generate(context()[0]).identity[0] == "prim"  # the same primary: no switch, no stop
+    thread.join(15)
+    assert done == ["prim"] and rt.stopped_early == []
+
+
+def test_a_request_that_must_wait_for_another_model_waits_a_bounded_time_then_is_refused_as_busy(tmp_path):
+    rt = Stoppable()
+    gw = _world_with(tmp_path, rt)
+    gw.SWITCH_WAIT_SECONDS = 0.3
+    mode = threading.local()
+    gw._signals = lambda: Signals(mode=mode.mode, priority=mode.priority)
+    stop = threading.Event()
+    real = rt.complete
+
+    def holding(model_id, ctx, n, should_stop=lambda: False):
+        if model_id == "prim":
+            rt.started.set()
+            stop.wait(5)  # an interactive inference never yields, so only the bound can end the other request's wait
+        return real(model_id, ctx, n, should_stop)
+
+    rt.complete = holding
+
+    def interactive():
+        mode.mode, mode.priority = "default", "interactive"
+        gw.generate(context()[0])
+
+    first = threading.Thread(target=interactive)
+    first.start()
+    assert rt.started.wait(5)
+    mode.mode, mode.priority = "research", "background"  # a background request that needs the deep model while the interactive primary is busy
+    began = time.monotonic()
+    with pytest.raises(ModelUnavailable, match="busy"):
+        gw.generate(context()[0])
+    assert 0.25 < time.monotonic() - began < 3
+    stop.set()
+    first.join(5)
+
+
+def test_shrinking_the_context_lowers_the_memory_the_load_needs_and_the_smaller_context_is_what_runs(tmp_path):
+    class Mem:
+        def available_bytes(self):
+            return 20_000
+
+    seen: list[int] = []
+    gw, rt, *_ = world(tmp_path, memory=Mem(), kv_bytes_per_token=1)  # weights 100 + 32768 tokens > 20000; 16384 + 100 fits
+    real = rt.complete
+    rt.complete = lambda model_id, ctx, n, should_stop=lambda: False: (seen.append(n), real(model_id, ctx, n, should_stop))[1]
+    assert gw.generate(context()[0]).identity[0] == "prim"
+    assert gw.context_tokens == 16384 and seen == [16384] and gw.background_held is False

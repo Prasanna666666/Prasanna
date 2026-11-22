@@ -303,6 +303,35 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/enrol:
+    post:
+      operationId: enrolClient
+      summary: Enrol a client by its public key. The first owner client may enrol itself once, unsigned, over the owner-only socket; afterwards only a signed owner client may enrol a member.
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/EnrolRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '201':
+          description: The client is enrolled
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/EnrolResponse
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '409':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/index/status:
     get:
       operationId: getIndexStatus
