@@ -6,3 +6,4 @@
 # A pinned SHA-256 checksum of the frozen 1.0 contract file (core/tests/test_contracts_frozen.py, line 16 of the WP3.1 commit): a public checksum, nothing secret.
 # Silences that one historical line only.
 27ef2f8f8e8628949225d7abc3dd095ee06d8d2c:core/tests/test_contracts_frozen.py:generic-api-key:16
+6c4eb42b8167d93f7b59bc290abd3de96aadc4c9:core/tests/test_updater.py:generic-api-key:28
