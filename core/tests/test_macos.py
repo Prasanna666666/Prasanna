@@ -258,8 +258,11 @@ def test_the_host_builds_a_config_from_the_keychain_folders_and_an_installed_sig
     config = build_config(
         tmp_path / "data", tmp_path / "s", "boot-code-0123456789abc", HostOptions(("documents", docs), ("mail", mail), tmp_path / "pub.key"), HostEnv("darwin", sec, "owner", runtime=object())
     )  # fmt: skip
-    keys = {config.task_key, config.designation_key, config.documents_key, config.mail_key}
-    assert len(keys) == 4 and all(len(k) == 64 for k in keys) and len(config.model_record_key) == 32
+    keys = {config.task_key, config.designation_key, config.documents_key, config.mail_key, config.edits_key}
+    assert len(keys) == 5 and all(len(k) == 64 for k in keys) and len(config.model_record_key) == 32
+    assert (
+        config.outbox is None and config.erase is None and config.require_restore_drill is True
+    )  # no sender, no eraser, and restricted domains wait for a restore drill
     assert isinstance(config.anchor, KeychainAnchor) and config.bootstrap_code == "boot-code-0123456789abc"
     assert [e.model_id for e in config.manifest.entries()] == ["primary-1"] and config.documents == ("documents", docs) and config.mailbox[0] == "mail"
     assert isinstance(config.mailbox[1], EmlxMailbox) and isinstance(config.os_permissions, FolderPermissions)

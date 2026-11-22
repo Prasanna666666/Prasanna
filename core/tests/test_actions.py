@@ -206,3 +206,23 @@ def test_a_workflow_stops_at_a_step_that_needs_approval_and_reports_a_step_that_
     gateway.register(ActionSpec("fail.step", frozenset({"read"}), lambda p: (_ for _ in ()).throw(RuntimeError("boom"))))
     stuck = run_workflow(gateway, [("odd.step", {}), ("fail.step", {})], key="w4")
     assert stuck.status == "failed_partial" and stuck.stuck == ["odd.step"]  # never reported as all is well
+
+
+def test_the_audit_is_written_to_disk_before_the_outcome_continues_after_a_restart_and_a_damaged_file_stops_the_actions(tmp_path):
+    from atlas_core.actions import AuditFile
+
+    file = AuditFile(tmp_path / "audit.jsonl")
+    first = ActionGateway(audit_file=file, history=file.load())
+    first.register(ActionSpec("web.lookup", frozenset({"read"}), lambda p: {"ok": True}))
+    first.register(ActionSpec("shop.buy", frozenset({"spend"}), lambda p: {"ok": True}))
+    first.propose("web.lookup", {"q": "SENTINEL-QUERY"}, origin="owner_request", idempotency_key="a")
+    first.propose("shop.buy", {"item": "x"}, origin="owner_request", idempotency_key="b")
+    assert oct((tmp_path / "audit.jsonl").stat().st_mode & 0o777) == "0o600" and "SENTINEL-QUERY" not in (tmp_path / "audit.jsonl").read_text()
+    again = ActionGateway(audit_file=file, history=file.load())  # a restart
+    again.register(ActionSpec("web.lookup", frozenset({"read"}), lambda p: {"ok": True}))
+    again.propose("web.lookup", {"q": "again"}, origin="owner_request", idempotency_key="c")
+    assert [e.seq for e in again.audit] == [1, 2, 3] and again.verify_audit() and file.load() is not None and len(file.load()) == 3
+    lines = (tmp_path / "audit.jsonl").read_text().splitlines()
+    for damaged in (lines[1:], [lines[1], lines[0], lines[2]], [*lines[:-1], lines[-1].replace('"done"', '"refused"')], ["{not json}"]):
+        (tmp_path / "audit.jsonl").write_text("\n".join(damaged) + "\n")
+        assert file.load() is None  # a missing, reordered, edited or unreadable line: the history cannot be vouched for

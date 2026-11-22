@@ -66,7 +66,7 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         raise HostUnavailable("the real platform providers exist only for macOS")
     items = KeychainItems(env.account, env.runner)
     try:
-        keys = {name: items.secret(name) for name in ("task-store", "designation-store", "documents-index", "mail-index")}
+        keys = {name: items.secret(name) for name in ("task-store", "designation-store", "documents-index", "mail-index", "edits-store")}
         record_key = bytes.fromhex(items.secret("model-record"))
     except KeychainError:
         raise KeychainLocked("the Keychain could not provide the store keys") from None
@@ -85,5 +85,9 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         runtime=env.runtime or MlxRuntime(IsolatedEngine("mlx")),
         documents=options.documents,
         mailbox=None if options.mail is None else (options.mail[0], EmlxMailbox(options.mail[1])),
+        edits_key=keys[
+            "edits-store"
+        ],  # the owner's own edits store: Calendar, Contacts and Notes actions and device sync. No sender and no eraser are provided, so sending and permanent erasure do not exist here
+        require_restore_drill=True,  # Finance and Health wait for a passed restore drill (G-O05)
         bootstrap_code=bootstrap_code,
     )

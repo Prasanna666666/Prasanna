@@ -2210,6 +2210,156 @@
           }
         }
       }
+    },
+    "DeviceOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "core_fingerprint",
+        "expires_at"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "core_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "A pairing offer: a single-use code that lives five minutes, and the fingerprint of the Core's identity key for the device to pin. Opened by an owner client; the code is shown once (for example as a QR code on the Mac) and never stored."
+    },
+    "PairRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "device_id",
+        "label",
+        "public_key",
+        "nonce"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "device_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "description": "A device presents the code and its public key (unsigned: it is not enrolled yet). Every refusal is the same code, so a guess learns nothing."
+    },
+    "PairResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "core_public_key",
+        "proof"
+      ],
+      "properties": {
+        "core_public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "proof": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        }
+      },
+      "description": "The Core's public key and its signature over the device's key and nonce, for the device to check against the pinned fingerprint."
+    },
+    "DeviceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "devices"
+      ],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device_id",
+              "label",
+              "paired_at",
+              "revoked_at"
+            ],
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "label": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,60}$"
+              },
+              "paired_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revoked_at": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "RevokeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_id"
+      ],
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "description": "The owner revokes a device: immediate, durable and total. The last owner client cannot be revoked."
+    },
+    "RevokeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revoked"
+      ],
+      "properties": {
+        "revoked": {
+          "type": "boolean"
+        }
+      }
     }
   }
 }

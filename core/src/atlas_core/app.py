@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import shutil
 import threading
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -18,10 +19,12 @@ from pathlib import Path
 from typing import Any
 
 from .access import OSPermissionProvider, SourceAccess
-from .actions import ActionGateway
+from .actions import ActionGateway, AuditFile
 from .api import CoreApi
+from .backup import drill_passed
 from .consent import ConsentService
 from .designation import DesignationStore, RollbackAnchor
+from .devices import CoreIdentity, DeviceDirectory
 from .documents import DocumentIndex
 from .egress import EgressGateway
 from .events import SafeLog
@@ -30,11 +33,13 @@ from .identity import BootstrapGate, ClientRegistry
 from .intelligence import Gateway, ModelRuntime, Router, Signals
 from .mail import Mailbox, MailIndex
 from .models import Manifest, ModelStore
-from .operations import Operations
+from .operations import DeviceOperations, Operations
 from .policy import PolicyEngine
 from .record_actions import register_record_actions
 from .recordstore import RecordStore, StoreError
+from .rules import load_rules
 from .service import Deps, ResearchGate, TaskService
+from .storage import pressure_of
 from .sync import SyncService
 from .tasks import TaskStore
 from .transport import UnixServer, serve_unix
@@ -76,6 +81,8 @@ class CoreConfig:
         None  # the platform sender for `calendar.send_invitation` (a real adapter is not built; None means the action does not exist)
     )
     erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
+    disk_usage: Callable[[Path], tuple[int, int, int]] = shutil.disk_usage  # (total, used, free) of the data folder's disk; tests inject a nearly full one
+    require_restore_drill: bool = False  # when True, Finance and Health cannot be designated until a restore drill has passed in the last 90 days (G-O05: restore is verified before sensitive-domain indexing)
     live_network: bool = False  # the explicit live-network gate: even with a gateway configured, no public search is made unless this is True (off by default)
     log: SafeLog = field(default_factory=SafeLog)
 
@@ -164,7 +171,7 @@ class Core:
         self.designation.verify()
         self.access = SourceAccess(self.designation, c.os_permissions, c.clock)
         self.indexes = self._build_indexes(c)
-        self.designation.allow_adapter_types(c.records)
+        self._refresh_adapter_types()
         self.tasks = TaskStore(c.data_dir / "tasks.db", c.task_key)
         models = ModelStore(c.data_dir / "models", c.manifest, c.model_record_key)
         self.gateway = Gateway(models, Router(c.manifest.entries()), c.runtime, signals=lambda: Signals(mode=self.mode.get()), log=c.log)
@@ -186,16 +193,36 @@ class Core:
         self.consent = ConsentService(self.designation, self.access, self.indexes)
         self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
         self.operations = self._build_operations(c)
+        self.device_operations = self._build_devices(c)
+        self.api = self._build_api(c)
+        self.server: UnixServer | None = None
+        self._scanned: dict[str, datetime] = {}
+        self._stop = threading.Event()
+        self._threads: list[threading.Thread] = []
+
+    def _build_api(self, c: CoreConfig) -> CoreApi:
+        """The edge: the API over the service, the client registry and the optional consent, actions and device parts. With no owner enrolled it starts only with a one-time code (or the development stand-in)."""
         gate = None
         if not self.clients.has_owner():
             if c.bootstrap_code is None and not c.open_bootstrap:
                 raise ValueError("no owner client is enrolled: start the Core with a one-time bootstrap code")  # fail closed
             gate = BootstrapGate(c.bootstrap_code) if c.bootstrap_code is not None else None
-        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent, bootstrap=gate, mode=self.mode, ops=self.operations)
-        self.server: UnixServer | None = None
-        self._scanned: dict[str, datetime] = {}
-        self._stop = threading.Event()
-        self._threads: list[threading.Thread] = []
+        return CoreApi(
+            self.service,
+            self.clients,
+            c.log,
+            c.clock,
+            consent=self.consent,
+            bootstrap=gate,
+            mode=self.mode,
+            ops=self.operations,
+            devices=self.device_operations,
+        )
+
+    def _build_devices(self, c: CoreConfig) -> DeviceOperations:
+        """Device pairing and revocation: the Core's own identity key (created once, mode 0600) and the directory of paired devices."""
+        identity = CoreIdentity(c.data_dir / "identity.key")
+        return DeviceOperations(DeviceDirectory(self.clients, identity, c.data_dir / "devices.json", c.clock), identity.public_key)
 
     def _build_operations(self, c: CoreConfig) -> Operations | None:
         """The owner's own edits store, the Action Gateway over it and the sync service: present only when the Core was given a key for the store."""
@@ -203,7 +230,16 @@ class Core:
         if c.edits_key is None:
             return None
         self.edits = RecordStore(c.data_dir / "edits.db", c.edits_key, frozenset({"calendar", "contacts", "notes"}), c.clock)
-        gateway = ActionGateway(c.clock)
+        audit = AuditFile(c.data_dir / "actions-audit.jsonl")
+        history = audit.load()
+        if history is None:
+            c.log.emit(
+                "api.request", "service", "actions-audit", error_code="internal_error"
+            )  # a history that does not verify: no actions are served until the owner looks at it
+            self.edits.close()
+            self.edits = None
+            return None
+        gateway = ActionGateway(c.clock, audit, history)
         register_record_actions(gateway, self.edits, c.outbox, c.erase)
         edits = self.edits
 
@@ -240,9 +276,14 @@ class Core:
         self.service.expire_due()
         for task_id in self.tasks.ids_in(("queued",)):
             self.service.run(task_id)
+        self._refresh_adapter_types()
+        critical = self._disk_critical()
         for source_type, index in self.indexes.items():
             if not self.access.permitted(source_type):  # nothing is scanned or read without a current grant and platform permission
                 self._scanned.pop(source_type, None)
+                continue
+            if critical:  # the disk is nearly full: no new items are taken in (the pause is shown in coverage); nothing already stored is touched, and questions are still answered
+                index.pause_growth("disk_pressure")
                 continue
             now = self.clock()
             last = self._scanned.get(source_type)
@@ -250,6 +291,17 @@ class Core:
                 index.scan()
                 self._scanned[source_type] = now
             index.run(INDEX_SLICE)
+
+    def _refresh_adapter_types(self) -> None:
+        """The record domains the owner may designate: all of them, except that Finance and Health wait for a passed restore drill when the Core was told to require one."""
+        c = self.config
+        rules = load_rules()
+        held_back = c.require_restore_drill and not drill_passed(c.data_dir, c.clock)
+        self.designation.allow_adapter_types(name for name in c.records if not (held_back and rules.is_restricted(name)))
+
+    def _disk_critical(self) -> bool:
+        total, _used, free = self.config.disk_usage(self.config.data_dir)
+        return pressure_of(free, total) == "critical"
 
     def _work(self) -> None:
         while not self._stop.is_set():

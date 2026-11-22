@@ -7,9 +7,14 @@ itself with the `untrusted_content` origin, which the gateway refuses.
 
 from __future__ import annotations
 
+import base64
 from typing import Any
 
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
 from .actions import ActionGateway, Outcome
+from .devices import DeviceDirectory, DeviceError
+from .errors import CoreError
 from .sync import QueuedOp, SyncService
 
 
@@ -45,3 +50,40 @@ class Operations:
                 {"op_id": r.op_id, "status": r.status, "code": r.code, "current_version": r.current_version} for r in self._sync.apply(device_id, queue)
             ]
         }
+
+
+class DeviceOperations:
+    """Device pairing and revocation for the API. Every refusal is the same user-safe error as everywhere else; a pairing guess learns nothing."""
+
+    def __init__(self, directory: DeviceDirectory, identity_public_key: Ed25519PublicKey) -> None:
+        self._directory, self._core_key = directory, identity_public_key
+
+    def offer(self, by_client: str) -> dict[str, Any]:
+        try:
+            o = self._directory.open_offer(by_client)
+        except DeviceError:
+            raise CoreError("forbidden") from None
+        return {"code": o.code, "core_fingerprint": o.core_fingerprint, "expires_at": o.expires_at.isoformat()}
+
+    def pair(self, body: dict[str, Any]) -> dict[str, Any]:
+        try:
+            device_key = Ed25519PublicKey.from_public_bytes(base64.b64decode(body["public_key"], validate=True))
+            proof = self._directory.pair(body["code"], body["device_id"], body["label"], device_key, body["nonce"])
+        except (DeviceError, ValueError):
+            raise CoreError("forbidden") from None  # the same answer for a wrong code, an expired offer, a spent one or a malformed key
+        return {"core_public_key": base64.b64encode(self._core_key.public_bytes_raw()).decode(), "proof": base64.b64encode(proof).decode()}
+
+    def listing(self) -> dict[str, Any]:
+        return {
+            "devices": [
+                {"device_id": d["device_id"], "label": d["label"] or "", "paired_at": d["paired_at"], "revoked_at": d["revoked_at"]}
+                for d in self._directory.devices()
+            ]
+        }
+
+    def revoke(self, by_client: str, device_id: str) -> dict[str, Any]:
+        try:
+            self._directory.revoke(by_client, device_id)
+        except DeviceError as error:
+            raise CoreError("not_found" if error.code == "unknown_device" else "forbidden") from None
+        return {"revoked": True}

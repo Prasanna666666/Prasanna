@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 EFFECTS = frozenset({"read", "local_reversible", "local_irreversible", "external_send", "spend", "physical_security"})
@@ -104,6 +106,43 @@ def binding_of(name: str, payload: dict[str, Any]) -> str:
     return hashlib.sha256(name.encode() + b"\n" + _canonical(payload)).hexdigest()
 
 
+class AuditFile:
+    """The audit chain on disk: one JSON line per entry, appended and flushed before the outcome is returned, readable only by the owner (mode 0600). `load` returns None for a file whose chain does not verify
+    (a missing, reordered, edited or truncated line): the caller must then refuse to run actions rather than continue a history it cannot vouch for."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def append(self, entry: AuditEntry) -> None:
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+        with os.fdopen(fd, "a") as handle:
+            handle.write(json.dumps(asdict(entry), sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def load(self) -> list[AuditEntry] | None:
+        if not self._path.exists():
+            return []
+        try:
+            entries = [AuditEntry(**json.loads(line)) for line in self._path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        except (ValueError, TypeError):
+            return None
+        return entries if _chain_ok(entries) else None
+
+
+def _digest_of(prev: str, e: AuditEntry) -> str:
+    return hashlib.sha256("|".join((prev, str(e.seq), e.at, e.action, e.outcome, e.code, e.payload_hash, e.approval_id or "")).encode()).hexdigest()
+
+
+def _chain_ok(entries: list[AuditEntry]) -> bool:
+    prev = GENESIS
+    for position, e in enumerate(entries, start=1):
+        if e.seq != position or e.prev != prev or e.digest != _digest_of(prev, e):
+            return False
+        prev = e.digest
+    return True
+
+
 @dataclass
 class _Done:
     spec: ActionSpec
@@ -113,14 +152,16 @@ class _Done:
 
 
 class ActionGateway:
-    def __init__(self, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> None:
-        self._clock, self._lock = clock, threading.RLock()
+    def __init__(
+        self, clock: Callable[[], datetime] = lambda: datetime.now(UTC), audit_file: AuditFile | None = None, history: list[AuditEntry] | None = None
+    ) -> None:
+        self._clock, self._lock, self._audit_file = clock, threading.RLock(), audit_file
         self._specs: dict[str, ActionSpec] = {}
         self._approvals: dict[str, Approval] = {}
         self._done: dict[str, _Done] = {}
         self._idem: dict[tuple[str, str], tuple[str, Outcome]] = {}
         self._revoked: set[str] = set()
-        self.audit: list[AuditEntry] = []
+        self.audit: list[AuditEntry] = list(history or [])  # a history loaded from disk continues the same chain
         self.prompts = 0  # approvals asked of the owner; reversible local work never moves it
 
     # -- registry ---------------------------------------------------------------------------------------------------------------------------
@@ -140,17 +181,14 @@ class ActionGateway:
     def _log(self, action: str, outcome: str, code: str, payload_hash: str, approval_id: str | None) -> None:
         prev = self.audit[-1].digest if self.audit else GENESIS
         seq, at = len(self.audit) + 1, self._clock().isoformat()
-        digest = hashlib.sha256("|".join((prev, str(seq), at, action, outcome, code, payload_hash, approval_id or "")).encode()).hexdigest()
-        self.audit.append(AuditEntry(seq, at, action, outcome, code, payload_hash, approval_id, prev, digest))
+        entry = AuditEntry(seq, at, action, outcome, code, payload_hash, approval_id, prev, "")
+        entry = AuditEntry(seq, at, action, outcome, code, payload_hash, approval_id, prev, _digest_of(prev, entry))
+        if self._audit_file is not None:
+            self._audit_file.append(entry)  # on disk before the outcome is returned
+        self.audit.append(entry)
 
     def verify_audit(self) -> bool:
-        prev = GENESIS
-        for e in self.audit:
-            want = hashlib.sha256("|".join((prev, str(e.seq), e.at, e.action, e.outcome, e.code, e.payload_hash, e.approval_id or "")).encode()).hexdigest()
-            if e.prev != prev or e.digest != want:
-                return False
-            prev = e.digest
-        return True
+        return _chain_ok(self.audit)
 
     # -- approvals: the owner-facing half ---------------------------------------------------------------------------------------------------
     def grant(self, approval_id: str, *, by_owner: bool) -> bool:

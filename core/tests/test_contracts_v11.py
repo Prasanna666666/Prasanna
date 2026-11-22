@@ -512,6 +512,10 @@ NEW_PATHS = {
     "/v1/actions/approve",
     "/v1/actions/undo",
     "/v1/sync",
+    "/v1/devices",
+    "/v1/devices/offer",
+    "/v1/devices/pair",
+    "/v1/devices/revoke",
 }
 OPS = ("get", "post", "put", "patch", "delete")
 

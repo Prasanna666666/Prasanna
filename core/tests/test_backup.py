@@ -221,3 +221,45 @@ def test_a_damaged_backup_is_never_restored_even_partly(world, tmp_path):
     with pytest.raises(BackupError) as e:
         restore_backup(folder, PASS, target, provision_keys=lambda keys: None)
     assert e.value.code == "hash_mismatch" and not target.exists()
+
+
+def test_a_restore_drill_proves_a_backup_and_only_then_may_the_restricted_domains_be_designated(tmp_path):
+    from datetime import timedelta
+
+    from test_domains import DomainWorld
+
+    from atlas_core.backup import DRILL_FILE, drill_passed, run_restore_drill
+
+    (tmp_path / "src").mkdir()
+    task_world = World(tmp_path / "src")
+    try:
+        a_core_with_a_finished_task(task_world)
+        folder = make_backup(task_world, tmp_path)
+    finally:
+        task_world.close()
+    (tmp_path / "dom").mkdir()
+    world = DomainWorld(tmp_path / "dom")
+    try:
+        core = world.build()
+        core.config.require_restore_drill = True
+        core.start()
+        core.tick()  # the Core re-reads the gate on every round
+        assert (
+            "finance" not in core.designation.designable() and "health" not in core.designation.designable() and "notes" in core.designation.designable()
+        )  # held back until a drill passes
+        assert run_restore_drill(
+            folder, "wrong passphrase entirely", tmp_path / "scratch0", core.config.data_dir
+        ).code == "bad_passphrase" and not drill_passed(core.config.data_dir)
+        assert (
+            run_restore_drill(folder, PASS, tmp_path / "scratch1", core.config.data_dir).ok and not (tmp_path / "scratch1").exists()
+        )  # the drill cleans up what it made
+        core.tick()
+        assert {"finance", "health"} <= set(core.designation.designable())
+        marker = core.config.data_dir / DRILL_FILE
+        assert drill_passed(core.config.data_dir) and not drill_passed(
+            core.config.data_dir, lambda: datetime.now(UTC) + timedelta(days=91)
+        )  # a drill goes stale
+        marker.write_text("not json")
+        assert drill_passed(core.config.data_dir) is False
+    finally:
+        world.close()

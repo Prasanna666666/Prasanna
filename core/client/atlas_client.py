@@ -141,6 +141,22 @@ class AtlasClient:
         """Send a device's offline queue (API 1.1): each operation is applied once, in order; the results say applied, duplicate, conflict or rejected."""
         return list(self._json("POST", "/v1/sync", {"ops": ops})["results"])
 
+    def open_pairing_offer(self) -> dict[str, Any]:
+        """An owner client opens a pairing offer for a new device (API 1.1): a single-use code, five minutes, and the Core's fingerprint to pin."""
+        return self._json("POST", "/v1/devices/offer", {})
+
+    def pair_device(self, code: str, device_id: str, label: str, public_key_b64: str, nonce: str) -> dict[str, Any]:
+        """A NEW device pairs with the offer code (unsigned: it is not enrolled yet)."""
+        return self._json(
+            "POST", "/v1/devices/pair", {"code": code, "device_id": device_id, "label": label, "public_key": public_key_b64, "nonce": nonce}, signed=False
+        )
+
+    def devices(self) -> list[dict[str, Any]]:
+        return list(self._json("GET", "/v1/devices")["devices"])
+
+    def revoke_device(self, device_id: str) -> bool:
+        return bool(self._json("POST", "/v1/devices/revoke", {"device_id": device_id})["revoked"])
+
     def enrol_self(self, role: str = "owner", bootstrap_code: str | None = None) -> dict[str, Any]:
         """First run: enrol THIS client's public key with the Core (unsigned, once, while no owner client exists; over the owner-only socket). Afterwards an owner client may
         enrol a member with a signed call (`enrol`)."""

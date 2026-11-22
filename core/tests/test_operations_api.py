@@ -133,3 +133,61 @@ def test_the_erase_action_exists_only_with_a_platform_eraser_and_always_needs_ap
         assert other.client().act("notes.erase", {"id": "n1"})["code"] == "unknown_action"  # no eraser configured: the action does not exist
     finally:
         other.close()
+
+
+def test_a_damaged_audit_file_means_the_core_serves_no_actions_at_all(tmp_path):
+    first = OpsWorld(tmp_path)
+    core = first.build()
+    core.start()
+    first.client().act("notes.create", NOTE)
+    first.close()
+    audit = tmp_path / "core" / "actions-audit.jsonl"
+    audit.write_text(audit.read_text().replace('"done"', '"refused"'))
+    (tmp_path / "again").mkdir()
+    second = OpsWorld(tmp_path / "again")
+    (tmp_path / "again" / "core" / "actions-audit.jsonl").write_text(audit.read_text())
+    core2 = second.build()
+    core2.start()
+    try:
+        assert core2.operations is None
+        with pytest.raises(atlas_client.ClientError) as e:
+            second.client().act("notes.create", NOTE)
+        assert e.value.code == "not_found"
+    finally:
+        second.close()
+
+
+def test_a_device_pairs_over_the_socket_checks_the_core_syncs_and_is_revoked_for_good(world):
+    import base64
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    from atlas_core.devices import verify_core
+
+    owner = world.client()
+    offer = owner.open_pairing_offer()
+    new_key = Ed25519PrivateKey.generate()
+    newcomer = atlas_client.AtlasClient(str(world.sock), new_key, "new-phone-0001", clock=world.clock)
+    public = base64.b64encode(new_key.public_key().public_bytes_raw()).decode()
+    with pytest.raises(atlas_client.ClientError) as wrong:
+        newcomer.pair_device("not-the-code-at-all", "new-phone-0001", "Phone", public, "nonce-abcdefgh")
+    assert wrong.value.code == "forbidden"  # a wrong code and an expired or spent one answer the same way
+    paired = newcomer.pair_device(offer["code"], "new-phone-0001", "Phone", public, "nonce-abcdefgh")
+    core_key = Ed25519PublicKey.from_public_bytes(base64.b64decode(paired["core_public_key"]))
+    assert verify_core(
+        offer["core_fingerprint"], core_key, base64.b64decode(paired["proof"]), new_key.public_key(), "nonce-abcdefgh"
+    )  # the device can check it paired with the right Core
+    with pytest.raises(atlas_client.ClientError):
+        newcomer.pair_device(offer["code"], "second-phone-001", "Other", public, "nonce-abcdefgh")  # single-use
+    assert newcomer.sync([{"op_id": "op-0000001", "name": "notes.create", "payload": NOTE}])[0]["status"] == "applied"
+    with pytest.raises(atlas_client.ClientError) as member:
+        newcomer.open_pairing_offer()  # a paired device is a member, never an owner
+    assert member.value.code == "forbidden"
+    assert [(d["device_id"], d["label"], d["revoked_at"]) for d in owner.devices()] == [("new-phone-0001", "Phone", None)]
+    assert owner.revoke_device("new-phone-0001") is True
+    with pytest.raises(atlas_client.ClientError) as revoked:
+        newcomer.sync([{"op_id": "op-0000002", "name": "notes.create", "payload": {**NOTE, "id": "n2"}}])
+    assert revoked.value.code == "forbidden" and owner.devices()[0]["revoked_at"] is not None
+    with pytest.raises(atlas_client.ClientError) as last:
+        owner.revoke_device("client-mac-0001")
+    assert last.value.code in ("forbidden", "invalid_request")  # the last owner client cannot be revoked
