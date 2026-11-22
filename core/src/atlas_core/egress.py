@@ -19,12 +19,13 @@ import hashlib
 import ipaddress
 import re
 import socket
+import unicodedata
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Protocol
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import quote, unquote_plus, urljoin, urlsplit
 
 MAX_BYTES = 512 * 1024
 MAX_REDIRECTS = 3
@@ -52,8 +53,27 @@ class Denied(Exception):
 PRIVATE_TOKEN = re.compile(r"[\w.+@-]{8,}")
 
 
+def _decode(text: str) -> str:
+    """What a receiver would read: percent-escapes undone (even if applied more than once), compatibility forms folded (full-width letters), accents removed."""
+    for _ in range(3):
+        decoded = unquote_plus(text)
+        if decoded == text:
+            break
+        text = decoded
+    folded = unicodedata.normalize("NFKD", text)
+    return unicodedata.normalize("NFC", "".join(c for c in folded if not unicodedata.combining(c)))
+
+
+CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+
+
+def _normal(text: str) -> str:
+    """`_decode`, plus word breaks inside camelCase and underscores, so "AlexandraJanssen" and "tax_debt" are read as the words they are made of."""
+    return CAMEL.sub(" ", _decode(text)).replace("_", " ")
+
+
 def _words(text: str) -> list[str]:
-    return re.findall(r"\w+", text.casefold())
+    return re.findall(r"\w+", _normal(text).casefold())
 
 
 def _fingerprint(words: list[str]) -> str:
@@ -144,6 +164,7 @@ def _names(text: str) -> set[str]:
     """Proper-name-like words: capitalised, not at the start of a sentence; a sentence-initial capitalised word counts only if the text never writes it in lower case (so "Alexandra called"
     is a name and "The" or "Invoice ... invoice" is not). Fingerprints of the words, the words themselves are not returned for storage."""
     found: set[str] = set()
+    text = _normal(text)
     lowercase = {w.casefold() for w in re.findall(r"\w+", text) if w[0].islower()}
     for sentence in SENTENCE_END.split(text):
         for position, word in enumerate(re.findall(r"\w+", sentence)):
@@ -289,10 +310,17 @@ class EgressGateway:
 
     def fetch(self, url: str, taint: TaintSet, *, purpose: str = "public_research") -> WebDocument:
         """Retrieve one public page. The URL (path and query too) must carry no private content."""
-        self._check_text(urlsplit(url).path + " " + urlsplit(url).query, taint, purpose, self._host(url))
+        self._check_text(self._url_text(url), taint, purpose, self._host(url))
         return self._get(url, taint, purpose)
 
     # -- the checks ----------------------------------------------------------------------------------------------------------------------------
+    @staticmethod
+    def _url_text(url: str) -> str:
+        parts = urlsplit(url)
+        return " ".join(
+            [*(parts.hostname or "").split("."), parts.path, parts.query, parts.fragment]
+        )  # host labels and fragment too: any part of the URL can carry content
+
     @staticmethod
     def _host(url: str) -> str:
         return urlsplit(url).hostname or ""
@@ -306,7 +334,7 @@ class EgressGateway:
             raise self._refuse("restricted_context", host, purpose)  # Finance or Health data in this task's context: no network at all
         if not text.strip() or len(text) > MAX_QUERY_CHARS * 4:
             raise self._refuse("bad_request", host, purpose)
-        if IDENTIFIER.search(text):
+        if IDENTIFIER.search(_decode(text)):
             raise self._refuse("identifier_in_request", host, purpose)  # an e-mail address, a long number or a long token is never a public query
         if taint.leaks(text):
             raise self._refuse("private_content_in_request", host, purpose)
@@ -331,7 +359,7 @@ class EgressGateway:
             size += len(response.body)
             if response.status in REDIRECTS and response.location:
                 current = urljoin(current, response.location)
-                self._check_text(urlsplit(current).path + " " + urlsplit(current).query, taint, purpose, urlsplit(current).hostname or "")
+                self._check_text(self._url_text(current), taint, purpose, urlsplit(current).hostname or "")
                 continue  # every hop is checked again as a new request
             break
         else:

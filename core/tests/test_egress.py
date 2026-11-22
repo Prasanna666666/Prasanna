@@ -135,9 +135,11 @@ def test_every_redirect_hop_is_checked_again_and_cannot_lead_to_a_private_host_o
     with pytest.raises(Denied) as e:
         gateway(to_private, hosts=hosts).fetch("https://museum.example.invalid/a", TaintSet())
     assert e.value.code == "destination_not_public" and to_private.calls == ["https://museum.example.invalid/a"]
+    doc_only = TaintSet()
+    doc_only.add(f"Invoice {SENTINEL_DOC} is overdue")  # the first hop is clean; only the redirect target carries the private token
     leak = FakeTransport({"https://museum.example.invalid/a": Response(302, "", b"", f"https://museum.example.invalid/{SENTINEL_DOC}")})
     with pytest.raises(Denied) as e2:
-        gateway(leak).fetch("https://museum.example.invalid/a", private_context())
+        gateway(leak).fetch("https://museum.example.invalid/a", doc_only)
     assert e2.value.code in ("private_content_in_request", "identifier_in_request") and leak.calls == ["https://museum.example.invalid/a"]
     loop = FakeTransport({"https://museum.example.invalid/a": Response(302, "", b"", "/a")})
     with pytest.raises(Denied) as e3:
@@ -236,6 +238,46 @@ def test_lowercase_only_names_and_private_two_word_phrases_are_refused_in_querie
         with pytest.raises(Denied) as e2:
             gateway(transport).fetch(url, taint)
         assert e2.value.code in ("private_content_in_request", "identifier_in_request")  # a long slug is refused as an identifier
+    assert transport.calls == []
+
+
+@pytest.mark.criterion(11)
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://a.example.invalid/%41lexandra",  # percent-encoded
+        "https://a.example.invalid/x?q=alexandr%61",
+        "https://a.example.invalid/x?q=alexandr%2561",  # encoded twice
+        "https://alexandra.example.invalid/x",  # host label
+        "https://a.example.invalid/x#alexandra",  # fragment
+        "https://a.example.invalid/x?q=Alexandr\u00e1",  # accent
+        "https://a.example.invalid/x?q=\uff21\uff4c\uff45\uff58\uff41\uff4e\uff44\uff52\uff41",  # full-width letters
+        "https://a.example.invalid/x?q=tax_debt",  # underscore
+        "https://a.example.invalid/x?q=AlexandraJanssen",  # camelCase
+    ],
+    ids=["percent", "percent-query", "double-percent", "host", "fragment", "accent", "fullwidth", "underscore", "camel"],
+)
+def test_encodings_and_other_url_parts_do_not_hide_private_content(url):
+    taint = TaintSet()
+    taint.add("Alexandra Janssen owes a tax debt.")
+    transport = FakeTransport()
+    with pytest.raises(Denied) as e:
+        gateway(transport).fetch(url, taint)
+    assert e.value.code in ("private_content_in_request", "identifier_in_request") and transport.calls == []
+
+
+@pytest.mark.criterion(11)
+@pytest.mark.parametrize(
+    "query",
+    ["Alexandr%C3%A1", "alexandr%2561", "\uff21\uff4c\uff45\uff58\uff41\uff4e\uff44\uff52\uff41", "Alexandr\u00e1", "AlexandraJanssen", "tax_debt"],
+    ids=["percent", "double-percent", "fullwidth", "accent", "camel", "underscore"],
+)
+def test_encodings_do_not_hide_private_content_in_a_search_query(query):
+    taint = TaintSet()
+    taint.add("Alexandra Janssen owes a tax debt.")
+    transport = FakeTransport()
+    with pytest.raises(Denied):
+        gateway(transport).search(query, taint)
     assert transport.calls == []
 
 
