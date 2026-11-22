@@ -10,6 +10,7 @@ Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Writte
 | WP3.4 Intelligence Gateway | signed model manifest and import/load verification; deterministic routing from explicit signals; one resident model, capability-preserving fallback, deep tier only in Research mode; bounded scheduler (2, interactive first); degradation order; MLX adapter against a fake library; model identity in every 1.1 answer; API 1.1 served additively with a signed version and echo; coverage; exact arithmetic/units/dates; derived task content scrubbed and purgeable; evaluation set and harness (EN, NL, Cyrillic, Devanagari, CJK) | `models.py`, `intelligence.py`, `mlx_runtime.py`, `coverage.py`, `exact.py`, `evals/` |
 | WP3.5 Experience | reference client over the signed socket contract; UX catalogue with completeness test | `WP3_5_CLIENT.md` |
 | WP3.6 Reliability | fault, hostile-input, load and redaction matrix; ingestion benchmark | `WP3_6_RELIABILITY.md` |
+| Composition root | `app.py`: builds a whole Core from injected parts, wires revocation to the index and task-store purge, runs the worker and the socket; end-to-end tests in `tests/test_app.py` | `app.py` |
 | WP3.7 | acceptance traceability and this handover | `STAGE3_ACCEPTANCE.md` |
 
 ## How to reproduce (from `core/`)
