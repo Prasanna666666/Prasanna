@@ -12,10 +12,11 @@ import ctypes
 import json
 import os
 import platform
-import socket
 import struct
 import sys
 from collections.abc import Callable, Sequence
+
+from . import confinement
 
 PR_SET_NO_NEW_PRIVS = 38
 PR_SET_SECCOMP = 22
@@ -124,41 +125,13 @@ def install_network_deny() -> str:
     return "seccomp"
 
 
-def _refused(action: Callable[[], object]) -> bool:
-    """True only if the operating system itself refused the action with a permission error (an unconfined process gets a different error or succeeds)."""
-    try:
-        action()
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return False
-
-
-def _try_write() -> None:
-    path = "/private/tmp/.atlas-sandbox-probe"
-    open(path, "w").close()
-    os.unlink(path)  # reached only if the write was allowed
-
-
-def _try_network() -> None:
-    probe = socket.socket()
-    try:
-        probe.connect(("127.0.0.1", 9))
-    finally:
-        probe.close()
-
-
-MAC_CHECKS: dict[str, Callable[[], object]] = {"network": _try_network, "write": _try_write, "private_read": lambda: os.listdir("/Users")}
-
-
 def verify_launcher_sandbox(checks: dict[str, Callable[[], object]] | None = None) -> str:
-    """macOS: the worker must be running under the `sandbox-exec` profile. Nothing the caller says counts (there is no flag for it): the worker attempts a network connect, a file write and a read
-    of /Users and refuses to run unless the operating system refuses all three. Any other result, including a probe that cannot be made, fails closed."""
-    for name, action in (checks or MAC_CHECKS).items():
-        if not _refused(action):
-            raise SandboxUnavailable(name)
-    return "launcher"
+    """macOS: the worker must be running under the `sandbox-exec` profile. Nothing the caller says counts (there is no flag for it): `confinement` has the worker attempt a network connect, a
+    file write and a read of /Users, and it refuses to run unless the operating system refuses all three. Any other result, including a probe that cannot be made, fails closed."""
+    try:
+        return confinement.verify(checks)
+    except confinement.ConfinementFailed as failure:
+        raise SandboxUnavailable(str(failure)) from None
 
 
 def launch_prefix(read_roots: Sequence[str] = ()) -> list[str]:

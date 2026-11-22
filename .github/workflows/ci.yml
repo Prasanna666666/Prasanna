@@ -122,7 +122,16 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
-      - run: pytest -q
+      - name: Tests (log and JUnit report saved for the artefact scan)
+        run: |
+          mkdir -p ../artefacts
+          pytest -q --junitxml=../artefacts/junit-${{ matrix.python }}.xml 2>&1 | tee ../artefacts/pytest-${{ matrix.python }}.log
+      - name: Scan the test artefacts for personal-content sentinels
+        run: python tools/scan_artefacts.py ../artefacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-test-artefacts-${{ matrix.python }}
+          path: artefacts
   macos:
     runs-on: macos-latest
     steps:
@@ -159,6 +168,36 @@ jobs:
           pip install -e kit -e "core[dev]" mlx-lm huggingface_hub
           python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mlx-community/SmolLM-135M-Instruct-4bit', local_dir='/tmp/atlas-model'))"
           ls -la /tmp/atlas-model
+      - name: Discover which Mach services MLX/Metal needs under a deny-all-lookups profile
+        continue-on-error: true
+        working-directory: core
+        run: |
+          cat > /tmp/mach_discover.py <<'PY'
+          import os, re, subprocess, sys
+          from atlas_core import sandbox
+          code = "import mlx_lm; m, t = mlx_lm.load('/tmp/atlas-model'); print('GEN', repr(''.join(getattr(r, 'text', '') for r in mlx_lm.stream_generate(m, t, prompt='Hello', max_tokens=4))))"
+          allowed: list[str] = []
+          for round_ in range(1, 9):
+              base = sandbox.mac_profile(["/tmp/atlas-model"])
+              base = base[: base.index("(deny mach-lookup")]
+              allow = "(allow mach-lookup " + "".join(f'(global-name "{n}")' for n in allowed) + ")" if allowed else ""
+              profile = base + "(deny mach-lookup (with report))" + allow
+              proc = subprocess.Popen(["/usr/bin/sandbox-exec", "-p", profile, sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd="/", env={**os.environ, "HF_HUB_OFFLINE": "1"})
+              out, _ = proc.communicate(timeout=180)
+              log = subprocess.run(["log", "show", "--last", "2m", "--style", "compact", "--predicate", 'eventMessage CONTAINS "mach-lookup"'], capture_output=True, text=True).stdout
+              found = sorted({m for pid, m in re.findall(r"\((\d+)\) deny\(\d+\) mach-lookup (\S+)", log) if int(pid) == proc.pid} - set(allowed))
+              ok = proc.returncode == 0 and b"GEN" in out
+              print(f"round {round_}: rc={proc.returncode} ok={ok} new={found}")
+              if ok:
+                  break
+              if not found:
+                  print("no new services reported; output tail:", out[-300:].decode("utf-8", "replace").replace("\n", " | "))
+                  break
+              allowed += found
+          print("FINAL", allowed)
+          PY
+          python /tmp/mach_discover.py > /tmp/mach.out 2>&1 || true
+          cat /tmp/mach.out | cut -c1-900
       - name: Real MLX inference inside the sandboxed worker
         working-directory: core
         env:

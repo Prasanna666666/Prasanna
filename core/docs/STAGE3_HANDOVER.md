@@ -1,8 +1,8 @@
 # Stage 3 handover and owner acceptance brief
 
-Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Written for the architect's exact-commit review and for the owner. Evidence classes are as defined in `STAGE3_ACCEPTANCE.md`; nothing below is a target-Mac or real-model claim.
+Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Written for the architect's exact-commit review and for the owner. Evidence classes are as defined in `STAGE3_ACCEPTANCE.md`; evidence is labelled L (Linux CI, synthetic), R (hosted macOS CI runner: Keychain, `sandbox-exec`, a small public MLX model, the Swift launcher and client) and owner-Mac (none yet); nothing below is an owner-Mac or owner-model claim.
 
-## What Stage 3 now contains (all synthetic-data, Linux-verified)
+## What Stage 3 now contains (synthetic data; Linux CI plus hosted-macOS-runner evidence; no owner-Mac evidence)
 | Package | What | Docs |
 |---|---|---|
 | WP3.2 Documents | encrypted, restart-safe index of one designated folder; exact citations | `WP3_2_DOCUMENTS.md` |

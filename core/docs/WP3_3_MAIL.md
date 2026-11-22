@@ -29,11 +29,11 @@ Message body and stored headers (sender, date, subject) as text. **Not built:** 
 
 ## Known limitations and pending evidence (not claimed)
 
-* No real mailbox or Apple Mail store has been exercised; the real adapter, its real message-identity/versioning, scale and performance are unverified.
+* No real mailbox or Apple Mail store has been exercised; the real adapter (`macos.EmlxMailbox`, a streaming reader exercised on synthetic `.emlx` files on Linux and on a macOS runner), its real message-identity/versioning, scale and performance are unverified. The reader reads the byte-count line and headers to list a message and, to read one, walks the MIME structure in order and stops after the first text/plain part: attachments after it are never read; one before it is scanned past in bounded chunks and never decoded.
 * Coverage is produced and tested but not yet carried in the answer envelope (1.1 fields, not served); ranking is lexical term overlap.
 * Listing bounds assume only that the adapter honours `limit` and the cursor; an adapter that never ends its cursor is stopped by the work bound, and one that ignores the limit is cut to it. Whether a real Apple Mail adapter can page newest-first efficiently is unverified (Mac-pending).
 * The listing change-marker is adapter-supplied and only an optimisation: correctness never depends on it (every read is re-hashed).
-* Mac-pending: TCC/Mail automation permission, the Keychain anchor and store key provider, real-volume behaviour, performance, owner-authorised end-to-end validation (which needs explicit owner enablement).
+* Mac-pending: TCC/Mail automation permission, the Keychain anchor and store key provider on the owner's Mac (the real `security` tool is exercised on a macOS runner), real-volume behaviour, performance, owner-authorised end-to-end validation (which needs explicit owner enablement).
 
 ## Rollback
 

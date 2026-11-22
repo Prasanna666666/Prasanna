@@ -34,6 +34,7 @@ LAYER = {
     "isolated": 4,
     "worker": 4,
     "sandbox": 1,
+    "confinement": 1,
     "answer": 5,
     "tasks": 5,
     "service": 6,

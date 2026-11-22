@@ -169,12 +169,11 @@ def _answers(path: Path) -> bool:
     probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     probe.settimeout(2)
     try:
-        probe.connect(str(path))
+        return probe.connect_ex(str(path)) == 0  # refused, no such file, not a socket: nobody is listening
     except OSError:
-        return False  # refused, no such file, not a socket: nobody is listening
+        return False
     finally:
         probe.close()
-    return True
 
 
 def serve_unix(
