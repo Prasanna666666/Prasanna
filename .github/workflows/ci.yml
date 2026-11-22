@@ -130,12 +130,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Swift app builds and its tests pass
-        working-directory: app
-        run: |
-          swift --version
-          swift build
-          swift test
       - name: Install SQLCipher and build its Python binding from source (no macOS wheel exists)
         run: |
           brew install sqlcipher
@@ -144,6 +138,12 @@ jobs:
           export LDFLAGS="-L$prefix/lib"
           pip install sqlcipher3
       - run: pip install -e kit -e "core[dev]"
+      - name: Swift app builds and its tests pass (including the real Swift launcher and client against the real Core)
+        working-directory: app
+        run: |
+          swift --version
+          swift build
+          ATLAS_CI_PYTHON="$(which python)" swift test
       - name: Core tests on macOS
         working-directory: core
         run: pytest -q -p no:cacheprovider
