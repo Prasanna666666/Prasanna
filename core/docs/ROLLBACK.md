@@ -6,3 +6,5 @@ This package is additive and reversible. It does not migrate or move anything.
 - **Rollback:** (1) revert the branch/commit (removes `core/` and the CI job); (2) delete the task store file and its key (nothing else depends on them): on a Mac `security delete-generic-password -s atlas-task-key` removes the Keychain item that `provision()` created. No downtime and no data restore are involved.
 - **Schema versioning:** `PRAGMA user_version = 1`; a store written by a newer version is refused, not guessed at. A real migration for this store would need its own approved package.
 - **If a change to existing stores or keys ever becomes necessary** (for example stored page offsets for citations, Stage 1 G-2): stop and submit a separate migration proposal; this package does not contain one.
+
+- **Stage 3 additions:** `core/client/`, `core/evals/`, `core/bench/ingest.py` and the modules listed in `STAGE3_HANDOVER.md` live under `core/` only; reverting the commits removes them. The one behaviour change to existing Core data handling is that a finished task's checkpoint no longer keeps passage text, draft or quotes; there is nothing to restore.

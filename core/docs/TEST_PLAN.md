@@ -7,7 +7,7 @@ All data is synthetic (invented sentinels in `tests/conftest.py`); no test needs
 |---|---|---|
 | Install | `pip install -e ../kit[secure] -e .[dev]` | no error |
 | Lint / format / types | `ruff check . && ruff format --check . && mypy src` | `All checks passed!`, files already formatted, `Success: no issues found` |
-| All tests | `python -m pytest -q -p no:cacheprovider` | `717 passed` |
+| All tests | `python -m pytest -q -p no:cacheprovider` | `900 passed` |
 | One criterion | `python -m pytest -q -k "policy"` etc. | per file |
 | Overhead benchmark | `python bench/overhead.py --runs 300 --json` | JSON report (see BENCHMARK.md) |
 | Legacy suites unaffected | `cd ../kit && python -m pytest -q` (and `library`, `finance`, `atlas`, `images`) | same counts as before this branch (165, 299, 701, 111, 100) |
@@ -23,6 +23,9 @@ Documents (two pages, a Dutch+Japanese text), a mail (headers/body parts), an at
 
 ## WP3.3 mail index (synthetic)
 `tests/test_mail.py` (98 tests, synthetic messages, `InMemoryMailbox`, the fake OS provider and fake anchor): stored-field headers vs body with exact `message_part` locators, forged sender/date in a body, malformed/smuggled/oversized/mismatched records, a leaky adapter and zero attachment access, changed/deleted messages, default deny and independent grants over the real `SourceAccess`, OS evidence faults, revocation at `scan:begin`/`msg:before`/between pages/mid-listing (a blocking adapter)/between a read and its write/search/model, paged and bounded listing with newest-first admission and no early stop (over the cap, out of date order, a sorted prefix ending at a page boundary then a newer message on the next page, the same inside the last page, beyond the work bound, oversized pages), malformed listing identities/entries/pages (None, integer, float, bytes, list, unsupported object, mistyped fields, wrong page shapes, an exploding adapter, endless empty pages, duplicates), hostile instructions end to end, a six-boundary crash matrix, idempotency, cancellation, slices, redaction and encryption at rest. Design and limits: `WP3_3_MAIL.md`.
+
+## Stage 3 additions (WP3.4 to WP3.7)
+`test_models.py` (signed manifest, import/load verification), `test_intelligence.py` (routing, fallback, one resident model, scheduler, degradation order), `test_mlx_runtime.py` (adapter against a FAKE library), `test_api_v11.py` (1.1 serving, signed version, coverage), `test_exact.py`, `test_retention.py` (scrub, purge, concurrency), `test_evals.py` (set locked by hash; `python evals/harness.py`), `test_client.py` (end to end over the real socket with `client/atlas_client.py`), `test_reliability.py` (crash matrix over the real stack, disk pressure, load, hostile input, redaction), `test_stage3_acceptance.py` (traceability). Benchmarks: `python bench/ingest.py --json` (synthetic, developer-machine, labelled). Design notes: `WP3_5_CLIENT.md`, `WP3_6_RELIABILITY.md`, `STAGE3_ACCEPTANCE.md`, `STAGE3_HANDOVER.md`.
 
 ## Fault injection
 `FaultInjector` crashes the pipeline the first time it passes a named boundary: `before|mid|after` x `retrieved|drafted|verified`, plus `before:final` (10 boundaries). After each crash the test builds a new service on the same encrypted store (a restart), runs `recover()` and expects one completed task, one answer, at most one repeated step. Retry budget 0 -> `failed/needs_attention`; a task stuck before it was queued -> `needs_attention`.
