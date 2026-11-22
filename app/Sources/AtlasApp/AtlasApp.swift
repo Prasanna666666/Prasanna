@@ -3,8 +3,16 @@ import CryptoKit
 import Security
 import SwiftUI
 
+/// The app owns the Core it starts: quitting the app (menu, window close, logout, shutdown) stops it, waits for it and reaps it, so no Core keeps processing sources after the UI is gone.
+/// If the app crashes instead, the Core stops by itself (it watches its parent) and the next launch reaps anything left behind (`CoreLauncher.reapLeftovers`).
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationWillTerminate(_ notification: Notification) { Launcher.shared.stop() }
+}
+
 @main
 struct AtlasApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var model = ConversationModel()
     var body: some Scene {
         WindowGroup("Atlas") {
@@ -118,16 +126,25 @@ final class ConversationModel: ObservableObject {
         guard let client else { return }
         do {
             let state = try await Task.detached { try client.consent() }.value
-            needsGetStarted = !((state["grants"] as? [[String: Any]]) ?? []).contains { ($0["revoked"] as? Bool) == false }
+            let active = ((state["grants"] as? [[String: Any]]) ?? []).filter { ($0["revoked"] as? Bool) == false }.count
+            needsGetStarted = GetStartedFlow.needsGetStarted(completedOnce: UserDefaults.standard.bool(forKey: Self.completedKey), activeGrants: active)
         } catch AtlasError.core(let code) where code == "unauthenticated" {
             // First run: the Core does not know this client yet. Enrol it as the owner client (accepted once, over the owner-only socket), then ask again.
             do { try await Task.detached { try client.enrolSelf(bootstrapCode: Launcher.bootstrapCode) }.value; Launcher.shared.forgetCode(); await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
         } catch { failure = (error as? AtlasError)?.message }
     }
 
-    func enable(_ sources: [String]) async {
-        guard let client else { return }
-        do { _ = try await Task.detached { try client.enable(sources) }.value; needsGetStarted = false } catch { failure = (error as? AtlasError)?.message }
+    static let completedKey = "atlas.getStartedCompleted"
+
+    /// The owner's first-run choice. Nothing chosen means no request to the Core and so no grant; the choice (even an empty one) is remembered so Get Started is not shown again.
+    func complete(_ choice: GetStartedChoice) async {
+        failure = nil
+        if let sources = GetStartedFlow.request(for: choice) {
+            guard let client else { return }
+            do { _ = try await Task.detached { try client.enable(sources) }.value } catch { failure = (error as? AtlasError)?.message; return }
+        }
+        UserDefaults.standard.set(true, forKey: Self.completedKey)
+        needsGetStarted = false
     }
 
     func ask(scope: [String]) async {
@@ -162,17 +179,16 @@ final class ConversationModel: ObservableObject {
 
 struct GetStartedView: View {
     @ObservedObject var model: ConversationModel
-    @State private var documents = true
-    @State private var mail = true
+    @State private var choice = GetStartedChoice()  // everything off: only a deliberate choice creates a grant
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Welcome to Atlas").font(.largeTitle)
-            Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer. Choose what Atlas may read. You can change this at any time.")
-            Toggle("My documents", isOn: $documents)
-            Toggle("My mail (message text only; attachments are not read)", isOn: $mail)
+            Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer. Atlas reads nothing until you choose it here. You can change this at any time.")
+            Toggle("My documents", isOn: $choice.documents)
+            Toggle("My mail (message text only; attachments are not read)", isOn: $choice.mail)
             if let failure = model.failure { Text(failure).foregroundStyle(.red) }
-            Button("Continue") { Task { await model.enable((documents ? ["documents"] : []) + (mail ? ["mail"] : [])) } }
-                .buttonStyle(.borderedProminent).disabled(!documents && !mail)
+            Button(choice.sources.isEmpty ? "Continue without enabling anything" : "Continue") { Task { await model.complete(choice) } }
+                .buttonStyle(.borderedProminent)
         }.padding(32).frame(minWidth: 520)
     }
 }

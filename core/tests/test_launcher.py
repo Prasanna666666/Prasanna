@@ -149,3 +149,52 @@ def test_the_source_arguments_are_name_equals_folder_and_anything_else_is_ignore
     assert _source("documents=/Users/x/Documents") == ("documents", Path("/Users/x/Documents"))
     assert _source("mail=/a=b/c") == ("mail", Path("/a=b/c"))
     assert _source(None) is None and _source("") is None and _source("nofolder") is None and _source("=/x") is None and _source("name=") is None
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_a_core_whose_parent_dies_stops_by_itself_instead_of_running_on(tmp_path):
+    """The app crashes or is killed: the Core it started must not be left running, processing sources with no one to answer to."""
+    import signal
+    import textwrap
+    import time
+
+    sock = Path(tempfile.mkdtemp(prefix="atl")) / "run" / "core.sock"
+    parent_code = textwrap.dedent(
+        f"""
+        import os, signal, sys
+        sys.path[:0] = {[str(Path(__file__).parent), str(Path(__file__).parent.parent / "src")]!r}
+        from pathlib import Path
+        from atlas_core.launcher import CoreProcess
+        core = CoreProcess(Path({str(tmp_path / "core")!r}), Path({str(sock)!r}), config_factory="core_factory:build_config", allow_custom_factory=True)
+        core.start()
+        print(core.process.pid, flush=True)
+        os.kill(os.getpid(), signal.SIGKILL)  # a crash: no cleanup of any kind runs
+        """
+    )
+    parent = subprocess.Popen([sys.executable, "-c", parent_code], stdout=subprocess.PIPE, text=True)
+    assert parent.stdout is not None
+    core_pid = int(parent.stdout.readline())
+    parent.wait(30)
+    try:
+        deadline = time.monotonic() + 15
+        while _alive(core_pid) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        assert not _alive(core_pid), "the Core outlived the app that started it"
+    finally:
+        if _alive(core_pid):
+            os.kill(core_pid, signal.SIGKILL)
+
+
+def test_stop_terminates_waits_for_and_reaps_the_core(launched):
+    start, _, _ = launched
+    core = start()
+    pid = core.process.pid
+    core.stop()
+    assert core.process.returncode == 0 and not _alive(pid)  # a clean exit, reaped: no zombie left behind

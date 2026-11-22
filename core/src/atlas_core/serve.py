@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import os
 import re
 import signal
 import sys
@@ -74,6 +75,14 @@ def main(argv: list[str] | None = None) -> int:
     for number in (signal.SIGTERM, signal.SIGINT):
         signal.signal(number, lambda *_: stop.set())
     print("READY", flush=True)
+    parent = os.getppid()
+
+    def orphaned() -> None:  # the app that started this Core is gone (quit, crash, kill): stop at once instead of running on with no one to answer to
+        while not stop.wait(0.5):
+            if os.getppid() != parent:
+                stop.set()
+
+    threading.Thread(target=orphaned, daemon=True).start()
     stop.wait()
     core.close()
     return 0
