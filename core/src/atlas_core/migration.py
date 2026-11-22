@@ -29,6 +29,7 @@ from typing import Protocol
 
 from kit.db import EncryptionError, connect
 
+from .backup import sha256_file
 from .records import Record, RecordError
 from .rules import load_rules
 
@@ -78,14 +79,6 @@ class Reconciliation:
     skipped: int
 
 
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        while block := f.read(1 << 20):
-            h.update(block)
-    return h.hexdigest()
-
-
 @contextmanager
 def _scratch_copy(source: Path, key: str | None) -> Iterator[sqlite3.Connection]:
     """A connection to a private COPY of the database. The original is only read, as bytes, to make the copy."""
@@ -127,7 +120,7 @@ def inventory(source: Path, key: str | None = None) -> Inventory:
                     expense += int(row["amount_minor"])
                 elif row["kind"] == "income":
                     income += int(row["amount_minor"])
-    return Inventory(_sha256(source), source.stat().st_size, tables, count, expense, income)
+    return Inventory(sha256_file(source), source.stat().st_size, tables, count, expense, income)
 
 
 def _record(row: sqlite3.Row) -> Record:
@@ -188,7 +181,7 @@ def migrate(source: Path, sink: Sink, key: str | None = None) -> Reconciliation:
         raise MigrationError("unmappable_rows")  # nothing is written when any row cannot be carried over exactly: the owner decides what to do with them first
     for record in plan.records:
         sink.put(record)
-    if _sha256(source) != before.sha256:
+    if sha256_file(source) != before.sha256:
         raise MigrationError("original_changed")
     return reconcile(before, plan, sink)
 
