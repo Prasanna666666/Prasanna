@@ -160,7 +160,8 @@ final class ConversationModel: ObservableObject {
 
 struct GetStartedView: View {
     @ObservedObject var model: ConversationModel
-    @State private var documents = true, mail = true
+    @State private var documents = true
+    @State private var mail = true
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Welcome to Atlas").font(.largeTitle)
