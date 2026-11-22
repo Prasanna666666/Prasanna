@@ -41,8 +41,11 @@ public final class CoreClient {
     public func passage(_ taskID: String, index: Int) throws -> String { try object(call("GET", "/v1/tasks/\(taskID)/citations/\(index)"))["text"] as? String ?? "" }
     public func compute(kind: String, args: [String]) throws -> [String: Any] { try object(call("POST", "/v1/compute", ["kind": kind, "args": args])) }
     /// First run: enrol this client's public key as the OWNER client. Unsigned and accepted once, over the owner-only socket, while no owner client exists; afterwards the Core refuses it.
-    public func enrolSelf() throws {
-        _ = try call("POST", "/v1/enrol", ["client_id": clientID, "public_key": signer.publicKey.rawRepresentation.base64EncodedString(), "role": "owner"], signed: false)
+    /// `bootstrapCode` is the single-use first-run code the process that STARTED the Core handed to this app over a private channel; without it a Core started normally refuses.
+    public func enrolSelf(bootstrapCode: String?) throws {
+        var body: [String: Any] = ["client_id": clientID, "public_key": signer.publicKey.rawRepresentation.base64EncodedString(), "role": "owner"]
+        if let bootstrapCode { body["bootstrap_code"] = bootstrapCode }
+        _ = try call("POST", "/v1/enrol", body, signed: false)
     }
 
     public func consent() throws -> [String: Any] { try object(call("GET", "/v1/consent")) }

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import os
 import secrets
@@ -62,6 +63,34 @@ class NonceCache:
                 return False
             self._seen[key] = now
             return True
+
+
+class BootstrapGate:
+    """The single-use code that guards the first-run owner enrolment. Only the process that starts the Core knows it (it hands it to the app over a private channel such as an
+    inherited pipe), so another program of the same user that merely reaches the socket cannot enrol. It is compared in constant time, locks after a few wrong tries, is used up by the
+    first success and is never written to a log or a file."""
+
+    MAX_FAILURES = 5
+
+    def __init__(self, code: str) -> None:
+        if len(code) < 16:  # noqa: PLR2004
+            raise ValueError("bootstrap code too short")
+        self._digest = hashlib.sha256(code.encode()).digest()
+        self._failures, self._used, self._lock = 0, False, threading.Lock()
+
+    def check(self, offered: object) -> bool:
+        """True only for the right code, while the gate is open. A wrong or missing code counts as a failure; after MAX_FAILURES the gate stays shut until the Core restarts."""
+        with self._lock:
+            if self._used or self._failures >= self.MAX_FAILURES:
+                return False
+            good = isinstance(offered, str) and hmac.compare_digest(hashlib.sha256(offered.encode()).digest(), self._digest)
+            if not good:
+                self._failures += 1
+            return good
+
+    def consume(self) -> None:
+        with self._lock:
+            self._used = True
 
 
 class ClientRegistry:

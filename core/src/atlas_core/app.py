@@ -22,7 +22,7 @@ from .designation import DesignationStore, RollbackAnchor
 from .documents import DocumentIndex
 from .events import SafeLog
 from .evidence import StoredSource
-from .identity import ClientRegistry
+from .identity import BootstrapGate, ClientRegistry
 from .intelligence import Gateway, ModelRuntime, Router, Signals
 from .mail import Mailbox, MailIndex
 from .models import Manifest, ModelStore
@@ -50,6 +50,10 @@ class CoreConfig:
     manifest: Manifest
     model_record_key: bytes
     runtime: ModelRuntime
+    bootstrap_code: str | None = (
+        None  # the single-use first-run code, known only to the process that starts the Core; required while no owner client is enrolled
+    )
+    open_bootstrap: bool = False  # DEVELOPMENT ONLY: accept the first owner with no code (what the first version did); never set it in a real run
     clients: ClientRegistry | None = None  # None: a durable registry in the data folder (the normal case); tests inject one
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, folder)
     mailbox: tuple[str, Mailbox] | None = None  # (source type name, adapter)
@@ -116,7 +120,12 @@ class Core:
             self.designation.register_purge(source_type, self._purger(source_type, index))
         self.consent = ConsentService(self.designation, self.access, self.indexes)
         self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
-        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent)
+        gate = None
+        if not self.clients.has_owner():
+            if c.bootstrap_code is None and not c.open_bootstrap:
+                raise ValueError("no owner client is enrolled: start the Core with a one-time bootstrap code")  # fail closed
+            gate = BootstrapGate(c.bootstrap_code) if c.bootstrap_code is not None else None
+        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent, bootstrap=gate)
         self.server: UnixServer | None = None
         self._scanned: dict[str, datetime] = {}
         self._stop = threading.Event()

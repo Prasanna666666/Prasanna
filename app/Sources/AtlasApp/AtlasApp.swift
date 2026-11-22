@@ -40,6 +40,12 @@ enum KeyStore {
     }
 }
 
+/// The code that lets this app enrol as the owner. It must come from the code that STARTS the Core (which generates it, passes it to the Core on a private channel such as an
+/// inherited pipe, and keeps it in memory for this app). That launcher is NOT built, so this is nil until it is; a Core started without a code refuses to start.
+enum Launcher {
+    static var bootstrapCode: String? { nil }
+}
+
 @MainActor
 final class ConversationModel: ObservableObject {
     @Published var question = ""
@@ -65,7 +71,7 @@ final class ConversationModel: ObservableObject {
             needsGetStarted = !((state["grants"] as? [[String: Any]]) ?? []).contains { ($0["revoked"] as? Bool) == false }
         } catch AtlasError.core(let code) where code == "unauthenticated" {
             // First run: the Core does not know this client yet. Enrol it as the owner client (accepted once, over the owner-only socket), then ask again.
-            do { try await Task.detached { try client.enrolSelf() }.value; await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
+            do { try await Task.detached { try client.enrolSelf(bootstrapCode: Launcher.bootstrapCode) }.value; await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
         } catch { failure = (error as? AtlasError)?.message }
     }
 

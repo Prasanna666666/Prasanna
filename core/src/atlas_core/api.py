@@ -22,7 +22,7 @@ from . import API_VERSION, SUPPORTED_VERSIONS
 from .contracts import ContractError, validate
 from .errors import CoreError, status_of, user_error
 from .events import SafeLog, new_id
-from .identity import H_VERSION, ClientRegistry
+from .identity import H_VERSION, BootstrapGate, ClientRegistry
 from .service import TERMINAL, ConsentPort, TaskService
 
 JSON = "application/json"
@@ -83,8 +83,9 @@ class CoreApi:
         clock: Callable[[], datetime] | None = None,
         check_responses: bool = False,
         consent: ConsentPort | None = None,
+        bootstrap: BootstrapGate | None = None,
     ) -> None:
-        self._service, self._registry, self._log, self._consent = service, registry, log, consent
+        self._service, self._registry, self._log, self._consent, self._bootstrap = service, registry, log, consent, bootstrap
         self._clock = clock or (lambda: datetime.now(UTC))
         self._check = check_responses  # tests: every JSON response must match its contract type
 
@@ -200,8 +201,12 @@ class CoreApi:
         if not self._registry.has_owner():
             if body["role"] != "owner":
                 raise CoreError("invalid_request")
+            if self._bootstrap is not None and not self._bootstrap.check(body.get("bootstrap_code")):
+                raise CoreError("unauthenticated")  # a missing or wrong first-run code: nothing about why
             if not self._registry.enrol_first_owner(body["client_id"], key):
                 raise CoreError("conflict")
+            if self._bootstrap is not None:
+                self._bootstrap.consume()
         else:
             caller = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
             if not self._registry.is_owner(caller):

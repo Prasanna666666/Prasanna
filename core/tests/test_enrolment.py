@@ -22,14 +22,18 @@ pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="pe
 
 @pytest.fixture
 def world(tmp_path):
-    w = World(tmp_path, durable_clients=True)
+    w = World(tmp_path, durable_clients=True, bootstrap_code=CODE)
     yield w
     w.close()
 
 
-def body(client_id="owner-fresh-0001", key=None, role="owner"):
+CODE = "first-run-code-0123456789abcdef"
+
+
+def body(client_id="owner-fresh-0001", key=None, role="owner", code=CODE):
     key = key or Ed25519PrivateKey.generate().public_key()
-    return {"client_id": client_id, "public_key": base64.b64encode(key.public_bytes_raw()).decode(), "role": role}
+    out = {"client_id": client_id, "public_key": base64.b64encode(key.public_bytes_raw()).decode(), "role": role}
+    return {**out, "bootstrap_code": code} if code else out
 
 
 def post(core, payload, signer=None, version="1.1"):
@@ -50,7 +54,7 @@ def test_a_fresh_install_enrols_its_owner_client_unsigned_once_and_can_then_act_
     with pytest.raises(atlas_client.ClientError) as before:  # not enrolled yet: nothing it signs is accepted
         client.consent()
     assert before.value.code == "unauthenticated"
-    answer = client.enrol_self()
+    answer = client.enrol_self(bootstrap_code=CODE)
     contracts.validate("EnrolResponse", answer, "1.1")
     assert answer == {"client_id": "owner-fresh-0001", "role": "owner"}
     assert client.consent()["grants"] == []  # and it is an OWNER client: the consent route answers
@@ -60,7 +64,7 @@ def test_the_first_run_window_closes_after_one_enrolment_and_a_second_unsigned_a
     core = world.build()
     core.start()
     assert post(core, body("owner-fresh-0001")).status == 201
-    for attempt in (body("intruder-0000001"), body("owner-fresh-0001")):
+    for attempt in (body("intruder-0000001"), body("owner-fresh-0001"), body("intruder-0000002", code=None)):
         refused = post(core, attempt)
         assert refused.status == 401 and json.loads(refused.body)["code"] == "unauthenticated"
     assert core.clients.has_owner() and not core.clients.is_owner("intruder-0000001")
@@ -117,7 +121,7 @@ def test_an_owner_client_enrols_a_member_with_a_signed_call_and_only_as_a_member
     path = core.start()
     owner_key = Ed25519PrivateKey.generate()
     owner = atlas_client.AtlasClient(path, owner_key, "owner-fresh-0001", clock=world.clock)
-    owner.enrol_self()
+    owner.enrol_self(bootstrap_code=CODE)
     member_key = Ed25519PrivateKey.generate()
     assert owner.enrol("member-device-001", member_key.public_key())["role"] == "member"
     member = atlas_client.AtlasClient(path, member_key, "member-device-001", clock=world.clock)
@@ -161,3 +165,78 @@ def test_the_registry_itself_refuses_a_second_first_owner_even_if_a_caller_skipp
     assert (
         registry.enrol_first_owner("owner-fresh-0001", second) is False and registry.is_owner("owner-fresh-0001") and not registry.is_owner("another-owner-01")
     )
+
+
+# ---- the first-run code: only the process that started the Core can enrol (the answer to "any process of this user can reach the socket") -----------------------------------
+def test_a_program_that_reaches_the_socket_but_does_not_know_the_code_cannot_enrol(world):
+    core = world.build()
+    core.start()
+    for attempt in (
+        body("intruder-0000001", code=None),
+        body("intruder-0000001", code="wrong-code-wrong-code-0000"),
+        body("intruder-0000001", code=CODE[:-1] + "X"),
+    ):
+        refused = post(core, attempt)
+        assert refused.status == 401 and json.loads(refused.body)["code"] == "unauthenticated"
+    assert not core.clients.has_owner()
+    assert post(core, body("owner-fresh-0001")).status == 201  # the legitimate app still can: the wrong guesses did not use up the code
+
+
+def test_guessing_is_limited_the_gate_shuts_after_a_few_wrong_tries_even_for_the_right_code(world):
+    core = world.build()
+    core.start()
+    for n in range(5):
+        assert post(core, body(f"guesser-client-{n:02d}", code=f"guess-guess-guess-{n:04d}")).status == 401
+    assert post(core, body("owner-fresh-0001")).status == 401 and not core.clients.has_owner()  # locked until the Core restarts
+
+
+def test_the_code_is_checked_in_constant_time_hashed_never_stored_and_never_logged(world, caplog):
+    import inspect
+
+    from atlas_core import identity
+
+    source = inspect.getsource(identity.BootstrapGate)
+    assert "compare_digest" in source and "self._code" not in source
+    core = world.build()
+    core.start()
+    post(core, body("intruder-0000001", code="wrong-code-wrong-code-0000"))
+    post(core, body("owner-fresh-0001"))
+    seen = "\n".join(r.getMessage() for r in caplog.records)
+    assert CODE not in seen and "wrong-code-wrong-code-0000" not in seen
+    assert CODE not in (world.tmp / "core" / "clients.json").read_text()
+
+
+def test_the_code_is_used_up_by_the_first_success_and_a_restart_needs_no_code_once_an_owner_exists(world):
+    core = world.build()
+    core.start()
+    assert post(core, body("owner-fresh-0001")).status == 201
+    assert post(core, body("second-owner-001")).status == 401  # window closed, and the code is spent
+    core.close()
+    again = world.build()  # an owner exists: the Core starts without needing a code
+    again.start()
+    assert again.clients.is_owner("owner-fresh-0001")
+
+
+def test_a_core_with_no_owner_and_no_code_refuses_to_start_unless_development_mode_is_explicit(tmp_path):
+    w = World(tmp_path, durable_clients=True, bootstrap_code=None)
+    w.bootstrap_code = None
+    try:
+        from atlas_core.app import Core, CoreConfig
+
+        config = CoreConfig(
+            data_dir=tmp_path / "core2", socket_path=w.sock, task_key="t" * 40, designation_key="d" * 40, documents_key="o" * 40, mail_key="m" * 40, anchor=w.anchor,
+            os_permissions=w.os, manifest=w.manifest, model_record_key=b"k" * 32, runtime=w.runtime, documents=None, mailbox=None, clock=w.clock,
+        )  # fmt: skip
+        with pytest.raises(ValueError, match="bootstrap code"):
+            Core(config)
+        config.open_bootstrap = True
+        Core(config).close()
+    finally:
+        w.close()
+
+
+def test_a_too_short_code_is_refused():
+    from atlas_core.identity import BootstrapGate
+
+    with pytest.raises(ValueError, match="short"):
+        BootstrapGate("short")

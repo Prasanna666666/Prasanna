@@ -33,8 +33,8 @@ MAIL_MESSAGE = {
 
 
 class World:
-    def __init__(self, tmp: Path, mail: bool = False, durable_clients: bool = False) -> None:
-        self.durable = durable_clients
+    def __init__(self, tmp: Path, mail: bool = False, durable_clients: bool = False, bootstrap_code: str | None = None) -> None:
+        self.durable, self.bootstrap_code = durable_clients, bootstrap_code
         data = json.loads(harness.SET_FILE.read_text(encoding="utf-8"))
         self.tmp, self.clock = tmp, Clock()
         docs = tmp / "docs"
@@ -61,7 +61,7 @@ class World:
             CoreConfig(
                 data_dir=self.tmp / "core", socket_path=self.sock, task_key=KEY + "t", designation_key=KEY + "d", documents_key=KEY + "o", mail_key=KEY + "m", anchor=self.anchor,
                 os_permissions=self.os, clients=None if self.durable else self.clients, manifest=self.manifest, model_record_key=b"k" * 32, runtime=self.runtime, documents=("documents", self.docs),
-                mailbox=None if self.mailbox is None else ("mail", self.mailbox), clock=self.clock,
+                mailbox=None if self.mailbox is None else ("mail", self.mailbox), bootstrap_code=self.bootstrap_code, open_bootstrap=self.bootstrap_code is None, clock=self.clock,
             )
         )  # fmt: skip
         self.cores.append(core)
