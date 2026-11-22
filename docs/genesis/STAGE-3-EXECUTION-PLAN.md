@@ -1,6 +1,6 @@
 # Atlas — Stage 3 Execution Plan
 
-**Status:** Stage 3 was authorised under G-027 and is **CLOSED FOR PROJECT SEQUENCING BY OWNER DECISION (2026-11-22)** at PR #8 head `14b471bf589303cf25f5d781f8aaf62b0f5654e0`, with criteria 4, 11, 12 and 13 carried forward as explicit known limitations. This is not a technical pass of those criteria or release acceptance. The evidence matrix and carry-forward gates below remain authoritative.  
+**Status:** Stage 3 was authorised under G-027 and remains **NOT ACCEPTED / OPEN**. The earlier “closed for project sequencing” wording is superseded. Criteria 4, 11, 12 and 13 remain mandatory open criteria, not accepted carry-forward items. No Stage 4 progression or release claim may treat Stage 3 as complete. The evidence matrix and closure gates below remain authoritative.  
 **Initiative:** Project Genesis  
 **Baseline:** PR #8, `genesis-stage2-foundation`, Stage 2 accepted at `58210223398a5715b618d1163397104efd358d49`  
 **Plan owner:** ChatGPT (architect/integrator)  
@@ -302,14 +302,18 @@ Stage 3 is authorised under G-027 and proceeds package by package after a writte
 - The first tier must be useful before full import completes. Every answer reports source coverage: searched/total, pending categories and unsupported/failed items. A partial index must never be labelled complete.
 
 
-## 12.10 Stage 3 closure and carry-forward disposition (2026-11-22)
+## 12.10 Stage 3 acceptance status — NOT ACCEPTED (2026-11-22)
 
-The owner explicitly instructed that Stage 3 be closed now. This section records that decision at exact PR #8 head `14b471bf589303cf25f5d781f8aaf62b0f5654e0` so it is not repeatedly reopened or relayed. Stage 3 is closed for project sequencing; the owner accepts the following known limitations as carry-forward items. **This is not a claim that the original owner-tryable outcome has been demonstrated, that the open criteria passed, or that the product is release-ready.** The criterion statuses and evidence classes in `core/docs/STAGE3_ACCEPTANCE.md` remain unchanged.
+A previous owner-disposition note described Stage 3 as closed for project sequencing with known limitations carried forward. That status is superseded by the mandatory binary stage-acceptance rule in `docs/genesis/DELIVERY_PROTOCOL.md` §10 and the authoritative register in `docs/genesis/HANDOVER.md`. **Stage 3 is NOT ACCEPTED / OPEN.** A sequencing decision, partial work-package acceptance or roadmap progression cannot convert outstanding mandatory criteria into acceptance.
+
+The following criteria remain open and must be resolved with evidence before Stage 3 can be accepted:
 
 - **Criterion 4:** selected-real-model prompt-injection resistance is not evaluated.
-- **Criterion 11:** the macOS sandbox remains allow-by-default and is not least-privilege; egress is not connected to the answer flow and has not been tested against the real Internet. In addition, a P1 defect remains in the built gateway: `TaintSet.add()` does not fingerprint ordinary private names or short 2–3 word phrases. This defect is not waived. Keep public search disconnected and the gateway disabled until the defect is fixed, regression-tested (single private names and short phrases in queries and URL path/query), and independently reviewed. Do not store or log raw private text as part of the fix.
+- **Criterion 11:** the macOS sandbox remains allow-by-default and is not least-privilege; egress is not connected to the answer flow and has not been tested against the real Internet. A P1 defect remains in the built gateway: `TaintSet.add()` does not fingerprint ordinary private names or short 2–3 word phrases. Keep public search disconnected and the gateway disabled until fixed, regression-tested (single private names and short phrases in queries and URL path/query), and independently reviewed. Do not store or log raw private text as part of the fix.
 - **Criterion 12:** no target-Mac real-model latency, memory, quality or thermal measurements exist; no pass thresholds have been accepted.
 - **Criterion 13:** no human UI/accessibility walkthrough or owner-Mac acceptance has occurred. Hosted CI app build/launch/Core lifecycle is not owner acceptance. Real TCC prompts and a real Apple Mail store remain unverified. The app is ad-hoc signed only; notarisation and self-contained Python/model installation are incomplete.
-- **Criterion 6:** accepted for the exact-read restriction: if a non-text MIME part precedes the first text/plain part, that message is unreadable and is not indexed; attachment bytes are not read.
+- **Criterion 6:** accepted only for the exact-read restriction: if a non-text MIME part precedes the first text/plain part, that message is unreadable and is not indexed; attachment bytes are not read. This bounded work-package/criterion acceptance does not accept Stage 3 or the separate attachment-processing scope.
 
-Subsequent roadmap stages may proceed under this explicit owner disposition without pretending these items are complete. They remain required before any claim of owner-tryability/release readiness, and the egress defect must be closed before any public-search integration or gateway enablement. Do not ask the owner to repeat this decision; ask only for genuinely reserved product decisions.
+All other criteria must retain their exact evidence-class status in `core/docs/STAGE3_ACCEPTANCE.md`; no status may be upgraded without the criterion's required test and evidence. Claude must reconcile the implementation-facing acceptance, traceability and handover documents with this status and report every one of the 15 criteria against the same exact final commit.
+
+**Stage 4 must not proceed as though Stage 3 passed.** If any mandatory criterion or owner-only verification remains incomplete, Stage 3 remains NOT ACCEPTED and PR #8 remains draft/unmerged.
