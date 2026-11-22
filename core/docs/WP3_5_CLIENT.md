@@ -19,7 +19,7 @@ Status: implemented and tested on Linux CI with synthetic data. **The SwiftUI ma
 - A 1.0 client works unchanged against the same Core.
 
 ## Not done / Mac-pending (never to be claimed from Linux)
-1. The SwiftUI app itself: window, conversation view, progress, cancel, citation inspector, model line, accessibility (VoiceOver, keyboard, Dynamic Type), localisation of the catalogue (NL and others).
+1. The SwiftUI app: **source written, never compiled or run** (`../../app/`, with signing known-answer tests that must pass on a Mac first; `tests/test_swift_app_sources.py` keeps its catalogue and vectors in sync with the verified code). Still to do on a Mac: build and fix, window, conversation view, progress, cancel, citation inspector, model line, accessibility (VoiceOver, keyboard, Dynamic Type), localisation of the catalogue (NL and others).
 2. First-run **Get Started** consent (one screen) and macOS permission prompts (TCC): triggering, denial paths, and the `os_access_missing` experience.
 3. Client private key in the Keychain, enrolment of the owner client, and macOS peer-credential check (`LOCAL_PEERCRED`) on the socket.
 4. Source inspection: served as `GET /v1/tasks/{task_id}/citations/{index}` (API 1.1 `PassageText`, additive) and called by `AtlasClient.passage` (`tests/test_client.py::test_the_cited_passage_can_be_opened_exactly_and_stops_opening_when_the_source_changes_or_is_revoked`); the app's passage view is not built.
