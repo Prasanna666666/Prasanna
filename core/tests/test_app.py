@@ -146,6 +146,10 @@ def test_the_os_taking_its_permission_back_ends_the_grant_and_purges(world):
     world.os.set("documents", "missing")
     assert not core.access.permitted("documents")
     assert core.indexes["documents"].coverage()["total"] == 0
+    for _ in range(250):  # the purge is finished by the Core's own thread; wait for it (a slower machine takes longer) instead of assuming it is already done
+        if core.designation.pending_purges() == []:
+            break
+        time.sleep(0.02)
     assert core.designation.pending_purges() == []
 
 
