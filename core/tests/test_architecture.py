@@ -44,6 +44,7 @@ LAYER = {
     "host": 9,
     "serve": 9,
     "launcher": 9,
+    "macos": 4,
 }
 SOURCE_TYPE_NAMES = {"documents", "mail", "mail_attachment", "finance", "health"}
 

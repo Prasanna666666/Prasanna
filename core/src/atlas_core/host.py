@@ -1,28 +1,84 @@
 """The machine-specific part of a real Core: where its keys, its rollback anchor, its OS-permission provider, its mailbox adapter and its model engine come from.
 
-On a Mac these are the Keychain, the platform secure-storage anchor, the TCC permission provider, the Apple Mail adapter and the MLX engine. NONE of them is built, so the production
-factory refuses to build a Core and says exactly what is missing (it never falls back to a development stand-in). Tests and development supply their own factory with the explicit
-`--allow-custom-factory` flag of `serve`.
+On a Mac these are the Keychain (`macos.KeychainItems`, `macos.KeychainAnchor`), a folder-permission probe (`macos.FolderPermissions`), the Apple Mail reader (`macos.EmlxMailbox`) and
+the MLX engine in the isolated worker. All of them are written but **UNVERIFIED on a Mac** (never run there). On any other platform the production factory refuses to build a Core;
+it never falls back to a development stand-in. Tests and development supply their own factory with the explicit `--allow-custom-factory` flag of `serve`.
+
+Source type names (which folder is "documents", which is "mail") come from the caller, never from this file: the policy rules are the only place they are defined.
 """
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from .app import CoreConfig
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-MISSING = (
-    "Keychain key provider for the store keys",
-    "platform secure-storage rollback anchor",
-    "TCC OS-permission provider",
-    "Apple Mail adapter",
-    "model manifest installation and the MLX engine",
-)
+from .app import CoreConfig
+from .intelligence import ModelRuntime
+from .isolated import IsolatedEngine
+from .macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems, Runner
+from .mlx_runtime import MlxRuntime
+from .models import Manifest, ModelRejected
+
+MANIFEST_FILE, SIGNATURE_FILE = "manifest.json", "manifest.sig"
 
 
 class HostUnavailable(RuntimeError):
-    """This machine has no real platform providers (they are not built yet)."""
+    """This machine cannot provide the real platform parts."""
 
 
-def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None) -> CoreConfig:
-    raise HostUnavailable("not built: " + "; ".join(MISSING))
+@dataclass
+class HostOptions:
+    documents: tuple[str, Path] | None = None  # (source type name from the policy rules, the folder designated for it)
+    mail: tuple[str, Path] | None = None  # (source type name, the Apple Mail folder)
+    manifest_pubkey: Path | None = None  # the installed public key (32 raw bytes) that signed the model manifest
+
+
+@dataclass
+class HostEnv:
+    platform: str = sys.platform
+    runner: Runner = field(default=subprocess.run)
+    account: str | None = None
+    runtime: ModelRuntime | None = None  # None: the MLX engine in the isolated worker
+
+
+def load_manifest(models_dir: Path, pubkey: Path | None) -> Manifest:
+    """The signed manifest installed next to the models, or an EMPTY manifest (no model: answers say the local model is unavailable while typed functions continue). A manifest that
+    is missing, unsigned or fails its signature gives no models, never a crash and never an unsigned model."""
+    try:
+        key = Ed25519PublicKey.from_public_bytes((pubkey or Path("/nonexistent")).read_bytes())
+        return Manifest.from_signed((models_dir / MANIFEST_FILE).read_bytes(), (models_dir / SIGNATURE_FILE).read_bytes(), key)
+    except (OSError, ValueError, ModelRejected):
+        return Manifest([])
+
+
+def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, options: HostOptions | None = None, env: HostEnv | None = None) -> CoreConfig:
+    options, env = options or HostOptions(), env or HostEnv()
+    if env.platform != "darwin":
+        raise HostUnavailable("the real platform providers exist only for macOS")
+    items = KeychainItems(env.account, env.runner)
+    try:
+        keys = {name: items.secret(name) for name in ("task-store", "designation-store", "documents-index", "mail-index")}
+        record_key = bytes.fromhex(items.secret("model-record"))
+    except KeychainError:
+        raise HostUnavailable("the Keychain could not provide the store keys") from None
+    folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
+    return CoreConfig(
+        data_dir=data_dir,
+        socket_path=socket_path,
+        task_key=keys["task-store"],
+        designation_key=keys["designation-store"],
+        documents_key=keys["documents-index"],
+        mail_key=keys["mail-index"],
+        anchor=KeychainAnchor(items),
+        os_permissions=FolderPermissions(folders),
+        manifest=load_manifest(data_dir / "models", options.manifest_pubkey),
+        model_record_key=record_key,
+        runtime=env.runtime or MlxRuntime(IsolatedEngine("mlx")),
+        documents=options.documents,
+        mailbox=None if options.mail is None else (options.mail[0], EmlxMailbox(options.mail[1])),
+        bootstrap_code=bootstrap_code,
+    )

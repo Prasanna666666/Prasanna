@@ -7,7 +7,16 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS = ("STAGE3_ACCEPTANCE.md", "STAGE3_TRACEABILITY.md", "STAGE3_HANDOVER.md", "WP3_5_CLIENT.md", "WP3_6_RELIABILITY.md", "ENROLMENT.md", "MODEL_RUNTIME.md")
+DOCS = (
+    "STAGE3_ACCEPTANCE.md",
+    "STAGE3_TRACEABILITY.md",
+    "STAGE3_HANDOVER.md",
+    "WP3_5_CLIENT.md",
+    "WP3_6_RELIABILITY.md",
+    "ENROLMENT.md",
+    "MODEL_RUNTIME.md",
+    "MACOS_PROVIDERS.md",
+)
 
 
 def existing_tests() -> set[str]:

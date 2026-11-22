@@ -135,3 +135,11 @@ def test_a_launcher_whose_child_dies_reports_a_content_free_failure(tmp_path):
     with pytest.raises(LaunchFailed) as e:
         core.start(timeout=20)
     assert str(e.value) in ("exited", "timeout") and core.bootstrap_code is None
+
+
+def test_the_source_arguments_are_name_equals_folder_and_anything_else_is_ignored():
+    from atlas_core.serve import _source
+
+    assert _source("documents=/Users/x/Documents") == ("documents", Path("/Users/x/Documents"))
+    assert _source("mail=/a=b/c") == ("mail", Path("/a=b/c"))
+    assert _source(None) is None and _source("") is None and _source("nofolder") is None and _source("=/x") is None and _source("name=") is None

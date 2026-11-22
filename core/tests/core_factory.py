@@ -28,7 +28,7 @@ class StubRuntime:
         raise RuntimeError("not used")
 
 
-def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None) -> CoreConfig:
+def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, options=None) -> CoreConfig:
     manifest = signed([entry_dict("primary-1", {"w.safetensors": b"w"}, runtime="stub")])
     return CoreConfig(
         data_dir=data_dir, socket_path=socket_path, task_key="t" * 40, designation_key="d" * 40, documents_key="o" * 40, mail_key="m" * 40, anchor=InMemoryAnchor(),

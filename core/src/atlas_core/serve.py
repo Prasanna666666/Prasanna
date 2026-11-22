@@ -17,9 +17,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .app import Core, CoreConfig
+from .host import HostOptions
 
 CODE_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
-FactoryT = Callable[[Path, Path, str | None], CoreConfig]
+FactoryT = Callable[[Path, Path, str | None, HostOptions], CoreConfig]
 EXIT_REFUSED = 4
 
 
@@ -35,6 +36,13 @@ def _factory(spec: str, allow_custom: bool) -> FactoryT:
     return factory
 
 
+def _source(spec: str | None) -> tuple[str, Path] | None:
+    if not spec:
+        return None
+    name, _, folder = spec.partition("=")
+    return (name, Path(folder)) if name and folder else None
+
+
 def read_code(stream: object) -> str | None:
     """The one line the parent wrote, or None if there is none or it does not have the shape of a code. Never echoed."""
     line = stream.readline().strip() if hasattr(stream, "readline") else ""
@@ -45,12 +53,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--socket", required=True)
+    parser.add_argument(
+        "--documents-source", help="NAME=FOLDER: the folder designated for the documents source type (NAME is a source type of the policy rules)"
+    )
+    parser.add_argument("--mail-source", help="NAME=FOLDER: the Apple Mail folder for the mail source type")
+    parser.add_argument("--manifest-pubkey", help="the installed public key (32 raw bytes) that signed the model manifest")
     parser.add_argument("--config-factory", default="host")
     parser.add_argument("--allow-custom-factory", action="store_true")
     args = parser.parse_args(argv)
     code = read_code(sys.stdin)
     sys.stdin.close()
-    config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code)
+    options = HostOptions(_source(args.documents_source), _source(args.mail_source), Path(args.manifest_pubkey) if args.manifest_pubkey else None)
+    config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code, options)
     try:
         core = Core(config)
     except ValueError:

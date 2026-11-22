@@ -89,54 +89,85 @@ class RollbackAnchor(Protocol):
     def reset(self) -> None: ...  # the owner starts over with a new, empty store
 
 
-class InMemoryAnchor:
+class RecordAnchor:
+    """The anchor contract over any place that can hold ONE small record: subclasses implement `_load` and `_save` (and may fail at will), this class enforces the rules. The CI fake
+    (`InMemoryAnchor`) and the Keychain anchor (`macos.KeychainAnchor`) differ only in where the record lives."""
+
+    def __init__(self) -> None:
+        self._guard = threading.RLock()  # every operation reads, decides and writes as one step
+
+    def _load(self) -> AnchorRecord | None:
+        raise NotImplementedError
+
+    def _save(self, record: AnchorRecord | None) -> None:
+        raise NotImplementedError
+
+    def _gate(self, op: str) -> None:
+        """Hook for tests and platforms to refuse an operation (raise OSError); the default allows everything."""
+
+    def read(self) -> AnchorRecord | None:
+        with self._guard:
+            self._gate("read")
+            return self._load()
+
+    def initialize(self, seq: int, head: str) -> None:
+        with self._guard:
+            self._gate("initialize")
+            if self._load() is None:
+                self._save(AnchorRecord(seq, head))
+
+    def prepare(self, seq: int, head: str, intent: Intent | None) -> None:
+        with self._guard:
+            self._gate("prepare")
+            current = self._load()
+            if current is None or seq <= current.seq:
+                raise AnchorError("backwards")
+            old = current.pending
+            replay = old is not None and old.seq == seq and old.intent is not None and intent is not None and old.intent.source_type == intent.source_type
+            if old is not None and not replay:
+                raise AnchorError("pending")
+            self._save(AnchorRecord(current.seq, current.head, Pending(seq, head, intent)))
+
+    def commit(self, seq: int, head: str) -> None:
+        with self._guard:
+            self._gate("commit")
+            current = self._load()
+            if current is None or current.pending is None or (current.pending.seq, current.pending.head) != (seq, head):
+                raise AnchorError("nothing to commit")
+            self._save(AnchorRecord(seq, head))
+
+    def abort(self) -> None:
+        with self._guard:
+            self._gate("abort")
+            current = self._load()
+            if current is not None:
+                self._save(AnchorRecord(current.seq, current.head))
+
+    def reset(self) -> None:
+        with self._guard:
+            self._gate("reset")
+            self._save(None)
+
+
+class InMemoryAnchor(RecordAnchor):
     """CI stand-in for the platform anchor. `fail` makes every call error; `fail_prepare` / `fail_commit` make only that write error (the platform store is unavailable)."""
 
     def __init__(self) -> None:
+        super().__init__()
         self.record: AnchorRecord | None = None
         self.fail = False
         self.fail_prepare = False
         self.fail_commit = False
 
-    def _check(self, failing: bool = False) -> None:
-        if self.fail or failing:
-            raise OSError("anchor unavailable")
-
-    def read(self) -> AnchorRecord | None:
-        self._check()
+    def _load(self) -> AnchorRecord | None:
         return self.record
 
-    def initialize(self, seq: int, head: str) -> None:
-        self._check()
-        if self.record is None:
-            self.record = AnchorRecord(seq, head)
+    def _save(self, record: AnchorRecord | None) -> None:
+        self.record = record
 
-    def prepare(self, seq: int, head: str, intent: Intent | None) -> None:
-        self._check(self.fail_prepare)
-        current = self.record
-        if current is None or seq <= current.seq:
-            raise AnchorError("backwards")
-        old = current.pending
-        replay = old is not None and old.seq == seq and old.intent is not None and intent is not None and old.intent.source_type == intent.source_type
-        if old is not None and not replay:
-            raise AnchorError("pending")
-        self.record = AnchorRecord(current.seq, current.head, Pending(seq, head, intent))
-
-    def commit(self, seq: int, head: str) -> None:
-        self._check(self.fail_commit)
-        current = self.record
-        if current is None or current.pending is None or (current.pending.seq, current.pending.head) != (seq, head):
-            raise AnchorError("nothing to commit")
-        self.record = AnchorRecord(seq, head)
-
-    def abort(self) -> None:
-        self._check()
-        if self.record is not None:
-            self.record = AnchorRecord(self.record.seq, self.record.head)
-
-    def reset(self) -> None:
-        self._check()
-        self.record = None
+    def _gate(self, op: str) -> None:
+        if self.fail or (op == "prepare" and self.fail_prepare) or (op == "commit" and self.fail_commit):
+            raise OSError("anchor unavailable")
 
 
 class _Ambiguous(Exception):

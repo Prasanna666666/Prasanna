@@ -44,7 +44,15 @@ enum KeyStore {
 /// here. A Core started any other way has no code and refuses to start on a fresh data folder. Where the Core executable comes from (packaging) is NOT built: `coreExecutable` points
 /// at a Python with the `atlas_core` package, for development.
 enum Launcher {
-    static let shared = CoreLauncher(executable: URL(fileURLWithPath: "/usr/bin/env"), arguments: ["python3", "-m", "atlas_core.serve"])
+    private static let home = FileManager.default.homeDirectoryForCurrentUser
+    /// The folders the owner designates: Documents and Apple Mail's own folder (the Core only reads them once the owner enabled the source AND macOS lets it list them), and the
+    /// installed public key that signed the model manifest (bundled with the app; where it lives is part of packaging, not built).
+    static let shared = CoreLauncher(
+        executable: URL(fileURLWithPath: "/usr/bin/env"),
+        arguments: ["python3", "-m", "atlas_core.serve",
+                    "--documents-source", "documents=" + home.appendingPathComponent("Documents").path,
+                    "--mail-source", "mail=" + home.appendingPathComponent("Library/Mail").path,
+                    "--manifest-pubkey", home.appendingPathComponent("Library/Application Support/Atlas/models/manifest.pub").path])
     static var bootstrapCode: String? { shared.bootstrapCode }
 }
 
