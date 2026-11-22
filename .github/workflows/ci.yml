@@ -173,6 +173,39 @@ jobs:
         env:
           ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
         run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
+  app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build Atlas.app (Swift app plus a private Python with the Core inside it)
+        run: |
+          brew install sqlcipher
+          scripts/package_mac.sh "$PWD/build/Atlas.app"
+          ls -la build/Atlas.app/Contents/MacOS build/Atlas.app/Contents/Resources
+      - name: Launch the app, check it starts its Core and stops it on quit
+        run: |
+          support="$HOME/Library/Application Support/Atlas"
+          rm -rf "$support"
+          build/Atlas.app/Contents/MacOS/Atlas > /tmp/atlas-app.log 2>&1 &
+          app=$!
+          for i in $(seq 1 60); do [ -S "$support/run/core.sock" ] && break; sleep 1; done
+          [ -S "$support/run/core.sock" ] || { echo "the app did not start its Core"; cat /tmp/atlas-app.log; ps aux | grep -i atlas | head; exit 1; }
+          core=$(cat "$support/run/core.pid")
+          echo "app pid $app, core pid $core"
+          kill -0 "$core" || { echo "core not running"; exit 1; }
+          kill -TERM "$app"
+          for i in $(seq 1 20); do kill -0 "$core" 2>/dev/null || break; sleep 1; done
+          if kill -0 "$core" 2>/dev/null; then echo "the Core outlived the app"; exit 1; fi
+          echo "the app started its Core and the Core stopped with the app"
+      - name: Package the app for download
+        run: ditto -c -k --keepParent build/Atlas.app Atlas-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Atlas-app-unsigned
+          path: Atlas-unsigned.zip
   security:
     runs-on: ubuntu-latest
     defaults:
