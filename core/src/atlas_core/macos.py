@@ -1,8 +1,8 @@
 """The macOS-side providers a real Core needs: Keychain secrets, the Keychain rollback anchor, the folder-permission probe and the Apple Mail reader.
 
 Everything here is written to be exercised on Linux (the Keychain commands go through an injectable runner, the permission probe and the mail reader work on ordinary folders and
-synthetic `.emlx` files) and is **UNVERIFIED on a Mac**: the real `security` tool, the real TCC behaviour and a real Mail store have never been touched. Nothing here reads a real
-mailbox in CI.
+synthetic `.emlx` files) and is also exercised on a GitHub-hosted macOS runner against the real `security`/Keychain (`tests/test_macos_native.py`). **Still unverified anywhere:** the real TCC behaviour and prompts, and a
+real Apple Mail store. Nothing here reads a real mailbox in CI.
 """
 
 from __future__ import annotations
@@ -146,7 +146,7 @@ class KeychainAnchor(RecordAnchor):
 class FolderPermissions:
     """The platform-permission provider, by probing: can this process actually list the folder? On macOS a folder the user has not allowed (TCC) fails with EPERM, so a listable folder is
     evidence of access and a refusal is evidence of its absence; a folder that is not there, or any other error, is no evidence at all (`unknown`). It asks the operating system fresh
-    on every call and caches nothing. UNVERIFIED on a Mac; verified on Linux with folders whose mode forbids listing."""
+    on every call and caches nothing. Verified on Linux with folders whose mode forbids listing; real TCC decisions (Documents, Full Disk Access for Mail) have never been observed."""
 
     def __init__(self, folders: dict[str, Path], clock: Callable[[], datetime] | None = None) -> None:
         self._folders = folders

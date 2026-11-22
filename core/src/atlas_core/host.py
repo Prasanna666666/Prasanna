@@ -1,7 +1,7 @@
 """The machine-specific part of a real Core: where its keys, its rollback anchor, its OS-permission provider, its mailbox adapter and its model engine come from.
 
 On a Mac these are the Keychain (`macos.KeychainItems`, `macos.KeychainAnchor`), a folder-permission probe (`macos.FolderPermissions`), the Apple Mail reader (`macos.EmlxMailbox`) and
-the MLX engine in the isolated worker. All of them are written but **UNVERIFIED on a Mac** (never run there). On any other platform the production factory refuses to build a Core;
+the MLX engine in the isolated worker. The Keychain, the sandboxed MLX worker and the whole production Core as a child process are CI-verified on a macOS runner; the folder-permission probe against real TCC and the Mail reader against a real Mail store are not. On any other platform the production factory refuses to build a Core;
 it never falls back to a development stand-in. Tests and development supply their own factory with the explicit `--allow-custom-factory` flag of `serve`.
 
 Source type names (which folder is "documents", which is "mail") come from the caller, never from this file: the policy rules are the only place they are defined.

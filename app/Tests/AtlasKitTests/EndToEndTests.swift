@@ -20,7 +20,9 @@ final class EndToEndTests: XCTestCase {
     }
 
     func testTheSwiftLauncherStartsARealCoreAndTheSwiftClientEnrolsActsAsOwnerAndSurvivesARestart() throws {
-        guard let python = ProcessInfo.processInfo.environment["ATLAS_CI_PYTHON"] else { throw XCTSkip("ATLAS_CI_PYTHON is not set") }
+        let environment = ProcessInfo.processInfo.environment
+        if environment["CI"] != nil { XCTAssertNotNil(environment["ATLAS_CI_PYTHON"], "on CI this test must run, not be skipped") }  // GitHub Actions sets CI
+        guard let python = environment["ATLAS_CI_PYTHON"] else { throw XCTSkip("ATLAS_CI_PYTHON is not set") }
         let base = URL(fileURLWithPath: "/tmp/atl" + UUID().uuidString.prefix(8).lowercased())  // a Unix socket path must stay under 104 bytes
         let dataDir = base.appendingPathComponent("core").path, socket = base.appendingPathComponent("run/core.sock").path
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
