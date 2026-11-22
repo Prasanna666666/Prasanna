@@ -51,6 +51,7 @@ class ModelAnswer:
     text: str
     citations: tuple[dict[str, Any], ...] = ()
     language: LanguageIn = field(default_factory=LanguageIn)
+    identity: tuple[str, str, str] | None = None  # (model_id, role, runtime) of the model that produced it, set by the gateway; content-free
 
 
 class ModelGateway(Protocol):
