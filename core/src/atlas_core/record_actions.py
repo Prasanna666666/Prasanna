@@ -17,8 +17,8 @@ Sender = Callable[[dict[str, Any]], dict[str, Any]]
 PURGE_EFFECTS = frozenset({"local_irreversible"})
 
 
-def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: Sender, purge: Callable[[str], None]) -> None:
-    """`purge(record_id)` is the platform's irreversible removal: only the approval-gated action reaches it."""
+def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: Sender | None = None, purge: Callable[[str], None] | None = None) -> None:
+    """`purge(record_id)` is the platform's irreversible removal and `outbox` the platform's sender: an action that needs one is registered only if one is given, so a Core without them cannot even propose it."""
 
     def create(domain: str) -> Callable[[dict[str, Any]], dict[str, Any]]:
         def run(p: dict[str, Any]) -> dict[str, Any]:
@@ -37,6 +37,7 @@ def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: 
         return {"id": p["id"], "seq": store.delete(p["id"], p["expected_version"])}
 
     def erase(p: dict[str, Any]) -> dict[str, Any]:
+        assert purge is not None
         purge(p["id"])
         return {"id": p["id"]}
 
@@ -45,8 +46,10 @@ def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: 
         gateway.register(ActionSpec(f"{domain}.create", local, create(domain), undo_change))
         gateway.register(ActionSpec(f"{domain}.edit", local, edit, undo_change))  # moving an event is an edit of its date and fields
         gateway.register(ActionSpec(f"{domain}.archive", local, soft_delete, undo_change))
-        gateway.register(ActionSpec(f"{domain}.erase", PURGE_EFFECTS, erase))
-    gateway.register(ActionSpec("calendar.send_invitation", frozenset({"external_send"}), outbox))
+        if purge is not None:
+            gateway.register(ActionSpec(f"{domain}.erase", PURGE_EFFECTS, erase))
+    if outbox is not None:
+        gateway.register(ActionSpec("calendar.send_invitation", frozenset({"external_send"}), outbox))
 
 
 __all__ = ["StoreError", "register_record_actions"]

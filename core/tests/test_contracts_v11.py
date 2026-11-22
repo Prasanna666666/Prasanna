@@ -508,6 +508,10 @@ NEW_PATHS = {
     "/v1/enrol",
     "/v1/mode",
     "/v1/tasks/{task_id}/research",
+    "/v1/actions",
+    "/v1/actions/approve",
+    "/v1/actions/undo",
+    "/v1/sync",
 }
 OPS = ("get", "post", "put", "patch", "delete")
 

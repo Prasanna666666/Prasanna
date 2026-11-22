@@ -52,6 +52,7 @@ LAYER = {
     "health": 5,
     "devices": 2,
     "sync": 5,
+    "operations": 6,
     "answer": 5,
     "tasks": 5,
     "service": 6,

@@ -204,3 +204,31 @@ def test_contacts_and_calendar_are_labelled_by_the_policy_and_carry_their_fields
     core = started(world)
     assert core.indexes["contacts"].label == "high" and core.indexes["calendar"].label == "medium" and core.indexes["finance"].label == "restricted"
     assert core.indexes["notes"].label == "medium" and core.indexes["health"].label == "restricted"
+
+
+def test_a_migrated_legacy_finance_database_answers_through_the_core_under_the_finance_grant(tmp_path):
+    import sqlite3
+
+    from atlas_core.migration import migrate
+    from atlas_core.recordstore import RecordStore, StoredRecords
+
+    legacy = tmp_path / "finance.db"
+    conn = sqlite3.connect(str(legacy))
+    conn.executescript("CREATE TABLE transactions (id INTEGER PRIMARY KEY, day TEXT, amount_minor INTEGER, kind TEXT, category TEXT, note TEXT);")
+    conn.execute("INSERT INTO transactions VALUES (1, '2026-10-15', 41230, 'expense', 'rent', 'October')")
+    conn.commit()
+    conn.close()
+    (tmp_path / "w").mkdir()
+    store = RecordStore(tmp_path / "w" / "finance-records.db", KEY + "f", frozenset({"finance"}))
+    assert migrate(legacy, StoredRecords(store, "finance")).ok
+    world = DomainWorld(tmp_path / "w")
+    world.sources["finance"] = StoredRecords(store, "finance")
+    try:
+        core = started(world)
+        world.enable(core, "finance")
+        world.wait(core, "finance")
+        view = world.ask("rent", "What was the rent transaction in October", ["finance"])
+        assert "412.30" in view["text"] and view["citations"][0]["quote"] == "412.30"
+    finally:
+        world.close()
+        store.close()

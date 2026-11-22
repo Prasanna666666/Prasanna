@@ -23,7 +23,7 @@ from .contracts import ContractError, validate
 from .errors import CoreError, status_of, user_error
 from .events import SafeLog, new_id
 from .identity import H_VERSION, BootstrapGate, ClientRegistry
-from .service import TERMINAL, ConsentPort, ModePort, TaskService
+from .service import TERMINAL, ConsentPort, ModePort, OpsPort, TaskService
 
 JSON = "application/json"
 SSE = "text/event-stream"
@@ -39,6 +39,9 @@ H_NONCE_NAME = "x-atlas-nonce"
 COMPUTE = "/v1/compute"  # API 1.1 only
 RESEARCH = re.compile(r"^/v1/tasks/([A-Za-z0-9_-]{8,64})/research$")  # API 1.1 only
 ENROL = "/v1/enrol"  # API 1.1 only
+OPS_PATHS = frozenset(
+    {"/v1/actions", "/v1/actions/approve", "/v1/actions/undo", "/v1/sync"}
+)  # API 1.1 only, and only when the Core was given the owner's edits store
 
 
 @dataclass(frozen=True)
@@ -88,8 +91,9 @@ class CoreApi:
         consent: ConsentPort | None = None,
         bootstrap: BootstrapGate | None = None,
         mode: ModePort | None = None,
+        ops: OpsPort | None = None,
     ) -> None:
-        self._service, self._registry, self._log, self._consent, self._bootstrap, self._mode = service, registry, log, consent, bootstrap, mode
+        self._service, self._registry, self._log, self._consent, self._bootstrap, self._mode, self._ops = service, registry, log, consent, bootstrap, mode, ops
         self._clock = clock or (lambda: datetime.now(UTC))
         self._check = check_responses  # tests: every JSON response must match its contract type
 
@@ -112,6 +116,17 @@ class CoreApi:
         self._log.emit("api.request", "api", correlation, status=response.status, duration_ms=round((time.perf_counter() - began) * 1000, 3))
         return response
 
+    def _extension_route(self, request: Request, path: str, client: str, version: str) -> Response | None:
+        """The API 1.1 routes outside the task and consent families: compute, the owner's actions and sync, and public research. None means the path is not one of them."""
+        if version != "1.1":
+            return None
+        if path == COMPUTE:
+            return self._compute(request)
+        if path in OPS_PATHS:
+            return self._ops_route(request, path, client)
+        research = RESEARCH.match(path)
+        return None if research is None else self._research(request, research.group(1), client, version)
+
     def _dispatch(self, request: Request, headers: dict[str, str], correlation: str, version: str) -> Response:
         if len(request.body) > MAX_BODY_BYTES:
             raise CoreError("invalid_request")
@@ -120,11 +135,9 @@ class CoreApi:
             return self._enrol(request, headers, version)  # decides for itself whether a signature is required
         client = self._registry.verify(request.method, request.target, headers, request.body, self._clock(), version)
         match = ROUTE.match(parts.path)
-        if parts.path == COMPUTE and version == "1.1":
-            return self._compute(request)
-        research = RESEARCH.match(parts.path)
-        if research is not None:
-            return self._research(request, research.group(1), client, version)
+        extension = self._extension_route(request, parts.path, client, version)
+        if extension is not None:
+            return extension
         if match is None:
             owned = CONSENT.match(parts.path)
             if owned is None or version != "1.1" or self._consent is None:
@@ -251,6 +264,30 @@ class CoreApi:
             raise CoreError("invalid_request") from None
         validate("ComputeRequest", body, "1.1")
         return self._reply(200, self._service.compute(body["kind"], body["args"]), "ComputeResult", "1.1")
+
+    def _ops_route(self, request: Request, path: str, client: str) -> Response:
+        """The owner's actions (propose, approve, undo: an enrolled OWNER client only; the origin is always the owner's own request) and a device's sync (any enrolled client; the device is the authenticated client)."""
+        if self._ops is None:
+            raise CoreError("not_found")
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        if path == "/v1/sync":
+            validate("SyncRequest", body, "1.1")
+            return self._reply(200, self._ops.sync(client, body["ops"]), "SyncResult", "1.1")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        if path == "/v1/actions":
+            validate("ActionRequest", body, "1.1")
+            return self._reply(200, self._ops.act(body["action"], body["payload"], body["idempotency_key"], body.get("approval_id")), "ActionOutcome", "1.1")
+        if path == "/v1/actions/approve":
+            validate("ApprovalRequest", body, "1.1")
+            return self._reply(200, self._ops.approve(body["approval_id"]), "ApprovalResult", "1.1")
+        validate("UndoRequest", body, "1.1")
+        return self._reply(200, self._ops.undo(body["action_id"]), "ActionOutcome", "1.1")
 
     def _research(self, request: Request, task_id: str, client: str, version: str) -> Response:
         """`POST /v1/tasks/{id}/research`: API 1.1 only, an enrolled OWNER client only. Off unless the Core's live-network gate is on (then `forbidden`)."""

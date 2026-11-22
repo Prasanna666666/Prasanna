@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .access import OSPermissionProvider, SourceAccess
+from .actions import ActionGateway
 from .api import CoreApi
 from .consent import ConsentService
 from .designation import DesignationStore, RollbackAnchor
@@ -29,8 +30,12 @@ from .identity import BootstrapGate, ClientRegistry
 from .intelligence import Gateway, ModelRuntime, Router, Signals
 from .mail import Mailbox, MailIndex
 from .models import Manifest, ModelStore
+from .operations import Operations
 from .policy import PolicyEngine
+from .record_actions import register_record_actions
+from .recordstore import RecordStore, StoreError
 from .service import Deps, ResearchGate, TaskService
+from .sync import SyncService
 from .tasks import TaskStore
 from .transport import UnixServer, serve_unix
 
@@ -66,6 +71,11 @@ class CoreConfig:
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     allowed_uids: Iterable[int] | None = None
     egress: EgressGateway | None = None  # public-web research; None (the default) means the Core makes no outbound request at all
+    edits_key: str | None = None  # the key of the owner's own edits store (Calendar, Contacts, Notes); None means the Core has no owner actions and no sync
+    outbox: Callable[[dict[str, Any]], dict[str, Any]] | None = (
+        None  # the platform sender for `calendar.send_invitation` (a real adapter is not built; None means the action does not exist)
+    )
+    erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
     live_network: bool = False  # the explicit live-network gate: even with a gateway configured, no public search is made unless this is True (off by default)
     log: SafeLog = field(default_factory=SafeLog)
 
@@ -133,6 +143,19 @@ class Core:
             self._release_lock()
             raise
 
+    def _build_indexes(self, c: CoreConfig) -> dict[str, Any]:
+        """One encrypted, guarded index per configured source type: documents, Mail, and the Stage 5 domains (the same exact, purgeable index as Mail, one store and one key per type)."""
+        indexes: dict[str, Any] = {}
+        if c.documents is not None:
+            name, root = c.documents
+            indexes[name] = DocumentIndex(c.data_dir / "documents.db", c.documents_key, root, name, access=self.access)
+        if c.mailbox is not None:
+            name, adapter = c.mailbox
+            indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
+        for name, (source, key) in c.records.items():
+            indexes[name] = MailIndex(c.data_dir / f"{name}.db", key, source, name, access=self.access)
+        return indexes
+
     def _build(self, c: CoreConfig) -> None:
         self.mode = _Mode()
         self.egress = c.egress
@@ -140,18 +163,7 @@ class Core:
         self.designation = DesignationStore(c.data_dir / "designation.db", c.designation_key, c.clock, anchor=c.anchor)
         self.designation.verify()
         self.access = SourceAccess(self.designation, c.os_permissions, c.clock)
-        self.indexes: dict[str, Any] = {}
-        if c.documents is not None:
-            name, root = c.documents
-            self.indexes[name] = DocumentIndex(c.data_dir / "documents.db", c.documents_key, root, name, access=self.access)
-        if c.mailbox is not None:
-            name, adapter = c.mailbox
-            self.indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
-        for name, (
-            source,
-            key,
-        ) in c.records.items():  # Finance, Health, Calendar, Contacts, Notes: the same guarded, exact, purgeable index as Mail, one store and one key per type
-            self.indexes[name] = MailIndex(c.data_dir / f"{name}.db", key, source, name, access=self.access)
+        self.indexes = self._build_indexes(c)
         self.designation.allow_adapter_types(c.records)
         self.tasks = TaskStore(c.data_dir / "tasks.db", c.task_key)
         models = ModelStore(c.data_dir / "models", c.manifest, c.model_record_key)
@@ -173,16 +185,35 @@ class Core:
             self.designation.register_purge(source_type, self._purger(source_type, index))
         self.consent = ConsentService(self.designation, self.access, self.indexes)
         self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
+        self.operations = self._build_operations(c)
         gate = None
         if not self.clients.has_owner():
             if c.bootstrap_code is None and not c.open_bootstrap:
                 raise ValueError("no owner client is enrolled: start the Core with a one-time bootstrap code")  # fail closed
             gate = BootstrapGate(c.bootstrap_code) if c.bootstrap_code is not None else None
-        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent, bootstrap=gate, mode=self.mode)
+        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent, bootstrap=gate, mode=self.mode, ops=self.operations)
         self.server: UnixServer | None = None
         self._scanned: dict[str, datetime] = {}
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
+
+    def _build_operations(self, c: CoreConfig) -> Operations | None:
+        """The owner's own edits store, the Action Gateway over it and the sync service: present only when the Core was given a key for the store."""
+        self.edits: RecordStore | None = None
+        if c.edits_key is None:
+            return None
+        self.edits = RecordStore(c.data_dir / "edits.db", c.edits_key, frozenset({"calendar", "contacts", "notes"}), c.clock)
+        gateway = ActionGateway(c.clock)
+        register_record_actions(gateway, self.edits, c.outbox, c.erase)
+        edits = self.edits
+
+        def version_of(record_id: str) -> int | None:
+            try:
+                return edits.get(record_id, include_deleted=True).version
+            except StoreError:
+                return None
+
+        return Operations(gateway, SyncService(gateway, self.clients, version_of))
 
     def _purger(self, source_type: str, index: Any) -> Callable[[], None]:
         def purge() -> None:
@@ -243,5 +274,7 @@ class Core:
         for index in self.indexes.values():
             index.close()
         self.tasks.close()
+        if self.edits is not None:
+            self.edits.close()
         self.designation.close()
         self._release_lock()
