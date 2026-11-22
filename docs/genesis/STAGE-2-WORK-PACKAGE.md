@@ -185,10 +185,10 @@ The first slice has **no user actions or external side effects**. ExecutionRecei
 - G-O17 ADR owner acceptance: **ACCEPTED by the owner, 2026-11-20**.
 - ChatGPT package-acceptance gate: **WAIVED by the owner, 2026-11-20**. This waiver authorised implementation to start; it did not waive independent implementation review.
 - Explicit owner authorisation to start Stage 2: **GRANTED, 2026-11-20**.
-- Implementation status: **implemented in PR #8, draft and unmerged; acceptance pending**.
-- Independent implementation review: initial three blockers were fixed in PR #8 head `481610f`. Re-review found a remaining read-time revocation gap for zero-citation answers/events (PR #8 review 5992662031); Claude fixed it in `badb884`. Code-level re-review confirms the fix and its regression tests address that finding. Full CI run #864 passed all jobs. The wording correction in review 5992710870 was addressed in PR #8 head `b485e04`. Re-review found one edge case: a task revoked after retrieval but before drafting is described as an already-produced answer being withheld; see review 5992743516. Claude's correction and CI run #871 are pending. macOS Keychain and peer-credential verification remain pending.
+- Implementation status: **ACCEPTED for the independently reviewed Stage 2 Core scope** at exact code head `58210223398a5715b618d1163397104efd358d49`; ChatGPT formal acceptance is recorded in PR #8 comment 7047659436. Exact-head CI completed 22/22 successfully; the accepted baseline reported 162 Core tests on Python 3.11 and 3.13, with ruff/mypy clean. This acceptance covers the bounded Stage 2 scope only and is not production/release approval. PR #8 remains draft and unmerged because it also carries later-stage work.
+- Platform verification remains **NOT VERIFIED**: real macOS Keychain behaviour, Keychain prompts/item permissions, macOS `LOCAL_PEERCRED`, target-Mac execution and Swift/Xcode integration require the target Mac. These limitations do not retroactively invalidate the reviewed Stage 2 code scope, but they remain explicit release/platform gates.
 - Platform verification: real macOS Keychain behaviour, Keychain prompts/item permissions, macOS `LOCAL_PEERCRED`, target-Mac execution and Swift/Xcode integration remain **NOT VERIFIED**.
-- Stage 3: **NOT AUTHORISED**.
+- Stage 3: **AUTHORISED under G-027 on 2026-11-22; its stage-level acceptance remains separate and is currently NOT ACCEPTED / OPEN**.
 - Contract format: **OpenAPI 3.1 + JSON Schema, language-neutral**.
 - Reference implementation: **Python; Swift client verification deferred until Mac/macOS CI is available**.
 - Task persistence: **separate additive encrypted store with a dedicated Keychain provider; real macOS Keychain path still requires target-Mac verification**.
