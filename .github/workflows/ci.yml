@@ -136,7 +136,14 @@ jobs:
           swift --version
           swift build
           swift test
-      - run: pip install -e "kit[secure]" -e "core[dev]"
+      - name: Install SQLCipher and build its Python binding from source (no macOS wheel exists)
+        run: |
+          brew install sqlcipher
+          prefix="$(brew --prefix sqlcipher)"
+          export CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher"
+          export LDFLAGS="-L$prefix/lib"
+          pip install sqlcipher3
+      - run: pip install -e kit -e "core[dev]"
       - name: Core tests on macOS
         working-directory: core
         run: pytest -q -p no:cacheprovider
