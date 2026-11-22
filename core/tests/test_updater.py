@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from atlas_core.updater import Installer, UpdateError, parse_version, verify_release
 
 pytestmark = pytest.mark.criterion(15)
-KEY = Ed25519PrivateKey.generate()
+SIGNER = Ed25519PrivateKey.generate()
 
 
 def bundle(files: dict[str, bytes]) -> bytes:
@@ -25,9 +25,9 @@ def bundle(files: dict[str, bytes]) -> bytes:
     return buffer.getvalue()
 
 
-def release(version: str, artefact: bytes, key: Ed25519PrivateKey = KEY):
+def release(version: str, artefact: bytes, signer: Ed25519PrivateKey = SIGNER):
     manifest = json.dumps({"version": version, "sha256": hashlib.sha256(artefact).hexdigest(), "size": len(artefact)}).encode()
-    return verify_release(manifest, key.sign(manifest), KEY.public_key())
+    return verify_release(manifest, signer.sign(manifest), SIGNER.public_key())
 
 
 def good(version: str, tag: bytes = b"ok") -> tuple:
@@ -50,10 +50,10 @@ def test_an_unsigned_wrongly_signed_or_altered_release_is_refused_before_anythin
     manifest = json.dumps({"version": "9.9.9", "sha256": hashlib.sha256(art).hexdigest(), "size": len(art)}).encode()
     attacker = Ed25519PrivateKey.generate()
     with pytest.raises(UpdateError) as e:
-        verify_release(manifest, attacker.sign(manifest), KEY.public_key())
+        verify_release(manifest, attacker.sign(manifest), SIGNER.public_key())
     assert e.value.code == "bad_signature"
     with pytest.raises(UpdateError) as e2:
-        verify_release(manifest.replace(b"9.9.9", b"9.9.8"), KEY.sign(manifest), KEY.public_key())  # altered after signing
+        verify_release(manifest.replace(b"9.9.9", b"9.9.8"), SIGNER.sign(manifest), SIGNER.public_key())  # altered after signing
     assert e2.value.code == "bad_signature"
     inst = Installer(tmp_path)
     r, _ = good("1.0.0")
@@ -73,7 +73,7 @@ def test_an_unsigned_wrongly_signed_or_altered_release_is_refused_before_anythin
 )
 def test_a_malformed_manifest_is_a_code(manifest, code):
     with pytest.raises(UpdateError) as e:
-        verify_release(manifest, KEY.sign(manifest), KEY.public_key())
+        verify_release(manifest, SIGNER.sign(manifest), SIGNER.public_key())
     assert e.value.code == code
 
 
