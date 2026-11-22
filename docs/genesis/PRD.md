@@ -84,6 +84,11 @@ A typical workflow is: owner request or authorised trigger → coordinator scope
 ### 4.7 Agent workforce quality requirements
 Every agent task has an owner, objective, permitted sources/tools, sensitivity scope, budget, deadline/timeout, expected output, evidence requirements and termination condition. Agents cannot expand their own permissions, delegate beyond their granted scope, or treat retrieved content as instructions from the owner. Results carry source references, tool/action receipts, confidence and limitations. The coordinator must disclose when no specialist or verification step was run.
 
+
+### 4.8 App and browser automation
+
+Atlas must be able to carry out owner-requested workflows across supported websites and macOS applications, not merely provide instructions for the owner to follow. All automation is orchestrated by Atlas Core through typed capabilities and the central policy-controlled Action Runtime. Browser automation uses a local Playwright-based adapter as the recommended primary engine; native macOS automation uses the narrowest supported app API, Shortcuts/App Intents, AppleScript/JXA or Accessibility APIs, with visual computer control as a last resort. Automation workers are isolated and least-privileged. Browser pages and application content are untrusted data and cannot grant permissions or override the owner's intent. The existing closed approval categories in §4.4 apply unchanged. Every workflow is cancellable, auditable, verified against its expected outcome and explicit about partial/failure states. OpenClaw is not an adopted dependency; any future integration requires a separate security and architecture review and explicit owner approval. The detailed architecture and staged delivery boundary are in `TARGET_ARCHITECTURE.md` §20.
+
 ## 5. Functional capability areas
 
 Capabilities are expected to evolve and may include:
