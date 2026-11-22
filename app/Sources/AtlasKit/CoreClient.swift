@@ -54,4 +54,19 @@ public final class CoreClient {
     public func enable(_ sources: [String]) throws -> [String: Any] { try object(call("POST", "/v1/consent", ["sources": sources])) }
     public func withdraw(grantID: String) throws -> [String: Any] { try object(call("DELETE", "/v1/consent/\(grantID)")) }
     public func indexStatus() throws -> [String: Any] { try object(call("GET", "/v1/index/status")) }
+
+    /// Propose one typed action as the owner. The answer is done, needs_approval (with the exact payload and an approval id), refused or failed.
+    public func act(_ action: String, payload: [String: Any], approvalID: String? = nil) throws -> [String: Any] {
+        var body: [String: Any] = ["action": action, "payload": payload, "idempotency_key": UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()]
+        if let approvalID { body["approval_id"] = approvalID }
+        return try object(call("POST", "/v1/actions", body))
+    }
+
+    public func approve(approvalID: String) throws -> Bool { (try object(call("POST", "/v1/actions/approve", ["approval_id": approvalID])))["granted"] as? Bool ?? false }
+    public func undo(actionID: String) throws -> [String: Any] { try object(call("POST", "/v1/actions/undo", ["action_id": actionID])) }
+
+    /// Paired devices (owner only), a pairing offer for a new device, and revocation.
+    public func devices() throws -> [[String: Any]] { (try object(call("GET", "/v1/devices")))["devices"] as? [[String: Any]] ?? [] }
+    public func openPairingOffer() throws -> [String: Any] { try object(call("POST", "/v1/devices/offer", [:])) }
+    public func revokeDevice(_ deviceID: String) throws -> Bool { (try object(call("POST", "/v1/devices/revoke", ["device_id": deviceID])))["revoked"] as? Bool ?? false }
 }

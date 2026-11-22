@@ -13,12 +13,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct AtlasApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var model = ConversationModel()
+    @StateObject private var model = AppModel()
     var body: some Scene {
         WindowGroup("Atlas") {
-            if model.needsGetStarted { GetStartedView(model: model) } else { ConversationView(model: model) }
+            RootView(model: model).frame(minWidth: 520, minHeight: 420)
         }
-        Settings { SettingsView(model: model) }
+        .commands {
+            CommandMenu("Go") {
+                ForEach(1...6, id: \.self) { number in
+                    if let destination = Sidebar.destination(forShortcut: number, in: model.availability) {
+                        Button(destination.title) { model.selection = destination }.keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -67,75 +75,99 @@ enum Launcher {
     static var bootstrapCode: String? { shared.bootstrapCode }
 }
 
+/// One finished or running exchange in the Ask Atlas conversation.
+struct Turn: Identifiable {
+    let id = UUID()
+    let question: String
+    var answer: AnswerView?
+    var phase: TaskPhase?
+    var failure: String?
+    var taskID: String?
+}
+
+struct DeviceRow: Identifiable {
+    let id: String
+    let label: String
+    let revoked: Bool
+}
+
 @MainActor
-final class ConversationModel: ObservableObject {
-    @Published var question = ""
-    @Published var progress = ""
-    @Published var answer: AnswerView?
-    @Published var failure: String?
-    @Published var busy = false
-    private var gate = SubmissionGate()
+final class AppModel: ObservableObject {
+    // Navigation and launch
+    @Published var selection: Destination = .home
+    @Published var availability = Availability()
+    @Published var launch: LaunchState = .startingCore
     @Published var needsGetStarted = true
-    @Published var passage: String?
-    private var taskID: String?
-    private let client: CoreClient?
-    private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
-    private var socket: String { support.appendingPathComponent("run/core.sock").path }
-
-    init() {
-        let path = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Atlas/run/core.sock").path
-        client = (try? KeyStore.identity()).map { CoreClient(socketPath: path, signer: $0.signer, clientID: $0.id) }
-        Task { await startCoreThenRefresh() }
-    }
-
-    /// Start the Core (handing it the one-time code), then ask what is enabled; the first call enrols this app as the owner client.
+    // Conversation
+    @Published var question = ""
+    @Published var turns: [Turn] = []
+    @Published var busy = false
+    @Published var failure: String?
+    @Published var selectedCitation: CitationView?
+    @Published var evidence: EvidenceState?
+    // Activity and approvals
+    @Published var activity: [ActivityItem] = []
+    @Published var approval: ApprovalFlow?
+    private var approvalPayload: [String: Any] = [:]  // the exact payload the Core asked approval for: it is what runs, never a rebuilt copy
+    // Settings
     @Published var grants: [[String: Any]] = []
     @Published var indexLine = ""
     @Published var research = false
+    @Published var devices: [DeviceRow] = []
 
-    /// What the owner enabled and how far indexing has got (counts only), for the settings screen.
-    func loadSettings() async {
-        guard let client else { return }
-        do {
-            let state = try await Task.detached { try client.consent() }.value
-            grants = (state["grants"] as? [[String: Any]] ?? []).filter { ($0["revoked"] as? Bool) == false }
-            let status = try await Task.detached { try client.indexStatus() }.value
-            research = (try await Task.detached { try client.mode() }.value) == "research"
-            indexLine = "Indexed \(status["indexed"] as? Int ?? 0) of \(status["total"] as? Int ?? 0), \(status["state"] as? String ?? "")."
-        } catch { failure = (error as? AtlasError)?.message }
+    private var gate = SubmissionGate()
+    private var tracker = PhaseTracker()
+    private var currentTaskID: String?
+    private let client: CoreClient?
+    private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
+    private var socket: String { support.appendingPathComponent("run/core.sock").path }
+    static let completedKey = "atlas.getStartedCompleted"
+    static let selectionKey = "atlas.selection"
+
+    init() {
+        client = (try? KeyStore.identity()).map { CoreClient(socketPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas/run/core.sock").path, signer: $0.signer, clientID: $0.id) }
+        selection = Sidebar.restored(UserDefaults.standard.string(forKey: Self.selectionKey), in: availability)
+        Task { await startCoreThenRefresh() }
     }
 
-    /// Research mode lets Atlas use the larger, slower model for harder questions. Only the owner chooses it; it switches off again when Atlas restarts.
-    func setResearch(_ on: Bool) async {
-        guard let client else { return }
-        do { research = (try await Task.detached { try client.setMode(on ? "research" : "default") }.value) == "research" } catch { failure = (error as? AtlasError)?.message }
+    /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
+    var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
+    var scopeLine: String {
+        let names = scope.map { Catalogue.shared.sourceKinds[$0] ?? $0.capitalized }
+        return names.isEmpty ? "No sources are enabled." : "Searching: " + names.joined(separator: ", ")
     }
 
-    func withdraw(_ grantID: String) async {
-        guard let client else { return }
-        do { _ = try await Task.detached { try client.withdraw(grantID: grantID) }.value; await loadSettings(); await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
+    func select(_ destination: Destination) {
+        selection = destination
+        UserDefaults.standard.set(destination.restorationKey, forKey: Self.selectionKey)
     }
+
+    // MARK: launch and consent
 
     func startCoreThenRefresh() async {
+        launch = .startingCore
         let dataDir = support.appendingPathComponent("core").path, sock = socket
-        do { try await Task.detached { try Launcher.shared.start(dataDir: dataDir, socket: sock) }.value } catch { failure = (error as? AtlasError)?.message; return }
+        do { try await Task.detached { try Launcher.shared.start(dataDir: dataDir, socket: sock) }.value } catch {
+            if case .local(let text)? = error as? AtlasError { launch = LaunchState.from(launchError: text) } else { launch = .coreUnavailable(UnavailableReason.coreUnreachable.message) }
+            return
+        }
+        launch = .ready
         await refreshConsent()
+        await loadSettings()
     }
 
     func refreshConsent() async {
         guard let client else { return }
         do {
             let state = try await Task.detached { try client.consent() }.value
-            let active = ((state["grants"] as? [[String: Any]]) ?? []).filter { ($0["revoked"] as? Bool) == false }.count
-            needsGetStarted = GetStartedFlow.needsGetStarted(completedOnce: UserDefaults.standard.bool(forKey: Self.completedKey), activeGrants: active)
+            let active = ((state["grants"] as? [[String: Any]]) ?? []).filter { ($0["revoked"] as? Bool) == false }
+            grants = active
+            needsGetStarted = GetStartedFlow.needsGetStarted(completedOnce: UserDefaults.standard.bool(forKey: Self.completedKey), activeGrants: active.count)
         } catch AtlasError.core(let code) where code == "unauthenticated" {
             // First run: the Core does not know this client yet. Enrol it as the owner client (accepted once, over the owner-only socket), then ask again.
             do { try await Task.detached { try client.enrolSelf(bootstrapCode: Launcher.bootstrapCode) }.value; Launcher.shared.forgetCode(); await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
-        } catch { failure = (error as? AtlasError)?.message }
+        } catch { launch = .coreUnavailable(UnavailableReason.coreUnreachable.message) }
     }
-
-    static let completedKey = "atlas.getStartedCompleted"
 
     /// The owner's first-run choice. Nothing chosen means no request to the Core and so no grant; the choice (even an empty one) is remembered so Get Started is not shown again.
     func complete(_ choice: GetStartedChoice) async {
@@ -146,106 +178,134 @@ final class ConversationModel: ObservableObject {
         }
         UserDefaults.standard.set(true, forKey: Self.completedKey)
         needsGetStarted = false
+        await refreshConsent()
+        await loadSettings()
     }
 
-    func ask(scope: [String]) async {
-        guard let client, !question.isEmpty, gate.begin() else { return }  // a second submission while one runs (Enter in the field, a double click) is ignored here, not just by the button
-        busy = true; failure = nil; answer = nil; passage = nil
+    // MARK: conversation
+
+    func ask() async {
+        let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let client, !text.isEmpty, !scope.isEmpty, gate.begin() else { return }  // a second submission while one runs is ignored here, not just by the button
+        busy = true; failure = nil; selectedCitation = nil; evidence = nil
+        tracker = PhaseTracker()
+        turns.append(Turn(question: text, answer: nil, phase: .received, failure: nil, taskID: nil))
+        let index = turns.count - 1
+        let sources = scope
         defer { busy = false; gate.end() }
-        let text = question
         do {
-            let id = try await Task.detached { try client.ask(question: text, scope: scope) }.value
-            taskID = id
+            let id = try await Task.detached { try client.ask(question: text, scope: sources) }.value
+            currentTaskID = id
+            turns[index].taskID = id
+            question = ""
             while true {
                 let state = try await Task.detached { try client.state(id) }.value
-                progress = Catalogue.shared.taskStates[state] ?? ""
-                if ["completed", "partially_completed", "failed", "cancelled", "expired"].contains(state) { break }
+                if let phase = tracker.update(coreState: state) { turns[index].phase = phase }
+                if TaskPhase.from(coreState: state).isTerminal || TaskPhase.from(coreState: state) == .unknown { break }
                 try await Task.sleep(nanoseconds: 300_000_000)
             }
             let raw = try await Task.detached { try client.answer(id) }.value
-            answer = AnswerView(raw)
-        } catch { failure = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error") }
+            turns[index].answer = AnswerView(raw)
+            record(task: text, phase: turns[index].phase ?? .completed, id: id)
+        } catch {
+            let message = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")
+            turns[index].failure = message
+            turns[index].phase = .failed
+            failure = message  // the question stays in the composer so nothing typed is lost
+            record(task: text, phase: .failed, id: turns[index].id.uuidString)
+        }
+    }
+
+    private func record(task text: String, phase: TaskPhase, id: String) {
+        activity.append(ActivityItem(id: id, kind: .task, title: text, detail: phase.label, date: Date(), needsAttention: phase == .failed || phase == .completedWithLimitations))
     }
 
     func cancel() async {
-        guard let client, let id = taskID else { return }
+        guard let client, let id = currentTaskID else { return }
         _ = try? await Task.detached { try client.cancel(id) }.value
     }
 
-    func showPassage(_ index: Int) async {
-        guard let client, let id = taskID else { return }
-        do { passage = try await Task.detached { try client.passage(id, index: index) }.value } catch { failure = (error as? AtlasError)?.message }
+    func showEvidence(turn: Turn, citation: CitationView) async {
+        guard let client, let id = turn.taskID else { return }
+        selectedCitation = citation
+        evidence = nil
+        do {
+            let text = try await Task.detached { try client.passage(id, index: citation.id) }.value
+            evidence = EvidenceState.from(coreCode: nil, text: text)
+        } catch AtlasError.core(let code) { evidence = EvidenceState.from(coreCode: code, text: nil) } catch { evidence = .unsupportedLocator }
     }
-}
 
-struct GetStartedView: View {
-    @ObservedObject var model: ConversationModel
-    @State private var choice = GetStartedChoice()  // everything off: only a deliberate choice creates a grant
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Welcome to Atlas").font(.largeTitle)
-            Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer. Atlas reads nothing until you choose it here. You can change this at any time.")
-            Toggle("My documents", isOn: $choice.documents)
-            Toggle("My mail (message text only; attachments are not read)", isOn: $choice.mail)
-            if let failure = model.failure { Text(failure).foregroundStyle(.red) }
-            Button(choice.sources.isEmpty ? "Continue without enabling anything" : "Continue") { Task { await model.complete(choice) } }
-                .buttonStyle(.borderedProminent)
-        }.padding(32).frame(minWidth: 520)
+    func closeEvidence() { selectedCitation = nil; evidence = nil }
+
+    // MARK: approvals (exact action, exact payload; the owner decides)
+
+    /// Propose a typed action as the owner. If it needs approval the sheet shows the exact payload; nothing runs until the owner approves.
+    func propose(action: String, payload: [String: Any]) async {
+        guard let client else { return }
+        do {
+            let outcome = try await Task.detached { try client.act(action, payload: payload) }.value
+            guard (outcome["status"] as? String) == "needs_approval", let approvalID = outcome["approval_id"] as? String, let category = outcome["category"] as? Int,
+                  let exact = outcome["exact_payload"] as? [String: Any], let summary = ApprovalDescriber.describe(approvalID: approvalID, action: action, payload: exact, category: category) else {
+                if (outcome["status"] as? String) == "done" { activity.append(ActivityItem(id: UUID().uuidString, kind: .action, title: action, detail: "Done", date: Date())) }
+                return
+            }
+            approvalPayload = exact
+            approval = ApprovalFlow(summary: summary, expiresAt: Date().addingTimeInterval(540))
+            activity.append(ActivityItem(id: "approval-" + approvalID, kind: .decision, title: summary.title, detail: "Waiting for your approval", date: Date(), needsAttention: true))
+        } catch { failure = (error as? AtlasError)?.message }
     }
-}
 
-/// What Atlas may read, with a way to stop. Withdrawing takes effect at once and removes what Atlas derived from that source.
-struct SettingsView: View {
-    @ObservedObject var model: ConversationModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("What Atlas may read").font(.title2)
-            if model.grants.isEmpty { Text("Nothing is enabled.") }
-            ForEach(Array(model.grants.enumerated()), id: \.offset) { _, grant in
-                HStack {
-                    Text((grant["source_type"] as? String ?? "").capitalized)
-                    Spacer()
-                    Button("Stop reading this") { Task { await model.withdraw(grant["grant_id"] as? String ?? "") } }
-                }
-            }
-            Toggle("Research mode (slower, for harder questions)", isOn: Binding(get: { model.research }, set: { value in Task { await model.setResearch(value) } }))
-            Text(model.indexLine).font(.footnote).foregroundStyle(.secondary)
-            if let failure = model.failure { Text(failure).foregroundStyle(.red) }
-        }.padding(20).frame(minWidth: 420).task { await model.loadSettings() }
+    func approveCurrent() async {
+        guard let client, var flow = approval, flow.approved(now: Date()) else { return }
+        approval = flow
+        let payload = approvalPayload
+        let approvalID = flow.summary.approvalID, action = flow.summary.action
+        do {
+            let granted = try await Task.detached { try client.approve(approvalID: approvalID) }.value
+            guard granted else { flow.finished(success: false, message: "The approval could not be recorded."); approval = flow; return }
+            let outcome = try await Task.detached { try client.act(action, payload: payload, approvalID: approvalID) }.value
+            let done = (outcome["status"] as? String) == "done"
+            flow.finished(success: done, message: "That could not be done. Nothing was changed.")
+            approval = flow
+        } catch { flow.finished(success: false, message: (error as? AtlasError)?.message ?? "That could not be done."); approval = flow }
     }
-}
 
-struct ConversationView: View {
-    @ObservedObject var model: ConversationModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                TextField("Ask about your documents or mail", text: $model.question).textFieldStyle(.roundedBorder).onSubmit { Task { await model.ask(scope: ["documents", "mail"]) } }
-                Button("Ask") { Task { await model.ask(scope: ["documents", "mail"]) } }.disabled(model.busy)
-                if model.busy { Button("Cancel") { Task { await model.cancel() } } }
-            }
-            if model.busy { ProgressView(model.progress) }
-            if let failure = model.failure { Text(failure).foregroundStyle(.red).accessibilityLabel("Problem: \(failure)") }
-            if let a = model.answer {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(a.text).textSelection(.enabled)
-                        Text(a.trust).font(.callout).foregroundStyle(.secondary)
-                        Text(a.modelLine).font(.footnote).foregroundStyle(.secondary)
-                        if let coverage = a.coverageLine { Text(coverage).font(.footnote).foregroundStyle(.secondary) }
-                        ForEach(a.notices, id: \.self) { Label($0, systemImage: "exclamationmark.triangle") }
-                        ForEach(a.notSearched, id: \.self) { Label($0, systemImage: "nosign") }
-                        ForEach(a.citations) { c in
-                            VStack(alignment: .leading) {
-                                Text(c.label).bold()
-                                if let q = c.quote { Text("“\(q)”") }
-                                Button(Catalogue.shared.actions["open_source"] ?? "Show the source passage") { Task { await model.showPassage(c.id) } }
-                            }
-                        }
-                    }
-                }
-            }
-            if let passage = model.passage { GroupBox("Source passage") { Text(passage).textSelection(.enabled) } }
-        }.padding(20).frame(minWidth: 640, minHeight: 420)
+    func declineCurrent() { if var flow = approval { flow.declined(); approval = flow } }
+    func dismissApproval() { approval = nil }
+
+    // MARK: settings
+
+    func loadSettings() async {
+        guard let client else { return }
+        do {
+            let state = try await Task.detached { try client.consent() }.value
+            grants = (state["grants"] as? [[String: Any]] ?? []).filter { ($0["revoked"] as? Bool) == false }
+            let status = try await Task.detached { try client.indexStatus() }.value
+            research = (try await Task.detached { try client.mode() }.value) == "research"
+            indexLine = "Indexed \(status["indexed"] as? Int ?? 0) of \(status["total"] as? Int ?? 0), \(status["state"] as? String ?? "")."
+            await loadDevices()
+        } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    func loadDevices() async {
+        guard let client else { return }
+        let rows = (try? await Task.detached { try client.devices() }.value) ?? []
+        devices = rows.map { DeviceRow(id: $0["device_id"] as? String ?? "", label: ($0["label"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Unnamed device", revoked: !($0["revoked_at"] is NSNull) && $0["revoked_at"] != nil) }
+    }
+
+    func revoke(device: DeviceRow) async {
+        guard let client else { return }
+        do { _ = try await Task.detached { try client.revokeDevice(device.id) }.value; await loadDevices() } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    /// Research mode lets Atlas use the larger, slower model for harder questions. Only the owner chooses it; it switches off again when Atlas restarts.
+    func setResearch(_ on: Bool) async {
+        guard let client else { return }
+        do { research = (try await Task.detached { try client.setMode(on ? "research" : "default") }.value) == "research" } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    func withdraw(_ grantID: String) async {
+        guard let client else { return }
+        do { _ = try await Task.detached { try client.withdraw(grantID: grantID) }.value; await refreshConsent(); await loadSettings() } catch { failure = (error as? AtlasError)?.message }
     }
 }
