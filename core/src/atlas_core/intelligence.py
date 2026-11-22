@@ -258,9 +258,8 @@ class Gateway:
             except (RuntimeFailure, ModelRejected) as error:
                 skipped = "memory_fallback" if str(error) == "memory" else "fallback_model"
                 continue
-            reason = (
-                skipped if position else ("deep_model" if route.reason == "research_deep" else "primary_model")
-            )  # position > 0 only after a failure, which set `skipped`
+            first = "deep_model" if route.reason == "research_deep" else "primary_model"
+            reason = (skipped or "fallback_model") if position else first  # position > 0 only after a failure, which set `skipped`
             self._routed(context, reason, entry)
             return replace(answer, identity=(entry.model_id, entry.role, entry.runtime))
         self._routed(context, "model_refused", None)
