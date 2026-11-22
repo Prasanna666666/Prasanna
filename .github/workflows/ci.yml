@@ -173,14 +173,17 @@ jobs:
           print("stdout:", done.stdout[:500])
           print("stderr:", done.stderr[-1500:].decode("utf-8", "replace"))
           PY
-          python /tmp/diag_worker.py || true
-          echo "== kernel sandbox denials (last 2 minutes) =="
-          log show --last 2m --style compact --predicate 'eventMessage CONTAINS "deny" AND (eventMessage CONTAINS "Sandbox" OR process == "kernel")' 2>&1 | grep -i "python\|deny" | tail -40 || true
+          python /tmp/diag_worker.py > /tmp/diag.out 2>&1 || true
+          echo "== kernel sandbox denials (last 2 minutes) ==" >> /tmp/diag.out
+          log show --last 2m --style compact --predicate 'eventMessage CONTAINS "deny" AND (eventMessage CONTAINS "Sandbox" OR process == "kernel")' 2>&1 | grep -i "python\|deny" | tail -40 >> /tmp/diag.out || true
       - name: Real MLX inference inside the sandboxed worker
         working-directory: core
         env:
           ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
         run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
+      - name: Worker diagnostic summary
+        if: always()
+        run: tail -45 /tmp/diag.out || true
   security:
     runs-on: ubuntu-latest
     defaults:
