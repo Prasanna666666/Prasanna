@@ -8,6 +8,8 @@ real Apple Mail store. Nothing here reads a real mailbox in CI.
 from __future__ import annotations
 
 import base64
+import email.errors
+import email.parser
 import email.policy
 import email.utils
 import getpass
@@ -22,7 +24,7 @@ import subprocess
 import threading
 from collections.abc import Callable
 from datetime import UTC, datetime
-from email import message_from_bytes
+from email.message import Message
 from pathlib import Path
 from typing import Any
 
@@ -196,6 +198,121 @@ def open_confined(root_fd: int, parts: Parts) -> int:
     return fd
 
 
+MAX_COUNT_DIGITS = 10  # the byte-count line is ASCII decimal digits only, and short
+CHUNK = 4096  # reads are at most this large: after the text part, at most one more chunk is read before reading stops
+
+
+class _Region:
+    """Sequential, bounded reader over an open descriptor: it never reads past `left` bytes, reads in chunks, and counts what it consumed. Nothing is ever read twice or by name."""
+
+    def __init__(self, fd: int, left: int, buf: bytes = b"") -> None:
+        self.fd, self.left, self.buf = fd, left, buf
+        self.at_line_start = False
+
+    def fill(self, want: int) -> None:
+        while len(self.buf) < want and self.left > 0:
+            chunk = os.read(self.fd, min(CHUNK, self.left))
+            if not chunk:
+                self.left = 0
+                break
+            self.left -= len(chunk)
+            self.buf += chunk
+
+
+def _open_message(fd: int) -> tuple[_Region, Message] | None:
+    """The byte-count line (ASCII digits, at most MAX_COUNT_DIGITS, at most MAX_EMLX_BYTES, and that many bytes must really be in the file) and the top-level headers; nothing else is read."""
+    head = os.read(fd, MAX_COUNT_DIGITS + 2)
+    line, newline, rest = head.partition(b"\n")
+    if not newline or not line.strip().isascii() or not line.strip().isdigit() or len(line.strip()) > MAX_COUNT_DIGITS:
+        return None
+    declared = int(line.strip())
+    if declared > MAX_EMLX_BYTES or os.fstat(fd).st_size < len(line) + 1 + declared:
+        return None  # larger than we read, or truncated: unreadable, never a partial message
+    region = _Region(fd, declared - min(len(rest), declared), rest[:declared])
+    header = _header_block(region)
+    return None if header is None else (region, header)
+
+
+def _header_block(region: _Region) -> Message | None:
+    """Read one MIME header block (up to the blank line, at most MAX_HEADER_BYTES) and leave the region at the start of the body."""
+    while True:
+        match = re.search(rb"\r?\n\r?\n", region.buf)
+        if match:
+            raw, region.buf = region.buf[: match.start()], region.buf[match.end() :]
+            region.at_line_start = True
+            return email.parser.BytesHeaderParser(policy=email.policy.default).parsebytes(raw + b"\n")
+        if len(region.buf) > MAX_HEADER_BYTES or region.left == 0:
+            return None
+        region.fill(len(region.buf) + CHUNK)
+
+
+def _scan_to_delimiter(region: _Region, boundaries: list[bytes], collect: bool) -> tuple[bytes, bytes | None, bool] | None:
+    """Advance to the next MIME delimiter line of any open boundary. Returns (bytes before it if `collect` else b'', the boundary, whether it was the closing one), or None at the end of the message.
+    Skipped bytes are discarded as they are read (a part that is not wanted is scanned past in bounded chunks, never decoded or kept)."""
+    names = b"|".join(re.escape(b) for b in boundaries)
+    pattern = re.compile(rb"\n--(" + names + rb")(--)?[ \t]*\r?(?:\n|$)")
+    keep, out = max(len(b) for b in boundaries) + 8, bytearray()
+    while True:
+        view = (b"\n" if region.at_line_start else b"") + region.buf
+        offset = 1 if region.at_line_start else 0
+        match = pattern.search(view)
+        if match:
+            before = view[offset : match.start()]
+            if collect:
+                out += before
+            consumed = match.end() - offset
+            region.buf, region.at_line_start = region.buf[consumed:], False
+            return bytes(out), match.group(1), match.group(2) is not None
+        if region.left == 0:
+            return None
+        discard = max(len(region.buf) - keep, 0)
+        if collect:
+            out += region.buf[:discard]
+        region.buf, region.at_line_start = region.buf[discard:], region.at_line_start and discard == 0
+        region.fill(len(region.buf) + CHUNK)
+
+
+def _text_body(header: Message, region: _Region, boundaries: list[bytes]) -> str | None:
+    """The first text/plain, non-attachment part, found by walking the structure in order; reading stops once it is complete. Attachments after it are never read at all; one before it is scanned past."""
+    stack = list(boundaries)
+
+    def decode(part: Message, raw: bytes) -> str | None:
+        rebuilt = email.parser.BytesParser(policy=email.policy.default).parsebytes(
+            part.as_bytes(policy=email.policy.default).split(b"\n\n", 1)[0] + b"\n\n" + raw
+        )
+        content = rebuilt.get_content() if rebuilt.get_content_maintype() == "text" else ""
+        return str(content)
+
+    if not stack:  # a single-part message
+        if header.get_content_type() != "text/plain" or header.get_content_disposition() == "attachment":
+            return ""  # not text: its payload is not read at all
+        region.fill(region.left + len(region.buf))
+        return decode(header, region.buf)
+    found = _scan_to_delimiter(region, stack, collect=False)  # the preamble
+    while found is not None:
+        _, boundary, closing = found
+        if closing:
+            if boundary in stack and len(stack) > 1:
+                stack.remove(boundary)  # an inner multipart ended; keep looking in the outer one
+            found = _scan_to_delimiter(region, stack, collect=False)
+            continue
+        part = _header_block(region)
+        if part is None:
+            return None
+        kind = part.get_content_type()
+        inner = part.get_boundary()
+        if kind.startswith("multipart/") and inner:
+            stack.append(inner.encode())
+            found = _scan_to_delimiter(region, stack, collect=False)
+            continue
+        if kind == "text/plain" and part.get_content_disposition() != "attachment":
+            scanned = _scan_to_delimiter(region, stack, collect=True)
+            raw = scanned[0] if scanned is not None else region.buf
+            return decode(part, raw)
+        found = _scan_to_delimiter(region, stack, collect=False)  # an attachment or other part: scanned past, not decoded
+    return ""
+
+
 class EmlxMailbox:
     """The Apple Mail reader (the `Mailbox` the mail index takes): a folder of `.emlx` files, read-only, symlinks never followed at any level.
 
@@ -279,9 +396,10 @@ class EmlxMailbox:
                         fd = self._open(root_fd, parts)
                     except OSError:
                         continue  # replaced by a link, vanished, or not a regular file: not listed
-                    with os.fdopen(fd, "rb") as handle:
+                    with os.fdopen(fd, "rb", buffering=0) as handle:
                         st = os.fstat(handle.fileno())
-                        identity = self._identity(handle.read(MAX_HEADER_BYTES), parts)
+                        opened = _open_message(handle.fileno())  # the count line and the headers only: no body, no attachment is read to list a message
+                        identity = self._identity(opened[1] if opened else None, parts)
                     known = found.get(identity)
                     if known is None or st.st_mtime > known[0]:
                         found[identity] = (st.st_mtime, f"{st.st_size}-{st.st_mtime_ns}", parts)
@@ -293,14 +411,9 @@ class EmlxMailbox:
             self._by_id = {identity: parts for identity, _, _, parts in self._cache}
 
     @staticmethod
-    def _identity(head: bytes, parts: Parts) -> str:
-        """The Message-ID header (made safe), else a name made from the file's place under the root. Uses only bytes already read from the opened descriptor."""
-        try:
-            line, _, rest = head.partition(b"\n")
-            message = message_from_bytes(rest[: int(line.strip() or 0)] if line.strip().isdigit() else rest, policy=email.policy.default)
-            raw = str(message.get("Message-ID", "")).strip()
-        except (ValueError, LookupError):
-            raw = ""
+    def _identity(header: Message | None, parts: Parts) -> str:
+        """The Message-ID header (made safe), else a name made from the file's place under the root. Uses only the headers read from the opened descriptor."""
+        raw = str(header.get("Message-ID", "")).strip() if header is not None else ""
         cleaned = _UNSAFE.sub("_", raw)[:200]
         if cleaned and _ID.match(cleaned):
             return cleaned
@@ -333,28 +446,27 @@ class EmlxMailbox:
             return None
         try:
             fd = self._open(root_fd, parts)
-            with os.fdopen(fd, "rb") as handle:
-                data = handle.read(MAX_EMLX_BYTES + 1)
+            with os.fdopen(fd, "rb", buffering=0) as handle:
+                opened = _open_message(handle.fileno())
+                if opened is None or self._identity(opened[1], parts) != message_id:
+                    return None  # malformed or truncated, or the file now holds a different message than the one listed (replaced since): never returned under the old identity
+                region, header = opened
+                boundary = header.get_boundary() if header.get_content_maintype() == "multipart" else None
+                try:
+                    body = _text_body(header, region, [boundary.encode()] if boundary else [])
+                    stamp = email.utils.parsedate_to_datetime(str(header.get("Date")))
+                except (LookupError, ValueError, TypeError, UnicodeError, email.errors.MessageError):
+                    return None
         except OSError:
             return None
         finally:
             os.close(root_fd)
-        if len(data) > MAX_EMLX_BYTES or self._identity(data[:MAX_HEADER_BYTES], parts) != message_id:
-            return None  # too large, or the file now holds a different message than the one this identity was listed for (replaced between listing and reading): never returned under the old identity
-        line, _, rest = data.partition(b"\n")
-        if not line.strip().isdigit():
-            return None
-        message = message_from_bytes(rest[: int(line.strip())], policy=email.policy.default)
-        body_part = message.get_body(preferencelist=("plain",))  # only a text/plain part: attachments are never decoded
-        try:
-            body = body_part.get_content() if body_part is not None else ""
-            stamp = email.utils.parsedate_to_datetime(str(message.get("Date")))
-        except (LookupError, ValueError, TypeError):
+        if body is None:
             return None
         return {
             "message_id": message_id,
-            "sender": str(message.get("From", "")).strip(),
+            "sender": str(header.get("From", "")).strip(),
             "date": (stamp if stamp.tzinfo else stamp.replace(tzinfo=UTC)).isoformat(),
-            "subject": str(message.get("Subject", "")).strip(),
-            "body": str(body)[: MAX_BODY_CHARS + 1],
+            "subject": str(header.get("Subject", "")).strip(),
+            "body": body[: MAX_BODY_CHARS + 1],
         }
