@@ -561,3 +561,23 @@ def test_a_file_swapped_for_a_pipe_after_indexing_is_refused_without_blocking(tm
     assert index.get(source_id_for("a.txt")) is None
     with pytest.raises(ExtractionError):
         index.scanner.read("a.txt")
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("कुल देय राशि क्या है?", ["कुल", "क्या", "देय", "है", "राशि"]),  # combining vowel signs stay inside their word
+        ("राशि 750.00 रुपये है।", ["00", "750", "रुपये", "राशि", "है"]),  # the danda is punctuation
+        ("Сумма к оплате", ["оплате", "сумма"]),
+        ("مَرْحَبًا بالعالم", ["بالعالم", "مَرْحَبًا"]),  # Arabic with vowel marks
+    ],
+)
+def test_words_keep_their_combining_marks_so_indic_and_marked_scripts_are_searchable(text, expected):
+    assert documents.terms(text) == sorted(expected)
+
+
+def test_a_hindi_document_is_found_by_a_hindi_question(tmp_path):
+    index = make(tmp_path, {"bill.txt": "बिल HI-3310 दिनांक 2026-06-01। कुल देय राशि 750.00 रुपये है।"})
+    build(index)
+    found = list(index.search("documents", "कुल देय राशि क्या है?"))
+    assert found and "750.00" in found[0]["text"]

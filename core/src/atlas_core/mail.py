@@ -29,7 +29,7 @@ from typing import Any, Protocol
 from kit.db import connect
 
 from .access import AccessCheck
-from .documents import RESULT_LIMIT, IndexStore, paragraph_blocks, terms
+from .documents import _WORD, RESULT_LIMIT, IndexStore, paragraph_blocks, terms
 from .evidence import StoredSource, sha256_text
 from .policy import PermissionRevoked
 from .rules import Rules, load_rules
@@ -44,7 +44,6 @@ PAGE_SIZE = 500  # the most the Core asks for, and accepts, in one adapter call:
 MAX_LIST_WORK = 200_000  # the most listing entries examined in one scan, whatever the adapter does
 SCHEMA_VERSION = 1
 _ID = re.compile(r"[A-Za-z0-9._@<>+=-]{1,200}\Z")
-_WORD = re.compile(r"\w+", re.UNICODE)
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 

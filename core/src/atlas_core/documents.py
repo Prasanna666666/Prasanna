@@ -39,7 +39,11 @@ MIN_FREE_BYTES = 64 * 1024 * 1024  # below this much free disk, indexing pauses 
 RESULT_LIMIT = 8
 SCHEMA_VERSION = 1
 _BREAK = re.compile(r"\n[ \t\r]*\n")  # a blank line ends a paragraph
-_WORD = re.compile(r"\w+", re.UNICODE)
+# A word is letters and digits plus the combining marks that belong to a letter (Python's \w leaves these out, which cut Hindi, Thai, Hebrew-with-points and Arabic-with-vowels
+# words into fragments). The Devanagari danda (U+0964, U+0965) is punctuation, not a word character.
+_WORD = re.compile(
+    r"[\w\u0300-\u036f\u0483-\u0489\u0591-\u05c7\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06dc\u0900-\u0963\u0966-\u0dff\u0e00-\u0e7f\u0f00-\u0fff\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff]+"
+)
 _CREATED = re.compile(r"\A---\r?\n(?:.*\r?\n)*?created:[ \t]*(\d{4}-\d{2}-\d{2})[ \t]*\r?\n(?:.*\r?\n)*?---[ \t]*(?:\r?\n|\Z)")
 
 
