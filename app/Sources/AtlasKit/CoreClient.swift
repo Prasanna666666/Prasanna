@@ -48,6 +48,8 @@ public final class CoreClient {
         _ = try call("POST", "/v1/enrol", body, signed: false)
     }
 
+    public func mode() throws -> String { try object(call("GET", "/v1/mode"))["mode"] as? String ?? "default" }
+    public func setMode(_ mode: String) throws -> String { try object(call("POST", "/v1/mode", ["mode": mode]))["mode"] as? String ?? "default" }
     public func consent() throws -> [String: Any] { try object(call("GET", "/v1/consent")) }
     public func enable(_ sources: [String]) throws -> [String: Any] { try object(call("POST", "/v1/consent", ["sources": sources])) }
     public func withdraw(grantID: String) throws -> [String: Any] { try object(call("DELETE", "/v1/consent/\(grantID)")) }

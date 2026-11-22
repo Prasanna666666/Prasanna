@@ -57,7 +57,6 @@ class CoreConfig:
     clients: ClientRegistry | None = None  # None: a durable registry in the data folder (the normal case); tests inject one
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, folder)
     mailbox: tuple[str, Mailbox] | None = None  # (source type name, adapter)
-    owner_mode: Callable[[], str] = lambda: "default"  # the owner's selected mode ("default" or "research"); never inferred from a question
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     allowed_uids: Iterable[int] | None = None
     log: SafeLog = field(default_factory=SafeLog)
@@ -86,10 +85,26 @@ class _Sources:
         return None
 
 
+class _Mode:
+    """The owner's selected model mode, in memory only: it starts as `default` every time the Core starts (the deep tier is never on by accident)."""
+
+    def __init__(self) -> None:
+        self._mode, self._lock = "default", threading.Lock()
+
+    def get(self) -> str:
+        with self._lock:
+            return self._mode
+
+    def set(self, mode: str) -> None:
+        with self._lock:
+            self._mode = mode
+
+
 class Core:
     def __init__(self, config: CoreConfig) -> None:
         c = config
         c.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.mode = _Mode()
         self.config, self.clock = c, c.clock
         self.designation = DesignationStore(c.data_dir / "designation.db", c.designation_key, c.clock, anchor=c.anchor)
         self.designation.verify()
@@ -103,7 +118,7 @@ class Core:
             self.indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
         self.tasks = TaskStore(c.data_dir / "tasks.db", c.task_key)
         models = ModelStore(c.data_dir / "models", c.manifest, c.model_record_key)
-        self.gateway = Gateway(models, Router(c.manifest.entries()), c.runtime, signals=lambda: Signals(mode=c.owner_mode()), log=c.log)
+        self.gateway = Gateway(models, Router(c.manifest.entries()), c.runtime, signals=lambda: Signals(mode=self.mode.get()), log=c.log)
         self.service = TaskService(
             Deps(
                 self.tasks,
@@ -125,7 +140,7 @@ class Core:
             if c.bootstrap_code is None and not c.open_bootstrap:
                 raise ValueError("no owner client is enrolled: start the Core with a one-time bootstrap code")  # fail closed
             gate = BootstrapGate(c.bootstrap_code) if c.bootstrap_code is not None else None
-        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent, bootstrap=gate)
+        self.api = CoreApi(self.service, self.clients, c.log, c.clock, consent=self.consent, bootstrap=gate, mode=self.mode)
         self.server: UnixServer | None = None
         self._scanned: dict[str, datetime] = {}
         self._stop = threading.Event()

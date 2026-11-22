@@ -332,6 +332,51 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '409':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/mode:
+    get:
+      operationId: getMode
+      summary: The owner's selected model mode. Only an enrolled owner client may call it.
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The mode
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ModeState
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+    post:
+      operationId: setMode
+      summary: Select the model mode (default or research). Only an enrolled owner client may call it.
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/ModeState
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The mode now selected
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ModeState
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/index/status:
     get:
       operationId: getIndexStatus

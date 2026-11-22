@@ -36,6 +36,13 @@ class ConsentPort(Protocol):
     def index_status(self) -> dict[str, Any]: ...
 
 
+class ModePort(Protocol):
+    """The owner's selected model mode (`default` or `research`); kept by the composition root and read by the gateway on every call."""
+
+    def get(self) -> str: ...
+    def set(self, mode: str) -> None: ...
+
+
 class SimulatedCrash(Exception):
     """Raised by the fault injector in tests: the process 'dies' here."""
 

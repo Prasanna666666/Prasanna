@@ -154,3 +154,36 @@ def test_delete_is_refused_everywhere_except_on_a_consent_grant(world):
     core.start()
     for target in ("/v1/tasks/aaaaaaaa", "/v1/tasks", "/v1/consent", "/v1/index/status", "/v1/version"):
         assert call(core, world, world.owner_key, OWNER, "DELETE", target, version="1.1" if target != "/v1/version" else "1.0").status in (400, 404), target
+
+
+# ---- the owner's model mode (G-020: the deep tier only when the owner selects Research) ----------------------------------------------------------------------------------------
+def test_only_an_owner_client_selects_the_model_mode_it_starts_as_default_and_the_gateway_follows_it(world):
+    core = world.build()
+    core.start()
+    admin, plain = owner(world), world.client()
+    assert admin.mode() == "default" and core.gateway._signals().mode == "default"
+    assert admin.set_mode("research") == "research" and admin.mode() == "research" and core.gateway._signals().mode == "research"
+    for action in (plain.mode, lambda: plain.set_mode("research")):
+        with pytest.raises(atlas_client.ClientError) as e:
+            action()
+        assert e.value.code == "forbidden"
+    assert admin.set_mode("default") == "default" and core.gateway._signals().mode == "default"
+
+
+@pytest.mark.parametrize("payload", [b"", b"{", b"[]", b'{"mode":"turbo"}', b'{"mode":1}', b'{"mode":"research","x":1}', b"{}"])
+def test_a_bad_mode_request_changes_nothing(world, payload):
+    core = world.build()
+    core.start()
+    assert call(core, world, world.owner_key, OWNER, "POST", "/v1/mode", payload).status == 400
+    assert core.mode.get() == "default"
+
+
+def test_the_mode_is_a_1_1_route_and_resets_to_default_when_the_core_restarts(world):
+    core = world.build()
+    core.start()
+    assert call(core, world, world.owner_key, OWNER, "GET", "/v1/mode", version="1.0").status == 404
+    owner(world).set_mode("research")
+    core.close()
+    again = world.build()
+    again.start()
+    assert owner(world).mode() == "default"  # the deep tier is never on after a restart by accident

@@ -26,6 +26,7 @@ A pure, deterministic operation. It deep-copies the 1.0 document, keeps its root
 | `Coverage` | new: state, searched, total or null, pending (closed categories), failed (closed reasons), as_of |
 | `ModelDescriptor` | new: content-free `{model_id, role, runtime}` |
 | `IndexStatus`, `ConsentRequest`, `ConsentState` | new (served since WP3.4) |
+| `ModeState` | new: `GET`/`POST /v1/mode`, the owner's model mode (`default` or `research`); owner client only; in memory, resets to `default` on restart; the gateway reads it on every call (G-020: the deep tier only on the owner's selection) |
 | `EnrolRequest`, `EnrolResponse` | new: `POST /v1/enrol`, first-run owner enrolment with a single-use `bootstrap_code` (see `ENROLMENT.md`) |
 | `ComputeRequest`, `ComputeResult` | new (WP3.4 hardening): `POST /v1/compute`, a typed deterministic computation by code (arithmetic, convert, days_between, add_days, add_months, weekday); reads no source, never a model; a value with no finite decimal form is returned as an exact fraction with `exact: false` and a labelled `approximate` |
 | `PassageText` | new (WP3.4 hardening): `{citation_index, text, evidence}`, the cited span for `GET /v1/tasks/{task_id}/citations/{index}`; fails closed (`source_denied` when a source is no longer permitted or changed, `not_found`, `conflict` for an unfinished task). Its `text` is source content by design: owner-only socket, never logged |

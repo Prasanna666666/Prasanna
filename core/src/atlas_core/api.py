@@ -23,7 +23,7 @@ from .contracts import ContractError, validate
 from .errors import CoreError, status_of, user_error
 from .events import SafeLog, new_id
 from .identity import H_VERSION, BootstrapGate, ClientRegistry
-from .service import TERMINAL, ConsentPort, TaskService
+from .service import TERMINAL, ConsentPort, ModePort, TaskService
 
 JSON = "application/json"
 SSE = "text/event-stream"
@@ -32,7 +32,9 @@ FOLLOW_SECONDS = 30.0  # a stream of an unfinished task is followed this long, t
 FOLLOW_POLL = 0.05
 HTTP_ERROR = 400  # a code whose status is below this is a task outcome, reported on the stream; as a direct reply it is a conflict
 ROUTE = re.compile(r"^/v1/(?:(version)|(tasks)|tasks/([A-Za-z0-9_-]{8,64})(?:/(cancel|answer|receipt|events)|/citations/([0-9]{1,4}))?)$")
-CONSENT = re.compile(r"^/v1/(?:(consent)|consent/([A-Za-z0-9_-]{8,64})|(index/status))$")  # API 1.1 only, and only when the Core was given a consent service
+CONSENT = re.compile(
+    r"^/v1/(?:(consent)|consent/([A-Za-z0-9_-]{8,64})|(index/status)|(mode))$"
+)  # API 1.1 only, and only when the Core was given a consent service
 H_NONCE_NAME = "x-atlas-nonce"
 COMPUTE = "/v1/compute"  # API 1.1 only
 ENROL = "/v1/enrol"  # API 1.1 only
@@ -75,7 +77,7 @@ def _applied(request: Request, headers: dict[str, str]) -> str:
 
 
 class CoreApi:
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917  (each part is a separate injected seam)
         self,
         service: TaskService,
         registry: ClientRegistry,
@@ -84,8 +86,9 @@ class CoreApi:
         check_responses: bool = False,
         consent: ConsentPort | None = None,
         bootstrap: BootstrapGate | None = None,
+        mode: ModePort | None = None,
     ) -> None:
-        self._service, self._registry, self._log, self._consent, self._bootstrap = service, registry, log, consent, bootstrap
+        self._service, self._registry, self._log, self._consent, self._bootstrap, self._mode = service, registry, log, consent, bootstrap, mode
         self._clock = clock or (lambda: datetime.now(UTC))
         self._check = check_responses  # tests: every JSON response must match its contract type
 
@@ -142,6 +145,8 @@ class CoreApi:
             return self._reply(200, port.index_status(), "IndexStatus", "1.1")
         if not self._registry.is_owner(client):
             raise CoreError("forbidden")
+        if match.group(4):
+            return self._mode_route(request)
         request_id = f"n-{client}-{nonce}"[-64:] if nonce else ""
         if match.group(1) and method == "GET":
             return self._reply(200, port.state(), "ConsentState", "1.1")
@@ -155,6 +160,22 @@ class CoreApi:
         if match.group(2) and method == "DELETE":
             return self._reply(200, port.revoke(match.group(2), request_id), "ConsentState", "1.1")
         raise CoreError("invalid_request")
+
+    def _mode_route(self, request: Request) -> Response:
+        """The owner's model mode: owner-only (checked by the caller). A change takes effect on the next model call and is lost on restart (back to `default`)."""
+        if self._mode is None:
+            raise CoreError("not_found")
+        if request.method == "GET":
+            return self._reply(200, {"mode": self._mode.get()}, "ModeState", "1.1")
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        validate("ModeState", body, "1.1")
+        self._mode.set(body["mode"])
+        return self._reply(200, {"mode": self._mode.get()}, "ModeState", "1.1")
 
     def _version(self, request: Request) -> Response:
         if request.method != "GET":

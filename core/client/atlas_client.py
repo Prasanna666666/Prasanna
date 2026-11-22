@@ -134,6 +134,14 @@ class AtlasClient:
         raw = (public_key or self._key.public_key()).public_bytes_raw()
         return {"client_id": client_id, "public_key": base64.b64encode(raw).decode(), "role": role}
 
+    def mode(self) -> str:
+        """The owner's selected model mode (owner client only)."""
+        return str(self._json("GET", "/v1/mode")["mode"])
+
+    def set_mode(self, mode: str) -> str:
+        """Select `default` or `research` (the deep model tier). Owner client only."""
+        return str(self._json("POST", "/v1/mode", {"mode": mode})["mode"])
+
     def consent(self) -> dict[str, Any]:
         """The owner's grants and, per source, whether macOS access is granted (an enrolled owner client only)."""
         return self._json("GET", "/v1/consent")

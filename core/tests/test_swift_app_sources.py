@@ -30,3 +30,12 @@ def test_the_app_never_claims_to_be_built_or_verified():
 def test_the_app_never_names_a_remote_host_or_cloud_service():
     for path in (APP / "Sources").rglob("*.swift"):
         assert not re.search(r"https?://|URLSession|api\.openai|anthropic", path.read_text()), path.name
+
+
+def test_the_packaging_script_parses_says_it_is_unverified_and_fetches_nothing_but_the_local_packages():
+    import subprocess
+
+    script = APP.parent / "scripts" / "package_mac.sh"
+    assert subprocess.run(["bash", "-n", str(script)], check=False).returncode == 0
+    text = script.read_text()
+    assert "UNVERIFIED" in text and "notaris" in text and "curl" not in text and "http" not in text.replace("http://www.apple.com", "")

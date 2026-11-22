@@ -1242,6 +1242,23 @@
         }
       ]
     },
+    "ModeState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "research"
+          ]
+        }
+      },
+      "description": "The owner's selected model mode. `research` allows the deep model tier (the primary is unloaded first); it is chosen only by the owner, never inferred from a question, and resets to `default` when the Core starts."
+    },
     "ModelDescriptor": {
       "type": "object",
       "additionalProperties": false,

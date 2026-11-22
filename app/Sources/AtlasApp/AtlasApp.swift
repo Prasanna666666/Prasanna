@@ -10,6 +10,7 @@ struct AtlasApp: App {
         WindowGroup("Atlas") {
             if model.needsGetStarted { GetStartedView(model: model) } else { ConversationView(model: model) }
         }
+        Settings { SettingsView(model: model) }
     }
 }
 
@@ -47,9 +48,11 @@ enum Launcher {
     private static let home = FileManager.default.homeDirectoryForCurrentUser
     /// The folders the owner designates: Documents and Apple Mail's own folder (the Core only reads them once the owner enabled the source AND macOS lets it list them), and the
     /// installed public key that signed the model manifest (bundled with the app; where it lives is part of packaging, not built).
+    /// The Python bundled inside the app (`scripts/package_mac.sh`), else the system one for development.
+    private static let bundledPython = Bundle.main.resourceURL?.appendingPathComponent("python/bin/python3")
     static let shared = CoreLauncher(
-        executable: URL(fileURLWithPath: "/usr/bin/env"),
-        arguments: ["python3", "-m", "atlas_core.serve",
+        executable: bundledPython.flatMap { FileManager.default.isExecutableFile(atPath: $0.path) ? $0 : nil } ?? URL(fileURLWithPath: "/usr/bin/python3"),
+        arguments: ["-m", "atlas_core.serve",
                     "--documents-source", "documents=" + home.appendingPathComponent("Documents").path,
                     "--mail-source", "mail=" + home.appendingPathComponent("Library/Mail").path,
                     "--manifest-pubkey", home.appendingPathComponent("Library/Application Support/Atlas/models/manifest.pub").path])
@@ -76,6 +79,33 @@ final class ConversationModel: ObservableObject {
     }
 
     /// Start the Core (handing it the one-time code), then ask what is enabled; the first call enrols this app as the owner client.
+    @Published var grants: [[String: Any]] = []
+    @Published var indexLine = ""
+    @Published var research = false
+
+    /// What the owner enabled and how far indexing has got (counts only), for the settings screen.
+    func loadSettings() async {
+        guard let client else { return }
+        do {
+            let state = try await Task.detached { try client.consent() }.value
+            grants = (state["grants"] as? [[String: Any]] ?? []).filter { ($0["revoked"] as? Bool) == false }
+            let status = try await Task.detached { try client.indexStatus() }.value
+            research = (try await Task.detached { try client.mode() }.value) == "research"
+            indexLine = "Indexed \(status["indexed"] as? Int ?? 0) of \(status["total"] as? Int ?? 0), \(status["state"] as? String ?? "")."
+        } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    /// Research mode lets Atlas use the larger, slower model for harder questions. Only the owner chooses it; it switches off again when Atlas restarts.
+    func setResearch(_ on: Bool) async {
+        guard let client else { return }
+        do { research = (try await Task.detached { try client.setMode(on ? "research" : "default") }.value) == "research" } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    func withdraw(_ grantID: String) async {
+        guard let client else { return }
+        do { _ = try await Task.detached { try client.withdraw(grantID: grantID) }.value; await loadSettings(); await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
+    }
+
     func startCoreThenRefresh() async {
         let dataDir = support.appendingPathComponent("core").path, sock = socket
         do { try await Task.detached { try Launcher.shared.start(dataDir: dataDir, socket: sock) }.value } catch { failure = (error as? AtlasError)?.message; return }
@@ -141,6 +171,27 @@ struct GetStartedView: View {
             Button("Continue") { Task { await model.enable((documents ? ["documents"] : []) + (mail ? ["mail"] : [])) } }
                 .buttonStyle(.borderedProminent).disabled(!documents && !mail)
         }.padding(32).frame(minWidth: 520)
+    }
+}
+
+/// What Atlas may read, with a way to stop. Withdrawing takes effect at once and removes what Atlas derived from that source.
+struct SettingsView: View {
+    @ObservedObject var model: ConversationModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("What Atlas may read").font(.title2)
+            if model.grants.isEmpty { Text("Nothing is enabled.") }
+            ForEach(Array(model.grants.enumerated()), id: \.offset) { _, grant in
+                HStack {
+                    Text((grant["source_type"] as? String ?? "").capitalized)
+                    Spacer()
+                    Button("Stop reading this") { Task { await model.withdraw(grant["grant_id"] as? String ?? "") } }
+                }
+            }
+            Toggle("Research mode (slower, for harder questions)", isOn: Binding(get: { model.research }, set: { value in Task { await model.setResearch(value) } }))
+            Text(model.indexLine).font(.footnote).foregroundStyle(.secondary)
+            if let failure = model.failure { Text(failure).foregroundStyle(.red) }
+        }.padding(20).frame(minWidth: 420).task { await model.loadSettings() }
     }
 }
 
