@@ -356,3 +356,38 @@ def restore_backup(
     except BaseException:
         _remove_made(made, target, created_target)
         raise
+
+
+DRILL_FILE = "restore-drill.json"
+DRILL_VALID_DAYS = 90
+
+
+@dataclass(frozen=True)
+class DrillResult:
+    ok: bool
+    code: str = ""
+
+
+def run_restore_drill(folder: Path, passphrase: str, scratch: Path, data_dir: Path, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> DrillResult:
+    """Prove a backup can really be restored: restore it into `scratch` (a place that must not exist or be empty), check the copy, then remove what the drill created. On success the live data folder gets a
+    small marker (the manifest's hash and the time) that the Core reads to allow sensitive domains. Nothing in the live data folder other than that marker is touched."""
+    try:
+        report = restore_backup(folder, passphrase, scratch, provision_keys=lambda keys: None)
+    except BackupError as error:
+        return DrillResult(False, error.code)
+    shutil.rmtree(report.target, ignore_errors=True)
+    manifest_hash = hashlib.sha256((folder / MANIFEST).read_bytes()).hexdigest()
+    marker = data_dir / DRILL_FILE
+    marker.write_text(json.dumps({"manifest_sha256": manifest_hash, "at": clock().isoformat()}), encoding="utf-8")
+    os.chmod(marker, 0o600)
+    return DrillResult(True)
+
+
+def drill_passed(data_dir: Path, clock: Callable[[], datetime] = lambda: datetime.now(UTC)) -> bool:
+    """True if a restore drill succeeded within the last 90 days. A missing, unreadable or old marker is False."""
+    try:
+        marker = json.loads((data_dir / DRILL_FILE).read_text(encoding="utf-8"))
+        at = datetime.fromisoformat(marker["at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return (clock() - at).days <= DRILL_VALID_DAYS

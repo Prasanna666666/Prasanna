@@ -120,7 +120,7 @@ def test_the_production_core_starts_enrols_indexes_withdraws_stops_and_restarts_
     data = tmp_path / "core-data"
     signer, owner_id = Ed25519PrivateKey.generate(), "owner-native-0001"
     items = KeychainItems()
-    names = ("task-store", "designation-store", "documents-index", "mail-index", "model-record")
+    names = ("task-store", "designation-store", "documents-index", "mail-index", "edits-store", "model-record")
     created = [f"atlas-{n}" for n in names] + [KeychainAnchor.SERVICE]
     for service in created:  # a clean runner has none; do not disturb anyone's real items
         assert items.read(service) is None, "refusing to run against a Mac that already holds Atlas Keychain items"

@@ -455,6 +455,110 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/devices/offer:
+    post:
+      operationId: openPairingOffer
+      summary: An owner client opens a pairing offer for a new device.
+      x-atlas-status: served by the Core (Stage 8, Core side); API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/DeviceOffer
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/devices/pair:
+    post:
+      operationId: pairDevice
+      summary: A new device pairs with the offer code and its public key (unsigned, like first enrolment).
+      x-atlas-status: served by the Core (Stage 8, Core side); API 1.1 additive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/PairRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/PairResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/devices:
+    get:
+      operationId: listDevices
+      summary: The owner lists paired devices.
+      x-atlas-status: served by the Core (Stage 8, Core side); API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/DeviceList
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/devices/revoke:
+    post:
+      operationId: revokeDevice
+      summary: The owner revokes a device.
+      x-atlas-status: served by the Core (Stage 8, Core side); API 1.1 additive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/RevokeRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/RevokeResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
       operationId: enrolClient

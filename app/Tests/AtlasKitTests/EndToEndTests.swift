@@ -5,7 +5,7 @@ import XCTest
 /// The real Swift launcher and client against the real Python Core, as separate processes over a real Unix socket. Skipped unless `ATLAS_CI_PYTHON` names a Python with `atlas_core`
 /// installed (the CI `macos` job sets it). The Core creates its keys in the real Keychain; they are removed afterwards.
 final class EndToEndTests: XCTestCase {
-    private let services = ["task-store", "designation-store", "documents-index", "mail-index", "model-record"].map { "atlas-\($0)" } + ["atlas-designation-anchor"]
+    private let services = ["task-store", "designation-store", "documents-index", "mail-index", "edits-store", "model-record"].map { "atlas-\($0)" } + ["atlas-designation-anchor"]
 
     private func deleteKeychainItems() {
         for service in services {

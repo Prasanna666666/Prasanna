@@ -281,6 +281,11 @@ class IndexStore:
         if self.hook is not None:
             self.hook(name)
 
+    def pause_growth(self, reason: str) -> None:
+        """Stop taking in new items and say why (coverage shows `paused`). Nothing already indexed is touched, and the next `run` clears the pause. Used when the disk is nearly full."""
+        with self._lock:
+            self._transaction(lambda: self._set_meta("paused", reason))
+
     def _meta(self, key: str, default: str = "") -> str:
         row = self._conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
         return str(row["value"]) if row else default

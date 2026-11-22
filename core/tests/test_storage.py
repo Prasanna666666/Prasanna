@@ -59,3 +59,28 @@ def test_pressure_can_pause_derived_work_and_warn_but_never_delete_anything():
 def test_a_report_of_an_empty_or_missing_folder_is_zero_not_an_error(tmp_path):
     r = report(tmp_path / "nothing", usage=fake_disk(100 * GIB, 50 * GIB))
     assert sum(r.bytes_by_category.values()) == 0 and r.over_budget is False
+
+
+def test_a_nearly_full_disk_stops_every_index_from_growing_and_says_so_and_recovery_resumes_it(tmp_path):
+    import time
+
+    from test_app import World
+
+    world = World(tmp_path, mail=True)
+    state = {"free": 500 * GIB}
+    try:
+        core = world.build()
+        core.config.disk_usage = lambda path: (1000 * GIB, 1000 * GIB - state["free"], state["free"])
+        state["free"] = 1 * GIB  # critical: below 3% and below 2 GiB
+        core.start()
+        world.enable(core, "documents", "mail")
+        time.sleep(0.6)
+        for name in ("documents", "mail"):
+            cov = core.indexes[name].coverage()
+            assert cov["paused"] == "disk_pressure" and cov["total"] == 0 and cov["complete"] is False  # nothing was taken in, and the pause is visible
+        assert world.mailbox.reads == 0
+        state["free"] = 800 * GIB  # space is back
+        world.wait_indexed(core)
+        assert core.indexes["documents"].coverage()["paused"] is None and core.indexes["documents"].coverage()["total"] > 0
+    finally:
+        world.close()
