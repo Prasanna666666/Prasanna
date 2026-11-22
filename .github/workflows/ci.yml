@@ -159,6 +159,26 @@ jobs:
           pip install -e kit -e "core[dev]" mlx-lm huggingface_hub
           python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mlx-community/SmolLM-135M-Instruct-4bit', local_dir='/tmp/atlas-model'))"
           ls -la /tmp/atlas-model
+      - name: Diagnose MLX with and without the sandbox (prints the real exception the worker hides)
+        continue-on-error: true
+        working-directory: core
+        run: |
+          cat > /tmp/diag.py <<'PY'
+          import sys, traceback
+          try:
+              import mlx.core as mx
+              print("device:", mx.default_device(), flush=True)
+              import mlx_lm
+              model, tok = mlx_lm.load(sys.argv[1])
+              out = "".join(getattr(r, "text", str(r)) for r in mlx_lm.stream_generate(model, tok, prompt="The capital of France is", max_tokens=8))
+              print("GENERATED:", repr(out), flush=True)
+          except BaseException:
+              traceback.print_exc()
+              sys.exit(3)
+          PY
+          echo "== unsandboxed =="; HF_HUB_OFFLINE=1 python /tmp/diag.py /tmp/atlas-model || true
+          PROFILE='(version 1)(deny default)(allow process-exec*)(allow process-fork)(allow sysctl-read)(allow mach-lookup)(allow file-read*)(allow file-write* (literal "/dev/null"))(deny network*)'
+          echo "== current profile =="; HF_HUB_OFFLINE=1 sandbox-exec -p "$PROFILE" python /tmp/diag.py /tmp/atlas-model || true
       - name: Real MLX inference inside the sandboxed worker
         working-directory: core
         env:
