@@ -43,3 +43,6 @@ Streaming EMLX reader (attachments after the text are never read; byte count val
 ## Owner disposition — Stage 3 closure (2026-11-22)
 
 The owner has closed Stage 3 for project sequencing at PR #8 head `14b471bf589303cf25f5d781f8aaf62b0f5654e0`. This carries the known limitations in `STAGE3_ACCEPTANCE.md` forward; it does not convert the remaining PARTIAL/PENDING-M criteria into technical passes. Hosted CI built and launched the app and checked Core lifecycle, but there has been no human UI/accessibility walkthrough, no owner-Mac/TCC or real Mail-store validation, and packaging is not release-ready (ad-hoc signed only; no notarisation or self-contained Python/model installation). Keep these limitations visible in future handovers. The egress private-name/short-phrase taint defect remains unwaived and must be fixed and reviewed before the gateway is wired or enabled.
+
+## Owner decision 2026-11-22: untestable items move to the final stage
+Criteria 4, 11, 12 and 13 are now judged on what can be tested now; the real-model, target-hardware, human-walkthrough, signing and real-Internet parts are moved to the final stage and remain release-blocking there (`STAGE3_ACCEPTANCE.md`, "Remaining gates"). This is a scope decision, not new evidence. The egress gateway stays disabled until the owner approves its narrower taint boundary.
