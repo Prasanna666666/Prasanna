@@ -16,6 +16,7 @@ import os
 import re
 import secrets
 import shlex
+import stat
 import subprocess
 import threading
 from collections.abc import Callable
@@ -147,56 +148,140 @@ MAX_HEADER_BYTES = 64 * 1024
 MAX_EMLX_BYTES = 8 * 1024 * 1024  # a larger message is not read (it is reported as unreadable, never truncated)
 
 
+Parts = tuple[str, ...]  # a file's place under the Mail root, one name per directory level (never a path that is reopened)
+
+
+def _open_dir_nofollow(name: str, dir_fd: int | None = None) -> int:
+    return os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=dir_fd)
+
+
+def open_confined(root_fd: int, parts: Parts) -> int:
+    """Open a regular file by walking `parts` from the pinned root descriptor, every directory and the file itself opened relative to the previous
+    descriptor with O_NOFOLLOW: a symlink (or a directory replaced by one) at ANY level fails with OSError instead of leading outside the root.
+    The caller reads from the returned descriptor and never reopens the name. A non-regular file (a FIFO, a device) is refused without blocking."""
+    held = os.dup(root_fd)
+    try:
+        for name in parts[:-1]:
+            nxt = _open_dir_nofollow(name, held)
+            os.close(held)
+            held = nxt
+        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=held)
+    finally:
+        os.close(held)
+    if not stat.S_ISREG(os.fstat(fd).st_mode):
+        os.close(fd)
+        raise OSError("not a regular file")
+    return fd
+
+
 class EmlxMailbox:
-    """The Apple Mail reader (the `Mailbox` the mail index takes): a folder of `.emlx` files, read-only, symlinks never followed.
+    """The Apple Mail reader (the `Mailbox` the mail index takes): a folder of `.emlx` files, read-only, symlinks never followed at any level.
+
+    Every operation pins the Mail root with a directory descriptor and reaches a message only by walking its directories and opening the file relative to that
+    descriptor with O_NOFOLLOW at every step (`open_confined`); the message's identity and its body are read from the very descriptor that was opened, and a name is
+    never validated and then reopened. A file or a parent directory swapped for a symlink between discovery and open therefore fails closed (the item is skipped or
+    reads as missing); nothing outside the root is ever read, identified or indexed. (The designated root's own ancestors are the owner's designation, not walked here.)
 
     It returns ONLY the five stored fields (identity, sender, date, subject, plain-text body). Attachments are never decoded or opened: only text/plain parts of the message are read.
-    Listing is newest-first by file modification time and paged; the order is a hope, never relied on by the Core. UNVERIFIED against a real Mail store (the format is handled
+    Listing is newest-first by file modification time and paged; the order is a hope, never relied on by the Core. Not yet exercised against a real Mail store (the format is handled
     from its documentation: a byte count line, that many bytes of RFC 822 message, then a property list that is ignored)."""
+
+    _before_open: Callable[[str, Parts], None] | None = None  # test seam: called just before each confined open (a race is staged here); None in production
 
     def __init__(self, root: Path) -> None:
         self._root = root
-        self._cache: list[tuple[str, str, float, Path]] = []
-        self._by_id: dict[str, Path] = {}
+        self._cache: list[tuple[str, str, float, Parts]] = []
+        self._by_id: dict[str, Parts] = {}
         self._lock = threading.Lock()
 
-    def _scan(self) -> None:
-        found: dict[str, tuple[float, str, Path]] = {}
-        for folder, _directories, files in os.walk(self._root, followlinks=False):  # a linked folder is listed by walk but never entered
-            for name in files:
-                if not name.endswith(".emlx"):
-                    continue
-                path = Path(folder) / name
+    def _pin_root(self) -> int:
+        return _open_dir_nofollow(os.fspath(self._root))
+
+    def _candidates(self, root_fd: int) -> list[Parts]:
+        """Every `.emlx` name under the pinned root, found by listing directory descriptors (a linked folder or file is never entered or listed)."""
+        found: list[Parts] = []
+        pending: list[tuple[Parts, int]] = [((), os.dup(root_fd))]
+        try:
+            while pending:
+                parts, fd = pending.pop()
                 try:
-                    st = path.lstat()
+                    with os.scandir(fd) as entries:
+                        names = [(e.name, e.is_dir(follow_symlinks=False), e.is_file(follow_symlinks=False)) for e in entries]
                 except OSError:
-                    continue
-                if path.is_symlink() or not path.is_file():
-                    continue
-                identity = self._identity(path)
-                known = found.get(identity)
-                if known is None or st.st_mtime > known[0]:
-                    found[identity] = (st.st_mtime, f"{st.st_size}-{st.st_mtime_ns}", path)
+                    names = []
+                finally:
+                    os.close(fd)
+                for name, is_dir, is_file in names:
+                    if is_dir:
+                        try:
+                            child = self._open_dir(root_fd, (*parts, name))
+                        except OSError:
+                            continue
+                        pending.append(((*parts, name), child))
+                    elif is_file and name.endswith(".emlx"):
+                        found.append((*parts, name))
+        finally:
+            for _, fd in pending:
+                os.close(fd)
+        return found
+
+    def _open_dir(self, root_fd: int, parts: Parts) -> int:
+        held = os.dup(root_fd)
+        try:
+            for name in parts:
+                nxt = _open_dir_nofollow(name, held)
+                os.close(held)
+                held = nxt
+        except OSError:
+            os.close(held)
+            raise
+        return held
+
+    def _open(self, root_fd: int, parts: Parts) -> int:
+        hook = self._before_open
+        if hook is not None:
+            hook("open", parts)
+        return open_confined(root_fd, parts)
+
+    def _scan(self) -> None:
+        found: dict[str, tuple[float, str, Parts]] = {}
+        try:
+            root_fd = self._pin_root()
+        except OSError:
+            root_fd = -1
+        if root_fd >= 0:
+            try:
+                for parts in self._candidates(root_fd):
+                    try:
+                        fd = self._open(root_fd, parts)
+                    except OSError:
+                        continue  # replaced by a link, vanished, or not a regular file: not listed
+                    with os.fdopen(fd, "rb") as handle:
+                        st = os.fstat(handle.fileno())
+                        identity = self._identity(handle.read(MAX_HEADER_BYTES), parts)
+                    known = found.get(identity)
+                    if known is None or st.st_mtime > known[0]:
+                        found[identity] = (st.st_mtime, f"{st.st_size}-{st.st_mtime_ns}", parts)
+            finally:
+                os.close(root_fd)
         ordered = sorted(found.items(), key=lambda kv: (-kv[1][0], kv[0]))
         with self._lock:
-            self._cache = [(identity, version, mtime, path) for identity, (mtime, version, path) in ordered]
-            self._by_id = {identity: path for identity, _, _, path in self._cache}
+            self._cache = [(identity, version, mtime, parts) for identity, (mtime, version, parts) in ordered]
+            self._by_id = {identity: parts for identity, _, _, parts in self._cache}
 
-    def _identity(self, path: Path) -> str:
-        """The Message-ID header (made safe), else a name made from the file's place under the root."""
+    @staticmethod
+    def _identity(head: bytes, parts: Parts) -> str:
+        """The Message-ID header (made safe), else a name made from the file's place under the root. Uses only bytes already read from the opened descriptor."""
         try:
-            with path.open("rb") as handle:
-                head = handle.read(MAX_HEADER_BYTES)
             line, _, rest = head.partition(b"\n")
             message = message_from_bytes(rest[: int(line.strip() or 0)] if line.strip().isdigit() else rest, policy=email.policy.default)
             raw = str(message.get("Message-ID", "")).strip()
-        except (OSError, ValueError, LookupError):
+        except (ValueError, LookupError):
             raw = ""
         cleaned = _UNSAFE.sub("_", raw)[:200]
         if cleaned and _ID.match(cleaned):
             return cleaned
-        rel = str(path.relative_to(self._root)) if path.is_relative_to(self._root) else path.name
-        return "emlx." + hashlib.sha256(rel.encode()).hexdigest()[:24]
+        return "emlx." + hashlib.sha256(os.sep.join(parts).encode()).hexdigest()[:24]
 
     def list_page(self, cursor: str | None, limit: int) -> ListPage:
         if cursor is None:
@@ -211,20 +296,26 @@ class EmlxMailbox:
 
     def read(self, message_id: str) -> dict[str, Any] | None:
         with self._lock:
-            path = self._by_id.get(message_id)
-        if path is None:
+            parts = self._by_id.get(message_id)
+        if parts is None:
             self._scan()
             with self._lock:
-                path = self._by_id.get(message_id)
-        return None if path is None else self._parse(message_id, path)
+                parts = self._by_id.get(message_id)
+        return None if parts is None else self._parse(message_id, parts)
 
-    def _parse(self, message_id: str, path: Path) -> dict[str, Any] | None:
+    def _parse(self, message_id: str, parts: Parts) -> dict[str, Any] | None:
         try:
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            root_fd = self._pin_root()
+        except OSError:
+            return None
+        try:
+            fd = self._open(root_fd, parts)
             with os.fdopen(fd, "rb") as handle:
                 data = handle.read(MAX_EMLX_BYTES + 1)
         except OSError:
             return None
+        finally:
+            os.close(root_fd)
         if len(data) > MAX_EMLX_BYTES:
             return None
         line, _, rest = data.partition(b"\n")

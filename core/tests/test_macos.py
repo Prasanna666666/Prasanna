@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import shutil
@@ -18,7 +19,7 @@ from test_models import entry_dict
 from atlas_core.access import GRANTED, MISSING, UNKNOWN, AllowAll
 from atlas_core.designation import AnchorError, DesignationStore, Intent, OnboardingDecision
 from atlas_core.host import HostEnv, HostOptions, HostUnavailable, build_config, load_manifest
-from atlas_core.macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems
+from atlas_core.macos import MAX_EMLX_BYTES, EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems
 from atlas_core.mail import MailIndex
 from atlas_core.models import canonical
 
@@ -318,3 +319,105 @@ def test_a_whole_core_built_by_the_host_indexes_documents_and_apple_mail_after_c
     finally:
         core.close()
         shutil.rmtree(short, ignore_errors=True)
+
+
+# --- path confinement: no pathname is validated and then reopened (review 6012871766) ---------------------------------------------------------------------------
+
+OUTSIDE = (
+    b"From: Mallory <mallory@example.invalid>\nSubject: OUTSIDE-SENTINEL-9917\nMessage-ID: <outside@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\n\n"
+    b"OUTSIDE-SENTINEL-9917 body that must never be read.\n"
+)
+
+
+def _nothing_from_outside(box: EmlxMailbox) -> None:
+    page = box.list_page(None, 50)
+    assert all("outside" not in item.message_id for item in page.items)  # never identified, never listed
+    assert box.read("<outside@example.invalid>") is None  # never read
+    for item in page.items:
+        got = box.read(item.message_id)
+        assert got is None or "OUTSIDE-SENTINEL-9917" not in repr(got)
+
+
+def test_a_file_swapped_for_a_symlink_between_discovery_and_open_is_never_followed(tmp_path):
+    root, outside = tmp_path / "Mail", tmp_path / "elsewhere"
+    victim = emlx(root / "INBOX.mbox/Messages/1.emlx", PLAIN, 1_700_000_000)
+    emlx(root / "INBOX.mbox/Messages/2.emlx", PLAIN.replace(b"q1@", b"q2@"), 1_700_000_100)
+    target = emlx(outside / "secret.emlx", OUTSIDE, 1_700_000_200)
+    box = EmlxMailbox(root)
+    swapped: list[str] = []
+
+    def race(stage: str, parts: tuple[str, ...]) -> None:  # runs after the name was discovered and before it is opened
+        if parts[-1] == "1.emlx" and not swapped:
+            victim.unlink()
+            victim.symlink_to(target)
+            swapped.append(stage)
+
+    box._before_open = race
+    page = box.list_page(None, 50)
+    assert swapped and [i.message_id for i in page.items] == ["<q2@example.invalid>"]  # the swapped file is skipped; the honest one is listed
+    _nothing_from_outside(box)
+
+
+def test_a_parent_directory_replaced_by_a_symlink_between_discovery_and_open_is_never_followed(tmp_path):
+    root, outside = tmp_path / "Mail", tmp_path / "elsewhere"
+    emlx(root / "INBOX.mbox/Messages/1.emlx", PLAIN, 1_700_000_000)
+    emlx(root / "OTHER.mbox/Messages/2.emlx", PLAIN.replace(b"q1@", b"q2@"), 1_700_000_100)
+    emlx(outside / "Messages/1.emlx", OUTSIDE, 1_700_000_200)
+    box = EmlxMailbox(root)
+    swapped: list[str] = []
+
+    def race(stage: str, parts: tuple[str, ...]) -> None:
+        if parts[0] == "INBOX.mbox" and not swapped:
+            shutil.rmtree(root / "INBOX.mbox")
+            (root / "INBOX.mbox").symlink_to(outside)  # the whole folder now points outside the root
+            swapped.append(stage)
+
+    box._before_open = race
+    page = box.list_page(None, 50)
+    assert swapped and [i.message_id for i in page.items] == ["<q2@example.invalid>"]
+    _nothing_from_outside(box)
+
+
+def test_a_parent_directory_replaced_after_the_scan_is_never_followed_when_the_body_is_read(tmp_path):
+    root, outside = tmp_path / "Mail", tmp_path / "elsewhere"
+    emlx(root / "INBOX.mbox/Messages/1.emlx", PLAIN, 1_700_000_000)
+    emlx(outside / "Messages/1.emlx", OUTSIDE.replace(b"outside@", b"q1@"), 1_700_000_200)  # even the identity matches the one the scan cached
+    box = EmlxMailbox(root)
+    assert [i.message_id for i in box.list_page(None, 10).items] == ["<q1@example.invalid>"]
+    shutil.rmtree(root / "INBOX.mbox")
+    (root / "INBOX.mbox").symlink_to(outside)  # after discovery, before the body is read
+    assert box.read("<q1@example.invalid>") is None
+
+
+def test_the_same_message_is_read_from_the_same_descriptor_that_identified_it(tmp_path):
+    """The file is replaced by a different file after it was opened for identification: the answer must still be one consistent message, never a mix."""
+    root = tmp_path / "Mail"
+    emlx(root / "a/1.emlx", PLAIN, 1_700_000_000)
+    box = EmlxMailbox(root)
+    opened: list[tuple[str, ...]] = []
+    box._before_open = lambda stage, parts: opened.append(parts)
+    box.list_page(None, 10)
+    box.read("<q1@example.invalid>")
+    assert opened == [
+        ("a", "1.emlx"),
+        ("a", "1.emlx"),
+    ]  # one confined open for the scan, one for the read, each from the pinned root: no other open of the name exists
+
+
+def test_the_size_limit_and_a_fifo_and_a_symlinked_root_are_handled_without_following_or_hanging(tmp_path):
+    root = tmp_path / "Mail"
+    emlx(root / "a/1.emlx", PLAIN, 1_700_000_000)
+    os.mkfifo(root / "a/2.emlx")  # a FIFO must not block the scan
+    big = root / "a/3.emlx"
+    big.write_bytes(b"9999999\n" + b"x" * (MAX_EMLX_BYTES + 10))
+    box = EmlxMailbox(root)
+    big_id = "emlx." + hashlib.sha256(os.sep.join(("a", "3.emlx")).encode()).hexdigest()[:24]
+    assert {i.message_id for i in box.list_page(None, 10).items} == {
+        "<q1@example.invalid>",
+        big_id,
+    }  # the FIFO was skipped; the oversized file is listed by name only
+    assert box.read(big_id) is None  # and is never read (reported unreadable, not truncated)
+    assert box.read("<q1@example.invalid>")["subject"] == "Quote"
+    link = tmp_path / "RootLink"
+    link.symlink_to(root)
+    assert EmlxMailbox(link).list_page(None, 10).items == []  # a designated root that is itself a link is not followed
