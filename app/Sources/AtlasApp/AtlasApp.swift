@@ -40,10 +40,12 @@ enum KeyStore {
     }
 }
 
-/// The code that lets this app enrol as the owner. It must come from the code that STARTS the Core (which generates it, passes it to the Core on a private channel such as an
-/// inherited pipe, and keeps it in memory for this app). That launcher is NOT built, so this is nil until it is; a Core started without a code refuses to start.
+/// The app owns its Core: it starts it with `CoreLauncher`, which generates a one-time bootstrap code, hands it to the Core over the child's standard input and keeps it in memory
+/// here. A Core started any other way has no code and refuses to start on a fresh data folder. Where the Core executable comes from (packaging) is NOT built: `coreExecutable` points
+/// at a Python with the `atlas_core` package, for development.
 enum Launcher {
-    static var bootstrapCode: String? { nil }
+    static let shared = CoreLauncher(executable: URL(fileURLWithPath: "/usr/bin/env"), arguments: ["python3", "-m", "atlas_core.serve"])
+    static var bootstrapCode: String? { shared.bootstrapCode }
 }
 
 @MainActor
@@ -57,11 +59,19 @@ final class ConversationModel: ObservableObject {
     @Published var passage: String?
     private var taskID: String?
     private let client: CoreClient?
-    private let socket = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas/run/core.sock").path
+    private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
+    private var socket: String { support.appendingPathComponent("run/core.sock").path }
 
     init() {
-        client = (try? KeyStore.identity()).map { CoreClient(socketPath: socket, signer: $0.signer, clientID: $0.id) }
-        Task { await refreshConsent() }
+        client = (try? KeyStore.identity()).map { CoreClient(socketPath: support.appendingPathComponent("run/core.sock").path, signer: $0.signer, clientID: $0.id) }
+        Task { await startCoreThenRefresh() }
+    }
+
+    /// Start the Core (handing it the one-time code), then ask what is enabled; the first call enrols this app as the owner client.
+    func startCoreThenRefresh() async {
+        let dataDir = support.appendingPathComponent("core").path, sock = socket
+        do { try await Task.detached { try Launcher.shared.start(dataDir: dataDir, socket: sock) }.value } catch { failure = (error as? AtlasError)?.message; return }
+        await refreshConsent()
     }
 
     func refreshConsent() async {
@@ -71,7 +81,7 @@ final class ConversationModel: ObservableObject {
             needsGetStarted = !((state["grants"] as? [[String: Any]]) ?? []).contains { ($0["revoked"] as? Bool) == false }
         } catch AtlasError.core(let code) where code == "unauthenticated" {
             // First run: the Core does not know this client yet. Enrol it as the owner client (accepted once, over the owner-only socket), then ask again.
-            do { try await Task.detached { try client.enrolSelf(bootstrapCode: Launcher.bootstrapCode) }.value; await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
+            do { try await Task.detached { try client.enrolSelf(bootstrapCode: Launcher.bootstrapCode) }.value; Launcher.shared.forgetCode(); await refreshConsent() } catch { failure = (error as? AtlasError)?.message }
         } catch { failure = (error as? AtlasError)?.message }
     }
 

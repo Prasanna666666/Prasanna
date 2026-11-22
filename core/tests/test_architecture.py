@@ -41,6 +41,9 @@ LAYER = {
     "api": 7,
     "transport": 8,
     "app": 9,
+    "host": 9,
+    "serve": 9,
+    "launcher": 9,
 }
 SOURCE_TYPE_NAMES = {"documents", "mail", "mail_attachment", "finance", "health"}
 

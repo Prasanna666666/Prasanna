@@ -27,6 +27,12 @@ final class SigningTests: XCTestCase {
         XCTAssertNil(try Signing.headers(signer: signer, clientID: "c", version: "1.0", method: "GET", target: "/v1/version", body: Data())["x-atlas-api-version"])
     }
 
+    func testTheLauncherCodeHasTheShapeTheCoreAccepts() throws {
+        let code = try CoreLauncher.makeCode()
+        XCTAssertNotNil(code.range(of: "^[A-Za-z0-9_-]{16,64}$", options: .regularExpression))
+        XCTAssertNotEqual(code, try CoreLauncher.makeCode())
+    }
+
     func testTheCatalogueLoadsAndAnswerViewsUsePlainWords() {
         let view = AnswerView(["answer": "A", "verification": ["status": "verified"], "limitations": ["language_unmeasured"], "not_searched": [], "citations": [],
                                "model": ["model_id": "primary-1", "role": "primary", "runtime": "mlx"], "coverage": ["state": "complete", "searched": 3, "total": 3, "pending": [], "failed": []]])
