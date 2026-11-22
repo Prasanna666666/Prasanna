@@ -123,6 +123,24 @@ class AtlasClient:
         """A public web search for one task (API 1.1; owner client only; refused unless the Core's live-network gate is on). The result is untrusted data, never evidence."""
         return self._json("POST", f"/v1/tasks/{task_id}/research", {"task_id": task_id, "query": query})
 
+    def act(self, action: str, payload: dict[str, Any], idempotency_key: str | None = None, approval_id: str | None = None) -> dict[str, Any]:
+        """Propose one typed action as the owner (API 1.1; owner client only). The answer is `done`, `needs_approval` (with the exact payload and an approval id), `refused` or `failed`, with a code."""
+        body: dict[str, Any] = {"action": action, "payload": payload, "idempotency_key": idempotency_key or uuid.uuid4().hex}
+        if approval_id is not None:
+            body["approval_id"] = approval_id
+        return self._json("POST", "/v1/actions", body)
+
+    def approve(self, approval_id: str) -> bool:
+        """The owner approves one pending approval id; then the SAME action and payload are proposed again with it."""
+        return bool(self._json("POST", "/v1/actions/approve", {"approval_id": approval_id})["granted"])
+
+    def undo(self, action_id: str) -> dict[str, Any]:
+        return self._json("POST", "/v1/actions/undo", {"action_id": action_id})
+
+    def sync(self, ops: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Send a device's offline queue (API 1.1): each operation is applied once, in order; the results say applied, duplicate, conflict or rejected."""
+        return list(self._json("POST", "/v1/sync", {"ops": ops})["results"])
+
     def enrol_self(self, role: str = "owner", bootstrap_code: str | None = None) -> dict[str, Any]:
         """First run: enrol THIS client's public key with the Core (unsigned, once, while no owner client exists; over the owner-only socket). Afterwards an owner client may
         enrol a member with a signed call (`enrol`)."""

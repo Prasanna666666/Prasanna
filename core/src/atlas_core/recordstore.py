@@ -23,7 +23,8 @@ from typing import Any
 
 from kit.db import connect
 
-from .records import Record, RecordError
+from .mail import Listed, ListPage
+from .records import Record, RecordError, as_message
 
 SCHEMA_VERSION = 1
 _SCHEMA = """
@@ -177,3 +178,35 @@ class RecordStore:
             new_seq = self._write(op, row["after"], after, deleted, current.version + 1, origin)
             self._conn.execute("UPDATE history SET undone=1 WHERE seq IN (?,?)", (seq, new_seq))
             return new_seq
+
+
+class StoredRecords:
+    """A durable record SOURCE over the store: it presents one domain's records through the same seam as Mail (`list_page`, `read`), newest first, so the guarded index can take them in, and it accepts
+    records for a migration (`put`: create or, if the id exists with different content, refuse as a conflict). Deleted records are not listed."""
+
+    def __init__(self, store: RecordStore, domain: str) -> None:
+        self._store, self.domain = store, domain
+
+    @property
+    def records(self) -> dict[str, Record]:
+        return {s.record.record_id: s.record for s in self._store.in_domain(self.domain)}
+
+    def put(self, record: Record) -> None:
+        try:
+            self._store.create(record, origin="migration")
+        except StoreError as error:
+            if error.code != "exists" or self._store.get(record.record_id).record != record:
+                raise
+
+    def list_page(self, cursor: str | None, limit: int) -> Any:
+        items = sorted(self._store.in_domain(self.domain), key=lambda s: (s.record.date, s.record.record_id), reverse=True)
+        start = int(cursor or 0)
+        page = items[start : start + limit]
+        listed = [Listed(s.record.record_id, f"v{s.version}", s.record.date) for s in page]
+        return ListPage(listed, str(start + limit) if start + limit < len(items) else None)
+
+    def read(self, message_id: str) -> dict[str, str] | None:
+        try:
+            return as_message(self._store.get(message_id).record)
+        except StoreError:
+            return None

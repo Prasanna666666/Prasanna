@@ -20,7 +20,14 @@
     "EnrolResponse",
     "ModeState",
     "ResearchRequest",
-    "ResearchResult"
+    "ResearchResult",
+    "ActionRequest",
+    "ActionOutcome",
+    "ApprovalRequest",
+    "ApprovalResult",
+    "UndoRequest",
+    "SyncRequest",
+    "SyncResult"
   ],
   "$defs": {
     "AnswerEnvelope": {
@@ -1374,6 +1381,239 @@
         }
       },
       "description": "Public web content returned as UNTRUSTED DATA with its provenance. It carries no authority: it cannot add a tool, a source, a grant or an action, it is not evidence for a citation, and instruction-like text in it is flagged, never obeyed."
+    },
+    "ActionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "payload",
+        "idempotency_key"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "Propose one typed action as the owner. It runs at once if it needs no approval (everything outside PRD 4.4's four categories), otherwise it answers `needs_approval` with the exact payload and an approval id; the owner approves that id and proposes the SAME action and payload again with it. Owner client only."
+    },
+    "ActionOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "done",
+            "needs_approval",
+            "refused",
+            "failed"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z_0-9]{0,40}$"
+        },
+        "action_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approval_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "category": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exact_payload": {
+          "oneOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "What happened to a proposed action, with a code and never the text of an error."
+    },
+    "ApprovalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_id"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "The owner approves one pending approval id. Single-use, bound to the exact payload it was asked for, expires. Owner client only."
+    },
+    "ApprovalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "granted"
+      ],
+      "properties": {
+        "granted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UndoRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "Undo one completed reversible action. Owner client only."
+    },
+    "SyncRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ops"
+      ],
+      "properties": {
+        "ops": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "name",
+              "payload"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
+              },
+              "payload": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "description": "A device's offline queue, in order. Each operation is applied once; a stale version is a conflict that never overwrites; the device is the authenticated client."
+    },
+    "SyncResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "status",
+              "code",
+              "current_version"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "duplicate",
+                  "conflict",
+                  "rejected"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z_0-9]{0,40}$"
+              },
+              "current_version": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

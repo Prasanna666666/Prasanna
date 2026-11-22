@@ -123,3 +123,25 @@ def test_retiring_the_original_is_never_done_here_and_the_module_has_no_way_to_d
     assert not re.search(
         r"\.unlink\(|os\.remove|shutil\.rmtree|\.rename\(|os\.replace|shutil\.move|\.write_bytes\(|\.write_text\(", code
     )  # it can copy and read; it cannot change or remove an original
+
+
+def test_a_migrated_finance_database_is_durable_and_listed_newest_first(tmp_path):
+    from conftest import KEY
+
+    from atlas_core.recordstore import RecordStore, StoredRecords
+
+    source = legacy(tmp_path / "finance.db")
+    store = RecordStore(tmp_path / "finance-records.db", KEY + "f", frozenset({"finance"}))
+    result = migrate(source, StoredRecords(store, "finance"))
+    assert result.ok and len(store.in_domain("finance")) == 4
+    store.close()
+    again = RecordStore(tmp_path / "finance-records.db", KEY + "f", frozenset({"finance"}))  # a restart: the records are still there, byte for byte
+    try:
+        sink = StoredRecords(again, "finance")
+        assert sink.records["legacy-tx-1"].fields["amount"] == "412.30"
+        assert migrate(source, sink).ok and len(again.in_domain("finance")) == 4  # running the import again changes nothing
+        page = sink.list_page(None, 2)
+        assert [i.message_id for i in page.items] == ["legacy-tx-3", "legacy-tx-2"] and page.next_cursor == "2"  # newest first, paged
+        assert sink.read("legacy-tx-1")["body"].count("amount: 412.30") == 1 and sink.read("missing") is None
+    finally:
+        again.close()
