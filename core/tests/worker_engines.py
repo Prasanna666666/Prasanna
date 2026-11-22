@@ -88,3 +88,32 @@ class CrashEngine(EchoEngine):
     def stream(self, prompt, max_tokens):
         os._exit(7)
         yield ""
+
+
+class ReadProbe(EchoEngine):
+    """The prompt is JSON: {"read": [paths], "exec": [programs], "resolve": host}. Reports what the sandboxed process can read, run and resolve."""
+
+    def stream(self, prompt, max_tokens):
+        import subprocess
+
+        request = json.loads(prompt)
+        result: dict[str, object] = {"read": {}, "exec": {}}
+        for path in request.get("read", []):
+            try:
+                with open(path, "rb") as handle:
+                    result["read"][path] = "READ:" + handle.read(64).decode("utf-8", "replace")  # type: ignore[index]
+            except OSError as e:
+                result["read"][path] = f"blocked:{e.errno}"  # type: ignore[index]
+        for program in request.get("exec", []):
+            try:
+                subprocess.run([program, "--version"], capture_output=True, check=False, timeout=10)
+                result["exec"][program] = "RAN"  # type: ignore[index]
+            except OSError as e:
+                result["exec"][program] = f"blocked:{e.errno}"  # type: ignore[index]
+        if request.get("resolve"):
+            try:
+                socket.getaddrinfo(request["resolve"], 80)
+                result["resolve"] = "RESOLVED"
+            except OSError as e:
+                result["resolve"] = f"blocked:{type(e).__name__}"
+        yield json.dumps(result)

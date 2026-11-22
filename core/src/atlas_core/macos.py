@@ -200,8 +200,9 @@ class EmlxMailbox:
     """The Apple Mail reader (the `Mailbox` the mail index takes): a folder of `.emlx` files, read-only, symlinks never followed at any level.
 
     Every operation pins the Mail root with a directory descriptor and reaches a message only by walking its directories and opening the file relative to that
-    descriptor with O_NOFOLLOW at every step (`open_confined`); the message's identity and its body are read from the very descriptor that was opened, and a name is
-    never validated and then reopened. A file or a parent directory swapped for a symlink between discovery and open therefore fails closed (the item is skipped or
+    descriptor with O_NOFOLLOW at every step (`open_confined`); the message's identity and its body are read from the very descriptor that was opened (a read re-derives the identity from the bytes it
+    just read and refuses the message if it no longer equals the identity it was listed under, so a regular file swapped for another message cannot deliver that message's body
+    under the old identity), and a name is never validated and then reopened. A file or a parent directory swapped for a symlink between discovery and open therefore fails closed (the item is skipped or
     reads as missing); nothing outside the root is ever read, identified or indexed. (The designated root's own ancestors are the owner's designation, not walked here.)
 
     It returns ONLY the five stored fields (identity, sender, date, subject, plain-text body). Attachments are never decoded or opened: only text/plain parts of the message are read.
@@ -338,8 +339,8 @@ class EmlxMailbox:
             return None
         finally:
             os.close(root_fd)
-        if len(data) > MAX_EMLX_BYTES:
-            return None
+        if len(data) > MAX_EMLX_BYTES or self._identity(data[:MAX_HEADER_BYTES], parts) != message_id:
+            return None  # too large, or the file now holds a different message than the one this identity was listed for (replaced between listing and reading): never returned under the old identity
         line, _, rest = data.partition(b"\n")
         if not line.strip().isdigit():
             return None

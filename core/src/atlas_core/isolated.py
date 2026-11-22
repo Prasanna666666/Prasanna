@@ -30,11 +30,12 @@ class IsolatedEngine:
         self._buffer = (
             b""  # bytes read from the worker but not yet a whole line (select() cannot see what a buffered reader already holds, so lines are cut here)
         )
+        self._read_roots: tuple[str, ...] = ()  # the only folder (beyond the runtime and the system) the sandboxed worker may read: the staged model
         self.network_denied: str | None = None  # the mechanism the worker reported (tests, diagnostics)
 
     # -- the process -----------------------------------------------------------------------------------------------------------------------
     def _command(self) -> list[str]:
-        prefix = sandbox.launch_prefix()
+        prefix = sandbox.launch_prefix(self._read_roots)
         command = [*prefix, self._python, "-m", "atlas_core.worker", "--engine", self._spec]
         if self._custom:
             command.append("--allow-custom-engine")
@@ -116,6 +117,9 @@ class IsolatedEngine:
             raise RuntimeFailure("load_failed" if message["op"] == "load" else "worker_failed")
 
     def load(self, path: str) -> None:
+        if self._read_roots != (path,):
+            self.close()  # a worker confined to another model folder must not be reused
+            self._read_roots = (path,)
         self._send({"op": "load", "path": path})
         self._ok({"op": "load"}, self._limit)
 

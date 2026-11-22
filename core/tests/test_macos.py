@@ -443,3 +443,31 @@ def test_a_value_that_is_not_plain_is_encoded_before_it_reaches_the_security_com
     assert box.read("svc") == hostile
     box.write("svc", "a" * 64)  # a hex store key travels unchanged
     assert sent[1].rstrip().endswith(" -w " + "a" * 64) and box.read("svc") == "a" * 64
+
+
+OTHER = (
+    b"From: Eve <eve@example.invalid>\nSubject: SWAPPED-IN-BODY-4417\nMessage-ID: <other@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\n\n"
+    b"SWAPPED-IN-BODY-4417 belongs to a different message.\n"
+)
+
+
+def test_a_regular_file_replaced_by_a_different_message_after_listing_is_never_returned_under_the_old_identity(tmp_path):
+    root = tmp_path / "Mail"
+    victim = emlx(root / "INBOX.mbox/Messages/1.emlx", PLAIN, 1_700_000_000)
+    box = EmlxMailbox(root)
+    assert [i.message_id for i in box.list_page(None, 10).items] == ["<q1@example.invalid>"]
+    emlx(victim, OTHER, 1_700_000_500)  # a plain file replaced by another message's file (no symlink anywhere)
+    got = box.read("<q1@example.invalid>")
+    assert got is None or "SWAPPED-IN-BODY-4417" not in repr(got)
+    assert box.read("<other@example.invalid>") is not None  # after a fresh listing the new message is read, under its own identity
+    assert "SWAPPED-IN-BODY-4417" in box.read("<other@example.invalid>")["body"]
+
+
+def test_the_same_message_edited_in_place_is_read_consistently(tmp_path):
+    root = tmp_path / "Mail"
+    path = emlx(root / "a/1.emlx", PLAIN, 1_700_000_000)
+    box = EmlxMailbox(root)
+    box.list_page(None, 10)
+    emlx(path, PLAIN.replace(b"1250.50", b"9999.00"), 1_700_000_600)  # same Message-ID, new body
+    got = box.read("<q1@example.invalid>")
+    assert got is not None and "9999.00" in got["body"] and got["message_id"] == "<q1@example.invalid>"

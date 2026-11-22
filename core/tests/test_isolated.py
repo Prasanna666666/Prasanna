@@ -116,7 +116,7 @@ def test_the_worker_gets_a_clean_environment_with_no_secrets(listener, monkeypat
 
 
 def test_a_worker_that_cannot_confine_itself_is_never_used(monkeypatch):
-    monkeypatch.setattr(sandbox, "launch_prefix", lambda: (_ for _ in ()).throw(sandbox.SandboxUnavailable("platform")))
+    monkeypatch.setattr(sandbox, "launch_prefix", lambda *_: (_ for _ in ()).throw(sandbox.SandboxUnavailable("platform")))
     with pytest.raises(RuntimeFailure, match="isolation_unavailable"):
         engine("EchoEngine").load("/tmp")
 
@@ -221,5 +221,73 @@ def test_the_macos_launch_prefix_denies_network_and_says_where_it_is_verified(mo
     monkeypatch.setattr("atlas_core.sandbox.sys.platform", "darwin")
     monkeypatch.setattr("atlas_core.sandbox.os.access", lambda *a: True)
     prefix = sandbox.launch_prefix()
-    assert prefix[0] == "/usr/bin/sandbox-exec" and "(deny network*)" in prefix[2] and "(deny file-write*)" in prefix[2]
+    assert (
+        prefix[0] == "/usr/bin/sandbox-exec" and "(deny network*)" in prefix[2] and "(deny file-write*)" in prefix[2] and "(deny file-read-data)" in prefix[2]
+    )
     assert "macOS CI runner" in (sandbox.__doc__ or "")  # the claim names the job that proves it (the isolated-worker tests on the runner)
+
+
+def test_the_macos_profile_lets_the_worker_read_only_the_model_folder_its_runtime_and_the_system(tmp_path):
+    model, home_like = tmp_path / "models" / "m1", tmp_path / "home"
+    model.mkdir(parents=True)
+    home_like.mkdir()
+    profile = sandbox.mac_profile([str(model)])
+    assert str(model.resolve()) in profile  # the staged model folder is readable
+    assert str(home_like.resolve()) not in profile and "/Users" not in profile  # nothing of a user's home is
+    assert "(deny file-read-data)" in profile and profile.index("(deny file-read-data)") < profile.index(
+        "(allow file-read-data"
+    )  # denied first, then the exceptions
+    assert "(deny process-exec*)" in profile and sys.executable in profile  # only Python may be executed
+    assert 'global-name "com.apple.dnssd.service"' in profile  # the DNS service is not reachable
+    assert sandbox.mac_profile([]) != profile  # the model folder is the only thing that varies per worker
+
+
+def test_a_changed_model_folder_gets_a_new_worker_confined_to_it(monkeypatch, tmp_path):
+    seen: list[tuple[str, ...]] = []
+    monkeypatch.setattr(sandbox, "launch_prefix", lambda roots=(): seen.append(tuple(roots)) or [])
+    e = engine("EchoEngine")
+    try:
+        e.load(str(tmp_path))
+        other = tmp_path / "other"
+        other.mkdir()
+        e.load(str(other))
+    finally:
+        e.close()
+    assert seen == [(str(tmp_path),), (str(other),)]
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="the read, exec and DNS confinement is the macOS profile's")
+def test_on_macos_the_worker_cannot_read_a_home_folder_file_run_another_program_or_resolve_names(tmp_path):
+    import os
+    import uuid
+    from pathlib import Path
+
+    model = tmp_path / "model"
+    model.mkdir()
+    (model / "weights.txt").write_text("MODEL-FILE")
+    sentinel_home = Path.home() / f".atlas-sentinel-{uuid.uuid4().hex}"
+    sentinel_home.write_text("HOME-SENTINEL-8841")
+    sentinel_tmp = Path("/tmp") / f"atlas-sentinel-{uuid.uuid4().hex}"
+    sentinel_tmp.write_text("TMP-SENTINEL-8841")
+    e = engine("ReadProbe")
+    try:
+        e.load(str(model))
+        request = {
+            "read": [str(model / "weights.txt"), str(sentinel_home), str(sentinel_tmp), os.path.expanduser("~/Library"), "/etc/hosts"],
+            "exec": ["/bin/echo", "/usr/bin/curl", "/bin/sh"],
+            "resolve": "example.com",
+        }
+        result = json.loads("".join(e.stream(json.dumps(request), 10)))
+    finally:
+        e.close()
+        sentinel_home.unlink()
+        sentinel_tmp.unlink()
+    reads = result["read"]
+    assert reads[str(model / "weights.txt")] == "READ:MODEL-FILE"  # the staged model folder is readable
+    assert reads[str(sentinel_home)].startswith("blocked:") and reads[str(sentinel_tmp)].startswith("blocked:")  # no private file outside it is
+    assert reads[os.path.expanduser("~/Library")].startswith("blocked:")
+    assert all(v.startswith("blocked:") for v in result["exec"].values())  # no other program can be started
+    assert result["resolve"].startswith(
+        "blocked:"
+    )  # (a refusal either way: this does not prove the DNS service is unreachable, only that no answer comes back)
+    assert "SENTINEL" not in json.dumps(result)
