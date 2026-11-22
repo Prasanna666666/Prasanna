@@ -95,9 +95,16 @@ def test_quiet_hours_hold_normal_notifications_release_them_once_and_never_repea
     now, delivered = [NOON.replace(hour=23)], []
     notifier = Notifier(delivered.append, clock=lambda: now[0])
     normal, urgent = Notification("bill_due", "b1", "normal", "k1"), Notification("bill_due", "b2", "urgent", "k2")
-    assert notifier.submit(normal) == "held" and notifier.submit(normal) == "held" and notifier.submit(urgent) == "delivered"
+    assert notifier.offer(normal) == "held" and notifier.offer(normal) == "held" and notifier.offer(urgent) == "delivered"
     assert [n.dedupe_key for n in delivered] == ["k2"] and len(notifier.held) == 1  # held once, not twice
     assert notifier.release_held() == 0  # still quiet
     now[0] = NOON.replace(hour=8) + timedelta(days=1)
     assert notifier.release_held() == 1 and [n.dedupe_key for n in delivered] == ["k2", "k1"]
-    assert notifier.submit(normal) == "duplicate" and notifier.submit(urgent) == "duplicate" and len(delivered) == 2
+    assert notifier.offer(normal) == "duplicate" and notifier.offer(urgent) == "duplicate" and len(delivered) == 2
+
+
+def test_a_push_payload_is_a_kind_and_an_id_and_nothing_a_push_service_or_a_lock_screen_could_read():
+    from atlas_core.watchers import push_payload
+
+    payload = push_payload(Notification("bill_due", "bill-1", "urgent", "k", "finance.review_bill"))
+    assert payload == {"k": "bill_due", "id": "bill-1"} and "finance" not in repr(payload) and "urgent" not in repr(payload)

@@ -64,7 +64,7 @@ class Notifier:
         self._seen: set[str] = set()
         self.held: list[Notification] = []
 
-    def submit(self, notification: Notification) -> str:
+    def offer(self, notification: Notification) -> str:
         if notification.dedupe_key in self._seen:
             return "duplicate"
         if _quiet(self._clock()) and notification.priority != URGENT:
@@ -85,3 +85,8 @@ class Notifier:
                 self._seen.add(n.dedupe_key)
                 self._deliver(n)
         return len(pending)
+
+
+def push_payload(notification: Notification) -> dict[str, str]:
+    """What may leave the Mac for a push service (Stage 8): a kind and a record id, nothing else. The phone fetches the text from the Core, over the authenticated channel, after the owner opens it."""
+    return {"k": notification.kind, "id": notification.record_id}

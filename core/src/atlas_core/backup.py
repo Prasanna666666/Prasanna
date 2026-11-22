@@ -81,7 +81,7 @@ def _unb64(text: str) -> bytes:
     return base64.b64decode(text.encode("ascii"), validate=True)
 
 
-def _sha256(path: Path) -> str:
+def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
         while block := f.read(1 << 20):
@@ -136,6 +136,46 @@ def _free_bytes(folder: Path) -> int:
     return shutil.disk_usage(folder).free
 
 
+def _copy_files(data_dir: Path, temp: Path, present: list[str], db_keys: Mapping[str, str]) -> dict[str, dict[str, Any]]:
+    files: dict[str, dict[str, Any]] = {}
+    for name in present:
+        out = temp / name
+        if name in DB_FILES:
+            if name not in db_keys:
+                raise BackupError("missing_db_key")
+            rows: dict[str, int] | None = _snapshot(data_dir / name, out, db_keys[name])
+        else:
+            shutil.copyfile(data_dir / name, out)
+            rows = None
+        os.chmod(out, 0o600)
+        files[name] = {"sha256": sha256_file(out), "size": out.stat().st_size, **({"rows": rows} if rows is not None else {})}
+    return files
+
+
+def _seal_keys(temp: Path, bundle: Mapping[str, str], passphrase: str) -> tuple[bytes, bytes, dict[str, Any]]:
+    """Write `keys.enc` (the bundle wrapped under the passphrase) and return the salt, the manifest MAC key and the file's manifest entry."""
+    salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
+    wrap_key, mac_key = _derive(passphrase, salt)
+    sealed = AESGCM(wrap_key).encrypt(nonce, json.dumps(dict(bundle), sort_keys=True).encode("utf-8"), KEYS_FILE.encode())
+    (temp / KEYS_FILE).write_bytes(nonce + sealed)
+    os.chmod(temp / KEYS_FILE, 0o600)
+    return salt, mac_key, {"sha256": sha256_file(temp / KEYS_FILE), "size": (temp / KEYS_FILE).stat().st_size}
+
+
+def _write_manifest(temp: Path, files: dict[str, dict[str, Any]], salt: bytes, mac_key: bytes, created_at: str) -> None:
+    manifest: dict[str, Any] = {
+        "format": FORMAT,
+        "created_at": created_at,
+        "files": files,
+        "derived_not_backed_up": list(DERIVED),
+        "kdf": {"name": "scrypt", "n": SCRYPT_N, "r": SCRYPT_R, "p": SCRYPT_P, "salt": _b64(salt)},
+        "grants_restored": False,
+    }
+    manifest["mac"] = hmac.new(mac_key, _canonical(manifest), hashlib.sha256).hexdigest()
+    (temp / MANIFEST).write_text(json.dumps(manifest, sort_keys=True, indent=1), encoding="utf-8")
+    os.chmod(temp / MANIFEST, 0o600)
+
+
 def create_backup(
     data_dir: Path,
     destination: Path,
@@ -153,46 +193,19 @@ def create_backup(
     if "tasks.db" not in present:
         raise BackupError("nothing_to_back_up")
     destination.mkdir(parents=True, exist_ok=True, mode=0o700)
-    needed = sum((data_dir / n).stat().st_size for n in present)
-    if _free_bytes(destination) < needed * SPACE_MARGIN:
+    if _free_bytes(destination) < sum((data_dir / n).stat().st_size for n in present) * SPACE_MARGIN:
         raise BackupError("not_enough_space")
-    stamp = clock().strftime("%Y%m%dT%H%M%SZ")
-    final = destination / f"atlas-backup-{stamp}"
+    final = destination / f"atlas-backup-{clock().strftime('%Y%m%dT%H%M%SZ')}"
     if final.exists():
         raise BackupError("backup_exists")
     temp = destination / f".incomplete-{secrets.token_hex(6)}"
     temp.mkdir(mode=0o700)
     try:
-        files: dict[str, dict[str, Any]] = {}
-        for name in present:
-            out = temp / name
-            if name in DB_FILES:
-                if name not in db_keys:
-                    raise BackupError("missing_db_key")
-                rows: dict[str, int] | None = _snapshot(data_dir / name, out, db_keys[name])
-            else:
-                shutil.copyfile(data_dir / name, out)
-                rows = None
-            os.chmod(out, 0o600)
-            files[name] = {"sha256": _sha256(out), "size": out.stat().st_size, **({"rows": rows} if rows is not None else {})}
-        salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
-        wrap_key, mac_key = _derive(passphrase, salt)
-        bundle = {**keys, **{f"db:{n}": k for n, k in db_keys.items()}}  # the database keys travel in the bundle under "db:<file>"
-        sealed = AESGCM(wrap_key).encrypt(nonce, json.dumps(bundle, sort_keys=True).encode("utf-8"), KEYS_FILE.encode())
-        (temp / KEYS_FILE).write_bytes(nonce + sealed)
-        os.chmod(temp / KEYS_FILE, 0o600)
-        files[KEYS_FILE] = {"sha256": _sha256(temp / KEYS_FILE), "size": (temp / KEYS_FILE).stat().st_size}
-        manifest: dict[str, Any] = {
-            "format": FORMAT,
-            "created_at": clock().isoformat(),
-            "files": files,
-            "derived_not_backed_up": list(DERIVED),
-            "kdf": {"name": "scrypt", "n": SCRYPT_N, "r": SCRYPT_R, "p": SCRYPT_P, "salt": _b64(salt)},
-            "grants_restored": False,
-        }
-        manifest["mac"] = hmac.new(mac_key, _canonical(manifest), hashlib.sha256).hexdigest()
-        (temp / MANIFEST).write_text(json.dumps(manifest, sort_keys=True, indent=1), encoding="utf-8")
-        os.chmod(temp / MANIFEST, 0o600)
+        files = _copy_files(data_dir, temp, present, db_keys)
+        salt, mac_key, files[KEYS_FILE] = _seal_keys(
+            temp, {**keys, **{f"db:{n}": k for n, k in db_keys.items()}}, passphrase
+        )  # the database keys travel in the bundle under "db:<file>"
+        _write_manifest(temp, files, salt, mac_key, clock().isoformat())
         if not verify_backup(temp, passphrase, db_keys=None).ok:  # a backup that does not verify is not a backup
             raise BackupError("verification_failed")
         os.rename(temp, final)
@@ -246,7 +259,7 @@ def verify_backup(folder: Path, passphrase: str | None = None, *, db_keys: Mappi
             continue
         if path.stat().st_size != entry.get("size"):
             problems.append("size_mismatch")
-        elif _sha256(path) != entry.get("sha256"):
+        elif sha256_file(path) != entry.get("sha256"):
             problems.append("hash_mismatch")
     authenticated = False
     if passphrase is not None and not problems:
@@ -272,7 +285,49 @@ def verify_backup(folder: Path, passphrase: str | None = None, *, db_keys: Mappi
     return VerifyResult(not problems, tuple(dict.fromkeys(problems)), authenticated)
 
 
-def restore_backup(  # noqa: PLR0912  (one linear sequence of copy steps and one cleanup; splitting it would hide the order)
+def _copy_state(folder: Path, target: Path, manifest: dict[str, Any], made: list[Path], report: RestoreReport) -> None:
+    for name in ("tasks.db", "clients.json"):
+        if name in manifest["files"]:
+            out = target / name
+            shutil.copyfile(folder / name, out)
+            made.append(out)
+            os.chmod(out, 0o600)
+            report.files[name] = out.stat().st_size
+    if "designation.db" in manifest["files"]:
+        history = target / HISTORY_DIR
+        history.mkdir(mode=0o700, exist_ok=True)
+        made.append(history)
+        out = history / HISTORY_NAME
+        shutil.copyfile(folder / "designation.db", out)
+        os.chmod(out, 0o400)  # read-only: it is history, never the live store
+        report.files[HISTORY_NAME] = out.stat().st_size
+
+
+def _check_copies(target: Path, manifest: dict[str, Any], bundle: Mapping[str, str], report: RestoreReport) -> None:
+    for name in DB_FILES:
+        entry = manifest["files"].get(name)
+        if entry is None:
+            continue
+        copy = target / ("tasks.db" if name == "tasks.db" else f"{HISTORY_DIR}/{HISTORY_NAME}")
+        verdict, report.rows[name] = _inspect(copy, bundle[f"db:{name}"])
+        if verdict != "ok" or report.rows[name] != entry["rows"]:
+            raise BackupError("count_mismatch")
+
+
+def _remove_made(made: list[Path], target: Path, created_target: bool) -> None:
+    for path in reversed(made):
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            path.chmod(0o600)
+            path.unlink(missing_ok=True)
+    for leftover in (target / "tasks.db-wal", target / "tasks.db-shm"):
+        leftover.unlink(missing_ok=True)
+    if created_target:
+        shutil.rmtree(target, ignore_errors=True)
+
+
+def restore_backup(
     folder: Path,
     passphrase: str,
     target: Path,
@@ -294,40 +349,10 @@ def restore_backup(  # noqa: PLR0912  (one linear sequence of copy steps and one
     made: list[Path] = []
     report = RestoreReport(target)
     try:
-        for name in ("tasks.db", "clients.json"):
-            if name in manifest["files"]:
-                out = target / name
-                shutil.copyfile(folder / name, out)
-                made.append(out)
-                os.chmod(out, 0o600)
-                report.files[name] = out.stat().st_size
-        if "designation.db" in manifest["files"]:
-            history = target / HISTORY_DIR
-            history.mkdir(mode=0o700, exist_ok=True)
-            made.append(history)
-            out = history / HISTORY_NAME
-            shutil.copyfile(folder / "designation.db", out)
-            os.chmod(out, 0o400)  # read-only: it is history, never the live store
-            report.files[HISTORY_NAME] = out.stat().st_size
-        for name in DB_FILES:
-            entry = manifest["files"].get(name)
-            if entry is None:
-                continue
-            copy = target / ("tasks.db" if name == "tasks.db" else f"{HISTORY_DIR}/{HISTORY_NAME}")
-            verdict, report.rows[name] = _inspect(copy, bundle[f"db:{name}"])
-            if verdict != "ok" or report.rows[name] != entry["rows"]:
-                raise BackupError("count_mismatch")
+        _copy_state(folder, target, manifest, made, report)
+        _check_copies(target, manifest, bundle, report)
         provision_keys(bundle)
         return report
     except BaseException:
-        for path in reversed(made):
-            if path.is_dir():
-                shutil.rmtree(path, ignore_errors=True)
-            else:
-                path.chmod(0o600)
-                path.unlink(missing_ok=True)
-        for leftover in (target / "tasks.db-wal", target / "tasks.db-shm"):
-            leftover.unlink(missing_ok=True)
-        if created_target:
-            shutil.rmtree(target, ignore_errors=True)
+        _remove_made(made, target, created_target)
         raise

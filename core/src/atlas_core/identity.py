@@ -146,8 +146,21 @@ class ClientRegistry:
         return client is not None and client.owner and not client.revoked
 
     def revoke(self, client_id: str) -> None:
-        if client_id in self._clients:
-            self._clients[client_id].revoked = True
+        """Revoke a client for good. Written to disk at once: a revocation that a restart could forget would be no revocation."""
+        with self._lock:
+            if client_id in self._clients:
+                self._clients[client_id].revoked = True
+                self._save()
+
+    def owner_count(self) -> int:
+        return sum(1 for c in self._clients.values() if c.owner and not c.revoked)
+
+    def known(self, client_id: str) -> bool:
+        return client_id in self._clients
+
+    def is_active(self, client_id: str) -> bool:
+        client = self._clients.get(client_id)
+        return client is not None and not client.revoked
 
     def verify(self, method: str, target: str, headers: Mapping[str, str], body: bytes, now: datetime, version: str = "1.0") -> str:
         """The client id of a valid request. Raises CoreError('unauthenticated') for anything missing, wrong, stale or replayed, and 'forbidden' for a revoked client."""
