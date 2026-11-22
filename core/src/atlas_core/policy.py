@@ -132,11 +132,14 @@ class PolicyEngine:
         sensitivity = self._rules.sensitivity_of(source_type)
         if sensitivity is None:
             return "unknown_source_type", None, None
-        if self._rules.is_restricted(source_type):
-            return "restricted_domain", None, None  # Finance and Health never enter a general context, whatever a grant says
         if self._rules.deferred_to(source_type):
             return "deferred_decision", None, None
-        return self._grant_verdict(self._grants.grants_for(source_type), sensitivity, now, purpose)
+        verdict = self._grant_verdict(self._grants.grants_for(source_type), sensitivity, now, purpose)
+        if self._rules.is_restricted(source_type) and verdict[0] in ("no_grant", "sensitivity_exceeds_grant"):
+            # G-021: the local model may read owner-authorised Finance and Health data, and only that. A restricted domain is judged like any source (a grant for exactly this domain, for this
+            # purpose, current, unrevoked, with a ceiling that reaches "restricted"); a grant for another domain or a lower ceiling never opens it, and the answer says so in one reason.
+            return "restricted_domain", None, None
+        return verdict
 
     def _grant_verdict(self, grants: list[dict[str, Any]], sensitivity: str, now: datetime, purpose: str) -> tuple[str, str | None, str | None]:
         reason = "no_grant"

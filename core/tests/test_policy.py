@@ -119,24 +119,62 @@ def test_gated_retrieval_never_calls_a_retriever_for_a_type_the_token_does_not_a
     assert calls == ["documents"] and decision["denied"] == [{"source_type": "mail", "reason_code": "no_grant"}]
 
 
-@pytest.mark.criterion(2)
-def test_finance_and_health_never_enter_context_evidence_answer_or_logs_even_with_a_grant(tmp_path, caplog, capsys):
-    w = World(tmp_path, [grant("documents"), grant("finance", sensitivity="restricted"), grant("health", sensitivity="restricted")])
-    record = w.run_new(request(["documents", "finance", "health"]))
-    assert w.retriever.calls == ["documents"]
-    answer = w.service.answer(record["task_id"])
-    reasons = {n["source_type"]: n["reason_code"] for n in answer["not_searched"]}
-    assert reasons["finance"] == reasons["health"] == "restricted_domain"
-    everything = repr([w.model.calls, answer, w.store.events_after(record["task_id"], 0)]) + all_output(w, caplog, capsys)
-    assert SENTINEL_FIN not in everything and SENTINEL_HEALTH not in everything
+FIN = grant("finance", sensitivity="restricted")
+HEALTH = grant("health", sensitivity="restricted")
 
 
-@pytest.mark.criterion(2)
-def test_a_finance_only_request_searches_nothing_and_says_so(tmp_path):
-    w = World(tmp_path, [grant("finance", sensitivity="restricted")])
+@pytest.mark.criterion(5)
+def test_an_owner_authorised_finance_task_lets_the_local_model_read_finance_and_nothing_else(tmp_path, caplog, capsys):
+    """G-021: owner-authorised Finance data MAY enter the local model context of the task it was authorised for; nothing of any other domain comes with it, and no content is logged."""
+    w = World(tmp_path, [grant("documents"), FIN, HEALTH])
     record = w.run_new(request(["finance"]))
+    assert w.retriever.calls == ["finance"]  # only the domain the task named: the documents and health grants are not used
+    assert {p["evidence"]["source_type"] for p in w.model.calls[0].passages} == {"finance"}  # the separately labelled domain
+    assert SENTINEL_FIN in repr(w.model.calls)  # the local model really was given it
+    assert SENTINEL_FIN not in repr(w.store.events_after(record["task_id"], 0)) + all_output(
+        w, caplog, capsys
+    )  # no event, log line or output carries the content
+    assert SENTINEL_HEALTH not in repr(w.model.calls)
+
+
+@pytest.mark.criterion(5)
+@pytest.mark.parametrize(
+    ("grants", "scope"),
+    [
+        ([grant("documents")], ["finance"]),  # a documents grant never opens finance
+        ([grant("finance")], ["finance"]),  # a ceiling below "restricted" never opens it
+        ([HEALTH], ["finance"]),  # another restricted domain's grant never opens it
+        ([], ["finance"]),
+        ([FIN], ["health"]),
+    ],
+)
+def test_a_restricted_domain_needs_its_own_grant_with_a_restricted_ceiling(tmp_path, grants, scope):
+    w = World(tmp_path, grants)
+    record = w.run_new(request(scope))
     assert w.retriever.calls == [] and w.model.calls == [] and record["terminal_reason"] == "denied"
     assert w.service.answer(record["task_id"])["not_searched"][0]["reason_code"] == "restricted_domain"
+    assert SENTINEL_FIN not in repr(w.model.calls) and SENTINEL_HEALTH not in repr(w.model.calls)
+
+
+@pytest.mark.criterion(5)
+def test_a_task_authorised_for_one_restricted_domain_never_reaches_the_other(tmp_path):
+    w = World(tmp_path, [grant("documents"), FIN])
+    record = w.run_new(request(["documents", "finance", "health"]))
+    assert sorted(w.retriever.calls) == ["documents", "finance"]
+    reasons = {n["source_type"]: n["reason_code"] for n in w.service.answer(record["task_id"])["not_searched"]}
+    assert reasons == {"health": "restricted_domain"}
+    assert SENTINEL_HEALTH not in repr(w.model.calls)
+
+
+@pytest.mark.criterion(5)
+def test_revoking_a_finance_grant_ends_the_authority_before_anything_more_is_read_or_sent():
+    g = grant("finance", sensitivity="restricted")
+    engine = PolicyEngine(InMemoryGrants([g]))
+    decision, token = engine.decide(["finance"], T0)
+    assert token is not None and decision["decision"] == "allow"
+    g["revoked"] = True
+    still, denied = engine.revalidate(token, T0)
+    assert still == frozenset() and denied == [{"source_type": "finance", "reason_code": "grant_revoked"}]
 
 
 @pytest.mark.criterion(6)

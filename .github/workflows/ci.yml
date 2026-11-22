@@ -159,6 +159,23 @@ jobs:
           pip install -e kit -e "core[dev]" mlx-lm huggingface_hub
           python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mlx-community/SmolLM-135M-Instruct-4bit', local_dir='/tmp/atlas-model'))"
           ls -la /tmp/atlas-model
+      - name: Diagnose the worker under the read-restricted profile (stderr and kernel sandbox denials)
+        continue-on-error: true
+        working-directory: core
+        run: |
+          cat > /tmp/diag_worker.py <<'PY'
+          import subprocess, sys
+          from atlas_core import sandbox
+          prefix = sandbox.launch_prefix(["/tmp/atlas-model"])
+          cmd = [*prefix, sys.executable, "-m", "atlas_core.worker", "--engine", "mlx", "--skip-self-sandbox"]
+          done = subprocess.run(cmd, input=b"", capture_output=True, timeout=60)
+          print("returncode:", done.returncode)
+          print("stdout:", done.stdout[:500])
+          print("stderr:", done.stderr[-1500:].decode("utf-8", "replace"))
+          PY
+          python /tmp/diag_worker.py || true
+          echo "== kernel sandbox denials (last 2 minutes) =="
+          log show --last 2m --style compact --predicate 'eventMessage CONTAINS "deny" AND (eventMessage CONTAINS "Sandbox" OR process == "kernel")' 2>&1 | grep -i "python\|deny" | tail -40 || true
       - name: Real MLX inference inside the sandboxed worker
         working-directory: core
         env:
