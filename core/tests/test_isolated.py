@@ -20,6 +20,7 @@ from atlas_core.models import ModelStore
 from atlas_core.policy import InMemoryGrants, PolicyEngine
 
 pytestmark = pytest.mark.skipif(sys.platform not in ("linux", "darwin"), reason="network confinement exists for Linux (seccomp) and macOS (sandbox-exec) only")
+MECHANISM = "launcher" if sys.platform == "darwin" else "seccomp"  # macOS confines the worker from the outside with sandbox-exec; Linux filters inside it
 
 
 @pytest.fixture
@@ -52,7 +53,7 @@ def test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_
     e = engine("ProbeEngine")
     try:
         result = probe(e, listener)
-        assert e.network_denied == "seccomp"
+        assert e.network_denied == MECHANISM
         assert result["tcp"].startswith("blocked:") and result["udp6"].startswith("blocked:") and result["unix"] == "ok"
     finally:
         e.close()
@@ -63,7 +64,15 @@ def test_the_worker_gets_a_clean_environment_with_no_secrets(listener, monkeypat
     e = engine("ProbeEngine")
     try:
         result = probe(e, listener)
-        assert result["secret_in_env"] is False and set(result["env_keys"]) <= {"PATH", "HOME", "LANG", "TMPDIR", "PYTHONPATH", "LC_CTYPE"}
+        assert result["secret_in_env"] is False and set(result["env_keys"]) <= {
+            "PATH",
+            "HOME",
+            "LANG",
+            "TMPDIR",
+            "PYTHONPATH",
+            "LC_CTYPE",
+            "__CF_USER_TEXT_ENCODING",
+        }  # the last is added by macOS itself to every process
     finally:
         e.close()
 
@@ -155,7 +164,7 @@ def test_the_whole_path_runs_through_the_isolated_worker_with_the_verified_stage
         context = ContextBuilder(labels()).build(token, "What is due?", [passage(CORPUS[0], 0, 40)], T0)
         answer = gateway.generate(context)
         assert answer.identity == ("primary-1", "primary", "mlx") and answer.text == "Due 1250.50" and answer.citations[0]["quote"] == "1250.50"
-        assert iso.network_denied == "seccomp"
+        assert iso.network_denied == MECHANISM
         staged = next((tmp_path / ".load").iterdir())
         assert sorted(p.name for p in staged.iterdir()) == ["w.safetensors"]  # the worker was shown only the manifest's file
     finally:

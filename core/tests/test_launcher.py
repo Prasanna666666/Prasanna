@@ -105,6 +105,9 @@ def test_a_fresh_core_started_without_a_valid_code_exits_without_serving(stdin):
     assert done.returncode == 4 and b"READY" not in done.stdout
 
 
+@pytest.mark.skipif(
+    sys.platform == "darwin", reason="on a Mac the production factory builds the real providers and serves; this asserts the honest refusal everywhere else"
+)
 def test_the_production_factory_refuses_honestly_because_the_mac_providers_are_not_built():
     env = {"PATH": os.environ["PATH"], "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
     tmp = tempfile.mkdtemp(prefix="atl")
