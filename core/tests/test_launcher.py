@@ -18,6 +18,8 @@ from atlas_core.serve import CODE_SHAPE
 
 pytestmark = pytest.mark.skipif(not sys.platform.startswith("linux"), reason="the child-process hand-off is verified on Linux; /proc is used to inspect it")
 FACTORY = "core_factory:build_config"
+OWNER_ID = "owner-launch-0001"
+INTRUDER_ID = "intruder-launch01"
 
 
 @pytest.fixture
@@ -45,8 +47,8 @@ def test_the_app_launches_the_core_hands_it_the_code_privately_enrols_and_acts_a
     core = start()
     code, pid = core.bootstrap_code, core.process.pid
     assert code and CODE_SHAPE.match(code)
-    key = Ed25519PrivateKey.generate()
-    client = atlas_client.AtlasClient(str(sock), key, "owner-launch-0001")
+    signer = Ed25519PrivateKey.generate()
+    client = atlas_client.AtlasClient(str(sock), signer, OWNER_ID)
     assert client.enrol_self(bootstrap_code=code)["role"] == "owner"
     core.forget_code()
     assert core.bootstrap_code is None
@@ -62,25 +64,25 @@ def test_the_app_launches_the_core_hands_it_the_code_privately_enrols_and_acts_a
 def test_a_wrong_or_missing_code_cannot_enrol_against_the_real_child(launched):
     start, _, sock = launched
     core = start()
-    intruder = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), "intruder-launch01")
+    intruder = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), INTRUDER_ID)
     for code in (None, "wrong-code-wrong-code-0000"):
         with pytest.raises(atlas_client.ClientError) as e:
             intruder.enrol_self(bootstrap_code=code)
         assert e.value.code == "unauthenticated"
-    owner = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), "owner-launch-0001")
+    owner = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), OWNER_ID)
     assert owner.enrol_self(bootstrap_code=core.bootstrap_code)["role"] == "owner"  # the legitimate app still can
 
 
 def test_the_next_launch_needs_no_code_once_an_owner_exists_and_the_owner_stays_enrolled(launched):
     start, _tmp, sock = launched
     first = start()
-    key = Ed25519PrivateKey.generate()
-    atlas_client.AtlasClient(str(sock), key, "owner-launch-0001").enrol_self(bootstrap_code=first.bootstrap_code)
+    signer = Ed25519PrivateKey.generate()
+    atlas_client.AtlasClient(str(sock), signer, OWNER_ID).enrol_self(bootstrap_code=first.bootstrap_code)
     first.stop()
     second = start()  # a new process, a new code that nobody needs
-    client = atlas_client.AtlasClient(str(sock), key, "owner-launch-0001")
+    client = atlas_client.AtlasClient(str(sock), signer, OWNER_ID)
     assert client.consent()["grants"] == []
-    intruder = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), "intruder-launch01")
+    intruder = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), INTRUDER_ID)
     with pytest.raises(atlas_client.ClientError):
         intruder.enrol_self(bootstrap_code=second.bootstrap_code)  # even the new code cannot create a second owner
 
