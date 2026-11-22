@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import sys
 import time
@@ -240,7 +241,10 @@ def test_the_macos_profile_lets_the_worker_read_only_the_model_folder_its_runtim
     assert "(deny file-read-data)" in profile and profile.index("(deny file-read-data)") < profile.index(
         "(allow file-read-data"
     )  # denied first, then the exceptions
-    assert "(deny process-exec*)" in profile and sys.executable in profile  # only Python may be executed
+    exec_rule = profile[profile.index("(deny process-exec*)") : profile.index("(deny mach-lookup")]
+    assert (
+        os.path.realpath(sys.prefix) in exec_rule and "/bin/sh" not in exec_rule and "/usr/bin" not in exec_rule
+    )  # only programs inside the Python runtime may be executed
     assert 'global-name "com.apple.dnssd.service"' in profile  # the DNS service is not reachable
     assert sandbox.mac_profile([]) != profile  # the model folder is the only thing that varies per worker
 

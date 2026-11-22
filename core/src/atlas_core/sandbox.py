@@ -53,7 +53,9 @@ def mac_profile(read_roots: Sequence[str] = ()) -> str:
     """The sandbox-exec profile text: reads of file contents only under the system, this Python's own prefix and import path, and `read_roots` (the staged model folder)."""
     runtime = {_real(p) for p in (sys.prefix, sys.base_prefix, *(q for q in sys.path if q and os.path.isdir(q)))}
     readable = sorted({*map(_real, SYSTEM_READ_ROOTS), *runtime, *map(_real, read_roots)})
-    python = sorted({sys.executable, _real(sys.executable)})
+    python = sorted(
+        {_real(sys.prefix), _real(sys.base_prefix), _real(os.path.dirname(sys.executable))}
+    )  # the framework's `python` may re-execute a binary inside its own Python.app
     quote = json.dumps  # an SBPL string is a double-quoted string with C-style escapes
     parts = [
         "(version 1)(allow default)",
@@ -61,7 +63,7 @@ def mac_profile(read_roots: Sequence[str] = ()) -> str:
         '(deny file-write*)(allow file-write* (literal "/dev/null"))',
         "(deny file-read-data)",  # directory listings and file contents; file-read-metadata (stat) stays allowed so paths can still be resolved
         "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",
-        "(deny process-exec*)(allow process-exec* " + "".join(f"(literal {quote(p)})" for p in python) + ")",
+        "(deny process-exec*)(allow process-exec* " + "".join(f"(subpath {quote(p)})" for p in python) + ")",  # only programs inside the Python runtime
         "(deny mach-lookup " + "".join(f"(global-name {quote(n)})" for n in NETWORK_SERVICES) + ")",
     ]
     return "".join(parts)
