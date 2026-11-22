@@ -80,7 +80,9 @@ def test_a_replayed_request_changes_nothing(world):
     with pytest.raises(Exception) as e:  # and the store itself refuses a reused request id
         core.consent.enable(["documents"], "n-owner-mac-0001-" + headers["x-atlas-nonce"])
     assert getattr(e.value, "code", "") == "conflict"
-    assert len([r for r in core.designation.audit_log() if r["from_state"] == "not_configured" and r["to_state"] == "enabled"]) == 1  # enabled once (the worker may also audit having seen the OS permission)
+    assert (
+        len([r for r in core.designation.audit_log() if r["from_state"] == "not_configured" and r["to_state"] == "enabled"]) == 1
+    )  # enabled once (the worker may also audit having seen the OS permission)
 
 
 def test_withdrawing_a_grant_purges_the_index_and_what_tasks_derived_and_a_second_withdrawal_is_not_found(world):
