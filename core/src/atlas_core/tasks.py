@@ -138,6 +138,20 @@ def _error(code: str, task_id: str) -> dict[str, Any]:
     return {"type": "error", "error": user_error(code, task_id)}
 
 
+def scrub(data: dict[str, Any], only: str | None = None) -> dict[str, Any]:
+    """The checkpoint without derived source content: passage text, the draft and the quotes of citations are dropped; the content-free evidence (source id, version, locator, span)
+    stays, because later checks need to know WHICH sources a task used. With `only`, just the passages and citations of that source type."""
+    out = dict(data)
+    if only is None:
+        out.pop("draft", None)
+    passages = [{"evidence": p["evidence"]} if only is None or p["evidence"]["source_type"] == only else p for p in out.get("passages", [])]
+    if "passages" in out:
+        out["passages"] = passages
+    if "citations" in out:
+        out["citations"] = [{"evidence": c["evidence"]} if only is None or c["evidence"]["source_type"] == only else c for c in out["citations"]]
+    return out
+
+
 def _iso(moment: datetime) -> str:
     return moment.astimezone(UTC).isoformat(timespec="seconds")
 
@@ -287,6 +301,8 @@ class TaskStore:
         if to not in TRANSITIONS[row["state"]]:
             raise CoreError("conflict")
         merged = {**json.loads(row["checkpoint_data"]), **(data or {})}
+        if to in TERMINAL:
+            merged = scrub(merged)  # a finished task keeps no passage text, draft or quote: the saved answer is the only copy of what was said
         attempt = row["attempt"] + (1 if to == "queued" and row["state"] in INTERRUPTED else 0)
         self._conn.execute(
             "UPDATE tasks SET state=?, updated_at=?, attempt=?, checkpoint_step=?, checkpoint_data=?, terminal_reason=?,"
@@ -294,6 +310,36 @@ class TaskStore:
             (to, _iso(now), attempt, step or row["checkpoint_step"], json.dumps(merged), reason or row["terminal_reason"],
              _iso(now) if to == "running" else None, _iso(now) if to in TERMINAL else None, task_id),
         )  # fmt: skip
+
+    def purge_type(self, source_type: str, replacement: Callable[[str, frozenset[str]], dict[str, Any]]) -> int:
+        """Everything a task holds that came from `source_type` is removed (passage text, quotes, the draft), the saved answer of a finished task that used it is replaced by
+        `replacement(task_id, used types)` (a content-free withheld answer) and its closing `final` event by the fixed `source_denied` error. Idempotent; returns how many tasks changed."""
+        changed = 0
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                for row in self._conn.execute("SELECT task_id, state, checkpoint_data FROM tasks").fetchall():
+                    data = json.loads(row["checkpoint_data"])
+                    used = frozenset(p["evidence"]["source_type"] for p in data.get("passages", []))
+                    envelope = self._conn.execute("SELECT envelope FROM answers WHERE task_id=?", (row["task_id"],)).fetchone()
+                    cited = frozenset(c["evidence"]["source_type"] for c in json.loads(envelope["envelope"])["citations"]) if envelope else frozenset()
+                    if source_type not in used | cited:
+                        continue
+                    changed += 1
+                    self._conn.execute("UPDATE tasks SET checkpoint_data=? WHERE task_id=?", (json.dumps(scrub(data, source_type)), row["task_id"]))
+                    if envelope is not None and row["state"] in TERMINAL:
+                        self._conn.execute(
+                            "UPDATE answers SET envelope=? WHERE task_id=?", (json.dumps(replacement(row["task_id"], used | cited)), row["task_id"])
+                        )
+                    for event in self._conn.execute("SELECT seq, payload FROM task_events WHERE task_id=?", (row["task_id"],)).fetchall():
+                        if json.loads(event["payload"]).get("type") == "final":
+                            error = {**_error("source_denied", row["task_id"]), "seq": event["seq"], "task_id": row["task_id"]}
+                            self._conn.execute("UPDATE task_events SET payload=? WHERE task_id=? AND seq=?", (json.dumps(error), row["task_id"], event["seq"]))
+                self._conn.execute("COMMIT")
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
+        return changed
 
     def note(self, task_id: str, data: dict[str, Any], now: datetime) -> None:
         """Durably record a fact about the task's progress without changing its state (for example 'retrieval is about to start')."""

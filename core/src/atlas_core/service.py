@@ -146,6 +146,13 @@ class TaskService:
         except PolicyViolation:  # a retriever or a caller tried to go around the policy: the task ends, nothing it found is used
             self._fail(task_id, "needs_attention")
             return self._d.store.record(task_id)
+        except CoreError as error:
+            record = self._d.store.record(task_id)
+            if (
+                error.code == "conflict" and record["state"] in TERMINAL
+            ):  # cancelled or expired by someone else between two steps: that outcome stands, nothing is overwritten
+                return record
+            raise
 
     def _run(self, task_id: str) -> dict[str, Any]:
         d = self._d
@@ -352,6 +359,11 @@ class TaskService:
         if used <= permitted:
             return envelope
         return withheld_envelope(task_id, _denied_now(decision, used - permitted), used)
+
+    def purge_source_type(self, source_type: str) -> int:
+        """Called when the owner revokes a source type (register it with `DesignationStore.register_purge`): the content that came from it is removed from every task."""
+        denied = [{"source_type": source_type, "reason_code": "grant_revoked"}]
+        return self._d.store.purge_type(source_type, lambda task_id, used: withheld_envelope(task_id, denied, used))
 
     def answer_v11(self, task_id: str) -> dict[str, Any]:
         """The API 1.1 form of the answer: the same envelope plus the coverage the answer was made under and, when a model wrote it, which model. The coverage limitations the

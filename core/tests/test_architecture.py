@@ -19,6 +19,7 @@ LAYER = {
     "values": 1,
     "models": 1,
     "coverage": 1,
+    "exact": 1,
     "events": 2,
     "identity": 2,
     "policy": 3,
