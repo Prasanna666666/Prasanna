@@ -54,7 +54,14 @@ class IsolatedEngine:
         env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
         self._buffer = b""
         self._proc = subprocess.Popen(  # noqa: S603
-            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0, env=env, close_fds=True
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            bufsize=0,
+            env=env,
+            close_fds=True,
+            cwd="/",  # not the caller's folder (it may be private)
         )
         hello = self._read(STARTUP_SECONDS)
         if not hello.get("hello"):

@@ -164,17 +164,21 @@ jobs:
         working-directory: core
         run: |
           cat > /tmp/diag_worker.py <<'PY'
-          import subprocess, sys
+          import os, subprocess, sys
           from atlas_core import sandbox
-          full = sandbox.mac_profile(["/tmp/atlas-model"])
-          cut_exec, cut_mach = full.index("(deny process-exec*)"), full.index("(deny mach-lookup")
-          cut_read = full.index("(deny file-read-data")
-          variants = {"1 network+writes": full[:cut_read], "2 + private reads": full[:cut_exec], "3 + exec": full[:cut_mach], "4 full": full}
-          for name, profile in variants.items():
-              done = subprocess.run(["/usr/bin/sandbox-exec", "-p", profile, sys.executable, "-c", "print('alive')"], capture_output=True, timeout=60)
-              print(name, "-> rc", done.returncode, done.stdout.decode().strip(), done.stderr.decode()[-200:].strip().replace("\n", " | "))
-          worker = subprocess.run([*sandbox.launch_prefix(["/tmp/atlas-model"]), sys.executable, "-m", "atlas_core.worker", "--engine", "mlx", "--skip-self-sandbox"], input=b"", capture_output=True, timeout=60)
-          print("worker rc", worker.returncode, worker.stdout[:200], worker.stderr[-300:].decode("utf-8", "replace").replace("\n", " | "))
+          home = os.path.expanduser("~")
+          code = "import mlx_lm; m, t = mlx_lm.load('/tmp/atlas-model'); print('GEN', repr(''.join(getattr(r, 'text', '') for r in mlx_lm.stream_generate(m, t, prompt='Hello', max_tokens=4))))"
+          extras = {
+              "a current profile": [],
+              "b + /private/var/folders": ["/private/var/folders"],
+              "c + ~/Library": [home + "/Library"],
+              "d + both": ["/private/var/folders", home + "/Library"],
+          }
+          for name, extra in extras.items():
+              profile = sandbox.mac_profile(["/tmp/atlas-model", *extra])
+              done = subprocess.run(["/usr/bin/sandbox-exec", "-p", profile, sys.executable, "-c", code], capture_output=True, timeout=120, cwd="/", env={**os.environ, "HF_HUB_OFFLINE": "1"})
+              tail = (done.stdout.decode() + done.stderr.decode()).strip().replace("\n", " | ")
+              print(name, "-> rc", done.returncode, tail[-260:])
           PY
           python /tmp/diag_worker.py > /tmp/diag.out 2>&1 || true
       - name: Real MLX inference inside the sandboxed worker

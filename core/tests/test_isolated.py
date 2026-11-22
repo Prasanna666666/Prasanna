@@ -247,7 +247,10 @@ def test_the_macos_profile_denies_private_places_except_the_model_folder_and_the
 
 def test_a_changed_model_folder_gets_a_new_worker_confined_to_it(monkeypatch, tmp_path):
     seen: list[tuple[str, ...]] = []
-    monkeypatch.setattr(sandbox, "launch_prefix", lambda roots=(): seen.append(tuple(roots)) or [])
+    real = sandbox.launch_prefix
+    monkeypatch.setattr(
+        sandbox, "launch_prefix", lambda roots=(): (seen.append(tuple(roots)), real(roots))[1]
+    )  # records the roots, then builds the real prefix for this platform
     e = engine("EchoEngine")
     try:
         e.load(str(tmp_path))
