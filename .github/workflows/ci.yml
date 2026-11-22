@@ -123,6 +123,23 @@ jobs:
       - run: ruff format --check .
       - run: mypy src
       - run: pytest -q
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Swift app builds and its tests pass
+        working-directory: app
+        run: |
+          swift --version
+          swift build
+          swift test
+      - run: pip install -e "kit[secure]" -e "core[dev]"
+      - name: Core tests on macOS
+        working-directory: core
+        run: pytest -q -p no:cacheprovider
   security:
     runs-on: ubuntu-latest
     defaults:
