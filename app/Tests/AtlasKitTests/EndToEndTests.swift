@@ -179,4 +179,17 @@ final class EndToEndTests: XCTestCase {
         defer { close(listener) }
         XCTAssertTrue(CoreLauncher.isAnswering(socket: w.socket))
     }
+
+    func testACoreThatExitsBecauseTheKeychainIsLockedIsReportedAsNeedingOwnerSignIn() throws {
+        let w = try workspace()
+        defer { try? FileManager.default.removeItem(at: w.base) }
+        let script = w.base.appendingPathComponent("locked.sh")  // stands in for a Core that exits with the needs-sign-in status
+        try "#!/bin/sh\nexit 6\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let launcher = CoreLauncher(executable: script, arguments: [])
+        XCTAssertThrowsError(try launcher.start(dataDir: w.dataDir, socket: w.socket, timeoutSeconds: 10)) { error in
+            XCTAssertTrue("\(error)".contains("Mac needs owner sign-in"), "\(error)")
+        }
+        XCTAssertFalse(launcher.isRunning)
+    }
 }

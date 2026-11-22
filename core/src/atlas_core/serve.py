@@ -18,12 +18,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .app import Core, CoreAlreadyRunning, CoreConfig
-from .host import HostOptions
+from .host import HostOptions, HostUnavailable, KeychainLocked
 
 CODE_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
 FactoryT = Callable[[Path, Path, str | None, HostOptions], CoreConfig]
 EXIT_REFUSED = 4
 EXIT_BUSY = 5  # another Core owns this data folder
+EXIT_NEEDS_SIGNIN = 6  # the Keychain would not give the store keys: the Mac has not been signed in to since it restarted
 
 
 def _factory(spec: str, allow_custom: bool) -> FactoryT:
@@ -66,7 +67,12 @@ def main(argv: list[str] | None = None) -> int:
     code = read_code(sys.stdin)
     sys.stdin.close()
     options = HostOptions(_source(args.documents_source), _source(args.mail_source), Path(args.manifest_pubkey) if args.manifest_pubkey else None)
-    config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code, options)
+    try:
+        config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code, options)
+    except KeychainLocked:
+        return EXIT_NEEDS_SIGNIN  # nothing was opened, bound or written
+    except HostUnavailable:
+        return EXIT_REFUSED
     try:
         core = Core(config)
     except ValueError:
