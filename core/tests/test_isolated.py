@@ -221,5 +221,5 @@ def test_the_macos_launch_prefix_denies_network_and_says_where_it_is_verified(mo
     monkeypatch.setattr("atlas_core.sandbox.sys.platform", "darwin")
     monkeypatch.setattr("atlas_core.sandbox.os.access", lambda *a: True)
     prefix = sandbox.launch_prefix()
-    assert prefix[0] == "/usr/bin/sandbox-exec" and "(deny network*)" in prefix[2] and "(deny default)" in prefix[2]
+    assert prefix[0] == "/usr/bin/sandbox-exec" and "(deny network*)" in prefix[2] and "(deny file-write*)" in prefix[2]
     assert "macOS CI runner" in (sandbox.__doc__ or "")  # the claim names the job that proves it (the isolated-worker tests on the runner)

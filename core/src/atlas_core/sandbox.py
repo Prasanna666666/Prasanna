@@ -27,7 +27,10 @@ ARCHES = {  # machine -> (AUDIT_ARCH, number of the socket syscall)
     "x86_64": (0xC000003E, 41),
     "aarch64": (0xC00000B7, 198),
 }
-MAC_PROFILE = '(version 1)(deny default)(allow process-exec*)(allow process-fork)(allow sysctl-read)(allow mach-lookup)(allow file-read*)(allow file-write* (literal "/dev/null"))(deny network*)'
+# Measured on a macOS runner: a deny-by-default profile stops the Metal shader compiler, so MLX cannot find the GPU ("No Metal device available"); this profile (allow by default, then
+# deny every network operation and every file write except /dev/null) lets MLX load and generate while keeping the two boundaries that matter here. It is NOT a least-privilege
+# profile: reads, process execution and Mach lookups remain allowed, and whether a system service could still be asked to use the network for the worker is not tested.
+MAC_PROFILE = '(version 1)(allow default)(deny network*)(deny file-write*)(allow file-write* (literal "/dev/null"))'
 
 
 class SandboxUnavailable(RuntimeError):

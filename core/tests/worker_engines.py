@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import socket
-import tempfile
 import time
 
 
@@ -55,7 +54,7 @@ class ProbeEngine(EchoEngine):
         except OSError as e:
             result["unix"] = f"blocked:{e.errno}"
         for label, where in (
-            ("write_tmp", tempfile.gettempdir()),
+            ("write_tmp", "/tmp"),
             ("write_home", os.path.expanduser("~")),
         ):  # file writes: denied by the macOS profile; Linux confines the network only
             try:
