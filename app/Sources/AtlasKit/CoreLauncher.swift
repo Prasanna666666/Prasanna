@@ -81,6 +81,10 @@ public final class CoreLauncher {
         }
         guard ready.wait(timeout: .now() + timeoutSeconds) == .success, seen.contains(Data("READY".utf8)) else {
             child.terminate()
+            let deadline = Date().addingTimeInterval(10)
+            while child.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+            if child.isRunning { kill(child.processIdentifier, SIGKILL) }
+            child.waitUntilExit()  // a Core that did not become ready is stopped and reaped, never left behind
             throw AtlasError.local("the Core did not start")
         }
         process = child
