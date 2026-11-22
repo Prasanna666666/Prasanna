@@ -29,11 +29,12 @@ ARCHES = {  # machine -> (AUDIT_ARCH, number of the socket syscall)
     "x86_64": (0xC000003E, 41),
     "aarch64": (0xC00000B7, 198),
 }
-# The macOS profile. Measured on a macOS runner: a deny-by-default profile stops the Metal shader compiler, so MLX cannot find the GPU ("No Metal device available"); the profile is therefore
-# allow-by-default with explicit denials of everything the worker must not do: use the network, write any file (except /dev/null), READ the contents of any file outside the model
-# folder, the Python runtime and the system, execute any program but Python, or reach the system services that make network requests for a process. What it still allows (other
-# Mach lookups, IOKit, signals, reading file *metadata*) is not enumerated; the deny list of Mach services is best effort and not proven complete.
-SYSTEM_READ_ROOTS = ("/usr", "/bin", "/sbin", "/System", "/Library", "/dev", "/private/etc", "/private/var/db", "/opt/homebrew", "/Applications")
+# The macOS profile. Measured on macOS runners: a deny-by-default profile stops the Metal shader compiler (MLX then reports "No Metal device available"), and a read allow-list that starts
+# from "deny everything" aborts Python at start-up, so the profile is allow-by-default with explicit denials: no network, no file writes (except /dev/null), no reading of the places private
+# data lives (every user's home folder with Documents, Mail and browser data, external volumes, the temporary folders and root's home) except the model folder and the Python runtime's own
+# folders, no executing a program that is not part of the Python runtime, and no Mach lookup of the system services that make network requests for a process. NOT a least-privilege
+# profile: reading system files outside those places, other Mach lookups, IOKit and signals stay allowed; the Mach deny list is best effort and not proven complete.
+PRIVATE_READ_ROOTS = ("/Users", "/Volumes", "/private/tmp", "/private/var/folders", "/private/var/root", "/home")
 NETWORK_SERVICES = (
     "com.apple.dnssd.service",
     "com.apple.SystemConfiguration.configd",
@@ -50,9 +51,9 @@ def _real(path: str) -> str:
 
 
 def mac_profile(read_roots: Sequence[str] = ()) -> str:
-    """The sandbox-exec profile text: reads of file contents only under the system, this Python's own prefix and import path, and `read_roots` (the staged model folder)."""
+    """The sandbox-exec profile text (rules are evaluated last-match-wins, so the exceptions follow the denials they relax)."""
     runtime = {_real(p) for p in (sys.prefix, sys.base_prefix, *(q for q in sys.path if q and os.path.isdir(q)))}
-    readable = sorted({*map(_real, SYSTEM_READ_ROOTS), *runtime, *map(_real, read_roots)})
+    readable = sorted({*runtime, *map(_real, read_roots)})
     python = sorted(
         {_real(sys.prefix), _real(sys.base_prefix), _real(os.path.dirname(sys.executable))}
     )  # the framework's `python` may re-execute a binary inside its own Python.app
@@ -61,8 +62,8 @@ def mac_profile(read_roots: Sequence[str] = ()) -> str:
         "(version 1)(allow default)",
         "(deny network*)",
         '(deny file-write*)(allow file-write* (literal "/dev/null"))',
-        "(deny file-read-data)",  # directory listings and file contents; file-read-metadata (stat) stays allowed so paths can still be resolved
-        "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",
+        "(deny file-read-data " + "".join(f"(subpath {quote(p)})" for p in PRIVATE_READ_ROOTS) + ")",
+        "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",  # only the model folder and what Python itself needs
         "(deny process-exec*)(allow process-exec* " + "".join(f"(subpath {quote(p)})" for p in python) + ")",  # only programs inside the Python runtime
         "(deny mach-lookup " + "".join(f"(global-name {quote(n)})" for n in NETWORK_SERVICES) + ")",
     ]
@@ -122,7 +123,7 @@ def install_network_deny() -> str:
 
 def launch_prefix(read_roots: Sequence[str] = ()) -> list[str]:
     """What must precede the worker's command line so the OS confines it from the start. Empty on Linux (the worker confines itself); `sandbox-exec` on macOS with a profile that lets the
-    worker read only `read_roots` (the staged model folder), its Python runtime and the system (network and write denial CI-verified on a macOS runner)."""
+    worker read none of the private places except `read_roots` (the staged model folder) and its Python runtime (network and write denial CI-verified on a macOS runner)."""
     if sys.platform == "darwin":
         exe = "/usr/bin/sandbox-exec"
         if not os.access(exe, os.X_OK):

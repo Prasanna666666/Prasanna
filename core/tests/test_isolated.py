@@ -229,18 +229,16 @@ def test_the_macos_launch_prefix_denies_network_and_says_where_it_is_verified(mo
     assert "macOS CI runner" in (sandbox.__doc__ or "")  # the claim names the job that proves it (the isolated-worker tests on the runner)
 
 
-def test_the_macos_profile_lets_the_worker_read_only_the_model_folder_its_runtime_and_the_system(tmp_path):
+def test_the_macos_profile_denies_private_places_except_the_model_folder_and_the_python_runtime(tmp_path):
     model, home_like = tmp_path / "models" / "m1", tmp_path / "home"
     model.mkdir(parents=True)
     home_like.mkdir()
     profile = sandbox.mac_profile([str(model)])
-    assert str(model.resolve()) in profile  # the staged model folder is readable
-    assert (
-        f"(subpath {json.dumps(str(Path.home()))})" not in profile and str(home_like.resolve()) not in profile
-    )  # the home folder itself is never readable (only the runtime's own folders)
-    assert "(deny file-read-data)" in profile and profile.index("(deny file-read-data)") < profile.index(
-        "(allow file-read-data"
-    )  # denied first, then the exceptions
+    allow_at = profile.index("(allow file-read-data")
+    for private in sandbox.PRIVATE_READ_ROOTS:
+        assert f'(subpath "{private}")' in profile[: profile.index("(allow file-read-data")]  # every private place is denied first
+    assert str(model.resolve()) in profile[allow_at:]  # the staged model folder is the exception
+    assert f"(subpath {json.dumps(str(Path.home()))})" not in profile[allow_at:] and str(home_like.resolve()) not in profile  # the home folder itself never is
     exec_rule = profile[profile.index("(deny process-exec*)") : profile.index("(deny mach-lookup")]
     assert (
         os.path.realpath(sys.prefix) in exec_rule and "/bin/sh" not in exec_rule and "/usr/bin" not in exec_rule
