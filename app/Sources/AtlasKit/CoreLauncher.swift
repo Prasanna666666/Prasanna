@@ -41,23 +41,41 @@ public final class CoreLauncher {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Stop a Core a previous app instance left running (only a process that is really this Core, never an unrelated one that reused the pid), and remove a stale socket.
-    func reapLeftovers(socket: String) {
+    /// True if something accepts connections on this Unix socket path: a live listener, whose socket must never be removed.
+    static func isAnswering(socket path: String) -> Bool {
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return false }
+        defer { close(fd) }
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        let bytes = Array(path.utf8CString)
+        guard bytes.count <= MemoryLayout.size(ofValue: address.sun_path) else { return false }
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in for (i, byte) in bytes.enumerated() { buffer[i] = UInt8(bitPattern: byte) } }
+        let length = socklen_t(MemoryLayout<sockaddr_un>.size)
+        return withUnsafePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, length) == 0 } }
+    }
+
+    /// Stop a Core a previous app instance left running (only a process that is really this Core, never an unrelated one that reused the pid). The socket file is removed ONLY once nothing answers on it:
+    /// if a listener still answers after that (the pid file was missing, malformed, stale or unmatched, so no Core was identified and stopped), the socket and the pid file are left untouched and
+    /// starting fails safely, because removing a live socket would strand the running Core while a second one is refused by the data-folder lock.
+    func reapLeftovers(socket: String) throws {
         let file = pidFile(socket)
-        if let text = try? String(contentsOf: file, encoding: .utf8), let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), Self.isRunning(pid),
-           Self.command(of: pid).contains("atlas_core.serve") {
+        var recorded: Int32?
+        if let text = try? String(contentsOf: file, encoding: .utf8), let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)) { recorded = pid }
+        if let pid = recorded, Self.isRunning(pid), Self.command(of: pid).contains("atlas_core.serve") {
             kill(pid, SIGTERM)
             var waited = 0.0
             while Self.isRunning(pid), waited < 10 { Thread.sleep(forTimeInterval: 0.1); waited += 0.1 }
             if Self.isRunning(pid) { kill(pid, SIGKILL); Thread.sleep(forTimeInterval: 0.2) }
         }
-        try? FileManager.default.removeItem(at: file)
+        if Self.isAnswering(socket: socket) { throw AtlasError.local("a Core is already answering on this socket and could not be identified as this app's own; it was left alone") }
+        if recorded.map({ !Self.isRunning($0) }) ?? true { try? FileManager.default.removeItem(at: file) }  // a pid file for a process that no longer runs
         try? FileManager.default.removeItem(atPath: socket)  // a socket file nothing listens on
     }
 
     public func start(dataDir: String, socket: String, timeoutSeconds: Double = 60) throws {
         if let running = process, running.isRunning { return }  // already started: starting twice must not start a second Core on the same folder
-        reapLeftovers(socket: socket)
+        try reapLeftovers(socket: socket)
         let code = try Self.makeCode()
         let child = Process()
         child.executableURL = executable

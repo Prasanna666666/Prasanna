@@ -14,12 +14,14 @@ from typing import Any, Protocol
 from .answer import NO_EVIDENCE_TEXT, AnswerInput, build_envelope, denied_envelope, stopped_envelope, withheld_envelope
 from .coverage import Provider as CoverageProvider
 from .coverage import build_coverage, required_limitations
+from .egress import Denied, EgressGateway, TaintSet
 from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import CitationError, SourceStore, resolve
 from .exact import ExactError, compute
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
+from .rules import load_rules
 from .tasks import STEPS, TERMINAL, TaskStore
 from .values import LanguageIn
 
@@ -71,6 +73,28 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+@dataclass(frozen=True)
+class ResearchGate:
+    """Public web research is OFF unless both a gateway is configured AND `enabled` is set: an explicit live-network gate that nothing in the Core sets by itself."""
+
+    gateway: EgressGateway | None = None
+    enabled: bool = False
+
+
+# the gateway's refusal codes, mapped to the closed vocabulary of the `egress.decision` event
+EGRESS_REASON = {
+    "private_content_in_request": "leak_check",
+    "identifier_in_request": "leak_check",
+    "restricted_context": "restricted_domain",
+    "destination_not_allowed": "url_not_permitted",
+    "unsupported_response": "url_not_permitted",
+    "destination_not_public": "private_address",
+    "too_many_redirects": "redirect_blocked",
+    "bad_request": "length_cap",
+    "unavailable": "failed",
+}
+
+
 @dataclass
 class Deps:
     store: TaskStore
@@ -82,6 +106,7 @@ class Deps:
     faults: FaultInjector = field(default_factory=FaultInjector)
     clock: Callable[[], datetime] = _now
     coverage: Mapping[str, CoverageProvider] = field(default_factory=dict)  # per source type: what that index reports (used only to build the API 1.1 coverage)
+    research: ResearchGate = field(default_factory=ResearchGate)
 
 
 class TaskService:
@@ -376,6 +401,52 @@ class TaskService:
         if used <= permitted:
             return envelope
         return withheld_envelope(task_id, _denied_now(decision, used - permitted), used)
+
+    def research(self, task_id: str, query: str) -> dict[str, Any]:
+        """A public web search for one task (API 1.1), through the egress gateway and only when the live-network gate is on. The task's private context (its question and every passage retrieved for it)
+        becomes the taint set, so a query that repeats anything private is refused before anything is sent, and a task whose scope or context holds Finance or Health data may not use the network at all.
+        The result is untrusted data with provenance: it is returned to the owner's client and is never added to the task's evidence, its answer or its citations."""
+        d = self._d
+        gate = d.research
+        if gate.gateway is None or not gate.enabled:
+            d.log.emit("egress.decision", "egress", task_id, decision="deny", reason_code="provider_disabled", destination_class="search_provider")
+            raise CoreError("forbidden", task_id)
+        d.store.record(task_id)  # an unknown task is not_found
+        rules = load_rules()
+        taint = TaintSet()
+        taint.add(d.store.objective(task_id), question=True)
+        taint.restricted_in_context = any(rules.is_restricted(t) for t in d.store.record(task_id)["source_scope"])
+        for passage in d.store.checkpoint(task_id)[1].get("passages", []):
+            evidence = passage["evidence"]
+            try:
+                text = resolve(evidence, d.sources)  # the exact private text the model saw
+            except CitationError:
+                continue  # the source changed or went: that text can no longer be sent anywhere from here
+            taint.add(text, restricted=rules.is_restricted(evidence["source_type"]))
+        try:
+            doc = gate.gateway.search(query, taint)
+        except Denied as refused:
+            d.log.emit(
+                "egress.decision",
+                "egress",
+                task_id,
+                decision="deny",
+                reason_code=EGRESS_REASON.get(refused.code, "leak_check"),
+                destination_class="search_provider",
+            )
+            raise CoreError("timeout" if refused.code == "unavailable" else "forbidden", task_id) from None
+        d.log.emit("egress.decision", "egress", task_id, decision="allow", reason_code="allowed", destination_class="search_provider")
+        return {
+            "url": doc.url,
+            "domain": doc.domain,
+            "retrieved_at": doc.retrieved_at,
+            "content_hash": doc.content_hash,
+            "text": doc.text,
+            "truncated": doc.truncated,
+            "injection_flags": list(doc.injection_flags),
+            "trust": doc.trust,
+            "authority": doc.authority,
+        }
 
     @staticmethod
     def compute(kind: str, args: list[str]) -> dict[str, Any]:

@@ -14,7 +14,7 @@ Rows are checked against the PR comments and reviews (read through the GitHub AP
 
 ## Stage 3: all 15 criteria (status as recorded in `STAGE3_ACCEPTANCE.md`; nothing upgraded)
 
-Stage 3 is **NOT ACCEPTED / OPEN**. Exact-head CI for the last reviewed head `c7c3b190d4395add7e13b82fbb3bf98720e67ee0`: run 45068806791, 14/14 jobs passed (hosted CI only). The head that carries this document gets its own run, reported separately. "Testable scope" means what Linux CI and a hosted macOS runner can show. "Deferred" means carried to the final stage by owner direction: sequencing only, no evidence, still release-blocking.
+Stage 3 acceptance is the architect's and the owner's to give (split recorded in `STAGE-3-EXECUTION-PLAN.md` section 12.10); this document does not give it. Exact-head CI for the last reviewed head `c7c3b190d4395add7e13b82fbb3bf98720e67ee0`: run 45068806791, 14/14 jobs passed (hosted CI only). The head that carries this document gets its own run, reported separately. "Testable scope" means what Linux CI and a hosted macOS runner can show. "Deferred" means carried to the final stage by owner direction: sequencing only, no evidence, still release-blocking.
 
 | # | Criterion | Status | Stage 3 testable scope (implementation; tests: see the row in `STAGE3_ACCEPTANCE.md`) | Deferred to the final stage | Owner-only action | Release-blocking |
 |---|---|---|---|---|---|---|

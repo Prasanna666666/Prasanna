@@ -14,7 +14,7 @@ Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Writte
 | WP3.7 | acceptance traceability and this handover | `STAGE3_ACCEPTANCE.md` |
 
 ## How to reproduce (from `core/`)
-`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (1160 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
+`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (1169 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
 
 ## Rollback
 Additive: revert the branch commits (nothing outside `core/` and the CI job changed). New stores only; no legacy store, key or component was migrated or retired (criterion 15). One behaviour changed inside the new Core: finished tasks no longer keep passage text, draft or quotes (no migration; earlier checkpoints are scrubbed when their task ends). API 1.0 behaviour and bytes are unchanged; 1.1 is opt-in per request.
@@ -37,8 +37,10 @@ Nothing below has been done by me. These are the things only you or a Mac can co
 What I need from you only if something looks wrong: say what you saw. You do not need to relay anything to anyone.
 
 ## Added after the full-stage review of `7792ab5`
-Streaming EMLX reader (attachments after the text are never read; byte count validated), worker without any skip flag (it asks the OS), per-data-folder Core lock and live-socket protection, app submission gate and bounded launcher cleanup, CI artefact scan, and the egress gateway (`EGRESS_GATEWAY.md`, not wired into the answer flow). See the PR response for the finding-by-finding mapping.
+Streaming EMLX reader (attachments after the text are never read; byte count validated), worker without any skip flag (it asks the OS), per-data-folder Core lock and live-socket protection, app submission gate and bounded launcher cleanup, CI artefact scan, and the egress gateway (`EGRESS_GATEWAY.md`; wired through the Core answer path behind two off-by-default gates in the close-out round). See the PR response for the finding-by-finding mapping.
 
 
 ## Current status (supersedes earlier closure wording)
-Stage 3 is **NOT ACCEPTED / OPEN**. The owner directed that work which cannot be tested now (real model, target hardware, a person using the app, signing, the real Internet) is carried to the final stage and does not block the testable Stage 3 scope; that is a sequencing decision, not evidence, and each deferred item stays release-blocking there. See "Current status" in `STAGE3_ACCEPTANCE.md` and `PROGRAMME_AUDIT.md`. The egress gateway is disconnected and disabled; its guarantee is bounded and stated in `EGRESS_GATEWAY.md` (not a general no-private-egress guarantee). Packaging is not release-ready (ad-hoc signed only; no notarisation or self-contained Python/model installation).
+Stage 3 is governed by the owner-authorised split in `STAGE-3-EXECUTION-PLAN.md` section 12.10: the Stage 3 portion of every criterion is implemented and tested; the named final-stage portions (F-4, F-11, F-12, F-13) are **not met, not waived, release-blocking**. This is not Stage 3 acceptance (the architect reviews the exact head and the owner accepts) and not a release or owner-tryable claim. See "Current status" in `STAGE3_ACCEPTANCE.md` and `PROGRAMME_AUDIT.md`.
+
+Changed in the close-out round: the Swift launcher no longer removes a live socket (it removes one only when nothing answers on it, and otherwise fails startup without touching it); public research is wired through the Core answer path behind two off-by-default gates (`EGRESS_GATEWAY.md`); criterion 12 thresholds are proposed and the synthetic ones enforced in CI (`evals/thresholds_proposed.json`, `tests/test_thresholds.py`). Packaging is not release-ready (ad-hoc signed only; no notarisation or self-contained Python/model installation).

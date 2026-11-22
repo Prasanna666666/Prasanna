@@ -37,6 +37,7 @@ CONSENT = re.compile(
 )  # API 1.1 only, and only when the Core was given a consent service
 H_NONCE_NAME = "x-atlas-nonce"
 COMPUTE = "/v1/compute"  # API 1.1 only
+RESEARCH = re.compile(r"^/v1/tasks/([A-Za-z0-9_-]{8,64})/research$")  # API 1.1 only
 ENROL = "/v1/enrol"  # API 1.1 only
 
 
@@ -121,6 +122,9 @@ class CoreApi:
         match = ROUTE.match(parts.path)
         if parts.path == COMPUTE and version == "1.1":
             return self._compute(request)
+        research = RESEARCH.match(parts.path)
+        if research is not None:
+            return self._research(request, research.group(1), client, version)
         if match is None:
             owned = CONSENT.match(parts.path)
             if owned is None or version != "1.1" or self._consent is None:
@@ -247,6 +251,23 @@ class CoreApi:
             raise CoreError("invalid_request") from None
         validate("ComputeRequest", body, "1.1")
         return self._reply(200, self._service.compute(body["kind"], body["args"]), "ComputeResult", "1.1")
+
+    def _research(self, request: Request, task_id: str, client: str, version: str) -> Response:
+        """`POST /v1/tasks/{id}/research`: API 1.1 only, an enrolled OWNER client only. Off unless the Core's live-network gate is on (then `forbidden`)."""
+        if version != "1.1":
+            raise CoreError("not_found")
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        validate("ResearchRequest", body, "1.1")
+        if body["task_id"] != task_id:
+            raise CoreError("invalid_request")
+        return self._reply(200, self._service.research(task_id, body["query"]), "ResearchResult", "1.1")
 
     def _passage(self, method: str, task_id: str, index: int, version: str) -> Response:
         """`/citations/{index}`: API 1.1 only."""

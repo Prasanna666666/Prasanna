@@ -124,4 +124,59 @@ final class EndToEndTests: XCTestCase {
         XCTAssertTrue(launcher.isRunning)
         XCTAssertTrue(unrelated.isRunning, "a pid that is not this Core must never be terminated")
     }
+
+    /// A listener that really answers on the socket path (bound and listening, in this process).
+    private func listen(on path: String) throws -> Int32 {
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        let bytes = Array(path.utf8CString)
+        withUnsafeMutableBytes(of: &address.sun_path) { buffer in for (i, byte) in bytes.enumerated() { buffer[i] = UInt8(bitPattern: byte) } }
+        let length = socklen_t(MemoryLayout<sockaddr_un>.size)
+        let bound = withUnsafePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, length) } }
+        XCTAssertEqual(bound, 0)
+        XCTAssertEqual(Darwin.listen(fd, 16), 0)
+        return fd
+    }
+
+    func testALiveListenerIsNeverUnlinkedWhateverThePidFileSaysAndStartingFailsSafely() throws {
+        let w = try workspace()
+        try FileManager.default.createDirectory(atPath: (w.socket as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: w.base) }
+        let pidFile = (w.socket as NSString).deletingLastPathComponent + "/core.pid"
+        let unrelated = Process()  // a live process that is NOT this Core
+        unrelated.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        unrelated.arguments = ["30"]
+        try unrelated.run()
+        defer { unrelated.terminate(); unrelated.waitUntilExit() }
+        let cases: [(String, String?)] = [("absent", nil), ("malformed", "not-a-pid"), ("stale", "999999"), ("unmatched", String(unrelated.processIdentifier))]
+        for (name, content) in cases {
+            try? FileManager.default.removeItem(atPath: w.socket)
+            try? FileManager.default.removeItem(atPath: pidFile)
+            if let content = content { try content.write(toFile: pidFile, atomically: true, encoding: .utf8) }
+            let listener = try listen(on: w.socket)
+            defer { close(listener) }
+            let launcher = CoreLauncher(executable: URL(fileURLWithPath: "/usr/bin/false"), arguments: [])
+            XCTAssertThrowsError(try launcher.start(dataDir: w.dataDir, socket: w.socket), "pid file \(name)")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: w.socket), "the live socket must still exist (pid file \(name))")
+            XCTAssertTrue(CoreLauncher.isAnswering(socket: w.socket), "the listener must still answer (pid file \(name))")
+            XCTAssertTrue(unrelated.isRunning, "an unrelated process is never terminated (pid file \(name))")
+            XCTAssertFalse(launcher.isRunning)
+        }
+    }
+
+    func testAnUnansweredSocketFileIsRemovedAndAnAnsweredOneIsReported() throws {
+        let w = try workspace()
+        try FileManager.default.createDirectory(atPath: (w.socket as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: w.base) }
+        FileManager.default.createFile(atPath: w.socket, contents: Data("stale".utf8))
+        XCTAssertFalse(CoreLauncher.isAnswering(socket: w.socket))
+        let launcher = CoreLauncher(executable: URL(fileURLWithPath: "/usr/bin/false"), arguments: [])
+        try launcher.reapLeftovers(socket: w.socket)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: w.socket))
+        let listener = try listen(on: w.socket)
+        defer { close(listener) }
+        XCTAssertTrue(CoreLauncher.isAnswering(socket: w.socket))
+    }
 }

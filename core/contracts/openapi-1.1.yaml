@@ -303,6 +303,42 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/tasks/{task_id}/research:
+    post:
+      operationId: research
+      summary: A public web search made on behalf of one task, through the Core's egress gateway. Off by default (explicit live-network gate); the result is untrusted data with provenance and never evidence.
+      x-atlas-status: served by the Core behind a disabled-by-default gate (WP3 close-out); real-Internet use is a final-stage gate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/ResearchRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          $ref: ./atlas-contracts.1.1.schema.json#/$defs/Opaque
+      responses:
+        '200':
+          description: Public content as untrusted data
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ResearchResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+        '504':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
       operationId: enrolClient

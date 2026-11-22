@@ -477,9 +477,14 @@ def new_string_fields(node, path="", out=None):
     return out
 
 
+# The only two free-text fields of the 1.1 additions, both by design and never logged: the cited span the owner asked to inspect, and public web text returned as untrusted data (it is public, carries no authority and
+# is not evidence).
+ALLOWED_FREE_TEXT = {"PassageText/properties/text", "ResearchResult/properties/text"}
+
+
 def test_no_new_field_of_the_1_1_contract_can_carry_free_text():
     for name in DELTA["x-additions"]:
-        found = [f for f in new_string_fields(DELTA["$defs"][name], name) if f != "PassageText/properties/text"]
+        found = [f for f in new_string_fields(DELTA["$defs"][name], name) if f not in ALLOWED_FREE_TEXT]
         assert not found, (
             name
         )  # whole new types; PassageText.text is the cited span itself, by design, and is served only to an enrolled client on the owner-only socket and never logged
@@ -494,7 +499,16 @@ def test_no_new_field_of_the_1_1_contract_can_carry_free_text():
 OPENAPI_10 = yaml.safe_load((DIR / "openapi.yaml").read_text())
 OPENAPI_11_PATH = DIR / "openapi-1.1.yaml"
 OPENAPI_11 = yaml.safe_load(OPENAPI_11_PATH.read_text())
-NEW_PATHS = {"/v1/consent", "/v1/consent/{grant_id}", "/v1/index/status", "/v1/tasks/{task_id}/citations/{index}", "/v1/compute", "/v1/enrol", "/v1/mode"}
+NEW_PATHS = {
+    "/v1/consent",
+    "/v1/consent/{grant_id}",
+    "/v1/index/status",
+    "/v1/tasks/{task_id}/citations/{index}",
+    "/v1/compute",
+    "/v1/enrol",
+    "/v1/mode",
+    "/v1/tasks/{task_id}/research",
+}
 OPS = ("get", "post", "put", "patch", "delete")
 
 

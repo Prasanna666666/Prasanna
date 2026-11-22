@@ -1,7 +1,7 @@
 # Egress gateway for public research (Stage 3, `egress.py`)
 
 Requirement: STAGE-3-EXECUTION-PLAN.md ("Public Internet research through the Core egress gateway when useful, using synthetic fixtures in CI and never sending private owner data to public search") and
-INTERNET_AND_NETWORK_POLICY.md sections 1-3, 7, 8. Status: **implemented and tested with synthetic fixtures; not wired into the answer flow; never run against the real Internet; disconnected and disabled. The taint boundary is bounded and documented below (not a general no-private-egress guarantee).**
+INTERNET_AND_NETWORK_POLICY.md sections 1-3, 7, 8. Status: **implemented and tested with synthetic fixtures; wired through the Core answer path behind two explicit gates, both OFF by default; never run against the real Internet; public search stays disabled until the final-stage gates (F-11) pass.**
 
 ## What it enforces
 - **One door.** Only `egress`, `transport` (the local Unix socket server) and `confinement` (tries a connection only to be refused) may import anything that opens a socket or speaks HTTP
@@ -17,8 +17,7 @@ INTERNET_AND_NETWORK_POLICY.md sections 1-3, 7, 8. Status: **implemented and tes
 - **Audit** (`AuditRecord`): host, purpose, data class, time, status, byte count. Never a query, URL path, header or content; a refusal records that something was refused, not what.
 
 ## Not built / not verified
-- Not wired into the answer flow: no part of the API or the task service asks for public research yet (it needs a contract extension, an architect decision). `CoreConfig.egress` is `None` by default, so a Core makes no
-  outbound request.
+- **Wired, disabled.** `POST /v1/tasks/{task_id}/research` (API 1.1, additive; `ResearchRequest` / `ResearchResult`) reaches the gateway only if `CoreConfig.egress` is set AND `CoreConfig.live_network` is true; both default to off, so a default Core makes no outbound request and the route answers `forbidden`. Owner client only. The task's question and retrieved passages become the taint set; a task whose scope or context holds Finance or Health data gets no network at all. The result is returned to the client as untrusted data and is never added to the task's evidence, answer or citations. Each decision is audited as a redacted `egress.decision` event (decision, reason from a closed vocabulary, destination class; never the query or URL). Tests: `tests/test_research.py`.
 - `UrllibTransport` has never touched the real Internet; the search provider URL is configuration (the default is a placeholder). robots.txt, rate limits and page-date extraction are not implemented.
 - **Normalisation.** Before every check the text is read as a receiver would: percent-escapes undone (also when applied twice), full-width and compatibility forms folded, accents removed, camelCase and underscores split into words. A URL is checked as a whole: host labels, path, query and fragment, and every redirect hop. Tests: `tests/test_egress.py` (encodings, host, fragment).
 - **Over-refusal by design.** A public query or URL (including its host name) that shares any word of 4+ letters, or any two-word run, with a private passage is refused, so a search about the same topic as a retrieved passage will often be refused. Not detected: a paraphrase, and 1-3 letter words or names. No "no private egress" guarantee is claimed until real transport testing is done; the gateway stays disconnected and disabled.

@@ -18,7 +18,9 @@
     "ComputeResult",
     "EnrolRequest",
     "EnrolResponse",
-    "ModeState"
+    "ModeState",
+    "ResearchRequest",
+    "ResearchResult"
   ],
   "$defs": {
     "AnswerEnvelope": {
@@ -1291,6 +1293,87 @@
         }
       },
       "description": "The owner's selected model mode. `research` allows the deep model tier (the primary is unloaded first); it is chosen only by the owner, never inferred from a question, and resets to `default` when the Core starts."
+    },
+    "ResearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "query"
+      ],
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "query": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,256}$"
+        }
+      },
+      "description": "A public web search made on behalf of one task. Served only when the Core's explicit live-network gate is on (off by default); refused when the query repeats anything private from the task's context (its question and retrieved passages) or when the task's context holds Finance or Health data. The query is never logged."
+    },
+    "ResearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "domain",
+        "retrieved_at",
+        "content_hash",
+        "text",
+        "truncated",
+        "injection_flags",
+        "trust",
+        "authority"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://[^\\s\\u0000-\\u001f]{1,2040}$"
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]{1,255}$"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 200000
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "injection_flags": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "enum": [
+              "instruction_like_text"
+            ]
+          }
+        },
+        "trust": {
+          "type": "string",
+          "enum": [
+            "untrusted"
+          ]
+        },
+        "authority": {
+          "type": "string",
+          "enum": [
+            "none"
+          ]
+        }
+      },
+      "description": "Public web content returned as UNTRUSTED DATA with its provenance. It carries no authority: it cannot add a tool, a source, a grant or an action, it is not evidence for a citation, and instruction-like text in it is flagged, never obeyed."
     }
   }
 }

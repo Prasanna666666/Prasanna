@@ -30,7 +30,7 @@ from .intelligence import Gateway, ModelRuntime, Router, Signals
 from .mail import Mailbox, MailIndex
 from .models import Manifest, ModelStore
 from .policy import PolicyEngine
-from .service import Deps, TaskService
+from .service import Deps, ResearchGate, TaskService
 from .tasks import TaskStore
 from .transport import UnixServer, serve_unix
 
@@ -63,6 +63,7 @@ class CoreConfig:
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     allowed_uids: Iterable[int] | None = None
     egress: EgressGateway | None = None  # public-web research; None (the default) means the Core makes no outbound request at all
+    live_network: bool = False  # the explicit live-network gate: even with a gateway configured, no public search is made unless this is True (off by default)
     log: SafeLog = field(default_factory=SafeLog)
 
 
@@ -156,6 +157,7 @@ class Core:
                 c.log,
                 clock=c.clock,
                 coverage={t: index.coverage for t, index in self.indexes.items()},
+                research=ResearchGate(c.egress, c.live_network),
             )
         )
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it

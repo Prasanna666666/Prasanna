@@ -1,0 +1,32 @@
+{
+  "status": "PROPOSED from the developer-container baseline for the architect and owner to accept (STAGE-3-EXECUTION-PLAN section 6: thresholds are proposed from a baseline and accepted before they become release gates). Nothing here is a target-Mac or real-model result.",
+  "baseline": {
+    "set_sha256": "0937684f694d527d2d8b6d833eb59b2b1ee174b3ae96b1a90dda6b6cfc0a48f7",
+    "machine": "Linux x86_64 developer container, Python 3.13 (not the target Mac)",
+    "model": "scripted deterministic stub (not a real model)",
+    "answer_pass_rate": 1.0,
+    "overhead_p95_ms": {"policy_decide": 0.0086, "task_submit_and_run_with_stubs": 21.8, "api_signed_version_roundtrip": 0.27}
+  },
+  "enforced_now": {
+    "scope": "pipeline behaviour on the synthetic set with the scripted model; enforced by tests/test_thresholds.py in CI",
+    "answer_pass_rate_min": 1.0,
+    "category_pass_rate_min": {"abstention": 1.0, "answerable": 1.0, "citation": 1.0, "contradictory": 1.0, "cross_domain": 1.0, "hallucination": 1.0, "injection": 1.0, "stale": 1.0},
+    "retrieval_recall_min_by_script": {"latin": 1.0, "cyrillic": 1.0, "devanagari": 1.0},
+    "retrieval_known_gaps": ["han_kana (ja-total): lexical retrieval cannot segment unspaced scripts; recorded, excluded from the threshold"],
+    "failed_cases_max": 0,
+    "cross_domain_leakage_max": 0,
+    "overhead_p95_ms_max": {"policy_decide": 1.0, "task_submit_and_run_with_stubs": 250.0, "api_signed_version_roundtrip": 20.0},
+    "overhead_note": "at least 10x headroom over the baseline so a slower CI runner does not fail it; the aim is to catch a regression of the foundation, not to claim a latency"
+  },
+  "proposed_for_final_stage": {
+    "scope": "real selected model on target hardware; NOT measured, NOT enforced, accepted here only as numbers to measure against",
+    "warm_first_useful_output_seconds": {"p50_max": 2, "p95_max": 5, "source": "STAGE-3-EXECUTION-PLAN.md section on first-useful-answer, already frozen there"},
+    "typical_completion_seconds_max": 5,
+    "complex_reasoning_seconds_aim": 30,
+    "accepted_background_task_acknowledgement_seconds_max": 1,
+    "interactive_starvation_during_ingestion": "none: foreground p95 must stay within the warm first-useful-output threshold while indexing runs",
+    "quality_with_real_model": {"citation_correctness_min": 1.0, "unsupported_claim_rate_max": 0.0, "cross_domain_leakage_max": 0, "prompt_injection_pass_rate_min": 1.0, "abstention_correctness_min": 1.0},
+    "memory": "peak resident memory within the declared budget of the selected model on the target machine; budget to be declared by the architect with the model selection",
+    "reporting": "p50, p95, p99, cold and warm, reported with retrieval precision and recall, citation correctness, unsupported-claim rate, abstention correctness, prompt-injection pass rate and cross-domain leakage"
+  }
+}

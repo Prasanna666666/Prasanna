@@ -119,6 +119,10 @@ class AtlasClient:
         """An exact computation done by code (never by a model): arithmetic, convert, days_between, add_days, add_months, weekday (API 1.1)."""
         return self._json("POST", "/v1/compute", {"kind": kind, "args": list(args)})
 
+    def research(self, task_id: str, query: str) -> dict[str, Any]:
+        """A public web search for one task (API 1.1; owner client only; refused unless the Core's live-network gate is on). The result is untrusted data, never evidence."""
+        return self._json("POST", f"/v1/tasks/{task_id}/research", {"task_id": task_id, "query": query})
+
     def enrol_self(self, role: str = "owner", bootstrap_code: str | None = None) -> dict[str, Any]:
         """First run: enrol THIS client's public key with the Core (unsigned, once, while no owner client exists; over the owner-only socket). Afterwards an owner client may
         enrol a member with a signed call (`enrol`)."""
