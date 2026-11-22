@@ -214,12 +214,40 @@ def test_a_private_name_or_phrase_in_a_url_path_or_query_is_refused(url):
 
 
 @pytest.mark.criterion(11)
-def test_ordinary_words_and_the_question_itself_do_not_block_a_public_query():
+@pytest.mark.parametrize(
+    "query",
+    [
+        "alexandra",  # a name the private source wrote only in lower case
+        "booked a table alexandra",
+        "oncology appointment",  # a private two-word phrase of ordinary lower-case words
+        "follow-up",
+    ],
+    ids=["lowercase-name", "lowercase-name-in-query", "two-word-phrase", "hyphenated-phrase"],
+)
+def test_lowercase_only_names_and_private_two_word_phrases_are_refused_in_queries_and_urls(query):
     taint = TaintSet()
-    taint.add("Invoice total due. The invoice was paid by Alexandra on Monday.")  # "Invoice" is also written in lower case, so it is a common word, not a name
+    taint.add("alexandra booked a table. The oncology appointment follow-up is in march.")
+    transport = FakeTransport()
+    with pytest.raises(Denied) as e:
+        gateway(transport).search(query, taint)
+    assert e.value.code == "private_content_in_request"
+    slug = query.replace(" ", "-")
+    for url in (f"https://museum.example.invalid/{slug}", f"https://museum.example.invalid/hours?q={query.replace(' ', '+')}"):
+        with pytest.raises(Denied) as e2:
+            gateway(transport).fetch(url, taint)
+        assert e2.value.code in ("private_content_in_request", "identifier_in_request")  # a long slug is refused as an identifier
+    assert transport.calls == []
+
+
+@pytest.mark.criterion(11)
+def test_function_words_and_the_question_itself_do_not_block_a_public_query():
+    taint = TaintSet()
+    taint.add("Invoice total due. The invoice was paid by Alexandra on Monday with that card.")
     taint.add("what are the museum opening hours", question=True)
-    assert not taint.leaks("museum opening hours Amsterdam") and not taint.leaks("weather in Amsterdam tomorrow") and not taint.leaks("invoice template")
-    assert taint.leaks("Alexandra") and taint.leaks("monday")  # a name and a capitalised mid-sentence word are refused
+    assert not taint.leaks("museum opening hours Amsterdam") and not taint.leaks("weather in Amsterdam tomorrow")  # the question's own words are not private
+    assert (
+        not taint.leaks("from that") and taint.leaks("invoice template") and taint.leaks("monday")
+    )  # a word of 4+ letters from a passage is refused; function words are not
 
 
 def test_the_taint_set_keeps_fingerprints_not_text():
@@ -228,4 +256,4 @@ def test_the_taint_set_keeps_fingerprints_not_text():
     assert taint.leaks(f"{SENTINEL_DOC}") and not taint.leaks("weather in Amsterdam tomorrow")
     named = TaintSet()
     named.add("Alexandra Janssen booked an oncology appointment")
-    assert "alexandra" not in repr(named.names) + repr(named.shingles) and len(named.names) == 2
+    assert "alexandra" not in repr(named.names) + repr(named.shingles)

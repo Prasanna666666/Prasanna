@@ -69,8 +69,75 @@ def _candidates(text: str) -> list[str]:
 
 
 SENTENCE_END = re.compile(r"[.!?\n]+")
-SHORT_PHRASE_WORDS = 3  # a passage's 3-word runs are fingerprinted too (not the question's: it legitimately shares words with a public query)
+SHORT_PHRASE_WORDS = 2  # a passage's 2-word runs are fingerprinted too (not the question's: it legitimately shares words with a public query)
 MIN_NAME_CHARS = 3
+MIN_WORD_CHARS = 4  # every word of a private passage with this many letters is fingerprinted, in any case: a name written only in lower case is still caught
+STOP_WORDS = frozenset(
+    [
+        "that",
+        "this",
+        "with",
+        "from",
+        "have",
+        "been",
+        "were",
+        "will",
+        "would",
+        "could",
+        "should",
+        "there",
+        "their",
+        "about",
+        "which",
+        "when",
+        "what",
+        "where",
+        "your",
+        "they",
+        "them",
+        "then",
+        "than",
+        "into",
+        "over",
+        "also",
+        "more",
+        "most",
+        "some",
+        "such",
+        "only",
+        "very",
+        "just",
+        "like",
+        "each",
+        "other",
+        "dit",
+        "dat",
+        "een",
+        "het",
+        "van",
+        "voor",
+        "niet",
+        "zijn",
+        "maar",
+        "ook",
+        "nog",
+        "wel",
+        "dan",
+        "als",
+        "bij",
+        "naar",
+        "door",
+        "over",
+        "uit",
+        "heeft",
+        "hebben",
+        "wordt",
+        "worden",
+        "deze",
+        "die",
+        "dit",
+    ]
+)  # function words (English, Dutch) that no public query should be refused for
 
 
 def _names(text: str) -> set[str]:
@@ -90,10 +157,10 @@ def _names(text: str) -> set[str]:
 
 @dataclass
 class TaintSet:
-    """What a task has read in private, kept as FINGERPRINTS (the text is not kept): 4-word shingles (3-word runs for passages), identifier-like tokens (any token of 8+ characters that contains a
-    digit, an e-mail address, a long number), proper-name-like single words, plus whether Finance/Health data is in its context.
+    """What a task has read in private, kept as FINGERPRINTS (the text is not kept): 4-word shingles (2-word runs for passages), identifier-like tokens (any token of 8+ characters that contains a
+    digit, an e-mail address, a long number), every word of 4+ letters of a passage (names in any case) and capitalised names in the question, plus whether Finance/Health data is in its context.
 
-    Not detected: a paraphrase, a private two-word phrase made of ordinary lower-case words, and names in scripts without letter case. The gateway over-refuses within what it can see."""
+    Not detected: a paraphrase, and 1-3 letter words or names. A public query that shares a word of 4+ letters with a private passage is refused: the gateway over-refuses, never under-refuses, within what it can see."""
 
     shingles: set[str] = field(default_factory=set)
     identifiers: set[str] = field(default_factory=set)
@@ -106,6 +173,8 @@ class TaintSet:
         for size in runs:
             for i in range(len(words) - size + 1):
                 self.shingles.add(_fingerprint(words[i : i + size]))
+        if not question:
+            self.names |= {_fingerprint([w]) for w in words if len(w) >= MIN_WORD_CHARS and w not in STOP_WORDS}
         for token in _candidates(text):
             if any(c.isdigit() for c in token) or "@" in token:
                 self.identifiers.add(_token_fingerprint(token))
