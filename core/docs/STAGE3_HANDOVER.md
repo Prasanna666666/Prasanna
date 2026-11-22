@@ -14,7 +14,7 @@ Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Writte
 | WP3.7 | acceptance traceability and this handover | `STAGE3_ACCEPTANCE.md` |
 
 ## How to reproduce (from `core/`)
-`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (1080 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
+`pip install -e ../kit[secure] -e .[dev]`, then `ruff check . && ruff format --check . && mypy src && pytest -q` (1127 tests on Python 3.13 and 3.11), `python evals/harness.py`, `python bench/ingest.py --json`, `python bench/overhead.py --json`. The kit suite (165 tests) includes the layer rules that `tests/test_architecture.py` also enforces.
 
 ## Rollback
 Additive: revert the branch commits (nothing outside `core/` and the CI job changed). New stores only; no legacy store, key or component was migrated or retired (criterion 15). One behaviour changed inside the new Core: finished tasks no longer keep passage text, draft or quotes (no migration; earlier checkpoints are scrubbed when their task ends). API 1.0 behaviour and bytes are unchanged; 1.1 is opt-in per request.
@@ -35,3 +35,6 @@ Nothing below has been done by me. These are the things only you or a Mac can co
 4. **Withdraw access to a folder or mail:** the next question says it is no longer allowed, and an old answer from that source is hidden.
 5. **Speed and feel:** note how long a simple question takes. This is the first real number; the numbers in the docs are from a Linux container and do not predict it.
 What I need from you only if something looks wrong: say what you saw. You do not need to relay anything to anyone.
+
+## Added after the full-stage review of `7792ab5`
+Streaming EMLX reader (attachments after the text are never read; byte count validated), worker without any skip flag (it asks the OS), per-data-folder Core lock and live-socket protection, app submission gate and bounded launcher cleanup, CI artefact scan, and the egress gateway (`EGRESS_GATEWAY.md`, not wired into the answer flow). See the PR response for the finding-by-finding mapping.

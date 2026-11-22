@@ -34,6 +34,7 @@ LAYER = {
     "isolated": 4,
     "worker": 4,
     "sandbox": 1,
+    "egress": 1,
     "confinement": 1,
     "answer": 5,
     "tasks": 5,
@@ -332,3 +333,19 @@ def test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_ca
         assert 'trust_remote_code": True' not in text and "trust_remote_code=True" not in text, path.name
         if path.stem != "mlx_runtime":
             assert "mlx_lm" not in text and "import mlx" not in text, path.name
+
+
+@pytest.mark.criterion(11)
+def test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection():
+    """Nothing but `egress` (public research, through its checks), `transport` (the local Unix socket server) and `confinement` (which tries a connection only to be refused) imports anything that
+    can open a socket, speak HTTP or make a request; every other module, including every model module, cannot."""
+    connectors = {"socket", "socketserver", "ssl", "http.client", "urllib.request", "urllib3", "requests", "httpx", "aiohttp", "ftplib", "smtplib", "telnetlib"}
+    found: set[str] = set()
+    for path in SRC.glob("*.py"):
+        tree = ast.parse(path.read_text())
+        names = {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names} | {
+            n.module or "" for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)
+        }
+        if names & connectors or any(n.startswith(("http.client", "urllib.request")) for n in names):
+            found.add(path.stem)
+    assert found == {"egress", "transport", "confinement"}, found

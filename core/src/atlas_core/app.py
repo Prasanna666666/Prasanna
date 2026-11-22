@@ -22,6 +22,7 @@ from .api import CoreApi
 from .consent import ConsentService
 from .designation import DesignationStore, RollbackAnchor
 from .documents import DocumentIndex
+from .egress import EgressGateway
 from .events import SafeLog
 from .evidence import StoredSource
 from .identity import BootstrapGate, ClientRegistry
@@ -61,6 +62,7 @@ class CoreConfig:
     mailbox: tuple[str, Mailbox] | None = None  # (source type name, adapter)
     clock: Callable[[], datetime] = lambda: datetime.now(UTC)
     allowed_uids: Iterable[int] | None = None
+    egress: EgressGateway | None = None  # public-web research; None (the default) means the Core makes no outbound request at all
     log: SafeLog = field(default_factory=SafeLog)
 
 
@@ -129,6 +131,7 @@ class Core:
 
     def _build(self, c: CoreConfig) -> None:
         self.mode = _Mode()
+        self.egress = c.egress
         self.config, self.clock = c, c.clock
         self.designation = DesignationStore(c.data_dir / "designation.db", c.designation_key, c.clock, anchor=c.anchor)
         self.designation.verify()
