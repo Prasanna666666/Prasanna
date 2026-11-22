@@ -1178,6 +1178,28 @@
         }
       }
     },
+    "PassageText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "citation_index",
+        "text",
+        "evidence"
+      ],
+      "properties": {
+        "citation_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      },
+      "description": "The text of one cited span, for the owner to inspect a citation. Served only while every source the answer used is still permitted and the span still resolves exactly; otherwise the call fails closed. Never logged."
+    },
     "PolicyDecision": {
       "type": "object",
       "additionalProperties": false,

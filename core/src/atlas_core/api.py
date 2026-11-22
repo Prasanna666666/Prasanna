@@ -28,7 +28,7 @@ MAX_BODY_BYTES = 64 * 1024
 FOLLOW_SECONDS = 30.0  # a stream of an unfinished task is followed this long, then ends (the client resumes with ?after=)
 FOLLOW_POLL = 0.05
 HTTP_ERROR = 400  # a code whose status is below this is a task outcome, reported on the stream; as a direct reply it is a conflict
-ROUTE = re.compile(r"^/v1/(?:(version)|(tasks)|tasks/([A-Za-z0-9_-]{8,64})(?:/(cancel|answer|receipt|events))?)$")
+ROUTE = re.compile(r"^/v1/(?:(version)|(tasks)|tasks/([A-Za-z0-9_-]{8,64})(?:/(cancel|answer|receipt|events)|/citations/([0-9]{1,4}))?)$")
 CONSENT = re.compile(r"^/v1/(?:(consent)|consent/([A-Za-z0-9_-]{8,64})|(index/status))$")  # API 1.1 only, and only when the Core was given a consent service
 H_NONCE_NAME = "x-atlas-nonce"
 
@@ -153,23 +153,36 @@ class CoreApi:
 
     def _route(self, request: Request, match: re.Match[str], query: dict[str, list[str]], correlation: str, version: str) -> Response:
         method, task_id, action = request.method, match.group(3), match.group(4)
+        if match.group(5) is not None:
+            return self._passage(method, task_id or "", int(match.group(5)), version)
         if match.group(2):
             if method != "POST":
                 raise CoreError("invalid_request")
             return self._create(request.body, version)
         if task_id is None:
             raise CoreError("not_found")
-        if action is None and method == "GET":
-            return self._reply(200, self._service.get(task_id), "TaskRecord", version)
-        if action == "cancel" and method == "POST":
-            return self._reply(200, self._service.cancel(task_id), "TaskRecord", version)
-        if action == "answer" and method == "GET":
-            return self._reply(200, self._service.answer_v11(task_id) if version == "1.1" else self._service.answer(task_id), "AnswerEnvelope", version)
-        if action == "receipt" and method == "GET":
-            return self._reply(200, self._service.receipt(task_id), "ExecutionReceipt", version)
+        service = self._service
+        answer = service.answer_v11 if version == "1.1" else service.answer
+        actions: dict[tuple[str | None, str], tuple[Callable[[str], dict[str, Any]], str]] = {
+            (None, "GET"): (service.get, "TaskRecord"),
+            ("cancel", "POST"): (service.cancel, "TaskRecord"),
+            ("answer", "GET"): (answer, "AnswerEnvelope"),
+            ("receipt", "GET"): (service.receipt, "ExecutionReceipt"),
+        }
+        if (action, method) in actions:
+            handler, contract = actions[(action, method)]
+            return self._reply(200, handler(task_id), contract, version)
         if action == "events" and method == "GET":
             return self._events(task_id, query, correlation, version)
         raise CoreError("invalid_request")
+
+    def _passage(self, method: str, task_id: str, index: int, version: str) -> Response:
+        """`/citations/{index}`: API 1.1 only."""
+        if version != "1.1":
+            raise CoreError("not_found")
+        if method != "GET":
+            raise CoreError("invalid_request")
+        return self._reply(200, self._service.passage(task_id, index), "PassageText", version)
 
     def _create(self, body: bytes, version: str) -> Response:
         try:

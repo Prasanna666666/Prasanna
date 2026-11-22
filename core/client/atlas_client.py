@@ -110,6 +110,10 @@ class AtlasClient:
         )
         return str(record["task_id"])
 
+    def passage(self, task_id: str, index: int) -> str:
+        """The cited span's text, for the "show the source passage" action (API 1.1)."""
+        return str(self._json("GET", f"/v1/tasks/{task_id}/citations/{index}")["text"])
+
     def consent(self) -> dict[str, Any]:
         """The owner's grants and, per source, whether macOS access is granted (an enrolled owner client only)."""
         return self._json("GET", "/v1/consent")

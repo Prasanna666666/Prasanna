@@ -295,3 +295,39 @@ def test_nothing_the_owner_sees_contains_a_path_a_trace_or_raw_identifiers(core,
     for cid in ("en-total", "missing-en", "prompt-injection"):
         text = shown(client.run_question(*core.q(cid)))
         assert str(tmp_path) not in text and "Traceback" not in text and not re.search(r"[0-9a-f]{24,}|source_id|version_sha256", text)
+
+
+def test_the_cited_passage_can_be_opened_exactly_and_stops_opening_when_the_source_changes_or_is_revoked(core):
+    client = core.client(core.serve())
+    task_id = client.ask(*core.q("en-total"))
+    view = client.result(task_id)
+    text = client.passage(task_id, 0)
+    assert "1250.50" in text and view["citations"][0]["quote"] in text
+    with pytest.raises(ClientError) as missing:
+        client.passage(task_id, 5)
+    assert missing.value.code == "not_found"
+    path = next(Path(core.index.scanner.root).glob("invoice_en.txt"))
+    path.write_text("changed after the answer", encoding="utf-8")
+    with pytest.raises(ClientError) as changed:  # a changed source withholds the whole answer: nothing of it is shown, not even the passage
+        client.passage(task_id, 0)
+    assert changed.value.code == "source_denied"
+    path.write_text(json.loads(harness.SET_FILE.read_text(encoding="utf-8"))["documents"]["invoice_en.txt"]["text"], encoding="utf-8")
+    core.grants._grants[:] = []
+    with pytest.raises(ClientError) as revoked:
+        client.passage(task_id, 0)
+    assert revoked.value.code == "source_denied"
+
+
+def test_the_passage_route_does_not_exist_for_1_0_and_for_an_unfinished_task(tmp_path):
+    c = Core(tmp_path, start_worker=False)
+    try:
+        path = c.serve()
+        task_id = c.client(path).ask(*c.q("en-total"))
+        with pytest.raises(ClientError) as early:
+            c.client(path).passage(task_id, 0)
+        assert early.value.code == "conflict"
+        with pytest.raises(ClientError) as old:
+            c.client(path, version="1.0").passage(task_id, 0)
+        assert old.value.code == "not_found"
+    finally:
+        c.close()

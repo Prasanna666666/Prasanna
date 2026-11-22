@@ -251,6 +251,31 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/tasks/{task_id}/citations/{index}:
+    get:
+      operationId: getCitationPassage
+      summary: The text of one cited span of a finished task's answer, so the owner can inspect a citation. Fails closed when a source is no longer permitted or the span no longer resolves exactly.
+      x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
+      parameters:
+      - $ref: '#/components/parameters/TaskId'
+      - $ref: '#/components/parameters/CitationIndex'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The cited passage
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/PassageText
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+        '409':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/index/status:
     get:
       operationId: getIndexStatus
@@ -301,6 +326,13 @@ components:
         - '1.1'
       description: Selects the contract version. Absent means 1.0. 1.1 is accepted only when the Core advertises it in GET /v1/version; anything else is refused with
         unsupported_version.
+    CitationIndex:
+      name: index
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 0
     GrantId:
       name: grant_id
       in: path

@@ -16,7 +16,7 @@ from .coverage import Provider as CoverageProvider
 from .coverage import build_coverage, required_limitations
 from .errors import CoreError, user_error
 from .events import SafeLog
-from .evidence import SourceStore
+from .evidence import CitationError, SourceStore, resolve
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .tasks import STEPS, TERMINAL, TaskStore
@@ -368,6 +368,21 @@ class TaskService:
         if used <= permitted:
             return envelope
         return withheld_envelope(task_id, _denied_now(decision, used - permitted), used)
+
+    def passage(self, task_id: str, index: int) -> dict[str, Any]:
+        """The text of one cited span of a finished task's answer (API 1.1), for the owner to inspect a citation. Fails closed: an unfinished task is a conflict, an answer withheld because
+        a source is no longer permitted is `source_denied`, a missing citation is `not_found`, and a span that no longer resolves exactly (the source changed or went) is a conflict."""
+        envelope = self.answer(task_id)
+        if envelope != self._d.store.answer(task_id):
+            raise CoreError("source_denied", task_id)
+        if not 0 <= index < len(envelope["citations"]):
+            raise CoreError("not_found", task_id)
+        evidence = envelope["citations"][index]["evidence"]
+        try:
+            text = resolve(evidence, self._d.sources)
+        except CitationError:
+            raise CoreError("conflict", task_id) from None
+        return {"citation_index": index, "text": text, "evidence": evidence}
 
     def purge_source_type(self, source_type: str) -> int:
         """Called when the owner revokes a source type (register it with `DesignationStore.register_purge`): the content that came from it is removed from every task."""
