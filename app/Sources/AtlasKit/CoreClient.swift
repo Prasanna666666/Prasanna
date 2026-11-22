@@ -65,6 +65,9 @@ public final class CoreClient {
     public func approve(approvalID: String) throws -> Bool { (try object(call("POST", "/v1/actions/approve", ["approval_id": approvalID])))["granted"] as? Bool ?? false }
     public func undo(actionID: String) throws -> [String: Any] { try object(call("POST", "/v1/actions/undo", ["action_id": actionID])) }
 
+    /// Library search over the enabled sources: results plus how much of each source has been read.
+    public func librarySearch(_ query: String, scope: [String]) throws -> [String: Any] { try object(call("POST", "/v1/library/search", ["query": query, "scope": scope])) }
+
     /// Paired devices (owner only), a pairing offer for a new device, and revocation.
     public func devices() throws -> [[String: Any]] { (try object(call("GET", "/v1/devices")))["devices"] as? [[String: Any]] ?? [] }
     public func openPairingOffer() throws -> [String: Any] { try object(call("POST", "/v1/devices/offer", [:])) }

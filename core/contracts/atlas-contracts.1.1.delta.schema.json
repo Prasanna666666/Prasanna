@@ -33,7 +33,9 @@
     "PairResult",
     "DeviceList",
     "RevokeRequest",
-    "RevokeResult"
+    "RevokeResult",
+    "LibrarySearchRequest",
+    "LibraryResult"
   ],
   "$defs": {
     "AnswerEnvelope": {
@@ -1770,6 +1772,119 @@
           "type": "boolean"
         }
       }
+    },
+    "LibrarySearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "scope"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,200}$"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{2,32}$"
+          }
+        }
+      },
+      "description": "Search what the owner has enabled, through the same policy and retrieval path a question uses. Nothing outside a current grant is searched."
+    },
+    "LibraryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "results",
+        "coverage"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "results",
+            "no_results",
+            "denied",
+            "partial",
+            "partial_no_results"
+          ]
+        },
+        "results": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_id",
+              "source_type",
+              "title",
+              "excerpt",
+              "locator_kind"
+            ],
+            "properties": {
+              "source_id": {
+                "$ref": "#/$defs/Opaque"
+              },
+              "source_type": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,32}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,120}$"
+              },
+              "excerpt": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,300}$"
+              },
+              "locator_kind": {
+                "type": "string",
+                "pattern": "^[a-z_]{1,32}$"
+              }
+            }
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_type",
+              "total",
+              "searched",
+              "complete"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,32}$"
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "searched": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "description": "What a Library search found, and how much of each source has been read so far: an incomplete index is never presented as a complete search."
     }
   }
 }

@@ -83,7 +83,8 @@ struct Shell: View {
         case .ask: AskView(model: model)
         case .activity: ActivityView(model: model)
         case .settings: SettingsView(model: model)
-        case .library, .lifeArea: StateNotice(text: UnavailableReason.notAvailableYet.message).padding(Space.xl)
+        case .library: LibraryView(model: model)
+        case .lifeArea: StateNotice(text: UnavailableReason.notAvailableYet.message).padding(Space.xl)
         }
     }
 }

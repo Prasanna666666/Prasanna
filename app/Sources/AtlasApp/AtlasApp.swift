@@ -95,9 +95,13 @@ struct DeviceRow: Identifiable {
 final class AppModel: ObservableObject {
     // Navigation and launch
     @Published var selection: Destination = .home
-    @Published var availability = Availability()
     @Published var launch: LaunchState = .startingCore
     @Published var needsGetStarted = true
+    // Library
+    @Published var library: LoadState<LibraryPage> = .idle
+    @Published var libraryQuery = ""
+    @Published var librarySort = LibrarySort.bestMatch
+    @Published var libraryFilter: String?
     // Conversation
     @Published var question = ""
     @Published var turns: [Turn] = []
@@ -129,6 +133,9 @@ final class AppModel: ObservableObject {
         selection = Sidebar.restored(UserDefaults.standard.string(forKey: Self.selectionKey), in: availability)
         Task { await startCoreThenRefresh() }
     }
+
+    /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.
+    var availability: Availability { Availability(library: !scope.isEmpty) }
 
     /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
     var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
@@ -180,6 +187,21 @@ final class AppModel: ObservableObject {
         needsGetStarted = false
         await refreshConsent()
         await loadSettings()
+    }
+
+    // MARK: library
+
+    func searchLibrary() async {
+        let text = libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let client, !text.isEmpty else { library = .idle; return }
+        guard !scope.isEmpty else { library = .denied("Atlas is not allowed to search that. Turn on a source in Settings."); return }
+        library = .loading
+        libraryFilter = nil
+        let sources = scope
+        do {
+            let response = try await Task.detached { try client.librarySearch(text, scope: sources) }.value
+            library = LibraryOutcome.from(response)
+        } catch { library = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
     }
 
     // MARK: conversation

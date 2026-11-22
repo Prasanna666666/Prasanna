@@ -144,6 +144,73 @@ struct Composer: View {
     }
 }
 
+// MARK: Library
+
+struct LibraryView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let theme = Theme(scheme)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                PageHeader(title: "Library", subtitle: model.scopeLine)
+                HStack {
+                    TextField("Search your sources", text: $model.libraryQuery)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Search your sources")
+                        .onSubmit { Task { await model.searchLibrary() } }
+                    Button("Search") { Task { await model.searchLibrary() } }.disabled(model.libraryQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                content(theme)
+            }
+            .padding(Space.xl).readingColumn()
+        }
+    }
+
+    @ViewBuilder private func content(_ theme: Theme) -> some View {
+        switch model.library {
+        case .idle:
+            StateNotice(text: "Search the documents and mail you enabled. Results show where each match comes from and how much of each source Atlas has read.")
+        case .loading:
+            StateNotice(text: "Searching.", style: .loading)
+        case .empty:
+            StateNotice(text: "No matches. Atlas searched everything it has read in the sources you enabled.")
+        case .unavailable(let reason):
+            StateNotice(text: reason.message, style: .warning)
+        case .denied(let text):
+            StateNotice(text: text, style: .warning)
+        case .failed(let text):
+            StateNotice(text: text, style: .problem)
+        case .loaded(let page):
+            results(page, note: nil, theme)
+        case .partial(let page, let note):
+            results(page, note: note, theme)
+        }
+    }
+
+    @ViewBuilder private func results(_ page: LibraryPage, note: String?, _ theme: Theme) -> some View {
+        if let note { StateNotice(text: note, style: .warning) }
+        HStack {
+            Picker("Show", selection: $model.libraryFilter) {
+                Text("All sources").tag(String?.none)
+                ForEach(page.types, id: \.self) { type in Text(Catalogue.shared.sourceKinds[type] ?? type).tag(Optional(type)) }
+            }.fixedSize()
+            Picker("Sort by", selection: $model.librarySort) { ForEach(LibrarySort.allCases, id: \.self) { Text($0.rawValue).tag($0) } }.fixedSize()
+        }
+        ForEach(model.librarySort.apply(page.results).filter { model.libraryFilter == nil || $0.sourceType == model.libraryFilter }) { row in
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text(row.title).font(TextStyle.headline).foregroundStyle(theme.textPrimary)
+                Text("\(row.kind), \(row.place)").font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                Text(row.excerpt).font(TextStyle.body).foregroundStyle(theme.textSecondary)
+            }
+            .padding(.vertical, Space.sm)
+            .accessibilityElement(children: .combine)
+            Divider()
+        }
+    }
+}
+
 // MARK: Activity
 
 struct ActivityView: View {

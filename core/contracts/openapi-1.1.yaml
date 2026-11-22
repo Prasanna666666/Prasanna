@@ -559,6 +559,35 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/library/search:
+    post:
+      operationId: librarySearch
+      summary: Search the sources the owner has enabled, through the same policy and retrieval path as a question.
+      x-atlas-status: served by the Core (Library surface); API 1.1 additive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/LibrarySearchRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The results and the coverage of each source
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/LibraryResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
       operationId: enrolClient

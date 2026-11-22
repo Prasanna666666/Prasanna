@@ -516,6 +516,7 @@ NEW_PATHS = {
     "/v1/devices/offer",
     "/v1/devices/pair",
     "/v1/devices/revoke",
+    "/v1/library/search",
 }
 OPS = ("get", "post", "put", "patch", "delete")
 

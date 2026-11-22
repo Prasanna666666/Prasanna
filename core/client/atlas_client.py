@@ -141,6 +141,10 @@ class AtlasClient:
         """Send a device's offline queue (API 1.1): each operation is applied once, in order; the results say applied, duplicate, conflict or rejected."""
         return list(self._json("POST", "/v1/sync", {"ops": ops})["results"])
 
+    def library_search(self, query: str, scope: list[str]) -> dict[str, Any]:
+        """Search the enabled sources (API 1.1): results with a title and excerpt, plus how much of each source has been read."""
+        return self._json("POST", "/v1/library/search", {"query": query, "scope": scope})
+
     def open_pairing_offer(self) -> dict[str, Any]:
         """An owner client opens a pairing offer for a new device (API 1.1): a single-use code, five minutes, and the Core's fingerprint to pin."""
         return self._json("POST", "/v1/devices/offer", {})

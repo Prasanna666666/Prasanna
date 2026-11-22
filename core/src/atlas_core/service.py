@@ -6,6 +6,7 @@ evidence checks.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -466,6 +467,52 @@ class TaskService:
             "authority": doc.authority,
         }
 
+    def library_search(self, query: str, scope: list[str]) -> dict[str, Any]:
+        """Library (API 1.1): search what the owner enabled, through the same policy decision and the same gated retrieval a question uses, so nothing outside a current grant is read. Results are one entry per
+        source with its best passage; the coverage of each source says how much has been read so far, so an incomplete index is never presented as a complete search."""
+        d = self._d
+        decision, token = d.policy.decide(scope, d.clock())
+        coverage = []
+        for source_type in sorted(set(scope)):
+            provider = d.coverage.get(source_type)
+            if provider is not None and source_type in decision["permitted_source_types"]:
+                c = provider()
+                coverage.append(
+                    {
+                        "source_type": source_type,
+                        "total": int(c.get("total", 0)),
+                        "searched": int(c.get("searched", 0)),
+                        "complete": bool(c.get("complete", False)),
+                    }
+                )
+        if token is None:
+            return {"state": "denied", "results": [], "coverage": []}
+        found = self._retrieval.fetch(token, d.retriever, query, d.clock(), d.policy, d.clock).passages
+        results: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for passage in found:
+            evidence = passage["evidence"]
+            if evidence["source_id"] in seen:
+                continue
+            seen.add(evidence["source_id"])
+            source = d.sources.get(evidence["source_id"])
+            if source is None:
+                continue
+            results.append(
+                {
+                    "source_id": evidence["source_id"],
+                    "source_type": evidence["source_type"],
+                    "title": _title_of(source.text),
+                    "excerpt": _tidy(str(passage.get("text", "")), 300),
+                    "locator_kind": str(evidence["locator"].get("kind", "span_only")),
+                }
+            )
+            if len(results) == LIBRARY_LIMIT:
+                break
+        incomplete = any(not c["complete"] for c in coverage)
+        state = ("partial" if results else "partial_no_results") if incomplete else ("results" if results else "no_results")
+        return {"state": state, "results": results, "coverage": coverage}
+
     @staticmethod
     def compute(kind: str, args: list[str]) -> dict[str, Any]:
         """A typed deterministic computation (API 1.1 `/v1/compute`): exact arithmetic, units and dates by code, never a model. Reads no source; the text of an error is never echoed."""
@@ -530,6 +577,22 @@ class TaskService:
                 event = {**event, "answer": self._upgrade(task_id, event["answer"])}
             out.append(event)
         return out
+
+
+LIBRARY_LIMIT = 20
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
+
+
+def _tidy(text: str, limit: int) -> str:
+    """One line, no control characters, shortened: what a result row may show of a passage."""
+    return _CONTROL.sub(" ", text).strip()[:limit]
+
+
+def _title_of(text: str) -> str:
+    """A human name for a source: its subject line if it has one (a message), otherwise its first non-empty line."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    subject = next((ln[len("Subject:") :].strip() for ln in lines if ln.startswith("Subject:")), "")
+    return _tidy(subject or (lines[0] if lines else ""), 120)
 
 
 def _cited_types(envelope: dict[str, Any]) -> frozenset[str]:
