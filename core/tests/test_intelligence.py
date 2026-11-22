@@ -464,19 +464,24 @@ def test_an_interactive_request_on_the_same_model_runs_alongside_a_background_on
     mode = threading.local()
     gw._signals = lambda: Signals(priority=mode.priority)
     done: list[str] = []
+    failures: list[str] = []
 
     def background():
         threading.current_thread().slow = True
         mode.priority = "background"
-        done.append(gw.generate(context()[0]).identity[0])
+        try:
+            done.append(gw.generate(context()[0]).identity[0])
+        except Exception as error:  # surfaced in the assertion below, not lost in a thread
+            failures.append(f"{type(error).__name__}: {error}")
 
     thread = threading.Thread(target=background)
     thread.start()
     assert rt.started.wait(5)
     mode.priority = "interactive"
     assert gw.generate(context()[0]).identity[0] == "prim"  # the same primary: no switch, no stop
-    thread.join(15)
-    assert done == ["prim"] and rt.stopped_early == []
+    thread.join(30)
+    assert not thread.is_alive(), "the background inference did not finish"
+    assert failures == [] and done == ["prim"] and rt.stopped_early == []
 
 
 def test_a_request_that_must_wait_for_another_model_waits_a_bounded_time_then_is_refused_as_busy(tmp_path):
