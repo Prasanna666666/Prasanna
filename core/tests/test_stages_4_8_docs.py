@@ -33,6 +33,6 @@ def test_every_python_test_the_report_names_exists():
 
 def test_the_report_states_its_limits_in_plain_words():
     text = DOC.read_text()
-    for required in ("NOT architect-reviewed", "NOT accepted", "No pull request was opened", "NOT BUILT", "DEFERRED-FINAL", "Not wired"):
+    for required in ("NOT architect-reviewed", "NOT accepted", "one branch and the one pull request", "NOT BUILT", "DEFERRED-FINAL", "Not wired"):
         assert required in text, required
     assert "owner-tryable build" in text and "Stage 3 is still not accepted" in text

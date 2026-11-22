@@ -1,9 +1,6 @@
 # Stages 4 to 8: what was built, what is evidenced, what is not (developer report for architect review)
 
-Branch `genesis-stage4-6` (despite the name it carries Stages 4 to 8), made from the Stage 3 head. **No pull request was opened and PR #8 was not touched**, so the Stage 3 head under review did not move. Authorisation:
-the owner's instruction of 2026-11-23 ("Do it"). `TARGET_ARCHITECTURE.md` §11 says the roadmap is not implementation authorisation by itself and the architect's earlier brief said Stage 4 waits for a reviewed
-package: **these stages are therefore implemented on the owner's instruction and are NOT architect-reviewed, NOT accepted, and Stage 3 is still not accepted.** Nothing here is a release, an owner-tryable build or a
-claim about real hardware.
+This work is on PR #8's branch (`genesis-stage2-foundation`), the one branch and the one pull request, by the owner's decision ("one branch, one PR"). It was first built on a side branch so that the head the architect was reviewing did not move; it was then rebased onto the PR branch and the side branch was deleted. Authorisation: the owner's instruction of 2026-11-23 ("Do it"). `TARGET_ARCHITECTURE.md` §11 says the roadmap is not implementation authorisation by itself and the architect's earlier brief said Stage 4 waits for a reviewed package: **these stages are therefore implemented on the owner's instruction and are NOT architect-reviewed, NOT accepted, and Stage 3 is still not accepted.** Nothing here is a release, an owner-tryable build or a claim about owner hardware. **The PR head has moved because of this: reviews of Stage 3 should name the commit they review.**
 
 **CI:** push run [45078151927](https://github.com/Prasanna666666/Prasanna/actions/runs/45078151927) on `049fd58` passed every job, including Core on Python 3.11 and 3.13, the hosted macOS Swift and Core jobs, the MLX sandbox job and the app packaging job (hosted-runner evidence only). An earlier run on `88d02d2` failed only the secret scanner on a test variable name, fixed in `049fd58`.
 
