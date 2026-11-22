@@ -74,7 +74,9 @@ final class ConversationModel: ObservableObject {
     private var socket: String { support.appendingPathComponent("run/core.sock").path }
 
     init() {
-        client = (try? KeyStore.identity()).map { CoreClient(socketPath: support.appendingPathComponent("run/core.sock").path, signer: $0.signer, clientID: $0.id) }
+        let path = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Atlas/run/core.sock").path
+        client = (try? KeyStore.identity()).map { CoreClient(socketPath: path, signer: $0.signer, clientID: $0.id) }
         Task { await startCoreThenRefresh() }
     }
 
