@@ -43,6 +43,8 @@ This register distinguishes explicit owner decisions from architecture recommend
 | G-R08 | Central Agent Registry, task scheduler and policy-enforced tool gateway | RECOMMENDED | Makes role, permission, resource, deadline and lifecycle constraints enforceable |
 | G-R09 | Start with a thin personal workflow and a small specialist set; expand by measured value | RECOMMENDED | Proves reliability before adding orchestration complexity |
 | G-R10 | Domain-scoped agent context; separately labelled/keyed Finance and Health stores with owner-authorised local model access | RECOMMENDED | Prevents one-app convenience from becoming unrestricted cross-domain access while respecting G-021 |
+| G-R11 | Core-owned automation control plane with local Playwright browser adapter and layered macOS app automation (official APIs/Shortcuts, AppleScript/JXA, Accessibility, visual fallback) | RECOMMENDED | Broad automation without surrendering Atlas policy, task state, memory or audit to a third-party runtime; detailed boundaries and Stage 6 sequencing are in TARGET_ARCHITECTURE.md §20. |
+| G-R12 | Keep OpenClaw out of the adopted dependency graph; evaluate only as a replaceable reference/optional adapter under a separate ADR | RECOMMENDED | Preserve local-first security, maintainability and Atlas ownership; no integration without explicit owner approval. |
 
 ## 3. Open decisions requiring investigation or owner input
 
@@ -93,6 +95,8 @@ Do not remove existing security controls or owner data casually. Map each curren
 The owner-established outcome is personal and professional work automation inside the single Atlas application. The recommended role catalogue, orchestration and phased delivery are defined once in `TARGET_ARCHITECTURE.md` §13 and the unified roadmap in §11. Do not duplicate the role list here. Finance and Health follow G-021: the local model may read owner-authorised data; keep separate stores/labels, provenance, redaction and revocation. Consequential actions follow G-022.
 
 ## 6. Change log
+
+- 2026-11-22: Finalised the app/browser automation target architecture: Core-owned policy and execution contracts, local Playwright browser adapter, layered native macOS automation, least-privilege isolation, verification/audit/recovery and Stage 6 general-automation sequencing. OpenClaw remains unadopted and requires a separate ADR plus explicit owner approval.
 
 - 2026-11-19: Initial consolidation of established Project Genesis direction and target architecture recommendations.
 - 2026-11-19: Added the personal-work automation direction and recommended Agent Workforce architecture; specialist rollout and first workflow remain subject to review and owner prioritisation.
