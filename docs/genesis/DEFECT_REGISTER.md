@@ -435,7 +435,7 @@ A repository-wide PR search found **10 pull requests**, not only Atlas/Genesis P
 - PRs #1–#5 are Dependabot workflow-update PRs (setup-python, gitleaks-action, checkout, upload-artifact, setup-node). All five are closed and unmerged; each changes only `.github/workflows/ci.yml`. Their comments and dispositions are preserved in `docs/genesis/DEPENDABOT_PR1-5_ARCHIVE.md`. They are CI/supply-chain maintenance history and must be checked against the current workflow, but are not automatically Atlas feature defects.
 - PRs #6–#10 are the Atlas/Genesis audit, architecture, foundation, LLD and Stage 3 preparation records archived in the existing files listed under HIST-087.
 
-**PR #8 current discussion counts (rechecked 2026-11-23):** 192 top-level issue comments, 53 submitted reviews, 58 inline review threads, and 63 inline comments. Of the 58 inline threads, 21 are resolved and 37 unresolved at the time of capture. The archive files `HISTORICAL_PR8_CONVERSATION.md` and `HISTORICAL_PR8_REVIEW_THREADS.md` contain these sources; archive IDs were checked against the current 192 top-level comments and all 192 were present. Do not add 53 reviews to the issue-comment count or confuse the 63 inline comments with thread count.
+**PR #8 current discussion counts (rechecked 2026-11-23):** 197 top-level issue comments, 53 submitted reviews, 58 inline review threads, and 63 inline comments. Of the 58 inline threads, 21 are resolved and 37 unresolved at the time of capture. The archive files `HISTORICAL_PR8_CONVERSATION.md` and `HISTORICAL_PR8_REVIEW_THREADS.md` contain these sources; archive IDs were checked against the current 192 top-level comments and all 192 were present. Do not add 53 reviews to the issue-comment count or confuse the 63 inline comments with thread count.
 
 **Current PR #8 changed-file inventory: 275 paths** returned by GitHub's paginated changed-filename endpoint. This supersedes the earlier informal 266-file figure for the current PR snapshot. The 541-entry legacy coverage matrix is still the distinct historical PR #6 inventory. These are three different counts and must not be conflated:
 1. PR #6 legacy coverage matrix: 541 entries.
@@ -462,7 +462,7 @@ The 276-path inventory is not proof of review. The earlier 266 figure refers to 
 
 **Status: BRANCH INVENTORY CAPTURED — FULL HISTORY AND DIFF REVIEW OPEN.** The repository has 12 branches at capture, including legacy Aperture/Orbit/Atlas, WIP Health, Genesis review branches, Stage 2, Stage 3 prep and Stage 4–6. Full branch heads, comparisons, audit leads and Claude actions are in `docs/genesis/BRANCH_HISTORY_RECONCILIATION.md`.
 
-**Critical discrepancy:** PR #8's actual head is `genesis-stage2-foundation` at `4269f6340af1d5c75ca132cab33500fd130db945`; `genesis-stage4-6` is a separate divergent branch. Compare at capture: Stage 4–6 is 8 commits ahead / 82 behind the PR #8 branch, with 61 changed paths. It contains substantive new application/Core modules and tests for backup, storage, migration, Finance/Health records, action gateway, orchestration, browser automation, device sync, updater/signing and LaunchAgent. PR #8 body nevertheless says Stages 4–8 are on its branch. This branch/PR description inconsistency must be resolved explicitly; no silent merge or acceptance.
+**Critical discrepancy:** PR #8's actual head is `genesis-stage2-foundation` at `4269f6340af1d5c75ca132cab33500fd130db945`; `genesis-stage4-6` is a separate divergent branch. Compare at capture: Stage 4–6 is 8 commits ahead / 94 behind the PR #8 branch, with 61 changed paths. It contains substantive new application/Core modules and tests for backup, storage, migration, Finance/Health records, action gateway, orchestration, browser automation, device sync, updater/signing and LaunchAgent. PR #8 body nevertheless says Stages 4–8 are on its branch. This branch/PR description inconsistency must be resolved explicitly; no silent merge or acceptance.
 
 Other comparisons show separate Stage 3 prep and LLD branches with unique commits/docs. The legacy Aperture/Orbit/WIP branches contain additional design and audit signals (local-only/cloud gating, ingestion and indexing, Health freshness, undo/consent, exact-money handling, encryption migration, answer truncation, UI regressions, performance and deployment assumptions). These must be reconciled with existing historical records; commit subjects are leads, not proof of current behaviour.
 
@@ -488,3 +488,19 @@ Other comparisons show separate Stage 3 prep and LLD branches with unique commit
 
 The live paginated PR filename endpoint now returns **278 changed paths**. The previously recorded 276/277 counts are historical snapshots, not the current inventory. The earlier “266 files” count remains a separate historical scope and has not yet been reconciled path-by-path. This targeted revalidation covers the five finding clusters above only; it does not establish a completed path-by-path audit.
 
+
+
+## HIST-091 — Branch commit pagination exhausted; unique commit review remains open (2026-11-23)
+
+**Status: PAGINATION COMPLETE — CONTENT REVIEW NOT COMPLETE.** GitHub's commits endpoint was paginated to exhaustion for all 12 branch heads returned by the repository branch endpoint. The snapshot yielded 6,897 branch-reachable commit entries (shared ancestry is duplicated): aperture 210; aperture-hardening 189; atlas 660; atlas-low-level-design-review 761; dependabot checkout 204; dependabot setup-node 210; genesis-architecture 761; genesis-stage2-foundation 1,085; genesis-stage3-prep 855; genesis-stage4-6 997; orbit 357; wip/health-freshness 608.
+
+This is not 6,897 unique commits read. The commit subjects for selected recent ranges have been sampled as audit leads; the full commit messages, unique-SHA deduplication, commit diffs and unmerged branch contents have not been comprehensively reviewed. See `docs/genesis/BRANCH_HISTORY_RECONCILIATION.md`.
+
+Latest PR #8 recheck after archive updates:
+- Head branch `genesis-stage2-foundation`, head SHA `ec8d760bb6d16e40de932e5270e712386042545f`; base `atlas` at `7a3b4479bcbb27fb2bab570759ad14851c78e945`.
+- 278 changed paths.
+- 197 top-level issue comments; all 197 IDs were matched to `HISTORICAL_PR8_CONVERSATION.md`.
+- 53 submitted reviews.
+- 58 inline threads / 63 inline comments: 21 resolved, 37 unresolved.
+
+Do not state that all code or all commit history has been audited merely because pagination was exhausted. Full unique commit/diff and current-scope source review remain outstanding.
