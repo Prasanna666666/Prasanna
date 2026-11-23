@@ -109,6 +109,8 @@ final class AppModel: ObservableObject {
     @Published var finance: LoadState<FinanceView> = .idle
     @Published var healthServed = false
     @Published var health: LoadState<HealthView> = .idle
+    @Published var voiceState: VoiceState = .idle
+    private(set) lazy var voice: VoiceSession = VoiceSession(input: SystemSpeech(), draft: { [unowned self] in self.question }, setDraft: { [unowned self] in self.question = $0 })
     @Published var connectionsServed = false
     @Published var connections: LoadState<[ConnectorView]> = .idle
     @Published var connectionMessage: String?
@@ -293,6 +295,12 @@ final class AppModel: ObservableObject {
         guard let client else { return }
         connectionMessage = nil
         do { _ = try await Task.detached { try client.disconnect(connector: id) }.value; await loadConnections() } catch { connectionMessage = (error as? AtlasError)?.message }
+    }
+
+    /// Dictation into the composer. The session owns the state and reports each change, which is published here so the button and the message follow along.
+    func toggleVoice() {
+        voice.onChange = { [weak self] state in self?.voiceState = state }
+        voice.toggle()
     }
 
     func runReview() async {

@@ -159,6 +159,11 @@ struct Composer: View {
                         Task { await model.ask() }
                         return .handled
                     }
+                if model.voice.availability.isAvailable {
+                    Button { model.toggleVoice() } label: { Image(systemName: model.voiceState.isListening ? "mic.fill" : "mic") }
+                        .accessibilityLabel(model.voiceState.isListening ? "Stop dictating" : "Dictate your question")
+                        .keyboardShortcut("d", modifiers: [.command, .shift])
+                }
                 if model.busy {
                     Button("Stop") { Task { await model.cancel() } }.keyboardShortcut(".", modifiers: .command)
                 } else {
@@ -167,6 +172,7 @@ struct Composer: View {
                         .disabled(model.question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.scope.isEmpty)
                 }
             }
+            if case .failed(let why) = model.voiceState { Text(why).font(TextStyle.caption).foregroundStyle(theme.destructive) }
             Text(model.scopeLine).font(TextStyle.caption).foregroundStyle(theme.textMuted)
         }
         .onAppear { focused = true }

@@ -30,6 +30,8 @@ cat > "$out/Contents/Info.plist" <<'PLIST'
   <key>NSCalendarsFullAccessUsageDescription</key><string>Atlas reads your calendar on this Mac, only while you have it turned on, so it can answer questions about your events. It never leaves your Mac.</string>
   <key>NSContactsUsageDescription</key><string>Atlas reads your contacts on this Mac, only while you have them turned on, so it can answer questions about people. It never leaves your Mac.</string>
   <key>NSPhotoLibraryUsageDescription</key><string>Atlas reads the dates and kinds of your photos on this Mac, never the pictures themselves, only while you have them turned on.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Atlas listens only while you press the microphone button, so you can dictate a question. Speech is turned into text on this Mac and never leaves it.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>Atlas turns your speech into text on this Mac, never on a server, only while you dictate.</string>
   <key>NSAppleEventsUsageDescription</key><string>Atlas reads your Notes on this Mac, only while you have them turned on, so it can answer questions about them. They never leave your Mac.</string>
 </dict></plist>
 PLIST
