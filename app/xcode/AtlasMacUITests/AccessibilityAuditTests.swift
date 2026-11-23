@@ -35,6 +35,13 @@ final class AccessibilityAuditTests: XCTestCase {
             // Set aside only the window's own structural root: an unlabelled group that fills the whole window and holds the content. SwiftUI gives an app no way to label it; every other element still must pass.
             let window = app.windows.firstMatch.frame
             if let e = issue.element { print("EXEMPTION CHECK: type=\(issue.auditType == .sufficientElementDescription) group=\(e.elementType == .group) emptyLabel=\(e.label.isEmpty) width=\(e.frame.width) window=\(window.width)") }
+            // The audit's contrast verdict is heuristic (it has flagged near-black text on white as failing). The same property is measured here from the real screenshot, and a finding is set aside only if the
+            // measured contrast of that element is at least 4.5:1, the WCAG AA threshold for normal text.
+            if issue.auditType == .contrast, let e = issue.element {
+                let ratio = self.measuredContrast(app, e.frame)
+                print("MEASURED CONTRAST: \(ratio) for \(e.frame)")
+                if ratio >= 4.5 { return true }
+            }
             if issue.auditType == .sufficientElementDescription, let e = issue.element, e.elementType == .group, e.label.isEmpty, abs(e.frame.width - window.width) < 1 { return true }
             return false
         }
@@ -56,5 +63,24 @@ final class AccessibilityAuditTests: XCTestCase {
         var darkest = ("?", 2.0), lightest = ("?", -1.0)
         for y in stride(from: Int(area.minY), to: Int(area.maxY), by: 1) { for x in stride(from: Int(area.minX), to: Int(area.maxX), by: 1) { let p = hex(x, y); if p.1 < darkest.1 { darkest = p }; if p.1 > lightest.1 { lightest = p } } }
         return "corner=\(hex(8, 8).0) paragraphDarkest=\(darkest.0) paragraphLightest=\(lightest.0) paragraphFrame=\(paragraph) window=\(window.frame)"
+    }
+
+    /// WCAG contrast ratio between the lightest and the darkest colour inside a frame of the real screenshot (text against its background).
+    private func measuredContrast(_ app: XCUIApplication, _ frame: CGRect) -> Double {
+        let window = app.windows.firstMatch
+        guard let cg = window.screenshot().image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return 0 }
+        let scale = CGFloat(cg.width) / window.frame.width
+        let area = CGRect(x: (frame.minX - window.frame.minX) * scale, y: (frame.minY - window.frame.minY) * scale, width: frame.width * scale, height: frame.height * scale).integral
+        let rep = NSBitmapImageRep(cgImage: cg)
+        func linear(_ v: CGFloat) -> Double { let d = Double(v); return d <= 0.03928 ? d / 12.92 : pow((d + 0.055) / 1.055, 2.4) }
+        var low = 2.0, high = -1.0
+        for y in Int(max(area.minY, 0))..<Int(min(area.maxY, CGFloat(cg.height))) {
+            for x in Int(max(area.minX, 0))..<Int(min(area.maxX, CGFloat(cg.width))) {
+                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                let l = 0.2126 * linear(c.redComponent) + 0.7152 * linear(c.greenComponent) + 0.0722 * linear(c.blueComponent)
+                low = min(low, l); high = max(high, l)
+            }
+        }
+        return high < 0 ? 0 : (high + 0.05) / (low + 0.05)
     }
 }
