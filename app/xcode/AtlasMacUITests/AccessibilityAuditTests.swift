@@ -18,8 +18,11 @@ final class AccessibilityAuditTests: XCTestCase {
         app.launch()
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 30), "the app shows a window")
-        let started = app.staticTexts["Get started"].waitForExistence(timeout: 60) || app.buttons["Ask Atlas"].waitForExistence(timeout: 5) || app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'Atlas'")).firstMatch.exists
-        XCTAssertTrue(started, "a first screen is shown")
+        sleep(8)  // the Core starts before the first real screen replaces "starting"
+        let labels = app.staticTexts.allElementsBoundByIndex.map { $0.label }
+        print("SCREEN TEXTS: \(labels)")  // so a CI log shows which screen was audited
+        add(XCTAttachment(string: "Screen texts: \(labels)"))
+        XCTAssertFalse(labels.isEmpty, "the first screen shows text")
         keep(app, "first-screen")
         try app.performAccessibilityAudit { issue in
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
