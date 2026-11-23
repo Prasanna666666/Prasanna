@@ -68,6 +68,8 @@ LAYER = {
     "launcher": 9,
     "macos": 4,
     "macos_sources": 4,
+    "browser_engine": 1,
+    "browser_worker": 2,
 }
 SOURCE_TYPE_NAMES = {"documents", "mail", "mail_attachment", "finance", "health"}
 

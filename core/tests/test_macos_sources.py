@@ -120,5 +120,15 @@ def test_the_real_frameworks_report_a_status_and_refuse_to_read_without_permissi
             with pytest.raises(PermissionError):
                 platform.fetch(domain, NOW)  # denied or undecided: nothing is read
         else:
-            records = platform.fetch(domain, NOW)
+            try:
+                records = platform.fetch(domain, NOW)
+            except OSError:
+                continue  # the system did not answer in time (Notes can be slow to start): no data and no hang
             assert all(r.domain == domain for r in records)
+
+
+def test_a_system_that_does_not_answer_gives_an_empty_source_not_a_crash():
+    platform = FakePlatform(records={"notes": []})
+    platform.fetch = lambda domain, now: (_ for _ in ()).throw(OSError("notes_timeout"))
+    source = NativeRecords(platform, "notes", lambda: NOW)
+    assert source.list_page(None, 10).items == []

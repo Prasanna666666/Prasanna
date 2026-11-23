@@ -23,6 +23,7 @@ DOMAINS = ("calendar", "contacts", "notes", "photos")
 MAX_RECORDS = 5000
 EVENT_WINDOW = (timedelta(days=90), timedelta(days=365))  # how far back and forward calendar events are read
 OSASCRIPT_TIMEOUT = 60
+NOTES_PROBE_TIMEOUT = 20
 PHOTOS_VIDEO = 2  # PHAssetMediaTypeVideo
 
 
@@ -69,7 +70,7 @@ class NativeRecords(InMemoryMailbox):
     def _refresh(self) -> None:
         try:
             records = self._platform.fetch(self.domain, self._clock())
-        except PermissionError:
+        except (PermissionError, OSError):  # denied, or the system did not answer: an empty source, never a crash or a partial read
             records = []
         self.messages = {}
         for record in records[:MAX_RECORDS]:
@@ -139,8 +140,11 @@ class ObjcPlatform:
             self._script("Application('Notes').name()")  # the first scripted call shows the system's Automation prompt
 
     # notes (no framework exists: the system's scripting interface, under the Automation permission) -----------------------------------------------
-    def _script(self, source: str) -> str:
-        done = self._run(["osascript", "-l", "JavaScript", "-e", source], capture_output=True, text=True, timeout=OSASCRIPT_TIMEOUT, check=False)
+    def _script(self, source: str, timeout: float = OSASCRIPT_TIMEOUT) -> str:
+        try:
+            done = self._run(["osascript", "-l", "JavaScript", "-e", source], capture_output=True, text=True, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired:
+            raise OSError("notes_timeout") from None  # Notes did not answer in time (it may be starting, or waiting on a prompt): no data, never a hang
         if done.returncode != 0:
             raise PermissionError("notes_not_permitted") if "-1743" in (done.stderr or "") else OSError("notes_failed")
         return str(done.stdout)
@@ -150,7 +154,7 @@ class ObjcPlatform:
         if self._notes_probe is not None and now - self._notes_probe[0] < timedelta(minutes=5):
             return self._notes_probe[1]  # a probe can launch the Notes app: asked at most every few minutes
         try:
-            self._script("Application('Notes').name()")
+            self._script("Application('Notes').name()", NOTES_PROBE_TIMEOUT)
             state = GRANTED
         except PermissionError:
             state = MISSING

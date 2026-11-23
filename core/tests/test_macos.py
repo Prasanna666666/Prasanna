@@ -249,6 +249,13 @@ def signed_manifest(models: Path, pub: Path) -> None:
     pub.write_bytes(key.public_key().public_bytes_raw())
 
 
+def _folders(permissions):
+    """The folder provider under whatever wrappers the host put on (the native sources' provider, the own-store provider)."""
+    while not isinstance(permissions, FolderPermissions):
+        permissions = permissions._inner
+    return permissions
+
+
 def test_the_host_builds_a_config_from_the_keychain_folders_and_an_installed_signed_manifest(tmp_path):
     docs, mail = tmp_path / "Documents", tmp_path / "Mail"
     docs.mkdir()
@@ -268,7 +275,7 @@ def test_the_host_builds_a_config_from_the_keychain_folders_and_an_installed_sig
     )  # no sender, no eraser, and restricted domains wait for a restore drill
     assert isinstance(config.anchor, KeychainAnchor) and config.bootstrap_code == "boot-code-0123456789abc"
     assert [e.model_id for e in config.manifest.entries()] == ["primary-1"] and config.documents == ("documents", docs) and config.mailbox[0] == "mail"
-    assert isinstance(config.mailbox[1], EmlxMailbox) and isinstance(config.os_permissions._inner, FolderPermissions)
+    assert isinstance(config.mailbox[1], EmlxMailbox) and isinstance(_folders(config.os_permissions), FolderPermissions)
     again = build_config(tmp_path / "data", tmp_path / "s", None, HostOptions(), HostEnv("darwin", sec, "owner", runtime=object()))
     assert again.task_key == config.task_key  # the same Keychain items on the next start
 

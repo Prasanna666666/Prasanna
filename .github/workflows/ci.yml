@@ -122,6 +122,8 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src
+      - name: Install the browser the engine drives (Playwright Chromium)
+        run: python -m playwright install --with-deps chromium
       - name: Tests (log and JUnit report saved for the artefact scan)
         run: |
           mkdir -p ../artefacts
@@ -147,6 +149,8 @@ jobs:
           export LDFLAGS="-L$prefix/lib"
           pip install sqlcipher3
       - run: pip install -e kit -e "core[dev,macos]"  # the real Calendar, Contacts and Photos frameworks
+      - name: Install the browser the engine drives (Playwright Chromium)
+        run: python -m playwright install chromium
       - name: Swift app builds and its tests pass (including the real Swift launcher and client against the real Core)
         working-directory: app
         run: |
