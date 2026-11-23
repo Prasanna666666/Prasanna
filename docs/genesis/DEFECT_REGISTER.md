@@ -424,3 +424,24 @@ Important records include:
 - Proposed latency targets and other assistant-authored proposals are not owner-approved acceptance criteria unless confirmed in PR history.
 
 **Limit:** Personal-context retrieval returned selected prior records, not a complete transcript export. Do not claim all historical ChatGPT conversations have been recovered. Continue reconciliation against PR #6–#10 archives, current Genesis documents, repository branches/commits and any additional available prior context. Preserve source/date and distinguish owner decisions from assistant proposals and Claude claims.
+
+
+## HIST-089 — Complete repository PR inventory and current-scope correction (2026-11-23)
+
+**Status: INVENTORY RECOVERED — ITEM-BY-ITEM AUDIT STILL OPEN.**
+
+A repository-wide PR search found **10 pull requests**, not only Atlas/Genesis PRs #6–#10:
+
+- PRs #1–#5 are Dependabot workflow-update PRs (setup-python, gitleaks-action, checkout, upload-artifact, setup-node). All five are closed and unmerged; each changes only `.github/workflows/ci.yml`. Their comments and dispositions are preserved in `docs/genesis/DEPENDABOT_PR1-5_ARCHIVE.md`. They are CI/supply-chain maintenance history and must be checked against the current workflow, but are not automatically Atlas feature defects.
+- PRs #6–#10 are the Atlas/Genesis audit, architecture, foundation, LLD and Stage 3 preparation records archived in the existing files listed under HIST-087.
+
+**PR #8 current discussion counts (rechecked 2026-11-23):** 192 top-level issue comments, 53 submitted reviews, 58 inline review threads, and 63 inline comments. Of the 58 inline threads, 21 are resolved and 37 unresolved at the time of capture. The archive files `HISTORICAL_PR8_CONVERSATION.md` and `HISTORICAL_PR8_REVIEW_THREADS.md` contain these sources; archive IDs were checked against the current 192 top-level comments and all 192 were present. Do not add 53 reviews to the issue-comment count or confuse the 63 inline comments with thread count.
+
+**Current PR #8 changed-file inventory: 275 paths** returned by GitHub's paginated changed-filename endpoint. This supersedes the earlier informal 266-file figure for the current PR snapshot. The 541-entry legacy coverage matrix is still the distinct historical PR #6 inventory. These are three different counts and must not be conflated:
+1. PR #6 legacy coverage matrix: 541 entries.
+2. Previously referenced current review scope: 266 files (historical count, exact snapshot must be identified).
+3. Current PR #8 changed-file list: 275 paths (rechecked 2026-11-23; includes newly added documentation/archive paths).
+
+Claude must establish the exact base/head SHA for each inventory and classify all 275 paths. Separate application source, tests, docs, generated/source archives, build/workflow/configuration, and assets. Preserve the original 266-scope list if it exists; do not silently replace it with 275 or assume the nine-path delta is only documentation without a path-level diff.
+
+**PR inventory limitation:** the search endpoint returned PRs #1–#10; this is the complete returned result set for this repository at capture time, not proof that no branches, tags, commits, discussions, Actions runs, security alerts, or other repository artifacts contain additional evidence. Continue inspecting those sources.
