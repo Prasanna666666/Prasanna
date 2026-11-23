@@ -32,7 +32,7 @@ The live GitHub API reports all 53 review submissions and all 63 inline comments
 - PR: #8, open and draft; unmerged.
 - Branch: `genesis-stage2-foundation`.
 - Head observed: `4269f6340af1d5c75ca132cab33500fd130db945`.
-- Changed paths returned by the paginated PR filename endpoint: **276**.
+- Changed paths returned by the paginated PR filename endpoint before this report was added: **276**. After adding this report, the README index and HIST-090, the current PR count is **277**.
 - Submitted review records: **53**; all have state `COMMENTED`; 48 have non-empty review bodies and 5 are empty.
 - Inline review threads: **58**; **21 resolved**, **37 unresolved**.
 - Inline comments: **63**.
@@ -71,7 +71,7 @@ Other paths have historical threads that are now marked resolved. Their original
 4. Keep the 11 unresolved `STAGE3_ACCEPTANCE.md` threads open in the acceptance ledger until the evidence and wording are reconciled. Documentation cannot turn owner-only gates into completed engineering evidence.
 5. Preserve all 63 inline comment IDs and all 58 thread IDs. Do not merge duplicates without explicit cross-links.
 
-### B. Full 276-path inventory
+### B. Full 277-path inventory
 The 276 paths are an inventory, not reviewed coverage. Create a path-by-path ledger with at least:
 - path and file type;
 - lines/units reviewed (or explicitly not reviewed);
@@ -97,7 +97,7 @@ The current PR description and Stage 3 acceptance records explicitly retain owne
 
 ## Coverage statement
 
-As of the observed head, **0 of 276 paths have been established by this reconciliation as fully line-by-line reviewed**. This is not a claim that no earlier reviews inspected code; it means the current exact-head, path-by-path ledger has not yet been produced. The 37 unresolved threads and the inventory reconciliation remain open. No complete 266/276-file audit, all-functions review, or full functional test execution is claimed.
+As of the observed head, **0 of 277 paths have been established by this reconciliation as fully line-by-line reviewed**. This is not a claim that no earlier reviews inspected code; it means the current exact-head, path-by-path ledger has not yet been produced. The 37 unresolved threads and the inventory reconciliation remain open. No complete 266/276-file audit, all-functions review, or full functional test execution is claimed.
 
 ## Next handoff to Claude
 
