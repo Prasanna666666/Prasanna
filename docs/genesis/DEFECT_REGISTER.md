@@ -201,3 +201,38 @@ All **37 currently unresolved** threads are indexed below. This is a pointer/ind
 | `PRRT_kwDOBqaHsM66nZ_6` | `core/docs/STAGE3_ACCEPTANCE.md` | 19 | Outdated — re-anchor | Criterion 13 remains PENDING-M. Hosted CI packaging/launch/Core lifecycle is valuable, but it does not demonstrate a human owner walkthrough, accessibility, real TCC prompts, real  |
 | `PRRT_kwDOBqaHsM66oTDU` | `app/Sources/AtlasKit/CoreLauncher.swift` | 98 | Current anchor | **P1 — Do not unlink a socket unless it has been proven stale.** This executes even when the PID file is absent/invalid or the process identity check fails. A still-live Core can t |
 
+
+
+## Current-head revalidation and design findings
+
+**Revalidation target:** PR #8 head observed during this review: `d9dcb0b2f87ec6904165ac238ff4fff66154a0b9`. The exact-head CI run `45259305300` was **QUEUED** when checked; therefore the fixes below are source/test-inspected but not yet exact-head CI-verified. A new register commit will itself move the head and require a fresh CI run.
+
+### UI/UX and LLD gaps
+
+| ID | Severity | Category | Current status | Location / requirement / required disposition |
+|---|---|---|---|---|
+| ATLAS-UX-021 | P1 | Action safety / UX | OPEN | `core/docs/UI_IMPLEMENTATION_MAP.md`: approval sheet exists but no app flow proposes an action, so an owner cannot reach it. Wire only typed, payload-bound Action Gateway proposals and demonstrate preview, approval, expiry, execution receipt and verification end-to-end. No generic browser side effects. |
+| ATLAS-UX-022 | P2 | Conversation durability | OPEN | UI spec §4.2 requires accessible conversation history; implementation map says there is no conversation list/history across restarts. Add durable conversation/session state or explicitly defer with owner approval and correct UI claims. |
+| ATLAS-UX-023 | P2 | Activity durability | OPEN | UI spec §4.7 expects activity/outcomes; implementation map says activity is in memory and lost on restart. Persist the required activity history or narrow the documented promise. |
+| ATLAS-UX-024 | P2 | Notification controls | OPEN | UI spec §4.7/§4.9 requires notification categories and quiet behaviour; current Settings has one switch only. Implement controls or explicitly defer and keep unsupported controls absent. |
+| ATLAS-UX-025 | P2 | Evidence navigation | OPEN | UI spec §4.4 requires source inspection; implementation map says “open in source” is unavailable because Core has no such action. Add a safe, permission-rechecked source-opening contract or explicitly defer. |
+| ATLAS-UX-026 | P2 | Shared UI components | OPEN | UI spec §3/§5 calls for global search/command entry, toast and inline help; implementation map records missing global search/command field, toast and inline help. Reconcile spec and implementation; do not imply available UI. |
+| ATLAS-UX-027 | P1 | Accessibility | BLOCKED — OWNER WALKTHROUGH | UI spec §7/§12 requires keyboard, VoiceOver, Dynamic Type and Reduce Motion. Unit/contrast tests are not a manual real-app accessibility audit. Complete a real Mac walkthrough and record evidence. |
+| ATLAS-UX-028 | P1 | Visual acceptance | BLOCKED — OWNER + ARCHITECT | UI spec §12/§13 requires real running app review, screenshots and explicit owner visual acceptance. No person has run through the UI; CI launch is not visual acceptance. |
+| ATLAS-UX-029 | P2 | Backup UX | OPEN / SCOPE DECISION | UI spec §4.9 expects understandable backup/restore controls; current backup/verify/restore exists only through CLI maintenance. Either implement safe in-app controls or document an owner-approved deferral. |
+| ATLAS-DES-020 | P2 | Design-policy contradiction | OPEN | `docs/genesis/LOW_LEVEL_DESIGN.md` §11.5 Tier 2 requires approval for calendar changes and file deletion more broadly than owner-approved PRD §4.4. Reconcile to the closed approval list: external communication, spending/purchases/paid bookings, deletion/overwrite only without reliable undo or destructive migration, and physical-access/safety unlocking. Add a policy matrix traceable to tests. |
+| ATLAS-DOC-019 | P2 | Evidence taxonomy / claim precision | OPEN — RECONCILE | `core/docs/STAGE3_ACCEPTANCE.md`: legend must define L, M and hosted macOS runner class R consistently. Distinguish separate `TaskService.research()`/API research operation from an answer-flow integrated tool: tests state the research result is untrusted and does not change the task answer. Align PR body, acceptance matrix and implementation. |
+
+### Stage 3 acceptance gates that remain open
+
+The current acceptance document itself records:
+- Criterion 4: real-model prompt-injection resistance is deferred and not met.
+- Criterion 11: macOS sandbox is allow-by-default, not least privilege; owner model/Mac verification and real-Internet egress exercise remain outstanding; public search remains disabled pending owner decision.
+- Criterion 12: target-Mac/real-model latency, memory, thermal and quality results against accepted thresholds do not exist.
+- Criterion 13: hosted CI app build/launch is evidenced, but no human UI walkthrough, real TCC prompts, real Mail store, Developer ID signing/notarisation or self-contained Python/model install; app is not owner-tryable.
+- Mail attachment parsing is deliberately not built; messages with a non-text first part remain unreadable under the strict no-attachment-byte-read rule.
+
+### Stage 4–8 review boundary
+
+`core/docs/STAGES_4_TO_8.md` explicitly says the work is not architect-reviewed or accepted, and lists outstanding architecture review, owner decisions G-O02/G-O05/G-O14 and deferred-final owner hardware/account evidence. It also says browser worker is not OS-confined and web reading is OFF in production; automation orchestrator/browser workflows/watchers are not yet wired to Core routes. Do not equate tests of libraries/fakes with complete agentic workflows.
+
