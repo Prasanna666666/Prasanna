@@ -25,6 +25,7 @@ from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, Mode
 from .health_calc import HEALTH_DOMAIN, summarise
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .records import Record
+from .review import run_review
 from .rules import load_rules
 from .tasks import STEPS, TERMINAL, TaskStore
 from .values import LanguageIn
@@ -575,6 +576,10 @@ class TaskService:
         if not records:
             return {"state": "empty", "reading_count": 0, "measures": [], "computed_by_code": True}
         return {"state": "ready", "reading_count": len(records), "measures": summarise(records)[:50], "computed_by_code": True}
+
+    def review(self, attention: Callable[[], dict[str, Any]] | None) -> dict[str, Any]:
+        """The owner's review (API 1.1): the orchestrator over fixed code agents for calendar, finance and health. Each area answers only under its own grant and says plainly when it is off, empty or not offered."""
+        return run_review(self.finance_summary, self.health_summary, attention)
 
     @staticmethod
     def compute(kind: str, args: list[str]) -> dict[str, Any]:

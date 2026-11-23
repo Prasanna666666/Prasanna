@@ -347,3 +347,25 @@ def test_a_health_basis_must_be_measured_or_estimated_and_an_empty_source_says_s
         assert world.client().health_summary()["state"] == "empty"
     finally:
         world.close()
+
+
+def test_the_review_runs_the_orchestrator_over_code_agents_and_each_area_answers_only_under_its_own_grant(tmp_path):
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    world.sources["finance"] = InMemoryRecords("finance", FINANCE)
+    world.sources["health"] = InMemoryRecords("health", [_reading("w1", "2026-10-01", "weight", "70.0", "kg", "measured")])
+    try:
+        core = started(world)
+        owner = world.client()
+        off = owner.review()
+        assert off["status"] == "completed" and off["computed_by_code"] is True
+        assert [(s["area"], s["state"]) for s in off["sections"]] == [("calendar", "unavailable"), ("finance", "denied"), ("health", "denied")]
+        assert world.sources["finance"].reads == 0 and world.sources["health"].reads == 0  # an area that is off was never read
+        world.enable(core, "finance")
+        mixed = owner.review()
+        by_area = {s["area"]: s for s in mixed["sections"]}
+        assert by_area["finance"]["state"] == "ready" and "412.60" in by_area["finance"]["summary"] and "by code" in by_area["finance"]["summary"]
+        assert by_area["health"]["state"] == "denied" and world.sources["health"].reads == 0  # Finance's grant does not open Health
+        assert [t["state"] for t in mixed["tasks"]] == ["completed"] * 4
+    finally:
+        world.close()

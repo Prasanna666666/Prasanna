@@ -153,6 +153,10 @@ class AtlasClient:
         """Health readings summarised by code under a current Health grant (API 1.1; owner client only)."""
         return self._json("GET", "/v1/health/summary")
 
+    def review(self) -> dict[str, Any]:
+        """The owner's review: calendar, finance and health, each answering only under its own grant (API 1.1; owner client only)."""
+        return self._json("GET", "/v1/review")
+
     def update_status(self) -> dict[str, Any]:
         """The installed app version and whether a rollback is possible (API 1.1; owner client only; absent unless the Core manages its own install)."""
         return self._json("GET", "/v1/app/updates")

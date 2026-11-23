@@ -36,6 +36,11 @@ public enum LoadState<Value> {
         }
     }
 
+    public var isIdle: Bool {
+        if case .idle = self { return true }
+        return false
+    }
+
     public var hasContent: Bool {
         switch self {
         case .loaded, .partial: return true

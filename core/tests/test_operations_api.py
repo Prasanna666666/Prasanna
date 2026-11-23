@@ -287,3 +287,18 @@ def test_a_core_that_does_not_manage_its_own_install_has_no_update_routes(world)
     with pytest.raises(atlas_client.ClientError) as e:
         world.client().update_status()
     assert e.value.code == "not_found"
+
+
+def test_the_review_reports_overlapping_calendar_events_from_the_owners_own_calendar(world):
+    owner = world.client()
+    assert owner.review()["sections"][0] == {"area": "calendar", "state": "ready", "summary": "No events overlap."}
+    for rid, title, start, end in (
+        ("e1", "Dentist", "2026-12-01T09:00:00+00:00", "2026-12-01T10:00:00+00:00"),
+        ("e2", "Team call", "2026-12-01T09:30:00+00:00", "2026-12-01T10:30:00+00:00"),
+    ):
+        owner.act("calendar.create", {"id": rid, "date": start, "title": title, "fields": {"starts": start, "ends": end}})
+    calendar = owner.review()["sections"][0]
+    assert calendar["state"] == "ready" and calendar["summary"].startswith("1 event pair overlaps: ") and "Dentist" in calendar["summary"]
+    with pytest.raises(atlas_client.ClientError) as e:
+        world.device().review()  # owner client only
+    assert e.value.code == "forbidden"

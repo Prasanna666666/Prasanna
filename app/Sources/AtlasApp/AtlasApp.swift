@@ -109,6 +109,7 @@ final class AppModel: ObservableObject {
     @Published var finance: LoadState<FinanceView> = .idle
     @Published var healthServed = false
     @Published var health: LoadState<HealthView> = .idle
+    @Published var review: LoadState<ReviewView> = .idle
     @Published var updates: LoadState<UpdateView> = .idle
     @Published var updateMessage: String?
     @Published var offeredSources: [String] = []
@@ -249,6 +250,15 @@ final class AppModel: ObservableObject {
             healthServed = false
             health = .unavailable(.notAvailableYet)
         } catch { health = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    func runReview() async {
+        guard let client else { return }
+        review = .loading
+        do {
+            review = ReviewOutcome.from(try await Task.detached { try client.review() }.value)
+        } catch AtlasError.core(let code) where code == "not_found" { review = .unavailable(.notAvailableYet)
+        } catch { review = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
     }
 
     func loadUpdates() async {

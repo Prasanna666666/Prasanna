@@ -47,6 +47,7 @@ LAYER = {
     "actions": 1,
     "record_actions": 5,
     "orchestrator": 5,
+    "review": 5,
     "browser": 5,
     "watchers": 1,
     "updater": 1,

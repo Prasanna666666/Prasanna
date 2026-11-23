@@ -18,6 +18,7 @@ struct HomeView: View {
                 PageHeader(title: Greeting.text(hour: Calendar.current.component(.hour, from: Date())), subtitle: model.scopeLine)
                 Button { model.select(.ask) } label: { Label("Ask Atlas", systemImage: "bubble.left.and.text.bubble.right").frame(maxWidth: .infinity, minHeight: Metrics.minimumHit) }
                     .buttonStyle(.borderedProminent).tint(theme.accent).controlSize(.large)
+                reviewCard(theme)
                 if attention.isEmpty && recent.isEmpty && updates.isEmpty {
                     StateNotice(text: model.scope.isEmpty
                         ? "Atlas reads nothing until you choose it. Turn on a source in Settings, then ask a question to begin."
@@ -36,6 +37,32 @@ struct HomeView: View {
             .padding(Space.xl).readingColumn()
         }
         .task { await model.loadAttention() }
+    }
+
+    @ViewBuilder private func reviewCard(_ theme: Theme) -> some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack {
+                Text("Your review").font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button(model.review.isIdle ? "Run review" : "Run again") { Task { await model.runReview() } }
+            }
+            switch model.review {
+            case .idle: Text("A quick look at your calendar, finance and health, worked out on this Mac.").font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+            case .loading: StateNotice(text: "Reviewing.", style: .loading)
+            case .loaded(let view), .partial(let view, _):
+                ForEach(view.sections) { section in
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        Text(section.title).font(TextStyle.body).foregroundStyle(theme.textPrimary)
+                        Text(section.summary).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                        if section.needsAction, section.id != "calendar" { Button("Turn on \(section.title)") { Task { await model.enable(sourceType: section.id); await model.runReview() } } }
+                    }.accessibilityElement(children: .combine)
+                }
+                if let note = view.note { Text(note).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+            case .unavailable(let reason): StateNotice(text: reason.message, style: .warning)
+            case .failed(let text): StateNotice(text: text, style: .problem)
+            case .empty, .denied: EmptyView()
+            }
+        }
     }
 
     @ViewBuilder private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {

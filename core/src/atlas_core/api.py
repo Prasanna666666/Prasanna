@@ -42,6 +42,7 @@ RESEARCH = re.compile(r"^/v1/tasks/([A-Za-z0-9_-]{8,64})/research$")  # API 1.1 
 ENROL = "/v1/enrol"  # API 1.1 only
 LIBRARY_SEARCH = "/v1/library/search"  # API 1.1 only, an enrolled client
 RECORDS = re.compile(r"^/v1/records/([a-z]{3,16})$")  # API 1.1 only, an enrolled OWNER client
+REVIEW = "/v1/review"  # API 1.1 only, an enrolled OWNER client only
 HEALTH_SUMMARY = "/v1/health/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Health source
 FINANCE_SUMMARY = "/v1/finance/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Finance source
 ATTENTION = "/v1/attention"  # API 1.1 only, an enrolled OWNER client, and only when the Core has the owner's edits store
@@ -149,6 +150,7 @@ class CoreApi:
             ATTENTION: lambda: self._attention(request, client),
             FINANCE_SUMMARY: lambda: self._finance(request, client),
             HEALTH_SUMMARY: lambda: self._health(request, client),
+            REVIEW: lambda: self._review(request, client),
         }
         handlers.update({p: lambda: self._ops_route(request, path, client) for p in OPS_PATHS})
         handlers.update({p: lambda: self._device_route(request, path, client) for p in DEVICE_PATHS})
@@ -323,6 +325,13 @@ class CoreApi:
         if not self._registry.is_owner(client):
             raise CoreError("forbidden")
         return self._reply(200, self._service.health_summary(), "HealthSummary", "1.1")
+
+    def _review(self, request: Request, client: str) -> Response:
+        if request.method != "GET":
+            raise CoreError("invalid_request")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        return self._reply(200, self._service.review(None if self._ops is None else self._ops.attention), "ReviewResult", "1.1")
 
     def _attention(self, request: Request, client: str) -> Response:
         if self._ops is None:

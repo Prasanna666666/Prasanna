@@ -68,6 +68,9 @@ public final class CoreClient {
     /// Spending by month and category, computed by the Core from the owner's Finance records (only under a Finance grant).
     public func financeSummary() throws -> [String: Any] { try object(call("GET", "/v1/finance/summary")) }
 
+    /// The owner's review of calendar, finance and health, run by the Core's orchestrator over code agents.
+    public func review() throws -> [String: Any] { try object(call("GET", "/v1/review")) }
+
     /// The installed app version and whether a rollback is possible. The Core answers not_found when it does not manage its own install.
     public func updateStatus() throws -> [String: Any] { try object(call("GET", "/v1/app/updates")) }
     /// Install a signed release from a folder the owner chose. A refusal comes back with its reason and changes nothing.

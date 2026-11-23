@@ -2920,6 +2920,103 @@
         }
       },
       "description": "The outcome of installing a signed release or rolling back. A refusal carries its reason and changes nothing; the owner's data is never touched."
+    },
+    "ReviewResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "tasks",
+        "sections",
+        "computed_by_code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "partially_completed",
+            "failed",
+            "cancelled",
+            "expired"
+          ]
+        },
+        "tasks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "task",
+              "state"
+            ],
+            "properties": {
+              "task": {
+                "type": "string",
+                "enum": [
+                  "calendar",
+                  "finance",
+                  "health",
+                  "compose"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "expired",
+                  "skipped"
+                ]
+              }
+            }
+          }
+        },
+        "sections": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "area",
+              "state",
+              "summary"
+            ],
+            "properties": {
+              "area": {
+                "type": "string",
+                "enum": [
+                  "calendar",
+                  "finance",
+                  "health"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "empty",
+                  "denied",
+                  "unavailable"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,400}$"
+              }
+            }
+          }
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "The owner's review: the orchestrator run over fixed code agents (not models) for the calendar, Finance and Health. Each section answers only under its own grant and says when it is off, empty or not offered; every figure is the one the Core computed by code. Owner client only."
     }
   }
 }
