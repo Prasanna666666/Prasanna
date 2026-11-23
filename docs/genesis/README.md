@@ -25,7 +25,9 @@ The existing application, its tests, security controls, data stores and PR revie
 6. [Decision register](DECISIONS.md) — settled owner decisions and open decisions.
 7. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, handshakes, issue resolution, change control and acceptance.
 8. [Handover](HANDOVER.md) — repository pointers, confirmed status and next gate.
-9. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md) — recovered reviewer history, exact PR #8 counts, unresolved threads and the remaining path-by-path audit requirements. This is a coverage/status record, not an audit-completion claim.\n10. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — owner-accepted shared Swift/SwiftUI application boundary; Core language remains open under G-O20.
+9. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md) — recovered reviewer history, exact PR #8 counts, unresolved threads and the remaining path-by-path audit requirements. This is a coverage/status record, not an audit-completion claim.
+10. [Branch-history reconciliation](BRANCH_HISTORY_RECONCILIATION.md) — 12-branch inventory, divergent workstreams and commit-pagination/reconciliation tasks. Not a complete commit-history export.
+11. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md) — owner-accepted shared Swift/SwiftUI application boundary; Core language remains open under G-O20.
 12. [Stage 2 foundation work package](STAGE-2-WORK-PACKAGE.md) — owner-authorised bounded implementation scope, contracts, acceptance criteria and stop conditions.
 13. [Detailed low-level technical design](LOW_LEVEL_DESIGN.md) — consolidated architecture-review baseline; recommendations only, not implementation authority.
 14. [Stage 3 execution plan](STAGE-3-EXECUTION-PLAN.md) — owner-authorised staged implementation plan, work packages, acceptance criteria and stop conditions.
