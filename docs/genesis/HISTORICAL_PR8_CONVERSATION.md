@@ -5560,20 +5560,18 @@ The review coverage count remains 0/278 paths established as fully line-by-line 
 Author: Prasanna666666
 Created: timestamp unavailable
 
-## Latest audit-source count correction — branch pagination and PR #8 head
+## Latest audit-source count correction — snapshot at PR #8 head `f5bf008c4b4381c0e7800c429301a1792eaf6167` (2026-11-23)
 
-Rechecked after the latest archive commits:
+Rechecked at this snapshot:
+- PR #8 head branch: `genesis-stage2-foundation`; base: `atlas` at `7a3b4479bcbb27fb2bab570759ad14851c78e945`.
+- Changed-file endpoint: **278 paths**.
+- Top-level issue comments: **200**, all 200 IDs matched to `HISTORICAL_PR8_CONVERSATION.md`.
+- Submitted reviews: **53**.
+- Inline review threads: **58**, containing **63** comments; **21 resolved**, **37 unresolved**.
+- Repository branches: 12. Commit pagination exhausted for all 12 branch heads, yielding **6,905 branch-reachable commit entries** (shared ancestry duplicated; not a unique count). The current `genesis-stage2-foundation` branch snapshot contained 1,093 entries.
 
-- PR #8 head is now `ec8d760bb6d16e40de932e5270e712386042545f` on `genesis-stage2-foundation`, base `atlas` at `7a3b4479bcbb27fb2bab570759ad14851c78e945`.
-- Current PR #8 changed-file inventory: **278 paths** (not 266 or 275; those were earlier snapshots).
-- PR #8 top-level issue comments: **197**, all 197 IDs matched to `HISTORICAL_PR8_CONVERSATION.md`.
-- 53 submitted reviews; 58 inline threads / 63 inline comments; 21 resolved and 37 unresolved.
+Important distinction: pagination complete does not mean all 6,905 unique commits were read or audited. Full commit-message export, SHA deduplication, diffs and unmerged branch review remain open. The Stage 4–6 branch remains separate and divergent (8 ahead / 104 behind, 61 changed paths). Use exact head SHAs and preserve this snapshot boundary; later documentation commits naturally move the PR head.
 
-I also exhausted commit pagination for all 12 branch heads. The endpoint returned **6,897 branch-reachable commit entries** across those branches (shared ancestry duplicated; not a unique commit count). Counts by branch are recorded in `BRANCH_HISTORY_RECONCILIATION.md` and HIST-091.
-
-Important distinction: pagination complete does not mean 6,897 unique commits were read or audited. Full commit-message extraction, SHA deduplication, diffs and unmerged branch review remain open. The Stage 4–6 branch remains separate and divergent (8 ahead / 94 behind, 61 changed paths). Please use the latest exact SHAs and counts, not earlier snapshots.
-
----
 
 ## Comment 7113684248
 
