@@ -5551,3 +5551,74 @@ The review coverage count remains 0/278 paths established as fully line-by-line 
 
 ---
 
+
+
+# Supplemental PR #8 comments — capture refresh 2026-11-23
+
+## Comment 7113668666
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Latest audit-source count correction — branch pagination and PR #8 head
+
+Rechecked after the latest archive commits:
+
+- PR #8 head is now `ec8d760bb6d16e40de932e5270e712386042545f` on `genesis-stage2-foundation`, base `atlas` at `7a3b4479bcbb27fb2bab570759ad14851c78e945`.
+- Current PR #8 changed-file inventory: **278 paths** (not 266 or 275; those were earlier snapshots).
+- PR #8 top-level issue comments: **197**, all 197 IDs matched to `HISTORICAL_PR8_CONVERSATION.md`.
+- 53 submitted reviews; 58 inline threads / 63 inline comments; 21 resolved and 37 unresolved.
+
+I also exhausted commit pagination for all 12 branch heads. The endpoint returned **6,897 branch-reachable commit entries** across those branches (shared ancestry duplicated; not a unique commit count). Counts by branch are recorded in `BRANCH_HISTORY_RECONCILIATION.md` and HIST-091.
+
+Important distinction: pagination complete does not mean 6,897 unique commits were read or audited. Full commit-message extraction, SHA deduplication, diffs and unmerged branch review remain open. The Stage 4–6 branch remains separate and divergent (8 ahead / 94 behind, 61 changed paths). Please use the latest exact SHAs and counts, not earlier snapshots.
+
+---
+
+## Comment 7113684248
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Continued independent review — no restart
+
+I continued from the existing defect register and prior reviewed areas. The current-head revalidation is recorded in `docs/genesis/DEFECT_REGISTER.md`.
+
+Newly recorded current-source findings:
+- **ATLAS-ACT-019 (P1):** Action Gateway approvals, completed-action receipts, undo state and idempotency cache are in-memory. The audit chain persists, but the restart test only verifies audit continuity; it does not prove retry safety after a side effect and restart. Please design and implement durable/recoverable action state or an explicit safe reconciliation mechanism, with crash-window tests.
+- **O-1:** three-decimal currencies remain unsupported: Finance records require exactly two decimal places and calculations hard-code 100 minor units. Implement currency-aware precision or explicitly constrain/reject unsupported currencies.
+- **ATLAS-TEST-020 (P2):** `core/tests/test_finance_calc.py` contains an always-true `... or True` assertion. Remove the vacuous assertion and preserve a direct expected-value check.
+
+Revalidation of existing findings:
+- **ATLAS-SEC-014:** lower-case 4+ character words and two-word runs are now fingerprinted, but 1–3-character terms and paraphrases remain unprotected; still open.
+- **ATLAS-ACT-015:** current browser workflow/worker exposes only `open`; `fill`/`press` are refused and the Playwright request gate is GET/HEAD only. Source-level fix appears present; test/CI revalidation still required.
+- **ATLAS-SEC-016:** still open. `SAFE_ENV` explicitly passes `HOME` and `PYTHONPATH`, and there is no OS-enforced confinement of the browser/driver process tree. The browser-engine docstring overstates isolation.
+- **ATLAS-SEC-017:** current connector code revokes by default and only enables on `ok`; source-level fix appears present, test/CI revalidation pending.
+- **ATLAS-OPS-018:** current CoreLauncher binds pid to start time, socket and data directory and rechecks before force-kill; corresponding identity tests exist. Source-level fix appears present, test/CI revalidation pending.
+
+Please read the register entries and return exact fixing commits and CI run URLs/results for the pending revalidations. Do not mark any source-level fix verified solely from this review note. This is a continuation of earlier work; preserve all prior defect IDs and findings.
+
+---
+
+## Comment 7113703030
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Additional prior-conversation recovery — owner scope and automation concerns
+
+Focused retrieval found more owner instructions and historical audit leads. They are now in `PRIOR_CONVERSATION_RECOVERY.md` §9 and HIST-092.
+
+Owner requirements:
+- 2026-11-19: “There needs to be only 1 atlas app. Rest all obsolete.” Retire Finance/Documents/Images as separate product identities while preserving their functionality/data in Atlas; no destructive cleanup without review/approval.
+- 2026-11-19: “only personal work” — prior context says Atlas automates the owner's personal work/life, not Atlas's own development. This conflicts/needs reconciliation with G-014's “personal and professional work”; please do not silently broaden the scope.
+- 2026-11-22: “Keep an eye on the automation connectors and agentic ai workflow of the app. I don’t if Claude did a good job.”
+- Owner accepted Atlas-owned automation; OpenClaw is not the foundation/dependency.
+- Mobile chronology is macOS first, iOS only, Android out of scope; secure worldwide access to owner-controlled Mac Core remains gated by threat model/ADR.
+
+Historical assistant audit leads (not current proof): specialist orchestration scaffolded rather than fully wired; retries partial; real connectors incomplete; browser/desktop automation not production-ready; timeout enforcement uncertain; owner action proposals incomplete; end-to-end plan/execute/verify/approve/recover evidence absent. Reproduce each against exact current head; don't rely on prior assistant summaries or Claude status claims.
+
+Please test the entire automation chain end-to-end: discovery, authentication/connection, scope, policy, approval, execution, postcondition verification, receipts/audit, retry/idempotency, undo/compensation, failure recovery and revocation. Preserve the distinction between framework components and a working capability.
+
+---
+
