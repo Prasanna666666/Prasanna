@@ -245,7 +245,7 @@ jobs:
           app=$!
           for i in $(seq 1 60); do [ -S "$support/run/core.sock" ] && break; sleep 1; done
           [ -S "$support/run/core.sock" ] || { echo "the app did not start its Core"; cat /tmp/atlas-app.log; ps aux | grep -i atlas | head; exit 1; }
-          core=$(cat "$support/run/core.pid")
+          core=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['pid'])" "$support/run/core.pid")  # the pid file records the pid, start time, socket and data folder
           echo "app pid $app, core pid $core"
           sleep 4
           screencapture -x /tmp/atlas-launch.png || echo "no screen to capture"
