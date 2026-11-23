@@ -520,6 +520,10 @@ NEW_PATHS = {
     "/v1/attention",
     "/v1/records/{domain}",
     "/v1/finance/summary",
+    "/v1/health/summary",
+    "/v1/app/updates",
+    "/v1/app/updates/install",
+    "/v1/app/updates/rollback",
 }
 OPS = ("get", "post", "put", "patch", "delete")
 

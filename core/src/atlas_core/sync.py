@@ -31,6 +31,9 @@ QUEUE_OPS = frozenset(
         "notes.create",
         "notes.edit",
         "notes.archive",
+        "travel.create",
+        "travel.edit",
+        "travel.archive",
     }
 )
 MAX_OPS = 500
@@ -109,5 +112,5 @@ class CachePolicy:
 
 def cache_policy(authorised_domains: frozenset[str], now: datetime | None = None) -> CachePolicy:
     """What a device may keep: only the owner's own-record domains it is authorised for, for a limited time. Finance and Health are never cached on a device (the Core's rules keep them local)."""
-    allowed = frozenset({"calendar", "contacts", "notes"}) & authorised_domains
+    allowed = frozenset({"calendar", "contacts", "notes", "travel"}) & authorised_domains
     return CachePolicy(allowed, (now or datetime.now(UTC)) + CACHE_TTL)

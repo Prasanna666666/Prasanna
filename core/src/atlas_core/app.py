@@ -30,6 +30,7 @@ from .egress import EgressGateway
 from .events import SafeLog
 from .evidence import StoredSource
 from .finance_calc import MONEY_DOMAIN
+from .health_calc import HEALTH_DOMAIN
 from .identity import BootstrapGate, ClientRegistry
 from .intelligence import Gateway, ModelRuntime, Router, Signals
 from .mail import Mailbox, MailIndex
@@ -45,6 +46,7 @@ from .storage import pressure_of
 from .sync import SyncService
 from .tasks import TaskStore
 from .transport import UnixServer, serve_unix
+from .updater import UpdateOperations
 
 INDEX_SLICE = 20
 RESCAN_SECONDS = 300  # how often a permitted source is listed again to notice changes
@@ -84,6 +86,7 @@ class CoreConfig:
     )
     erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
     disk_usage: Callable[[Path], tuple[int, int, int]] = shutil.disk_usage  # (total, used, free) of the data folder's disk; tests inject a nearly full one
+    updates: UpdateOperations | None = None  # the app's own install, when the Core manages one (the update screen is hidden without it)
     closers: tuple[Callable[[], None], ...] = ()  # what the host opened for the Core (its own stores): closed with the Core
     require_restore_drill: bool = False  # when True, Finance and Health cannot be designated until a restore drill has passed in the last 90 days (G-O05: restore is verified before sensitive-domain indexing)
     live_network: bool = False  # the explicit live-network gate: even with a gateway configured, no public search is made unless this is True (off by default)
@@ -189,7 +192,8 @@ class Core:
                 clock=c.clock,
                 coverage={t: index.coverage for t, index in self.indexes.items()},
                 research=ResearchGate(c.egress, c.live_network),
-                finance_records=self._finance_records(c),
+                finance_records=self._domain_records(c, MONEY_DOMAIN),
+                health_records=self._domain_records(c, HEALTH_DOMAIN),
             )
         )
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it
@@ -221,12 +225,13 @@ class Core:
             mode=self.mode,
             ops=self.operations,
             devices=self.device_operations,
+            updates=c.updates,
         )
 
     @staticmethod
-    def _finance_records(c: CoreConfig) -> Callable[[], list[Record]] | None:
-        """The Finance records, if this Core has a Finance source that can list them (read only when the service has checked the grant)."""
-        entry = c.records.get(MONEY_DOMAIN)
+    def _domain_records(c: CoreConfig, domain: str) -> Callable[[], list[Record]] | None:
+        """The records of a restricted domain (Finance, Health), if this Core has a source that can list them (read only when the service has checked the grant)."""
+        entry = c.records.get(domain)
         records = getattr(entry[0], "records", None) if entry else None
         return None if records is None else (lambda: list(entry[0].records.values()))  # type: ignore[index, union-attr]
 
@@ -240,7 +245,7 @@ class Core:
         self.edits: RecordStore | None = None
         if c.edits_key is None:
             return None
-        self.edits = RecordStore(c.data_dir / "edits.db", c.edits_key, frozenset({"calendar", "contacts", "notes"}), c.clock)
+        self.edits = RecordStore(c.data_dir / "edits.db", c.edits_key, frozenset({"calendar", "contacts", "notes", "travel"}), c.clock)
         audit = AuditFile(c.data_dir / "actions-audit.jsonl")
         history = audit.load()
         if history is None:

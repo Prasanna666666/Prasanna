@@ -11,21 +11,25 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from .access import GRANTED, PermissionEvidence
 from .app import CoreConfig
 from .finance_calc import MONEY_DOMAIN
+from .health_calc import HEALTH_DOMAIN
 from .intelligence import ModelRuntime
 from .isolated import IsolatedEngine
 from .macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems, Runner
 from .mlx_runtime import MlxRuntime
 from .models import Manifest, ModelRejected
 from .recordstore import RecordStore, StoredRecords
+from .updater import Installer, UpdateOperations
 
 MANIFEST_FILE, SIGNATURE_FILE = "manifest.json", "manifest.sig"
 
@@ -44,6 +48,8 @@ class HostOptions:
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, the folder designated for it)
     mail: tuple[str, Path] | None = None  # (source type name, the Apple Mail folder)
     manifest_pubkey: Path | None = None  # the installed public key (32 raw bytes) that signed the model manifest
+    update_root: Path | None = None  # where the app's own versions live (`versions/`, `current`, `previous`); without it the Core offers no update screen
+    update_pubkey: Path | None = None  # the installed public key (32 raw bytes) that signs releases
 
 
 @dataclass
@@ -77,6 +83,25 @@ def load_manifest(models_dir: Path, pubkey: Path | None) -> Manifest:
         return Manifest([])
 
 
+def _restricted_stores(data_dir: Path, keys: dict[str, str]) -> tuple[dict[str, Any], tuple[Callable[[], None], ...]]:
+    """The owner's Finance and Health records, each in its own encrypted store with its own key (imported with the maintenance commands), each indexed under its own key."""
+    records: dict[str, Any] = {}
+    closers: list[Callable[[], None]] = []
+    for domain in (MONEY_DOMAIN, HEALTH_DOMAIN):  # the store, key and index key are named after the domain
+        store = RecordStore(data_dir / f"{domain}-records.db", keys[f"{domain}-records"], frozenset({domain}))
+        records[domain] = (StoredRecords(store, domain), keys[f"{domain}-index"])
+        closers.append(store.close)
+    return records, tuple(closers)
+
+
+def _updates(options: HostOptions) -> UpdateOperations | None:
+    """Updates are offered only when the host was told both where the app's versions live and which key signs releases."""
+    if options.update_root is None or options.update_pubkey is None:
+        return None
+    key = Ed25519PublicKey.from_public_bytes(options.update_pubkey.read_bytes())
+    return UpdateOperations(Installer(options.update_root), key)
+
+
 def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, options: HostOptions | None = None, env: HostEnv | None = None) -> CoreConfig:
     options, env = options or HostOptions(), env or HostEnv()
     if env.platform != "darwin":
@@ -85,16 +110,24 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
     try:
         keys = {
             name: items.secret(name)
-            for name in ("task-store", "designation-store", "documents-index", "mail-index", "edits-store", "finance-records", "finance-index")
+            for name in (
+                "task-store",
+                "designation-store",
+                "documents-index",
+                "mail-index",
+                "edits-store",
+                "finance-records",
+                "finance-index",
+                "health-records",
+                "health-index",
+            )
         }
         record_key = bytes.fromhex(items.secret("model-record"))
     except KeychainError:
         raise KeychainLocked("the Keychain could not provide the store keys") from None
     folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-    finance = RecordStore(
-        data_dir / "finance-records.db", keys["finance-records"], frozenset({MONEY_DOMAIN})
-    )  # the owner's Finance records, in their own encrypted store (imported with `maintenance import-finance`)
+    records, closers = _restricted_stores(data_dir, keys)
     return CoreConfig(
         data_dir=data_dir,
         socket_path=socket_path,
@@ -103,9 +136,9 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         documents_key=keys["documents-index"],
         mail_key=keys["mail-index"],
         anchor=KeychainAnchor(items),
-        os_permissions=OwnStorePermissions(frozenset({MONEY_DOMAIN}), FolderPermissions(folders)),
-        records={MONEY_DOMAIN: (StoredRecords(finance, MONEY_DOMAIN), keys["finance-index"])},
-        closers=(finance.close,),
+        os_permissions=OwnStorePermissions(frozenset({MONEY_DOMAIN, HEALTH_DOMAIN}), FolderPermissions(folders)),
+        records=records,
+        closers=closers,
         manifest=load_manifest(data_dir / "models", options.manifest_pubkey),
         model_record_key=record_key,
         runtime=env.runtime or MlxRuntime(IsolatedEngine("mlx")),
@@ -116,4 +149,5 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         ],  # the owner's own edits store: Calendar, Contacts and Notes actions and device sync. No sender and no eraser are provided, so sending and permanent erasure do not exist here
         require_restore_drill=True,  # Finance and Health wait for a passed restore drill (G-O05)
         bootstrap_code=bootstrap_code,
+        updates=_updates(options),
     )

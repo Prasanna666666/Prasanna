@@ -42,7 +42,7 @@ def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: 
         return {"id": p["id"]}
 
     local = frozenset({"local_reversible"})
-    for domain in ("calendar", "contacts", "notes"):
+    for domain in ("calendar", "contacts", "notes", "travel"):
         gateway.register(ActionSpec(f"{domain}.create", local, create(domain), undo_change))
         gateway.register(ActionSpec(f"{domain}.edit", local, edit, undo_change))  # moving an event is an edit of its date and fields
         gateway.register(ActionSpec(f"{domain}.archive", local, soft_delete, undo_change))

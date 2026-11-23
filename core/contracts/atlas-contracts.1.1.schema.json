@@ -2712,6 +2712,214 @@
         }
       },
       "description": "Spending by month and category, computed by code from the owner's Finance records (never by a model), each total the exact sum of the transactions it names. Served only under a current grant for exactly the Finance domain; otherwise `denied`. Owner client only."
+    },
+    "HealthSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reading_count",
+        "measures",
+        "computed_by_code"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "empty",
+            "denied"
+          ]
+        },
+        "reading_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "measures": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "measure",
+              "unit",
+              "count",
+              "latest",
+              "minimum",
+              "maximum",
+              "average",
+              "average_is_rounded",
+              "bases"
+            ],
+            "properties": {
+              "measure": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+              },
+              "unit": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,30}$"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "latest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date",
+                  "value",
+                  "basis"
+                ],
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                  },
+                  "value": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+                  },
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "estimated",
+                      "unlabelled"
+                    ]
+                  }
+                }
+              },
+              "minimum": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+              },
+              "maximum": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+              },
+              "average": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$",
+                "description": "The mean rounded half-up to two places. It is rounded, not exact."
+              },
+              "average_is_rounded": {
+                "type": "boolean"
+              },
+              "bases": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "measured",
+                  "estimated",
+                  "unlabelled"
+                ],
+                "properties": {
+                  "measured": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "estimated": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "unlabelled": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "Health readings summarised by code from the owner's Health records (never by a model): per measure and unit the exact latest, minimum and maximum, a rounded average, and how many readings were measured, estimated or unlabelled. Served only under a current grant for exactly the Health domain; otherwise `denied`. Owner client only. It gives no medical advice."
+    },
+    "UpdateStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "can_roll_back"
+      ],
+      "properties": {
+        "installed": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "can_roll_back": {
+          "type": "boolean"
+        }
+      },
+      "description": "The installed app version (null when no managed install is current) and whether the previous version is still on disk. Owner client only; present only when the Core manages its own install."
+    },
+    "UpdateInstallRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "folder"
+      ],
+      "properties": {
+        "folder": {
+          "type": "string",
+          "pattern": "^/[^\\u0000-\\u001f]{1,1000}$"
+        }
+      },
+      "description": "The folder the owner chose; it must hold manifest.json, manifest.sig and artefact.zip. Nothing else is read."
+    },
+    "UpdateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "restart_needed"
+      ],
+      "properties": {
+        "installed": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restart_needed": {
+          "type": "boolean"
+        },
+        "refused": {
+          "type": "string",
+          "enum": [
+            "bad_version",
+            "bad_signature",
+            "bad_manifest",
+            "bad_artefact",
+            "unsafe_artefact",
+            "artefact_does_not_match_manifest",
+            "not_newer",
+            "version_already_on_disk",
+            "unhealthy_rolled_back",
+            "unhealthy_first_install",
+            "nothing_to_roll_back_to",
+            "bad_release_folder"
+          ]
+        }
+      },
+      "description": "The outcome of installing a signed release or rolling back. A refusal carries its reason and changes nothing; the owner's data is never touched."
     }
   }
 }

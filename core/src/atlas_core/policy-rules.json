@@ -92,6 +92,7 @@
         "measure",
         "value",
         "unit",
+        "basis",
         "source",
         "note"
       ],
@@ -102,7 +103,13 @@
       ],
       "numbers": [
         "value"
-      ]
+      ],
+      "kinds": {
+        "basis": [
+          "measured",
+          "estimated"
+        ]
+      }
     },
     "calendar": {
       "fields": [
@@ -135,6 +142,17 @@
       ],
       "required": [
         "text"
+      ]
+    },
+    "travel": {
+      "fields": [
+        "starts",
+        "ends",
+        "booking",
+        "note"
+      ],
+      "required": [
+        "starts"
       ]
     }
   }

@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -20,10 +21,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from . import API_VERSION, SUPPORTED_VERSIONS
 from .contracts import ContractError, validate
-from .errors import CoreError, status_of, user_error
+from .errors import CoreError, UpdateError, status_of, user_error
 from .events import SafeLog, new_id
 from .identity import H_VERSION, BootstrapGate, ClientRegistry
-from .service import TERMINAL, ConsentPort, DevicesPort, ModePort, OpsPort, TaskService
+from .service import TERMINAL, ConsentPort, DevicesPort, ModePort, OpsPort, TaskService, UpdatesPort
 
 JSON = "application/json"
 SSE = "text/event-stream"
@@ -41,8 +42,12 @@ RESEARCH = re.compile(r"^/v1/tasks/([A-Za-z0-9_-]{8,64})/research$")  # API 1.1 
 ENROL = "/v1/enrol"  # API 1.1 only
 LIBRARY_SEARCH = "/v1/library/search"  # API 1.1 only, an enrolled client
 RECORDS = re.compile(r"^/v1/records/([a-z]{3,16})$")  # API 1.1 only, an enrolled OWNER client
+HEALTH_SUMMARY = "/v1/health/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Health source
 FINANCE_SUMMARY = "/v1/finance/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Finance source
 ATTENTION = "/v1/attention"  # API 1.1 only, an enrolled OWNER client, and only when the Core has the owner's edits store
+UPDATE_PATHS = frozenset(
+    {"/v1/app/updates", "/v1/app/updates/install", "/v1/app/updates/rollback"}
+)  # API 1.1 only, an enrolled OWNER client only, and only when the Core manages its own install
 DEVICE_PAIR = "/v1/devices/pair"  # API 1.1 only, unsigned (the device is not enrolled yet), guarded by the single-use code
 DEVICE_PATHS = frozenset({"/v1/devices", "/v1/devices/offer", "/v1/devices/revoke"})  # API 1.1 only, an enrolled OWNER client only
 OPS_PATHS = frozenset(
@@ -99,7 +104,9 @@ class CoreApi:
         mode: ModePort | None = None,
         ops: OpsPort | None = None,
         devices: DevicesPort | None = None,
+        updates: UpdatesPort | None = None,
     ) -> None:
+        self._updates = updates
         self._service, self._registry, self._log, self._consent, self._bootstrap, self._mode, self._ops, self._devices = (
             service,
             registry,
@@ -141,9 +148,11 @@ class CoreApi:
             LIBRARY_SEARCH: lambda: self._library(request),
             ATTENTION: lambda: self._attention(request, client),
             FINANCE_SUMMARY: lambda: self._finance(request, client),
+            HEALTH_SUMMARY: lambda: self._health(request, client),
         }
         handlers.update({p: lambda: self._ops_route(request, path, client) for p in OPS_PATHS})
         handlers.update({p: lambda: self._device_route(request, path, client) for p in DEVICE_PATHS})
+        handlers.update({p: lambda: self._update_route(request, path, client) for p in UPDATE_PATHS})
         handler = handlers.get(path)
         if handler is None:
             research, records = RESEARCH.match(path), RECORDS.match(path)
@@ -308,6 +317,13 @@ class CoreApi:
             raise CoreError("forbidden")
         return self._reply(200, self._service.finance_summary(), "FinanceSummary", "1.1")
 
+    def _health(self, request: Request, client: str) -> Response:
+        if request.method != "GET":
+            raise CoreError("invalid_request")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        return self._reply(200, self._service.health_summary(), "HealthSummary", "1.1")
+
     def _attention(self, request: Request, client: str) -> Response:
         if self._ops is None:
             raise CoreError("not_found")
@@ -356,6 +372,30 @@ class CoreApi:
             raise CoreError("invalid_request") from None
         validate("RevokeRequest", body, "1.1")
         return self._reply(200, self._devices.revoke(client, body["device_id"]), "RevokeResult", "1.1")
+
+    def _update_route(self, request: Request, path: str, client: str) -> Response:
+        """Updates: the installed version, a signed release installed from a folder the owner chose, and rollback. An enrolled OWNER client only; a refusal is its code and nothing else."""
+        if self._updates is None:
+            raise CoreError("not_found")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        if path == "/v1/app/updates":
+            if request.method != "GET":
+                raise CoreError("invalid_request")
+            return self._reply(200, self._updates.status(), "UpdateStatus", "1.1")
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        try:
+            if path == "/v1/app/updates/rollback":
+                return self._reply(200, self._updates.rollback(), "UpdateResult", "1.1")
+            try:
+                body = json.loads(request.body)
+            except ValueError:
+                raise CoreError("invalid_request") from None
+            validate("UpdateInstallRequest", body, "1.1")
+            return self._reply(200, self._updates.install_from(Path(body["folder"])), "UpdateResult", "1.1")
+        except UpdateError as e:  # a refused update is an answer with its reason, not a server error: nothing changed
+            return self._reply(200, {"installed": None, "restart_needed": False, "refused": e.code}, "UpdateResult", "1.1")
 
     def _ops_route(self, request: Request, path: str, client: str) -> Response:
         """The owner's actions (propose, approve, undo: an enrolled OWNER client only; the origin is always the owner's own request) and a device's sync (any enrolled client; the device is the authenticated client)."""

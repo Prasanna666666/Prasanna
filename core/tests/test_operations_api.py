@@ -224,3 +224,66 @@ def test_the_owner_lists_their_own_records_newest_first_with_the_version_an_edit
         with pytest.raises(atlas_client.ClientError) as e:
             who.records(domain)
         assert e.value.code in ("not_found", "forbidden", "invalid_request")
+
+
+def test_a_trip_is_created_listed_and_undone_like_any_own_record(world):
+    owner = world.client()
+    out = owner.act(
+        "travel.create", {"id": "trip-1", "date": "2026-12-01", "title": "Lisbon", "fields": {"starts": "2026-12-01T09:00:00Z", "booking": "ABC123"}}
+    )
+    assert out["status"] == "done"
+    assert [r["title"] for r in owner.records("travel")] == ["Lisbon"]
+    owner.undo(out["action_id"])
+    assert owner.records("travel") == []
+
+
+def _release_folder(folder, version, signer, tag=b"ok"):
+    import hashlib
+    import io
+    import json
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as z:
+        z.writestr("Atlas.app/Contents/MacOS/Atlas", tag)
+    artefact = buffer.getvalue()
+    manifest = json.dumps({"version": version, "sha256": hashlib.sha256(artefact).hexdigest(), "size": len(artefact)}).encode()
+    folder.mkdir()
+    (folder / "manifest.json").write_bytes(manifest)
+    (folder / "manifest.sig").write_bytes(signer.sign(manifest))
+    (folder / "artefact.zip").write_bytes(artefact)
+    return str(folder)
+
+
+def test_the_owner_installs_a_signed_update_from_a_folder_and_can_go_back_and_a_bad_one_changes_nothing(tmp_path):
+    from atlas_core.updater import Installer, UpdateOperations
+
+    signer, stranger = Ed25519PrivateKey.generate(), Ed25519PrivateKey.generate()
+    root = tmp_path / "install"
+    ops = UpdateOperations(Installer(root), signer.public_key())
+    (tmp_path / "a").mkdir()
+    world = OpsWorld(tmp_path / "a", updates=ops)
+    world.build().start()
+    try:
+        owner = world.client()
+        assert owner.update_status() == {"installed": None, "can_roll_back": False}
+        first = owner.install_update(_release_folder(tmp_path / "r1", "1.0.0", signer))
+        assert first == {"installed": "1.0.0", "restart_needed": True}
+        second = owner.install_update(_release_folder(tmp_path / "r2", "1.1.0", signer, b"new"))
+        assert second["installed"] == "1.1.0" and owner.update_status() == {"installed": "1.1.0", "can_roll_back": True}
+        forged = owner.install_update(_release_folder(tmp_path / "r3", "1.2.0", stranger))
+        assert forged == {"installed": None, "restart_needed": False, "refused": "bad_signature"} and owner.update_status()["installed"] == "1.1.0"
+        assert owner.install_update(str(tmp_path / "missing"))["refused"] == "bad_release_folder"
+        assert owner.install_update(_release_folder(tmp_path / "r4", "1.0.5", signer))["refused"] == "not_newer"  # never backwards by accident
+        assert owner.rollback_update() == {"installed": "1.0.0", "restart_needed": True}
+        with pytest.raises(atlas_client.ClientError) as e:
+            world.device().update_status()  # owner client only
+        assert e.value.code == "forbidden"
+    finally:
+        world.close()
+
+
+def test_a_core_that_does_not_manage_its_own_install_has_no_update_routes(world):
+    with pytest.raises(atlas_client.ClientError) as e:
+        world.client().update_status()
+    assert e.value.code == "not_found"

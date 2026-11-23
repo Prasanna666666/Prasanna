@@ -55,3 +55,33 @@ final class RecordsTests: XCTestCase {
         XCTAssertNil(OwnDomain(areaTitle: "Finance"))
     }
 }
+
+final class TravelTests: XCTestCase {
+    func testATripNeedsAPlaceAndAStartAndBuildsTheCoresPayload() {
+        var trip = RecordDraft(domain: .travel)
+        XCTAssertEqual(trip.problem(), "Enter where you are going.")
+        trip.title = "Lisbon"
+        XCTAssertEqual(trip.problem(), "Choose when it starts.")
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        trip.starts = start
+        trip.ends = start.addingTimeInterval(-60)
+        XCTAssertEqual(trip.problem(), "The end cannot be before the start.")
+        trip.ends = start.addingTimeInterval(86_400)
+        trip.booking = "ABC123"
+        XCTAssertNil(trip.problem())
+        let payload = trip.createPayload(id: "travel-1", now: start)
+        let fields = payload?["fields"] as? [String: String]
+        XCTAssertEqual(fields?["booking"], "ABC123")
+        XCTAssertNotNil(fields?["starts"]); XCTAssertNotNil(fields?["ends"])
+        XCTAssertNil(fields?["location"])  // a trip has a booking, not a calendar location
+        XCTAssertEqual(payload?["title"] as? String, "Lisbon")
+    }
+
+    func testTravelIsAnAreaWithItsOwnActionsAndRowDetail() {
+        XCTAssertEqual(OwnDomain(areaTitle: "Travel"), .travel)
+        XCTAssertEqual(OwnDomain.travel.createAction, "travel.create")
+        XCTAssertTrue(OwnDomain.travel.hasDates && OwnDomain.calendar.hasDates && !OwnDomain.notes.hasDates)
+        let row = OwnRecord(id: "travel-1", title: "Lisbon", date: "2026-12-01", version: 1, fields: ["starts": "2026-12-01T09:00:00Z", "booking": "ABC123"])
+        XCTAssertEqual(row.detail(for: .travel), "2026-12-01T09:00:00Z · ABC123")
+    }
+}

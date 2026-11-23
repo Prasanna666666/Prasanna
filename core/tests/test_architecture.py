@@ -41,6 +41,7 @@ LAYER = {
     "launchagent": 1,
     "records": 4,
     "finance_calc": 4,
+    "health_calc": 4,
     "migration": 4,
     "recordstore": 4,
     "actions": 1,

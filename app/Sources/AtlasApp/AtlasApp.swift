@@ -67,12 +67,18 @@ enum Launcher {
     /// installed public key that signed the model manifest (bundled with the app; where it lives is part of packaging, not built).
     /// The Python bundled inside the app (`scripts/package_mac.sh`), else the system one for development.
     private static let bundledPython = Bundle.main.resourceURL?.appendingPathComponent("python/bin/python3")
+    private static let support = home.appendingPathComponent("Library/Application Support/Atlas")
+    /// The update screen exists only when the release-signing public key is installed: without it the Core is not told about updates and the section stays hidden.
+    private static var updateArguments: [String] {
+        let key = support.appendingPathComponent("release.pub")
+        return FileManager.default.fileExists(atPath: key.path) ? ["--update-root", support.appendingPathComponent("app").path, "--update-pubkey", key.path] : []
+    }
     static let shared = CoreLauncher(
         executable: bundledPython.flatMap { FileManager.default.isExecutableFile(atPath: $0.path) ? $0 : nil } ?? URL(fileURLWithPath: "/usr/bin/python3"),
         arguments: ["-m", "atlas_core.serve",
                     "--documents-source", "documents=" + home.appendingPathComponent("Documents").path,
                     "--mail-source", "mail=" + home.appendingPathComponent("Library/Mail").path,
-                    "--manifest-pubkey", home.appendingPathComponent("Library/Application Support/Atlas/models/manifest.pub").path])
+                    "--manifest-pubkey", support.appendingPathComponent("models/manifest.pub").path] + updateArguments)
     static var bootstrapCode: String? { shared.bootstrapCode }
 }
 
@@ -101,6 +107,10 @@ final class AppModel: ObservableObject {
     // Finance and sources the owner could still turn on
     @Published var financeServed = false
     @Published var finance: LoadState<FinanceView> = .idle
+    @Published var healthServed = false
+    @Published var health: LoadState<HealthView> = .idle
+    @Published var updates: LoadState<UpdateView> = .idle
+    @Published var updateMessage: String?
     @Published var offeredSources: [String] = []
     // Own records (Calendar, Contacts, Notes)
     @Published var editsAvailable = false
@@ -149,7 +159,7 @@ final class AppModel: ObservableObject {
     }
 
     /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.
-    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : [])) }
+    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : []) + (healthServed ? [SourceNames.title("health")] : [])) }
 
     /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
     var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
@@ -218,6 +228,48 @@ final class AppModel: ObservableObject {
         } catch { finance = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
     }
 
+    func loadHealth() async {
+        guard let client else { return }
+        health = .loading
+        do {
+            let response = try await Task.detached { try client.healthSummary() }.value
+            healthServed = true
+            health = HealthOutcome.from(response)
+        } catch AtlasError.core(let code) where code == "not_found" {
+            healthServed = false
+            health = .unavailable(.notAvailableYet)
+        } catch { health = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    func loadUpdates() async {
+        guard let client else { return }
+        do {
+            updates = UpdateOutcome.status(try await Task.detached { try client.updateStatus() }.value)
+        } catch AtlasError.core(let code) where code == "not_found" {
+            updates = .idle  // the Core does not manage its own install: the section stays hidden
+        } catch { updates = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    func installUpdate(from folder: String) async {
+        guard let client else { return }
+        updateMessage = nil
+        do {
+            let response = try await Task.detached { try client.installUpdate(folder: folder) }.value
+            updateMessage = UpdateOutcome.result(response).message
+            await loadUpdates()
+        } catch { updateMessage = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error") }
+    }
+
+    func rollBackUpdate() async {
+        guard let client else { return }
+        updateMessage = nil
+        do {
+            let response = try await Task.detached { try client.rollbackUpdate() }.value
+            updateMessage = UpdateOutcome.result(response).message
+            await loadUpdates()
+        } catch { updateMessage = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error") }
+    }
+
     /// Sources the owner could still turn on, from what the Core offers; each is a deliberate step and nothing is preselected.
     func enable(sourceType: String) async {
         guard let client else { return }
@@ -226,6 +278,7 @@ final class AppModel: ObservableObject {
         await refreshConsent()
         await loadSettings()
         if sourceType == "finance" { await loadFinance() }
+        if sourceType == "health" { await loadHealth() }
     }
 
     // MARK: own records
@@ -410,6 +463,8 @@ final class AppModel: ObservableObject {
             await loadAttention()
             await probeOwnRecords()
             await loadFinance()
+            await loadHealth()
+            await loadUpdates()
         } catch { failure = (error as? AtlasError)?.message }
     }
 

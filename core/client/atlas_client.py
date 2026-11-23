@@ -149,6 +149,22 @@ class AtlasClient:
         """Spending by month and category, computed by code under a current Finance grant (API 1.1; owner client only)."""
         return self._json("GET", "/v1/finance/summary")
 
+    def health_summary(self) -> dict[str, Any]:
+        """Health readings summarised by code under a current Health grant (API 1.1; owner client only)."""
+        return self._json("GET", "/v1/health/summary")
+
+    def update_status(self) -> dict[str, Any]:
+        """The installed app version and whether a rollback is possible (API 1.1; owner client only; absent unless the Core manages its own install)."""
+        return self._json("GET", "/v1/app/updates")
+
+    def install_update(self, folder: str) -> dict[str, Any]:
+        """Install a signed release from a folder that holds manifest.json, manifest.sig and artefact.zip. A refusal comes back with its reason and changes nothing."""
+        return self._json("POST", "/v1/app/updates/install", {"folder": folder})
+
+    def rollback_update(self) -> dict[str, Any]:
+        """Return to the previous app version (API 1.1; owner client only)."""
+        return self._json("POST", "/v1/app/updates/rollback", {})
+
     def attention(self) -> list[dict[str, Any]]:
         """What needs the owner's attention (API 1.1; owner client only): today, overlapping calendar events."""
         return list(self._json("GET", "/v1/attention")["items"])

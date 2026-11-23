@@ -1,14 +1,15 @@
 import Foundation
 
-/// The owner's own Calendar, Contacts and Notes (UI/UX specification 4.6: views over shared Atlas context, shown only when the Core can serve them).
+/// The owner's own Calendar, Contacts, Notes and Travel (UI/UX specification 4.6: views over shared Atlas context, shown only when the Core can serve them).
 public enum OwnDomain: String, CaseIterable {
-    case calendar, contacts, notes
+    case calendar, contacts, notes, travel
 
     public var title: String {
         switch self {
         case .calendar: return "Calendar"
         case .contacts: return "Contacts"
         case .notes: return "Notes"
+        case .travel: return "Travel"
         }
     }
 
@@ -17,8 +18,12 @@ public enum OwnDomain: String, CaseIterable {
         case .calendar: return "calendar"
         case .contacts: return "person.crop.circle"
         case .notes: return "note.text"
+        case .travel: return "airplane"
         }
     }
+
+    /// Calendar events and trips have a start and an optional end.
+    public var hasDates: Bool { self == .calendar || self == .travel }
 
     public var createAction: String { rawValue + ".create" }
     public var editAction: String { rawValue + ".edit" }
@@ -35,6 +40,7 @@ public enum OwnDomain: String, CaseIterable {
         case .calendar: return "No events yet. Add one, and Atlas will tell you when two of them overlap."
         case .contacts: return "No contacts yet. Add the people you want Atlas to know about."
         case .notes: return "No notes yet. Add a note and Atlas can find it later."
+        case .travel: return "No trips yet. Add one with its dates and booking, and keep it all in one place."
         }
     }
 }
@@ -52,6 +58,7 @@ public struct OwnRecord: Identifiable, Equatable {
         case .calendar: return [fields["starts"], fields["location"]].compactMap { $0 }.joined(separator: " · ")
         case .contacts: return [fields["organisation"], fields["phone"], fields["email"]].compactMap { $0 }.joined(separator: " · ")
         case .notes: return fields["text"] ?? ""
+        case .travel: return [fields["starts"], fields["booking"]].compactMap { $0 }.joined(separator: " · ")
         }
     }
 }
@@ -76,6 +83,7 @@ public struct RecordDraft: Equatable {
     public var starts: Date?
     public var ends: Date?
     public var location = ""
+    public var booking = ""
     public var phone = ""
     public var email = ""
 
@@ -84,10 +92,10 @@ public struct RecordDraft: Equatable {
     private static func iso(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }
 
     public func problem() -> String? {
-        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return domain == .contacts ? "Enter a name." : "Enter a title." }
+        if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return domain == .contacts ? "Enter a name." : (domain == .travel ? "Enter where you are going." : "Enter a title.") }
         switch domain {
         case .notes: return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Write the note." : nil
-        case .calendar:
+        case .calendar, .travel:
             guard let starts else { return "Choose when it starts." }
             if let ends, ends < starts { return "The end cannot be before the start." }
             return nil
@@ -101,11 +109,12 @@ public struct RecordDraft: Equatable {
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
         switch domain {
         case .notes: return ["id": id, "date": Self.iso(now), "title": name, "fields": ["text": text]]
-        case .calendar:
+        case .calendar, .travel:
             guard let starts else { return nil }
             var fields: [String: String] = ["starts": Self.iso(starts)]
             if let ends { fields["ends"] = Self.iso(ends) }
-            if !location.isEmpty { fields["location"] = location }
+            if domain == .calendar, !location.isEmpty { fields["location"] = location }
+            if domain == .travel, !booking.isEmpty { fields["booking"] = booking }
             return ["id": id, "date": Self.iso(starts), "title": name, "fields": fields]
         case .contacts:
             var fields: [String: String] = ["name": name]

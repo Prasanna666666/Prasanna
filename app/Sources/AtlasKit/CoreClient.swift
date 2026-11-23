@@ -68,6 +68,15 @@ public final class CoreClient {
     /// Spending by month and category, computed by the Core from the owner's Finance records (only under a Finance grant).
     public func financeSummary() throws -> [String: Any] { try object(call("GET", "/v1/finance/summary")) }
 
+    /// The installed app version and whether a rollback is possible. The Core answers not_found when it does not manage its own install.
+    public func updateStatus() throws -> [String: Any] { try object(call("GET", "/v1/app/updates")) }
+    /// Install a signed release from a folder the owner chose. A refusal comes back with its reason and changes nothing.
+    public func installUpdate(folder: String) throws -> [String: Any] { try object(call("POST", "/v1/app/updates/install", ["folder": folder])) }
+    public func rollbackUpdate() throws -> [String: Any] { try object(call("POST", "/v1/app/updates/rollback", [:])) }
+
+    /// Health readings summarised by the Core from the owner's Health records (only under a Health grant).
+    public func healthSummary() throws -> [String: Any] { try object(call("GET", "/v1/health/summary")) }
+
     /// The owner's own records of one domain (calendar, contacts or notes).
     public func records(_ domain: String) throws -> [String: Any] { try object(call("GET", "/v1/records/\(domain)")) }
 

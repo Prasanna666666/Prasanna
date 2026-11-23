@@ -37,7 +37,7 @@ def _outcome(o: Outcome) -> dict[str, Any]:
     }
 
 
-EDIT_DOMAINS = frozenset({"calendar", "contacts", "notes"})
+EDIT_DOMAINS = frozenset({"calendar", "contacts", "notes", "travel"})
 DEFAULT_EVENT = timedelta(hours=1)  # an event with no end is treated as an hour long
 
 

@@ -1,3 +1,4 @@
+import AppKit
 import AtlasKit
 import SwiftUI
 
@@ -285,18 +286,19 @@ struct AddRecordSheet: View {
     var body: some View {
         let theme = Theme(scheme)
         var current = draft
-        let _ = { if domain == .calendar { current.starts = startsOn; current.ends = hasEnd ? endsOn : nil } }()
+        let _ = { if domain.hasDates { current.starts = startsOn; current.ends = hasEnd ? endsOn : nil } }()
         VStack(alignment: .leading, spacing: Space.lg) {
             Text("Add to \(domain.title)").font(TextStyle.title).accessibilityAddTraits(.isHeader)
-            TextField(domain == .contacts ? "Name" : "Title", text: $draft.title).textFieldStyle(.roundedBorder)
+            TextField(domain == .contacts ? "Name" : (domain == .travel ? "Where to" : "Title"), text: $draft.title).textFieldStyle(.roundedBorder)
             switch domain {
             case .notes:
                 TextEditor(text: $draft.text).frame(minHeight: 120).padding(Space.xs).background(theme.surface, in: RoundedRectangle(cornerRadius: Radius.small)).accessibilityLabel("Note")
-            case .calendar:
+            case .calendar, .travel:
                 DatePicker("Starts", selection: $startsOn)
                 Toggle("Has an end", isOn: $hasEnd)
                 if hasEnd { DatePicker("Ends", selection: $endsOn) }
-                TextField("Where (optional)", text: $draft.location).textFieldStyle(.roundedBorder)
+                if domain == .calendar { TextField("Where (optional)", text: $draft.location).textFieldStyle(.roundedBorder) }
+                if domain == .travel { TextField("Booking reference (optional)", text: $draft.booking).textFieldStyle(.roundedBorder) }
             case .contacts:
                 TextField("Phone (optional)", text: $draft.phone).textFieldStyle(.roundedBorder)
                 TextField("Email (optional)", text: $draft.email).textFieldStyle(.roundedBorder)
@@ -358,6 +360,44 @@ struct FinanceAreaView: View {
     }
 }
 
+// MARK: Health
+
+struct HealthAreaView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let theme = Theme(scheme)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                PageHeader(title: "Health", subtitle: "Your readings, summarised on this Mac. Atlas does not give medical advice.")
+                switch model.health {
+                case .loaded(let view), .partial(let view, _):
+                    ForEach(Array(view.measures.enumerated()), id: \.offset) { _, measure in
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            Text(measure.title).font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+                            Text(measure.latestLine).font(TextStyle.body).foregroundStyle(theme.textPrimary)
+                            Text(measure.rangeLine).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                            Text(measure.averageLine).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                            Text(measure.basisLine).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                            Divider()
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    Text(view.basis).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                case .empty: StateNotice(text: "No readings yet. Import your Health data to see a summary here.")
+                case .denied(let text): StateNotice(text: text, style: .warning, actionTitle: "Turn on Health") { Task { await model.enable(sourceType: "health") } }
+                case .loading, .idle: StateNotice(text: "Loading.", style: .loading)
+                case .unavailable(let reason): StateNotice(text: reason.message, style: .warning)
+                case .failed(let text): StateNotice(text: text, style: .problem)
+                }
+            }
+            .padding(Space.xl).readingColumn()
+        }
+        .task { await model.loadHealth() }
+    }
+}
+
 // MARK: Activity
 
 struct ActivityView: View {
@@ -409,6 +449,33 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @Environment(\.colorScheme) private var scheme
 
+    /// Updates: shown only when the Core manages its own install. The owner chooses a folder that holds a signed release; the Core checks it, installs it beside the current version and keeps that version to go back to.
+    @ViewBuilder private func updatesSection(_ theme: Theme) -> some View {
+        if case .loaded(let view) = model.updates {
+            VStack(alignment: .leading, spacing: Space.sm) {
+                Text("Updates").font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+                Text(view.installedLine).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                HStack {
+                    Button("Install an update…") { chooseUpdateFolder() }
+                    if view.canRollBack { Button("Go back to the previous version") { Task { await model.rollBackUpdate() } } }
+                }
+                if let message = model.updateMessage { Text(message).font(TextStyle.caption).foregroundStyle(theme.textSecondary) }
+                Text("Updates are checked for a signature before anything is installed. Your data is never changed.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
+            }
+        }
+    }
+
+    private func chooseUpdateFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Install"
+        panel.message = "Choose the folder that holds the signed update."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        Task { await model.installUpdate(from: url.path) }
+    }
+
     var body: some View {
         let theme = Theme(scheme)
         ScrollView {
@@ -433,6 +500,7 @@ struct SettingsView: View {
                             Text(SourceNames.explanation(type)).font(TextStyle.caption).foregroundStyle(theme.textMuted)
                         }
                     }
+                    updatesSection(theme)
                     Text(model.indexLine).font(TextStyle.caption).foregroundStyle(theme.textMuted)
                     Text("Stopping takes effect at once and removes what Atlas learned from that source.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
                 }

@@ -21,7 +21,13 @@ from typing import TextIO
 from .backup import BackupError, create_backup, restore_backup, run_restore_drill, verify_backup
 from .migration import MigrationError, Sink, migrate
 
-KEY_ITEMS = {"tasks.db": "task-store", "designation.db": "designation-store", "edits.db": "edits-store"}
+KEY_ITEMS = {
+    "tasks.db": "task-store",
+    "designation.db": "designation-store",
+    "edits.db": "edits-store",
+    "finance-records.db": "finance-records",
+    "health-records.db": "health-records",
+}
 BUNDLE_ITEMS = {"documents_index": "documents-index", "mail_index": "mail-index", "model_record": "model-record"}
 EXIT_OK, EXIT_REFUSED, EXIT_USAGE = 0, 1, 64
 MIN_ARGS = 2

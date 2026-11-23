@@ -612,7 +612,7 @@ paths:
   /v1/records/{domain}:
     get:
       operationId: listRecords
-      summary: The owner's own records of one domain (calendar, contacts or notes).
+      summary: The owner's own records of one domain (calendar, contacts, notes or travel).
       x-atlas-status: served by the Core when it is configured with the owner's edits store; API 1.1 additive
       parameters:
       - $ref: '#/components/parameters/ApiVersion'
@@ -621,7 +621,7 @@ paths:
         required: true
         schema:
           type: string
-          enum: [calendar, contacts, notes]
+          enum: [calendar, contacts, notes, travel]
       responses:
         '200':
           description: The records
@@ -651,6 +651,100 @@ paths:
             application/json:
               schema:
                 $ref: ./atlas-contracts.1.1.schema.json#/$defs/FinanceSummary
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/health/summary:
+    get:
+      operationId: healthSummary
+      summary: Health readings summarised by code from the owner's Health records, under a current Health grant.
+      x-atlas-status: served by the Core when it has a Health record source; API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The summary, empty or denied
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/HealthSummary
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/app/updates:
+    get:
+      operationId: updateStatus
+      summary: The installed app version and whether a rollback is possible.
+      x-atlas-status: served by the Core when it manages its own install; API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/UpdateStatus
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/app/updates/install:
+    post:
+      operationId: installUpdate
+      summary: Install a signed release from a folder the owner chose.
+      x-atlas-status: served by the Core when it manages its own install; API 1.1 additive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/UpdateInstallRequest
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/UpdateResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/app/updates/rollback:
+    post:
+      operationId: rollbackUpdate
+      summary: Return to the previous app version.
+      x-atlas-status: served by the Core when it manages its own install; API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The result
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/UpdateResult
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
         '401':
           $ref: '#/components/responses/ErrorVersioned'
         '403':

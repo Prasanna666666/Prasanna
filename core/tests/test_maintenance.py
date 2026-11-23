@@ -18,6 +18,8 @@ ITEM_KEYS = {
     "task-store": KEY + "t",
     "designation-store": KEY + "d",
     "edits-store": KEY + "e",
+    "finance-records": KEY + "f",
+    "health-records": KEY + "h",
     "documents-index": KEY + "o",
     "mail-index": KEY + "m",
     "model-record": "6b" * 32,
@@ -37,6 +39,16 @@ def made(tmp_path):
     core = world.build()
     core.start()
     world.client().act("notes.create", NOTE)
+    from atlas_core.records import Record
+    from atlas_core.recordstore import RecordStore
+
+    for domain, key, fields in (
+        ("finance", "f", {"amount": "9.99", "currency": "EUR", "kind": "expense"}),
+        ("health", "h", {"measure": "weight", "value": "70", "unit": "kg"}),
+    ):
+        store = RecordStore(world.tmp / "core" / f"{domain}-records.db", KEY + key, frozenset({domain}))
+        store.create(Record(f"{domain}-1", domain, "2026-10-01", "synthetic", fields))
+        store.close()
     code, text, _ = cli(["backup", str(world.tmp / "core"), str(tmp_path / "backups")])
     world.close()
     assert code == 0 and text.startswith("backup: ok atlas-backup-")
@@ -52,6 +64,13 @@ def test_backup_verify_drill_and_restore_through_the_commands(made):
     assert (code, text) == (0, "drill: ok\n") and (data / "restore-drill.json").exists()
     code, text, written = cli(["restore", str(folder), str(tmp / "new")])
     assert code == 0 and "grants not restored" in text and (tmp / "new" / "edits.db").exists()
+    from atlas_core.recordstore import RecordStore
+
+    for domain, key in (("finance", "f"), ("health", "h")):  # the owner's Finance and Health records are backed up and come back under their own keys
+        restored = RecordStore(tmp / "new" / f"{domain}-records.db", KEY + key, frozenset({domain}))
+        assert [s.record.record_id for s in restored.in_domain(domain)] == [f"{domain}-1"]
+        restored.close()
+        assert written[f"db:{domain}-records.db"] == KEY + key
     assert (
         written["db:edits.db"] == KEY + "e" and written["documents_index"] == KEY + "o" and set(KEY_ITEMS) | set(BUNDLE_ITEMS) and len(written) >= 5
     )  # the recovered keys go back through the seam

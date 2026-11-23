@@ -48,8 +48,10 @@ DB_FILES = (
     "tasks.db",
     "edits.db",
     "designation.db",
+    "finance-records.db",
+    "health-records.db",
 )  # each opens with the key of the same name in `db_keys`; edits.db (the owner's own notes, contacts and events) cannot be rebuilt from anything
-LIVE_DBS = ("tasks.db", "edits.db")  # restored as live stores (designation.db is restored as history only)
+LIVE_DBS = ("tasks.db", "edits.db", "finance-records.db", "health-records.db")  # restored as live stores (designation.db is restored as history only)
 PLAIN_FILES = (
     "clients.json",
     "actions-audit.jsonl",

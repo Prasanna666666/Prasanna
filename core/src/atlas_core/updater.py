@@ -27,18 +27,12 @@ from pathlib import Path
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from .errors import UpdateError
+
 _VERSION = re.compile(r"(\d{1,4})\.(\d{1,4})\.(\d{1,6})\Z")
 MAX_ARTEFACT_BYTES = 2 * 1024**3
 MAX_FILES = 200_000
 FILE_TYPE_MASK, SYMLINK_TYPE = 0o170000, 0o120000  # the Unix file-type bits kept in a zip member's attributes
-
-
-class UpdateError(Exception):
-    """An update step was refused. Carries a code and nothing else."""
-
-    def __init__(self, code: str) -> None:
-        super().__init__(code)
-        self.code = code
 
 
 def parse_version(text: str) -> tuple[int, int, int]:
@@ -149,3 +143,33 @@ class Installer:
         if running is not None:
             self._point("previous", running)  # so the rollback can itself be undone
         return target
+
+
+class UpdateOperations:
+    """What the owner can do with updates from the app: see the installed version, install a signed release from a folder they chose, and go back to the previous version. The folder holds exactly
+    `manifest.json`, `manifest.sig` and `artefact.zip`; nothing else in it is read, and nothing is fetched from the network here (the channel is a separate seam). The owner's data is never touched."""
+
+    FILES = ("manifest.json", "manifest.sig", "artefact.zip")
+
+    def __init__(self, installer: Installer, public_key: Ed25519PublicKey, healthy: Callable[[Path], bool] = lambda _path: True) -> None:
+        self._installer, self._key, self._healthy = installer, public_key, healthy
+
+    def status(self) -> dict[str, object]:
+        previous = self._installer._link("previous")
+        has_previous = previous.is_symlink() and (self._installer.root / "versions" / os.path.basename(os.readlink(previous))).is_dir()
+        return {"installed": self._installer.current_version(), "can_roll_back": has_previous}
+
+    def _read(self, folder: Path, name: str) -> bytes:
+        path = folder / name
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_ARTEFACT_BYTES:
+            raise UpdateError("bad_release_folder")
+        return path.read_bytes()
+
+    def install_from(self, folder: Path) -> dict[str, object]:
+        manifest, signature, artefact = (self._read(folder, name) for name in self.FILES)
+        release = verify_release(manifest, signature, self._key)
+        version = self._installer.install(release, artefact, self._healthy)
+        return {"installed": version, "restart_needed": True}
+
+    def rollback(self) -> dict[str, object]:
+        return {"installed": self._installer.rollback(), "restart_needed": True}

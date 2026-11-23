@@ -15,7 +15,7 @@ from test_egress import PUBLIC, FakeTransport
 from atlas_core.app import Core, CoreConfig
 from atlas_core.egress import EgressGateway
 from atlas_core.finance_calc import summary_records, verify_summary
-from atlas_core.records import InMemoryRecords, Record
+from atlas_core.records import InMemoryRecords, Record, RecordError
 
 pytestmark = pytest.mark.criterion(5)
 
@@ -281,5 +281,69 @@ def test_a_core_without_a_finance_source_has_no_finance_route_and_an_empty_one_s
         core = started(world)
         world.enable(core, "finance")
         assert world.client().finance_summary()["state"] == "empty"
+    finally:
+        world.close()
+
+
+def _reading(rid, day, measure, value, unit, basis=None):
+    fields = {"measure": measure, "value": value, "unit": unit, **({"basis": basis} if basis else {})}
+    return Record(rid, "health", day, f"{measure} {day}", fields)
+
+
+def test_the_health_summary_is_computed_by_code_labels_measured_and_estimated_and_never_converts_units(tmp_path):
+
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    world.sources["health"] = InMemoryRecords(
+        "health",
+        [
+            _reading("w1", "2026-10-01", "weight", "70.0", "kg", "measured"),
+            _reading("w2", "2026-10-08", "weight", "70.5", "kg", "measured"),
+            _reading("w3", "2026-10-15", "weight", "71.2", "kg", "estimated"),
+            _reading("w4", "2026-10-16", "weight", "155", "lb"),  # a different unit: its own entry, never converted
+        ],
+    )
+    try:
+        core = started(world)
+        owner = world.client()
+        denied = owner.health_summary()
+        assert denied["state"] == "denied" and denied["measures"] == [] and world.sources["health"].reads == 0  # nothing read without the grant
+        world.enable(core, "health")
+        out = owner.health_summary()
+        assert out["state"] == "ready" and out["computed_by_code"] is True and out["reading_count"] == 4
+        kg, lb = out["measures"]
+        assert (kg["measure"], kg["unit"], kg["count"]) == ("weight", "kg", 3)
+        assert kg["latest"] == {"date": "2026-10-15", "value": "71.2", "basis": "estimated"}  # an estimate stays labelled an estimate
+        assert (kg["minimum"], kg["maximum"], kg["average"], kg["average_is_rounded"]) == ("70.0", "71.2", "70.57", True)  # 211.7 / 3 rounded half-up
+        assert kg["bases"] == {"measured": 2, "estimated": 1, "unlabelled": 0}
+        assert (lb["unit"], lb["count"], lb["latest"]["basis"], lb["bases"]["unlabelled"]) == (
+            "lb",
+            1,
+            "unlabelled",
+            1,
+        )  # an unlabelled reading is never promoted to measured
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        member_key = Ed25519PrivateKey.generate()
+        world.clients.register("member-device-0001", member_key.public_key())
+        member = atlas_client.AtlasClient(str(world.sock), member_key, "member-device-0001", clock=world.clock)
+        with pytest.raises(atlas_client.ClientError) as e:
+            member.health_summary()
+        assert e.value.code == "forbidden"
+    finally:
+        world.close()
+
+
+def test_a_health_basis_must_be_measured_or_estimated_and_an_empty_source_says_so(tmp_path):
+    with pytest.raises(RecordError) as e:
+        _reading("w9", "2026-10-01", "weight", "70", "kg", "guessed")
+    assert e.value.code == "bad_kind"
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    world.sources["health"] = InMemoryRecords("health", [])
+    try:
+        core = started(world)
+        world.enable(core, "health")
+        assert world.client().health_summary()["state"] == "empty"
     finally:
         world.close()

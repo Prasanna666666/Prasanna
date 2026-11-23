@@ -22,6 +22,7 @@ from .evidence import CitationError, SourceStore, resolve
 from .exact import ExactError, compute
 from .finance_calc import MONEY_DOMAIN, by_category, by_month, month_over_month, previous_month, transactions
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
+from .health_calc import HEALTH_DOMAIN, summarise
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
 from .records import Record
 from .rules import load_rules
@@ -59,6 +60,14 @@ class DevicesPort(Protocol):
     def pair(self, body: dict[str, Any]) -> dict[str, Any]: ...
     def listing(self) -> dict[str, Any]: ...
     def revoke(self, by_client: str, device_id: str) -> dict[str, Any]: ...
+
+
+class UpdatesPort(Protocol):
+    """What the API needs for updates (implemented by `updater.UpdateOperations`). A failure raises an object with a `code`."""
+
+    def status(self) -> dict[str, Any]: ...
+    def install_from(self, folder: Any) -> dict[str, Any]: ...
+    def rollback(self) -> dict[str, Any]: ...
 
 
 class ModePort(Protocol):
@@ -130,6 +139,7 @@ class Deps:
     clock: Callable[[], datetime] = _now
     coverage: Mapping[str, CoverageProvider] = field(default_factory=dict)  # per source type: what that index reports (used only to build the API 1.1 coverage)
     research: ResearchGate = field(default_factory=ResearchGate)
+    health_records: Callable[[], list[Record]] | None = None  # the Health records, when this Core has a Health source (read only after the grant check)
     finance_records: Callable[[], list[Record]] | None = None  # the Finance records, when this Core has a Finance source (read only under a current grant)
 
 
@@ -551,6 +561,20 @@ class TaskService:
             "latest": latest,
             "computed_by_code": True,
         }
+
+    def health_summary(self) -> dict[str, Any]:
+        """Health readings summarised by code (API 1.1): per measure and unit the exact latest, minimum and maximum and a rounded, labelled average, each reading marked measured, estimated or unlabelled. Served only
+        under a current grant for exactly the Health domain; without a Health source the route does not exist; without a grant the answer is `denied` and nothing was read. No advice is given."""
+        d = self._d
+        if d.health_records is None:
+            raise CoreError("not_found")
+        _decision, token = d.policy.decide([HEALTH_DOMAIN], d.clock())
+        if token is None:
+            return {"state": "denied", "reading_count": 0, "measures": [], "computed_by_code": True}
+        records = [r for r in d.health_records() if r.domain == HEALTH_DOMAIN]
+        if not records:
+            return {"state": "empty", "reading_count": 0, "measures": [], "computed_by_code": True}
+        return {"state": "ready", "reading_count": len(records), "measures": summarise(records)[:50], "computed_by_code": True}
 
     @staticmethod
     def compute(kind: str, args: list[str]) -> dict[str, Any]:

@@ -52,6 +52,17 @@ def read_code(stream: object) -> str | None:
     return line if CODE_SHAPE.match(line) else None
 
 
+def _options(args: argparse.Namespace) -> HostOptions:
+    """What the host is told about its sources and its own install, from the command line."""
+    return HostOptions(
+        _source(args.documents_source),
+        _source(args.mail_source),
+        Path(args.manifest_pubkey) if args.manifest_pubkey else None,
+        update_root=Path(args.update_root) if args.update_root else None,
+        update_pubkey=Path(args.update_pubkey) if args.update_pubkey else None,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
@@ -61,12 +72,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--mail-source", help="NAME=FOLDER: the Apple Mail folder for the mail source type")
     parser.add_argument("--manifest-pubkey", help="the installed public key (32 raw bytes) that signed the model manifest")
+    parser.add_argument("--update-root", help="the folder that holds the app's own versions (versions/, current, previous)")
+    parser.add_argument("--update-pubkey", help="the installed public key (32 raw bytes) that signs releases")
     parser.add_argument("--config-factory", default="host")
     parser.add_argument("--allow-custom-factory", action="store_true")
     args = parser.parse_args(argv)
     code = read_code(sys.stdin)
     sys.stdin.close()
-    options = HostOptions(_source(args.documents_source), _source(args.mail_source), Path(args.manifest_pubkey) if args.manifest_pubkey else None)
+    options = _options(args)
     try:
         config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code, options)
     except KeychainLocked:

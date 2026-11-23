@@ -43,3 +43,11 @@ def user_error(code: str, task_id: str | None = None) -> dict[str, Any]:
     if task_id:
         out["task_id"] = task_id
     return out
+
+
+class UpdateError(Exception):
+    """An update step was refused. Carries a code and nothing else."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code

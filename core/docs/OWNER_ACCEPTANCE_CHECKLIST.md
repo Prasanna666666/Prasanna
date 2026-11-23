@@ -23,8 +23,8 @@ Everything the developer can build and test without hardware, accounts or a real
 ## D. Product scope that needs an owner decision or account first (not started by design)
 13. G-O14: the remote channel (relay or VPN) and the iOS client. The Core side (pairing, signed requests, sync, revocation, no public ports) is built and tested.
 14. G-O02 and G-O05, and the Stage 6 connector and voice scope (home, travel, shopping, work connectors need accounts and devices; voice needs the client).
-15. Photos and Health adapters, Playwright browser engine, isolated automation workers and real specialist agents. The policy layer, stubs and fakes are built and tested; the real engines need a machine that can run them.
-16. Update channel and update screen (the signed-update and rollback mechanism is built and tested; hosting needs an account).
+15. Photos adapter, Playwright browser engine, isolated automation workers and real specialist agents. The policy layer, stubs and fakes are built and tested; the real engines need a machine that can run them.
+16. Update channel: where signed releases are published (needs hosting and your release-signing key; the signed install and rollback from a chosen folder, and the Settings screen, are built and tested). Put the public key at `~/Library/Application Support/Atlas/release.pub` and the screen appears.
 17. Attachment processing (G-O18, separate package).
 
 ## E. For the architect
