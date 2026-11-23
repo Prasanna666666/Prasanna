@@ -46,15 +46,23 @@ public enum LoadState<Value> {
 
 /// The app's own launch state, shown before any screen (first launch, returning launch, Core starting, Core unavailable).
 public enum LaunchState: Equatable {
-    case startingCore, needsOwnerSignIn, coreUnavailable(String), ready
+    case startingCore, needsOwnerSignIn, identityUnavailable(String), coreUnavailable(String), ready
 
     public var message: String? {
         switch self {
         case .startingCore: return UnavailableReason.coreStarting.message
         case .needsOwnerSignIn: return "This Mac needs you to sign in before Atlas can start."
-        case .coreUnavailable(let text): return text
+        case .identityUnavailable(let text), .coreUnavailable(let text): return text
         case .ready: return nil
         }
+    }
+
+    /// The owner's identity could not be created or read in the Keychain. Nothing can be asked or changed without it, so this blocks the app with a next step instead of showing a composer that cannot work.
+    public static let identityFailureMessage = "Atlas could not open this Mac's secure storage (Keychain), so it cannot start. Unlock your Mac or sign in again, then reopen Atlas. If it keeps happening, restart your Mac."
+
+    /// Resolves the owner's identity from a provider. A failure is kept as a launch state, never discarded.
+    public static func resolveIdentity<Identity>(_ provider: () throws -> Identity) -> (identity: Identity?, state: LaunchState?) {
+        do { return (try provider(), nil) } catch { return (nil, .identityUnavailable(identityFailureMessage)) }
     }
 
     /// Maps the launcher's failure text to a launch state.

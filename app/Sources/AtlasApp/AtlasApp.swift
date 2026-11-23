@@ -146,16 +146,26 @@ final class AppModel: ObservableObject {
     private var gate = SubmissionGate()
     private var tracker = PhaseTracker()
     private var currentTaskID: String?
-    private let client: CoreClient?
+    private var client: CoreClient?
     private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
     private var socket: String { support.appendingPathComponent("run/core.sock").path }
     static let completedKey = "atlas.getStartedCompleted"
     static let selectionKey = "atlas.selection"
 
     init() {
-        client = (try? KeyStore.identity()).map { CoreClient(socketPath: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas/run/core.sock").path, signer: $0.signer, clientID: $0.id) }
         selection = Sidebar.restored(UserDefaults.standard.string(forKey: Self.selectionKey), in: availability)
-        Task { await startCoreThenRefresh() }
+        Task { await retryLaunch() }
+    }
+
+    /// Opens the owner's identity in the Keychain, then starts the Core. Without an identity the Core is not started, onboarding cannot complete and no composer is shown; "Try again" comes back here.
+    func retryLaunch() async {
+        let resolved = LaunchState.resolveIdentity { try KeyStore.identity() }
+        client = resolved.identity.map { CoreClient(socketPath: socket, signer: $0.signer, clientID: $0.id) }
+        if let blocked = resolved.state {
+            launch = blocked
+            return
+        }
+        await startCoreThenRefresh()
     }
 
     /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.

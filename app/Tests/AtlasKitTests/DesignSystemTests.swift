@@ -275,3 +275,22 @@ final class ActivityTests: XCTestCase {
         for kind in [ActivityItem.Kind.task, .update, .risk, .decision, .action] { XCTAssertFalse(item("x", kind, 0).symbol.isEmpty) }
     }
 }
+
+final class IdentityFailureTests: XCTestCase {
+    private struct KeychainDown: Error {}
+
+    func testAKeychainFailureIsKeptAsABlockingLaunchStateWithANextStep() {
+        let failed: (identity: Int?, state: LaunchState?) = LaunchState.resolveIdentity { () throws -> Int in throw KeychainDown() }
+        XCTAssertNil(failed.identity)
+        XCTAssertEqual(failed.state, .identityUnavailable(LaunchState.identityFailureMessage))
+        XCTAssertTrue(failed.state?.message?.contains("Unlock your Mac") == true)  // says what to do next
+        XCTAssertTrue(failed.state?.message?.contains("Keychain") == true)
+        XCTAssertNotEqual(failed.state, .ready)  // nothing marks the app ready, so no composer and no onboarding completion
+    }
+
+    func testAWorkingKeychainGivesTheIdentityAndNoBlockingState() {
+        let ok = LaunchState.resolveIdentity { 42 }
+        XCTAssertEqual(ok.identity, 42)
+        XCTAssertNil(ok.state)
+    }
+}

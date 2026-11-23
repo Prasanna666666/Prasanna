@@ -9,7 +9,7 @@ struct RootView: View {
     var body: some View {
         Group {
             if let message = model.launch.message {
-                LaunchView(message: message, showsRetry: model.launch != .startingCore) { Task { await model.startCoreThenRefresh() } }
+                LaunchView(message: message, showsRetry: model.launch != .startingCore) { Task { await model.retryLaunch() } }
             } else if model.needsGetStarted {
                 GetStartedView(model: model)
             } else {
