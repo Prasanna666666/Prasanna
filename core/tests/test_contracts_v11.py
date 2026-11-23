@@ -519,6 +519,7 @@ NEW_PATHS = {
     "/v1/library/search",
     "/v1/attention",
     "/v1/records/{domain}",
+    "/v1/finance/summary",
 }
 OPS = ("get", "post", "put", "patch", "delete")
 

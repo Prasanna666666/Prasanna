@@ -636,6 +636,27 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/finance/summary:
+    get:
+      operationId: financeSummary
+      summary: Spending by month and category, computed by code from the owner's Finance records, under a current Finance grant.
+      x-atlas-status: served by the Core when it has a Finance record source; API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The summary, empty or denied
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/FinanceSummary
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
       operationId: enrolClient

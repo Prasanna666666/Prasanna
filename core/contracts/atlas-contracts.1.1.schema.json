@@ -2571,6 +2571,147 @@
         }
       },
       "description": "The owner's own records of one domain (Calendar, Contacts or Notes), newest first, with the version each edit must name. Owner client only."
+    },
+    "FinanceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "currency",
+        "transaction_count",
+        "months",
+        "latest",
+        "computed_by_code"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "empty",
+            "denied"
+          ]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "transaction_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "month",
+              "total"
+            ],
+            "properties": {
+              "month": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}$"
+              },
+              "total": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+              }
+            }
+          }
+        },
+        "latest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "month",
+                "total",
+                "categories",
+                "previous_total",
+                "delta",
+                "percent"
+              ],
+              "properties": {
+                "month": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}$"
+                },
+                "total": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                },
+                "categories": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "category",
+                      "total"
+                    ],
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+                      },
+                      "total": {
+                        "type": "string",
+                        "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                      }
+                    }
+                  }
+                },
+                "previous_total": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "delta": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "percent": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,7}\\.[0-9]$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The change against the previous month as a percentage rounded half-up to one place. It is rounded, not exact, and absent when there is no previous month or it was zero."
+                }
+              }
+            }
+          ]
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "Spending by month and category, computed by code from the owner's Finance records (never by a model), each total the exact sum of the transactions it names. Served only under a current grant for exactly the Finance domain; otherwise `denied`. Owner client only."
     }
   }
 }

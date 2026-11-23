@@ -258,14 +258,17 @@ def test_the_host_builds_a_config_from_the_keychain_folders_and_an_installed_sig
     config = build_config(
         tmp_path / "data", tmp_path / "s", "boot-code-0123456789abc", HostOptions(("documents", docs), ("mail", mail), tmp_path / "pub.key"), HostEnv("darwin", sec, "owner", runtime=object())
     )  # fmt: skip
-    keys = {config.task_key, config.designation_key, config.documents_key, config.mail_key, config.edits_key}
-    assert len(keys) == 5 and all(len(k) == 64 for k in keys) and len(config.model_record_key) == 32
+    finance_key = next(iter(config.records.values()))[1]
+    keys = {config.task_key, config.designation_key, config.documents_key, config.mail_key, config.edits_key, finance_key}
+    assert len(keys) == 6 and all(
+        len(k) == 64 for k in keys
+    )  # every store has a key of its own, including the Finance index and len(config.model_record_key) == 32
     assert (
         config.outbox is None and config.erase is None and config.require_restore_drill is True
     )  # no sender, no eraser, and restricted domains wait for a restore drill
     assert isinstance(config.anchor, KeychainAnchor) and config.bootstrap_code == "boot-code-0123456789abc"
     assert [e.model_id for e in config.manifest.entries()] == ["primary-1"] and config.documents == ("documents", docs) and config.mailbox[0] == "mail"
-    assert isinstance(config.mailbox[1], EmlxMailbox) and isinstance(config.os_permissions, FolderPermissions)
+    assert isinstance(config.mailbox[1], EmlxMailbox) and isinstance(config.os_permissions._inner, FolderPermissions)
     again = build_config(tmp_path / "data", tmp_path / "s", None, HostOptions(), HostEnv("darwin", sec, "owner", runtime=object()))
     assert again.task_key == config.task_key  # the same Keychain items on the next start
 

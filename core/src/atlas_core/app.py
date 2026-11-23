@@ -29,6 +29,7 @@ from .documents import DocumentIndex
 from .egress import EgressGateway
 from .events import SafeLog
 from .evidence import StoredSource
+from .finance_calc import MONEY_DOMAIN
 from .identity import BootstrapGate, ClientRegistry
 from .intelligence import Gateway, ModelRuntime, Router, Signals
 from .mail import Mailbox, MailIndex
@@ -36,6 +37,7 @@ from .models import Manifest, ModelStore
 from .operations import DeviceOperations, Operations
 from .policy import PolicyEngine
 from .record_actions import register_record_actions
+from .records import Record
 from .recordstore import RecordStore, StoreError
 from .rules import load_rules
 from .service import Deps, ResearchGate, TaskService
@@ -82,6 +84,7 @@ class CoreConfig:
     )
     erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
     disk_usage: Callable[[Path], tuple[int, int, int]] = shutil.disk_usage  # (total, used, free) of the data folder's disk; tests inject a nearly full one
+    closers: tuple[Callable[[], None], ...] = ()  # what the host opened for the Core (its own stores): closed with the Core
     require_restore_drill: bool = False  # when True, Finance and Health cannot be designated until a restore drill has passed in the last 90 days (G-O05: restore is verified before sensitive-domain indexing)
     live_network: bool = False  # the explicit live-network gate: even with a gateway configured, no public search is made unless this is True (off by default)
     log: SafeLog = field(default_factory=SafeLog)
@@ -186,6 +189,7 @@ class Core:
                 clock=c.clock,
                 coverage={t: index.coverage for t, index in self.indexes.items()},
                 research=ResearchGate(c.egress, c.live_network),
+                finance_records=self._finance_records(c),
             )
         )
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it
@@ -218,6 +222,13 @@ class Core:
             ops=self.operations,
             devices=self.device_operations,
         )
+
+    @staticmethod
+    def _finance_records(c: CoreConfig) -> Callable[[], list[Record]] | None:
+        """The Finance records, if this Core has a Finance source that can list them (read only when the service has checked the grant)."""
+        entry = c.records.get(MONEY_DOMAIN)
+        records = getattr(entry[0], "records", None) if entry else None
+        return None if records is None else (lambda: list(entry[0].records.values()))  # type: ignore[index, union-attr]
 
     def _build_devices(self, c: CoreConfig) -> DeviceOperations:
         """Device pairing and revocation: the Core's own identity key (created once, mode 0600) and the directory of paired devices."""
@@ -325,6 +336,8 @@ class Core:
             thread.join(5)
         for index in self.indexes.values():
             index.close()
+        for closer in self.config.closers:
+            closer()
         self.tasks.close()
         if self.edits is not None:
             self.edits.close()

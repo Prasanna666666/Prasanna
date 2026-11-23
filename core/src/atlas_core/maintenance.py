@@ -7,6 +7,7 @@ from, and a restore puts keys back into, the real items. Output is one short lin
     verify   <backup>                           check a backup's integrity; with the passphrase, its authenticity and every database
     drill    <backup> <data-dir>                restore into a temporary place, check it, and record the drill (allows Finance and Health when the host requires one)
     restore  <backup> <new-data-dir>            restore into an empty place and put the recovered keys into the Keychain
+    import-finance <legacy-db> <data-dir>       import the old Finance database's transactions (stdin: its key, or an empty line); the original is only read, never changed
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from tempfile import TemporaryDirectory
 from typing import TextIO
 
 from .backup import BackupError, create_backup, restore_backup, run_restore_drill, verify_backup
+from .migration import MigrationError, Sink, migrate
 
 KEY_ITEMS = {"tasks.db": "task-store", "designation.db": "designation-store", "edits.db": "edits-store"}
 BUNDLE_ITEMS = {"documents_index": "documents-index", "mail_index": "mail-index", "model_record": "model-record"}
@@ -27,6 +29,11 @@ MIN_ARGS = 2
 KeyReader = Callable[[str], str]
 KeyWriter = Callable[[Mapping[str, str]], None]
 Result = tuple[int, str]
+SinkOpener = Callable[[Path], tuple[Sink, Callable[[], None]]]  # the Finance record store of a data folder, and how to close it
+
+
+def _no_sink(_data_dir: Path) -> tuple[Sink, Callable[[], None]]:
+    raise OSError("no Finance store")
 
 
 def _passphrase(stream: TextIO) -> str:
@@ -58,9 +65,20 @@ def _restore(paths: list[Path], phrase: str, write_keys: KeyWriter) -> Result:
     return EXIT_OK, f"restore: ok {len(report.files)} files, grants not restored\n"
 
 
-def run(argv: list[str], *, stdin: TextIO, out: TextIO, read_key: KeyReader, write_keys: KeyWriter) -> int:
+def _import_finance(paths: list[Path], legacy_key: str, open_sink: SinkOpener) -> Result:
+    sink, close = open_sink(paths[1])
+    try:
+        result = migrate(paths[0], sink, legacy_key or None)
+    finally:
+        close()
+    return (
+        EXIT_OK if result.ok else EXIT_REFUSED
+    ), f"import-finance: {'ok' if result.ok else 'refused ' + ','.join(result.problems)} {result.migrated} records\n"
+
+
+def run(argv: list[str], *, stdin: TextIO, out: TextIO, read_key: KeyReader, write_keys: KeyWriter, open_sink: SinkOpener | None = None) -> int:
     """`read_key(item)` returns the Keychain secret for an item name (creating it if the Core never did); `write_keys(bundle)` puts recovered keys back. Both are the platform seam."""
-    if len(argv) < MIN_ARGS or argv[0] not in ("backup", "verify", "drill", "restore"):
+    if len(argv) < MIN_ARGS or argv[0] not in ("backup", "verify", "drill", "restore", "import-finance"):
         out.write("usage: backup|verify|drill|restore ...\n")
         return EXIT_USAGE
     command, paths = argv[0], [Path(a) for a in argv[1:]]
@@ -71,8 +89,9 @@ def run(argv: list[str], *, stdin: TextIO, out: TextIO, read_key: KeyReader, wri
             "backup": lambda: _backup(paths, phrase, read_key),
             "drill": lambda: _drill(paths, phrase),
             "restore": lambda: _restore(paths, phrase, write_keys),
+            "import-finance": lambda: _import_finance(paths, phrase, open_sink or _no_sink),
         }[command]()
-    except BackupError as error:
+    except (BackupError, MigrationError) as error:
         code, line = EXIT_REFUSED, f"{command}: refused {error.code}\n"
     except (OSError, IndexError):
         code, line = EXIT_REFUSED, f"{command}: refused could_not_complete\n"
@@ -91,7 +110,15 @@ def main() -> int:  # pragma: no cover  (the platform wiring: the real Keychain,
             if key in bundle:
                 items.write(f"atlas-{item}", bundle[key])
 
-    return run(sys.argv[1:], stdin=sys.stdin, out=sys.stdout, read_key=items.secret, write_keys=write_keys)
+    def open_sink(data_dir: Path) -> tuple[Sink, Callable[[], None]]:
+        from .finance_calc import MONEY_DOMAIN
+        from .recordstore import RecordStore, StoredRecords
+
+        data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        store = RecordStore(data_dir / "finance-records.db", items.secret("finance-records"), frozenset({MONEY_DOMAIN}))
+        return StoredRecords(store, MONEY_DOMAIN), store.close
+
+    return run(sys.argv[1:], stdin=sys.stdin, out=sys.stdout, read_key=items.secret, write_keys=write_keys, open_sink=open_sink)
 
 
 if __name__ == "__main__":  # pragma: no cover

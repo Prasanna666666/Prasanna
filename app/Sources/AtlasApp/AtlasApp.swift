@@ -98,6 +98,10 @@ final class AppModel: ObservableObject {
     @Published var selection: Destination = .home
     @Published var launch: LaunchState = .startingCore
     @Published var needsGetStarted = true
+    // Finance and sources the owner could still turn on
+    @Published var financeServed = false
+    @Published var finance: LoadState<FinanceView> = .idle
+    @Published var offeredSources: [String] = []
     // Own records (Calendar, Contacts, Notes)
     @Published var editsAvailable = false
     @Published var ownRecords: [OwnDomain: LoadState<[OwnRecord]>] = [:]
@@ -145,7 +149,7 @@ final class AppModel: ObservableObject {
     }
 
     /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.
-    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: editsAvailable ? OwnDomain.allCases.map { $0.title } : []) }
+    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : [])) }
 
     /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
     var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
@@ -197,6 +201,31 @@ final class AppModel: ObservableObject {
         needsGetStarted = false
         await refreshConsent()
         await loadSettings()
+    }
+
+    // MARK: finance and turning sources on
+
+    func loadFinance() async {
+        guard let client else { return }
+        finance = .loading
+        do {
+            let response = try await Task.detached { try client.financeSummary() }.value
+            financeServed = true
+            finance = FinanceOutcome.from(response)
+        } catch AtlasError.core(let code) where code == "not_found" {
+            financeServed = false
+            finance = .unavailable(.notAvailableYet)
+        } catch { finance = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    /// Sources the owner could still turn on, from what the Core offers; each is a deliberate step and nothing is preselected.
+    func enable(sourceType: String) async {
+        guard let client else { return }
+        failure = nil
+        do { _ = try await Task.detached { try client.enable([sourceType]) }.value } catch { failure = (error as? AtlasError)?.message; return }
+        await refreshConsent()
+        await loadSettings()
+        if sourceType == "finance" { await loadFinance() }
     }
 
     // MARK: own records
@@ -372,12 +401,15 @@ final class AppModel: ObservableObject {
         do {
             let state = try await Task.detached { try client.consent() }.value
             grants = (state["grants"] as? [[String: Any]] ?? []).filter { ($0["revoked"] as? Bool) == false }
+            let enabled = Set(grants.compactMap { $0["source_type"] as? String })
+            offeredSources = (state["sources"] as? [[String: Any]] ?? []).compactMap { $0["source_type"] as? String }.filter { !enabled.contains($0) }
             let status = try await Task.detached { try client.indexStatus() }.value
             research = (try await Task.detached { try client.mode() }.value) == "research"
             indexLine = "Indexed \(status["indexed"] as? Int ?? 0) of \(status["total"] as? Int ?? 0), \(status["state"] as? String ?? "")."
             await loadDevices()
             await loadAttention()
             await probeOwnRecords()
+            await loadFinance()
         } catch { failure = (error as? AtlasError)?.message }
     }
 

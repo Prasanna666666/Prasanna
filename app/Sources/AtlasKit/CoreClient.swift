@@ -65,6 +65,9 @@ public final class CoreClient {
     public func approve(approvalID: String) throws -> Bool { (try object(call("POST", "/v1/actions/approve", ["approval_id": approvalID])))["granted"] as? Bool ?? false }
     public func undo(actionID: String) throws -> [String: Any] { try object(call("POST", "/v1/actions/undo", ["action_id": actionID])) }
 
+    /// Spending by month and category, computed by the Core from the owner's Finance records (only under a Finance grant).
+    public func financeSummary() throws -> [String: Any] { try object(call("GET", "/v1/finance/summary")) }
+
     /// The owner's own records of one domain (calendar, contacts or notes).
     public func records(_ domain: String) throws -> [String: Any] { try object(call("GET", "/v1/records/\(domain)")) }
 

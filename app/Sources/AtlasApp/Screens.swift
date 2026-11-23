@@ -312,6 +312,52 @@ struct AddRecordSheet: View {
     }
 }
 
+// MARK: Finance
+
+struct FinanceAreaView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let theme = Theme(scheme)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                PageHeader(title: "Finance", subtitle: "Spending, added up on this Mac from your own transactions.")
+                switch model.finance {
+                case .loaded(let view), .partial(let view, _):
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        Text(view.monthTitle).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                        Text(view.total).font(.system(size: 34, weight: .semibold).monospacedDigit()).foregroundStyle(theme.textPrimary)
+                            .accessibilityLabel("Spent in \(view.monthTitle): \(view.total)")
+                        if let change = view.changeLine { Text(change).font(TextStyle.secondary).foregroundStyle(theme.textSecondary) }
+                    }
+                    if !view.categories.isEmpty { lines("By category", view.categories, theme) }
+                    if view.months.count > 1 { lines("Month by month", view.months, theme) }
+                    Text(view.basis).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                case .empty: StateNotice(text: "No transactions yet. Import your Finance data to see spending here.")
+                case .denied(let text): StateNotice(text: text, style: .warning, actionTitle: "Turn on Finance") { Task { await model.enable(sourceType: "finance") } }
+                case .loading, .idle: StateNotice(text: "Loading.", style: .loading)
+                case .unavailable(let reason): StateNotice(text: reason.message, style: .warning)
+                case .failed(let text): StateNotice(text: text, style: .problem)
+                }
+            }
+            .padding(Space.xl).readingColumn()
+        }
+        .task { await model.loadFinance() }
+    }
+
+    @ViewBuilder private func lines(_ title: String, _ rows: [FinanceView.Line], _ theme: Theme) -> some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            Text(title).font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack { Text(row.label); Spacer(); Text(row.amount).monospacedDigit() }
+                    .font(TextStyle.body).foregroundStyle(theme.textPrimary).accessibilityElement(children: .combine)
+                Divider()
+            }
+        }
+    }
+}
+
 // MARK: Activity
 
 struct ActivityView: View {
@@ -372,9 +418,19 @@ struct SettingsView: View {
                     if model.grants.isEmpty { Text("Nothing is enabled. Atlas reads nothing.").foregroundStyle(theme.textSecondary) }
                     ForEach(Array(model.grants.enumerated()), id: \.offset) { _, grant in
                         HStack {
-                            Label(Catalogue.shared.sourceKinds[grant["source_type"] as? String ?? ""] ?? (grant["source_type"] as? String ?? "").capitalized, systemImage: "checkmark.circle")
+                            Label(SourceNames.title(grant["source_type"] as? String ?? ""), systemImage: "checkmark.circle")
                             Spacer()
                             Button("Stop reading this", role: .destructive) { Task { await model.withdraw(grant["grant_id"] as? String ?? "") } }
+                        }
+                    }
+                    ForEach(model.offeredSources, id: \.self) { type in
+                        VStack(alignment: .leading, spacing: Space.xs) {
+                            HStack {
+                                Label(SourceNames.title(type), systemImage: "plus.circle")
+                                Spacer()
+                                Button("Turn on") { Task { await model.enable(sourceType: type) } }
+                            }
+                            Text(SourceNames.explanation(type)).font(TextStyle.caption).foregroundStyle(theme.textMuted)
                         }
                     }
                     Text(model.indexLine).font(TextStyle.caption).foregroundStyle(theme.textMuted)

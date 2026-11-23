@@ -232,3 +232,54 @@ def test_a_migrated_legacy_finance_database_answers_through_the_core_under_the_f
     finally:
         world.close()
         store.close()
+
+
+def test_the_finance_summary_is_computed_by_code_served_only_under_the_finance_grant_and_exact(tmp_path):
+    from decimal import Decimal
+
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    september = [fin("s1", "2026-09-03", "100.10", "rent"), fin("s2", "2026-09-20", "50.20", "fuel")]
+    world.sources["finance"] = InMemoryRecords("finance", FINANCE + september)
+    try:
+        core = started(world)
+        owner = world.client()
+        denied = owner.finance_summary()
+        assert (
+            denied["state"] == "denied" and denied["months"] == [] and denied["latest"] is None and world.sources["finance"].reads == 0
+        )  # nothing read without the grant
+        world.enable(core, "finance")
+        out = owner.finance_summary()
+        assert out["state"] == "ready" and out["computed_by_code"] is True and out["transaction_count"] == 6
+        assert [(m["month"], m["total"]) for m in out["months"]] == [("2026-09", "150.30"), ("2026-10", "412.60")]
+        latest = out["latest"]
+        assert (
+            latest["month"] == "2026-10"
+            and latest["total"] == "412.60"
+            and latest["categories"] == [{"category": "rent", "total": "412.30"}, {"category": "tea", "total": "0.30"}]
+        )
+        assert (latest["previous_total"], latest["delta"], latest["percent"]) == ("150.30", "262.30", "174.5")  # 262.30 / 150.30, rounded half-up to one place
+        assert Decimal(latest["total"]) - Decimal(latest["previous_total"]) == Decimal(latest["delta"])
+        assert sum(Decimal(c["total"]) for c in latest["categories"]) == Decimal(latest["total"])  # the categories add up to the month, exactly
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+        member_key = Ed25519PrivateKey.generate()
+        world.clients.register("member-device-0001", member_key.public_key())
+        member = atlas_client.AtlasClient(str(world.sock), member_key, "member-device-0001", clock=world.clock)
+        with pytest.raises(atlas_client.ClientError) as e:
+            member.finance_summary()  # the route is for the owner client only
+        assert e.value.code == "forbidden"
+    finally:
+        world.close()
+
+
+def test_a_core_without_a_finance_source_has_no_finance_route_and_an_empty_one_says_so(tmp_path):
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    world.sources["finance"] = InMemoryRecords("finance", [])
+    try:
+        core = started(world)
+        world.enable(core, "finance")
+        assert world.client().finance_summary()["state"] == "empty"
+    finally:
+        world.close()

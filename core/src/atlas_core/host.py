@@ -12,16 +12,20 @@ from __future__ import annotations
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from .access import GRANTED, PermissionEvidence
 from .app import CoreConfig
+from .finance_calc import MONEY_DOMAIN
 from .intelligence import ModelRuntime
 from .isolated import IsolatedEngine
 from .macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems, Runner
 from .mlx_runtime import MlxRuntime
 from .models import Manifest, ModelRejected
+from .recordstore import RecordStore, StoredRecords
 
 MANIFEST_FILE, SIGNATURE_FILE = "manifest.json", "manifest.sig"
 
@@ -50,6 +54,19 @@ class HostEnv:
     runtime: ModelRuntime | None = None  # None: the MLX engine in the isolated worker
 
 
+class OwnStorePermissions:
+    """Atlas's own stores (the Finance records) have no operating-system permission to ask for: the owner's grant in Atlas, judged by the policy (a grant for exactly that domain with a `restricted`
+    ceiling, and a passed restore drill), is the whole decision. Every other source type is delegated to the platform provider (folders, TCC)."""
+
+    def __init__(self, own: frozenset[str], inner: FolderPermissions) -> None:
+        self._own, self._inner = own, inner
+
+    def current(self, source_type: str) -> PermissionEvidence:
+        if source_type in self._own:
+            return PermissionEvidence(source_type, GRANTED, datetime.now(UTC))
+        return self._inner.current(source_type)
+
+
 def load_manifest(models_dir: Path, pubkey: Path | None) -> Manifest:
     """The signed manifest installed next to the models, or an EMPTY manifest (no model: answers say the local model is unavailable while typed functions continue). A manifest that
     is missing, unsigned or fails its signature gives no models, never a crash and never an unsigned model."""
@@ -66,11 +83,18 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         raise HostUnavailable("the real platform providers exist only for macOS")
     items = KeychainItems(env.account, env.runner)
     try:
-        keys = {name: items.secret(name) for name in ("task-store", "designation-store", "documents-index", "mail-index", "edits-store")}
+        keys = {
+            name: items.secret(name)
+            for name in ("task-store", "designation-store", "documents-index", "mail-index", "edits-store", "finance-records", "finance-index")
+        }
         record_key = bytes.fromhex(items.secret("model-record"))
     except KeychainError:
         raise KeychainLocked("the Keychain could not provide the store keys") from None
     folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
+    data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    finance = RecordStore(
+        data_dir / "finance-records.db", keys["finance-records"], frozenset({MONEY_DOMAIN})
+    )  # the owner's Finance records, in their own encrypted store (imported with `maintenance import-finance`)
     return CoreConfig(
         data_dir=data_dir,
         socket_path=socket_path,
@@ -79,7 +103,9 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         documents_key=keys["documents-index"],
         mail_key=keys["mail-index"],
         anchor=KeychainAnchor(items),
-        os_permissions=FolderPermissions(folders),
+        os_permissions=OwnStorePermissions(frozenset({MONEY_DOMAIN}), FolderPermissions(folders)),
+        records={MONEY_DOMAIN: (StoredRecords(finance, MONEY_DOMAIN), keys["finance-index"])},
+        closers=(finance.close,),
         manifest=load_manifest(data_dir / "models", options.manifest_pubkey),
         model_record_key=record_key,
         runtime=env.runtime or MlxRuntime(IsolatedEngine("mlx")),

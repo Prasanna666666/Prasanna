@@ -48,7 +48,8 @@ class MigrationError(Exception):
 class Sink(Protocol):
     """Where migrated records go (a record source that accepts writes). `records` is read back to reconcile."""
 
-    records: dict[str, Record]
+    @property
+    def records(self) -> dict[str, Record]: ...
 
     def put(self, record: Record) -> None: ...
 

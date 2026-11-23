@@ -20,8 +20,10 @@ from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import CitationError, SourceStore, resolve
 from .exact import ExactError, compute
+from .finance_calc import MONEY_DOMAIN, by_category, by_month, month_over_month, previous_month, transactions
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
+from .records import Record
 from .rules import load_rules
 from .tasks import STEPS, TERMINAL, TaskStore
 from .values import LanguageIn
@@ -128,6 +130,7 @@ class Deps:
     clock: Callable[[], datetime] = _now
     coverage: Mapping[str, CoverageProvider] = field(default_factory=dict)  # per source type: what that index reports (used only to build the API 1.1 coverage)
     research: ResearchGate = field(default_factory=ResearchGate)
+    finance_records: Callable[[], list[Record]] | None = None  # the Finance records, when this Core has a Finance source (read only under a current grant)
 
 
 class TaskService:
@@ -514,6 +517,40 @@ class TaskService:
         incomplete = any(not c["complete"] for c in coverage)
         state = ("partial" if results else "partial_no_results") if incomplete else ("results" if results else "no_results")
         return {"state": state, "results": results, "coverage": coverage}
+
+    def finance_summary(self) -> dict[str, Any]:
+        """Spending by month and category (API 1.1), computed by code from the owner's Finance records and served only under a current grant for exactly that domain. Every figure is an exact sum of the
+        transactions it names; the one percentage is rounded and labelled so. Without a Finance source the route does not exist; without a grant the answer is `denied` and nothing was read."""
+        d = self._d
+        if d.finance_records is None:
+            raise CoreError("not_found")
+        blank: dict[str, Any] = {"currency": "EUR", "transaction_count": 0, "months": [], "latest": None, "computed_by_code": True}
+        _decision, token = d.policy.decide([MONEY_DOMAIN], d.clock())
+        if token is None:
+            return {"state": "denied", **blank}
+        txs = transactions(d.finance_records())
+        spending = by_month(txs)
+        if not spending:
+            return {"state": "empty", **blank, "transaction_count": len(txs)}
+        month = max(spending)
+        change = month_over_month(txs, month)
+        has_previous = previous_month(month) in spending
+        latest = {
+            "month": month,
+            "total": str(spending[month]),
+            "categories": [{"category": c, "total": str(t)} for c, t in sorted(by_category(txs, month).items(), key=lambda kv: (-kv[1], kv[0]))],
+            "previous_total": str(change.previous) if has_previous else None,
+            "delta": str(change.delta) if has_previous else None,
+            "percent": None if change.percent is None else str(change.percent),
+        }
+        return {
+            "state": "ready",
+            "currency": "EUR",
+            "transaction_count": len(txs),
+            "months": [{"month": m, "total": str(t)} for m, t in list(spending.items())[-12:]],
+            "latest": latest,
+            "computed_by_code": True,
+        }
 
     @staticmethod
     def compute(kind: str, args: list[str]) -> dict[str, Any]:

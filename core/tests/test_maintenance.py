@@ -75,3 +75,50 @@ def test_the_commands_take_the_passphrase_only_from_standard_input():
         "sys.argv[1:]" in source and "os.environ" not in source and "getenv" not in source and "readline()" in source
     )  # a verb and paths on the command line; the passphrase from standard input only
     assert json.dumps(ITEM_KEYS)  # the fixture's keys are synthetic
+
+
+def test_the_legacy_finance_database_is_imported_through_the_command_and_the_original_is_untouched(tmp_path):
+    import sqlite3
+
+    from atlas_core.recordstore import RecordStore, StoredRecords
+
+    legacy = tmp_path / "finance.db"
+    conn = sqlite3.connect(str(legacy))
+    conn.executescript("CREATE TABLE transactions (id INTEGER PRIMARY KEY, day TEXT, amount_minor INTEGER, kind TEXT, category TEXT, note TEXT);")
+    conn.execute("INSERT INTO transactions VALUES (1, '2026-10-15', 41230, 'expense', 'rent', 'October')")
+    conn.commit()
+    conn.close()
+    before = legacy.read_bytes()
+    stores = []
+
+    def open_sink(data_dir):
+        data_dir.mkdir(parents=True, exist_ok=True)
+        store = RecordStore(data_dir / "finance-records.db", KEY + "f", frozenset({"finance"}))
+        stores.append(store)
+        return StoredRecords(store, "finance"), lambda: None
+
+    out = io.StringIO()
+    code = run(
+        ["import-finance", str(legacy), str(tmp_path / "core")],
+        stdin=io.StringIO("\n"),
+        out=out,
+        read_key=ITEM_KEYS.__getitem__,
+        write_keys=lambda b: None,
+        open_sink=open_sink,
+    )
+    assert (code, out.getvalue()) == (0, "import-finance: ok 1 records\n") and legacy.read_bytes() == before
+    assert stores[0].get("legacy-tx-1").record.fields["amount"] == "412.30"
+    stores[0].close()
+    out2 = io.StringIO()
+    assert (
+        run(
+            ["import-finance", str(tmp_path / "missing.db"), str(tmp_path / "core")],
+            stdin=io.StringIO("\n"),
+            out=out2,
+            read_key=ITEM_KEYS.__getitem__,
+            write_keys=lambda b: None,
+            open_sink=open_sink,
+        )
+        == 1
+    )
+    assert out2.getvalue() == "import-finance: refused missing_source\n"

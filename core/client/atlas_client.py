@@ -145,6 +145,10 @@ class AtlasClient:
         """The owner's own records of one domain: calendar, contacts or notes (API 1.1; owner client only)."""
         return list(self._json("GET", f"/v1/records/{domain}")["records"])
 
+    def finance_summary(self) -> dict[str, Any]:
+        """Spending by month and category, computed by code under a current Finance grant (API 1.1; owner client only)."""
+        return self._json("GET", "/v1/finance/summary")
+
     def attention(self) -> list[dict[str, Any]]:
         """What needs the owner's attention (API 1.1; owner client only): today, overlapping calendar events."""
         return list(self._json("GET", "/v1/attention")["items"])
