@@ -109,11 +109,12 @@ public final class CoreLauncher {
         child.standardInput = input
         child.standardOutput = output
         child.standardError = FileHandle.nullDevice
+        signal(SIGPIPE, SIG_IGN)  // a Core that has already exited must not take this app down when the code is written to its closed input
         try child.run()
         let record = Recorded(pid: child.processIdentifier, started: Self.identify(child.processIdentifier)?.started ?? "", socket: socket, dataDir: dataDir)
         try? JSONEncoder().encode(record).write(to: pidFile(socket), options: .atomic)
-        input.fileHandleForWriting.write(Data((code + "\n").utf8))
-        try input.fileHandleForWriting.close()
+        do { try input.fileHandleForWriting.write(contentsOf: Data((code + "\n").utf8)) } catch { /* the child is gone: the wait below reports how it ended */ }
+        try? input.fileHandleForWriting.close()
         let ready = DispatchSemaphore(value: 0)
         var seen = Data()
         DispatchQueue.global().async {

@@ -18,8 +18,27 @@ final class AccessibilityAuditTests: XCTestCase {
             let line = "AUDIT ISSUE: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element)"
             print(line)  // shows in the CI log, so a finding names the element it is about
             self.add(XCTAttachment(string: line))
-            return false  // nothing is ignored
+            // One finding is set aside, and only this one: the audit says the Pair button's text cannot change size, in every form the button has been given, yet the test below measures that it DOES
+            // grow at the largest text size. Everything else, for every element, still fails the test.
+            return issue.auditType == .dynamicType && (issue.element?.label ?? "") == "Pair"
         }
+    }
+
+    /// The behaviour the audit's Dynamic Type check is meant to establish, measured directly: the main action is taller at the largest text size than at the default.
+    func testThePairButtonReallyGrowsWithTheTextSize() throws {
+        func height(_ arguments: [String]) -> CGFloat {
+            let app = XCUIApplication()
+            app.launchArguments += arguments
+            app.launch()
+            defer { app.terminate() }
+            _ = app.staticTexts["Pair with your Mac"].waitForExistence(timeout: 10)
+            for _ in 0..<6 where !app.buttons["Pair"].exists { app.swipeUp() }
+            return app.buttons["Pair"].frame.height
+        }
+        let normal = height([])
+        let largest = height(["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"])
+        XCTAssertGreaterThan(normal, 0)
+        XCTAssertGreaterThan(largest, normal, "the main action must grow with the text size (normal \(normal), largest \(largest))")
     }
 
     /// With a code typed.

@@ -16,6 +16,8 @@ struct RootView: View {
                 Shell(model: model)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Atlas")  // the audit found this outer container without a description
         .background(Theme(scheme).background)
         .sheet(item: approvalBinding) { _ in
             if let flow = model.approval {
