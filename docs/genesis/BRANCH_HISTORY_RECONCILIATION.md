@@ -2,7 +2,7 @@
 
 ## Source and scope
 
-Branch inventory was fetched from GitHub's repository branches endpoint (12 branches returned). Commit history was sampled from the branch-specific commits endpoint, up to the first 500 commits where queried. This is a branch-head and divergence inventory, not a complete commit-by-commit audit; commit-history pagination and full unique-commit reconciliation remain required.
+Branch inventory was fetched from GitHub's repository branches endpoint (12 branches returned). Commit-history pagination was exhausted for all 12 returned branch heads using the commits endpoint. At capture, this produced 6,897 branch-reachable commit entries across the 12 branches; this is not a unique-commit count because branches share ancestry. The full 6,897 commit messages/diffs have not been exported or reviewed; recent subjects were sampled for audit leads. Unique-SHA deduplication, full message extraction and substantive commit review remain open.
 
 ## All returned branches and heads
 
@@ -28,8 +28,8 @@ No additional branches were returned by the endpoint at capture time. This list 
 PR #8 metadata confirms:
 - Base branch: `atlas`
 - Head branch: `genesis-stage2-foundation`
-- PR #8 head SHA: `4269f6340af1d5c75ca132cab33500fd130db945`
-- GitHub's paginated PR #8 changed-file endpoint: 275 paths.
+- PR #8 head SHA at latest verification: `ec8d760bb6d16e40de932e5270e712386042545f`
+- GitHub's paginated PR #8 changed-file endpoint: 278 paths (rechecked after adding source archives).
 
 However, the PR #8 body states that Stages 4–8 are also on this branch. The actual branch inventory and compare endpoint show `genesis-stage4-6` is a distinct branch, not the PR #8 head.
 
@@ -50,9 +50,9 @@ Other branch comparisons:
 - `atlas...genesis-stage2-foundation`: PR #8 branch is 410 commits ahead, 0 behind; compare reports 276 files at the then-current compare snapshot (this compare count differs from the paginated PR changed-file endpoint's 275 and must be reconciled by exact base/head snapshots).
 - `atlas...genesis-stage4-6`: 337 commits ahead, 0 behind; 191 files.
 - `atlas...genesis-stage3-prep`: 195 commits ahead, 0 behind; 60 files.
-- `genesis-stage2-foundation...genesis-stage3-prep`: diverged, 4 commits ahead on Stage 3 prep, 220 behind; 4 changed paths, including the Stage 3 baseline audit and contract delta docs.
-- `genesis-stage2-foundation...atlas-low-level-design-review`: diverged, 1 commit ahead on LLD branch, 311 behind; one changed path, `docs/genesis/LOW_LEVEL_DESIGN.md` (609 lines).
-- `genesis-stage2-foundation...genesis-architecture`: Genesis architecture branch is 309 commits behind with no unique ahead commit in that comparison.
+- `genesis-stage2-foundation...genesis-stage3-prep`: diverged, 4 commits ahead on Stage 3 prep, 232 behind; 4 changed paths, including the Stage 3 baseline audit and contract delta docs.
+- `genesis-stage2-foundation...atlas-low-level-design-review`: diverged, 1 commit ahead on LLD branch, 323 behind; one changed path, `docs/genesis/LOW_LEVEL_DESIGN.md` (609 lines).
+- `genesis-stage2-foundation...genesis-architecture`: Genesis architecture branch is 322 commits behind with no unique ahead commit in that comparison.
 - `atlas...orbit`: diverged, 1 commit ahead on Orbit, 304 behind; one added path, `docs/README.md`.
 - `aperture` is 450 commits behind Atlas; `aperture-hardening` is 471 behind Atlas; neither is ahead in that comparison.
 - `wip/health-freshness` is 52 commits behind Atlas; its WIP commit is in Atlas ancestry, but its original WIP/untested claim and later superseding evidence need tracing.
@@ -93,4 +93,4 @@ These are audit leads, not automatically current defects or accepted facts:
 6. Identify whether any old WIP or closed PR branch contains changes not merged into the current baseline, especially Health freshness, data migration/rename, security fixes, UI fixes, or performance work.
 7. Maintain docs/review-only scope for this audit. No code/test/build/config changes or thread resolution without owner authorisation.
 
-**Important:** The branch log pages sampled so far are not a complete all-commit export. Continue API pagination for any branch with 100 results on the queried page and record the final commit count and oldest timestamp before claiming complete branch-history recovery.
+**Important:** Commit pagination is now exhausted for all 12 branches. Reachable commit-entry counts at the capture snapshot: aperture 210; aperture-hardening 189; atlas 660; atlas-low-level-design-review 761; dependabot checkout 204; dependabot setup-node 210; genesis-architecture 761; genesis-stage2-foundation 1,085 (latest branch snapshot after audit commits); genesis-stage3-prep 855; genesis-stage4-6 997; orbit 357; wip/health-freshness 608. Total 6,897 branch-reachable entries, with shared ancestry duplicated. This does **not** mean 6,897 unique commits were read. Full commit-message extraction, unique-SHA reconciliation, and review of commit diffs remain open.
