@@ -110,6 +110,8 @@ public final class CoreLauncher {
         child.standardOutput = output
         child.standardError = FileHandle.nullDevice
         try child.run()
+        let record = Recorded(pid: child.processIdentifier, started: Self.identify(child.processIdentifier)?.started ?? "", socket: socket, dataDir: dataDir)
+        try? JSONEncoder().encode(record).write(to: pidFile(socket), options: .atomic)
         input.fileHandleForWriting.write(Data((code + "\n").utf8))
         try input.fileHandleForWriting.close()
         let ready = DispatchSemaphore(value: 0)
@@ -133,8 +135,6 @@ public final class CoreLauncher {
         }
         process = child
         bootstrapCode = code
-        let record = Recorded(pid: child.processIdentifier, started: Self.identify(child.processIdentifier)?.started ?? "", socket: socket, dataDir: dataDir)
-        try? JSONEncoder().encode(record).write(to: pidFile(socket), options: .atomic)
         pidPath = pidFile(socket)
     }
 

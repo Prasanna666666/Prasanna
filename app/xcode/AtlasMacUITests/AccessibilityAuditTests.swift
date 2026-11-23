@@ -23,10 +23,11 @@ final class AccessibilityAuditTests: XCTestCase {
         print("SCREEN TEXTS: \(labels)")  // so a CI log shows which screen was audited
         add(XCTAttachment(string: "Screen texts: \(labels)"))
         XCTAssertFalse(labels.isEmpty, "the first screen shows text")
+        print("TREE: \(app.debugDescription)")  // the accessibility tree in the CI log, to name any element a finding is about
         keep(app, "first-screen")
         try app.performAccessibilityAudit { issue in
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
-            let line = "AUDIT ISSUE: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element)"
+            let line = "AUDIT ISSUE: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"
             print(line)  // shows in the CI log, so a finding names the element it is about
             self.add(XCTAttachment(string: line))
             return false
