@@ -21,7 +21,7 @@ public enum SourceNames {
 
     public static func explanation(_ type: String) -> String {
         if type == "photos" { return "Atlas reads only the dates, kinds and sizes of your photos on this Mac, never the pictures. macOS will ask you once." }
-        isSensitive(type) ? "Sensitive. Atlas reads it only on this Mac, only while this is on, and never sends it anywhere." : "Atlas reads it only on this Mac, only while this is on."
+        return isSensitive(type) ? "Sensitive. Atlas reads it only on this Mac, only while this is on, and never sends it anywhere." : "Atlas reads it only on this Mac, only while this is on."
     }
 }
 
