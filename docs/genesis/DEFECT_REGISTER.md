@@ -384,7 +384,7 @@ The historical source register contains D-01–D-45 with detailed descriptions, 
 - `docs/genesis/HISTORICAL_PR6_SOURCE_ARCHIVE.md` — verbatim legacy PR #6 `docs/defects.md`, `docs/comment-tracker.md`, `docs/reviews.md`, `docs/coverage-matrix.md`, and `docs/requirements.md` from snapshot `c92f5bf471d78695e539e5676973adda048095cc` (5 files; 1,054+ source lines; 112,770 characters).
 - `docs/genesis/HISTORICAL_PR6_CONVERSATION.md` — all 41 PR #6 conversation comments (119,327 characters).
 - `docs/genesis/HISTORICAL_PR7_CONVERSATION.md` — all 64 PR #7 conversation comments (223,374 characters), including architecture review, owner decisions, collaboration protocol, delivery planning, hardware/model/runtime decisions, privacy and recovery constraints.
-- `docs/genesis/HISTORICAL_PR8_CONVERSATION.md` — all 188 PR #8 conversation comments (636,834 characters), including successive developer status claims, review responses, owner instructions and acceptance decisions.
+- `docs/genesis/HISTORICAL_PR8_CONVERSATION.md` — all 192 PR #8 conversation comments (662,256 characters), including successive developer status claims, review responses, owner instructions and acceptance decisions.
 - `docs/genesis/HISTORICAL_PR8_REVIEW_THREADS.md` — all 53 submitted PR #8 reviews and all 58 inline threads / 63 inline comments (233,209 characters), with path, line, resolved/outdated metadata and full comment text.
 - `docs/genesis/HISTORICAL_PR9_CONVERSATION.md` — the PR #9 closure record.
 - `docs/genesis/HISTORICAL_PR10_CONVERSATION.md` — the Stage 3 independent challenge handoff and closure record.
@@ -393,7 +393,7 @@ The historical source register contains D-01–D-45 with detailed descriptions, 
 
 - PR #6: 41 top-level conversation comments; no inline review threads returned by the GitHub thread endpoint.
 - PR #7: 64 top-level conversation comments; no inline review threads returned by the GitHub thread endpoint.
-- PR #8: 188 top-level conversation comments, 53 submitted reviews, 58 inline threads, and 63 inline comments. At fetch time 21 threads were resolved and 37 unresolved. Earlier register entries indexed the 37 unresolved threads, but the 21 resolved threads and complete review/comment bodies were not all represented there.
+- PR #8: 192 top-level conversation comments (refreshed after the audit handoff comments), 53 submitted reviews, 58 inline threads, and 63 inline comments. At fetch time 21 threads were resolved and 37 unresolved. Earlier register entries indexed the 37 unresolved threads, but the 21 resolved threads and complete review/comment bodies were not all represented there.
 - PR #9: 1 conversation comment. PR #10: 1 conversation comment. No inline threads/reviews returned for either.
 - The 541-entry legacy coverage matrix belongs to the PR #6 historical snapshot. It must not be presented as the current Atlas 266-file inventory.
 
