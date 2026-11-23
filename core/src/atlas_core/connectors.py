@@ -138,8 +138,11 @@ class ConnectorHub:
         for entry in self._entries.values():
             for write in entry.writes:
                 gateway.register(self._spec(entry, write))
-            if self._credentials(entry.id) is None:
-                gateway.revoke_connector(entry.id)  # not connected: its actions are refused until the owner connects it
+            gateway.revoke_connector(
+                entry.id
+            )  # nothing may act until a check in THIS run has positively authenticated it (`verify_all`, or the owner's connect or check)
+            if self._credentials(entry.id) is not None:
+                self._health[entry.id] = "unverified"
 
     # -- plugging in ------------------------------------------------------------------------------------------------------------------------------
     def install(self, connector_id: str, adapter: Adapter) -> None:
@@ -162,7 +165,7 @@ class ConnectorHub:
     def _state(self, connector_id: str) -> str:
         if self._credentials(connector_id) is None:
             return "not_connected"
-        return "needs_attention" if self._health.get(connector_id) in ("unauthorised", "unreachable") else "connected"
+        return "needs_attention" if self._health.get(connector_id) in ("unauthorised", "unreachable", "unverified") else "connected"
 
     def listing(self) -> dict[str, Any]:
         return {"connectors": [self._describe(e) for e in self._entries.values()]}
@@ -195,20 +198,40 @@ class ConnectorHub:
         if not credentials["address"] or not credentials["token"]:
             raise CoreError("invalid_request")
         verdict = self._adapters[connector_id].check(credentials)
-        self._health[connector_id] = verdict
         if verdict == "unauthorised":
+            self._health[connector_id] = verdict
             return self._describe(entry) | {"state": "not_connected", "problem": "unauthorised"}  # nothing is stored for credentials the service refused
         self._secrets.set(f"connector-{connector_id}", json.dumps(credentials))
-        self._gateway.allow_connector(connector_id)
+        self._apply(
+            connector_id, verdict
+        )  # only a positively authenticated answer lets it act; an unreachable service is kept (so it can be checked later) but cannot act
         return self._describe(entry)
+
+    def _apply(self, connector_id: str, verdict: str) -> None:
+        """The one place a health result changes authority: `ok` enables the connector's actions, anything else revokes them at once."""
+        self._health[connector_id] = verdict
+        if verdict == "ok":
+            self._gateway.allow_connector(connector_id)
+        else:
+            self._gateway.revoke_connector(connector_id)
 
     def check(self, connector_id: str) -> dict[str, Any]:
         entry = self._entry(connector_id)
         credentials = self._credentials(connector_id)
         if credentials is None:
             raise CoreError("conflict")
-        self._health[connector_id] = self._adapters[connector_id].check(credentials)
+        self._apply(connector_id, self._adapters[connector_id].check(credentials))
         return self._describe(entry)
+
+    def verify_all(self) -> None:
+        """Check every connected integration once (run in the background when the Core starts): each that answers `ok` may act, every other stays refused."""
+        for entry in self._entries.values():
+            credentials = self._credentials(entry.id)
+            if credentials is not None:
+                try:
+                    self._apply(entry.id, self._adapters[entry.id].check(credentials))
+                except Exception:  # noqa: BLE001  (an adapter that fails is a service that did not answer)
+                    self._apply(entry.id, "unreachable")
 
     def unlink(self, connector_id: str) -> dict[str, Any]:
         entry = self._entry(connector_id)

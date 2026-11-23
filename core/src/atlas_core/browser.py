@@ -1,7 +1,7 @@
 """Browser and app workflows (Stage 6; PRD 4.5): the owner's steps are followed, page content is data.
 
-A workflow is a list of steps the OWNER (or the owner's policy) wrote: open an allowed page, read it, fill a field, press a control. Every step that changes something outside the Mac goes through the Action
-Gateway like any other action. What a page says is returned as UNTRUSTED text with its provenance; any instruction in it is flagged and never obeyed, and anything the page "asks for" can only be proposed with the
+A workflow is a list of steps the OWNER (or the owner's policy) wrote. The only step that exists is `open`: open an allowed page and read it. There is deliberately NO fill and NO press: a click or a form submission can send,
+buy, book, delete or unlock something, and every such change must be a typed, payload-bound Action Gateway action with its approval; none is built, so asking for one is refused (`interaction_not_available`) and the browser is never touched. What a page says is returned as UNTRUSTED text with its provenance; any instruction in it is flagged and never obeyed, and anything the page "asks for" can only be proposed with the
 origin `untrusted_content`, which the gateway refuses outright. Destinations are public https hosts the owner has allowed; a redirect to anywhere else ends the workflow.
 
 The real engine (a local Playwright adapter, or the narrowest macOS automation API) is a separate, isolated, platform-dependent seam that is not built here: `Browser` is that seam, and `FakeBrowser` serves
@@ -26,10 +26,6 @@ class Browser(Protocol):
     def open(self, url: str) -> tuple[str, str]:
         """Returns the final URL (after redirects) and the page's visible text."""
         ...
-
-    def fill(self, field_name: str, value: str) -> None: ...
-
-    def press(self, control: str) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -63,7 +59,7 @@ def run_browser_workflow(
     is_public: Callable[[str], bool] = lambda host: True,
     suggestions: Callable[[Page], list[tuple[str, dict[str, Any]]]] = lambda page: [],
 ) -> WorkflowResult:
-    """Steps: ("open", url) | ("fill", name, value) | ("press", control) | ("act", action_name, payload_json_key) handled by the caller as gateway actions. `suggestions` is whatever turns a page into proposed actions
+    """Steps: ("open", url). Any other step is refused. `suggestions` is whatever turns a page into proposed actions
     (a model, a parser): every one of them is proposed as untrusted content and therefore refused."""
     result = WorkflowResult("completed")
     for count, step in enumerate(steps, start=1):
@@ -85,10 +81,10 @@ def run_browser_workflow(
             for name, payload in suggestions(page):
                 outcome = gateway.propose(name, payload, origin="untrusted_content", idempotency_key=f"page-{count}-{name}")
                 result.suggestions_refused += outcome.status == "refused"
-        elif kind == "fill":
-            browser.fill(step[1], step[2])
-        elif kind == "press":
-            browser.press(step[1])
+        elif kind in ("fill", "press"):
+            return WorkflowResult(
+                "failed", "interaction_not_available", result.pages, result.outcomes, result.suggestions_refused
+            )  # no click and no form entry exists as a primitive
         else:
             return WorkflowResult("failed", "unknown_step", result.pages, result.outcomes, result.suggestions_refused)
     return result
@@ -99,17 +95,9 @@ class FakeBrowser:
 
     def __init__(self, pages: dict[str, str], redirects: dict[str, str] | None = None) -> None:
         self.pages, self.redirects = pages, redirects or {}
-        self.filled: list[tuple[str, str]] = []
-        self.pressed: list[str] = []
         self.opened: list[str] = []
 
     def open(self, url: str) -> tuple[str, str]:
         self.opened.append(url)
         final = self.redirects.get(url, url)
         return final, self.pages.get(final, "")
-
-    def fill(self, field_name: str, value: str) -> None:
-        self.filled.append((field_name, value))
-
-    def press(self, control: str) -> None:
-        self.pressed.append(control)

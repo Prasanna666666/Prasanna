@@ -15,8 +15,6 @@ def main() -> int:
     handlers: dict[str, Any] = {
         "ready": lambda: None,
         "open": lambda url: list(engine.open(url)),
-        "fill": engine.fill,
-        "press": engine.press,
         "close": lambda: None,
     }
     try:

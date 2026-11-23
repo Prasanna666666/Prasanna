@@ -89,7 +89,7 @@ def _candidates(text: str) -> list[str]:
 
 
 SENTENCE_END = re.compile(r"[.!?\n]+")
-SHORT_PHRASE_WORDS = 2  # a passage's 2-word runs are fingerprinted too (not the question's: it legitimately shares words with a public query)
+SHORT_PHRASE_WORDS = 2  # 2-word runs of a passage AND of the question are fingerprinted: a lower-case private phrase of any length is caught
 MIN_NAME_CHARS = 3
 MIN_WORD_CHARS = 4  # every word of a private passage with this many letters is fingerprinted, in any case: a name written only in lower case is still caught
 STOP_WORDS = frozenset(
@@ -179,9 +179,9 @@ def _names(text: str) -> set[str]:
 @dataclass
 class TaintSet:
     """What a task has read in private, kept as FINGERPRINTS (the text is not kept): 4-word shingles (2-word runs for passages), identifier-like tokens (any token of 8+ characters that contains a
-    digit, an e-mail address, a long number), every word of 4+ letters of a passage (names in any case) and capitalised names in the question, plus whether Finance/Health data is in its context.
+    digit, an e-mail address, a long number), every word of 4+ letters of a passage or of the question (names in any case), plus whether Finance/Health data is in its context.
 
-    Not detected: a paraphrase, and 1-3 letter words or names. A public query that shares a word of 4+ letters with a private passage is refused: the gateway over-refuses, never under-refuses, within what it can see."""
+    Not detected: a paraphrase, and 1-3 letter words or names. A public query that shares a word of 4+ letters (other than a function word) with a private passage OR with the question is refused: the gateway over-refuses, never under-refuses, within what it can see. A research query therefore has to be worded without the question's own content words; that cost is deliberate."""
 
     shingles: set[str] = field(default_factory=set)
     identifiers: set[str] = field(default_factory=set)
@@ -190,12 +190,13 @@ class TaintSet:
 
     def add(self, text: str, *, restricted: bool = False, question: bool = False) -> None:
         words = _words(text)
-        runs = (SHINGLE_WORDS,) if question else (SHINGLE_WORDS, SHORT_PHRASE_WORDS)
-        for size in runs:
+        for size in (
+            SHINGLE_WORDS,
+            SHORT_PHRASE_WORDS,
+        ):  # the question is private context exactly like a passage: its 2-word runs and its words are fingerprinted too
             for i in range(len(words) - size + 1):
                 self.shingles.add(_fingerprint(words[i : i + size]))
-        if not question:
-            self.names |= {_fingerprint([w]) for w in words if len(w) >= MIN_WORD_CHARS and w not in STOP_WORDS}
+        self.names |= {_fingerprint([w]) for w in words if len(w) >= MIN_WORD_CHARS and w not in STOP_WORDS}
         for token in _candidates(text):
             if any(c.isdigit() for c in token) or "@" in token:
                 self.identifiers.add(_token_fingerprint(token))

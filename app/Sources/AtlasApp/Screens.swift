@@ -616,6 +616,8 @@ struct GetStartedView: View {
         }
         .padding(Space.xxl)
         .frame(maxWidth: Metrics.readingWidth)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Welcome to Atlas. Choose what Atlas may read.")  // the audit found this container without a description
     }
 }
 

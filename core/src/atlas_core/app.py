@@ -299,6 +299,10 @@ class Core:
         self.designation.run_pending_purges()
         self.service.recover()
         self.server = serve_unix(self.config.socket_path, self.api, self.config.allowed_uids)
+        if self.connectors is not None:
+            threading.Thread(
+                target=self.connectors.verify_all, daemon=True
+            ).start()  # connected services are checked in the background; none may act before it answers ok
         for target in (self.server.serve_forever, self._work):
             thread = threading.Thread(target=target, daemon=True)
             thread.start()

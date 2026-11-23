@@ -31,20 +31,43 @@ public final class CoreLauncher {
 
     private static func isRunning(_ pid: Int32) -> Bool { kill(pid, 0) == 0 || errno == EPERM }
 
-    private static func command(of pid: Int32) -> String {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/bin/ps")
-        p.arguments = ["-p", String(pid), "-o", "command="]
-        let out = Pipe()
-        p.standardOutput = out
-        p.standardError = FileHandle.nullDevice
-        do { try p.run() } catch { return "" }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        return String(decoding: data, as: UTF8.self)
+    /// What the launcher writes next to the socket, and checks before it ever signals a process: the pid, WHEN that process started, and the exact socket and data folder it was started for.
+    /// A pid alone is not an identity (pids are reused); an older plain-number file is not trusted at all.
+    struct Recorded: Codable, Equatable {
+        let pid: Int32
+        let started: String
+        let socket: String
+        let dataDir: String
     }
 
-    /// True if something accepts connections on this Unix socket path: a live listener, whose socket must never be removed.
+    /// The start time and the full command line of a process, or nil if there is no such process. A seam so tests can show a process changing underneath the launcher.
+    nonisolated(unsafe) static var identify: (Int32) -> (started: String, command: String)? = { pid in
+        func ps(_ field: String) -> String? {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/ps")
+            p.arguments = ["-p", String(pid), "-o", field + "="]
+            let out = Pipe()
+            p.standardOutput = out
+            p.standardError = FileHandle.nullDevice
+            do { try p.run() } catch { return nil }
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            p.waitUntilExit()
+            let text = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        }
+        guard let started = ps("lstart"), let command = ps("command") else { return nil }
+        return (started, command)
+    }
+
+    nonisolated(unsafe) static var sendSignal: (Int32, Int32) -> Int32 = { Darwin.kill($0, $1) }
+    nonisolated(unsafe) static var termGrace: Double = 10
+
+    /// This process is the Core this app started for this socket and data folder: same start time as recorded, and the command line ends with exactly `--data-dir <folder> --socket <socket>`.
+    static func verified(_ record: Recorded, socket: String) -> Bool {
+        guard record.socket == socket, !record.started.isEmpty, let now = identify(record.pid), now.started == record.started else { return false }
+        return now.command.contains("atlas_core.serve") && now.command.hasSuffix("--data-dir \(record.dataDir) --socket \(socket)")
+    }
+
     static func isAnswering(socket path: String) -> Bool {
         let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
@@ -63,16 +86,15 @@ public final class CoreLauncher {
     /// starting fails safely, because removing a live socket would strand the running Core while a second one is refused by the data-folder lock.
     func reapLeftovers(socket: String) throws {
         let file = pidFile(socket)
-        var recorded: Int32?
-        if let text = try? String(contentsOf: file, encoding: .utf8), let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)) { recorded = pid }
-        if let pid = recorded, Self.isRunning(pid), Self.command(of: pid).contains("atlas_core.serve") {
-            kill(pid, SIGTERM)
+        let recorded: Recorded? = (try? Data(contentsOf: file)).flatMap { try? JSONDecoder().decode(Recorded.self, from: $0) }
+        if let record = recorded, Self.isRunning(record.pid), Self.verified(record, socket: socket) {
+            _ = Self.sendSignal(record.pid, SIGTERM)
             var waited = 0.0
-            while Self.isRunning(pid), waited < 10 { Thread.sleep(forTimeInterval: 0.1); waited += 0.1 }
-            if Self.isRunning(pid) { kill(pid, SIGKILL); Thread.sleep(forTimeInterval: 0.2) }
+            while Self.isRunning(record.pid), waited < Self.termGrace { Thread.sleep(forTimeInterval: 0.1); waited += 0.1 }
+            if Self.isRunning(record.pid), Self.verified(record, socket: socket) { _ = Self.sendSignal(record.pid, SIGKILL); Thread.sleep(forTimeInterval: 0.2) }  // identity is checked again: a process that changed meanwhile is never killed
         }
         if Self.isAnswering(socket: socket) { throw AtlasError.local("a Core is already answering on this socket and could not be identified as this app's own; it was left alone") }
-        if recorded.map({ !Self.isRunning($0) }) ?? true { try? FileManager.default.removeItem(at: file) }  // a pid file for a process that no longer runs
+        if recorded.map({ !Self.isRunning($0.pid) }) ?? true { try? FileManager.default.removeItem(at: file) }  // a pid file for a process that no longer runs
         try? FileManager.default.removeItem(atPath: socket)  // a socket file nothing listens on
     }
 
@@ -111,7 +133,8 @@ public final class CoreLauncher {
         }
         process = child
         bootstrapCode = code
-        try? String(child.processIdentifier).write(to: pidFile(socket), atomically: true, encoding: .utf8)
+        let record = Recorded(pid: child.processIdentifier, started: Self.identify(child.processIdentifier)?.started ?? "", socket: socket, dataDir: dataDir)
+        try? JSONEncoder().encode(record).write(to: pidFile(socket), options: .atomic)
         pidPath = pidFile(socket)
     }
 

@@ -52,17 +52,25 @@ def test_only_allowed_public_https_hosts_are_opened_and_a_redirect_off_the_list_
     assert private.code == "destination_not_allowed"
 
 
-def test_the_owners_own_steps_run_in_order_and_an_unknown_or_endless_workflow_is_stopped():
+def test_only_open_exists_and_an_unknown_or_endless_workflow_is_stopped():
     g, _ = gateway()
     browser = FakeBrowser({"https://shop.example.invalid/form": "Form"})
-    steps = [("open", "https://shop.example.invalid/form"), ("fill", "name", "Alex"), ("press", "next")]
-    assert (
-        run_browser_workflow(browser, steps, allowed_hosts=ALLOWED, gateway=g).status == "completed"
-        and browser.filled == [("name", "Alex")]
-        and browser.pressed == ["next"]
-    )
+    assert run_browser_workflow(browser, [("open", "https://shop.example.invalid/form")], allowed_hosts=ALLOWED, gateway=g).status == "completed"
     assert run_browser_workflow(browser, [("teleport", "x")], allowed_hosts=ALLOWED, gateway=g).code == "unknown_step"
-    assert run_browser_workflow(browser, [("press", "x")] * 41, allowed_hosts=ALLOWED, gateway=g).code == "too_many_steps"
+    assert run_browser_workflow(browser, [("open", "https://shop.example.invalid/form")] * 41, allowed_hosts=ALLOWED, gateway=g).code == "too_many_steps"
+
+
+@pytest.mark.parametrize("control", ["Send", "Buy now", "Book", "Delete account", "Unlock the door", "Submit", "Pay", "Next"])
+@pytest.mark.parametrize("kind", ["press", "fill"])
+def test_no_click_and_no_form_entry_can_run_as_a_browser_step_whatever_the_control_is_called(kind, control):
+    """A button can send, buy, book, delete or unlock; none of those exists as a bare browser primitive, so asking for one is refused and the browser is never touched."""
+    g, _ = gateway()
+    browser = FakeBrowser({"https://shop.example.invalid/form": "Form"})
+    result = run_browser_workflow(
+        browser, [("open", "https://shop.example.invalid/form"), (kind, control, "x")[: 3 if kind == "fill" else 2]], allowed_hosts=ALLOWED, gateway=g
+    )
+    assert result.status == "failed" and result.code == "interaction_not_available"
+    assert not hasattr(browser, "press") and not hasattr(browser, "fill")  # there is nothing to call
 
 
 NOON = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)

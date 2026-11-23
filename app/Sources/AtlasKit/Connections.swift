@@ -38,6 +38,7 @@ public enum ConnectionsOutcome {
         switch code {
         case "unauthorised": return "The service did not accept the access token."
         case "unreachable": return "The service did not answer."
+        case "unverified": return "Atlas is checking this service."
         default: return "Atlas could not reach this service."
         }
     }

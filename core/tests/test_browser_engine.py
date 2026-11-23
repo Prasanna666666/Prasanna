@@ -67,29 +67,26 @@ def engine_args():
 
 
 @needs_engine
-def test_a_page_is_read_as_visible_text_and_forms_can_be_filled_and_pressed(engine_args):
+def test_a_page_is_read_as_visible_text_and_nothing_can_be_clicked_filled_or_submitted(engine_args):
     site = Site(
         {
             "/": html(
                 "<h1>Opening hours</h1><p>Monday to Friday 9 to 17</p>"
-                "<input name='who'><button onclick=\"document.getElementById('o').textContent='Hello '+document.getElementsByName('who')[0].value\">Greet</button><p id='o'></p>"
-            )
+                "<form id='f' method='post' action='/send'><input name='who' value='x'><button>Send</button></form>"
+                "<script>document.getElementById('f').submit()</script>"  # a page that tries to post a form by itself
+            ),
+            "/send": html("sent"),
         }
     )
     browser = WorkerBrowser(["127.0.0.1"], ["http"], **engine_args)
     try:
-        final, text = browser.open(f"http://127.0.0.1:{site.port}/")
-        assert final == f"http://127.0.0.1:{site.port}/" and "Monday to Friday 9 to 17" in text
-        browser.fill("who", "Atlas")
-        browser.press("Greet")
-        _final, after = browser.open(f"http://127.0.0.1:{site.port}/")  # a fresh load has no memory of the typed value
-        assert "Hello" not in after
-        with pytest.raises(BrowserBlocked) as e:
-            browser.fill("nope", "x")
-        assert e.value.code == "no_such_field"
+        _final, text = browser.open(f"http://127.0.0.1:{site.port}/")
+        assert "Monday to Friday 9 to 17" in text
+        assert not hasattr(browser, "press") and not hasattr(browser, "fill")  # the engine has no click and no form entry
     finally:
         browser.close()
-        site.close()
+    assert "/send" not in site.hits, site.hits  # the page's own attempt to post was refused at the gate: a page may read and nothing more
+    site.close()
 
 
 @needs_engine

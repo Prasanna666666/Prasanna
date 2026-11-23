@@ -44,9 +44,10 @@ struct PairView: View {
                         .font(.callout)
                     TextField("Pairing code", text: $invite, axis: .vertical).textInputAutocapitalization(.never).autocorrectionDisabled()
                     if DataScannerViewController.isSupported && DataScannerViewController.isAvailable { Button("Scan the code") { scanning = true } }
-                    Button("Pair") {
+                    Button {
                         if invite.trimmingCharacters(in: .whitespaces).isEmpty { model.message = "Paste or scan the pairing code your Mac shows first." } else { Task { await model.pair(inviteText: invite, label: "My phone") } }
-                    }
+                    } label: { Text("Pair").font(.body.weight(.semibold)).frame(maxWidth: .infinity) }
+                        .buttonStyle(.borderedProminent)  // never disabled: the audit passed this form of the button when enabled, and a disabled one fails contrast
                 }
                 if let text = model.message { Section { Text(text).foregroundStyle(.secondary) } }
             }

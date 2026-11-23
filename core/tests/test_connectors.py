@@ -23,7 +23,7 @@ class Service:
     """The profile: `/atlas/v1/ping`, `/atlas/v1/read/{scope}`, `/atlas/v1/act/{action}`, bearer token. A light that is on or off; `fail` makes every act fail."""
 
     def __init__(self):
-        self.light, self.calls, self.fail, self.sent = "off", [], False, []
+        self.light, self.calls, self.fail, self.sent, self.accept = "off", [], False, [], True
         service = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -35,7 +35,7 @@ class Service:
                 self.wfile.write(raw)
 
             def _authorised(self):
-                return self.headers.get("Authorization") == f"Bearer {TOKEN}"
+                return service.accept and self.headers.get("Authorization") == f"Bearer {TOKEN}"
 
             def do_GET(self):
                 service.calls.append(self.path)
@@ -189,3 +189,58 @@ def test_connector_traffic_only_goes_where_the_owner_pointed_it_and_never_plain_
     assert (
         not permitted("http://api.example.com/x") and not permitted("ftp://127.0.0.1/x") and not permitted("file:///etc/passwd") and not permitted("http:///x")
     )
+
+
+def _acts(service):
+    return [c for c in service.calls if "/act/" in c]
+
+
+def test_only_a_positively_authenticated_check_lets_a_connector_act_and_any_later_failure_takes_that_authority_away(rig):
+    world, service, _ = rig
+    owner = world.client()
+    owner.connect_connector("home", service.address, TOKEN)
+    assert owner.act("home.control_device", {"light": "on"})["status"] == "done"
+    service.accept = False  # the service revokes the token on its side
+    assert owner.check_connector("home")["state"] == "needs_attention"
+    before = len(service.calls)
+    refused = owner.act("home.control_device", {"light": "off"})
+    assert refused["status"] == "refused" and len(service.calls) == before  # refused without a single network call to the service
+    assert owner.act("home.unlock_door", {"door": "front"})["status"] == "refused" and _acts(service) == ["/atlas/v1/act/control_device"]
+    service.accept = True  # a later successful check is the explicit re-enable
+    assert owner.check_connector("home")["state"] == "connected"
+    assert owner.act("home.control_device", {"light": "off"})["status"] == "done"
+
+
+def test_a_service_that_was_not_reachable_when_connected_is_kept_but_cannot_act_until_a_check_succeeds(rig):
+    world, service, secrets = rig
+    owner = world.client()
+    service.accept = False
+    shown = owner.connect_connector("home", service.address, TOKEN)
+    assert shown["state"] == "not_connected" and shown["problem"] == "unauthorised"  # refused credentials are not stored
+    service.close()
+    unreachable = owner.connect_connector("home", service.address, TOKEN)
+    assert (
+        unreachable["state"] == "needs_attention" and unreachable["problem"] == "unreachable" and "connector-home" in secrets.items
+    )  # kept, so it can be checked later
+    assert owner.act("home.control_device", {"light": "on"})["status"] == "refused"  # but it may not act
+
+
+def test_after_a_restart_no_connector_acts_until_it_has_been_checked_in_this_run(tmp_path):
+    from atlas_core.actions import ActionGateway
+    from atlas_core.connectors import ConnectorHub
+
+    service, secrets = Service(), MemorySecrets()
+    try:
+        secrets.items["connector-home"] = json.dumps({"address": service.address, "token": TOKEN})
+        gateway = ActionGateway(
+            lambda: __import__("datetime").datetime.now(__import__("datetime").UTC),
+            __import__("atlas_core.actions", fromlist=["AuditFile"]).AuditFile(tmp_path / "audit.jsonl"),
+            [],
+        )
+        hub = ConnectorHub(gateway, secrets)
+        assert gateway.propose("home.control_device", {"light": "on"}, origin="owner_request", idempotency_key="k0000001").status == "refused"
+        assert next(c for c in hub.listing()["connectors"] if c["id"] == "home")["problem"] == "unverified"
+        hub.verify_all()
+        assert gateway.propose("home.control_device", {"light": "on"}, origin="owner_request", idempotency_key="k0000002").status == "done"
+    finally:
+        service.close()

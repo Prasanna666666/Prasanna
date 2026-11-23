@@ -3073,7 +3073,8 @@
               "type": "string",
               "enum": [
                 "unauthorised",
-                "unreachable"
+                "unreachable",
+                "unverified"
               ]
             },
             {

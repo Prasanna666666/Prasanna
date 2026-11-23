@@ -122,6 +122,13 @@ class PlaywrightBrowser:
     def _gate(self, route: Any) -> None:
         """Every request is judged here, and every redirect hop is followed HERE (never by the browser, which would follow it unseen): each hop must be on the allow-list before anything is requested from it."""
         url = route.request.url
+        if route.request.method not in (
+            "GET",
+            "HEAD",
+        ):  # a page can read and nothing more: no form post, no script request that changes anything, even on an allowed host
+            self.blocked += 1
+            route.abort()
+            return
         try:
             for _hop in range(MAX_REDIRECTS + 1):
                 if not allowed(url, self.hosts, self.schemes):
@@ -164,26 +171,10 @@ class PlaywrightBrowser:
             raise BrowserBlocked("redirected_off_allow_list")
         return final, self._page.inner_text("body")[:MAX_TEXT]
 
-    def fill(self, field_name: str, value: str) -> None:
-        try:
-            self._page.fill(f'[name="{_attr(field_name)}"]', value)
-        except Exception:  # noqa: BLE001
-            raise BrowserBlocked("no_such_field") from None
-
-    def press(self, control: str) -> None:
-        try:
-            self._page.get_by_role("button", name=control).first.click()
-        except Exception:  # noqa: BLE001
-            raise BrowserBlocked("no_such_control") from None
-
     def close(self) -> None:
         for step in (self._context.close, self._browser.close, self._pw.stop):
             with contextlib.suppress(Exception):
                 step()
-
-
-def _attr(text: str) -> str:
-    return "".join(ch for ch in text if ch.isalnum() or ch in "_-.")[:80]
 
 
 class WorkerBrowser:
@@ -240,12 +231,6 @@ class WorkerBrowser:
     def open(self, url: str) -> tuple[str, str]:
         final, text = self._call("open", url)
         return str(final), str(text)
-
-    def fill(self, field_name: str, value: str) -> None:
-        self._call("fill", field_name, value)
-
-    def press(self, control: str) -> None:
-        self._call("press", control)
 
     def close(self) -> None:
         with contextlib.suppress(BrowserBlocked):

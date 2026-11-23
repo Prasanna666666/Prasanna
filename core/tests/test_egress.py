@@ -282,14 +282,48 @@ def test_encodings_do_not_hide_private_content_in_a_search_query(query):
 
 
 @pytest.mark.criterion(11)
-def test_function_words_and_the_question_itself_do_not_block_a_public_query():
+def test_function_words_do_not_block_a_public_query_but_the_questions_own_content_words_do():
     taint = TaintSet()
     taint.add("Invoice total due. The invoice was paid by Alexandra on Monday with that card.")
     taint.add("what are the museum opening hours", question=True)
-    assert not taint.leaks("museum opening hours Amsterdam") and not taint.leaks("weather in Amsterdam tomorrow")  # the question's own words are not private
-    assert (
-        not taint.leaks("from that") and taint.leaks("invoice template") and taint.leaks("monday")
-    )  # a word of 4+ letters from a passage is refused; function words are not
+    assert not taint.leaks("weather in rotterdam tomorrow") and not taint.leaks("from that")  # function words and unrelated words are free
+    assert taint.leaks("museum") and taint.leaks(
+        "opening hours"
+    )  # policy: the question is private context like a passage, so its own content words are refused (over-refusal, by design)
+    assert taint.leaks("invoice template") and taint.leaks("monday")  # and so is a word of 4+ letters from a passage
+
+
+@pytest.mark.criterion(11)
+@pytest.mark.parametrize(
+    "objective, query",
+    [
+        ("jansen", "jansen"),  # a one-word lower-case name as the whole objective (shorter than any 4-word shingle)
+        ("call jansen", "jansen"),
+        ("pay the plumber jansen invoice", "jansen"),
+        ("oncology follow-up", "follow-up"),  # a two-word lower-case private phrase
+        ("the oncology appointment", "oncology appointment"),  # a three-word one
+    ],
+    ids=["one-word", "two-words", "name-in-sentence", "two-word-phrase", "three-word-phrase"],
+)
+def test_a_lowercase_private_name_or_short_phrase_in_the_objective_cannot_leave_in_a_query_a_url_or_a_redirect(objective, query):
+    taint = TaintSet()
+    taint.add(objective, question=True)
+    transport = FakeTransport()
+    with pytest.raises(Denied) as e:
+        gateway(transport).search(query, taint)
+    assert e.value.code == "private_content_in_request"
+    slug = query.replace(" ", "-")
+    for url in (f"https://museum.example.invalid/{slug}", f"https://museum.example.invalid/hours?q={query.replace(' ', '+')}"):
+        with pytest.raises(Denied) as e2:
+            gateway(transport).fetch(url, taint)
+        assert e2.value.code in ("private_content_in_request", "identifier_in_request")
+    hop = FakeTransport({"https://museum.example.invalid/a": Response(302, "", b"", f"https://museum.example.invalid/{slug}")})
+    with pytest.raises(Denied) as e3:
+        gateway(hop).fetch("https://museum.example.invalid/a", taint)
+    assert e3.value.code in ("private_content_in_request", "identifier_in_request") and hop.calls == [
+        "https://museum.example.invalid/a"
+    ]  # the redirect target is checked too
+    assert transport.calls == []
 
 
 def test_the_taint_set_keeps_fingerprints_not_text():
