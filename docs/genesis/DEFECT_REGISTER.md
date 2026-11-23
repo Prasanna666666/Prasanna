@@ -504,3 +504,43 @@ Latest PR #8 recheck after archive updates:
 - 58 inline threads / 63 inline comments: 21 resolved, 37 unresolved.
 
 Do not state that all code or all commit history has been audited merely because pagination was exhausted. Full unique commit/diff and current-scope source review remain outstanding.
+
+
+## Continued review — Finance precision and Action Gateway restart semantics
+
+**Head inspected:** `890536db2edf4db6265de14377782a4914095297`. This is another continuation of the historical findings, using current source and test files. No tests were executed.
+
+### O-1 — three-decimal currency precision remains unsupported
+
+**Disposition: OPEN / CONFIRMED IN CURRENT SOURCE.**
+
+Evidence:
+- `core/src/atlas_core/records.py`: `_MONEY` accepts exactly two fractional digits (`-?\\d{1,12}\\.\\d{2}`); `_check_money()` rejects other precision.
+- `core/src/atlas_core/finance_calc.py`: `CENT = Decimal("0.01")`; `Tx.minor` multiplies by 100; `_minor_sum()` divides by 100.
+- `core/src/atlas_core/policy-rules.json`: Finance amount is a money field but has no currency-specific minor-unit precision metadata.
+- `core/tests/test_finance_calc.py`: tests explicitly require two decimals and reject `12.5`; there is no KWD/BHD three-decimal acceptance case.
+
+**Finding:** this is not a generic Decimal-vs-float issue; arithmetic is exact for the supported two-decimal representation. The unresolved defect is currency semantics: the model cannot represent three-decimal currencies without losing or rejecting the third fractional digit. Either implement currency-aware minor units end-to-end or explicitly constrain the supported currency set and reject unsupported currencies at the boundary. Do not claim universal currency support.
+
+### ATLAS-ACT-019 — Action Gateway execution state is not durable across restart
+
+**Severity: P1 — OPEN.**
+
+Evidence:
+- `core/src/atlas_core/actions.py`: `_approvals`, `_done`, and `_idem` are in-memory dictionaries. `propose()` records completed actions and idempotency results only in `_done`/`_idem`; `undo()` resolves action IDs only through `_done`.
+- `AuditFile` persists the hash-chained audit entries, but the constructor only accepts/reloads audit `history`; it does not reconstruct approvals, action receipts, undo state, or idempotency results from that history.
+- `core/tests/test_actions.py`: the restart test creates a new gateway with `history=file.load()` and confirms the audit chain continues. It does not verify retry idempotency, pending approval survival, or undo receipts across restart.
+
+**Impact:** after a Core restart, an already executed external action may no longer have its idempotency receipt available; retrying with the same key can execute again. Previously issued approvals and undo handles also disappear. The audit log alone records that an action happened but is not an executable receipt or a safe replay guard.
+
+**Required evidence/fix:** durable, atomic action/approval/idempotency/undo state or an explicit design that safely reconciles every side effect on restart; crash-window tests around handler execution, durable receipt write, response delivery, restart and retry. Never claim “exactly once” based solely on the current in-process cache.
+
+### ATLAS-TEST-020 — Finance arithmetic test contains an always-true assertion
+
+**Severity: P2 — OPEN.**
+
+Evidence:
+- `core/tests/test_finance_calc.py`, `test_sums_are_exact_where_floats_are_not()`: the assertion `by_month(... ) == expected or True` passes regardless of the calculated result. The following month-map assertion does independently check the expected result, but the always-true assertion is misleading and contributes no coverage.
+
+**Required action:** implementation owner should remove the vacuous assertion and retain one clear exact expected-value assertion. This is a test-quality finding, not evidence that the Finance calculation itself failed.
+
