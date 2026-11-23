@@ -167,6 +167,20 @@ class AtlasClient:
     def disconnect_connector(self, connector_id: str) -> dict[str, Any]:
         return self._json("POST", f"/v1/connectors/{connector_id}/disconnect", {})
 
+    def web_hosts(self) -> list[str]:
+        """The hosts the owner allows the isolated browser to open (API 1.1; owner client only)."""
+        return list(self._json("GET", "/v1/web/hosts")["hosts"])
+
+    def add_web_host(self, host: str) -> list[str]:
+        return list(self._json("POST", "/v1/web/hosts", {"host": host})["hosts"])
+
+    def remove_web_host(self, host: str) -> list[str]:
+        return list(self._json("POST", "/v1/web/hosts/remove", {"host": host})["hosts"])
+
+    def read_web_page(self, url: str) -> dict[str, Any]:
+        """One page on an allowed host, read in the isolated browser: untrusted text with its provenance."""
+        return self._json("POST", "/v1/web/read", {"url": url})
+
     def review(self) -> dict[str, Any]:
         """The owner's review: calendar, finance and health, each answering only under its own grant (API 1.1; owner client only)."""
         return self._json("GET", "/v1/review")

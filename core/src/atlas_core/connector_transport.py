@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
+SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")  # the range VPNs such as Tailscale hand out
 MAX_REPLY_BYTES = 1_000_000
 TIMEOUT = 15.0
 
@@ -25,13 +26,13 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _private(host: str) -> bool:
-    if host in ("localhost",):
+    if host == "localhost" or host.endswith(".ts.net"):  # a VPN's own names resolve inside the encrypted private network
         return True
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
         return host.endswith(".local")  # a home-network name
-    return address.is_loopback or address.is_private or address.is_link_local
+    return address.is_loopback or address.is_private or address.is_link_local or address in SHARED_ADDRESS_SPACE
 
 
 def permitted(url: str) -> bool:

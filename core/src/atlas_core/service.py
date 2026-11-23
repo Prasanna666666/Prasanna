@@ -30,6 +30,7 @@ from .rules import load_rules
 from .tasks import STEPS, TERMINAL, TaskStore
 from .values import LanguageIn
 
+HIGHLIGHTS_QUESTION = "What are the most important things in my enabled sources right now? Give a short summary with the key dates and any follow-ups."
 FINAL_STATE = {"verified": "completed", "partially_verified": "partially_completed", "unverified": "partially_completed"}
 FAIL_REASON = {"failed": "citation_failed"}
 
@@ -70,6 +71,15 @@ class ConnectorsPort(Protocol):
     def link(self, connector_id: str, fields: Mapping[str, str]) -> dict[str, Any]: ...
     def check(self, connector_id: str) -> dict[str, Any]: ...
     def unlink(self, connector_id: str) -> dict[str, Any]: ...
+
+
+class WebPort(Protocol):
+    """What the API needs for reading a page the owner chose (implemented by `web.WebReader`)."""
+
+    def hosts(self) -> dict[str, Any]: ...
+    def add(self, host: str) -> dict[str, Any]: ...
+    def remove(self, host: str) -> dict[str, Any]: ...
+    def read(self, url: str) -> dict[str, Any]: ...
 
 
 class UpdatesPort(Protocol):
@@ -150,6 +160,9 @@ class Deps:
     coverage: Mapping[str, CoverageProvider] = field(default_factory=dict)  # per source type: what that index reports (used only to build the API 1.1 coverage)
     research: ResearchGate = field(default_factory=ResearchGate)
     health_records: Callable[[], list[Record]] | None = None  # the Health records, when this Core has a Health source (read only after the grant check)
+    scope: Callable[[], list[str]] = (
+        list  # the source types a question may use right now (a current grant and the platform permission; never a restricted domain)
+    )
     finance_records: Callable[[], list[Record]] | None = None  # the Finance records, when this Core has a Finance source (read only under a current grant)
 
 
@@ -586,9 +599,26 @@ class TaskService:
             return {"state": "empty", "reading_count": 0, "measures": [], "computed_by_code": True}
         return {"state": "ready", "reading_count": len(records), "measures": summarise(records)[:50], "computed_by_code": True}
 
+    def highlights(self) -> dict[str, Any]:
+        """Start (or find, for today) the owner's highlights: an ordinary question over the sources the owner has enabled, so the model sees only what the gate allows, every claim is cited and checked, and the answer is
+        fetched with the task like any other. Nothing here reads a source or calls the model itself; the question is the same for everyone, so the same day gives the same task."""
+        d = self._d
+        scope = d.scope()
+        if not scope:
+            return {"state": "denied"}
+        today = d.clock().strftime("%Y%m%d")
+        request = {
+            "objective": HIGHLIGHTS_QUESTION,
+            "source_scope": sorted(scope),
+            "budget": {"max_seconds": 300, "max_retries": 1},
+            "idempotency_key": f"highlights-{today}-{'-'.join(sorted(scope))}"[:120],
+        }
+        record, _created = self.submit(request)
+        return {"state": "ready", "task_id": record["task_id"]}
+
     def review(self, attention: Callable[[], dict[str, Any]] | None) -> dict[str, Any]:
         """The owner's review (API 1.1): the orchestrator over fixed code agents for calendar, finance and health. Each area answers only under its own grant and says plainly when it is off, empty or not offered."""
-        return run_review(self.finance_summary, self.health_summary, attention)
+        return run_review(self.finance_summary, self.health_summary, attention, self.highlights)
 
     @staticmethod
     def compute(kind: str, args: list[str]) -> dict[str, Any]:

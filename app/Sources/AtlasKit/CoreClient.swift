@@ -84,6 +84,12 @@ public final class CoreClient {
     public func check(connector id: String) throws -> [String: Any] { try object(call("POST", "/v1/connectors/\(id)/check", [:])) }
     public func disconnect(connector id: String) throws -> [String: Any] { try object(call("POST", "/v1/connectors/\(id)/disconnect", [:])) }
 
+    /// The sites the owner allows the isolated browser to open, and reading one page on an allowed site as untrusted text. The Core answers not_found when it has no browser.
+    public func webHosts() throws -> [String: Any] { try object(call("GET", "/v1/web/hosts")) }
+    public func addWebHost(_ host: String) throws -> [String: Any] { try object(call("POST", "/v1/web/hosts", ["host": host])) }
+    public func removeWebHost(_ host: String) throws -> [String: Any] { try object(call("POST", "/v1/web/hosts/remove", ["host": host])) }
+    public func readWebPage(_ url: String) throws -> [String: Any] { try object(call("POST", "/v1/web/read", ["url": url])) }
+
     /// The owner's review of calendar, finance and health, run by the Core's orchestrator over code agents.
     public func review() throws -> [String: Any] { try object(call("GET", "/v1/review")) }
 

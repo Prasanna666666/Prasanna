@@ -24,7 +24,7 @@ from .contracts import ContractError, validate
 from .errors import CoreError, UpdateError, status_of, user_error
 from .events import SafeLog, new_id
 from .identity import H_VERSION, BootstrapGate, ClientRegistry
-from .service import TERMINAL, ConnectorsPort, ConsentPort, DevicesPort, ModePort, OpsPort, TaskService, UpdatesPort
+from .service import TERMINAL, ConnectorsPort, ConsentPort, DevicesPort, ModePort, OpsPort, TaskService, UpdatesPort, WebPort
 
 JSON = "application/json"
 SSE = "text/event-stream"
@@ -43,6 +43,9 @@ ENROL = "/v1/enrol"  # API 1.1 only
 LIBRARY_SEARCH = "/v1/library/search"  # API 1.1 only, an enrolled client
 CONNECTOR = re.compile(r"^/v1/connectors/([a-z_]{3,30})/(connect|check|disconnect)$")  # API 1.1 only, an enrolled OWNER client only
 CONNECTORS = "/v1/connectors"
+WEB_PATHS = frozenset(
+    {"/v1/web/hosts", "/v1/web/hosts/remove", "/v1/web/read"}
+)  # API 1.1 only, an enrolled OWNER client only, and only when the Core has an isolated browser
 RECORDS = re.compile(r"^/v1/records/([a-z]{3,16})$")  # API 1.1 only, an enrolled client: the owner's own or a device the owner paired
 REVIEW = "/v1/review"  # API 1.1 only, an enrolled OWNER client only
 HEALTH_SUMMARY = "/v1/health/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Health source
@@ -109,8 +112,9 @@ class CoreApi:
         devices: DevicesPort | None = None,
         updates: UpdatesPort | None = None,
         connectors: ConnectorsPort | None = None,
+        web: WebPort | None = None,
     ) -> None:
-        self._updates, self._connectors = updates, connectors
+        self._updates, self._connectors, self._web = updates, connectors, web
         self._service, self._registry, self._log, self._consent, self._bootstrap, self._mode, self._ops, self._devices = (
             service,
             registry,
@@ -159,6 +163,7 @@ class CoreApi:
         handlers.update({p: lambda: self._ops_route(request, path, client) for p in OPS_PATHS})
         handlers.update({p: lambda: self._device_route(request, path, client) for p in DEVICE_PATHS})
         handlers.update({p: lambda: self._update_route(request, path, client) for p in UPDATE_PATHS})
+        handlers.update({p: lambda: self._web_route(request, path, client) for p in WEB_PATHS})
         handler = handlers.get(path)
         if handler is None:
             research, records = RESEARCH.match(path), RECORDS.match(path)
@@ -331,6 +336,39 @@ class CoreApi:
         if not self._registry.is_owner(client):
             raise CoreError("forbidden")
         return self._reply(200, self._service.health_summary(), "HealthSummary", "1.1")
+
+    def _web_route(self, request: Request, path: str, client: str) -> Response:
+        """The owner's allowed hosts and reading one page in the isolated browser. Owner client only; the page comes back as untrusted data with its provenance."""
+        if self._web is None:
+            raise CoreError("not_found")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        if path == "/v1/web/hosts":
+            if request.method == "GET":
+                return self._reply(200, self._web.hosts(), "WebHosts", "1.1")
+            if request.method != "POST":
+                raise CoreError("invalid_request")
+            body = self._json_body(request)
+            validate("WebHostRequest", body, "1.1")
+            return self._reply(200, self._web.add(body["host"]), "WebHosts", "1.1")
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        body = self._json_body(request)
+        if path == "/v1/web/hosts/remove":
+            validate("WebHostRequest", body, "1.1")
+            return self._reply(200, self._web.remove(body["host"]), "WebHosts", "1.1")
+        validate("WebReadRequest", body, "1.1")
+        return self._reply(200, self._web.read(body["url"]), "ResearchResult", "1.1")
+
+    @staticmethod
+    def _json_body(request: Request) -> dict[str, Any]:
+        try:
+            body = json.loads(request.body)
+        except ValueError:
+            raise CoreError("invalid_request") from None
+        if not isinstance(body, dict):
+            raise CoreError("invalid_request")
+        return body
 
     def _connector_list(self, request: Request, client: str) -> Response:
         if self._connectors is None:

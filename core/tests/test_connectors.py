@@ -183,6 +183,8 @@ def test_connector_traffic_only_goes_where_the_owner_pointed_it_and_never_plain_
         and permitted("http://127.0.0.1:8080/x")
         and permitted("http://192.168.1.20/x")
         and permitted("http://hub.local/x")
+        and permitted("http://100.64.0.7/x")
+        and permitted("http://mac.tail1234.ts.net/x")
     )
     assert (
         not permitted("http://api.example.com/x") and not permitted("ftp://127.0.0.1/x") and not permitted("file:///etc/passwd") and not permitted("http:///x")

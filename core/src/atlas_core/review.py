@@ -15,8 +15,9 @@ from .finance_calc import MONEY_DOMAIN
 from .health_calc import HEALTH_DOMAIN
 from .orchestrator import AgentSpec, Registry, RunOptions, TaskContext, TaskContract, run
 
-AREAS = ("calendar", MONEY_DOMAIN, HEALTH_DOMAIN)
 CALENDAR = "calendar"
+HIGHLIGHTS = "highlights"
+AREAS = (CALENDAR, MONEY_DOMAIN, HEALTH_DOMAIN, HIGHLIGHTS)
 
 
 def _registry() -> Registry:
@@ -24,6 +25,9 @@ def _registry() -> Registry:
     registry.register(AgentSpec("calendar_agent", "1", frozenset({"check_calendar"}), frozenset(), frozenset(), "medium"))
     registry.register(AgentSpec("finance_agent", "1", frozenset({"summarise_finance"}), frozenset({MONEY_DOMAIN}), frozenset(), "restricted"))
     registry.register(AgentSpec("health_agent", "1", frozenset({"summarise_health"}), frozenset({HEALTH_DOMAIN}), frozenset(), "restricted"))
+    registry.register(
+        AgentSpec("highlights_agent", "1", frozenset({"summarise_sources"}), frozenset(), frozenset(), "high")
+    )  # model-backed: it only STARTS a task; the answer is the verified, cited one from the normal pipeline
     registry.register(AgentSpec("review_writer", "1", frozenset({"compose"}), frozenset(), frozenset(), "restricted"))
     registry.seal()
     return registry
@@ -34,7 +38,15 @@ def _plan() -> list[TaskContract]:
         TaskContract(CALENDAR, "check_calendar", "calendar_agent", "Find overlapping events", sensitivity="medium"),
         TaskContract(MONEY_DOMAIN, "summarise_finance", "finance_agent", "Summarise spending", sources=frozenset({MONEY_DOMAIN}), sensitivity="restricted"),
         TaskContract(HEALTH_DOMAIN, "summarise_health", "health_agent", "Summarise readings", sources=frozenset({HEALTH_DOMAIN}), sensitivity="restricted"),
-        TaskContract("compose", "compose", "review_writer", "Order the sections", sensitivity="restricted", depends_on=(CALENDAR, MONEY_DOMAIN, HEALTH_DOMAIN)),
+        TaskContract(HIGHLIGHTS, "summarise_sources", "highlights_agent", "Start a verified summary of the owner's sources", sensitivity="high"),
+        TaskContract(
+            "compose",
+            "compose",
+            "review_writer",
+            "Order the sections",
+            sensitivity="restricted",
+            depends_on=(CALENDAR, MONEY_DOMAIN, HEALTH_DOMAIN, HIGHLIGHTS),
+        ),
     ]
 
 
@@ -88,13 +100,31 @@ _NOT_READY = {
 }
 
 
-def run_review(finance: Callable[[], dict[str, Any]], health: Callable[[], dict[str, Any]], attention: Callable[[], dict[str, Any]] | None) -> dict[str, Any]:
+def _highlights(started: dict[str, Any]) -> dict[str, Any]:
+    state = started["state"]
+    if state != "ready":
+        return {"area": HIGHLIGHTS, "state": state, "summary": _NOT_READY.get(state, _NOT_READY["unavailable"])}
+    return {
+        "area": HIGHLIGHTS,
+        "state": "ready",
+        "summary": "A summary of your enabled sources is being written. It is checked against its sources, and every claim is cited.",
+        "task_id": started["task_id"],
+    }
+
+
+def run_review(
+    finance: Callable[[], dict[str, Any]],
+    health: Callable[[], dict[str, Any]],
+    attention: Callable[[], dict[str, Any]] | None,
+    highlights: Callable[[], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """Run the review and return its honest outcome: the workflow status, each task's own state, and the sections."""
     sections: dict[str, dict[str, Any]] = {}
     executors = {
         "calendar_agent": lambda _c: sections.setdefault("calendar", _calendar(attention)),
         "finance_agent": lambda _c: sections.setdefault(MONEY_DOMAIN, _finance(_offered(finance))),
         "health_agent": lambda _c: sections.setdefault(HEALTH_DOMAIN, _health(_offered(health))),
+        "highlights_agent": lambda _c: sections.setdefault(HIGHLIGHTS, _highlights(highlights() if highlights else {"state": "unavailable"})),
         "review_writer": lambda ctx: _compose(ctx, sections),
     }
     report = run(_plan(), _registry(), executors, RunOptions())

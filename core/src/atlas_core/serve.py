@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .app import Core, CoreAlreadyRunning, CoreConfig
 from .host import HostOptions, HostUnavailable, KeychainLocked
+from .relay import Relay, RelayRefused
 
 CODE_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
 FactoryT = Callable[[Path, Path, str | None, HostOptions], CoreConfig]
@@ -63,6 +64,35 @@ def _options(args: argparse.Namespace) -> HostOptions:
     )
 
 
+def _stop_on_signal_or_orphaning() -> threading.Event:
+    """Set by SIGTERM or SIGINT, or when the app that started this Core is gone (quit, crash, kill): the Core then stops at once instead of running on with no one to answer to."""
+    stop = threading.Event()
+    for number in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(number, lambda *_: stop.set())
+    parent = os.getppid()
+
+    def orphaned() -> None:
+        while not stop.wait(0.5):
+            if os.getppid() != parent:
+                stop.set()
+
+    threading.Thread(target=orphaned, daemon=True).start()
+    return stop
+
+
+def _start_relay(bind: str | None, socket_path: Path) -> Relay | None:
+    """The optional remote channel. A bind address that is not private is refused and the Core runs without it."""
+    if not bind:
+        return None
+    host, _, port = bind.rpartition(":")
+    try:
+        relay = Relay(host, int(port), socket_path)
+    except (RelayRefused, ValueError, OSError):
+        return None
+    relay.start()
+    return relay
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
@@ -74,6 +104,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest-pubkey", help="the installed public key (32 raw bytes) that signed the model manifest")
     parser.add_argument("--update-root", help="the folder that holds the app's own versions (versions/, current, previous)")
     parser.add_argument("--update-pubkey", help="the installed public key (32 raw bytes) that signs releases")
+    parser.add_argument(
+        "--relay-bind", help="HOST:PORT on a private or VPN address where a paired phone may reach the Core (off by default; a public address is refused)"
+    )
     parser.add_argument("--config-factory", default="host")
     parser.add_argument("--allow-custom-factory", action="store_true")
     args = parser.parse_args(argv)
@@ -93,19 +126,12 @@ def main(argv: list[str] | None = None) -> int:
     except CoreAlreadyRunning:
         return EXIT_BUSY  # a live Core has this folder: this one touches nothing
     core.start()
-    stop = threading.Event()
-    for number in (signal.SIGTERM, signal.SIGINT):
-        signal.signal(number, lambda *_: stop.set())
+    relay = _start_relay(args.relay_bind, Path(args.socket))
+    stop = _stop_on_signal_or_orphaning()
     print("READY", flush=True)
-    parent = os.getppid()
-
-    def orphaned() -> None:  # the app that started this Core is gone (quit, crash, kill): stop at once instead of running on with no one to answer to
-        while not stop.wait(0.5):
-            if os.getppid() != parent:
-                stop.set()
-
-    threading.Thread(target=orphaned, daemon=True).start()
     stop.wait()
+    if relay is not None:
+        relay.close()
     core.close()
     return 0
 

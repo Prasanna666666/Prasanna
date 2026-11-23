@@ -55,6 +55,15 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: Space.xs) {
                         Text(section.title).font(TextStyle.body).foregroundStyle(theme.textPrimary)
                         Text(section.summary).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                        if let id = section.taskID {
+                            Button(model.highlights == nil ? "Show the summary" : "Refresh the summary") { Task { await model.loadHighlights(id) } }
+                            if let note = model.highlightsNote { Text(note).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+                            if let answer = model.highlights {
+                                Text(answer.text).font(TextStyle.body).foregroundStyle(theme.textPrimary)
+                                if !answer.trust.isEmpty { Text(answer.trust).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+                                ForEach(answer.citations, id: \.id) { Text($0.label).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+                            }
+                        }
                         if section.needsAction, section.id != "calendar" { Button("Turn on \(section.title)") { Task { await model.enable(sourceType: section.id); await model.runReview() } } }
                     }.accessibilityElement(children: .combine)
                 }
@@ -119,6 +128,8 @@ struct TurnView: View {
             if let answer = turn.answer {
                 Text(answer.text).font(TextStyle.body).textSelection(.enabled).foregroundStyle(theme.textPrimary).accessibilityLabel("Atlas answered: \(answer.text)")
                 Text(answer.trust).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                Button { model.readAloud(answer) } label: { Label(model.reading ? "Stop reading" : "Read aloud", systemImage: model.reading ? "speaker.slash" : "speaker.wave.2") }
+                    .buttonStyle(.borderless).accessibilityHint("Reads the answer with your Mac's voice. Nothing is sent anywhere.")
                 ForEach(answer.notices, id: \.self) { StateNotice(text: $0, style: .warning) }
                 ForEach(answer.notSearched, id: \.self) { StateNotice(text: $0, style: .info) }
                 if answer.citations.isEmpty { Text(Catalogue.shared.noCitations).font(TextStyle.secondary).foregroundStyle(theme.textMuted) }
@@ -394,6 +405,53 @@ struct FinanceAreaView: View {
     }
 }
 
+// MARK: Web
+
+struct WebView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var scheme
+    @State private var newHost = ""
+    @State private var address = ""
+
+    private var hosts: [String] { if case .loaded(let list) = model.webHosts { return list } else { return [] } }
+
+    var body: some View {
+        let theme = Theme(scheme)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                PageHeader(title: "Web", subtitle: "Atlas opens only the sites you allow, in a separate browser, and shows what it finds as text. It never acts on what a page says.")
+                if let message = model.webMessage { StateNotice(text: message, style: .warning) }
+                Text("Allowed sites").font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+                if hosts.isEmpty { Text("No sites are allowed yet.").foregroundStyle(theme.textSecondary) }
+                ForEach(hosts, id: \.self) { host in
+                    HStack { Label(host, systemImage: "globe"); Spacer(); Button("Remove", role: .destructive) { Task { await model.removeWebHost(host) } } }
+                }
+                HStack {
+                    TextField("Add a site, such as example.org", text: $newHost).textFieldStyle(.roundedBorder)
+                    Button("Allow") { Task { await model.addWebHost(newHost); newHost = "" } }.disabled(WebOutcome.hostProblem(newHost) != nil)
+                }
+                if !newHost.isEmpty, let problem = WebOutcome.hostProblem(newHost) { Text(problem).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+                Divider()
+                Text("Read a page").font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+                HStack {
+                    TextField("Page address, starting with https", text: $address).textFieldStyle(.roundedBorder)
+                    Button("Read") { Task { await model.readWebPage(address) } }.disabled(WebOutcome.problem(address: address, hosts: hosts) != nil)
+                }
+                if !address.isEmpty, let problem = WebOutcome.problem(address: address, hosts: hosts) { Text(problem).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+                if let page = model.webPage {
+                    VStack(alignment: .leading, spacing: Space.sm) {
+                        Text(page.note).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                        ForEach(page.warnings, id: \.self) { StateNotice(text: $0, style: .warning) }
+                        Text(page.text).font(TextStyle.body).textSelection(.enabled).foregroundStyle(theme.textPrimary)
+                    }
+                }
+            }
+            .padding(Space.xl).readingColumn()
+        }
+        .task { await model.loadWeb() }
+    }
+}
+
 // MARK: Connections
 
 struct ConnectionsView: View {
@@ -565,6 +623,8 @@ struct GetStartedView: View {
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @State private var relayBind = UserDefaults.standard.string(forKey: "atlas.relayBind") ?? ""
+    @State private var relayNote: String?
     @State private var phoneAddress = UserDefaults.standard.string(forKey: "atlas.phoneAddress") ?? ""
     @Environment(\.colorScheme) private var scheme
 
@@ -582,6 +642,16 @@ struct SettingsView: View {
                 Text("Updates are checked for a signature before anything is installed. Your data is never changed.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
             }
         }
+    }
+
+    private func saveRelay() {
+        if relayBind.trimmingCharacters(in: .whitespaces).isEmpty {
+            UserDefaults.standard.removeObject(forKey: "atlas.relayBind")
+            relayNote = "The phone channel is off. This takes effect the next time Atlas starts."
+        } else if let bind = RelayBind.parse(relayBind) {
+            UserDefaults.standard.set(bind, forKey: "atlas.relayBind")
+            relayNote = "Saved. The phone channel starts the next time Atlas starts."
+        } else { relayNote = RelayBind.explanation }
     }
 
     private func chooseUpdateFolder() {
@@ -633,6 +703,11 @@ struct SettingsView: View {
                 section("Pair a phone") {
                     TextField("Address your phone will use", text: $phoneAddress).textFieldStyle(.roundedBorder)
                     Text("A private network name (for example from your VPN) or a relay you run. Atlas never opens a public port.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                    TextField("Let my phone connect on (private address and port)", text: $relayBind).textFieldStyle(.roundedBorder)
+                    HStack {
+                        Button("Save") { saveRelay() }
+                        Text(relayNote ?? (RelayBind.parse(relayBind) == nil && !relayBind.isEmpty ? RelayBind.explanation : "Takes effect the next time Atlas starts. Leave it empty to keep the phone channel off.")).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                    }
                     Button("Show pairing code") { Task { await model.showPairingInvite(address: phoneAddress) } }
                     if let invite = model.pairingInvite {
                         if let image = QRCode.image(for: invite) { Image(nsImage: image).interpolation(.none).resizable().frame(width: 180, height: 180).accessibilityLabel("Pairing code for your phone") }

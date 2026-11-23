@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from .access import GRANTED, PermissionEvidence
 from .app import CoreConfig
+from .browser_engine import WorkerBrowser
 from .finance_calc import MONEY_DOMAIN
 from .health_calc import HEALTH_DOMAIN
 from .intelligence import ModelRuntime
@@ -97,6 +98,11 @@ def _restricted_stores(data_dir: Path, keys: dict[str, str]) -> tuple[dict[str, 
     return records, tuple(closers)
 
 
+def _web_engine(hosts: frozenset[str]) -> WorkerBrowser:
+    """An isolated browser for one allowed host: its own process, https only, no redirect off the host. If no browser is installed the worker stops and the read says so plainly."""
+    return WorkerBrowser(hosts, ["https"])
+
+
 def _updates(options: HostOptions) -> UpdateOperations | None:
     """Updates are offered only when the host was told both where the app's versions live and which key signs releases."""
     if options.update_root is None or options.update_pubkey is None:
@@ -171,4 +177,5 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         require_restore_drill=True,  # Finance and Health wait for a passed restore drill (G-O05)
         bootstrap_code=bootstrap_code,
         updates=_updates(options),
+        web_engine=_web_engine,
     )

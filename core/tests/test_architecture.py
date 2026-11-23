@@ -48,9 +48,11 @@ LAYER = {
     "record_actions": 5,
     "connectors": 5,
     "connector_transport": 1,
+    "relay": 2,
     "orchestrator": 5,
     "review": 5,
     "browser": 5,
+    "web": 6,
     "watchers": 1,
     "updater": 1,
     "health": 5,
@@ -373,6 +375,6 @@ def test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_conn
         }
         if names & connectors or any(n.startswith(("http.client", "urllib.request")) for n in names):
             found.add(path.stem)
-    assert found == {"egress", "transport", "confinement", "connector_transport"}, (
+    assert found == {"egress", "transport", "confinement", "connector_transport", "relay"}, (
         found
-    )  # connector_transport: owner-addressed connector traffic only (its docstring says what it refuses)
+    )  # connector_transport: owner-addressed connector traffic only; relay: the optional private-network channel for a paired phone (it refuses any address that is not private)

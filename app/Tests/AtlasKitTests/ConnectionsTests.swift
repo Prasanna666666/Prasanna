@@ -34,6 +34,12 @@ final class ConnectionsTests: XCTestCase {
         XCTAssertNotNil(ConnectionsOutcome.from(["connectors": []]).notice)
     }
 
+    func testTheMacOnlyListensOnAPrivateOrVPNAddress() {
+        for good in ["127.0.0.1:8443", "10.0.0.5:9000", "192.168.1.20:8443", "172.16.4.4:8443", "169.254.1.1:8443", "100.64.0.5:8443", "100.127.1.1:8443"] { XCTAssertEqual(RelayBind.parse(good), good) }
+        for bad in ["0.0.0.0:8443", "8.8.8.8:8443", "100.128.0.1:8443", "localhost:8443", "192.168.1.20", "192.168.1.20:80", "192.168.1.20:99999", "192.168.1:8443", "::1:8443", ""] { XCTAssertNil(RelayBind.parse(bad), bad) }
+        XCTAssertTrue(ConnectDraft.isHomeNetwork("100.100.1.1") && ConnectDraft.isHomeNetwork("mac.tail1234.ts.net") && !ConnectDraft.isHomeNetwork("100.200.1.1"))
+    }
+
     func testTheConnectFormSaysWhatIsWrongAndAllowsPlainHttpOnlyOnTheHomeNetwork() {
         var draft = ConnectDraft()
         XCTAssertNotNil(draft.problem())

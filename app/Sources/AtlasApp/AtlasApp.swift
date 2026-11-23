@@ -69,16 +69,31 @@ enum Launcher {
     private static let bundledPython = Bundle.main.resourceURL?.appendingPathComponent("python/bin/python3")
     private static let support = home.appendingPathComponent("Library/Application Support/Atlas")
     /// The update screen exists only when the release-signing public key is installed: without it the Core is not told about updates and the section stays hidden.
+    /// The phone channel is off unless the owner saved a private address for it in Settings; the Core refuses anything that is not private again.
+    private static var relayArguments: [String] {
+        guard let saved = UserDefaults.standard.string(forKey: "atlas.relayBind"), let bind = RelayBind.parse(saved) else { return [] }
+        return ["--relay-bind", bind]
+    }
+
     private static var updateArguments: [String] {
         let key = support.appendingPathComponent("release.pub")
         return FileManager.default.fileExists(atPath: key.path) ? ["--update-root", support.appendingPathComponent("app").path, "--update-pubkey", key.path] : []
     }
-    static let shared = CoreLauncher(
+    static let shared: CoreLauncher = {
+        prepareBrowser()
+        return CoreLauncher(
         executable: bundledPython.flatMap { FileManager.default.isExecutableFile(atPath: $0.path) ? $0 : nil } ?? URL(fileURLWithPath: "/usr/bin/python3"),
         arguments: ["-m", "atlas_core.serve",
                     "--documents-source", "documents=" + home.appendingPathComponent("Documents").path,
                     "--mail-source", "mail=" + home.appendingPathComponent("Library/Mail").path,
-                    "--manifest-pubkey", support.appendingPathComponent("models/manifest.pub").path] + updateArguments)
+                    "--manifest-pubkey", support.appendingPathComponent("models/manifest.pub").path] + updateArguments + relayArguments)
+    }()
+
+    /// The browser for web reading travels inside the app when it was packaged with one; the Core's worker finds it through this variable. Nothing is downloaded at run time.
+    private static func prepareBrowser() {
+        guard let folder = Bundle.main.resourceURL?.appendingPathComponent("browsers"), FileManager.default.fileExists(atPath: folder.path) else { return }
+        setenv("PLAYWRIGHT_BROWSERS_PATH", folder.path, 1)
+    }
     static var bootstrapCode: String? { shared.bootstrapCode }
 }
 
@@ -111,9 +126,17 @@ final class AppModel: ObservableObject {
     @Published var health: LoadState<HealthView> = .idle
     @Published var voiceState: VoiceState = .idle
     private(set) lazy var voice: VoiceSession = VoiceSession(input: SystemSpeech(), draft: { [unowned self] in self.question }, setDraft: { [unowned self] in self.question = $0 })
+    @Published var webServed = false
+    @Published var webHosts: LoadState<[String]> = .idle
+    @Published var webPage: WebPageView?
+    @Published var webMessage: String?
     @Published var connectionsServed = false
     @Published var connections: LoadState<[ConnectorView]> = .idle
     @Published var connectionMessage: String?
+    @Published var reading = false
+    private(set) lazy var aloud: AloudSession = AloudSession(speaker: SystemSpeaker())
+    @Published var highlights: AnswerView?
+    @Published var highlightsNote: String?
     @Published var review: LoadState<ReviewView> = .idle
     @Published var updates: LoadState<UpdateView> = .idle
     @Published var updateMessage: String?
@@ -177,7 +200,7 @@ final class AppModel: ObservableObject {
     }
 
     /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.
-    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : []) + (healthServed ? [SourceNames.title("health")] : []) + (connectionsServed ? ["Connections"] : [])) }
+    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : []) + (healthServed ? [SourceNames.title("health")] : []) + (connectionsServed ? ["Connections"] : []) + (webServed ? ["Web"] : [])) }
 
     /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
     var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
@@ -259,6 +282,38 @@ final class AppModel: ObservableObject {
         } catch { health = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
     }
 
+    func loadWeb() async {
+        guard let client else { return }
+        do {
+            webHosts = WebOutcome.hosts(try await Task.detached { try client.webHosts() }.value)
+            webServed = true
+        } catch AtlasError.core(let code) where code == "not_found" {
+            webServed = false
+            webHosts = .idle
+        } catch { webHosts = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    func addWebHost(_ host: String) async {
+        guard let client else { return }
+        webMessage = nil
+        let name = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        do { _ = try await Task.detached { try client.addWebHost(name) }.value; await loadWeb() } catch AtlasError.core(let code) { webMessage = WebOutcome.message(forCoreCode: code) } catch { webMessage = Catalogue.shared.error("internal_error") }
+    }
+
+    func removeWebHost(_ host: String) async {
+        guard let client else { return }
+        do { _ = try await Task.detached { try client.removeWebHost(host) }.value; await loadWeb() } catch { webMessage = (error as? AtlasError)?.message }
+    }
+
+    /// Reads one page on an allowed site. The page is shown as untrusted text; it cannot add a site, change a setting or start anything.
+    func readWebPage(_ address: String) async {
+        guard let client else { return }
+        webMessage = nil
+        webPage = nil
+        let url = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        do { webPage = WebOutcome.page(try await Task.detached { try client.readWebPage(url) }.value) } catch AtlasError.core(let code) { webMessage = WebOutcome.message(forCoreCode: code) } catch { webMessage = Catalogue.shared.error("internal_error") }
+    }
+
     func loadConnections() async {
         guard let client else { return }
         do {
@@ -303,6 +358,29 @@ final class AppModel: ObservableObject {
     func toggleVoice() {
         voice.onChange = { [weak self] state in self?.voiceState = state }
         voice.toggle()
+    }
+
+    /// The highlights are an ordinary question the Core started: wait for it like any answer and show it with its checks and citations. If the model is not available, say so.
+    func loadHighlights(_ taskID: String) async {
+        guard let client else { return }
+        highlights = nil
+        highlightsNote = "Writing your summary."
+        do {
+            while true {
+                let state = try await Task.detached { try client.state(taskID) }.value
+                let phase = TaskPhase.from(coreState: state)
+                if phase.isTerminal || phase == .unknown { break }
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+            highlights = AnswerView(try await Task.detached { try client.answer(taskID) }.value)
+            highlightsNote = nil
+        } catch { highlightsNote = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error") }
+    }
+
+    /// Reads an answer aloud with the Mac's own voice; pressing again stops it.
+    func readAloud(_ answer: AnswerView) {
+        aloud.onChange = { [weak self] state in self?.reading = state == .speaking }
+        aloud.toggle(AloudText.from(answer))
     }
 
     func runReview() async {
@@ -538,6 +616,7 @@ final class AppModel: ObservableObject {
             await loadFinance()
             await loadHealth()
             await loadConnections()
+            await loadWeb()
             await loadUpdates()
         } catch { failure = (error as? AtlasError)?.message }
     }

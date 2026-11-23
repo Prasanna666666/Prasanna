@@ -87,12 +87,12 @@ public struct ConnectDraft: Equatable {
         return nil
     }
 
-    /// Loopback, private ranges and `.local` names: where plain http is allowed (the Core enforces the same rule).
+    /// Loopback, private ranges, the shared VPN range and `.local` and VPN names: where plain http is allowed (the Core enforces the same rule).
     static func isHomeNetwork(_ host: String) -> Bool {
-        if host == "localhost" || host.hasSuffix(".local") { return true }
+        if host == "localhost" || host.hasSuffix(".local") || host.hasSuffix(".ts.net") { return true }  // .ts.net: a VPN's own names, which resolve inside the encrypted private network
         let parts = host.split(separator: ".").compactMap { Int($0) }
         guard parts.count == 4 else { return false }
-        return parts[0] == 127 || parts[0] == 10 || (parts[0] == 192 && parts[1] == 168) || (parts[0] == 172 && (16...31).contains(parts[1])) || (parts[0] == 169 && parts[1] == 254)
+        return parts[0] == 127 || parts[0] == 10 || (parts[0] == 192 && parts[1] == 168) || (parts[0] == 172 && (16...31).contains(parts[1])) || (parts[0] == 169 && parts[1] == 254) || (parts[0] == 100 && (64...127).contains(parts[1]))
     }
 
     public var fields: [String: String] { ["address": address.trimmingCharacters(in: .whitespacesAndNewlines), "token": token.trimmingCharacters(in: .whitespacesAndNewlines)] }

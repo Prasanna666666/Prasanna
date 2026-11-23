@@ -48,6 +48,7 @@ from .sync import SyncService
 from .tasks import TaskStore
 from .transport import UnixServer, serve_unix
 from .updater import UpdateOperations
+from .web import EngineFactory, WebReader
 
 INDEX_SLICE = 20
 RESCAN_SECONDS = 300  # how often a permitted source is listed again to notice changes
@@ -87,6 +88,7 @@ class CoreConfig:
     )
     erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
     disk_usage: Callable[[Path], tuple[int, int, int]] = shutil.disk_usage  # (total, used, free) of the data folder's disk; tests inject a nearly full one
+    web_engine: EngineFactory | None = None  # makes an isolated browser for one allowed host; without it no web reading is offered
     secrets: SecretStore | None = None  # where connector credentials live (the Keychain on the Mac); without it no connectors are offered
     connector_adapters: Mapping[str, Adapter] | None = None  # vendor adapters that replace the bundled one, by integration id
     os_requester: Callable[[str], None] | None = None  # asks the operating system for a source's permission when the owner turns it on
@@ -198,6 +200,7 @@ class Core:
                 research=ResearchGate(c.egress, c.live_network),
                 finance_records=self._domain_records(c, MONEY_DOMAIN),
                 health_records=self._domain_records(c, HEALTH_DOMAIN),
+                scope=self._open_scope,
             )
         )
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it
@@ -205,6 +208,7 @@ class Core:
         self.consent = ConsentService(self.designation, self.access, self.indexes, c.os_requester)
         self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
         self.operations = self._build_operations(c)
+        self.web = None if (self.action_gateway is None or c.web_engine is None) else WebReader(c.data_dir, c.web_engine, self.action_gateway, clock=c.clock)
         self.connectors = None if (self.action_gateway is None or c.secrets is None) else ConnectorHub(self.action_gateway, c.secrets, c.connector_adapters)
         self.device_operations = self._build_devices(c)
         self.api = self._build_api(c)
@@ -232,6 +236,7 @@ class Core:
             devices=self.device_operations,
             updates=c.updates,
             connectors=self.connectors,
+            web=self.web,
         )
 
     @staticmethod
@@ -240,6 +245,11 @@ class Core:
         entry = c.records.get(domain)
         records = getattr(entry[0], "records", None) if entry else None
         return None if records is None else (lambda: list(entry[0].records.values()))  # type: ignore[index, union-attr]
+
+    def _open_scope(self) -> list[str]:
+        """The source types a question may use right now: a current grant and the platform's permission, and never a restricted domain (Finance and Health have their own summaries)."""
+        rules = load_rules()
+        return [t for t in self.indexes if self.access.permitted(t) and not rules.is_restricted(t)]
 
     def _build_devices(self, c: CoreConfig) -> DeviceOperations:
         """Device pairing and revocation: the Core's own identity key (created once, mode 0600) and the directory of paired devices."""

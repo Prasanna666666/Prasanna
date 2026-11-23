@@ -14,9 +14,12 @@ py="$out/Contents/Resources/python/bin"
 if [ "$(uname -s)" = "Darwin" ]; then  # sqlcipher3-binary has no macOS wheel: build the binding against Homebrew's SQLCipher
   prefix="$(brew --prefix sqlcipher)"
   CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher" LDFLAGS="-L$prefix/lib" "$py/pip" install --quiet sqlcipher3
-  "$py/pip" install --quiet "$here/kit" "$here/core[macos]"  # [macos]: the Calendar, Contacts and Photos frameworks
+  "$py/pip" install --quiet "$here/kit" "$here/core[macos,browser]"  # [macos]: the Calendar, Contacts and Photos frameworks; [browser]: the isolated browser
 else
   "$py/pip" install --quiet "$here/kit[secure]" "$here/core"
+fi
+if [ "${ATLAS_BUNDLE_BROWSER:-0}" = "1" ]; then  # the browser travels inside the app so nothing is downloaded when the owner uses it
+  PLAYWRIGHT_BROWSERS_PATH="$out/Contents/Resources/browsers" "$py/python" -m playwright install chromium
 fi
 cat > "$out/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

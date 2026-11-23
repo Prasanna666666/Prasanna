@@ -21,16 +21,19 @@ Everything the developer can build and test without hardware, accounts or a real
 12. Restore drill with a real backup on the owner's disk.
 
 ## D. Product scope that needs an owner decision or account first (not started by design)
-13. G-O14: choose the remote channel (a VPN, or a relay you run). The Core side (pairing, signed requests, sync, revocation, no public ports) and the iPhone client (pairing, offline queue, cache, sync, unpair) are built and tested; running it on your own phone and signing it with your Apple team are yours.
+13. G-O14: choose the remote channel. The opt-in relay is built (private or VPN addresses only); pick a VPN such as Tailscale and put its address in Settings, or tell the architect another channel. The Core side (pairing, signed requests, sync, revocation, no public ports) and the iPhone client (pairing, offline queue, cache, sync, unpair) are built and tested; running it on your own phone and signing it with your Apple team are yours.
 14. G-O02 and G-O05, and the Stage 6 connector and voice scope (home, travel, shopping, work connectors need accounts and devices; voice needs the client).
-15. The owner's allowed-hosts list and workflow screen for the browser engine (the isolated Playwright worker is built and tested), and model-backed specialist agents (the orchestrator is wired and serves the review with code agents). The policy layer, stubs and fakes are built and tested; the real engines need a machine that can run them.
+15. Owner-written browser workflows with steps (reading pages on allowed sites is built and tested; fill-and-press needs your steps) (the orchestrator is wired and serves the review with code agents and one model-backed highlights agent; only the agent-versus-single-model benchmark needs the real model). The policy layer, stubs and fakes are built and tested; the real engines need a machine that can run them.
 16. Update channel: where signed releases are published (needs hosting and your release-signing key; the signed install and rollback from a chosen folder, and the Settings screen, are built and tested). Put the public key at `~/Library/Application Support/Atlas/release.pub` and the screen appears.
 17. Attachment processing (G-O18, separate package).
 
 ## D2. Plug in when ready (no developer work; see `PLUG_IN_GUIDE.md`)
 Connect a real service from Connections with its address and token; place the release-signing key; copy the signed model; run the signing script. Each is configuration, not code.
 
-## E0. Authority widened for the architect to confirm
+## E0. Network and authority changes for the architect to confirm
+- `relay.py` is a fifth module allowed to open a listening socket (named in `test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection`). It is off by default, refuses any address that is not private or VPN before opening a socket, forwards only `/v1/` and never `/v1/enrol`, and holds no key. It is the G-O14 channel; the choice of channel remains yours and the architect's.
+- `web.py` opens pages through the isolated browser worker for hosts the owner allowed; the worker can reach only that host. DNS rebinding between the Core's public-address check and the browser's own lookup is a residual risk that is not closed.
+- A paired device may read the owner's own Calendar, Contacts, Notes and Travel (see below).
 - A paired device (an ordinary member client) may now READ the owner's own Calendar, Contacts, Notes and Travel through `GET /v1/records/{domain}`; before, only the owner client could. Finance and Health are not in that store and stay unreadable by any device. It is the intended phone use and is covered by `test_operations_api.py`; revocation ends it at the next request.
 
 ## E. For the architect

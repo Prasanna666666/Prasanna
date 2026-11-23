@@ -359,13 +359,37 @@ def test_the_review_runs_the_orchestrator_over_code_agents_and_each_area_answers
         owner = world.client()
         off = owner.review()
         assert off["status"] == "completed" and off["computed_by_code"] is True
-        assert [(s["area"], s["state"]) for s in off["sections"]] == [("calendar", "unavailable"), ("finance", "denied"), ("health", "denied")]
+        assert [(s["area"], s["state"]) for s in off["sections"]] == [
+            ("calendar", "unavailable"),
+            ("finance", "denied"),
+            ("health", "denied"),
+            ("highlights", "denied"),
+        ]
         assert world.sources["finance"].reads == 0 and world.sources["health"].reads == 0  # an area that is off was never read
         world.enable(core, "finance")
         mixed = owner.review()
         by_area = {s["area"]: s for s in mixed["sections"]}
         assert by_area["finance"]["state"] == "ready" and "412.60" in by_area["finance"]["summary"] and "by code" in by_area["finance"]["summary"]
         assert by_area["health"]["state"] == "denied" and world.sources["health"].reads == 0  # Finance's grant does not open Health
-        assert [t["state"] for t in mixed["tasks"]] == ["completed"] * 4
+        assert [t["state"] for t in mixed["tasks"]] == ["completed"] * 5
+    finally:
+        world.close()
+
+
+def test_the_highlights_agent_starts_an_ordinary_verified_task_over_the_enabled_sources_and_never_over_a_restricted_domain(tmp_path):
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    try:
+        core = started(world)
+        owner = world.client()
+        assert {s["area"]: s for s in owner.review()["sections"]}["highlights"]["state"] == "denied"  # nothing is enabled: nothing is started
+        world.enable(core, "notes", "finance")
+        world.wait(core, "notes")
+        section = {s["area"]: s for s in owner.review()["sections"]}["highlights"]
+        assert section["state"] == "ready" and section["task_id"]
+        record = core.tasks.record(section["task_id"])
+        assert record["source_scope"] == ["notes"]  # Finance is enabled too, and is not part of a question the review starts
+        again = {s["area"]: s for s in owner.review()["sections"]}["highlights"]
+        assert again["task_id"] == section["task_id"]  # the same day is the same task
     finally:
         world.close()

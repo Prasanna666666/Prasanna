@@ -19,6 +19,15 @@ final class ReviewTests: XCTestCase {
         XCTAssertNil(view.note)
     }
 
+    func testTheHighlightsSectionCarriesItsTaskAndIsNeverOfferedToBeTurnedOn() {
+        var data = response()
+        data["sections"] = [["area": "highlights", "state": "ready", "summary": "A summary is being written.", "task_id": "task-12345678"], ["area": "highlights", "state": "denied", "summary": "This area is off."]]
+        guard case .loaded(let view) = ReviewOutcome.from(data) else { return XCTFail() }
+        XCTAssertEqual(view.sections[0].title, "Highlights")
+        XCTAssertEqual(view.sections[0].taskID, "task-12345678")
+        XCTAssertFalse(view.sections[1].needsAction)  // Highlights uses whatever sources are on; it has no switch of its own
+    }
+
     func testAnIncompleteReviewSaysSoAndAnUnreadableOneFailsSafe() {
         guard case .loaded(let partial) = ReviewOutcome.from(response("partially_completed")) else { return XCTFail() }
         XCTAssertNotNil(partial.note)

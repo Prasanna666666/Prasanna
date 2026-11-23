@@ -11,6 +11,7 @@ dependencies = ["cryptography>=42", "jsonschema>=4.20"]
 
 [project.optional-dependencies]
 secure = ["sqlcipher3-binary>=0.5"]
+browser = ["playwright>=1.45"]  # the isolated browser for reading pages the owner allowed
 macos = ["pyobjc-framework-EventKit>=10", "pyobjc-framework-Contacts>=10", "pyobjc-framework-Photos>=10"]  # the real Calendar, Contacts and Photos sources
 dev = ["playwright>=1.45", "pytest>=8", "ruff>=0.5", "mypy>=1.10", "pyyaml>=6", "types-PyYAML", "types-jsonschema", "openapi-spec-validator>=0.7"]
 
