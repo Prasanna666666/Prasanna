@@ -94,16 +94,17 @@ final class EndToEndTests: XCTestCase {
         let first = CoreLauncher(executable: URL(fileURLWithPath: py), arguments: ["-m", "atlas_core.serve"])
         let second = CoreLauncher(executable: URL(fileURLWithPath: py), arguments: ["-m", "atlas_core.serve"])
         defer { first.stop(); second.stop(); deleteKeychainItems(); try? FileManager.default.removeItem(at: w.base) }
-        try first.start(dataDir: w.dataDir, socket: w.socket)
+        do { try first.start(dataDir: w.dataDir, socket: w.socket) } catch { XCTFail("first.start threw: \(error)"); throw error }
         let oldPid = try XCTUnwrap(first.processID)
         // The app "crashed" without stopping its Core: a new app instance (a new launcher object) starts against the same folder and socket.
-        try second.start(dataDir: w.dataDir, socket: w.socket)
+        do { try second.start(dataDir: w.dataDir, socket: w.socket) } catch { XCTFail("second.start threw: \(error)"); throw error }
         let newPid = try XCTUnwrap(second.processID)
         XCTAssertNotEqual(oldPid, newPid)
         XCTAssertFalse(alive(oldPid) && first.isRunning, "the Core left behind must have been stopped")
         let signer = Curve25519.Signing.PrivateKey()
         let owner = CoreClient(socketPath: w.socket, signer: signer, clientID: "owner-swift-ci-0002")
-        try owner.enrolSelf(bootstrapCode: second.bootstrapCode)  // the one Core on that socket is the new one and answers
+        do { try owner.enrolSelf(bootstrapCode: second.bootstrapCode) } catch { XCTFail("enrolSelf threw: \(error)"); throw error }
+        //  // the one Core on that socket is the new one and answers
         XCTAssertEqual((try owner.consent()["grants"] as? [Any])?.count, 0)
     }
 

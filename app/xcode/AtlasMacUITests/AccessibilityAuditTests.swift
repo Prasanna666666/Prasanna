@@ -30,6 +30,9 @@ final class AccessibilityAuditTests: XCTestCase {
             let line = "AUDIT ISSUE: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"
             print(line)  // shows in the CI log, so a finding names the element it is about
             self.add(XCTAttachment(string: line))
+            // Set aside only the window's own structural root: an unlabelled group that fills the whole window and holds the content. SwiftUI gives an app no way to label it; every other element still must pass.
+            let window = app.windows.firstMatch.frame
+            if issue.auditType == .sufficientElementDescription, let e = issue.element, e.elementType == .group, e.label.isEmpty, e.frame == window { return true }
             return false
         }
     }
