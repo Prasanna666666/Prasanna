@@ -67,3 +67,64 @@ Keep these separate from defects. The Stage 3 acceptance record explicitly leave
 For every entry, append: affected requirement ID; current file/symbol and line range; reproduction; impact; proposed fix; regression test; first-seen SHA; current-head SHA; status; fixing SHA; CI run and exact result; reviewer verification; linked PR thread(s); owner risk decision if applicable.
 
 **No silent deletion, no closure by assertion, no stage acceptance by percentage, and no merge/release inference from green CI.**
+
+## Historical PR and design-review inventory
+
+This section preserves earlier findings and review obligations. Older PR findings refer to the legacy application/branch and must not be silently treated as current Atlas Core defects; establish code lineage before carrying them forward.
+
+### PR #6 — legacy engineering and UI review history
+
+The PR #6 discussion contains 41 timeline comments. The durable historical source files at legacy snapshot `c92f5bf471d78695e539e5676973adda048095cc` are:
+- `docs/reviews.md` (114 lines): review rounds 1–7 and author's findings.
+- `docs/defects.md` (88 lines): D-series defect register.
+- `docs/comment-tracker.md` (224 lines): review rounds, F1–F15, P-series UI findings and open/partial/blocker status.
+- `docs/coverage-matrix.md` (574 lines): historical coverage inventory.
+- `docs/requirements.md` (54 lines): legacy requirement baseline.
+
+Preserve all historical IDs: **D-01 through D-45**, **O-01 through O-17**, **F1 through F15**, **P-1 through P-16**, **R1–R11**, **NEW-01/NEW-02**, and **C-1**. Their disposition varies across the timeline; author-reported FIXED is not independent verification. The legacy tracker explicitly recorded remaining items including:
+- O-1: currency precision/import coverage for zero-, two- and three-decimal currencies (KWD/BHD third decimal); import/calculation tests still required.
+- O-2: inventory/handling of old `.unencrypted` copies on real user data; cleanup must not destroy the only recoverable copy.
+- O-4: large-response memory and streaming; 500 MB configured ceiling, no streaming, measured memory amplification and written input bounds.
+- O-5: real ingestion/model performance and benchmark evidence.
+- O-6: invoice/date/due-date role ambiguity requiring model/human evidence; do not silently assign date roles.
+- O-7/O-8/O-9/O-10: workflow/undo, owner-rule exception, consent/prompt-injection and real-model verification items as described in the legacy tracker.
+- O-12: older-release upgrade fixtures and actual user-database upgrade/rollback coverage.
+- O-14: real reports/extraction completeness and range-end evidence.
+- O-15: pre-upgrade copy/rollback gap for Images.
+- O-16: sealed hand-over / key handling; author and owner-Mac evidence was partial and reviewer verification remained requested.
+- O-17: date-source provenance not surfaced consistently in the UI.
+- P-8: disconnected Photos retry/last-indexed experience remained open in the legacy tracker.
+- P-12: mobile Ask overlap/card density remained partial.
+- P-14: provenance on every fact remained partial.
+- P-15: connected Photos evidence was blocked by the absent real drive.
+- F1–F15 include finance dashboard baseline/empty states, freshness/reconciliation, Photos retry, calendar empty states, Overview density, visual treatment, mobile layout and provenance items; statuses vary and must be read from the tracker, not inferred from this abbreviated index.
+
+PR #6 explicitly recorded that the earlier request to audit every 496/508 entries, every screenshot and every deployment path was **not completed** at that historical point. Do not represent the legacy audit as exhaustive. Use the original comment timeline and files above for full descriptions and status history.
+
+### PR #7 — architecture and governance review
+
+PR #7 has no inline review threads, but its conversation contains the architecture review and Stage 1 acceptance record. Important preserved outcomes:
+- The initial Genesis docs received an **approve-with-changes** review; Finance raw-data isolation, hardware/benchmark evidence, storage/key recovery gates, thin vertical slice, untrusted content/action boundary and single roadmap were reconciled.
+- The owner established the one-Atlas-app boundary, local-only inference, future native iOS/global access direction and explicit privacy/approval constraints.
+- Stage 1 was formally accepted with stated evidence limitations; this was not acceptance of later stages.
+- The owner accepted G-O17 and authorised Stage 2 on 2026-11-20, and waived the package-review gate. Stage 2 implementation acceptance remains separate.
+- PR #7 is a documentation/decision record, not evidence that the entire legacy application migration or current implementation has passed a full audit.
+
+Key timeline references include comments 7021286229, 7021348042, 7021610637, 7022008986, 7022436618, 7022456916, 7022637251, 7022810935, 7022990234, 7035425400, 7037200323, 7037299974 and 7037841488. PR #7 was closed at the owner's request so work could continue in the single shared PR #8; its history was retained.
+
+### PR #9 — low-level design
+
+PR #9 was closed at the owner's request and its design copied into `docs/genesis/LOW_LEVEL_DESIGN.md` (623 lines, blob SHA `04dc576c52ce3a45d8824c8d9f03e76187d376ac` at reviewed snapshot). The file itself says **architecture proposal — NOT implementation authorisation**. Its coverage includes product boundary, requirements traceability, trust zones, UI/navigation, modules, API contracts, data/encryption, connectors/ingestion, memory/retrieval, model runtime, agent workflows/approvals, threat model, benchmarks, tests, packaging, iOS and implementation readiness.
+
+PR #9 has no inline review threads and no review submission in the fetched review history; its only timeline comment says it was closed at the owner's request. Therefore the 623-line LLD has **not been independently accepted as a complete design** by that PR history. Review every section against the PRD, target architecture, current code and ADRs; resolve contradictions before treating it as authoritative implementation specification.
+
+### PR #10 — Stage 3 preparation package
+
+PR #10 has no inline review threads or review submission in the fetched history. Its timeline contains the request to challenge the exact Stage 3 baseline audit, contract delta, execution plan, PRD, target architecture, Internet/network policy and relevant source/contracts/tests (comment 7050900372). The PR was closed at the owner's request; no completed independent challenge response was present in the retrieved timeline. Treat the Stage 3 preparation package as **not independently accepted** until its factual and contract traceability review is completed on exact SHAs.
+
+## Additional documentation/traceability issue found in the reviewed snapshot
+
+| ID | Severity | Category | Location | Finding / required correction | First observed |
+|---|---|---|---|---|---|
+| ATLAS-DOC-019 | P2 | Evidence integrity / documentation | `core/docs/STAGE3_ACCEPTANCE.md` opening evidence-class definition and criterion 11 | The opening legend defines L as Linux CI and M as target Mac/real model, but criterion 11 later cites **R (hosted macOS runner)** without defining R in the evidence-class legend. Reconcile the evidence taxonomy and every row so Linux CI, hosted macOS runner, owner-Mac and human walkthrough are distinct. Also reconcile the criterion-11 statement that egress is not wired into the answer flow with PR description wording that calls it wired: the inspected code has a separate `TaskService.research()` API operation and tests explicitly state research results do not change the task answer. Describe the actual capability precisely; do not call a separate untrusted research result an integrated answer-flow feature. | `44756ee` |
+
