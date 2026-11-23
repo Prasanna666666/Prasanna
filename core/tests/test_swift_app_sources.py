@@ -31,8 +31,12 @@ def test_the_app_claims_only_what_ci_proves_it_builds_launches_in_ci_and_has_had
 
 
 def test_the_app_never_names_a_remote_host_or_cloud_service():
+    """No source names a host. `URLSession` exists in exactly one place: the phone's remote channel (`HTTPTransport.swift`), which talks only to the address the owner paired with, never to a named service."""
     for path in (APP / "Sources").rglob("*.swift"):
-        assert not re.search(r"https?://|URLSession|api\.openai|anthropic", path.read_text()), path.name
+        text = path.read_text()
+        assert not re.search(r"https?://|api\.openai|anthropic", text), path.name
+        if path.name != "HTTPTransport.swift":
+            assert "URLSession" not in text, path.name
 
 
 def test_the_packaging_script_parses_says_it_is_only_ad_hoc_signed_and_fetches_nothing_but_the_local_packages():

@@ -3,13 +3,18 @@ import Foundation
 
 /// The conversation path over the signed contract: ask, poll, cancel, answer, passage, consent. Mirrors core/client/atlas_client.py (the verified reference).
 public final class CoreClient {
-    public let transport: UnixHTTP
+    public let transport: any HTTPTransport
     private let signer: Curve25519.Signing.PrivateKey
     private let clientID: String
     private let version = "1.1"
 
     public init(socketPath: String, signer: Curve25519.Signing.PrivateKey, clientID: String) {
         transport = UnixHTTP(path: socketPath); self.signer = signer; self.clientID = clientID
+    }
+
+    /// Any transport: the owner-only socket on the Mac, or a remote channel from a phone. The signing and the contract are the same.
+    public init(transport: any HTTPTransport, signer: Curve25519.Signing.PrivateKey, clientID: String) {
+        self.transport = transport; self.signer = signer; self.clientID = clientID
     }
 
     private func call(_ method: String, _ target: String, _ body: [String: Any]? = nil, signed: Bool = true) throws -> Any {
@@ -47,6 +52,11 @@ public final class CoreClient {
         if let bootstrapCode { body["bootstrap_code"] = bootstrapCode }
         _ = try call("POST", "/v1/enrol", body, signed: false)
     }
+
+    /// A device's pairing request: unsigned (the device is not known yet) and guarded by the single-use code. The answer is the Core's proof of identity, which the caller must check before keeping anything.
+    public func pairDevice(_ body: [String: Any]) throws -> [String: Any] { try object(call("POST", "/v1/devices/pair", body, signed: false)) }
+    /// A device's queued offline operations, replayed in order. Each answer is applied, duplicate, conflict or rejected.
+    public func sync(ops: [[String: Any]]) throws -> [String: Any] { try object(call("POST", "/v1/sync", ["ops": ops])) }
 
     public func mode() throws -> String { try object(call("GET", "/v1/mode"))["mode"] as? String ?? "default" }
     public func setMode(_ mode: String) throws -> String { try object(call("POST", "/v1/mode", ["mode": mode]))["mode"] as? String ?? "default" }

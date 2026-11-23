@@ -43,7 +43,7 @@ ENROL = "/v1/enrol"  # API 1.1 only
 LIBRARY_SEARCH = "/v1/library/search"  # API 1.1 only, an enrolled client
 CONNECTOR = re.compile(r"^/v1/connectors/([a-z_]{3,30})/(connect|check|disconnect)$")  # API 1.1 only, an enrolled OWNER client only
 CONNECTORS = "/v1/connectors"
-RECORDS = re.compile(r"^/v1/records/([a-z]{3,16})$")  # API 1.1 only, an enrolled OWNER client
+RECORDS = re.compile(r"^/v1/records/([a-z]{3,16})$")  # API 1.1 only, an enrolled client: the owner's own or a device the owner paired
 REVIEW = "/v1/review"  # API 1.1 only, an enrolled OWNER client only
 HEALTH_SUMMARY = "/v1/health/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Health source
 FINANCE_SUMMARY = "/v1/finance/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Finance source
@@ -315,8 +315,7 @@ class CoreApi:
             raise CoreError("not_found")
         if request.method != "GET":
             raise CoreError("invalid_request")
-        if not self._registry.is_owner(client):
-            raise CoreError("forbidden")
+        # the owner's own client, or a device the owner paired (it is authenticated and not revoked by now): the owner's own Calendar, Contacts, Notes and Travel only; Finance and Health are not in this store
         return self._reply(200, self._ops.records(domain), "RecordList", "1.1")
 
     def _finance(self, request: Request, client: str) -> Response:

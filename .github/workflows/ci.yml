@@ -160,6 +160,16 @@ jobs:
       - name: Core tests on macOS
         working-directory: core
         run: pytest -q -p no:cacheprovider
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate the Xcode project and build the phone app for the iOS simulator (unsigned)
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -project AtlasPhone.xcodeproj -scheme AtlasPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
   macos-mlx:
     runs-on: macos-latest
     steps:

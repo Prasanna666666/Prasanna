@@ -21,7 +21,7 @@ Everything the developer can build and test without hardware, accounts or a real
 12. Restore drill with a real backup on the owner's disk.
 
 ## D. Product scope that needs an owner decision or account first (not started by design)
-13. G-O14: the remote channel (relay or VPN) and the iOS client. The Core side (pairing, signed requests, sync, revocation, no public ports) is built and tested.
+13. G-O14: choose the remote channel (a VPN, or a relay you run). The Core side (pairing, signed requests, sync, revocation, no public ports) and the iPhone client (pairing, offline queue, cache, sync, unpair) are built and tested; running it on your own phone and signing it with your Apple team are yours.
 14. G-O02 and G-O05, and the Stage 6 connector and voice scope (home, travel, shopping, work connectors need accounts and devices; voice needs the client).
 15. The owner's allowed-hosts list and workflow screen for the browser engine (the isolated Playwright worker is built and tested), and model-backed specialist agents (the orchestrator is wired and serves the review with code agents). The policy layer, stubs and fakes are built and tested; the real engines need a machine that can run them.
 16. Update channel: where signed releases are published (needs hosting and your release-signing key; the signed install and rollback from a chosen folder, and the Settings screen, are built and tested). Put the public key at `~/Library/Application Support/Atlas/release.pub` and the screen appears.
@@ -29,6 +29,9 @@ Everything the developer can build and test without hardware, accounts or a real
 
 ## D2. Plug in when ready (no developer work; see `PLUG_IN_GUIDE.md`)
 Connect a real service from Connections with its address and token; place the release-signing key; copy the signed model; run the signing script. Each is configuration, not code.
+
+## E0. Authority widened for the architect to confirm
+- A paired device (an ordinary member client) may now READ the owner's own Calendar, Contacts, Notes and Travel through `GET /v1/records/{domain}`; before, only the owner client could. Finance and Health are not in that store and stay unreadable by any device. It is the intended phone use and is covered by `test_operations_api.py`; revocation ends it at the next request.
 
 ## E. For the architect
 18a. `connector_transport.py` is a fourth module allowed to open network connections (owner-addressed connector traffic; `test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection` now names it). This widens a rule you own, so it needs your decision.

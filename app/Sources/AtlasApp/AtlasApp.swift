@@ -148,6 +148,8 @@ final class AppModel: ObservableObject {
     @Published var indexLine = ""
     @Published var research = false
     @Published var devices: [DeviceRow] = []
+    @Published var pairingInvite: String?
+    @Published var pairingMessage: String?
 
     private var gate = SubmissionGate()
     private var tracker = PhaseTracker()
@@ -569,6 +571,23 @@ final class AppModel: ObservableObject {
             content.body = plan.body
             try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: plan.id, content: content, trigger: nil))
         }
+    }
+
+    /// Opens a pairing offer on the Core and builds the invite a phone reads. The address is where the owner's phone reaches this Mac (a private network name or a relay they run); it is remembered for next time.
+    func showPairingInvite(address: String) async {
+        guard let client else { return }
+        UserDefaults.standard.set(address, forKey: "atlas.phoneAddress")
+        pairingMessage = nil
+        do {
+            let offer = try await Task.detached { try client.openPairingOffer() }.value
+            guard let invite = PairingInvite.make(offer: offer, address: address) else {
+                pairingInvite = nil
+                pairingMessage = "Enter the address your phone will use to reach this Mac. It starts with https, or http for your own home network."
+                return
+            }
+            pairingInvite = invite.text
+            pairingMessage = "The code works once and for five minutes."
+        } catch { pairingMessage = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error") }
     }
 
     func loadDevices() async {

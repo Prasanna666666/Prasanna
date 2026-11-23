@@ -220,10 +220,15 @@ def test_the_owner_lists_their_own_records_newest_first_with_the_version_an_edit
     assert [(r["id"], r["version"]) for r in rows] == [("n2", 1), ("n1", 2)] and rows[1]["fields"]["text"] == "Edited."
     owner.act("notes.archive", {"id": "n2", "expected_version": 1})
     assert [r["id"] for r in owner.records("notes")] == ["n1"]  # an archived record is not listed (undo brings it back)
-    for domain, who in (("finance", owner), ("notes", world.device())):
+    for who in (owner, world.device()):  # Finance and Health are not in this store, for anyone
         with pytest.raises(atlas_client.ClientError) as e:
-            who.records(domain)
-        assert e.value.code in ("not_found", "forbidden", "invalid_request")
+            who.records("finance")
+        assert e.value.code == "not_found"
+    assert [r["id"] for r in world.device().records("notes")] == ["n1"]  # a device the owner paired reads the owner's own records
+    owner.revoke_device("phone-device-0001")
+    with pytest.raises(atlas_client.ClientError) as revoked:
+        world.device().records("notes")
+    assert revoked.value.code == "forbidden"  # and once revoked it reads nothing
 
 
 def test_a_trip_is_created_listed_and_undone_like_any_own_record(world):

@@ -12,6 +12,6 @@ Atlas is complete without any of these. Each one connects through a fixed seam, 
 | Signing and notarisation | `scripts/sign_and_notarize.sh` with `DEVELOPER_ID` and `NOTARY_PROFILE` | Run it with your Apple Developer ID | A notarised app |
 | The browser engine's allowed hosts | Core option for the browser workflow | Provide the hosts and the steps | Browser workflows through the Core |
 | Voice | Nothing to plug in | Allow the microphone and speech recognition once, the first time you press the microphone button | A microphone button in the composer; speech stays on the Mac |
-| A phone or other client (G-O14) | Device pairing (built) and the remote channel (open decision) | Pair from Settings; choose the channel | Devices in Settings |
+| The iPhone | The iPhone app (`ios/`, built with `xcodegen`) and the pairing invite; the remote channel is your choice (G-O14) | On the Mac: Settings, enter the address your phone will use, Show pairing code. On the phone: scan or paste it | The phone's Ask and Areas; Devices in the Mac's Settings, where you can remove it |
 
 Rules that hold for everything above: the owner connects and disconnects only from the owner's own enrolled client; credentials live only in the Keychain; a service that does not answer is shown as needing attention, never as connected; disconnecting refuses everything it could do and deletes its credentials.

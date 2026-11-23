@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 import Security
 
@@ -136,3 +137,4 @@ public final class CoreLauncher {
     public var isRunning: Bool { process?.isRunning ?? false }
     public var processID: Int32? { process.map { $0.processIdentifier } }
 }
+#endif

@@ -1,5 +1,6 @@
 import AppKit
 import AtlasKit
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 // MARK: Home
@@ -564,6 +565,7 @@ struct GetStartedView: View {
 
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @State private var phoneAddress = UserDefaults.standard.string(forKey: "atlas.phoneAddress") ?? ""
     @Environment(\.colorScheme) private var scheme
 
     /// Updates: shown only when the Core manages its own install. The owner chooses a folder that holds a signed release; the Core checks it, installs it beside the current version and keeps that version to go back to.
@@ -628,6 +630,16 @@ struct SettingsView: View {
                     Toggle("Research mode (slower, for harder questions)", isOn: Binding(get: { model.research }, set: { value in Task { await model.setResearch(value) } }))
                     Text("Research mode switches off again when Atlas restarts.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
                 }
+                section("Pair a phone") {
+                    TextField("Address your phone will use", text: $phoneAddress).textFieldStyle(.roundedBorder)
+                    Text("A private network name (for example from your VPN) or a relay you run. Atlas never opens a public port.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                    Button("Show pairing code") { Task { await model.showPairingInvite(address: phoneAddress) } }
+                    if let invite = model.pairingInvite {
+                        if let image = QRCode.image(for: invite) { Image(nsImage: image).interpolation(.none).resizable().frame(width: 180, height: 180).accessibilityLabel("Pairing code for your phone") }
+                        Text(invite).font(.system(.caption, design: .monospaced)).textSelection(.enabled).foregroundStyle(theme.textSecondary)
+                    }
+                    if let note = model.pairingMessage { Text(note).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+                }
                 section("Connected devices and security") {
                     if model.devices.isEmpty { Text("No other devices are connected.").foregroundStyle(theme.textSecondary) }
                     ForEach(model.devices) { device in
@@ -663,5 +675,20 @@ struct SettingsView: View {
             content()
             Divider()
         }
+    }
+}
+
+
+/// A QR code of the pairing invite, drawn locally.
+enum QRCode {
+    static func image(for text: String) -> NSImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)) else { return nil }
+        let rep = NSCIImageRep(ciImage: output)
+        let image = NSImage(size: rep.size)
+        image.addRepresentation(rep)
+        return image
     }
 }

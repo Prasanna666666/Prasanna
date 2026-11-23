@@ -4,7 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "Atlas",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v17)],
     products: [.library(name: "AtlasKit", targets: ["AtlasKit"]), .executable(name: "AtlasApp", targets: ["AtlasApp"])],
     targets: [
         .target(name: "AtlasKit", resources: [.copy("ux_catalogue.json")]),
