@@ -7,7 +7,7 @@ fixed taxonomy; the text of an exception never reaches a response.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from .access import SourceAccess
@@ -16,7 +16,8 @@ from .errors import CoreError
 
 
 class ConsentService:
-    def __init__(self, designation: DesignationStore, access: SourceAccess, indexes: Mapping[str, Any]) -> None:
+    def __init__(self, designation: DesignationStore, access: SourceAccess, indexes: Mapping[str, Any], requester: Callable[[str], None] | None = None) -> None:
+        self._requester = requester  # asks the operating system for a source's permission, once, when the owner turns that source on
         self._designation, self._access, self._indexes = designation, access, indexes
 
     def state(self) -> dict[str, Any]:
@@ -30,7 +31,17 @@ class ConsentService:
             self._designation.apply(OnboardingDecision(enable=frozenset(sources)), request_id)
         except DesignationError as error:
             raise _translate(error) from None
+        for source in sources:
+            self._ask_platform(source)
         return self.state()
+
+    def _ask_platform(self, source: str) -> None:
+        if self._requester is None:
+            return
+        try:
+            self._requester(source)  # the system's own prompt appears here and nowhere else; a failure just leaves the permission undecided
+        except Exception:  # noqa: BLE001
+            return
 
     def revoke(self, grant_id: str, request_id: str) -> dict[str, Any]:
         source_type = next((g["source_type"] for g in self.state()["grants"] if g["grant_id"] == grant_id and not g["revoked"]), None)

@@ -21,9 +21,10 @@ run() {
 }
 
 zip="${app%.app}-notarize.zip"
+entitlements="$(cd "$(dirname "$0")" && pwd)/Atlas.entitlements"  # Calendar, Contacts, Photos and Notes (Apple Events) access under the hardened runtime
 # 1. sign every nested executable first (inside out), then the app, with the hardened runtime and a secure timestamp
-run find "$app/Contents" -type f \( -perm -u+x -o -name '*.dylib' -o -name '*.so' \) -exec codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" {} +
-run codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$app"
+run find "$app/Contents" -type f \( -perm -u+x -o -name '*.dylib' -o -name '*.so' \) -exec codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" --entitlements "$entitlements" {} +
+run codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" --entitlements "$entitlements" "$app"
 run codesign --verify --deep --strict --verbose=2 "$app"
 # 2. notarise and wait for the verdict
 run ditto -c -k --keepParent "$app" "$zip"

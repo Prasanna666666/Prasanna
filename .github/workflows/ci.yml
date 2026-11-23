@@ -146,7 +146,7 @@ jobs:
           export CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher"
           export LDFLAGS="-L$prefix/lib"
           pip install sqlcipher3
-      - run: pip install -e kit -e "core[dev]"
+      - run: pip install -e kit -e "core[dev,macos]"  # the real Calendar, Contacts and Photos frameworks
       - name: Swift app builds and its tests pass (including the real Swift launcher and client against the real Core)
         working-directory: app
         run: |

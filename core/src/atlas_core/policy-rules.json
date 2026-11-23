@@ -35,6 +35,10 @@
     "notes": {
       "sensitivity": "medium",
       "requires_adapter": true
+    },
+    "photos": {
+      "sensitivity": "high",
+      "requires_adapter": true
     }
   },
   "restricted_domains": [
@@ -154,6 +158,24 @@
       "required": [
         "starts"
       ]
+    },
+    "photos": {
+      "fields": [
+        "kind",
+        "taken",
+        "size",
+        "favourite"
+      ],
+      "required": [
+        "kind",
+        "taken"
+      ],
+      "kinds": {
+        "kind": [
+          "photo",
+          "video"
+        ]
+      }
     }
   }
 }

@@ -86,6 +86,7 @@ class CoreConfig:
     )
     erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
     disk_usage: Callable[[Path], tuple[int, int, int]] = shutil.disk_usage  # (total, used, free) of the data folder's disk; tests inject a nearly full one
+    os_requester: Callable[[str], None] | None = None  # asks the operating system for a source's permission when the owner turns it on
     updates: UpdateOperations | None = None  # the app's own install, when the Core manages one (the update screen is hidden without it)
     closers: tuple[Callable[[], None], ...] = ()  # what the host opened for the Core (its own stores): closed with the Core
     require_restore_drill: bool = False  # when True, Finance and Health cannot be designated until a restore drill has passed in the last 90 days (G-O05: restore is verified before sensitive-domain indexing)
@@ -198,7 +199,7 @@ class Core:
         )
         for source_type, index in self.indexes.items():  # a revocation removes the index AND what tasks derived from it
             self.designation.register_purge(source_type, self._purger(source_type, index))
-        self.consent = ConsentService(self.designation, self.access, self.indexes)
+        self.consent = ConsentService(self.designation, self.access, self.indexes, c.os_requester)
         self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
         self.operations = self._build_operations(c)
         self.device_operations = self._build_devices(c)

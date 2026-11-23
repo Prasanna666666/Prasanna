@@ -14,7 +14,7 @@ py="$out/Contents/Resources/python/bin"
 if [ "$(uname -s)" = "Darwin" ]; then  # sqlcipher3-binary has no macOS wheel: build the binding against Homebrew's SQLCipher
   prefix="$(brew --prefix sqlcipher)"
   CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher" LDFLAGS="-L$prefix/lib" "$py/pip" install --quiet sqlcipher3
-  "$py/pip" install --quiet "$here/kit" "$here/core"
+  "$py/pip" install --quiet "$here/kit" "$here/core[macos]"  # [macos]: the Calendar, Contacts and Photos frameworks
 else
   "$py/pip" install --quiet "$here/kit[secure]" "$here/core"
 fi
@@ -27,6 +27,10 @@ cat > "$out/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>Atlas</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSCalendarsFullAccessUsageDescription</key><string>Atlas reads your calendar on this Mac, only while you have it turned on, so it can answer questions about your events. It never leaves your Mac.</string>
+  <key>NSContactsUsageDescription</key><string>Atlas reads your contacts on this Mac, only while you have them turned on, so it can answer questions about people. It never leaves your Mac.</string>
+  <key>NSPhotoLibraryUsageDescription</key><string>Atlas reads the dates and kinds of your photos on this Mac, never the pictures themselves, only while you have them turned on.</string>
+  <key>NSAppleEventsUsageDescription</key><string>Atlas reads your Notes on this Mac, only while you have them turned on, so it can answer questions about them. They never leave your Mac.</string>
 </dict></plist>
 PLIST
 codesign --force --deep --sign - "$out"  # ad-hoc only: NOT a release signature

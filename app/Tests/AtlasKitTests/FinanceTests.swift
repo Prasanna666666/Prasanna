@@ -51,6 +51,8 @@ final class FinanceTests: XCTestCase {
         XCTAssertTrue(SourceNames.isSensitive("health"))
         XCTAssertFalse(SourceNames.isSensitive("documents"))
         XCTAssertTrue(SourceNames.explanation("finance").hasPrefix("Sensitive."))
+        XCTAssertEqual(SourceNames.title("photos"), "Photos")
+        XCTAssertTrue(SourceNames.explanation("photos").contains("never the pictures"))
         XCTAssertEqual(SourceNames.title("mail"), "Mail")
         XCTAssertEqual(SourceNames.title("something_new"), "Something_new")
     }

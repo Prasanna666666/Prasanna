@@ -26,6 +26,8 @@ from .health_calc import HEALTH_DOMAIN
 from .intelligence import ModelRuntime
 from .isolated import IsolatedEngine
 from .macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems, Runner
+from .macos_sources import DOMAINS as NATIVE_DOMAINS
+from .macos_sources import MacPermissions, NativeRecords, ObjcPlatform, Platform
 from .mlx_runtime import MlxRuntime
 from .models import Manifest, ModelRejected
 from .recordstore import RecordStore, StoredRecords
@@ -58,6 +60,7 @@ class HostEnv:
     runner: Runner = field(default=subprocess.run)
     account: str | None = None
     runtime: ModelRuntime | None = None  # None: the MLX engine in the isolated worker
+    native: Platform | None = None  # None: the real platform when its frameworks can be loaded, else no native sources
 
 
 class OwnStorePermissions:
@@ -102,32 +105,48 @@ def _updates(options: HostOptions) -> UpdateOperations | None:
     return UpdateOperations(Installer(options.update_root), key)
 
 
+KEY_NAMES = (
+    "task-store",
+    "designation-store",
+    "documents-index",
+    "mail-index",
+    "edits-store",
+    "finance-records",
+    "finance-index",
+    "health-records",
+    "health-index",
+    *(f"{domain}-index" for domain in NATIVE_DOMAINS),
+)
+
+
+def _native(env: HostEnv, keys: dict[str, str], folders: Any, own: frozenset[str]) -> tuple[Any, dict[str, Any], Callable[[str], None] | None]:
+    """The owner's Calendar, Contacts, Notes and Photos, when the platform's frameworks can be loaded: their permission provider, their sources (each with its own index key) and the request made when the owner turns one on."""
+    inner = OwnStorePermissions(own, FolderPermissions(folders))
+    platform = env.native
+    if platform is None:
+        try:
+            platform = ObjcPlatform()
+        except ImportError:
+            return inner, {}, None  # no frameworks (an unsupported system): these sources are simply not offered
+    sources = {domain: (NativeRecords(platform, domain), keys[f"{domain}-index"]) for domain in NATIVE_DOMAINS}
+    return MacPermissions(platform, inner), sources, platform.request
+
+
 def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, options: HostOptions | None = None, env: HostEnv | None = None) -> CoreConfig:
     options, env = options or HostOptions(), env or HostEnv()
     if env.platform != "darwin":
         raise HostUnavailable("the real platform providers exist only for macOS")
     items = KeychainItems(env.account, env.runner)
     try:
-        keys = {
-            name: items.secret(name)
-            for name in (
-                "task-store",
-                "designation-store",
-                "documents-index",
-                "mail-index",
-                "edits-store",
-                "finance-records",
-                "finance-index",
-                "health-records",
-                "health-index",
-            )
-        }
+        keys = {name: items.secret(name) for name in KEY_NAMES}
         record_key = bytes.fromhex(items.secret("model-record"))
     except KeychainError:
         raise KeychainLocked("the Keychain could not provide the store keys") from None
     folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     records, closers = _restricted_stores(data_dir, keys)
+    permissions, native_sources, requester = _native(env, keys, folders, frozenset({MONEY_DOMAIN, HEALTH_DOMAIN}))
+    records.update(native_sources)
     return CoreConfig(
         data_dir=data_dir,
         socket_path=socket_path,
@@ -136,7 +155,8 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         documents_key=keys["documents-index"],
         mail_key=keys["mail-index"],
         anchor=KeychainAnchor(items),
-        os_permissions=OwnStorePermissions(frozenset({MONEY_DOMAIN, HEALTH_DOMAIN}), FolderPermissions(folders)),
+        os_permissions=permissions,
+        os_requester=requester,
         records=records,
         closers=closers,
         manifest=load_manifest(data_dir / "models", options.manifest_pubkey),

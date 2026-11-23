@@ -67,6 +67,7 @@ LAYER = {
     "serve": 9,
     "launcher": 9,
     "macos": 4,
+    "macos_sources": 4,
 }
 SOURCE_TYPE_NAMES = {"documents", "mail", "mail_attachment", "finance", "health"}
 
