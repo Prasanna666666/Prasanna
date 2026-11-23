@@ -66,6 +66,8 @@ enum Launcher {
     /// The folders the owner designates: Documents and Apple Mail's own folder (the Core only reads them once the owner enabled the source AND macOS lets it list them), and the
     /// installed public key that signed the model manifest (bundled with the app; where it lives is part of packaging, not built).
     /// The Python bundled inside the app (`scripts/package_mac.sh`), else the system one for development.
+    /// A development and CI override: a Python with `atlas_core` installed, named by the environment of the person running the app. The packaged app never sets it.
+    private static let developmentPython: URL? = ProcessInfo.processInfo.environment["ATLAS_CI_PYTHON"].flatMap { FileManager.default.isExecutableFile(atPath: $0) ? URL(fileURLWithPath: $0) : nil }
     private static let bundledPython = Bundle.main.resourceURL?.appendingPathComponent("python/bin/python3")
     private static let support = home.appendingPathComponent("Library/Application Support/Atlas")
     /// The update screen exists only when the release-signing public key is installed: without it the Core is not told about updates and the section stays hidden.
@@ -82,7 +84,7 @@ enum Launcher {
     static let shared: CoreLauncher = {
         prepareBrowser()
         return CoreLauncher(
-        executable: bundledPython.flatMap { FileManager.default.isExecutableFile(atPath: $0.path) ? $0 : nil } ?? URL(fileURLWithPath: "/usr/bin/python3"),
+        executable: developmentPython ?? bundledPython.flatMap { FileManager.default.isExecutableFile(atPath: $0.path) ? $0 : nil } ?? URL(fileURLWithPath: "/usr/bin/python3"),
         arguments: ["-m", "atlas_core.serve",
                     "--documents-source", "documents=" + home.appendingPathComponent("Documents").path,
                     "--mail-source", "mail=" + home.appendingPathComponent("Library/Mail").path,

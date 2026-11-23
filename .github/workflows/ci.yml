@@ -181,6 +181,33 @@ jobs:
           name: phone-ui-results
           path: ios/phone-ui.xcresult
           if-no-files-found: warn
+  mac-ui:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install SQLCipher and the Core (the app starts its real Core)
+        run: |
+          brew install sqlcipher
+          prefix="$(brew --prefix sqlcipher)"
+          export CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher"
+          export LDFLAGS="-L$prefix/lib"
+          pip install sqlcipher3
+          pip install -e kit -e "core[macos]"
+      - name: Run the accessibility audit on the Mac app and keep a screenshot
+        working-directory: app/xcode
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          TEST_RUNNER_ATLAS_CI_PYTHON="$(which python)" ATLAS_CI_PYTHON="$(which python)" xcodebuild test -project AtlasMac.xcodeproj -scheme AtlasMac -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -resultBundlePath "$PWD/mac-ui.xcresult"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-ui-results
+          path: app/xcode/mac-ui.xcresult
+          if-no-files-found: warn
   macos-mlx:
     runs-on: macos-latest
     steps:
