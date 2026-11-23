@@ -5439,3 +5439,115 @@ Please read the new recovery file and the complete PR #6–#10 archives, then in
 
 Source: https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7113449798
 
+
+
+# Supplemental PR #8 comments — capture refresh 2026-11-23
+
+## Comment 7113502460
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Additional repository-wide recovery — PRs #1–#5 and corrected file scope (2026-11-23)
+
+A broader repository PR search found five additional Dependabot PRs that were not included in the first #6–#10 archive:
+
+- #1 setup-python 5→7
+- #2 gitleaks-action 2→3
+- #3 checkout 4→7
+- #4 upload-artifact 4→7
+- #5 setup-node 4→7
+
+All five are closed and unmerged, each changes only `.github/workflows/ci.yml`; their comments/dispositions are archived in `docs/genesis/DEPENDABOT_PR1-5_ARCHIVE.md`. Review the current CI workflow and dependency/security posture; do not assume the closed PRs were applied.
+
+**Corrected PR #8 source counts:** 192 top-level issue comments, 53 submitted reviews, 58 inline threads containing 63 inline comments (21 resolved, 37 unresolved). All 192 top-level comment IDs were checked against `HISTORICAL_PR8_CONVERSATION.md`; all are present. Reviews and inline comments are in `HISTORICAL_PR8_REVIEW_THREADS.md`.
+
+**Corrected current changed-file count:** GitHub's paginated PR #8 changed-file endpoint returns **275 paths**, not 266. The 541-entry PR #6 legacy matrix is a separate historical inventory. Reconcile the original 266 list/snapshot to current PR #8's 275 paths and explain every delta; classify all 275 paths. Do not claim 266 or 275 files reviewed just because the changed-file list exists.
+
+The canonical register now contains HIST-089 recording this correction. Continue documentation/review only under the existing owner constraint; do not change app code, tests, build/configuration or resolve threads. This is not an exhaustive audit completion claim.
+
+---
+
+## Comment 7113578772
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Reviewer-history reconciliation and remaining-file audit handoff (2026-11-23)
+
+I retrieved the prior-chat reviewer context and rechecked the live PR #8 review API at head `4269f6340af1d5c75ca132cab33500fd130db945`.
+
+Canonical records added/updated:
+- `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md` — reviewer history, exact current counts, unresolved-thread path breakdown, remaining audit work and explicit coverage statement.
+- `docs/genesis/README.md` — index entry for the reconciliation.
+- `docs/genesis/DEFECT_REGISTER.md` — HIST-090.
+
+Important current counts: 276 changed paths; 53 review submissions (48 non-empty, five empty); 58 inline threads (21 resolved, 37 unresolved); 63 inline comments; 43 outdated threads. All 53 review submissions and 63 inline comments are attributed by GitHub to the repository owner's login; some developer replies carry Claude Code attribution. Do not claim 53 independent human reviewers. Historical Claude review of nine Genesis documents and parts of Atlas, and the reported Stage 0/Stage 1 documentation acceptance, are bounded historical reviews—not acceptance of this current full audit.
+
+**Your required work:** read the new reconciliation and all historical PR #6–#10 archives; reconcile every one of the 58 threads and revalidate outdated threads; produce the 276-path ledger with exact-head SHA, per-file coverage, requirements/contracts/tests, findings and evidence; reconcile the earlier 266-path snapshot path-by-path; correct any documentation inconsistencies in your implementation-owned docs; attach exact CI run evidence and clearly separate hosted CI from owner-Mac/human acceptance. Do not mark a finding fixed based only on a reply or green CI. Preserve source IDs and cross-links.
+
+The 37 unresolved thread distribution is recorded in the new file. The 11 open threads in `core/docs/STAGE3_ACCEPTANCE.md` are acceptance/evidence issues, not wording to be closed without proof.
+
+**Owner boundary remains in force:** ChatGPT handles documentation/architecture/review; Claude handles code/tests/debugging/maintenance. Do not ask the owner to relay details. Do not treat this handoff as approval or permission to merge.
+
+---
+
+## Comment 7113579802
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Review-history reconciliation and remaining audit scope
+
+I have added `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md` and linked it from the Genesis README. It consolidates the recovered reviewer history, live PR #8 thread status, and the remaining audit work.
+
+**Claude: please treat this as the handoff and act on it.** Read the reconciliation and the full historical PR #6–#10 archives. Produce the exact-head, path-by-path ledger for all 276 current changed paths; reconcile the historical 266-path inventory to the current list; address the 37 unresolved inline threads; and provide exact commit/test/CI evidence for each claimed fix. Revalidate the 43 outdated threads rather than assuming they are fixed. Preserve every original thread/comment ID and cross-link any deduplication.
+
+The document is explicit about ownership: ChatGPT handles architecture/docs/independent review; Claude handles implementation, tests and debugging. Do not change application source, tests, build files or configuration under the current review-only boundary. Do not merge, approve, or resolve threads on the owner's behalf. Do not mark owner-only Mac, real-model, real-Mail/TCC, Internet, performance, signing/notarisation or visual acceptance gates complete without their required evidence.
+
+The 276-path count is inventory only. Current exact-head line-by-line coverage has not yet been established. Return the ledger and evidence, not another plan-only acknowledgement.
+
+---
+
+## Comment 7113590358
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Branch-history recovery — important unreviewed divergence found
+
+I enumerated all 12 repository branches and compared the key work branches. Full inventory and required actions are in `docs/genesis/BRANCH_HISTORY_RECONCILIATION.md`; HIST-090 is in the defect register.
+
+**Critical:** PR #8's actual head is `genesis-stage2-foundation` at `4269f6340af1d5c75ca132cab33500fd130db945`. `genesis-stage4-6` is a separate divergent branch: currently 8 commits ahead / 82 behind, with 61 changed paths. It contains substantial Stage 4–8 code and tests (backup/restore, storage, migration, Finance/Health records, Action Gateway, orchestration, browser workflows/watchers, devices/sync, updater/signing and LaunchAgent). Yet the PR #8 body says Stages 4–8 are on its branch. Please reconcile this exact discrepancy and correct the PR/docs or propose a reviewed integration plan. Do not silently merge or claim these changes are part of PR #8.
+
+Also reconcile:
+- Stage 3 prep branch: 4 unique commits and 4 changed docs vs current PR #8 branch.
+- LLD review branch: 1 unique commit and a 609-line LLD doc vs current PR #8 branch.
+- Legacy Aperture/Orbit/WIP branches: additional local-only/cloud-gating, ingestion/indexing, Health freshness, undo/consent, exact-money, encryption/migration, truncation, UI regression and performance audit leads.
+
+The 12 branch names/heads and comparisons are archived. Commit-history pagination is still incomplete on several branches (multiple 100-result pages), so do not claim all branch history is recovered. Continue docs/review-only reconciliation; no code/test/build/config edits or thread resolutions without owner authorisation.
+
+---
+
+## Comment 7113596731
+
+Author: Prasanna666666
+Created: timestamp unavailable
+
+## Follow-up: branch-history reconciliation changed the audit scope
+
+The live PR now reports 278 changed paths, after concurrent documentation work added `docs/genesis/BRANCH_HISTORY_RECONCILIATION.md`. I updated `REVIEW_COVERAGE_RECONCILIATION.md` and appended the HIST-090 addendum so the 276/277 counts remain labelled as historical snapshots rather than current scope.
+
+The new branch-history record identifies 12 branches, divergent Stage 4–6 / Stage 3 prep / LLD branches, and incomplete commit pagination. This materially expands the reviewer-history search beyond PR #6–#10. The 12-branch inventory is not proof all commit history has been recovered.
+
+Please incorporate that branch-history record into the reviewer/finding reconciliation:
+- paginate commit history for all identified branches and deduplicate commits;
+- compare divergent branches to PR #8 and identify unique docs, source, tests and decisions;
+- map every new finding to existing defect IDs or add a new canonical ID with source links;
+- distinguish PR #8's actual branch contents from the PR description's claim that Stages 4–8 are on it;
+- keep all owner-only approval and review-only constraints intact.
+
+The review coverage count remains 0/278 paths established as fully line-by-line reviewed by the consolidated exact-head ledger. The 37 unresolved PR #8 threads remain open. No code/test/build/config changes or merge/approval are authorised by this handoff.
+
+---
+
