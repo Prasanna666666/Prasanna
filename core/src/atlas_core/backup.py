@@ -44,8 +44,16 @@ MIN_PASSPHRASE = 12
 SCRYPT_N, SCRYPT_R, SCRYPT_P = 2**15, 8, 1
 SPACE_MARGIN = 1.5  # free space required, as a multiple of what is copied
 MANIFEST, KEYS_FILE = "manifest.json", "keys.enc"
-DB_FILES = ("tasks.db", "designation.db")  # each opens with the key of the same name in `db_keys`
-PLAIN_FILES = ("clients.json",)
+DB_FILES = (
+    "tasks.db",
+    "edits.db",
+    "designation.db",
+)  # each opens with the key of the same name in `db_keys`; edits.db (the owner's own notes, contacts and events) cannot be rebuilt from anything
+LIVE_DBS = ("tasks.db", "edits.db")  # restored as live stores (designation.db is restored as history only)
+PLAIN_FILES = (
+    "clients.json",
+    "actions-audit.jsonl",
+)  # public keys, and the content-free action audit chain. The Core's identity key and the device list are NOT backed up: devices pair again after a restore
 HISTORY_DIR, HISTORY_NAME = "history", "designation-history.db"
 DERIVED = ("documents.db", "mail.db", "models")  # named in the manifest so a reader can see they are deliberately absent
 
@@ -286,7 +294,7 @@ def verify_backup(folder: Path, passphrase: str | None = None, *, db_keys: Mappi
 
 
 def _copy_state(folder: Path, target: Path, manifest: dict[str, Any], made: list[Path], report: RestoreReport) -> None:
-    for name in ("tasks.db", "clients.json"):
+    for name in (*LIVE_DBS, *PLAIN_FILES):
         if name in manifest["files"]:
             out = target / name
             shutil.copyfile(folder / name, out)
@@ -308,7 +316,7 @@ def _check_copies(target: Path, manifest: dict[str, Any], bundle: Mapping[str, s
         entry = manifest["files"].get(name)
         if entry is None:
             continue
-        copy = target / ("tasks.db" if name == "tasks.db" else f"{HISTORY_DIR}/{HISTORY_NAME}")
+        copy = target / (name if name in LIVE_DBS else f"{HISTORY_DIR}/{HISTORY_NAME}")
         verdict, report.rows[name] = _inspect(copy, bundle[f"db:{name}"])
         if verdict != "ok" or report.rows[name] != entry["rows"]:
             raise BackupError("count_mismatch")
@@ -321,8 +329,9 @@ def _remove_made(made: list[Path], target: Path, created_target: bool) -> None:
         else:
             path.chmod(0o600)
             path.unlink(missing_ok=True)
-    for leftover in (target / "tasks.db-wal", target / "tasks.db-shm"):
-        leftover.unlink(missing_ok=True)
+    for name in LIVE_DBS:
+        for suffix in ("-wal", "-shm"):
+            (target / f"{name}{suffix}").unlink(missing_ok=True)
     if created_target:
         shutil.rmtree(target, ignore_errors=True)
 

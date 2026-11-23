@@ -1,0 +1,24 @@
+# UI/UX implementation map (answers `docs/genesis/UI_UX_SPECIFICATION.md` section 13, item 2)
+
+Specification commit: `379e730` ("index canonical UI/UX specification"; the specification itself arrived in `ef8ea18`). Evidence labels: **L** = Swift unit tests (`swift test`) on the hosted macOS runner, **R** = the app built and launched on a hosted runner, **owner** = needs the owner's Mac and eyes. No screen below has been seen running by a person, screenshotted, or checked with VoiceOver: the owner-visual, accessibility and architect-review gates are all NOT complete, and this file claims none of them.
+
+| Spec surface | Implemented by | Status | Evidence | Gap |
+|---|---|---|---|---|
+| Tokens (section 10) | `AtlasKit/Tokens.swift`, `AtlasApp/DesignSystem.swift` | built | L: `DesignSystemTests` (contrast 4.5+ in light and dark, 4-point spacing, ordered type, Reduce Motion) | colour values are mine within the spec's direction; owner review of the look |
+| App shell, navigation, restoration (3.1, 3.2, 6) | `AtlasKit/Navigation.swift`, `AtlasApp/Shell.swift` | built | L: `NavigationTests` (only available destinations listed, restoration falls back to Home, shortcuts, compact/medium/wide layout) | resizing and compact navigation never seen running; no global search or command field |
+| Launch states (11) | `AtlasKit/ScreenState.swift` (`LaunchState`), `Shell.swift` `LaunchView` | built | L: `ScreenStateTests` (starting, sign-in needed, unreachable, ready) | |
+| Get Started (4.10, 11) | `AtlasApp/Screens.swift` `GetStartedView`, `AtlasKit/GetStarted.swift` | restyled; logic unchanged | L: `GetStartedTests`; R: app job | OS permission granted/denied states are not shown (the OS prompt is outside the app) |
+| Home (4.1) | `Screens.swift` `HomeView`, `AtlasKit/Activity.swift` | built | L: `ActivityTests` (attention group hidden when empty, recent tasks, greeting only with a local time) | recent updates come only from real events: today only the owner's own actions and tasks |
+| Ask Atlas (4.2) | `Screens.swift` `AskView`, `TurnView`, `Composer` | built | L: `LifecycleTests`, existing `SubmissionGateTests`; keyboard rules in code (Return sends, Shift+Return newline) | no conversation list or history across restarts; no voice (correctly absent) |
+| Task progress (4.3) | `AtlasKit/Lifecycle.swift`, `Components.swift` `PhaseLabel` | built | L: `LifecycleTests` (only real states, no percentage, no flicker back, cancel only while possible) | |
+| Evidence (4.4) | `Components.swift` `EvidenceInspector`, `AtlasKit/ScreenState.swift` `EvidenceState` | built | L: `ScreenStateTests` (available, missing, stale, denied, unsupported) | "open in source" is not offered (the Core has no such action) |
+| Library (4.5) | `Screens.swift` `LibraryView`, `AtlasKit/Library.swift`; Core `POST /v1/library/search` | built | L: `LibraryTests`; Core: `test_library.py` (denied without a grant, no match, incomplete index never shown as complete) | no source preview pane; sort is Best match and Title only |
+| Life areas (4.6) | none | **not built** | | shown as "not available yet" only if a name were ever listed; today none is. Needs real Calendar, Contacts, Notes and Finance adapters |
+| Activity and notifications (4.7) | `Screens.swift` `ActivityView`, `Components.swift` `ActivityRow` | built for tasks and decisions | L: `ActivityTests` | activity is in memory (lost on restart); no OS notifications, no category controls |
+| Approval (4.8) | `Components.swift` `ApprovalSheet`, `AtlasKit/Approval.swift`; Core `/v1/actions*` | built | L: `ApprovalTests` (exact payload, material change invalidates, single decision, expiry, undescribable action refused) | nothing in the app proposes an action yet, so the sheet is not reachable by an owner today |
+| Settings (4.9) | `Screens.swift` `SettingsView` | built (sources, privacy, models, devices, appearance, diagnostics) | R | no notifications section (nothing to control yet); no pairing control (no device client exists); no backup control in the app: the command line has it (`python -m atlas_core.maintenance`) |
+| Components (5) | `Components.swift` | partial | | Missing: global search field, toast, inline help beyond `.help` |
+| Accessibility (7) | labels, hints, headers and `accessibilityElement` in the views; text-size scaling by system fonts | partial | L: contrast tests | **owner:** VoiceOver and keyboard walkthrough, Dynamic Type, Reduce Motion on a real run |
+| Screenshots, visual acceptance (12, 13) | none | **not done** | | **owner:** a run on the owner's Mac in light and dark |
+
+What the owner has to do to close the UI/UX gates: run the app, walk the flows, capture the screens, and accept or reject the look; then the architect reviews the exact commit.

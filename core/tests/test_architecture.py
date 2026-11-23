@@ -51,6 +51,7 @@ LAYER = {
     "updater": 1,
     "health": 5,
     "devices": 2,
+    "maintenance": 5,
     "sync": 5,
     "operations": 6,
     "answer": 5,

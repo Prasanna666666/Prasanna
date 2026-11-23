@@ -263,3 +263,37 @@ def test_a_restore_drill_proves_a_backup_and_only_then_may_the_restricted_domain
         assert drill_passed(core.config.data_dir) is False
     finally:
         world.close()
+
+
+def test_the_owners_own_edits_and_the_action_audit_are_backed_up_and_come_back_intact(tmp_path):
+    from test_operations_api import NOTE, OpsWorld
+
+    from atlas_core.actions import AuditFile
+    from atlas_core.recordstore import RecordStore
+
+    (tmp_path / "a").mkdir()
+    world = OpsWorld(tmp_path / "a")
+    core = world.build()
+    core.start()
+    world.client().act("notes.create", NOTE)
+    world.client().act("notes.edit", {"id": "n1", "expected_version": 1, "fields": {"text": "Renew it before March."}})
+    keys = {"tasks.db": KEY + "t", "designation.db": KEY + "d", "edits.db": KEY + "e"}
+    folder = create_backup(world.tmp / "core", tmp_path / "backups", db_keys=keys, keys=BUNDLE, passphrase=PASS, clock=NOW)
+    manifest = json.loads((folder / "manifest.json").read_text())
+    assert {"edits.db", "actions-audit.jsonl"} <= set(manifest["files"]) and "identity.key" not in manifest["files"] and "devices.json" not in manifest["files"]
+    assert b"Renew it" not in (folder / "edits.db").read_bytes() and verify_backup(folder, PASS).authenticated
+    world.close()
+    provisioned: dict[str, str] = {}
+    target = tmp_path / "new" / "core"
+    report = restore_backup(folder, PASS, target, provision_keys=provisioned.update)
+    assert report.rows["edits.db"]["records"] == 1 and set(report.files) >= {"tasks.db", "edits.db", "actions-audit.jsonl"}
+    store = RecordStore(target / "edits.db", provisioned["db:edits.db"], frozenset({"notes"}))
+    try:
+        got = store.get("n1")
+        assert (
+            got.version == 2 and got.record.fields["text"] == "Renew it before March." and [h["op"] for h in store.history("n1")] == ["create", "update"]
+        )  # the content and its history
+    finally:
+        store.close()
+    restored_audit = AuditFile(target / "actions-audit.jsonl").load()
+    assert restored_audit is not None and len(restored_audit) == 2  # the chain verifies and continues
