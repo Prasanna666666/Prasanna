@@ -2,6 +2,7 @@ import AtlasKit
 import CryptoKit
 import Security
 import SwiftUI
+import UserNotifications
 
 /// The app owns the Core it starts: quitting the app (menu, window close, logout, shutdown) stops it, waits for it and reaps it, so no Core keeps processing sources after the UI is gone.
 /// If the app crashes instead, the Core stops by itself (it watches its parent) and the next launch reaps anything left behind (`CoreLauncher.reapLeftovers`).
@@ -117,6 +118,9 @@ final class AppModel: ObservableObject {
     // Activity and approvals
     @Published var activity: [ActivityItem] = []
     @Published var attention: [ActivityItem] = []
+    @Published var notificationsOn = UserDefaults.standard.bool(forKey: AppModel.notifyKey)
+    private var notified: Set<String> = []
+    static let notifyKey = "atlas.notify"
     @Published var approval: ApprovalFlow?
     private var approvalPayload: [String: Any] = [:]  // the exact payload the Core asked approval for: it is what runs, never a rebuilt copy
     // Settings
@@ -382,6 +386,30 @@ final class AppModel: ObservableObject {
         guard let client else { return }
         let raw = (try? await Task.detached { try client.attention() }.value) ?? []
         attention = raw.compactMap { ActivityItem.fromAttention($0, now: Date()) }
+        await deliverNotifications()
+    }
+
+    /// Opt-in: the owner turns it on in Settings, and macOS asks once. Off by default; nothing is preselected.
+    func setNotifications(_ on: Bool) async {
+        if on {
+            let granted = (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert])) ?? false
+            notificationsOn = granted
+            if !granted { failure = "Notifications are off in macOS. You can allow them in System Settings." }
+        } else { notificationsOn = false }
+        UserDefaults.standard.set(notificationsOn, forKey: Self.notifyKey)
+        await deliverNotifications()
+    }
+
+    /// Content-free notifications for items that need attention, once each.
+    private func deliverNotifications() async {
+        let plans = NotificationPlanner.plans(for: attention, alreadyNotified: notified, enabled: notificationsOn)
+        for plan in plans {
+            notified.insert(plan.id)
+            let content = UNMutableNotificationContent()
+            content.title = plan.title
+            content.body = plan.body
+            try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: plan.id, content: content, trigger: nil))
+        }
     }
 
     func loadDevices() async {

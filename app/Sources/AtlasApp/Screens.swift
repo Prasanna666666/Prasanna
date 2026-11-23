@@ -398,6 +398,10 @@ struct SettingsView: View {
                         }
                     }
                 }
+                section("Notifications") {
+                    Toggle("Tell me when something needs my attention", isOn: Binding(get: { model.notificationsOn }, set: { value in Task { await model.setNotifications(value) } }))
+                    Text("Notifications never include your content: they only say that something needs you.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                }
                 section("Appearance and accessibility") {
                     Text("Atlas follows your Mac's light or dark appearance, text size and Reduce Motion setting.").foregroundStyle(theme.textSecondary)
                 }
