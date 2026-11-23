@@ -45,6 +45,8 @@ final class AccessibilityAuditTests: XCTestCase {
             // The system's own window controls (the red, yellow and green buttons) contain tiny groups that macOS itself reports as parent/child mismatches. They are not Atlas's: set aside only a group no larger than
             // 20 points that sits inside the title bar (the top 40 points of the window).
             if issue.auditType == .parentChild, let e = issue.element, e.elementType == .group, e.frame.width <= 20, e.frame.height <= 20, e.frame.minY - window.minY <= 40 { return true }
+            // The Touch Bar is the system's, not the app's (it appears in the tree of any app on this machine).
+            if let e = issue.element, e.elementType == .touchBar { return true }
             if issue.auditType == .sufficientElementDescription, let e = issue.element, e.elementType == .group, e.label.isEmpty, abs(e.frame.width - window.width) < 1 { return true }
             return false
         }
