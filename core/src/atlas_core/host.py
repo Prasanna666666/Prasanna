@@ -98,9 +98,9 @@ def _restricted_stores(data_dir: Path, keys: dict[str, str]) -> tuple[dict[str, 
     return records, tuple(closers)
 
 
-def _web_engine(hosts: frozenset[str]) -> WorkerBrowser:
+def _web_engine(hosts: frozenset[str], pins: dict[str, str]) -> WorkerBrowser:
     """An isolated browser for one allowed host: its own process, https only, no redirect off the host. If no browser is installed the worker stops and the read says so plainly."""
-    return WorkerBrowser(hosts, ["https"])
+    return WorkerBrowser(hosts, ["https"], pins=pins)
 
 
 def _updates(options: HostOptions) -> UpdateOperations | None:

@@ -32,7 +32,7 @@ Connect a real service from Connections with its address and token; place the re
 
 ## E0. Network and authority changes for the architect to confirm
 - `relay.py` is a fifth module allowed to open a listening socket (named in `test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection`). It is off by default, refuses any address that is not private or VPN before opening a socket, forwards only `/v1/` and never `/v1/enrol`, and holds no key. It is the G-O14 channel; the choice of channel remains yours and the architect's.
-- `web.py` opens pages through the isolated browser worker for hosts the owner allowed; the worker can reach only that host. DNS rebinding between the Core's public-address check and the browser's own lookup is a residual risk that is not closed.
+- `web.py` opens pages through the isolated browser worker for hosts the owner allowed; the worker can reach only that host. The worker connects to the public address the Core checked (no second DNS lookup, TLS verified against the host's name), so DNS rebinding is closed for reading pages. `browser_engine.py` is therefore a sixth module that opens a connection; the architecture test names it and says why.
 - A paired device may read the owner's own Calendar, Contacts, Notes and Travel (see below).
 - A paired device (an ordinary member client) may now READ the owner's own Calendar, Contacts, Notes and Travel through `GET /v1/records/{domain}`; before, only the owner client could. Finance and Health are not in that store and stay unreadable by any device. It is the intended phone use and is covered by `test_operations_api.py`; revocation ends it at the next request.
 

@@ -140,3 +140,15 @@ def test_the_worker_receives_none_of_the_cores_environment_and_a_stuck_call_cann
 
 def test_the_workers_answers_are_codes_never_page_content():
     assert json.dumps({"ok": False, "code": "worker_error"}) and shutil is not None
+
+
+@needs_engine
+def test_a_pinned_name_is_resolved_by_the_cores_address_and_every_other_name_cannot_be_resolved(engine_args):
+    site = Site({"/": html("<p>pinned ok</p>")})
+    browser = WorkerBrowser(["pinned.invalid"], ["http"], pins={"pinned.invalid": "127.0.0.1"}, **engine_args)
+    try:
+        _final, text = browser.open(f"http://pinned.invalid:{site.port}/")  # a name no DNS knows: only the pin can make this work
+        assert "pinned ok" in text
+    finally:
+        browser.close()
+        site.close()

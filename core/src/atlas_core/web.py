@@ -2,7 +2,7 @@
 
 The owner keeps a short list of hosts Atlas may open (stored in the Core's own folder, mode 0600). Reading a page opens it in the isolated browser worker (`browser_engine`), which can reach only those hosts, over https,
 and follows no redirect off the list. What comes back is the page's visible text with its provenance, marked untrusted with no authority; a page that talks like an instruction is flagged and never obeyed
-(`browser.py`). Nothing the page says can add a host, change a setting or start an action. The host must also resolve only to public addresses, so a name that points inside the owner's network is refused.
+(`browser.py`). Nothing the page says can add a host, change a setting or start an action. The host must also resolve only to public addresses, so a name that points inside the owner's network is refused; the browser worker is then given THAT address and connects to it itself (TLS still verified against the host's name), so nothing resolves the name a second time and the check cannot be bypassed by changing the DNS answer between check and use.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .errors import CoreError
 HOST = re.compile(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+\Z")
 MAX_HOSTS = 50
 MAX_TEXT = 200_000
-EngineFactory = Callable[[frozenset[str]], Browser]
+EngineFactory = Callable[[frozenset[str], dict[str, str]], Browser]  # (the allowed hosts, each host's checked public address)
 
 
 class WebReader:
@@ -46,6 +46,11 @@ class WebReader:
     @staticmethod
     def _lookup(host: str) -> Iterable[str]:
         return _resolve(host)
+
+    def _public_addresses(self, host: str) -> list[str]:
+        """The host's addresses if it resolves ONLY to public ones, else none."""
+        found = list(self._resolve(host))
+        return found if found and public_address(host, lambda _h: found) else []
 
     # -- the owner's list ---------------------------------------------------------------------------------------------------------------------------
     def hosts(self) -> dict[str, list[str]]:
@@ -85,11 +90,12 @@ class WebReader:
         host = (parts.hostname or "").lower()
         if parts.scheme != "https" or host not in self.hosts()["hosts"] or parts.username or parts.password:
             raise CoreError("forbidden")  # only a listed host, over https, with no credentials in the address
-        if not public_address(host, self._resolve):
+        addresses = self._public_addresses(host)
+        if not addresses:
             raise CoreError("forbidden")
         browser: Browser | None = None
         try:
-            browser = self._engine(frozenset({host}))
+            browser = self._engine(frozenset({host}), {host: addresses[0]})  # the browser is told this address and does no lookup of its own
             result = run_browser_workflow(browser, [("open", url)], allowed_hosts=frozenset({host}), gateway=self._gateway)
         except BrowserBlocked as blocked:
             raise CoreError("timeout" if blocked.code in ("worker_stopped", "navigation_failed") else "forbidden") from None

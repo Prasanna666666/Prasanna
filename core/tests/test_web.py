@@ -20,8 +20,8 @@ class Engine:
     def __init__(self, pages=None, redirects=None, blocked=None):
         self.made, self.pages, self.redirects, self.blocked = [], pages or {PAGE: "Open Monday to Friday 9 to 17."}, redirects or {}, blocked
 
-    def __call__(self, hosts):
-        self.made.append(hosts)
+    def __call__(self, hosts, pins=None):
+        self.made.append((hosts, pins))
         if self.blocked:
             raise BrowserBlocked(self.blocked)
         return FakeBrowser(self.pages, self.redirects)
@@ -122,3 +122,14 @@ def test_a_core_without_a_browser_has_no_web_routes(tmp_path):
         assert e.value.code == "not_found"
     finally:
         world.close()
+
+
+def test_the_browser_is_given_the_address_the_core_checked_so_it_makes_no_dns_lookup_of_its_own(make, monkeypatch):
+    monkeypatch.setattr("atlas_core.web._resolve", public)
+    monkeypatch.setattr("atlas_core.egress._resolve", public)
+    engine = Engine()
+    world = make(engine)
+    owner = world.client()
+    owner.add_web_host("hours.example.org")
+    owner.read_web_page(PAGE)
+    assert engine.made == [(frozenset({"hours.example.org"}), {"hours.example.org": "93.184.216.34"})]

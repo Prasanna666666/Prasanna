@@ -13,8 +13,11 @@ The owner's allowed hosts and the steps come from the caller; this module decide
 from __future__ import annotations
 
 import contextlib
+import http.client
 import json
 import os
+import socket
+import ssl
 import subprocess
 import sys
 import threading
@@ -26,6 +29,8 @@ CALL_TIMEOUT = 45.0
 PAGE_TIMEOUT_MS = 20_000
 MAX_TEXT = 200_000
 MAX_REDIRECTS = 5
+FETCH_TIMEOUT = 20.0
+MAX_REPLY = 20_000_000
 REDIRECTS = frozenset({301, 302, 303, 307, 308})
 SAFE_ENV = (
     "PATH",
@@ -46,6 +51,37 @@ class BrowserBlocked(Exception):
         self.code = code
 
 
+def pinned_fetch(url: str, ip: str, method: str, headers: dict[str, str], body: bytes | None) -> tuple[int, dict[str, str], bytes]:
+    """One request made by THIS process to the address the Core already checked: no DNS lookup happens here, and for https the server's certificate is verified against the host's own name. The reply is
+    bounded and never decoded (the browser does that); a redirect is returned as the 3xx it is."""
+    parts = urlsplit(url)
+    https = parts.scheme == "https"
+    port = parts.port or (443 if https else 80)
+    raw = socket.create_connection((ip, port), timeout=FETCH_TIMEOUT)
+    sock = ssl.create_default_context().wrap_socket(raw, server_hostname=parts.hostname) if https else raw
+    connection = http.client.HTTPConnection(parts.hostname or "", port, timeout=FETCH_TIMEOUT)
+    connection.sock = sock
+    try:
+        forwarded = {k: v for k, v in headers.items() if k.lower() not in ("host", "accept-encoding", "connection", "content-length")}
+        connection.request(
+            method,
+            (parts.path or "/") + (f"?{parts.query}" if parts.query else ""),
+            body=body,
+            headers={**forwarded, "Host": parts.netloc, "Accept-Encoding": "identity"},
+        )
+        reply = connection.getresponse()
+        data = reply.read(MAX_REPLY + 1)
+        if len(data) > MAX_REPLY:
+            raise OSError("reply_too_large")
+        return (
+            reply.status,
+            {k: v for k, v in reply.getheaders() if k.lower() not in ("transfer-encoding", "connection", "content-length", "content-encoding")},
+            data,
+        )
+    finally:
+        connection.close()
+
+
 def allowed(url: str, hosts: frozenset[str], schemes: frozenset[str]) -> bool:
     parts = urlsplit(url)
     return parts.scheme in schemes and (parts.hostname or "") in hosts
@@ -54,7 +90,14 @@ def allowed(url: str, hosts: frozenset[str], schemes: frozenset[str]) -> bool:
 class PlaywrightBrowser:
     """The engine itself. Run inside the worker process, not in the Core."""
 
-    def __init__(self, hosts: Iterable[str], schemes: Iterable[str] = ("https",), executable: str | None = None, no_sandbox: bool = False) -> None:
+    def __init__(
+        self,
+        hosts: Iterable[str],
+        schemes: Iterable[str] = ("https",),
+        executable: str | None = None,
+        no_sandbox: bool = False,
+        pins: dict[str, str] | None = None,
+    ) -> None:
         from playwright.sync_api import sync_playwright
 
         self.hosts, self.schemes = frozenset(hosts), frozenset(schemes)
@@ -63,6 +106,7 @@ class PlaywrightBrowser:
         self._page: Any = None
         self._pw = sync_playwright().start()
         args = ["--no-sandbox"] if no_sandbox else []
+        self.pins = dict(pins or {})  # host -> the public address the Core checked: connections go to that address and nowhere else
         self._browser = self._pw.chromium.launch(headless=True, executable_path=executable, args=args)
         self._context = self._browser.new_context(accept_downloads=False, service_workers="block", permissions=[], java_script_enabled=True)
         self._context.route("**/*", self._gate)
@@ -82,19 +126,29 @@ class PlaywrightBrowser:
             for _hop in range(MAX_REDIRECTS + 1):
                 if not allowed(url, self.hosts, self.schemes):
                     raise BrowserBlocked("destination_not_allowed")
-                response = route.fetch(url=url, max_redirects=0)
-                location = response.headers.get("location")
-                if response.status in REDIRECTS and location:
+                status, headers, body = self._fetch(route, url)
+                location = next((v for k, v in headers.items() if k.lower() == "location"), None)
+                if status in REDIRECTS and location:
                     url = urljoin(url, location)
                     continue
                 if route.request.is_navigation_request() and route.request.frame == self._page.main_frame:
                     self.final = url  # where the page really ended up, after the hops that were allowed
-                route.fulfill(response=response)
+                route.fulfill(status=status, headers=headers, body=body)
                 return
             raise BrowserBlocked("too_many_redirects")
         except Exception:  # noqa: BLE001  (a refusal or a failure: the request is dropped, nothing is returned)
             self.blocked += 1
             route.abort()
+
+    def _fetch(self, route: Any, url: str) -> tuple[int, dict[str, str], bytes]:
+        """With pins, this process connects to the checked address itself (nothing resolves the name again); without, Playwright makes the request."""
+        if not self.pins:
+            response = route.fetch(url=url, max_redirects=0)
+            return int(response.status), dict(response.headers), bytes(response.body())
+        ip = self.pins.get(urlsplit(url).hostname or "")
+        if ip is None:
+            raise BrowserBlocked("destination_not_allowed")
+        return pinned_fetch(url, ip, route.request.method, dict(route.request.headers), route.request.post_data_buffer)
 
     def open(self, url: str) -> tuple[str, str]:
         if not allowed(url, self.hosts, self.schemes):
@@ -135,9 +189,17 @@ def _attr(text: str) -> str:
 class WorkerBrowser:
     """The `Browser` seam over a worker process. Calls are serialised; one that does not answer in time kills the worker and raises."""
 
-    def __init__(self, hosts: Iterable[str], schemes: Iterable[str] = ("https",), *, no_sandbox: bool = False, executable: str | None = None) -> None:
+    def __init__(
+        self,
+        hosts: Iterable[str],
+        schemes: Iterable[str] = ("https",),
+        *,
+        no_sandbox: bool = False,
+        executable: str | None = None,
+        pins: dict[str, str] | None = None,
+    ) -> None:
         env = {k: os.environ[k] for k in SAFE_ENV if k in os.environ}
-        config = json.dumps({"hosts": sorted(hosts), "schemes": sorted(schemes), "no_sandbox": no_sandbox, "executable": executable})
+        config = json.dumps({"hosts": sorted(hosts), "schemes": sorted(schemes), "no_sandbox": no_sandbox, "executable": executable, "pins": pins or {}})
         self._proc = subprocess.Popen(
             [sys.executable, "-s", "-m", "atlas_core.browser_worker"],
             stdin=subprocess.PIPE,

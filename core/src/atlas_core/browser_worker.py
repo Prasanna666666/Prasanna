@@ -11,7 +11,7 @@ from .browser_engine import BrowserBlocked, PlaywrightBrowser
 
 def main() -> int:
     config = json.loads(sys.stdin.readline())
-    engine = PlaywrightBrowser(config["hosts"], config["schemes"], config.get("executable"), bool(config.get("no_sandbox")))
+    engine = PlaywrightBrowser(config["hosts"], config["schemes"], config.get("executable"), bool(config.get("no_sandbox")), config.get("pins") or None)
     handlers: dict[str, Any] = {
         "ready": lambda: None,
         "open": lambda url: list(engine.open(url)),

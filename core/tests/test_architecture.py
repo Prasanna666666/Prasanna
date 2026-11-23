@@ -375,6 +375,6 @@ def test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_conn
         }
         if names & connectors or any(n.startswith(("http.client", "urllib.request")) for n in names):
             found.add(path.stem)
-    assert found == {"egress", "transport", "confinement", "connector_transport", "relay"}, (
+    assert found == {"egress", "transport", "confinement", "connector_transport", "relay", "browser_engine"}, (
         found
-    )  # connector_transport: owner-addressed connector traffic only; relay: the optional private-network channel for a paired phone (it refuses any address that is not private)
+    )  # connector_transport: owner-addressed connector traffic only; relay: the optional private-network channel for a paired phone (it refuses any address that is not private); browser_engine: the isolated browser worker, whose only connection is to the public address the Core already checked for an allowed host
