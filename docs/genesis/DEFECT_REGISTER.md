@@ -128,3 +128,30 @@ PR #10 has no inline review threads or review submission in the fetched history.
 |---|---|---|---|---|---|
 | ATLAS-DOC-019 | P2 | Evidence integrity / documentation | `core/docs/STAGE3_ACCEPTANCE.md` opening evidence-class definition and criterion 11 | The opening legend defines L as Linux CI and M as target Mac/real model, but criterion 11 later cites **R (hosted macOS runner)** without defining R in the evidence-class legend. Reconcile the evidence taxonomy and every row so Linux CI, hosted macOS runner, owner-Mac and human walkthrough are distinct. Also reconcile the criterion-11 statement that egress is not wired into the answer flow with PR description wording that calls it wired: the inspected code has a separate `TaskService.research()` API operation and tests explicitly state research results do not change the task answer. Describe the actual capability precisely; do not call a separate untrusted research result an integrated answer-flow feature. | `44756ee` |
 
+
+
+## UI/UX requirements audit — implementation gaps recorded in the map
+
+The canonical specification is `docs/genesis/UI_UX_SPECIFICATION.md` (421 lines; specification commit `379e730` / original `ef8ea18`). It explicitly separates documentation completion from implementation, architect review and owner visual acceptance. The implementation map `core/docs/UI_IMPLEMENTATION_MAP.md` (25 lines) says no screen has been seen running by a person, screenshotted or checked with VoiceOver. The following are map-reported implementation gaps at snapshot `44756ee`; independently re-check source and exact current head before closure.
+
+| ID | Severity | Category | Location / requirement | Gap and required evidence | First observed |
+|---|---|---|---|---|---|
+| ATLAS-UX-021 | P2 | Conversation UX | UI spec §4.2; `UI_IMPLEMENTATION_MAP.md` Ask Atlas row | No conversation list/history across restarts, despite the spec requiring accessible conversation history. Implement durable conversation history/navigation or explicitly record a scope change; test restart persistence and selection. | `44756ee` |
+| ATLAS-UX-022 | P1 | Action UX / reachability | UI spec §4.8; map Approval row | Approval sheet is implemented but no app workflow proposes an action, so an owner cannot reach or exercise the approval flow. Wire a safe typed proposal path and test exact payload, approval, expiry, cancellation and receipt end-to-end; no unmediated side effects. | `44756ee` |
+| ATLAS-UX-023 | P2 | Activity durability | UI spec §4.7; map Activity row | Activity is in memory and lost on restart. Persist the required activity/task outcomes or state the accepted retention boundary; test restart and deduplication. | `44756ee` |
+| ATLAS-UX-024 | P2 | Notification controls | UI spec §4.7; map Activity row | Only one notification switch; category/quiet-behaviour controls specified for Settings are absent. Implement or explicitly defer with truthful UI and acceptance mapping. | `44756ee` |
+| ATLAS-UX-025 | P2 | Evidence navigation | UI spec §4.4; map Evidence row | “Open in source” is not offered because Core has no such action. Define and implement safe source-opening capability with stale/revoked-source checks, or revise the spec with owner approval. | `44756ee` |
+| ATLAS-UX-026 | P2 | Shared components | UI spec §5; map Components row | Global search field, toast and inline help beyond basic `.help` are missing. Implement reusable components and verify keyboard, focus, loading and error states, or mark them explicitly deferred. | `44756ee` |
+| ATLAS-UX-027 | P1 | Accessibility | UI spec §7; map Accessibility row | Only automated contrast tests are recorded; VoiceOver, keyboard, Dynamic Type and Reduce Motion walkthrough on a real running Mac remain pending. This is a release/owner acceptance gate, not passed by unit tests. | `44756ee` |
+| ATLAS-UX-028 | P1 | Visual acceptance gate | UI spec §§12–13; map Screenshots row | No real-app screenshots, human visual review or owner visual acceptance. Capture documented window sizes in light/dark, key states and failure/empty states; architect review and explicit owner acceptance remain required. | `44756ee` |
+| ATLAS-UX-029 | P2 | Settings / operations | UI spec §4.9; map Settings row | No in-app backup control; backup/restore exists only via CLI maintenance commands. Verify the exact spec requirement and either provide the intended Settings flow or document an owner-approved deferral with a usable, safe alternative. | `44756ee` |
+
+### Low-level design conflict
+
+| ID | Severity | Category | Location | Finding / required correction | First observed |
+|---|---|---|---|---|---|
+| ATLAS-DES-020 | P2 | Requirements/design consistency | `docs/genesis/LOW_LEVEL_DESIGN.md` §11.5 versus `docs/genesis/PRD.md` §4.4 and UI spec §4.8 | LLD Tier 2 says calendar changes and file deletion require explicit per-action approval without the PRD's distinctions. The PRD's closed list requires approval for external communication, spending/purchases/paid bookings, deletion/overwrite only when reliable undo is unavailable or destructive migration, and unlocking physical access/safety systems; ordinary calendar changes and reversible local deletion do not prompt. Align the LLD to the owner-approved closed list and add a policy matrix/test trace. | `44756ee` |
+
+### Design-review gate
+
+The 623-line LLD and 421-line UI/UX specification are present and have clear review/acceptance gates. Their presence is not acceptance. PR #9 has no review submission in the fetched history; the UI spec itself marks implementation, architect review and owner visual acceptance NOT COMPLETE. The architect must review the design against the PRD/target architecture and current code; owner-only visual/accessibility gates remain separate. Do not mark any of these as complete from the document alone.
