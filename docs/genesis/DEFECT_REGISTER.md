@@ -456,3 +456,14 @@ The live PR #8 API at head `4269f6340af1d5c75ca132cab33500fd130db945` reports 27
 The 37 unresolved threads affect: `app/Sources/AtlasApp/AtlasApp.swift` (6), `core/src/atlas_core/macos.py` (7), `core/src/atlas_core/sandbox.py` (3), `app/Sources/AtlasKit/CoreLauncher.swift` (3), `core/docs/STAGE3_ACCEPTANCE.md` (11), `core/docs/MACOS_PROVIDERS.md` (1), `core/docs/STAGE3_HANDOVER.md` (1), `core/src/atlas_core/worker.py` (1), `core/src/atlas_core/transport.py` (1), `docs/genesis/STAGE-3-EXECUTION-PLAN.md` (1), and `core/src/atlas_core/egress.py` (2).
 
 The 276-path inventory is not proof of review. The earlier 266 figure refers to a historical scope whose exact snapshot still needs path-level reconciliation. The 541-entry PR #6 legacy matrix is a separate inventory. See `REVIEW_COVERAGE_RECONCILIATION.md` for the detailed reviewer-role history, per-path unresolved-thread breakdown, remaining work and coverage statement. No exhaustive 276-file line-by-line review is claimed.
+
+
+## HIST-090 — Repository branch inventory exposes unreviewed divergent work (2026-11-23)
+
+**Status: BRANCH INVENTORY CAPTURED — FULL HISTORY AND DIFF REVIEW OPEN.** The repository has 12 branches at capture, including legacy Aperture/Orbit/Atlas, WIP Health, Genesis review branches, Stage 2, Stage 3 prep and Stage 4–6. Full branch heads, comparisons, audit leads and Claude actions are in `docs/genesis/BRANCH_HISTORY_RECONCILIATION.md`.
+
+**Critical discrepancy:** PR #8's actual head is `genesis-stage2-foundation` at `4269f6340af1d5c75ca132cab33500fd130db945`; `genesis-stage4-6` is a separate divergent branch. Compare at capture: Stage 4–6 is 8 commits ahead / 82 behind the PR #8 branch, with 61 changed paths. It contains substantive new application/Core modules and tests for backup, storage, migration, Finance/Health records, action gateway, orchestration, browser automation, device sync, updater/signing and LaunchAgent. PR #8 body nevertheless says Stages 4–8 are on its branch. This branch/PR description inconsistency must be resolved explicitly; no silent merge or acceptance.
+
+Other comparisons show separate Stage 3 prep and LLD branches with unique commits/docs. The legacy Aperture/Orbit/WIP branches contain additional design and audit signals (local-only/cloud gating, ingestion and indexing, Health freshness, undo/consent, exact-money handling, encryption migration, answer truncation, UI regressions, performance and deployment assumptions). These must be reconciled with existing historical records; commit subjects are leads, not proof of current behaviour.
+
+**History limitation:** branch inventory is complete for the 12 branches returned by the endpoint at capture, but commit pagination is not yet complete for all branches. Several branches return 100+ commit pages. Do not claim all branch history has been recovered until pagination is exhausted and unique commits are reconciled.
