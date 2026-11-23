@@ -141,6 +141,10 @@ class AtlasClient:
         """Send a device's offline queue (API 1.1): each operation is applied once, in order; the results say applied, duplicate, conflict or rejected."""
         return list(self._json("POST", "/v1/sync", {"ops": ops})["results"])
 
+    def records(self, domain: str) -> list[dict[str, Any]]:
+        """The owner's own records of one domain: calendar, contacts or notes (API 1.1; owner client only)."""
+        return list(self._json("GET", f"/v1/records/{domain}")["records"])
+
     def attention(self) -> list[dict[str, Any]]:
         """What needs the owner's attention (API 1.1; owner client only): today, overlapping calendar events."""
         return list(self._json("GET", "/v1/attention")["items"])

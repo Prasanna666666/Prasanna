@@ -84,7 +84,8 @@ struct Shell: View {
         case .activity: ActivityView(model: model)
         case .settings: SettingsView(model: model)
         case .library: LibraryView(model: model)
-        case .lifeArea: StateNotice(text: UnavailableReason.notAvailableYet.message).padding(Space.xl)
+        case .lifeArea(let name):
+            if let domain = OwnDomain(areaTitle: name) { RecordsView(model: model, domain: domain) } else { StateNotice(text: UnavailableReason.notAvailableYet.message).padding(Space.xl) }
         }
     }
 }

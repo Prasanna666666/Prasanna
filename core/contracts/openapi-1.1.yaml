@@ -609,6 +609,33 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/records/{domain}:
+    get:
+      operationId: listRecords
+      summary: The owner's own records of one domain (calendar, contacts or notes).
+      x-atlas-status: served by the Core when it is configured with the owner's edits store; API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      - name: domain
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [calendar, contacts, notes]
+      responses:
+        '200':
+          description: The records
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/RecordList
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
       operationId: enrolClient

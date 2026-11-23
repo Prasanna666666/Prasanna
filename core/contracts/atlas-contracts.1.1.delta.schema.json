@@ -36,7 +36,8 @@
     "RevokeResult",
     "LibrarySearchRequest",
     "LibraryResult",
-    "AttentionList"
+    "AttentionList",
+    "RecordList"
   ],
   "$defs": {
     "AnswerEnvelope": {
@@ -1938,6 +1939,52 @@
         }
       },
       "description": "What needs the owner's attention, computed by code from the owner's own records (today: overlapping calendar events). Owner client only; a push to another device carries only a kind and an id."
+    },
+    "RecordList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "records"
+      ],
+      "properties": {
+        "records": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "date",
+              "version",
+              "fields"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,120}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,500}$"
+              },
+              "date": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "fields": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "description": "The owner's own records of one domain (Calendar, Contacts or Notes), newest first, with the version each edit must name. Owner client only."
     }
   }
 }

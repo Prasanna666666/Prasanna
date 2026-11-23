@@ -212,6 +212,106 @@ struct LibraryView: View {
     }
 }
 
+// MARK: Calendar, Contacts and Notes
+
+struct RecordsView: View {
+    @ObservedObject var model: AppModel
+    let domain: OwnDomain
+    @State private var adding = false
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let theme = Theme(scheme)
+        let state = model.ownRecords[domain] ?? .idle
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                HStack {
+                    PageHeader(title: domain.title, subtitle: "Your own \(domain.title.lowercased()). Atlas can use these to answer and to point things out.")
+                    Button { adding = true } label: { Label("Add", systemImage: "plus") }.keyboardShortcut("n", modifiers: .command)
+                }
+                if let label = model.undoLabel {
+                    HStack {
+                        Label(label, systemImage: "checkmark.circle").foregroundStyle(theme.textSecondary)
+                        Spacer()
+                        Button("Undo") { Task { await model.undoLast(domain: domain) } }
+                        Button("Dismiss") { model.dismissUndo() }
+                    }.padding(Space.md).background(theme.surface, in: RoundedRectangle(cornerRadius: Radius.medium))
+                }
+                switch state {
+                case .loaded(let rows), .partial(let rows, _):
+                    ForEach(rows) { row in
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: Space.xs) {
+                                Text(row.title).font(TextStyle.headline).foregroundStyle(theme.textPrimary)
+                                let detail = row.detail(for: domain)
+                                if !detail.isEmpty { Text(detail).font(TextStyle.secondary).foregroundStyle(theme.textSecondary).lineLimit(3) }
+                            }
+                            Spacer()
+                            Button("Remove", role: .destructive) { Task { await model.archive(row, in: domain) } }.help("Removes it. You can undo this right away.")
+                        }
+                        .padding(.vertical, Space.sm)
+                        .accessibilityElement(children: .combine)
+                        Divider()
+                    }
+                case .empty: StateNotice(text: domain.emptyText)
+                case .loading, .idle: StateNotice(text: "Loading.", style: .loading)
+                case .unavailable(let reason): StateNotice(text: reason.message, style: .warning)
+                case .denied(let text): StateNotice(text: text, style: .warning)
+                case .failed(let text): StateNotice(text: text, style: .problem)
+                }
+            }
+            .padding(Space.xl).readingColumn()
+        }
+        .task(id: domain) { await model.loadRecords(domain) }
+        .sheet(isPresented: $adding) { AddRecordSheet(model: model, domain: domain, close: { adding = false }) }
+    }
+}
+
+struct AddRecordSheet: View {
+    @ObservedObject var model: AppModel
+    let domain: OwnDomain
+    let close: () -> Void
+    @State private var draft: RecordDraft
+    @State private var startsOn = Date()
+    @State private var hasEnd = false
+    @State private var endsOn = Date().addingTimeInterval(3600)
+    @Environment(\.colorScheme) private var scheme
+
+    init(model: AppModel, domain: OwnDomain, close: @escaping () -> Void) {
+        self.model = model; self.domain = domain; self.close = close
+        _draft = State(initialValue: RecordDraft(domain: domain))
+    }
+
+    var body: some View {
+        let theme = Theme(scheme)
+        var current = draft
+        let _ = { if domain == .calendar { current.starts = startsOn; current.ends = hasEnd ? endsOn : nil } }()
+        VStack(alignment: .leading, spacing: Space.lg) {
+            Text("Add to \(domain.title)").font(TextStyle.title).accessibilityAddTraits(.isHeader)
+            TextField(domain == .contacts ? "Name" : "Title", text: $draft.title).textFieldStyle(.roundedBorder)
+            switch domain {
+            case .notes:
+                TextEditor(text: $draft.text).frame(minHeight: 120).padding(Space.xs).background(theme.surface, in: RoundedRectangle(cornerRadius: Radius.small)).accessibilityLabel("Note")
+            case .calendar:
+                DatePicker("Starts", selection: $startsOn)
+                Toggle("Has an end", isOn: $hasEnd)
+                if hasEnd { DatePicker("Ends", selection: $endsOn) }
+                TextField("Where (optional)", text: $draft.location).textFieldStyle(.roundedBorder)
+            case .contacts:
+                TextField("Phone (optional)", text: $draft.phone).textFieldStyle(.roundedBorder)
+                TextField("Email (optional)", text: $draft.email).textFieldStyle(.roundedBorder)
+            }
+            if let problem = current.problem() { Text(problem).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+            HStack {
+                Button("Cancel", action: close).keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Add") { Task { if await model.add(current) { close() } } }.disabled(current.problem() != nil).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(Space.xl).frame(minWidth: 420)
+    }
+}
+
 // MARK: Activity
 
 struct ActivityView: View {

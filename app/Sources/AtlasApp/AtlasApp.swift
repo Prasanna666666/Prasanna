@@ -97,6 +97,11 @@ final class AppModel: ObservableObject {
     @Published var selection: Destination = .home
     @Published var launch: LaunchState = .startingCore
     @Published var needsGetStarted = true
+    // Own records (Calendar, Contacts, Notes)
+    @Published var editsAvailable = false
+    @Published var ownRecords: [OwnDomain: LoadState<[OwnRecord]>] = [:]
+    @Published var undoLabel: String?
+    private var undoActionID: String?
     // Library
     @Published var library: LoadState<LibraryPage> = .idle
     @Published var libraryQuery = ""
@@ -136,7 +141,7 @@ final class AppModel: ObservableObject {
     }
 
     /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.
-    var availability: Availability { Availability(library: !scope.isEmpty) }
+    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: editsAvailable ? OwnDomain.allCases.map { $0.title } : []) }
 
     /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
     var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
@@ -189,6 +194,66 @@ final class AppModel: ObservableObject {
         await refreshConsent()
         await loadSettings()
     }
+
+    // MARK: own records
+
+    func loadRecords(_ domain: OwnDomain) async {
+        guard let client else { return }
+        ownRecords[domain] = .loading
+        let name = domain.rawValue
+        do {
+            let response = try await Task.detached { try client.records(name) }.value
+            editsAvailable = true
+            ownRecords[domain] = RecordsOutcome.from(response)
+        } catch AtlasError.core(let code) where code == "not_found" {
+            editsAvailable = false
+            ownRecords[domain] = .unavailable(.notAvailableYet)
+        } catch { ownRecords[domain] = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    /// Does this Core serve the owner's own records at all? Decides whether the Calendar, Contacts and Notes areas are listed.
+    func probeOwnRecords() async {
+        guard let client else { return }
+        editsAvailable = (try? await Task.detached { try client.records("notes") }.value) != nil
+    }
+
+    func add(_ draft: RecordDraft) async -> Bool {
+        guard let client, let payload = draft.createPayload(id: RecordIdentity.make(domain: draft.domain), now: Date()) else { return false }
+        let action = draft.domain.createAction
+        do {
+            let outcome = try await Task.detached { try client.act(action, payload: payload) }.value
+            guard (outcome["status"] as? String) == "done" else { failure = "Atlas could not add that."; return false }
+            undoActionID = outcome["action_id"] as? String
+            undoLabel = "Added “\(draft.title)”."
+            await loadRecords(draft.domain)
+            await loadAttention()
+            return true
+        } catch { failure = (error as? AtlasError)?.message; return false }
+    }
+
+    func archive(_ record: OwnRecord, in domain: OwnDomain) async {
+        guard let client else { return }
+        let action = domain.archiveAction, payload: [String: Any] = ["id": record.id, "expected_version": record.version]
+        do {
+            let outcome = try await Task.detached { try client.act(action, payload: payload) }.value
+            guard (outcome["status"] as? String) == "done" else { failure = "Atlas could not remove that."; return }
+            undoActionID = outcome["action_id"] as? String
+            undoLabel = "Removed “\(record.title)”."
+            await loadRecords(domain)
+            await loadAttention()
+        } catch { failure = (error as? AtlasError)?.message }
+    }
+
+    func undoLast(domain: OwnDomain) async {
+        guard let client, let id = undoActionID else { return }
+        _ = try? await Task.detached { try client.undo(actionID: id) }.value
+        undoActionID = nil
+        undoLabel = nil
+        await loadRecords(domain)
+        await loadAttention()
+    }
+
+    func dismissUndo() { undoLabel = nil; undoActionID = nil }
 
     // MARK: library
 
@@ -308,6 +373,7 @@ final class AppModel: ObservableObject {
             indexLine = "Indexed \(status["indexed"] as? Int ?? 0) of \(status["total"] as? Int ?? 0), \(status["state"] as? String ?? "")."
             await loadDevices()
             await loadAttention()
+            await probeOwnRecords()
         } catch { failure = (error as? AtlasError)?.message }
     }
 

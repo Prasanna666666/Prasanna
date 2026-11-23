@@ -37,6 +37,7 @@ def _outcome(o: Outcome) -> dict[str, Any]:
     }
 
 
+EDIT_DOMAINS = frozenset({"calendar", "contacts", "notes"})
 DEFAULT_EVENT = timedelta(hours=1)  # an event with no end is treated as an hour long
 
 
@@ -51,6 +52,18 @@ def _moment(text: str) -> datetime | None:
 class Operations:
     def __init__(self, gateway: ActionGateway, sync: SyncService, store: RecordStore | None = None) -> None:
         self._gateway, self._sync, self._store = gateway, sync, store
+
+    def records(self, domain: str) -> dict[str, Any]:
+        """The owner's own records of one domain, newest first. A domain the edits store does not hold is not found."""
+        if self._store is None or domain not in EDIT_DOMAINS:
+            raise CoreError("not_found")
+        rows = sorted(self._store.in_domain(domain), key=lambda s: (s.record.date, s.record.record_id), reverse=True)
+        return {
+            "records": [
+                {"id": s.record.record_id, "title": _line(s.record.title), "date": s.record.date, "version": s.version, "fields": dict(s.record.fields)}
+                for s in rows[:500]
+            ]
+        }
 
     def attention(self) -> dict[str, Any]:
         """What needs the owner's attention, by code, from the owner's own calendar: events whose times overlap. Records without a usable start are skipped, never guessed."""

@@ -208,3 +208,19 @@ def test_overlapping_calendar_events_need_attention_and_touching_ones_do_not(wor
     with pytest.raises(atlas_client.ClientError) as e:
         world.device().attention()
     assert e.value.code == "forbidden"
+
+
+def test_the_owner_lists_their_own_records_newest_first_with_the_version_an_edit_must_name(world):
+    owner = world.client()
+    assert owner.records("notes") == []
+    owner.act("notes.create", {**NOTE, "id": "n1", "date": "2026-10-18T00:00:00+00:00"})
+    owner.act("notes.create", {**NOTE, "id": "n2", "date": "2026-10-19T00:00:00+00:00", "title": "Newer"})
+    owner.act("notes.edit", {"id": "n1", "expected_version": 1, "fields": {"text": "Edited."}})
+    rows = owner.records("notes")
+    assert [(r["id"], r["version"]) for r in rows] == [("n2", 1), ("n1", 2)] and rows[1]["fields"]["text"] == "Edited."
+    owner.act("notes.archive", {"id": "n2", "expected_version": 1})
+    assert [r["id"] for r in owner.records("notes")] == ["n1"]  # an archived record is not listed (undo brings it back)
+    for domain, who in (("finance", owner), ("notes", world.device())):
+        with pytest.raises(atlas_client.ClientError) as e:
+            who.records(domain)
+        assert e.value.code in ("not_found", "forbidden", "invalid_request")
