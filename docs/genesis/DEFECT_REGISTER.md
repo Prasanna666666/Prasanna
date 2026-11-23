@@ -445,3 +445,14 @@ A repository-wide PR search found **10 pull requests**, not only Atlas/Genesis P
 Claude must establish the exact base/head SHA for each inventory and classify all 275 paths. Separate application source, tests, docs, generated/source archives, build/workflow/configuration, and assets. Preserve the original 266-scope list if it exists; do not silently replace it with 275 or assume the nine-path delta is only documentation without a path-level diff.
 
 **PR inventory limitation:** the search endpoint returned PRs #1–#10; this is the complete returned result set for this repository at capture time, not proof that no branches, tags, commits, discussions, Actions runs, security alerts, or other repository artifacts contain additional evidence. Continue inspecting those sources.
+
+
+## HIST-090 — Consolidated reviewer history and current coverage baseline (2026-11-23)
+
+**Status:** OPEN — audit coverage not yet established.
+
+The live PR #8 API at head `4269f6340af1d5c75ca132cab33500fd130db945` reports 276 changed paths, 53 review submissions (48 non-empty, five empty), 58 inline threads (21 resolved, 37 unresolved), 63 inline comments, and 43 outdated threads. All review submissions and inline comments are attributed to the repository owner's GitHub login; some developer replies carry Claude Code attribution. Do not describe these as 53 independent reviewers. Historical prior-chat context records Claude's review of nine Genesis documents and parts of Atlas, followed by a reported Stage 0/Stage 1 documentation acceptance. Those bounded approvals do not accept the current full implementation audit.
+
+The 37 unresolved threads affect: `app/Sources/AtlasApp/AtlasApp.swift` (6), `core/src/atlas_core/macos.py` (7), `core/src/atlas_core/sandbox.py` (3), `app/Sources/AtlasKit/CoreLauncher.swift` (3), `core/docs/STAGE3_ACCEPTANCE.md` (11), `core/docs/MACOS_PROVIDERS.md` (1), `core/docs/STAGE3_HANDOVER.md` (1), `core/src/atlas_core/worker.py` (1), `core/src/atlas_core/transport.py` (1), `docs/genesis/STAGE-3-EXECUTION-PLAN.md` (1), and `core/src/atlas_core/egress.py` (2).
+
+The 276-path inventory is not proof of review. The earlier 266 figure refers to a historical scope whose exact snapshot still needs path-level reconciliation. The 541-entry PR #6 legacy matrix is a separate inventory. See `REVIEW_COVERAGE_RECONCILIATION.md` for the detailed reviewer-role history, per-path unresolved-thread breakdown, remaining work and coverage statement. No exhaustive 276-file line-by-line review is claimed.
