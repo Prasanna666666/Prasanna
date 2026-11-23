@@ -94,3 +94,28 @@ Claude must:
 4. Identify missing or conflicting records explicitly rather than infer acceptance.
 5. Continue searching repository branches, commits, PRs and available historical sources for omissions.
 6. Never claim “all prior chats recovered” based solely on this summary.
+
+
+## 9. Additional focused retrieval — scope, automation and mobile decisions (2026-11-23)
+
+### 9.1 One-app consolidation and what Atlas automates
+- 2026-11-19 owner wording: **“There needs to be only 1 atlas app. Rest all obsolete.”** Standalone Finance/Documents/Images identities are to be retired as separate products; their functionality and data must be preserved within Atlas. This does not authorise destructive deletion or data movement before review and approval.
+- 2026-11-19 owner wording: **“only personal work”** — recovered context says Atlas automates the owner's personal work/life, not Atlas's own development. Canonical decision G-014 currently says “personal and professional work”; reconcile the exact scope/meaning rather than silently broadening it. Record whether “personal work” includes the owner's professional workflows as a separate owner decision.
+- 2026-11-19 owner instruction: after kickoff, exchanges should happen on the PR; the owner is only the trigger/notification point and intervenes for decisions or approvals. No manual forwarding of routine technical messages.
+
+### 9.2 Automation / agentic AI concern and review leads
+- 2026-11-22 owner instruction: **“Keep an eye on the automation connectors and agentic ai workflow of the app. I don’t if Claude did a good job.”**
+- A prior assistant audit summary (not independent evidence by itself) reported: dynamic registry/model tool calls and parallel execution implemented; specialist orchestration scaffolded; retries partial; real connectors incomplete; browser/desktop automation not production-ready; timeout enforcement potentially missing; orchestration not fully wired into the production API; approvals existed without complete owner-action proposals; end-to-end planning/execution/verification/approval/recovery evidence missing.
+- A further prior assistant audit summary dated 2026-11-23 said browser workflows, macOS automation and real connectors were not implemented in the reviewed scope, and retry/durable recovery required verification. Treat these as historical audit leads, not current-head truth. Reproduce each against exact current code/commit and distinguish “framework exists” from an end-to-end capability.
+- 2026-11-22 owner accepted Atlas-owned automation direction; OpenClaw is not the foundation or an adopted dependency. Preserve local-first privacy/control.
+- The proposed architecture was Atlas Core orchestration; local Playwright for browser work; native macOS APIs/Shortcuts/AppleScript/JXA and Accessibility APIs, with visual fallback; isolated least-privilege workers; postcondition verification, audit/recovery and approval policy. These engine choices were architecture recommendations, not proof of implementation. General browser/app automation and native app automation were deferred to Stage 6 target scope.
+- Required audit chain: discovery → authentication/connection state → least-privilege scopes → policy decision → approval where required → execution → postcondition verification → receipt/audit → retries/idempotency → undo/compensation → failure recovery → revocation. Test the complete workflow, not only each component in isolation.
+
+### 9.3 Mobile platform chronology
+- 2026-11-19 owner wording: **“Eventually I want a mobile app usable anywhere in the world”** and selected **“iOS”**.
+- Later canonical decision history records that iOS and Android were initially discussed, then Android was dropped the same day. Current authoritative PRD/DECISIONS/TARGET_ARCHITECTURE state is **macOS first, iOS only; Android out of scope**. Preserve the chronology and use the later recorded owner decision; do not revive the earlier Android interpretation.
+- The intended always-on host is the owner's Mac mini. Worldwide iOS access must reach the owner-controlled Atlas Core through an authenticated, encrypted channel; no third-party inference, hosted Atlas brain, public database/model ports or plaintext relay storage.
+- Required mobile topics include device identity/enrolment/revocation, strong owner authentication, least-privilege scopes, lost-device handling, secure cache/credential storage, notification privacy, offline cache/sync/conflict policy, and a clear unreachable state. These remain gated by the remote-access threat model and ADR; mobile availability is not guaranteed if host/network is unavailable.
+
+### 9.4 Evidence/provenance caveat
+The automation and scope items above include both owner statements and prior assistant audit summaries. Owner statements are requirements; assistant audit summaries are leads to reproduce. Neither a prior assistant assertion nor a Claude status report is current independent verification. The PR #6–#10 and branch archives remain the source of code/review chronology.
