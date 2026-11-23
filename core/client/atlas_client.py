@@ -153,6 +153,20 @@ class AtlasClient:
         """Health readings summarised by code under a current Health grant (API 1.1; owner client only)."""
         return self._json("GET", "/v1/health/summary")
 
+    def connectors(self) -> list[dict[str, Any]]:
+        """Every integration Atlas knows and whether it is connected (API 1.1; owner client only)."""
+        return list(self._json("GET", "/v1/connectors")["connectors"])
+
+    def connect_connector(self, connector_id: str, address: str, token: str) -> dict[str, Any]:
+        """Connect an integration. The token is stored by the Core and never comes back."""
+        return self._json("POST", f"/v1/connectors/{connector_id}/connect", {"fields": {"address": address, "token": token}})
+
+    def check_connector(self, connector_id: str) -> dict[str, Any]:
+        return self._json("POST", f"/v1/connectors/{connector_id}/check", {})
+
+    def disconnect_connector(self, connector_id: str) -> dict[str, Any]:
+        return self._json("POST", f"/v1/connectors/{connector_id}/disconnect", {})
+
     def review(self) -> dict[str, Any]:
         """The owner's review: calendar, finance and health, each answering only under its own grant (API 1.1; owner client only)."""
         return self._json("GET", "/v1/review")

@@ -157,3 +157,17 @@ def test_the_production_core_starts_enrols_indexes_withdraws_stops_and_restarts_
         for service in created:
             items.delete(service)
         shutil.rmtree(short, ignore_errors=True)
+
+
+def test_connector_credentials_round_trip_through_the_real_keychain_and_a_missing_one_is_no_secret(items):
+    from atlas_core.macos import KeychainSecrets
+
+    box, made = items
+    name = f"ci-connector-{uuid.uuid4().hex}"
+    made.append(f"atlas-{name}")
+    secrets = KeychainSecrets(box)
+    assert secrets.get(name) is None
+    secrets.set(name, '{"address": "http://127.0.0.1:1", "token": "it\'s a $secret"}')
+    assert secrets.get(name) == '{"address": "http://127.0.0.1:1", "token": "it\'s a $secret"}'
+    secrets.delete(name)
+    assert secrets.get(name) is None

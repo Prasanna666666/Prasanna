@@ -46,6 +46,8 @@ LAYER = {
     "recordstore": 4,
     "actions": 1,
     "record_actions": 5,
+    "connectors": 5,
+    "connector_transport": 1,
     "orchestrator": 5,
     "review": 5,
     "browser": 5,
@@ -360,8 +362,8 @@ def test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_ca
 
 @pytest.mark.criterion(11)
 def test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection():
-    """Nothing but `egress` (public research, through its checks), `transport` (the local Unix socket server) and `confinement` (which tries a connection only to be refused) imports anything that
-    can open a socket, speak HTTP or make a request; every other module, including every model module, cannot."""
+    """Nothing but `egress` (public research, through its checks), `transport` (the local Unix socket server), `confinement` (which tries a connection only to be refused) and `connector_transport` (the owner's own
+    connectors, to the address the owner typed) imports anything that can open a socket, speak HTTP or make a request; every other module, including every model module, cannot."""
     connectors = {"socket", "socketserver", "ssl", "http.client", "urllib.request", "urllib3", "requests", "httpx", "aiohttp", "ftplib", "smtplib", "telnetlib"}
     found: set[str] = set()
     for path in SRC.glob("*.py"):
@@ -371,4 +373,6 @@ def test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_conn
         }
         if names & connectors or any(n.startswith(("http.client", "urllib.request")) for n in names):
             found.add(path.stem)
-    assert found == {"egress", "transport", "confinement"}, found
+    assert found == {"egress", "transport", "confinement", "connector_transport"}, (
+        found
+    )  # connector_transport: owner-addressed connector traffic only (its docstring says what it refuses)

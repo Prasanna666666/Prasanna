@@ -772,6 +772,120 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
         '404':
           $ref: '#/components/responses/ErrorVersioned'
+  /v1/connectors:
+    get:
+      operationId: listConnectors
+      summary: Every integration Atlas knows and whether it is connected.
+      x-atlas-status: served by the Core when it has a secret store; API 1.1 additive
+      parameters:
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The connector
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConnectorList
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/connectors/{connector_id}/connect:
+    post:
+      operationId: connectConnector
+      summary: Connect one integration with the owner's address and token.
+      x-atlas-status: served by the Core when it has a secret store; API 1.1 additive
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConnectRequest
+      parameters:
+      - name: connector_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[a-z_]{3,30}$'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The connector
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConnectorState
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/connectors/{connector_id}/check:
+    post:
+      operationId: checkConnector
+      summary: Check that a connected integration still answers.
+      x-atlas-status: served by the Core when it has a secret store; API 1.1 additive
+      parameters:
+      - name: connector_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[a-z_]{3,30}$'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The connector
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConnectorState
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
+  /v1/connectors/{connector_id}/disconnect:
+    post:
+      operationId: disconnectConnector
+      summary: Disconnect one integration, which refuses its actions and deletes its credentials.
+      x-atlas-status: served by the Core when it has a secret store; API 1.1 additive
+      parameters:
+      - name: connector_id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: '^[a-z_]{3,30}$'
+      - $ref: '#/components/parameters/ApiVersion'
+      responses:
+        '200':
+          description: The connector
+          headers: *id001
+          content:
+            application/json:
+              schema:
+                $ref: ./atlas-contracts.1.1.schema.json#/$defs/ConnectorState
+        '400':
+          $ref: '#/components/responses/ErrorVersioned'
+        '401':
+          $ref: '#/components/responses/ErrorVersioned'
+        '403':
+          $ref: '#/components/responses/ErrorVersioned'
+        '404':
+          $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
       operationId: enrolClient

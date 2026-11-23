@@ -24,7 +24,7 @@ from .contracts import ContractError, validate
 from .errors import CoreError, UpdateError, status_of, user_error
 from .events import SafeLog, new_id
 from .identity import H_VERSION, BootstrapGate, ClientRegistry
-from .service import TERMINAL, ConsentPort, DevicesPort, ModePort, OpsPort, TaskService, UpdatesPort
+from .service import TERMINAL, ConnectorsPort, ConsentPort, DevicesPort, ModePort, OpsPort, TaskService, UpdatesPort
 
 JSON = "application/json"
 SSE = "text/event-stream"
@@ -41,6 +41,8 @@ COMPUTE = "/v1/compute"  # API 1.1 only
 RESEARCH = re.compile(r"^/v1/tasks/([A-Za-z0-9_-]{8,64})/research$")  # API 1.1 only
 ENROL = "/v1/enrol"  # API 1.1 only
 LIBRARY_SEARCH = "/v1/library/search"  # API 1.1 only, an enrolled client
+CONNECTOR = re.compile(r"^/v1/connectors/([a-z_]{3,30})/(connect|check|disconnect)$")  # API 1.1 only, an enrolled OWNER client only
+CONNECTORS = "/v1/connectors"
 RECORDS = re.compile(r"^/v1/records/([a-z]{3,16})$")  # API 1.1 only, an enrolled OWNER client
 REVIEW = "/v1/review"  # API 1.1 only, an enrolled OWNER client only
 HEALTH_SUMMARY = "/v1/health/summary"  # API 1.1 only, an enrolled OWNER client, and only when the Core has a Health source
@@ -106,8 +108,9 @@ class CoreApi:
         ops: OpsPort | None = None,
         devices: DevicesPort | None = None,
         updates: UpdatesPort | None = None,
+        connectors: ConnectorsPort | None = None,
     ) -> None:
-        self._updates = updates
+        self._updates, self._connectors = updates, connectors
         self._service, self._registry, self._log, self._consent, self._bootstrap, self._mode, self._ops, self._devices = (
             service,
             registry,
@@ -151,6 +154,7 @@ class CoreApi:
             FINANCE_SUMMARY: lambda: self._finance(request, client),
             HEALTH_SUMMARY: lambda: self._health(request, client),
             REVIEW: lambda: self._review(request, client),
+            CONNECTORS: lambda: self._connector_list(request, client),
         }
         handlers.update({p: lambda: self._ops_route(request, path, client) for p in OPS_PATHS})
         handlers.update({p: lambda: self._device_route(request, path, client) for p in DEVICE_PATHS})
@@ -158,6 +162,9 @@ class CoreApi:
         handler = handlers.get(path)
         if handler is None:
             research, records = RESEARCH.match(path), RECORDS.match(path)
+            connector = CONNECTOR.match(path)
+            if connector is not None:
+                return self._connector_move(request, connector.group(1), connector.group(2), client)
             if records is not None:
                 return self._records(request, records.group(1), client)
             return None if research is None else self._research(request, research.group(1), client, version)
@@ -325,6 +332,33 @@ class CoreApi:
         if not self._registry.is_owner(client):
             raise CoreError("forbidden")
         return self._reply(200, self._service.health_summary(), "HealthSummary", "1.1")
+
+    def _connector_list(self, request: Request, client: str) -> Response:
+        if self._connectors is None:
+            raise CoreError("not_found")
+        if request.method != "GET":
+            raise CoreError("invalid_request")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        return self._reply(200, self._connectors.listing(), "ConnectorList", "1.1")
+
+    def _connector_move(self, request: Request, connector_id: str, move: str, client: str) -> Response:
+        """Connect (with the credentials the owner typed), check, or disconnect one connector. Owner client only; the credentials are never echoed, logged or returned."""
+        if self._connectors is None:
+            raise CoreError("not_found")
+        if request.method != "POST":
+            raise CoreError("invalid_request")
+        if not self._registry.is_owner(client):
+            raise CoreError("forbidden")
+        if move == "connect":
+            try:
+                body = json.loads(request.body)
+            except ValueError:
+                raise CoreError("invalid_request") from None
+            validate("ConnectRequest", body, "1.1")
+            return self._reply(200, self._connectors.link(connector_id, body["fields"]), "ConnectorState", "1.1")
+        done = self._connectors.check(connector_id) if move == "check" else self._connectors.unlink(connector_id)
+        return self._reply(200, done, "ConnectorState", "1.1")
 
     def _review(self, request: Request, client: str) -> Response:
         if request.method != "GET":

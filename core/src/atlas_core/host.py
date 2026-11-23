@@ -25,7 +25,7 @@ from .finance_calc import MONEY_DOMAIN
 from .health_calc import HEALTH_DOMAIN
 from .intelligence import ModelRuntime
 from .isolated import IsolatedEngine
-from .macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems, Runner
+from .macos import EmlxMailbox, FolderPermissions, KeychainAnchor, KeychainError, KeychainItems, KeychainSecrets, Runner
 from .macos_sources import DOMAINS as NATIVE_DOMAINS
 from .macos_sources import MacPermissions, NativeRecords, ObjcPlatform, Platform
 from .mlx_runtime import MlxRuntime
@@ -157,6 +157,7 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         anchor=KeychainAnchor(items),
         os_permissions=permissions,
         os_requester=requester,
+        secrets=KeychainSecrets(items),
         records=records,
         closers=closers,
         manifest=load_manifest(data_dir / "models", options.manifest_pubkey),

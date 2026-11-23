@@ -109,6 +109,9 @@ final class AppModel: ObservableObject {
     @Published var finance: LoadState<FinanceView> = .idle
     @Published var healthServed = false
     @Published var health: LoadState<HealthView> = .idle
+    @Published var connectionsServed = false
+    @Published var connections: LoadState<[ConnectorView]> = .idle
+    @Published var connectionMessage: String?
     @Published var review: LoadState<ReviewView> = .idle
     @Published var updates: LoadState<UpdateView> = .idle
     @Published var updateMessage: String?
@@ -170,7 +173,7 @@ final class AppModel: ObservableObject {
     }
 
     /// What the app can really show: the Library appears once something is enabled to search. No domain is listed that has no surface yet.
-    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : []) + (healthServed ? [SourceNames.title("health")] : [])) }
+    var availability: Availability { Availability(library: !scope.isEmpty, lifeAreas: (editsAvailable ? OwnDomain.allCases.map { $0.title } : []) + (financeServed ? [SourceNames.title("finance")] : []) + (healthServed ? [SourceNames.title("health")] : []) + (connectionsServed ? ["Connections"] : [])) }
 
     /// The source types the owner has enabled, in words and as Core names (what is in scope for a question).
     var scope: [String] { grants.compactMap { $0["source_type"] as? String } }
@@ -250,6 +253,46 @@ final class AppModel: ObservableObject {
             healthServed = false
             health = .unavailable(.notAvailableYet)
         } catch { health = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    func loadConnections() async {
+        guard let client else { return }
+        do {
+            connections = ConnectionsOutcome.from(try await Task.detached { try client.connectors() }.value)
+            connectionsServed = true
+        } catch AtlasError.core(let code) where code == "not_found" {
+            connectionsServed = false
+            connections = .idle
+        } catch { connections = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+    }
+
+    /// Connect, check or disconnect one integration. The token goes only to the Core, which keeps it in the Keychain; it is never shown again.
+    func connect(_ id: String, draft: ConnectDraft) async -> Bool {
+        guard let client, draft.problem() == nil else { return false }
+        connectionMessage = nil
+        let fields = draft.fields
+        do {
+            let answer = try await Task.detached { try client.connect(connector: id, address: fields["address"] ?? "", token: fields["token"] ?? "") }.value
+            await loadConnections()
+            guard let view = ConnectionsOutcome.view(from: answer), view.isConnected else {
+                connectionMessage = ConnectionsOutcome.problem(answer["problem"] as? String)
+                return false
+            }
+            if case .needsAttention(let why) = view.state { connectionMessage = why }
+            return true
+        } catch { connectionMessage = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error"); return false }
+    }
+
+    func checkConnection(_ id: String) async {
+        guard let client else { return }
+        connectionMessage = nil
+        do { _ = try await Task.detached { try client.check(connector: id) }.value; await loadConnections() } catch { connectionMessage = (error as? AtlasError)?.message }
+    }
+
+    func disconnect(_ id: String) async {
+        guard let client else { return }
+        connectionMessage = nil
+        do { _ = try await Task.detached { try client.disconnect(connector: id) }.value; await loadConnections() } catch { connectionMessage = (error as? AtlasError)?.message }
     }
 
     func runReview() async {
@@ -484,6 +527,7 @@ final class AppModel: ObservableObject {
             await probeOwnRecords()
             await loadFinance()
             await loadHealth()
+            await loadConnections()
             await loadUpdates()
         } catch { failure = (error as? AtlasError)?.message }
     }

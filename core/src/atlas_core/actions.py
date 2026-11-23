@@ -177,6 +177,11 @@ class ActionGateway:
         with self._lock:
             self._revoked.add(connector)
 
+    def allow_connector(self, connector: str) -> None:
+        """The owner connected it again: its actions are accepted again (a connector that was never connected has no credentials, so they fail rather than act)."""
+        with self._lock:
+            self._revoked.discard(connector)
+
     # -- audit ------------------------------------------------------------------------------------------------------------------------------
     def _log(self, action: str, outcome: str, code: str, payload_hash: str, approval_id: str | None) -> None:
         prev = self.audit[-1].digest if self.audit else GENESIS

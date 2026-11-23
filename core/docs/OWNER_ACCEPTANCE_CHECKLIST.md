@@ -27,6 +27,10 @@ Everything the developer can build and test without hardware, accounts or a real
 16. Update channel: where signed releases are published (needs hosting and your release-signing key; the signed install and rollback from a chosen folder, and the Settings screen, are built and tested). Put the public key at `~/Library/Application Support/Atlas/release.pub` and the screen appears.
 17. Attachment processing (G-O18, separate package).
 
+## D2. Plug in when ready (no developer work; see `PLUG_IN_GUIDE.md`)
+Connect a real service from Connections with its address and token; place the release-signing key; copy the signed model; run the signing script. Each is configuration, not code.
+
 ## E. For the architect
+18a. `connector_transport.py` is a fourth module allowed to open network connections (owner-addressed connector traffic; `test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection` now names it). This widens a rule you own, so it needs your decision.
 18. Docs wording listed in `PROGRAMME_AUDIT.md` ("Discrepancies") and the PR description.
 19. Review of this branch as a whole; decision on PR state. The PR stays draft.

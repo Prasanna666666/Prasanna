@@ -100,6 +100,25 @@ class KeychainItems:
         return fresh
 
 
+class KeychainSecrets:
+    """The connector secret store on the Mac: one Keychain item per name. A read that fails is no secret at all (the connector then shows as not connected), never a guess."""
+
+    def __init__(self, items: KeychainItems) -> None:
+        self._items = items
+
+    def get(self, name: str) -> str | None:
+        try:
+            return self._items.read(f"atlas-{name}")
+        except KeychainError:
+            return None
+
+    def set(self, name: str, value: str) -> None:
+        self._items.write(f"atlas-{name}", value)
+
+    def delete(self, name: str) -> None:
+        self._items.delete(f"atlas-{name}")
+
+
 class KeychainAnchor(RecordAnchor):
     """The designation store's rollback anchor kept OUTSIDE its database, in a Keychain item. One small JSON record; the two-phase rules are `RecordAnchor`'s."""
 

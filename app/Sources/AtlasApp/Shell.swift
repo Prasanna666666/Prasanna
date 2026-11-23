@@ -85,7 +85,7 @@ struct Shell: View {
         case .settings: SettingsView(model: model)
         case .library: LibraryView(model: model)
         case .lifeArea(let name):
-            if let domain = OwnDomain(areaTitle: name) { RecordsView(model: model, domain: domain) } else if name == SourceNames.title("finance") { FinanceAreaView(model: model) } else if name == SourceNames.title("health") { HealthAreaView(model: model) } else { StateNotice(text: UnavailableReason.notAvailableYet.message).padding(Space.xl) }
+            if let domain = OwnDomain(areaTitle: name) { RecordsView(model: model, domain: domain) } else if name == SourceNames.title("finance") { FinanceAreaView(model: model) } else if name == SourceNames.title("health") { HealthAreaView(model: model) } else if name == "Connections" { ConnectionsView(model: model) } else { StateNotice(text: UnavailableReason.notAvailableYet.message).padding(Space.xl) }
         }
     }
 }

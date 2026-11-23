@@ -387,6 +387,90 @@ struct FinanceAreaView: View {
     }
 }
 
+// MARK: Connections
+
+struct ConnectionsView: View {
+    @ObservedObject var model: AppModel
+    @Environment(\.colorScheme) private var scheme
+    @State private var connecting: ConnectorView?
+
+    var body: some View {
+        let theme = Theme(scheme)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Space.lg) {
+                PageHeader(title: "Connections", subtitle: "Services you choose to connect. Atlas asks you first for anything that sends, spends or unlocks.")
+                if let message = model.connectionMessage { StateNotice(text: message, style: .warning) }
+                switch model.connections {
+                case .loaded(let items), .partial(let items, _):
+                    ForEach(items) { card($0, theme) }
+                case .empty: StateNotice(text: "No services are available to connect yet.")
+                case .loading, .idle: StateNotice(text: "Loading.", style: .loading)
+                case .unavailable(let reason): StateNotice(text: reason.message, style: .warning)
+                case .denied(let text), .failed(let text): StateNotice(text: text, style: .problem)
+                }
+            }
+            .padding(Space.xl).readingColumn()
+        }
+        .task { await model.loadConnections() }
+        .sheet(item: $connecting) { item in ConnectSheet(model: model, connector: item) { connecting = nil } }
+    }
+
+    @ViewBuilder private func card(_ item: ConnectorView, _ theme: Theme) -> some View {
+        VStack(alignment: .leading, spacing: Space.sm) {
+            HStack {
+                Text(item.title).font(TextStyle.headline).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Text(item.stateLine).font(TextStyle.caption).foregroundStyle(item.isConnected ? theme.textSecondary : theme.textMuted)
+            }
+            Text(item.summary).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+            DisclosureGroup("What it can do") {
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text("Atlas can read: \(item.reads).").font(TextStyle.secondary)
+                    ForEach(item.changes, id: \.title) { change in Text("\(change.title). \(change.approvalNote)").font(TextStyle.secondary) }
+                    Text(item.offline).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                    Text(item.retention).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                    Text(item.failure).font(TextStyle.caption).foregroundStyle(theme.textMuted)
+                }.padding(.top, Space.xs)
+            }
+            HStack {
+                if item.isConnected {
+                    Button("Check") { Task { await model.checkConnection(item.id) } }
+                    Button("Disconnect", role: .destructive) { Task { await model.disconnect(item.id) } }
+                } else {
+                    Button("Connect…") { connecting = item }.buttonStyle(.borderedProminent).tint(theme.accent)
+                }
+            }
+            Divider()
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+struct ConnectSheet: View {
+    @ObservedObject var model: AppModel
+    let connector: ConnectorView
+    let close: () -> Void
+    @State private var draft = ConnectDraft()
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let theme = Theme(scheme)
+        VStack(alignment: .leading, spacing: Space.lg) {
+            Text("Connect \(connector.title)").font(TextStyle.title).accessibilityAddTraits(.isHeader)
+            TextField("Address of the service", text: $draft.address).textFieldStyle(.roundedBorder)
+            SecureField("Access token", text: $draft.token).textFieldStyle(.roundedBorder)
+            Text("The token is kept in your Mac's Keychain and is never shown again.").font(TextStyle.caption).foregroundStyle(theme.textMuted)
+            if let problem = draft.problem() { Text(problem).font(TextStyle.caption).foregroundStyle(theme.textMuted) }
+            HStack {
+                Button("Cancel", action: close).keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Connect") { Task { if await model.connect(connector.id, draft: draft) { close() } } }.disabled(draft.problem() != nil).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(Space.xl).frame(minWidth: 420)
+    }
+}
+
 // MARK: Health
 
 struct HealthAreaView: View {

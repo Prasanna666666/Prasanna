@@ -68,6 +68,12 @@ public final class CoreClient {
     /// Spending by month and category, computed by the Core from the owner's Finance records (only under a Finance grant).
     public func financeSummary() throws -> [String: Any] { try object(call("GET", "/v1/finance/summary")) }
 
+    /// Every integration the Core knows and whether it is connected. The Core answers not_found when it has no secret store.
+    public func connectors() throws -> [String: Any] { try object(call("GET", "/v1/connectors")) }
+    public func connect(connector id: String, address: String, token: String) throws -> [String: Any] { try object(call("POST", "/v1/connectors/\(id)/connect", ["fields": ["address": address, "token": token]])) }
+    public func check(connector id: String) throws -> [String: Any] { try object(call("POST", "/v1/connectors/\(id)/check", [:])) }
+    public func disconnect(connector id: String) throws -> [String: Any] { try object(call("POST", "/v1/connectors/\(id)/disconnect", [:])) }
+
     /// The owner's review of calendar, finance and health, run by the Core's orchestrator over code agents.
     public func review() throws -> [String: Any] { try object(call("GET", "/v1/review")) }
 

@@ -22,6 +22,7 @@ from .access import OSPermissionProvider, SourceAccess
 from .actions import ActionGateway, AuditFile
 from .api import CoreApi
 from .backup import drill_passed
+from .connectors import Adapter, ConnectorHub, SecretStore
 from .consent import ConsentService
 from .designation import DesignationStore, RollbackAnchor
 from .devices import CoreIdentity, DeviceDirectory
@@ -86,6 +87,8 @@ class CoreConfig:
     )
     erase: Callable[[str], None] | None = None  # the platform's irreversible removal behind the approval-gated `*.erase` actions (None: they do not exist)
     disk_usage: Callable[[Path], tuple[int, int, int]] = shutil.disk_usage  # (total, used, free) of the data folder's disk; tests inject a nearly full one
+    secrets: SecretStore | None = None  # where connector credentials live (the Keychain on the Mac); without it no connectors are offered
+    connector_adapters: Mapping[str, Adapter] | None = None  # vendor adapters that replace the bundled one, by integration id
     os_requester: Callable[[str], None] | None = None  # asks the operating system for a source's permission when the owner turns it on
     updates: UpdateOperations | None = None  # the app's own install, when the Core manages one (the update screen is hidden without it)
     closers: tuple[Callable[[], None], ...] = ()  # what the host opened for the Core (its own stores): closed with the Core
@@ -202,6 +205,7 @@ class Core:
         self.consent = ConsentService(self.designation, self.access, self.indexes, c.os_requester)
         self.clients = c.clients or ClientRegistry(path=c.data_dir / "clients.json")
         self.operations = self._build_operations(c)
+        self.connectors = None if (self.action_gateway is None or c.secrets is None) else ConnectorHub(self.action_gateway, c.secrets, c.connector_adapters)
         self.device_operations = self._build_devices(c)
         self.api = self._build_api(c)
         self.server: UnixServer | None = None
@@ -227,6 +231,7 @@ class Core:
             ops=self.operations,
             devices=self.device_operations,
             updates=c.updates,
+            connectors=self.connectors,
         )
 
     @staticmethod
@@ -244,6 +249,7 @@ class Core:
     def _build_operations(self, c: CoreConfig) -> Operations | None:
         """The owner's own edits store, the Action Gateway over it and the sync service: present only when the Core was given a key for the store."""
         self.edits: RecordStore | None = None
+        self.action_gateway: ActionGateway | None = None
         if c.edits_key is None:
             return None
         self.edits = RecordStore(c.data_dir / "edits.db", c.edits_key, frozenset({"calendar", "contacts", "notes", "travel"}), c.clock)
@@ -257,6 +263,7 @@ class Core:
             self.edits = None
             return None
         gateway = ActionGateway(c.clock, audit, history)
+        self.action_gateway = gateway
         register_record_actions(gateway, self.edits, c.outbox, c.erase)
         edits = self.edits
 

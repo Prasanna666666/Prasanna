@@ -3017,6 +3017,182 @@
         }
       },
       "description": "The owner's review: the orchestrator run over fixed code agents (not models) for the calendar, Finance and Health. Each section answers only under its own grant and says when it is off, empty or not offered; every figure is the one the Core computed by code. Owner client only."
+    },
+    "ConnectorState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "category",
+        "summary",
+        "state",
+        "problem",
+        "read_scopes",
+        "writes",
+        "offline",
+        "retention",
+        "failure",
+        "fields"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,30}$"
+        },
+        "title": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,80}$"
+        },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,30}$"
+        },
+        "summary": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,400}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "not_connected",
+            "connected",
+            "needs_attention"
+          ]
+        },
+        "problem": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "unauthorised",
+                "unreachable"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read_scopes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{3,40}$"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "title",
+              "approval"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z_]{3,40}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,120}$"
+              },
+              "approval": {
+                "type": "string",
+                "enum": [
+                  "never",
+                  "always"
+                ],
+                "description": "`always`: the owner approves each one (the closed list in PRD 4.4). `never`: prompt-free and undoable."
+              }
+            }
+          }
+        },
+        "offline": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "retention": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "failure": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "secret"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z_]{3,30}$"
+              },
+              "secret": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "description": "One connector as the owner sees it: what it can read, what it can change and whether each change asks the owner, how it behaves offline, what is kept and how a failure is reported. Credentials are never part of it."
+    },
+    "ConnectorList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectors"
+      ],
+      "properties": {
+        "connectors": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ConnectorState"
+          }
+        }
+      },
+      "description": "Every integration Atlas knows, connected or not. Owner client only."
+    },
+    "ConnectRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string",
+              "pattern": "^https?://[^\\u0000-\\u0020]{1,300}$"
+            },
+            "token": {
+              "type": "string",
+              "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+            }
+          },
+          "required": [
+            "address",
+            "token"
+          ]
+        }
+      },
+      "description": "The owner connects an integration with the address of the service and an access token. The token is stored in the secret store and is never returned, logged or audited."
     }
   }
 }
