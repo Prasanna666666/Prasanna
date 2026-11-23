@@ -47,7 +47,9 @@ struct PairView: View {
                     Button {
                         if invite.trimmingCharacters(in: .whitespaces).isEmpty { model.message = "Paste or scan the pairing code your Mac shows first." } else { Task { await model.pair(inviteText: invite, label: "My phone") } }
                     } label: { Text("Pair").font(.title3.weight(.semibold)).frame(maxWidth: .infinity) }
-                        .buttonStyle(.borderedProminent)  // never disabled: the audit passed this form of the button when enabled, and a disabled one fails contrast
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(red: 0.0, green: 0.25, blue: 0.55))  // a dark blue: white text on it is far above the 4.5:1 minimum
+                        // never disabled: the audit passed this form of the button when enabled, and a disabled one fails contrast
                 }
                 if let text = model.message { Section { Text(text).foregroundStyle(.secondary) } }
             }
