@@ -170,6 +170,17 @@ jobs:
           brew install xcodegen
           xcodegen generate
           xcodebuild -project AtlasPhone.xcodeproj -scheme AtlasPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Run the accessibility audit and keep screenshots (iOS simulator)
+        working-directory: ios
+        run: |
+          udid="$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")"
+          xcodebuild test -project AtlasPhone.xcodeproj -scheme AtlasPhone -destination "id=$udid" CODE_SIGNING_ALLOWED=NO -resultBundlePath "$PWD/phone-ui.xcresult"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-ui-results
+          path: ios/phone-ui.xcresult
+          if-no-files-found: warn
   macos-mlx:
     runs-on: macos-latest
     steps:
@@ -209,11 +220,19 @@ jobs:
           [ -S "$support/run/core.sock" ] || { echo "the app did not start its Core"; cat /tmp/atlas-app.log; ps aux | grep -i atlas | head; exit 1; }
           core=$(cat "$support/run/core.pid")
           echo "app pid $app, core pid $core"
+          sleep 4
+          screencapture -x /tmp/atlas-launch.png || echo "no screen to capture"
           kill -0 "$core" || { echo "core not running"; exit 1; }
           kill -TERM "$app"
           for i in $(seq 1 20); do kill -0 "$core" 2>/dev/null || break; sleep 1; done
           if kill -0 "$core" 2>/dev/null; then echo "the Core outlived the app"; exit 1; fi
           echo "the app started its Core and the Core stopped with the app"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-app-launch-screenshot
+          path: /tmp/atlas-launch.png
+          if-no-files-found: warn
       - name: Package the app for download
         run: ditto -c -k --keepParent build/Atlas.app Atlas-unsigned.zip
       - uses: actions/upload-artifact@v4

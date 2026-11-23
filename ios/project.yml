@@ -29,3 +29,23 @@ targets:
         SWIFT_VERSION: "5.9"
         CODE_SIGNING_ALLOWED: "NO"
         CODE_SIGN_IDENTITY: ""
+  AtlasPhoneUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - AtlasPhoneUITests
+    dependencies:
+      - target: AtlasPhone
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: invalid.atlas.phone.uitests
+        SWIFT_VERSION: "5.9"
+        CODE_SIGNING_ALLOWED: "NO"
+schemes:
+  AtlasPhone:
+    build:
+      targets:
+        AtlasPhone: all
+    test:
+      targets:
+        - AtlasPhoneUITests
