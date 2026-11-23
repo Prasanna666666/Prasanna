@@ -407,3 +407,20 @@ The historical source register contains D-01–D-45 with detailed descriptions, 
 6. Keep historical records even when superseded or fixed. Mark duplicate/related items as cross-links; never delete or silently merge away their history.
 
 **Scope limitation:** This archive is exhaustive for the fetched GitHub PR discussion/review endpoints and the five named PR #6 source documents. It is not proof that every conversation across every ChatGPT/Claude session has been recovered, nor that all code files have been reviewed. Continue searching available prior context and repository branches/commits for additional sources.
+
+
+## HIST-088 — Prior-conversation owner instructions and product decisions recovered (2026-11-23)
+
+**Status: RECOVERED SUMMARY — FULL HISTORICAL CHAT COVERAGE NOT PROVEN.** A focused prior-conversation retrieval surfaced additional owner instructions and product/design decisions not fully represented by the PR archives. They are recorded in `docs/genesis/PRIOR_CONVERSATION_RECOVERY.md`.
+
+Important records include:
+- Collaboration contract: user is project manager; ChatGPT is planner/architect/integrator/reviewer; Claude is developer/tester/debugger/maintainer; exchanges should be PR-based and auditable.
+- Explicit no-code constraint on 2026-11-19: documentation/architecture/reviews only; Claude owns coding/testing/debugging/maintenance.
+- One Atlas app; consolidation/migration/retirement are developer actions; no destructive cleanup before architecture review/approval.
+- Product direction: unified, local-first personal AI/chief-of-staff; macOS first, cross-platform-ready; Atlas Core plus specialist agents; broad life-domain coverage.
+- High autonomy remains bounded by approval, permissions, auditability and recovery.
+- UI direction from 2026-11-22: immersive, premium, futuristic, expressive, never cluttered; user rejected boring/crowded direction and required Documents/design cleanup.
+- Historical architecture risks: Finance/Health privacy isolation, backup/restore and key recovery, target-hardware performance evidence, excessive first-release scope, reuse of consent/undo/audit/ingestion, local model runtime verification, connector and automation workflow safety.
+- Proposed latency targets and other assistant-authored proposals are not owner-approved acceptance criteria unless confirmed in PR history.
+
+**Limit:** Personal-context retrieval returned selected prior records, not a complete transcript export. Do not claim all historical ChatGPT conversations have been recovered. Continue reconciliation against PR #6–#10 archives, current Genesis documents, repository branches/commits and any additional available prior context. Preserve source/date and distinguish owner decisions from assistant proposals and Claude claims.
