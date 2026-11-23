@@ -44,7 +44,9 @@ struct PairView: View {
                         .font(.callout)
                     TextField("Pairing code", text: $invite, axis: .vertical).textInputAutocapitalization(.never).autocorrectionDisabled()
                     if DataScannerViewController.isSupported && DataScannerViewController.isAvailable { Button("Scan the code") { scanning = true } }
-                    Button("Pair") { Task { await model.pair(inviteText: invite, label: "My phone") } }.disabled(invite.trimmingCharacters(in: .whitespaces).isEmpty)
+                    Button { Task { await model.pair(inviteText: invite, label: "My phone") } } label: { Text("Pair").font(.body.weight(.semibold)).frame(maxWidth: .infinity) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(invite.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 if let text = model.message { Section { Text(text).foregroundStyle(.secondary) } }
             }
