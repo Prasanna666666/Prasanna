@@ -6,6 +6,7 @@ what a page pulls in or a redirect leads to. Skipped where Chromium is not insta
 
 from __future__ import annotations
 
+import contextlib
 import http.server
 import json
 import os
@@ -67,25 +68,27 @@ def engine_args():
 
 
 @needs_engine
-def test_a_page_is_read_as_visible_text_and_nothing_can_be_clicked_filled_or_submitted(engine_args):
+def test_a_page_is_read_as_visible_text_and_nothing_it_does_can_post_anything(engine_args):
     site = Site(
         {
             "/": html(
-                "<h1>Opening hours</h1><p>Monday to Friday 9 to 17</p>"
-                "<form id='f' method='post' action='/send'><input name='who' value='x'><button>Send</button></form>"
-                "<script>document.getElementById('f').submit()</script>"  # a page that tries to post a form by itself
+                "<h1>Opening hours</h1><p>Monday to Friday 9 to 17</p><script>fetch('/send', {method: 'POST', body: 'x'}); fetch('/delete', {method: 'DELETE'})</script>"
             ),
-            "/send": html("sent"),
+            "/form": html(
+                "<p>A form</p><form id='f' method='post' action='/send'><input name='who' value='x'></form><script>document.getElementById('f').submit()</script>"
+            ),
         }
     )
     browser = WorkerBrowser(["127.0.0.1"], ["http"], **engine_args)
     try:
         _final, text = browser.open(f"http://127.0.0.1:{site.port}/")
-        assert "Monday to Friday 9 to 17" in text
+        assert "Monday to Friday 9 to 17" in text  # the page is read as it is
         assert not hasattr(browser, "press") and not hasattr(browser, "fill")  # the engine has no click and no form entry
+        with contextlib.suppress(BrowserBlocked):
+            browser.open(f"http://127.0.0.1:{site.port}/form")  # a form that submits itself
     finally:
         browser.close()
-    assert "/send" not in site.hits, site.hits  # the page's own attempt to post was refused at the gate: a page may read and nothing more
+    assert "/send" not in site.hits and "/delete" not in site.hits, site.hits  # only GET and HEAD ever left the browser: a page may read and nothing more
     site.close()
 
 
