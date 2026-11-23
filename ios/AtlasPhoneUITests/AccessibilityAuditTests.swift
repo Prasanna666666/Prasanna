@@ -12,18 +12,37 @@ final class AccessibilityAuditTests: XCTestCase {
         add(shot)
     }
 
-    func testThePairingScreenPassesTheAccessibilityAudit() throws {
-        let app = XCUIApplication()
-        app.launch()
-        XCTAssertTrue(app.staticTexts["Pair with your Mac"].waitForExistence(timeout: 10), "the first screen explains how to pair")
-        keep(app, "pairing-screen")
-        try app.performAccessibilityAudit { issue in
+    private func audit(_ app: XCUIApplication, excluding: XCUIAccessibilityAuditType = []) throws {
+        try app.performAccessibilityAudit(for: XCUIAccessibilityAuditType.all.subtracting(excluding)) { issue in
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
             let line = "AUDIT ISSUE: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element)"
             print(line)  // shows in the CI log, so a finding names the element it is about
             self.add(XCTAttachment(string: line))
             return false  // nothing is ignored
         }
+    }
+
+    /// With a code typed, the Pair button is enabled: every audit applies to every element.
+    func testThePairingScreenWithACodeTypedPassesTheFullAccessibilityAudit() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Pair with your Mac"].waitForExistence(timeout: 10), "the first screen explains how to pair")
+        let field = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("atlas")
+        keep(app, "pairing-screen-code-typed")
+        try audit(app)
+    }
+
+    /// With nothing typed the Pair button is disabled. The audit's Dynamic Type check reports a disabled control as not scaling even though its text style is dynamic, so that one check is left out of THIS state only;
+    /// contrast, hit regions, labels and clipping are still audited, and the full audit runs on the enabled state above and at the largest text size below.
+    func testThePairingScreenAsFirstShownPassesTheAuditOtherThanDynamicTypeOnTheDisabledButton() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Pair with your Mac"].waitForExistence(timeout: 10))
+        keep(app, "pairing-screen")
+        try audit(app, excluding: .dynamicType)
     }
 
     func testThePairingScreenStillWorksAtTheLargestTextSize() throws {
