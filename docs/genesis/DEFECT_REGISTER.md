@@ -315,3 +315,63 @@ The 29 entries above were **not** the complete historical inventory. A further r
 - Historical O-series items included currency precision, plaintext remnants on real user data, large-response streaming/memory, real ingestion/model performance, date-role ambiguity, workflow/undo, owner-rule exceptions, consent/prompt-injection, real-model verification, older-release migration/rollback, report/extraction completeness, announced truncation, pre-upgrade Images copy, sealed handover/key handling and date-source provenance. Their statuses varied; the legacy tracker must be used for exact status.
 - The original `docs/defects.md` and `docs/comment-tracker.md` contain the detailed D/O rows and review mapping. The original `docs/coverage-matrix.md` contains the 541-entry file-by-file coverage status. These source documents are the authority for legacy details; this new register is an index and does not replace their full history.
 - The historical legacy coverage matrix's 541 entries are **not** the current Atlas 266-file audit scope. They are a separate legacy branch/change-set count and must never be merged into or substituted for the current repository's file inventory.
+
+
+## Third historical recovery — PR #6 open issues and unverified deployment/security gates
+
+Source: original `docs/defects.md`, `docs/security-deployment-review.md`, `docs/ui-review.md`, `docs/testing.md`, `docs/design.md` and `docs/reconciliation.md` at legacy snapshot `c92f5bf471d78695e539e5676973adda048095cc`. These are individually recorded because the prior short inventory did not preserve the actual open/partial status. The original source files remain authoritative for historical dispositions.
+
+### O-series: unresolved or conditional items
+
+| ID | Severity | Category | Historical state and exact gap | Required evidence / disposition |
+|---|---|---|---|---|
+| ATLAS-HIST-063 (O-1) | P2 | Finance currency support | Storage in hundredths does not support currencies requiring three decimal places (KWD/BHD etc.). Typed amounts needing a third decimal are refused; statement imports with non-zero third decimal are held back and cannot be proven. JPY zero-decimal is exact. | Decide whether supported account currencies require per-currency exponents; test statement ingestion and exact reconciliation. Preserve as a documented product limitation until resolved. |
+| ATLAS-HIST-064 (O-4) | P2 | Memory / large responses | Historical 66 MB JSON response peaked at 329 MB (~5× response size); default limit was reduced from 500 MB to 100 MB, but streaming/bounded parsing was not implemented. | Benchmark realistic and adversarial payloads on target hardware; test bounded memory, cancellation and explicit oversize response. |
+| ATLAS-HIST-065 (O-5) | P1 | Real-device performance / OCR / model quality | Reading speed, OCR accuracy and 3B local-model sorting quality had not been measured on owner's actual library/Mac; Finance categorisation had no corrections dataset for measurement. | Record owner-Mac workload, model/version, corpus size, OCR error rates, throughput, categorisation quality and memory/thermal results. |
+| ATLAS-HIST-066 (O-6) | P2 | Document date semantics | Code cannot reliably distinguish invoice date, issue date, due date and payment date without semantic evidence; source line makes it reviewable but does not resolve role ambiguity. | Preserve unknown/ambiguous roles, display source evidence, test multi-date invoices and never infer a date role from proximity alone. |
+| ATLAS-HIST-067 (O-7) | P2 | Undo / recovery | Routine additions had a journal and undo path, but a whole statement import had no single atomic undo; its payments had to be deleted individually. Real-model flow had not been run. | Design and test transaction-level import rollback/undo with durable audit trail; test partial import, restart and real model. |
+| ATLAS-HIST-068 (O-8) | P2 | Consent language governance | English and Dutch yes/delete/undo word lists lived in code, conflicting with the no-hardcoding rule and limiting language extensibility. | Move policy vocabulary to versioned data/configuration with locale tests; retain strict whole-message confirmation semantics. |
+| ATLAS-HIST-069 (O-9) | P2 | UI review completeness | UI review recorded a set of screenshot findings; some were fixed, some partly fixed, some intentional by design. The floating Ask-button fix had no scrolled phone screenshot verification. | Reconcile every UI-A through UI-L item to current implementation and screenshot evidence; keep intentional design decisions explicitly accepted. |
+| ATLAS-HIST-070 (O-10) | P1 | Real-model prompt injection | Real-model resistance to malicious documents/tool-output prompt injection was explicitly not demonstrated; code-level tests and fake model tests were not equivalent to real-model red teaming. | Run a documented adversarial corpus on each supported local model; capture prompts, model version, tool calls, approvals and outcomes. |
+| ATLAS-HIST-071 (O-12) | P1 | Upgrade / rollback | Upgrade tests used historical text dumps; Finance and Documents snapshots were development commits, not releases. Owner's actual older databases and rollback after a failed upgrade were not covered. | Obtain anonymised real-version fixtures, test every supported upgrade path, interrupted migration, backup restore and rollback. |
+| ATLAS-HIST-072 (O-14) | P1 | Health extraction correctness | A model could return the upper/lower endpoint of a printed reference range as the measured result; substring presence was insufficient to prove the value was the result. | Parse test/result/reference-range structure; test boundary values, units, multiple rows and ambiguous layouts; preserve uncertain values as requiring review. |
+| ATLAS-HIST-073 (O-16) | P1 | Plaintext hand-over / Docker | Sealed X25519 + ChaCha20-Poly1305 hand-over existed but was OFF by default and not built/run in Docker. Until enabled and verified, whole-text JSON hand-over remained plaintext in a shared Docker volume (mode 0600, deleted after ingestion). | Build and run both images on target Mac; prove volume contains only sealed files, key isolation, failure retention, ingestion and deletion behaviour. |
+| ATLAS-HIST-074 (O-7 follow-up) | P2 | Routine write undo verification | The journal/undo path had not been exercised with the real model; the statement-import undo gap remained separate. | Cross-link HIST-067; do not treat fake-model/unit tests as end-to-end acceptance. |
+
+### Security, deployment and operational gaps explicitly listed as not inspected or not run
+
+| ID | Severity | Category | Historical gap | Required evidence |
+|---|---|---|---|---|
+| ATLAS-HIST-075 | P1 | Authentication / signed-call lifecycle | Token generation, expiry and reuse in `kit/sign.py` and Atlas token fetch were not inspected end-to-end. | Trace token minting, scope, expiry, rotation, replay and revocation across app boundaries; test tampering and clock skew. |
+| ATLAS-HIST-076 | P1 | Web request security | CSRF and Origin/Host checks beyond Atlas tests, request-size limits and malformed JSON handling across every endpoint were not inspected. | Endpoint inventory plus adversarial tests for CSRF, Host/Origin spoofing, oversized bodies, malformed/deep JSON and error disclosure. |
+| ATLAS-HIST-077 | P1 | Filesystem boundary | Path traversal, symlink handling and file-serving paths were not fully inspected beyond existing tests. | Threat-model every read/write/delete/serve path; test symlink swaps, traversal, hard links, TOCTOU and permission boundaries. |
+| ATLAS-HIST-078 | P1 | Supply-chain / container security | Docker images and dependencies were not scanned as built images; pip-audit in CI did not substitute for image/OS package scanning. Finance and Atlas Dockerfiles were not read in the historical review. | Scan final images, OS packages, Python dependencies and SBOM; inspect every Dockerfile and pin/rebuild policy. |
+| ATLAS-HIST-079 | P1 | Database key lifecycle | Database key creation, Keychain storage and rotation were only partly read; key recovery/rotation remained a critical architecture risk. | Prove key generation, Keychain ACLs, rotation, backup compatibility, loss recovery and no key leakage in env/log/process arguments. Cross-link HIST-045. |
+| ATLAS-HIST-080 | P1 | Backup and restore | Backup/restore scripts were not inspected or run. | Test encrypted backups, integrity verification, restore to clean machine, interrupted backup, retention, key loss and disaster recovery. |
+| ATLAS-HIST-081 | P1 | macOS integration security | Apple Mail integration and Apple Vision sandbox behaviour were not verified on target Mac. | Real macOS permission/TCC tests, least privilege, denied/revoked access, sandbox and file-scope verification. |
+| ATLAS-HIST-082 | P1 | Local model configuration | Ollama configuration and host/network boundary were not fully verified on target Mac. | Verify bind address, firewall, authentication assumptions, no public endpoint, model download/update and offline operation. |
+| ATLAS-HIST-083 | P1 | Operational failure recovery | Disk-full, Docker-unavailable, missing-model and interrupted-startup behaviour had no tests. | Fault-injection for each condition; prove fail-closed behaviour, no corruption/orphans, clear recovery instructions and safe retry. |
+| ATLAS-HIST-084 | P1 | Installer / updater deployment | `up.sh`, `down.sh` and autostart install/removal were not run; the existing up.sh test was a weak source-string check. First install, repeat install, upgrade and rollback of Docker deployment were untested. | Execute full lifecycle on clean macOS machine and recover from interrupted install/update; verify autostart removal and no destructive branch/data changes. |
+| ATLAS-HIST-085 | P2 | Container volume at-rest protection | Named Docker volume lived inside Docker Desktop's disk image; the historical review noted FileVault was the only at-rest protection. | Document and test host-disk encryption assumptions, backup/export handling and residual data on uninstall. |
+| ATLAS-HIST-086 | P2 | Security verification coverage | Historical security review was static or fake-tested in several areas; no claim of end-to-end Mac/Docker verification was justified. | Map every security control to static review, unit test, integration test, real deployment test and owner acceptance separately. |
+
+### Additional historical UI observations retained as traceability obligations
+
+These were documented as UI-A through UI-L in `docs/ui-review.md`; some were later fixed or intentionally accepted. Do not reopen as current defects without checking current UI, but preserve their evidence trail.
+
+- UI-A: Travel hero gradient and Finance sparkline fade conflicted with the one-accent/no-gradient rule.
+- UI-B: Health values used decimal commas while chart axes used decimal points.
+- UI-C: pluralisation error (“1 reports”) and misleading “0 medicines”.
+- UI-D: floating Ask button covered content on phone; the 120 px padding fix was not visually checked with a scrolled phone screenshot.
+- UI-E: “142% monthly vs before” lacked a clear comparison period.
+- UI-F: empty “Due in 3 weeks €0 / 0 payments” cards consumed dashboard space.
+- UI-G: six status pills plus Update wrapped on narrow widths.
+- UI-H: standalone app stubs/empty Finance shell could confuse first-run users; later accepted by design with Open Atlas link.
+- UI-I: Photos showed green connected status while no photo drive was connected.
+- UI-J: pending changes were presented as typed “yes” note, inconsistent with Photos' Confirm button; later Yes/No controls added.
+- UI-K: empty calendar month used large blank grid and pushed “Coming up” below fold.
+- UI-L: empty first-run Finance dashboard did not make the first step sufficiently obvious; later checklist added.
+
+### Register completeness warning
+
+The historical source register contains D-01–D-45 with detailed descriptions, evidence, fixes and tests; O-1–O-17 with explicit open/resolved/partial states; the review tracker includes rejected/conditional claims as well as confirmed findings. The earlier Genesis register only indexed these ID ranges and did not reproduce their individual records. This omission is now explicitly acknowledged. The original legacy files at `c92f5bf471d78695e539e5676973adda048095cc` must remain linked as primary historical evidence. Do not treat the legacy statuses as current Atlas status or assume fixes carried over to the present repository.
