@@ -22,7 +22,7 @@ public final class PhoneEngine {
 
     private func client() -> CoreClient? {
         guard let device = vault.load(), let identity = device.identity, let transport = transportFor(device.address) else { return nil }
-        return CoreClient(transport: transport, signer: identity.key, clientID: identity.id)
+        return CoreClient(transport: transport, signer: identity.signingKey, clientID: identity.id)
     }
 
     // MARK: pairing

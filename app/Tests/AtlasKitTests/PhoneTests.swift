@@ -42,7 +42,7 @@ final class PairingLogicTests: XCTestCase {
         let identity = DeviceIdentity.generate()
         let nonce = PairingExchange.nonce()
         func answer(_ signer: Curve25519.Signing.PrivateKey, nonce: String) -> [String: Any] {
-            let proof = try! signer.signature(for: identity.key.publicKey.rawRepresentation + Data(nonce.utf8))
+            let proof = try! signer.signature(for: identity.signingKey.publicKey.rawRepresentation + Data(nonce.utf8))
             return ["core_public_key": signer.publicKey.rawRepresentation.base64EncodedString(), "proof": proof.base64EncodedString()]
         }
         XCTAssertTrue(PairingExchange.verifyCore(invite: invite, identity: identity, nonce: nonce, response: answer(core, nonce: nonce)))

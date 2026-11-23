@@ -40,12 +40,12 @@ public struct PairingInvite: Equatable {
 
 public struct DeviceIdentity {
     public let id: String
-    public let key: Curve25519.Signing.PrivateKey
+    public let signingKey: Curve25519.Signing.PrivateKey
 
-    public init(id: String, key: Curve25519.Signing.PrivateKey) { self.id = id; self.key = key }
+    public init(id: String, signingKey: Curve25519.Signing.PrivateKey) { self.id = id; self.signingKey = signingKey }
 
     public static func generate() -> DeviceIdentity {
-        DeviceIdentity(id: "phone-" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(24), key: Curve25519.Signing.PrivateKey())
+        DeviceIdentity(id: "phone-" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(24), signingKey: Curve25519.Signing.PrivateKey())
     }
 }
 
@@ -53,7 +53,7 @@ public enum PairingExchange {
     public static func nonce() -> String { UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased() }
 
     public static func request(invite: PairingInvite, label: String, identity: DeviceIdentity, nonce: String) -> [String: Any] {
-        ["code": invite.code, "device_id": identity.id, "label": String(label.prefix(60)), "public_key": identity.key.publicKey.rawRepresentation.base64EncodedString(), "nonce": nonce]
+        ["code": invite.code, "device_id": identity.id, "label": String(label.prefix(60)), "public_key": identity.signingKey.publicKey.rawRepresentation.base64EncodedString(), "nonce": nonce]
     }
 
     /// The device's check of the Core: the key it presented must hash to the fingerprint pinned from the invite, and must have signed THIS device's key and nonce.
@@ -63,7 +63,7 @@ public enum PairingExchange {
               let coreKey = try? Curve25519.Signing.PublicKey(rawRepresentation: keyData) else { return false }
         let fingerprint = SHA256.hash(data: keyData).map { String(format: "%02x", $0) }.joined()
         guard fingerprint == invite.fingerprint else { return false }
-        return coreKey.isValidSignature(proof, for: identity.key.publicKey.rawRepresentation + Data(nonce.utf8))
+        return coreKey.isValidSignature(proof, for: identity.signingKey.publicKey.rawRepresentation + Data(nonce.utf8))
     }
 }
 
@@ -76,7 +76,7 @@ public struct PairedDevice: Equatable {
 
     public init(id: String, keyBytes: Data, fingerprint: String, address: String) { self.id = id; self.keyBytes = keyBytes; self.fingerprint = fingerprint; self.address = address }
 
-    public var identity: DeviceIdentity? { (try? Curve25519.Signing.PrivateKey(rawRepresentation: keyBytes)).map { DeviceIdentity(id: id, key: $0) } }
+    public var identity: DeviceIdentity? { (try? Curve25519.Signing.PrivateKey(rawRepresentation: keyBytes)).map { DeviceIdentity(id: id, signingKey: $0) } }
 }
 
 public protocol DeviceVault: AnyObject {
@@ -119,13 +119,13 @@ public enum DevicePairing {
         guard let transport = transportFor(invite.address) else { return .failed(PairingOutcome.badInvite) }
         let identity = DeviceIdentity.generate()
         let nonce = PairingExchange.nonce()
-        let client = CoreClient(transport: transport, signer: identity.key, clientID: identity.id)
+        let client = CoreClient(transport: transport, signer: identity.signingKey, clientID: identity.id)
         let response: [String: Any]
         do { response = try client.pairDevice(PairingExchange.request(invite: invite, label: label, identity: identity, nonce: nonce)) } catch AtlasError.core(let code) {
             return .failed(PairingOutcome.message(forCoreCode: code))
         } catch { return .failed(PairingOutcome.unreachable) }
         guard PairingExchange.verifyCore(invite: invite, identity: identity, nonce: nonce, response: response) else { return .failed(PairingOutcome.impostor) }
-        let device = PairedDevice(id: identity.id, keyBytes: identity.key.rawRepresentation, fingerprint: invite.fingerprint, address: invite.address)
+        let device = PairedDevice(id: identity.id, keyBytes: identity.signingKey.rawRepresentation, fingerprint: invite.fingerprint, address: invite.address)
         do { try vault.save(device) } catch { return .failed("Atlas could not keep the pairing safely on this phone.") }
         return .paired(device)
     }

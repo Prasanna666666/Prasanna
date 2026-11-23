@@ -6,7 +6,7 @@ import Security
 final class KeychainVault: DeviceVault {
     private let service = "invalid.atlas.phone.pairing"
 
-    private struct Stored: Codable { let id: String; let key: Data; let fingerprint: String; let address: String }
+    private struct Stored: Codable { let id: String; let keyBytes: Data; let fingerprint: String; let address: String }
 
     private var query: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service] }
 
@@ -16,12 +16,12 @@ final class KeychainVault: DeviceVault {
         request[kSecMatchLimit as String] = kSecMatchLimitOne
         var found: CFTypeRef?
         guard SecItemCopyMatching(request as CFDictionary, &found) == errSecSuccess, let data = found as? Data, let stored = try? JSONDecoder().decode(Stored.self, from: data) else { return nil }
-        return PairedDevice(id: stored.id, keyBytes: stored.key, fingerprint: stored.fingerprint, address: stored.address)
+        return PairedDevice(id: stored.id, keyBytes: stored.keyBytes, fingerprint: stored.fingerprint, address: stored.address)
     }
 
     func save(_ device: PairedDevice) throws {
         erase()
-        let data = try JSONEncoder().encode(Stored(id: device.id, key: device.keyBytes, fingerprint: device.fingerprint, address: device.address))
+        let data = try JSONEncoder().encode(Stored(id: device.id, keyBytes: device.keyBytes, fingerprint: device.fingerprint, address: device.address))
         var add = query
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly  // never backed up, never moved to another phone
