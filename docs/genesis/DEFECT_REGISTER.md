@@ -375,3 +375,35 @@ These were documented as UI-A through UI-L in `docs/ui-review.md`; some were lat
 ### Register completeness warning
 
 The historical source register contains D-01–D-45 with detailed descriptions, evidence, fixes and tests; O-1–O-17 with explicit open/resolved/partial states; the review tracker includes rejected/conditional claims as well as confirmed findings. The earlier Genesis register only indexed these ID ranges and did not reproduce their individual records. This omission is now explicitly acknowledged. The original legacy files at `c92f5bf471d78695e539e5676973adda048095cc` must remain linked as primary historical evidence. Do not treat the legacy statuses as current Atlas status or assume fixes carried over to the present repository.
+
+
+## HIST-087 — Complete source-history archive and reconciliation obligation (2026-11-23)
+
+**Status: ARCHIVED — ITEM-BY-ITEM RECONCILIATION STILL OPEN.** The previous register was not a complete record of the GitHub history. Full source material has now been preserved on this branch in the following files:
+
+- `docs/genesis/HISTORICAL_PR6_SOURCE_ARCHIVE.md` — verbatim legacy PR #6 `docs/defects.md`, `docs/comment-tracker.md`, `docs/reviews.md`, `docs/coverage-matrix.md`, and `docs/requirements.md` from snapshot `c92f5bf471d78695e539e5676973adda048095cc` (5 files; 1,054+ source lines; 112,770 characters).
+- `docs/genesis/HISTORICAL_PR6_CONVERSATION.md` — all 41 PR #6 conversation comments (119,327 characters).
+- `docs/genesis/HISTORICAL_PR7_CONVERSATION.md` — all 64 PR #7 conversation comments (223,374 characters), including architecture review, owner decisions, collaboration protocol, delivery planning, hardware/model/runtime decisions, privacy and recovery constraints.
+- `docs/genesis/HISTORICAL_PR8_CONVERSATION.md` — all 188 PR #8 conversation comments (636,834 characters), including successive developer status claims, review responses, owner instructions and acceptance decisions.
+- `docs/genesis/HISTORICAL_PR8_REVIEW_THREADS.md` — all 53 submitted PR #8 reviews and all 58 inline threads / 63 inline comments (233,209 characters), with path, line, resolved/outdated metadata and full comment text.
+- `docs/genesis/HISTORICAL_PR9_CONVERSATION.md` — the PR #9 closure record.
+- `docs/genesis/HISTORICAL_PR10_CONVERSATION.md` — the Stage 3 independent challenge handoff and closure record.
+
+### Retrieval counts and important correction
+
+- PR #6: 41 top-level conversation comments; no inline review threads returned by the GitHub thread endpoint.
+- PR #7: 64 top-level conversation comments; no inline review threads returned by the GitHub thread endpoint.
+- PR #8: 188 top-level conversation comments, 53 submitted reviews, 58 inline threads, and 63 inline comments. At fetch time 21 threads were resolved and 37 unresolved. Earlier register entries indexed the 37 unresolved threads, but the 21 resolved threads and complete review/comment bodies were not all represented there.
+- PR #9: 1 conversation comment. PR #10: 1 conversation comment. No inline threads/reviews returned for either.
+- The 541-entry legacy coverage matrix belongs to the PR #6 historical snapshot. It must not be presented as the current Atlas 266-file inventory.
+
+### Mandatory reconciliation work
+
+1. Parse every legacy D-01–D-45 and O-series entry, each R1–R9 / Gemini review item, every comment-tracker P/R/NEW/C entry, and all UI-A–UI-L items into stable canonical IDs. Preserve original IDs and exact historical disposition.
+2. Reconcile every PR #8 review submission and all 58 inline threads against current HEAD. Do not equate resolved/outdated with verified fixed; preserve the fix claim, exact fixing SHA, test evidence, and independent verification status separately.
+3. Reconcile PR #7 architecture review findings and all owner decisions, including single-app boundary, Finance/Health isolation, no cloud inference, MLX and ~27B benchmark direction, task-based model switching, platform/Core-language decision boundaries, backup/key recovery, scope, performance evidence, approval/undo/audit, migration and owner acceptance constraints.
+4. Cross-reference PR #9 LLD challenge and PR #10 Stage 3 preparation challenge, including every design contradiction, missing acceptance gate and unverified owner-Mac/real-model condition.
+5. Produce a traceability table: source record → canonical ID → affected requirement/design/API/code path → first-seen commit → current-head status → fix commit → regression test → independent review → owner acceptance if required.
+6. Keep historical records even when superseded or fixed. Mark duplicate/related items as cross-links; never delete or silently merge away their history.
+
+**Scope limitation:** This archive is exhaustive for the fetched GitHub PR discussion/review endpoints and the five named PR #6 source documents. It is not proof that every conversation across every ChatGPT/Claude session has been recovered, nor that all code files have been reviewed. Continue searching available prior context and repository branches/commits for additional sources.
