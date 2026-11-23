@@ -50,6 +50,7 @@ struct PairView: View {
                 }
                 if let text = model.message { Section { Text(text).foregroundStyle(.secondary) } }
             }
+            .environment(\.headerProminence, .increased)  // section headings are larger and darker: the audit found the default grey heading's contrast only just short
             .navigationTitle("Atlas")
             .sheet(isPresented: $scanning) { CodeScanner { text in invite = text; scanning = false } }
         }
@@ -211,6 +212,7 @@ struct PhoneSettingsView: View {
                     Text("This erases the pairing, anything saved offline and every change still waiting on this phone. Your Mac is not changed.").font(.footnote).foregroundStyle(.secondary)
                 }
             }
+            .environment(\.headerProminence, .increased)
             .navigationTitle("Settings")
             .confirmationDialog("Unpair this phone?", isPresented: $confirming) { Button("Unpair", role: .destructive) { model.unpair() } }
         }
