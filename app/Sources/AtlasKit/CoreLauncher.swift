@@ -45,7 +45,7 @@ public final class CoreLauncher {
         func ps(_ field: String) -> String? {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/bin/ps")
-            p.arguments = ["-p", String(pid), "-o", field + "="]
+            p.arguments = ["-ww", "-p", String(pid), "-o", field + "="]  // -ww: the whole command line, never cut to a screen width
             let out = Pipe()
             p.standardOutput = out
             p.standardError = FileHandle.nullDevice
@@ -111,6 +111,7 @@ public final class CoreLauncher {
         child.standardError = FileHandle.nullDevice
         signal(SIGPIPE, SIG_IGN)  // a Core that has already exited must not take this app down when the code is written to its closed input
         try child.run()
+        try? FileManager.default.createDirectory(at: pidFile(socket).deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])  // the Core makes this folder a moment later; the record must not wait for it
         let record = Recorded(pid: child.processIdentifier, started: Self.identify(child.processIdentifier)?.started ?? "", socket: socket, dataDir: dataDir)
         try? JSONEncoder().encode(record).write(to: pidFile(socket), options: .atomic)
         do { try input.fileHandleForWriting.write(contentsOf: Data((code + "\n").utf8)) } catch { /* the child is gone: the wait below reports how it ended */ }
