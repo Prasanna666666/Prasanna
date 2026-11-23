@@ -544,3 +544,16 @@ Evidence:
 
 **Required action:** implementation owner should remove the vacuous assertion and retain one clear exact expected-value assertion. This is a test-quality finding, not evidence that the Finance calculation itself failed.
 
+
+
+## HIST-092 — Additional owner instructions and automation/mobile audit leads recovered (2026-11-23)
+
+**Status: RECOVERED — AUTOMATION CLAIMS REQUIRE CURRENT-HEAD REPRODUCTION.** Focused prior-conversation retrieval recovered:
+- Owner's 2026-11-19 direction: only one Atlas app; standalone Finance/Documents/Images identities obsolete as separate apps, while their functionality and data are preserved in Atlas.
+- Owner's 2026-11-19 wording: “only personal work”; prior context says Atlas automates the owner's personal work/life, not its own development. This must be reconciled with canonical G-014's “personal and professional work”; do not infer that business/professional workflows are either included or excluded without resolving the wording.
+- Owner's 2026-11-22 instruction to scrutinize automation connectors and agentic AI workflow because Claude's quality was uncertain.
+- Historical assistant audit leads (not independently verified by this retrieval): dynamic registry/model tool calls and parallel execution; specialist orchestration scaffolded; retries partial; real connectors incomplete; browser/desktop automation not production-ready; timeout enforcement potentially missing; orchestration not wired end-to-end to production API; approval framework existed without complete owner action proposals; end-to-end plan/execute/verify/approve/recover evidence missing.
+- Owner-accepted Atlas-owned automation direction; OpenClaw is not the foundation/dependency. Playwright/native macOS automation/Accessibility/visual fallback and isolated workers are architecture directions, not proof of implementation; general automation was deferred to Stage 6.
+- Mobile chronology: owner asked for worldwide mobile access and selected iOS; current canonical decision record says macOS first, iOS only, Android out of scope. Secure remote access to owner-controlled Mac Core, enrolment/revocation, authentication, encrypted transport, lost-device handling, offline/cache/sync, notification privacy and unreachable state remain gated.
+
+See the expanded source/provenance in `docs/genesis/PRIOR_CONVERSATION_RECOVERY.md`. Treat owner instructions as requirements; treat prior assistant audit statements as leads to reproduce against exact current code. Do not report a component as an end-to-end capability without testing the full chain: discovery, authentication, scope, policy, approval, execution, postcondition verification, receipt/audit, retry/idempotency, undo/compensation, failure recovery and revocation.
