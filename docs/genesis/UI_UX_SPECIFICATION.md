@@ -22,9 +22,11 @@ The PRD and accepted architecture remain authoritative for product scope, privac
 Atlas should feel like a calm, capable, premium macOS personal workspace—not a generic chatbot, an admin console, a collection of mini-apps, or a dashboard crowded with widgets.
 
 The experience must be:
-- **Quietly confident:** deliberate hierarchy, restrained visual emphasis, clear language.
-- **Focused, not empty:** use whitespace to separate meaningful groups; every visible element earns its place.
-- **Useful at a glance:** the home surface answers “what matters, what changed, what needs me?”
+- **Distinctive and intelligent:** Atlas must have a recognisable visual signature—not a generic productivity template or a clone of a stock macOS utility.
+- **Editorial, not administrative:** compose information like a premium intelligence briefing, with strong typography, confident scale, asymmetric layouts where useful and a clear visual narrative.
+- **Rich but disciplined:** use selective colour, layered surfaces, expressive data visualisation, meaningful imagery and subtle motion. The screen can have character without becoming noisy.
+- **Focused, not empty:** whitespace creates hierarchy; it must not become an excuse for oversized blank areas or a timid, under-designed interface.
+- **Useful at a glance:** the home surface answers “what matters, what changed, what needs me?” with one visually dominant story or insight when warranted.
 - **Conversational at its core:** chat is the universal command and explanation surface, not a separate product mode.
 - **Evidence-first:** facts, citations, source inspection and confidence/limitations are understandable without exposing implementation jargon.
 - **Predictable:** consistent navigation, actions, states, terminology and keyboard behaviour.
@@ -38,7 +40,7 @@ Do not ship:
 - A giant empty hero area or a sparse screen that feels unfinished.
 - A generic AI chat clone with a sidebar of unrelated conversations and a blank prompt.
 - Separate user-facing apps or competing navigation systems for Documents, Mail, Finance, Images, Travel or other domains.
-- Decorative gradients, glass effects, glow, excessive shadows, noisy animation or ornamental icons without functional meaning.
+- Cheap decorative gradients, glassmorphism, glow, excessive shadows, noisy animation or ornamental icons without functional meaning. Purposeful art direction, layered depth, rich editorial imagery and subtle motion are allowed when they improve comprehension or give Atlas a recognisable identity.
 - Colour as the only way to communicate status.
 - Raw API states, internal package names, file paths, stack traces, model prompts or policy-engine terminology.
 - Fake activity, fabricated metrics, sample personal data or demo content presented as real.
@@ -58,6 +60,22 @@ Use a restrained neutral foundation with one controlled Atlas accent. The visual
 - **Density:** default to comfortable density. Dense tables or technical detail may use a deliberate compact mode later, never as the default.
 
 Exact colour values, spacing units, type styles, radii, control heights and motion timings must be centralised as named design tokens in the implementation. Do not scatter literal values across views. Claude may select concrete token values consistent with this direction and record them in the implementation's design-token reference; this is an engineering detail, not a new product decision.
+
+**Atlas visual identity — design direction**
+
+The visual identity should combine a sophisticated editorial publication, a modern creative tool and a personal intelligence system. It must feel designed, not assembled from standard cards.
+
+- Establish a recognisable Atlas signature: a deep ink/graphite foundation paired with warm light surfaces, a vivid but disciplined electric accent and carefully tuned semantic colours. Define light and dark palettes as a coherent family; do not simply invert colours.
+- Use typography with character and hierarchy: expressive display scale for the lead insight or section opening, highly legible system text for reading, and tabular/monospaced treatments only where they improve data scanning. Avoid using one uniform text size for everything.
+- Build a clear composition: one strong focal area, supporting information arranged in deliberate secondary zones, and a stable navigation rail. Use asymmetry and varied proportions where they improve storytelling; avoid repetitive equal-sized tiles.
+- Give important content a visual form appropriate to its meaning: timelines for sequences, comparison tables for statistics, sparklines for trends, maps for geography, allocation views for portfolios, and editorial imagery for stories. Never use charts as decoration or invent data to fill them.
+- Use large, beautiful but purposeful visual moments selectively: a lead story image, a distinctive daily insight treatment, a live match context, a portfolio allocation visual or a home energy trend. These moments should be earned by real content and should not all compete on one screen.
+- Use depth sparingly but confidently: subtle tonal shifts, carefully layered panels, crisp dividers and focused elevation. Avoid a flat wall of text and avoid the overused frosted-glass aesthetic.
+- Motion should communicate change: a briefing item arriving, a chart updating, a workspace opening, or a task completing. Keep transitions fast, restrained and interruptible; respect Reduce Motion.
+- The interface should feel alive through changing real content and meaningful state—not pulsing dots, fake live indicators, ambient animation or novelty effects.
+- Do not over-standardise every workspace. Shared identity and components create coherence; domain-specific visualisation creates usefulness and delight.
+
+**Design quality bar:** each primary screen must have a clear focal point, a memorable but restrained visual signature, meaningful content hierarchy, at least one task-appropriate visual treatment where data/content supports it, and polished empty/loading/error states. “Minimal” is not synonymous with plain, generic or unfinished.
 
 
 ### 2.4 Everyday simplicity and progressive disclosure
@@ -132,6 +150,12 @@ Rules:
 
 Home is the only default dashboard. It should feel composed for this moment, not like a fixed grid of widgets. Its content is assembled from a small set of reusable modules and changes only when there is a meaningful reason.
 
+**Visual composition and default hierarchy:**
+- The top of Home should feel like a designed editorial opening, not a greeting followed by a form. Use a confident title/identity treatment and an integrated Ask Atlas command surface that feels like the centre of the product.
+- When a genuinely high-value item exists, give it a visually dominant **Today’s signal** treatment: a short human explanation, a meaningful image or visualisation when appropriate, source/time and one next action. This is the hero moment; do not add a hero merely to fill space.
+- Arrange supporting content in a deliberate asymmetric composition: a compact daily briefing alongside a smaller continuation/attention area where window size permits. On narrow windows, collapse into a clear vertical reading order.
+- Use one or two meaningful visual elements (for example a small trend, match status, timeline or story image) only when they add understanding. Avoid a grid of generic KPI cards.
+
 **Default composition (top to bottom):**
 1. A quiet greeting and one natural-language Ask Atlas entry point.
 2. At most one lead item: the most useful timely insight, reminder, decision or ongoing task. Omit it when nothing qualifies; never manufacture a headline to fill the space.
@@ -168,7 +192,8 @@ The initial viewport should contain no more than three content groups in additio
 
 Explore is not a second Home dashboard or an infinite feed. It is a deliberate reading and discovery space for followed subjects. Its first view is a compact briefing; subject filters and search refine it without adding navigation complexity.
 
-- Start with a small editorial-style “What matters” list: a few high-signal developments, grouped duplicates and a concise “why it matters”. Do not enforce a fixed number when evidence is sparse.
+- Start with a strong editorial lead story or “What matters” composition: a high-signal development, a crisp summary, why it matters, source/time and a purposeful visual when available. Follow it with a short ranked reading list; do not enforce a fixed number when evidence is sparse.
+- Give Explore the visual rhythm of a premium digital journal: varied story treatments, clear topic navigation, strong headlines, useful images and compact source metadata. Do not turn it into a uniform feed of identical cards.
 - Offer simple subject chips/filters (for example AI & technology, science, markets, sport and current affairs) that the owner can change. Do not render a permanent multi-column wall of categories.
 - Let the user switch between a concise briefing and a deeper chronological/topic view. Search and “Ask Atlas about this” should be obvious; advanced filters stay collapsed until requested.
 - Sports content can lead into fixtures, results, Olympics coverage, player/team profiles or historical Statsguru-style queries. Those are focused workspaces launched from Explore or Ask Atlas, not extra dashboard panels permanently shown together.
