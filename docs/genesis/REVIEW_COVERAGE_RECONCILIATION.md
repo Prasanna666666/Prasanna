@@ -1053,5 +1053,5 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-DOC-111 (P2, OPEN)**: profile claims arbitrary service onboarding without an Atlas change although only six fixed catalogue entries exist; its HTTP allow-list prose omits the extra `100.64.0.0/10` and `.ts.net` behavior, the latter already tracked as unsafe ATLAS-CONN-083. Comments **6046321515** and **6046323774** posted.
 - **ATLAS-CONN-110 (P2, OPEN)**: reversible connector undo can silently no-op if `previous` is missing/non-object or credentials are absent, while `ActionGateway.undo()` reports success and marks it undone. Comment **6046323774** posted; tests do not cover these cases.
 - `connectors.json` was fully read and its six catalogue entries/effect values checked; no new defect established. Marked `REVIEWED—NO FINDINGS`.
-- Counts: **52 IN REVIEW; 87 NOT STARTED; 86 REVIEWED—NO FINDINGS; 53 REVIEWED—FINDINGS OPEN (278 total)**. No tests run.
+- Counts recomputed from all 278 path-ledger rows: **49 IN REVIEW; 86 NOT STARTED; 85 REVIEWED—NO FINDINGS; 58 REVIEWED—FINDINGS OPEN (278 total)**. This replaces the inconsistent incremental count in this entry; the path table is the source of truth. No tests run.
 - Next changed file: `core/docs/CONTRACT_1_1.md`.
