@@ -921,3 +921,10 @@ Evidence at PR #8 head `e8ad92dbf7e4a612598cd09aa6d6e9677d297b36`: `core/docs/OW
 **Severity: P2 — OPEN (capability/extension documentation accuracy).**
 
 Evidence at PR #8 head `f9c6d3bb19f45617cd7ef5f025c63d93bfc0bc34`: `core/docs/PLUG_IN_GUIDE.md`, lines 3 and 12. The opening says adding integrations changes configuration, not the app, but the same table requires a developer to add an `Adapter` for a vendor-specific API or add a bundled `connectors.json` catalogue entry; `ConnectorHub.install()` only replaces adapters for existing catalogue IDs and there is no user-defined catalogue registration (related ATLAS-DOC-111). The browser row says workflows are available through the Core, while `host.py::build_config()` sets `web_engine=None` in production and explicitly keeps web reading disabled pending OS-enforced browser-worker confinement. Clarify configuration-only support for existing profile-compatible catalogue entries, developer work for new integrations, and browser unavailability until the confinement gate is met. Review comments posted on lines 3 and 12. No tests run.
+
+
+### ATLAS-DOC-120 — plug-in guide implies Health records can be imported through the Finance-only command
+
+**Severity: P2 — OPEN (capability documentation accuracy).**
+
+Evidence at PR #8 head `a99cbba63f43051e666526ae1e5d311a3f94d578`: `core/docs/PLUG_IN_GUIDE.md`, line 9, groups Finance and Health under `maintenance import-finance` and says to import once. `core/src/atlas_core/maintenance.py` accepts only `backup`, `verify`, `drill`, `restore` and `import-finance`; that importer migrates only a legacy Finance database into the Finance record store. `host.py` creates an empty Health `RecordStore`, but there is no Health importer or HealthKit/native Health source: `macos_sources.DOMAINs` is only calendar/contacts/notes/photos, and `record_actions.py` registers only calendar/contacts/notes/travel. The guide must distinguish the available Finance migration from the not-yet-implemented Health ingestion path, rather than imply the Finance command imports Health. Review comment **6046594708** posted on line 9. No tests run.
