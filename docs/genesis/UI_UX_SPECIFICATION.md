@@ -1,6 +1,6 @@
 # Atlas — UI/UX Product and Design Specification
 
-**Status:** Canonical design baseline — documentation complete; implementation and visual acceptance are separate gates  
+**Status:** Canonical design authority — specification complete; implementation is partially evidenced in `core/docs/UI_IMPLEMENTATION_MAP.md`; owner visual/accessibility acceptance remains open  
 **Owner:** Product owner  
 **Design authority / specification integrator:** ChatGPT  
 **Implementation and design-system engineering:** Claude Code  
@@ -9,7 +9,7 @@
 
 ## 1. Purpose and completion boundary
 
-This document is the binding UI/UX specification for Atlas. It removes the need for Claude to infer the product's visual direction, navigation, screen responsibilities, interaction patterns, states, or design-quality bar from scattered implementation details.
+This document is the binding UI/UX specification for Atlas. It defines the product's visual direction, navigation, screen responsibilities, interaction patterns, states and design-quality bar. Implementation evidence and remaining gaps are maintained in `core/docs/UI_IMPLEMENTATION_MAP.md`.
 
 “UI/UX specification complete” means the design decisions and implementation contract are documented here. It does **not** mean the screens have been implemented, run on the owner's Mac, visually inspected, accessibility-tested, or accepted by the owner. Those are measurable implementation and verification gates in §13. No one may mark those gates passed based on a build, unit tests, screenshots of mockups, or a hosted CI launch alone.
 
@@ -556,43 +556,28 @@ Screenshots must be captured from the running application on the target Mac at a
 - Required state inventory and visual acceptance rubric specified.
 - Claude implementation handoff and evidence requirements recorded.
 
-### Implementation gate — NOT COMPLETE
+### Implementation gate — PARTIALLY IMPLEMENTED (developer evidence; not owner-verified)
 
-Claude owns:
-1. Review this document together with PRD, target architecture, use-case register, accepted Stage 3 plan and the current app code.
-2. Produce a screen-by-screen implementation map: existing view/component → target screen/requirement → gap → planned change.
-3. Implement the reusable design-token layer and app shell/navigation before expanding individual screens.
-4. Implement the approved screen hierarchy and shared components; do not add unapproved product scope.
-5. Keep all existing policy, privacy, contract and consent guarantees intact.
-6. Add automated UI/component/state tests and synchronisation/completeness tests for the UX catalogue.
-7. Build and launch the app on a real Mac; do not treat hosted CI launch as owner-machine verification.
-8. Capture actual screenshots and run the manual design/accessibility walkthrough.
-9. Report exact commit SHA, commands, test results, machine/environment, screenshots, known gaps and any decision requiring owner input.
+The screen-by-screen implementation map is maintained in [`core/docs/UI_IMPLEMENTATION_MAP.md`](../../core/docs/UI_IMPLEMENTATION_MAP.md). It records built and partial surfaces, exact Swift/Core test names, and remaining gaps. At the current documented snapshot, the app shell, navigation, Home, Ask Atlas, task progress, evidence inspection, Library, owner-record life areas, Finance and Health views, Activity, approval sheet and Settings have implementation evidence. Several are partial or have limitations; the map is the detailed source for each one. This status does not mean every product capability or UX requirement is complete.
+
+Still open: persistent conversation history; some component patterns; complete notification controls and durable activity; a reachable owner action-proposal path; source preview and richer Library controls; full visual polish; real-run VoiceOver/keyboard/Dynamic Type/reduced-motion walkthrough; actual owner-machine screenshots in light and dark; owner visual acceptance. The map also records real-source, permission and platform limitations. Do not replace these with generic “UI complete” wording.
 
 ### Architect review gate — NOT COMPLETE
 
-ChatGPT reviews the implementation against this specification and the exact commit, checks traceability and evidence, records findings, and re-reviews fixes. One consolidated review should identify all known defects; do not create repeated review loops for already documented issues.
+The architect must review the exact implementation head against this specification, the PRD and the implementation map. Reconcile every material gap and review finding; hosted unit tests or a successful app launch alone do not constitute acceptance.
 
-### Owner visual acceptance gate — NOT COMPLETE
+### Owner visual and accessibility acceptance gate — NOT COMPLETE
 
-The owner must see and use the real running app, review the key screens and flows, and explicitly accept the visual/interaction result. No proxy, CI run or architect opinion substitutes for this acceptance.
+The owner must run the real app on the target Mac, inspect key screens and flows, capture actual light/dark screenshots, and walk accessibility paths. No mockup, CI run or architect opinion substitutes for this acceptance.
 
 ### Final UI/UX completion rule
 
-The UI/UX phase may be called **fully complete** only when the documentation, implementation, architect review and owner visual acceptance gates are all complete. Until then, report the exact gate completed and the remaining gates without calling the phase finished.
+Call the UI/UX phase fully complete only when the specification, implementation, exact-head architect review and owner visual/accessibility acceptance gates are all complete. Until then, state precisely which gate is evidenced and which remains open.
 
-## 14. Claude handoff — execution instructions
+## 14. Implementation handoff and maintenance
 
-This specification is now the canonical UI/UX contract. Do not ask the owner to restate the visual direction or relay this handoff.
+The specification is the canonical UI/UX contract. The implementation map is the detailed implementation/evidence register; it must be updated whenever screens, states, tests or known gaps change. Do not maintain a second screen inventory in this section.
 
-Work within the existing single PR #8 and branch `genesis-stage2-foundation`. Do not create another PR, merge, alter Stage 3 scope, or claim owner acceptance. Documentation ownership remains with ChatGPT; Claude owns implementation and reproducible evidence.
+Work remains on PR #8 / `genesis-stage2-foundation`. Claude owns UI implementation, tests and reproducible developer evidence; ChatGPT owns canonical product/UX documentation and independent conformance review; the owner retains final visual and release acceptance. Do not create another PR, merge, or claim owner acceptance without authority.
 
-First response on PR #8 must:
-- Acknowledge this specification and identify the exact commit containing it.
-- Provide the screen-by-screen implementation map requested in §13.
-- Identify which current app screens already satisfy the spec and which do not, with file paths and evidence.
-- Propose the smallest coherent implementation sequence, starting with tokens and app shell.
-- State what can be verified in CI versus what requires the owner's Mac.
-- Then implement, test and report in the same PR; do not stop at another plan-only response.
-
-Do not mark a gate complete because code exists. Attach test evidence and actual running-app screenshots. Keep one-PR discipline and exact-commit review discipline.
+For every material UX requirement, keep a trace from the specification section to the view/component, Core contract where applicable, automated test and remaining manual evidence. Do not mark a requirement complete because a view exists. Preserve the uncluttered four-destination navigation and progressive-disclosure rules when adding features.
