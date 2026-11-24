@@ -586,3 +586,23 @@ The above is a targeted review, not a full-file or 278-path sign-off. The curren
 
 
 | ATLAS-EXACT-106 | P1 | Exact arithmetic / numeric correctness | `core/src/atlas_core/exact.py` — `Number.exact_decimal` | **OPEN — independently confirmed at source snapshot `4a09eca`.** Converting a large terminating `Fraction` by `Decimal(numerator) / Decimal(denominator)` uses the default Decimal context precision (28), while the parser permits values up to the configured ~420-digit bound. A result over 28 significant digits can be rounded but returned as `exact_decimal` / `exact: true`. Existing tests do not cover this boundary. Construct the decimal without context rounding or use a derived local precision; add >28-digit and maximum-bound round-trip tests. PR review **6041587567**. |
+
+
+## Exact-head app review continuation — 2026-11-24 (PR #8 head 1af9af98195e7019df766189cf1406215fa5b3b4)
+
+These findings were reproduced by reading the complete 696-line `app/Sources/AtlasApp/AtlasApp.swift` and the complete 19-line `app/README.md` at the stated PR head. They are documentation/source findings only; no application code or tests were changed and no tests were executed.
+
+### ATLAS-DOC-052 — macOS app README contradicts current CI evidence
+**Severity: P2 — OPEN.**
+
+The README correctly says a human has not walked through the UI, but it also says “The app has not been run: no window … has been seen”, says the Swift launcher/client has not been tested against a real child Core, and says packaging the Core into the app is not built. At this head, `.github/workflows/ci.yml` has a macOS `app` job that runs `scripts/package_mac.sh`, launches the packaged Atlas executable, checks the Core socket/process lifecycle and captures a screenshot; the `mac-ui` job runs the macOS accessibility UI test; the `macos` job runs `swift build` and `ATLAS_CI_PYTHON=… swift test`, including `EndToEndTests.swift` against a real Python Core. The README must distinguish automated hosted-CI launch/UI audit from a human owner-Mac walkthrough, and describe packaging as implemented/tested in CI while keeping signing/notarisation, real TCC/Mail and owner-Mac acceptance as gaps. Existing PR comment: 6045284683.
+
+### ATLAS-APP-052 — cancel can target the previous task during a new submission
+**Severity: P2 — OPEN.**
+
+In `AppModel.ask()`, a new submission sets `busy = true` and awaits `client.ask(...)` before assigning the returned identifier to `currentTaskID`. The prior `currentTaskID` is not cleared before that await. `cancel()` cancels whatever identifier is currently stored. If the user starts a second task and presses Stop before the new `client.ask` returns, the Stop action can cancel the previous task instead of the newly submitted task (or no-op if the prior task is already terminal). Clear/replace the identifier atomically with submission state and bind Stop to the active turn; add a deterministic delayed-response regression test.
+
+### ATLAS-APP-053 — failed Undo is silently treated as success
+**Severity: P2 — OPEN.**
+
+`AppModel.undoLast(domain:)` discards the result of `client.undo(actionID:)` with `try?`, then clears `undoActionID` and `undoLabel` unconditionally. A Core/network/authorization failure therefore removes the only retry affordance and gives the UI no indication that the undo did not happen. Preserve the undo handle and show an error unless the Core confirms success; add a failure-path test.
