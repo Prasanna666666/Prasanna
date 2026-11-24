@@ -701,3 +701,14 @@ Evidence: `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift`, `measuredContra
 **Severity: P1 — OPEN.**
 
 Evidence: `app/Sources/AtlasKit/OfflineSync.swift`, `OfflineQueue.init(store:)` (blob `d489f50d22fbd235407a0bd88279f2262c036208`). If the persisted queue bytes cannot decode as `[QueuedOperation]`, `try?` converts the error to nil and the initializer substitutes `[]`. The phone then reports zero pending changes; the next enqueue/persist can overwrite the corrupt original bytes. A crash/partial write or storage corruption can therefore silently discard queued offline edits with no recovery notice. Preserve the original bytes and expose a blocking/recovery state on decode failure; never present corruption as an empty queue or overwrite it automatically. Add malformed/truncated queue and subsequent-enqueue tests.
+
+
+### ATLAS-BENCH-073 — ingest benchmark misreports peak RSS on macOS
+**Severity: P3 — OPEN.**
+
+Evidence: `core/bench/ingest.py`, `measure()` (blob `dee08e35145e8b166897f960800e9d3897fea5c1`, inspected at PR head `3412885e218f65665dd8023325800c226e612201`). It divides `resource.getrusage(...).ru_maxrss` by 1024 for every platform. macOS reports `ru_maxrss` in bytes while Linux reports KiB, so the emitted `peak_rss_mb` is approximately 1024 times too large on macOS. Normalize units by platform (or use a portable memory measurement) and add platform-specific tests/documentation.
+
+### ATLAS-DOC-074 — Core README describes a much older, featureless repository snapshot
+**Severity: P2 — OPEN.**
+
+Evidence: `core/README.md` (blob `2c533cfaae18f64d60d318f9597ed98beb2ff97a`, inspected at PR head `3412885e218f65665dd8023325800c226e612201`). It says the Core has no ingestion, search or Mail reading, no real model, no Swift/SwiftUI, no remote/iOS access and no actions. The current PR/repository contains document and Mail ingestion/search, model/worker code, the Swift app, remote phone transport/iOS client and action/connector infrastructure. This is a material mismatch for the Core's entry-point documentation; rewrite it to describe the current repository and clearly distinguish implemented, test-covered, and not-yet-accepted capabilities.
