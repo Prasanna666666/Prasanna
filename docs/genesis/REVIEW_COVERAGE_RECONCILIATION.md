@@ -321,11 +321,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/CoreLauncher.swift` | source | REVIEWED—FINDINGS OPEN | All 166 lines at blob 9487c31; stale comment says packaging not built, contradicted by CI packaging job (ATLAS-DOC-052); lifecycle/reaping/identity logic inspected |
 | `app/Sources/AtlasKit/Finance.swift` | source | REVIEWED—FINDINGS OPEN | All 87 lines at blob 5da7d8d; ATLAS-FIN-063 zero delta is labelled “more” |
 | `app/Sources/AtlasKit/GetStarted.swift` | source | REVIEWED—NO FINDINGS | All 23 lines at blob bf9fa0c; default-deny first-run choices, no-grant empty choice and completion gating inspected |
-| `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full) |
-| `app/Sources/AtlasKit/Health.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Library.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Lifecycle.swift` | source | IN REVIEW | Targeted task/phase state mapping |
-| `app/Sources/AtlasKit/Navigation.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/HTTPTransport.swift` | source | REVIEWED—NO FINDINGS | All 45 lines at blob 42e491c; HTTPS/private HTTP gate, no-redirect policy, cookie isolation, bounded response and response header normalization inspected |
+| `app/Sources/AtlasKit/Health.swift` | source | REVIEWED—NO FINDINGS | All 57 lines at blob 4d2274e; health basis labels, measured/estimated/unlabelled counts, unit preservation and unknown-state handling inspected |
+| `app/Sources/AtlasKit/Library.swift` | source | REVIEWED—NO FINDINGS | All 67 lines at blob e433872; result allow-list mapping, coverage, partial/no-result/denied states and stable title sorting inspected |
+| `app/Sources/AtlasKit/Lifecycle.swift` | source | REVIEWED—NO FINDINGS | All 89 lines at blob 4d1b6c9; explicit Core-state allow-list, terminal/cancel rules and monotonic phase tracking inspected |
+| `app/Sources/AtlasKit/Navigation.swift` | source | REVIEWED—NO FINDINGS | All 97 lines at blob 9e4edd8; destination restoration, availability filtering, responsive breakpoints and shortcut bounds inspected |
 | `app/Sources/AtlasKit/Notifications.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full) |
 | `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full) |
@@ -812,3 +812,8 @@ The current branch contains additional exact-file reviews recorded by a parallel
 - `Activity.swift` was read in full (69 lines, blob `14c66e0211453fb5befffa94d1a006ff95a5b5a5`); the model's deduplication and attention projection are sound. The missing Activity-screen feed remains **ATLAS-APP-056** against `Screens.swift`, not a defect in this model file.
 - `Components.swift` and `Shell.swift` are findings-open only for the potential terminal-approval dismissal issue; verify in a macOS UI test before treating it as a confirmed user trap. `Speaker.swift` remains no-findings.
 - Updated inventory: **278 total; 133 IN REVIEW; 127 NOT STARTED; 13 REVIEWED—NO FINDINGS; 5 REVIEWED—FINDINGS OPEN**.
+
+
+### Transport, health, library, lifecycle and navigation review — 2026-11-24
+
+At PR #8 head `77e584b3a4a13dbe9266fa13cf298e5fabdc5df5`, all five files were read in full: `HTTPTransport.swift` (45 lines, blob `42e491ccda9d4f516332564e30926d19a95d3f89`), `Health.swift` (57 lines, blob `4d2274eda747907ec27ff9f13820c8a5d1100499`), `Library.swift` (67 lines, blob `e433872979892bef3382fb04589f134ed4a54443`), `Lifecycle.swift` (89 lines, blob `4d1b6c99974019b41d0d8d36dcf92378f5f97271`) and `Navigation.swift` (97 lines, blob `9e4edd8b04eb25a6a61c77a4029fe7a9b9f26d93`). Reviewed remote URL/TLS/redirect/response bounds, health provenance and units, library state and coverage mapping, task phase transitions, and availability-based navigation/restoration. No independent defects established in these files. No tests run locally.
