@@ -5,7 +5,7 @@
 **Package owner:** ChatGPT — Architect / Integrator  
 **Implementer after authorisation:** Claude  
 **Owner / final authority:** User  
-**Approval basis:** G-O17 accepted by the owner on 2026-11-20; the owner waived the ChatGPT package-acceptance gate and explicitly authorised Stage 2 on 2026-11-20. Implementation acceptance remains subject to independent review; Stage 3 is not authorised.
+**Approval basis:** G-O17 accepted by the owner on 2026-11-20; the owner waived the ChatGPT package-acceptance gate and explicitly authorised Stage 2 on 2026-11-20. Stage 2 was subsequently accepted for its reviewed Core scope at exact commit `58210223398a5715b618d1163397104efd358d49` (PR #8 comment 7047659436); later commits are not automatically covered. Stage 3 was separately authorised under G-027 and remains not accepted.
 
 ## 1. Objective
 
