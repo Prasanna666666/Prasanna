@@ -447,14 +447,14 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/models.py` | source | IN REVIEW | Targeted model runtime/validation interfaces |
 | `core/src/atlas_core/operations.py` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 402ca45; owner action origin, approval/undo routing, versioned records, sync facade and device pairing/revocation API mapping inspected |
 | `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full: 1–242 |
-| `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 9–45, 70–180 |
+| `core/src/atlas_core/policy-rules.json` | source | REVIEWED—NO FINDINGS | All 182 lines at blob 7daaec1; sensitivity ordering, restricted/deferred source types, token/context limits, attachment disclosures and record field schemas inspected |
 | `core/src/atlas_core/policy.py` | source | REVIEWED—NO FINDINGS | All 158 lines at blob 16108ea; grant identity/ceiling binding, default-deny reasons, restricted/deferred domains and current-grant revalidation cross-checked with gate.py |
 | `core/src/atlas_core/record_actions.py` | source | REVIEWED—NO FINDINGS | All 56 lines at blob 16dbc4f; only registered record domains, versioned reversible create/edit/archive, approval-gated purge and optional outbox inspected |
 | `core/src/atlas_core/records.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/recordstore.py` | source | REVIEWED—NO FINDINGS | All 213 lines at blob 1f07bb7; SQLCipher store, transactional history, expected-version writes, soft delete and latest-change-only undo inspected |
 | `core/src/atlas_core/relay.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/review.py` | source | IN REVIEW | Full: 1–141 |
-| `core/src/atlas_core/rules.py` | source | IN REVIEW | Full: 1–34 |
+| `core/src/atlas_core/rules.py` | source | REVIEWED—NO FINDINGS | All 60 lines at blob 436fbe1; JSON loading, sensitivity lookup/ranking, deferred/restricted rules, limits and disclosure helpers cross-checked with policy tests |
 | `core/src/atlas_core/sandbox.py` | source | REVIEWED—NO FINDINGS | All 165 lines at blob 80210f0; seccomp arch/syscall/domain filter, io_uring block, macOS deny profile, private-read and Mach allow-list checked against tests |
 | `core/src/atlas_core/serve.py` | source | IN REVIEW | Targeted CLI flags/options |
 | `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 326–347, 554–621 |
@@ -985,3 +985,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - Cross-checked `GatedRetrieval` and `GatedModel`: policy revalidation occurs before retrieval and at the model door; token expiry, permit ID binding, source-type grant identity/ceiling and sensitivity labels are checked. No new policy defect established in this pass.
 - Rows moved to `REVIEWED—NO FINDINGS`. This does not replace real connector/OS permission acceptance or the separate access-provider limitations already recorded.
 - Updated path counts: 58 IN REVIEW; 91 NOT STARTED; 81 REVIEWED—NO FINDINGS; 48 REVIEWED—FINDINGS OPEN (278 total). No local tests run.
+
+### Policy rules data and loader review — 2026-11-24
+
+- `core/src/atlas_core/rules.py` (60 lines, blob `436fbe168ee7de1a30da7df39241aeae7f81f7b1`) and `core/src/atlas_core/policy-rules.json` (182 lines, blob `7daaec199c1e535a29fa94ab7d79c8ed006858bd`) were read in full.
+- Cross-checked the JSON's source sensitivity map, Finance/Health restricted status, Mail-attachment deferral, token/context/event limits, attachment disclosures, and per-domain record field/required/kind rules against `PolicyEngine` and `test_policy.py`. No configuration mismatch or source-level defect established in this pass.
+- Both rows moved to `REVIEWED—NO FINDINGS`; no standalone rules test file exists, so behavior is covered through the policy integration tests. No local tests run.
+- Updated path counts: 56 IN REVIEW; 91 NOT STARTED; 83 REVIEWED—NO FINDINGS; 48 REVIEWED—FINDINGS OPEN (278 total).
