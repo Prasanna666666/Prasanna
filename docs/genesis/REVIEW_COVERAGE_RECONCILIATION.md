@@ -578,3 +578,49 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `scripts/package_mac.sh` | script/tool | IN REVIEW | Targeted: 3–19 |
 | `scripts/sign_and_notarize.sh` | script/tool | NOT STARTED | — |
 
+
+
+## Live continuation — 2026-11-24, PR #8 head 7d4ac42
+
+**Exact review target:** `7d4ac42bf537a10d950818fe91f855817c6c5ade` (branch `genesis-stage2-foundation`, base `atlas` at `7a3b4479bcbb27fb2bab570759ad14851c78e945`). Live PR metadata: open, draft, unmerged; 278 changed paths; +62,948 / 0 deletions. The 278-path inventory and prior 136/142 targeted/not-started split are historical snapshots; this pass does not silently carry those counts forward as current-head coverage.
+
+### Current GitHub review state
+- 58 inline threads: 21 resolved, 37 unresolved; 43 marked outdated. Preserve all IDs; outdated is not fixed.
+- 53 submitted review records; all attributed by GitHub to the repository owner's login. Historical archive counts remain separate from live review objects.
+- No approval, merge, or thread resolution performed by this pass.
+
+### Exact-head source/test/document units inspected in this continuation
+Targeted source and test inspection (not full-file certification) included:
+- `core/src/atlas_core/egress.py` (409 lines): taint fingerprints, URL/redirect checks, transport and residual guarantee.
+- `core/tests/test_egress.py` (336 lines): private-name/phrase, URL encoding, redirect and residual tests.
+- `core/src/atlas_core/sandbox.py` (165 lines), `worker.py` (120 lines), `launcher.py` (107 lines), and `core/tests/test_isolated.py`: OS sandbox profile, launch verification and worker startup.
+- `core/src/atlas_core/macos.py` (521 lines) and `core/tests/test_macos.py`: bounded EMLX header/MIME scanning, attachment read boundaries and identity revalidation.
+- `app/Sources/AtlasApp/AtlasApp.swift` (696 lines), `app/Sources/AtlasKit/CoreLauncher.swift` (166 lines), and `core/src/atlas_core/transport.py` (202 lines): app termination, Core reaping, socket ownership and startup.
+- `core/src/atlas_core/browser.py`, `browser_engine.py`, `browser_worker.py`, `actions.py`, `connectors.py`: browser action refusal, worker process boundary, action state and connector authority.
+- `core/tests/test_architecture.py`, `core/docs/STAGE3_ACCEPTANCE.md`, `docs/genesis/STAGE-3-EXECUTION-PLAN.md`, this coverage ledger and the defect register.
+
+These are focused sections/symbols, not every line of every named file. No local test suite was run by this reviewer; the CI evidence below was read from GitHub Actions.
+
+### Exact-head CI evidence — failing
+Workflow run **45388238509** for this exact head completed with conclusion **failure**. The `macos` job failed at “Core tests on macOS”; its suite summary is **2 failed, 1,401 passed, 3 skipped**. The two failures are:
+1. `tests/test_architecture.py::test_canonical_documents_have_no_unlabelled_superseded_policy`: 32 unlabelled historical/superseded policy lines were detected, including in `BRANCH_HISTORY_RECONCILIATION.md`, `HISTORICAL_PR7_CONVERSATION.md`, `HISTORICAL_PR8_CONVERSATION.md`, and `HISTORICAL_PR8_REVIEW_THREADS.md`.
+2. `tests/test_architecture.py::test_there_is_exactly_one_delivery_roadmap_and_it_is_in_the_target_architecture`: a second roadmap definition is detected in `HISTORICAL_PR8_CONVERSATION.md`.
+
+The remaining jobs succeeded, including core 3.11/3.13, macos-mlx, mac-ui, app, iOS, security and web. The overall run remains failed. A PR conversation comment documenting this evidence was posted as **7135079286**. Required disposition: label/archive historical evidence so canonical-policy scans exclude it without deleting or altering the archive; rerun the full workflow.
+
+### Revalidated findings and boundaries at this head
+- **ATLAS-ACT-015 — VERIFIED FIXED for the narrow reported bypass:** `browser.py` refuses `fill` and `press`; the real route is read-only GET/HEAD. This does not approve general browser automation.
+- **ATLAS-SEC-017 — VERIFIED FIXED only for returned verdicts:** `ConnectorHub._apply()` enables authority only for `ok` and revokes for other returned verdicts. **ATLAS-CONN-025 remains OPEN:** explicit `check()` calls the adapter without exception handling; if it raises, the prior authority is not revoked. `verify_all()` does catch exceptions, but that does not repair the explicit-check path.
+- **ATLAS-SEC-014 — PARTIALLY ADDRESSED:** current code fingerprints every 4+ letter non-function word, two-word passage runs and names; tests cover lowercase names, phrases, encoded URL components and redirects. The module explicitly disclaims a guarantee for paraphrases and 1–3-character terms. Public egress must remain disabled pending the stated owner decision and real-Internet/owner-Mac evidence.
+- **ATLAS-SEC-016 — OPEN:** browser worker remains a same-user subprocess with `SAFE_ENV` explicitly passing `HOME` and `PYTHONPATH`; no OS-enforced confinement is applied to the browser worker/Chromium process tree. Model-worker sandbox work does not close this separate browser-worker finding.
+- **ATLAS-OPS-018 — SOURCE CHANGE PRESENT, NOT VERIFIED CLOSED:** Swift CoreLauncher now records PID/start time/socket/data directory, rechecks identity before force-kill, and probes for a live listener before unlinking. Exact-head Swift test/CI evidence was not independently mapped to this finding in this pass; retain pending.
+- **ATLAS-ACT-019 — OPEN:** ActionGateway's approvals, completed receipts, idempotency map and revoked-action set are in-memory dictionaries; supplying/loading audit history restores the audit list, not those execution-state maps. Restart-safe retry/undo is not demonstrated.
+- **ATLAS-CONN-025 — OPEN:** explicit adapter re-check exception can preserve previously granted connector authority; revoke on every exception and test action denial.
+
+### Sandbox and Mail revalidation notes
+The model worker no longer trusts a caller-provided “skip sandbox” flag: startup calls `sandbox.install_network_deny()`, and macOS verifies OS confinement through active probes. The macOS model profile denies network, writes (except /dev/null), reads under private roots, process execution outside the Python runtime, and unlisted Mach lookups; it is explicitly documented as **not least privilege**. Hosted `macos-mlx` passed with a real small MLX model, but owner-Mac verification and the selected model remain outstanding. This is distinct from the still-unconfined browser worker.
+
+The EMLX parser now reads bounded headers and walks MIME delimiters line-by-line; it stops before a non-text attachment payload and rechecks Message-ID when reopening a listed message. Focused tests include a small attachment inside the former 4 KiB read-ahead window. The acceptance claim is supported by those instrumented tests, subject to exact full-suite CI (currently blocked by the two unrelated architecture-document tests).
+
+### Current disposition
+This is a targeted exact-head continuation, not completion of the 278-path audit. No claim is made that all 278 paths, every function, every requirement/design statement, all 43 outdated threads, all historical findings, or all divergent branches have been exhaustively reviewed. Continue the path ledger and historical-finding revalidation; do not mark the PR or Stage 3 accepted. No application source, tests, build files or configuration were changed.
