@@ -373,7 +373,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/contracts/openapi-1.1.yaml` | contract/schema | REVIEWED—FINDINGS OPEN | 1155 lines, blob `b88d2daa`; 39 paths/42 operations, 32 paths additive; ATLAS-OPENAPI-108 stale support/status text and missing unsigned enrol/pair security overrides; comments 6046224427/6046226450 |
 | `core/contracts/openapi.yaml` | contract/schema | REVIEWED—NO FINDINGS | All 103 lines read at blob ccf62f7; frozen 1.0 API paths, signed request scheme and schema references inspected |
 | `core/docs/ADR_STORAGE_KEYS.md` | documentation | REVIEWED—FINDINGS OPEN | 31 lines, blob `e058e713`; key inventory/backup scope omit live stores and action audit; claims LaunchAgent startup though only plist helper exists and app uses CoreLauncher; ATLAS-DOC-109 |
-| `core/docs/BENCHMARK.md` | documentation | NOT STARTED | — |
+| `core/docs/BENCHMARK.md` | documentation | REVIEWED—NO FINDINGS | 21 lines, blob `330fa5c7`; overhead benchmark scope and reported run metadata cross-checked against `bench/overhead.py`, `conftest.World`, and SQLCipher connection; target-Mac/answer-latency claims explicitly provisional |
 | `core/docs/CONNECTOR_PROFILE.md` | documentation | NOT STARTED | — |
 | `core/docs/CONTRACT_1_1.md` | documentation | NOT STARTED | — |
 | `core/docs/DESIGN.md` | documentation | NOT STARTED | — |
@@ -1039,3 +1039,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - Added **ATLAS-DOC-095 (P2)**: the scanner opens its resolved root by pathname on each operation; `O_NOFOLLOW` protects only the final root component, not parent components swapped to symlinks after initialization. Existing race tests cover descendants but not root ancestors.
 - Both source and test rows are findings-open. No local tests run.
 - Updated path counts: 49 IN REVIEW; 89 NOT STARTED; 83 REVIEWED—NO FINDINGS; 57 REVIEWED—FINDINGS OPEN (278 total).
+
+### Benchmark baseline documentation review — 2026-11-24
+
+- `core/docs/BENCHMARK.md` (21 lines, blob `330fa5c7ad57533c980b305b19a375ff8572e412`) cross-checked against `core/bench/overhead.py` (88 lines, blob `e02e7840c0a5cf479c58d780fc12cfde173908bb`), `core/tests/conftest.py` (`World` uses a stub retriever/model and encrypted `TaskStore`), `kit/src/kit/db.py` (SQLCipher is used when a key is supplied), and the project dependency configuration.
+- The report correctly scopes the baseline to foundation overhead with stubs, labels the Linux developer-container run as neither CI nor target-Mac evidence, identifies the one-sample create-task measurement, and leaves real answer latency/target-Mac measurements provisional. The reported script parameters and operation names match the current benchmark harness. No new documentation defect established; no benchmark was run in this review.
+- Marked `REVIEWED—NO FINDINGS`. Counts: **52 IN REVIEW; 90 NOT STARTED; 85 REVIEWED—NO FINDINGS; 51 REVIEWED—FINDINGS OPEN (278 total)**.
+- Next file: `core/docs/CONNECTOR_PROFILE.md`.
