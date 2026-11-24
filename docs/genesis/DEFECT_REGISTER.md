@@ -583,3 +583,6 @@ The original snapshot above is not the current PR head. The following dispositio
 
 ### Exact-head evidence limitation
 The above is a targeted review, not a full-file or 278-path sign-off. The current CI run is failing; no test suite was executed locally by this reviewer. The model-worker macOS sandbox has hosted-runner evidence, but owner-Mac and real-Internet evidence are still absent. The browser worker is a separate boundary and remains open.
+
+
+| ATLAS-EXACT-106 | P1 | Exact arithmetic / numeric correctness | `core/src/atlas_core/exact.py` — `Number.exact_decimal` | **OPEN — independently confirmed at source snapshot `4a09eca`.** Converting a large terminating `Fraction` by `Decimal(numerator) / Decimal(denominator)` uses the default Decimal context precision (28), while the parser permits values up to the configured ~420-digit bound. A result over 28 significant digits can be rounded but returned as `exact_decimal` / `exact: true`. Existing tests do not cover this boundary. Construct the decimal without context rounding or use a derived local precision; add >28-digit and maximum-bound round-trip tests. PR review **6041587567**. |
