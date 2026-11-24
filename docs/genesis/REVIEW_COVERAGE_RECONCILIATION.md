@@ -387,7 +387,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/PROGRAMME_AUDIT.md` | documentation | REVIEWED—FINDINGS OPEN | 53 lines, blob `935605a`; checked Stage 0–3 claims, egress residual, Stage 4–8 chronology, exact-head run, live path counts and threads; ATLAS-DOC-121: snapshot stale, egress guarantee overclaimed and undated “no Stage 4 work” claim; comments 6046604381, 6046644186, 6046656168 |
 | `core/docs/ROLLBACK.md` | documentation | REVIEWED—FINDINGS OPEN | 11 lines, blob `84051fc`; cross-checked current backup.py inventory, host key provisioning, updater rollback and app/iOS/Core scope; ATLAS-DOC-122: Stage 2 task-store-only rollback is not a safe current PR8 data/rollback plan; comment 6046622739 |
 | `core/docs/STAGE3_ACCEPTANCE.md` | documentation | REVIEWED—FINDINGS OPEN | 61 lines, blob `ecf872c`; reviewed evidence taxonomy, criteria 5/11, API/consent and current owner-grant/source paths; ATLAS-DOC-019: undefined R evidence class and separate research API mislabeled as answer-flow integration; ATLAS-DOC-123: Finance/Health grant and ingestion status overstated; 11 prior outdated threads remain open; comment 6046711813 |
-| `core/docs/STAGE3_HANDOVER.md` | documentation | NOT STARTED | — |
+| `core/docs/STAGE3_HANDOVER.md` | documentation | REVIEWED—FINDINGS OPEN | 47 lines, blob `cb808c6`; checked rollback scope, Finance/Health grant and ingestion status, criterion completion and egress API semantics; ATLAS-DOC-124: PR-wide rollback scope false, criterion 2/7/8 completion overclaimed, egress API misdescribed; cross-links DOC019/123/122; comment 6046748574 |
 | `core/docs/STAGE3_TRACEABILITY.md` | documentation | IN REVIEW | Targeted: 1–28 |
 | `core/docs/STAGE3_WP3_1_PROPOSAL.md` | documentation | NOT STARTED | — |
 | `core/docs/STAGES_4_TO_8.md` | documentation | IN REVIEW | Targeted: 65–102 |
@@ -1176,3 +1176,12 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - The existing 11 review threads on this file are all **outdated and unresolved**; none were resolved. They remain preserved for re-anchoring, not counted as proof that the current wording is correct.
 - Row moved from `IN REVIEW` to `REVIEWED—FINDINGS OPEN`. No tests run. Counts recomputed: **86 REVIEWED—NO FINDINGS; 69 REVIEWED—FINDINGS OPEN; 46 IN REVIEW; 77 NOT STARTED (278 total)**.
 - Next changed file: `core/docs/STAGE3_HANDOVER.md` (already in review; continue from its recorded scope).
+
+
+### Stage 3 handover review — 2026-11-24
+
+- `core/docs/STAGE3_HANDOVER.md` (47 lines, blob `cb808c648891c0b4c4f392d4964e1e0ab80287af`) was read in full and cross-checked against the 278-path PR diff, `STAGE3_ACCEPTANCE.md`, `service.py`, `test_research.py`, `Screens.swift`, `GetStarted.swift`, `maintenance.py` and `ROLLBACK.md`.
+- **ATLAS-DOC-124 (P2, OPEN)**: the rollback paragraph says nothing outside `core/` and CI changed, although the PR includes app, iOS, kit and scripts; it treats reverting branch commits as rollback despite current data/Keychain/mobile/updater state. The current-status sentence says every Stage 3 portion is implemented/tested despite criteria 2/7/8 remaining PARTIAL. It repeats the inaccurate “egress through answer path” wording; the research endpoint returns untrusted data separately and leaves the answer unchanged. Comments **6046748574** posted.
+- The handover's Finance/Health grant-flow statement is cross-linked to **ATLAS-DOC-123**; the research-path wording to **ATLAS-DOC-019**; rollback completeness to **ATLAS-DOC-122**. The one earlier thread on this file remains outdated/unresolved; no review thread was resolved.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Counts: **86 REVIEWED—NO FINDINGS; 70 REVIEWED—FINDINGS OPEN; 45 IN REVIEW; 77 NOT STARTED (278 total)**.
+- Next changed file: `core/docs/STAGE3_TRACEABILITY.md` (already marked IN REVIEW; continue from its recorded prior scope).
