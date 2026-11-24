@@ -1216,3 +1216,8 @@ Queried PR #8 live at head `83eec5378fff9f26f435492104c4efa2b30d18ca`:
 - PR #8 remains open, draft and unmerged.
 
 This is a point-in-time API snapshot. Any subsequent push changes the exact head and may change paths, threads and CI. Refresh before making completion claims. Do not use historical path-review counts from earlier checkpoints as evidence of current-head coverage.
+
+
+## Latest live snapshot — after documentation-only cleanup (2026-11-25)
+
+At PR #8 head `23fee7b5f7d04898e193926fbb05a62856fd7bf9`: **282 changed paths**, **127 review threads**, **21 resolved**, **106 unresolved** (31 unresolved outdated; 75 unresolved current). PR remains open, draft and unmerged. The extra changed path since the earlier 281-path snapshot is the newly added conformance-audit document. The thread count did not change. The prior code/evidence snapshot was `83eec5378fff9f26f435492104c4efa2b30d18ca`; documentation-only commits followed. Recheck CI and review state after any further push.
