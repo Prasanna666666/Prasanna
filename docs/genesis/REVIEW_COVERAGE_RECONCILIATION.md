@@ -448,7 +448,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/operations.py` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 402ca45; owner action origin, approval/undo routing, versioned records, sync facade and device pairing/revocation API mapping inspected |
 | `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full: 1–242 |
 | `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 9–45, 70–180 |
-| `core/src/atlas_core/policy.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/policy.py` | source | REVIEWED—NO FINDINGS | All 158 lines at blob 16108ea; grant identity/ceiling binding, default-deny reasons, restricted/deferred domains and current-grant revalidation cross-checked with gate.py |
 | `core/src/atlas_core/record_actions.py` | source | REVIEWED—NO FINDINGS | All 56 lines at blob 16dbc4f; only registered record domains, versioned reversible create/edit/archive, approval-gated purge and optional outbox inspected |
 | `core/src/atlas_core/records.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/recordstore.py` | source | REVIEWED—NO FINDINGS | All 213 lines at blob 1f07bb7; SQLCipher store, transactional history, expected-version writes, soft delete and latest-change-only undo inspected |
@@ -512,7 +512,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_models.py` | test | NOT STARTED | — |
 | `core/tests/test_operations_api.py` | test | REVIEWED—NO FINDINGS | All 310 lines at blob 2c132f7; owner action/approval/undo, member denial, sync idempotency/conflict, pairing/revocation, records, updates and review covered |
 | `core/tests/test_orchestrator.py` | test | IN REVIEW | Full test file |
-| `core/tests/test_policy.py` | test | IN REVIEW | Targeted: 122–165 |
+| `core/tests/test_policy.py` | test | REVIEWED—NO FINDINGS | All 203 lines at blob a285045; default deny, pre-retrieval ordering, token forgery, expiry/revocation, restricted domains and Mail separation covered |
 | `core/tests/test_recordstore.py` | test | REVIEWED—NO FINDINGS | All 101 lines at blob 1e14330; create/update versions, conflict, exact latest-only undo, soft delete, unsupported domain, encryption and restart persistence covered |
 | `core/tests/test_redaction.py` | test | NOT STARTED | — |
 | `core/tests/test_relay.py` | test | IN REVIEW | Full test file |
@@ -978,3 +978,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - `test_macos_native.py` (174 lines, blob `589f78ba21f45a3e892f7b39e1857c73356119c0`) has an additional destructive case under existing **ATLAS-TEST-069**: it unconditionally deletes fixed production Keychain services `atlas-task-key` and `atlas-designation-anchor`; the native tests are findings-open. `worker_engines.py` (120 lines, blob `9eae6a0abd1bd1a2033c676187433f91bc655820`) was read in full and has no fixture defect.
 - No local tests, macOS sandbox run, real Mail-store test or real TCC acceptance was run by this review.
 - Updated path counts: 60 IN REVIEW; 91 NOT STARTED; 79 REVIEWED—NO FINDINGS; 48 REVIEWED—FINDINGS OPEN (278 total).
+
+### Policy engine full source/test review — 2026-11-24
+
+- `core/src/atlas_core/policy.py` (158 lines, blob `16108eab45592a46b476420563e2e3bbaa350020`) and `core/tests/test_policy.py` (203 lines, blob `a2850450b1d6c9f107d0e9315c32bd5cd852e110`) were read in full at PR source head `ae634cbf05bbdbf50358ee7cbc5337504d3def18`.
+- Cross-checked `GatedRetrieval` and `GatedModel`: policy revalidation occurs before retrieval and at the model door; token expiry, permit ID binding, source-type grant identity/ceiling and sensitivity labels are checked. No new policy defect established in this pass.
+- Rows moved to `REVIEWED—NO FINDINGS`. This does not replace real connector/OS permission acceptance or the separate access-provider limitations already recorded.
+- Updated path counts: 58 IN REVIEW; 91 NOT STARTED; 81 REVIEWED—NO FINDINGS; 48 REVIEWED—FINDINGS OPEN (278 total). No local tests run.
