@@ -5,7 +5,7 @@
 **Working branch:** `genesis-stage2-foundation`  
 **Shared review vehicle:** [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8)  
 **Code/evidence snapshot before documentation-only cleanup:** `83eec5378fff9f26f435492104c4efa2b30d18ca`  
-**Latest documentation-only head:** `23fee7b5f7d04898e193926fbb05a62856fd7bf9`  
+**Latest documentation-only head at final reconciliation:** `c3679dc914e31a1f0fda7c709b45ae0119aa9096`  
 **PR state:** open, draft, unmerged. This handover does not accept a stage or authorise release.
 
 ## Start here
@@ -77,4 +77,8 @@ The existence of iOS source files does not prove secure worldwide access, offlin
 
 ## Documentation-only reconciliation commit set — 2026-11-25
 
-The following documentation-only commits were made after the code/evidence snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`: handover reconciliation `80206365b98c850940965ce01ab2b7eaebdd3238`; canonical Genesis index `f449d9a276e811fd54c0b11b43164ab6c8691b35`; root documentation index `ce6291da2ef1538e20bc69afc1480059da91d5b2`; implementation-conformance audit framework `225b6e9d3e5e332682f45d7866b75468cb3fce9f`; PRD metadata correction `6b8e2f2fc9539dda0aa8857908164f017ee92c79`; UI/UX implementation-status and handoff correction `05d4dd535d88b8f4556689a27512f9b8444c7da3`; review-coverage live snapshot `23fee7b5f7d04898e193926fbb05a62856fd7bf9`. Latest PR head after these docs-only changes: `23fee7b5f7d04898e193926fbb05a62856fd7bf9`. No application source or tests were changed by this cleanup.
+The following documentation-only commits were made after the code/evidence snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`: handover reconciliation `80206365b98c850940965ce01ab2b7eaebdd3238`; canonical Genesis index `f449d9a276e811fd54c0b11b43164ab6c8691b35`; root documentation index `ce6291da2ef1538e20bc69afc1480059da91d5b2`; implementation-conformance audit framework `225b6e9d3e5e332682f45d7866b75468cb3fce9f`; PRD metadata correction `6b8e2f2fc9539dda0aa8857908164f017ee92c79`; UI/UX implementation-status and handoff correction `05d4dd535d88b8f4556689a27512f9b8444c7da3`; review-coverage live snapshot `23fee7b5f7d04898e193926fbb05a62856fd7bf9`. Latest PR head after these docs-only changes: `c3679dc914e31a1f0fda7c709b45ae0119aa9096`. No application source or tests were changed by this cleanup.
+
+## Final documentation-only reconciliation checkpoint — 2026-11-25
+
+Additional corrections after the initial index/UX pass: `PROGRAMME_AUDIT.md` and `STAGE3_HANDOVER.md` are explicitly identified as historical work-package records; `OWNER_ACCEPTANCE_CHECKLIST.md` no longer presents 2026-11-24 path counts as current; `BRANCH_HISTORY_RECONCILIATION.md` records that Stage 4–8 work was subsequently rebased onto PR #8. Latest documentation-only head: `c3679dc914e31a1f0fda7c709b45ae0119aa9096`. The latest live review snapshot is in `REVIEW_COVERAGE_RECONCILIATION.md`.
