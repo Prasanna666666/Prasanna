@@ -892,3 +892,10 @@ Evidence at PR #8 head `7f774e52a803864f72714cd4034bb1852f1578f2`: `core/docs/G_
 **Severity: P2 — OPEN (verification-status documentation).**
 
 Evidence at PR #8 head `7f774e52a803864f72714cd4034bb1852f1578f2`: `core/docs/ENROLMENT.md` (blob `c3882f0f96a9dc1f0478c125df8f32f594f3f54d`), lines 3, 7, 15 and 20, says the Swift side is unverified/unbuilt/never compiled or run and that `CoreClient.enrolSelf` was never run. However `app/Tests/AtlasKitTests/EndToEndTests.swift` (blob `c9285731aa996a43e0148aa774049a7c69931f03`) exercises the real Swift `CoreLauncher` and `CoreClient` against the real Python Core over a Unix socket, including bootstrap enrolment, consent, restart and process lifecycle. `.github/workflows/ci.yml` (blob `1faee779b3512942c498268a41545d8869a13038`) runs `swift build` and `ATLAS_CI_PYTHON=... swift test` on macOS. Exact-head CI run **45476328993** is queued, so no pass is claimed. The guide should distinguish automated launcher/client integration from the still-unverified human UI walkthrough and app `KeyStore.identity`/Get Started flow. Review comment **6046452135** posted.
+
+
+### ATLAS-DOC-116 — macOS provider evidence table contradicts itself and overstates exact-head CI status
+
+**Severity: P2 — OPEN (platform verification evidence).**
+
+Evidence at PR #8 head `09019411775c155342e3a5706c0f1a823830610d`: `core/docs/MACOS_PROVIDERS.md`, lines 3, 13 and 14. The opening paragraph claims exact-head macOS CI has passed Swift tests, the whole Core suite, real Keychain/production Core, sandbox and MLX, and the Swift launcher/client end-to-end. Yet the table says Swift launcher runtime is unverified and the whole Core is only verified on Linux with fake Keychain, with all Mac verification pending. It also says every Mac-specific part is exercised with a fake while claiming real Keychain/sandbox/MLX tests. The exact-head workflow run **45476623978 is queued**, not completed, so the current head cannot be called CI-verified. Reconcile each row to its exact test and completed run; separate synthetic tests, real hosted-macOS tests, and owner-Mac/TCC/Mail acceptance. Review comments **6046473151** posted. No tests run.
