@@ -409,7 +409,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/answer.py` | source | REVIEWED—NO FINDINGS | All 159 lines at blob 43b2209; exact citation resolution, retrieved-only check, figure/date verification, language disclosure and explicit stop/withheld/denied envelopes inspected |
 | `core/src/atlas_core/api.py` | source | REVIEWED—NO FINDINGS | All 563 lines at blob 3b1103a; request dispatch, signed version negotiation, enrol/bootstrap, owner/member route gates, consent, action, sync, web, device, update and SSE behavior inspected with API tests |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
-| `core/src/atlas_core/backup.py` | source | IN REVIEW | Full: 1–405 |
+| `core/src/atlas_core/backup.py` | source | REVIEWED—FINDINGS OPEN | All 405 lines at blob 3b415da; ATLAS-BACKUP-080 drill deletes pre-existing empty scratch dir; ATLAS-BACKUP-081 malformed nested manifest/bundle can raise; ATLAS-BACKUP-082 copied plain files not reverified |
 | `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/browser_engine.py` | source | IN REVIEW | Full: 1–260 |
 | `core/src/atlas_core/browser_worker.py` | source | IN REVIEW | Full source |
@@ -475,7 +475,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_app.py` | test | NOT STARTED | — |
 | `core/tests/test_architecture.py` | test | NOT STARTED | — |
 | `core/tests/test_artefact_scan.py` | test | NOT STARTED | — |
-| `core/tests/test_backup.py` | test | IN REVIEW | Full test file |
+| `core/tests/test_backup.py` | test | REVIEWED—FINDINGS OPEN | All 300 lines at blob 20e57e7; no tests for existing empty scratch preservation, malformed nested manifest/bundle or plain-file swap between verify/copy; ATLAS-BACKUP-080/081/082 |
 | `core/tests/test_bench.py` | test | NOT STARTED | — |
 | `core/tests/test_browser_engine.py` | test | IN REVIEW | Targeted: 82–90 |
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
@@ -942,3 +942,12 @@ At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, completed full line-by
 ### API 1.1, consent and operations route regression review — 2026-11-24
 
 Fully read `test_api_v11.py` (188 lines, blob `b31280375a2de69bc8dbfa991bc11deb62e54a87`), `test_consent_api.py` (190, `e48338dfd790c7b6a715f79202f77347335bfb83`) and `test_operations_api.py` (310, `2c132f7ebdcfc1a2141566a564cb23f1c8218555`). They cover signed version negotiation/no downgrade, additive coverage/model identity, honest limitations, exact compute validation, owner-only consent/mode/actions, replay-safe withdrawal and index purge, member sync idempotency/conflict, device pairing/revocation, own-record access and signed updates. No independent test defect established. No tests run locally.
+
+### Backup/restore full source and test review — 2026-11-24
+
+- `core/src/atlas_core/backup.py` (405 lines, blob `3b415da1c4572dcb88bfed8ba926c9fd50841fd2`) and `core/tests/test_backup.py` (300 lines, blob `20e57e718e8a33f6565477f1ea4ebcc48fe2b7a0`) were read in full at source head `b189f8d0125f3f939b2c4428f29bd3c378bd24ed`.
+- Added **ATLAS-BACKUP-080 (P2)**: restore drill unconditionally removes the scratch target even if it was an existing empty folder.
+- Added **ATLAS-BACKUP-081 (P2)**: nested malformed manifest entries and non-dictionary decrypted key bundles can raise raw `AttributeError` instead of failing closed with a backup code.
+- Added **ATLAS-BACKUP-082 (P2)**: copied `clients.json` and `actions-audit.jsonl` are not rehashed after copy, leaving a verify-to-copy race; only DB copies are rechecked.
+- Existing tests cover corrupted/truncated/missing files, MAC tampering, wrong passphrase, restore rollback, no-grant restore, restore drill and encrypted edits/audit. They do not cover these three edge cases. No local tests or real restore were run.
+- Updated path counts: 75 IN REVIEW; 95 NOT STARTED; 68 REVIEWED—NO FINDINGS; 40 REVIEWED—FINDINGS OPEN (278 total).
