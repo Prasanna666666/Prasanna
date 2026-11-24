@@ -303,8 +303,8 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `.gitleaksignore` | build/config | REVIEWED—NO FINDINGS | Full 10 lines; four fingerprint suppressions matched to historical test/type annotation, comment, public checksum and generated test key contexts; scanner execution not independently run |
 | `CLAUDE.md` | documentation | REVIEWED—NO FINDINGS | Full 22 lines; source-of-truth, role split, evidence and product principles consistent with current delivery protocol |
 | `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | Full 15 lines; AtlasKit-only consumers in macOS/iOS XcodeGen projects align with macOS 14/iOS 17 declarations; no external dependencies |
-| `app/README.md` | documentation | IN REVIEW | Full 19 lines; evidence contradiction found: app launch/Core lifecycle and Swift real-Core tests exist, but README says app not run / Swift side not tested; PR review 6045284683 |
-| `app/Sources/AtlasApp/AtlasApp.swift` | source | IN REVIEW | Targeted: 1–80, 110–170, 200–245, 320–390, 486–553 |
+| `app/README.md` | documentation | REVIEWED—FINDINGS OPEN | Full 19 lines at 1af9af9; CI now runs packaged app/Core lifecycle, Swift real-Core E2E and macOS UI audit, but README still says app has not been run / Swift side untested / packaging not built; ATLAS-DOC-052; prior PR comment 6045284683 |
+| `app/Sources/AtlasApp/AtlasApp.swift` | source | REVIEWED—FINDINGS OPEN | Full 696 lines at blob 40f5346; ATLAS-APP-052 stale task ID can be cancelled during next ask; ATLAS-APP-053 failed undo is swallowed and retry handle cleared; activity history remains covered by ATLAS-UX-023 |
 | `app/Sources/AtlasApp/Components.swift` | source | IN REVIEW | Targeted component/accessibility review |
 | `app/Sources/AtlasApp/DesignSystem.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasApp/Screens.swift` | source | IN REVIEW | Targeted: 1–75, 131–191, 179, 579–595, 600–772 |
@@ -718,3 +718,22 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 ### Correct reporting rule going forward
 - Always report three separate measures: (1) historical review work completed in its original scope/commit (e.g. legacy matrix 105 ROUND + 15 ROUND+VIEWED; named Stage 2/WP3.2 reviews), (2) current PR #8 exact-path overlap that can be directly mapped from those charts (2 paths from the legacy matrix), and (3) this ledger's current exact-head full-file terminal dispositions (currently 3/278). Never collapse these into one misleading percentage.
 - Preserve prior accepted work and findings; do not restart it. For each newly inspected PR #8 path, first search historical reviews/charts for exact path and commit coverage, then perform only the missing current-head delta review. Keep inherited historical scope labelled with its original PR and SHA.
+
+
+## Live continuation — 2026-11-24, PR #8 exact head 1af9af98195e7019df766189cf1406215fa5b3b4
+
+### Verified live state
+- PR #8 remains **open, draft and unmerged** on `genesis-stage2-foundation`; base `atlas`; exact head `1af9af98195e7019df766189cf1406215fa5b3b4`; **278 changed paths**.
+- Live review threads: **60 total; 21 resolved; 39 unresolved; 43 outdated**. Outdated is not fixed. No threads were resolved.
+- Workflow run **45465063113** is **queued** for this exact head at the time of this checkpoint; it is not a pass. No tests were executed locally in this review.
+- Current 278-row path ledger: **144 IN REVIEW; 129 NOT STARTED; 3 REVIEWED—NO FINDINGS; 2 REVIEWED—FINDINGS OPEN**. The two findings-open files have been fully read at this head, but their defects remain open. Strict no-finding terminal reviews remain 3/278; do not call the 2 findings-open files clean.
+
+### Files completed in this continuation
+- `app/README.md` — all 19 lines read at blob `5ed57e5062d0abc8213e1786d998c44de2b6e6aa`. The previous claims were partly updated but remain materially contradictory. The README's top section says a human has not walked through the UI (valid), then says “The app has not been run: no window … has been seen” (false against CI), says the Swift launcher/client has not been tested against a real Core (false against `EndToEndTests.swift` in the `macos` job), and says app/Core packaging is not built (false against `scripts/package_mac.sh` and the `app` job). It also says no accessibility behaviour is verified although the `mac-ui` job runs the macOS accessibility UI audit. Correct distinction: hosted automated launch, E2E and UI audit exist; human owner-Mac walkthrough, real TCC/Mail, signing/notarisation and release acceptance remain open. Logged as **ATLAS-DOC-052 (P2, OPEN)** in `DEFECT_REGISTER.md`; earlier PR comment 6045284683 remains relevant.
+- `app/Sources/AtlasApp/AtlasApp.swift` — all **696 lines** read at blob `40f534674566d207bd0c173a9288ab51a14585b4`, including the full AppModel and lifecycle/action paths. Two reproducible code defects logged in `DEFECT_REGISTER.md`: **ATLAS-APP-052 (P2, OPEN)** — `currentTaskID` is not cleared before awaiting the next `client.ask`, so Stop during that interval can target the previous task; **ATLAS-APP-053 (P2, OPEN)** — `undoLast` discards errors with `try?` and clears the undo handle/label even when Core undo fails. Existing **ATLAS-UX-023** also remains applicable: Activity history and notification de-duplication are in-memory and do not survive restart. No source or test edits made.
+- The README's CI evidence was cross-checked against `.github/workflows/ci.yml` blob `1faee779b3512942c498268a41545d8869a13038`, `app/xcode/project.yml` blob `e9a540c146e1dd3b8a2f3614b637407f727bb643`, `ios/project.yml` blob `4e929d5de1a3ddb12532fda4e01989c8d7d766b1`, and the existing `EndToEndTests.swift` reference in the workflow/README.
+
+### Resume checkpoint
+- Last fully completed no-finding file remains `app/Package.swift`; the latest fully read files with open findings are `app/README.md` and `app/Sources/AtlasApp/AtlasApp.swift`.
+- Continue with the next PR changed-path entry after `app/Sources/AtlasApp/AtlasApp.swift`: `app/Sources/AtlasApp/Components.swift`. Before opening it, reconcile the historical review record and current blob SHA; do not re-read files already covered unless their blob changes.
+- Review boundary unchanged: docs/defect ledger and review comments only; no app source/tests/build/config edits, no approval/merge, and no thread resolutions.
