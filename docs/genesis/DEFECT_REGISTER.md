@@ -740,3 +740,9 @@ Evidence: `core/src/atlas_core/actions.py`, `ActionSpec.category` (blob `0a690d3
 **Severity: P2 — OPEN.**
 
 Evidence: `core/src/atlas_core/actions.py`, `ActionGateway.propose()` and `undo()` (blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`). `propose()` returns `Outcome("refused", "unknown_action")` directly when no spec exists, without calling `_log`. `undo()` also returns directly for unknown IDs, already-undone actions and non-reversible actions. This contradicts the module's “every outcome is appended” audit guarantee and leaves rejected action/undo attempts invisible. Add content-safe audit entries for these refusals (hash or fixed code rather than untrusted free text) and tests proving the chain records them without logging payload content.
+
+
+### ATLAS-MAIL-079 — unreadable Mail entries and subfolders are silently omitted from coverage
+**Severity: P2 — OPEN (false-complete coverage).**
+
+Evidence: `core/src/atlas_core/macos.py`, `EmlxMailbox._candidates()` and `_scan()` (blob `5cef615a78be156c1edfff73936b2e6eea11d325`, inspected at PR head `910f7fa02390c7c3a24abc215374343d27d22217`), together with `core/src/atlas_core/mail.py`, `MailIndex._list_bounded()` and `coverage()` (blob `ac47c347a655db553e2a3f7372c137af94bc5a3f`). The adapter catches an `OSError` from `os.scandir` and substitutes an empty directory, and catches an `OSError` opening any candidate file and simply continues. Those entries never reach MailIndex as malformed/failed rows, and the ListPage interface carries no indication that a subtree or candidate was skipped. MailIndex can consequently set `scan_state=done`, `scan_cut_off=0`, and report `complete=true` despite unreadable messages/subfolders. Surface identity-free skipped-entry counts or a partial-scan signal to MailIndex so coverage cannot claim complete when an item was omitted due to an access/read error; keep deliberate symlink/FIFO rejection safe and test unreadable file and nested directory cases.
