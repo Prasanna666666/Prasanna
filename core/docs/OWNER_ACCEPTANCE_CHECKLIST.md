@@ -1,6 +1,6 @@
 # Owner acceptance and final-stage checklist
 
-Everything the developer can build and test without hardware, accounts or a real model is built and tested (Linux CI = L, hosted macOS runner = R). This list holds the rest. None of it is outstanding developer work: each item needs a person, an account, a device or the real model, and is sequenced to the final stage by owner direction. Each stays release-blocking until done.
+This checklist records owner-only and final-stage acceptance actions; it is **not** a statement that PR #8 has no outstanding developer work or that independent review is complete. At the 2026-11-24 exact-head checkpoint, PR #8 remains open/draft/unmerged and the independent review ledger reports 82 paths reviewed with no findings, 53 reviewed with findings open, 52 in review and 91 not started. Developer fixes and re-review remain outstanding; see `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md` and `docs/genesis/DEFECT_REGISTER.md`. The items below are owner-only or final-stage actions; each remains release-blocking until done.
 
 ## A. Needs an Apple Developer ID
 1. Run `scripts/sign_and_notarize.sh` with the real identity (script and dry run are tested, `test_signing_script.py`).
