@@ -1,6 +1,8 @@
-# WP3.5 — Minimal experience: reference client, UX catalogue, end-to-end path
+# WP3.5 — Minimal experience: reference client, UX catalogue, end-to-end path — historical package snapshot
 
-Status: implemented and tested on Linux CI with synthetic data. **The SwiftUI macOS app is not built here** (no Swift, Xcode or Mac in this environment); everything below that needs a Mac is listed as pending and is not claimed.
+**Snapshot note (2026-11-25):** This WP3.5 package record describes the reference-client scope and the Linux environment in which it was first written. The native SwiftUI macOS app and iOS client sources were subsequently added to PR #8 and have hosted-runner build/test evidence. Current screen-by-screen status and gaps are in `UI_IMPLEMENTATION_MAP.md`; current owner visual/accessibility and final-stage gates are in `STAGE3_ACCEPTANCE.md` and `OWNER_ACCEPTANCE_CHECKLIST.md`. Do not use the historical “app not built” statements below as current status.
+
+Package scope at this snapshot: implemented and tested on Linux CI with synthetic data.
 
 ## What exists
 | Piece | Where | What it fixes for the app |
