@@ -68,10 +68,11 @@ The user always remains inside Atlas. Domain areas are destinations/filters with
 The primary macOS navigation is a compact sidebar with:
 1. **Home** — current priorities, meaningful changes and resume points.
 2. **Ask Atlas** — unified conversation and task workspace.
-3. **Library** — searchable, unified access to owner-authorised Documents, Mail, Pictures and other indexed material, with source-type filters.
-4. **Life areas** — a single grouped section for enabled domains such as Finance, Travel and (when authorised and delivered) Health. These are views over shared Atlas context, not independent apps.
-5. **Activity** — ongoing/recent work, completed tasks, notifications and action history.
-6. **Settings** — sources and permissions, models and local runtime, privacy/memory controls, devices, appearance and diagnostics.
+3. **Discover** — one curated destination for AI & technology news, markets and sports. These are focused views within Atlas, not separate apps or noisy infinite feeds.
+4. **Library** — searchable, unified access to owner-authorised Documents, Mail, Pictures and other indexed material, with source-type filters.
+5. **Life areas** — a single grouped section for enabled domains such as Investments/Finance, Home, Travel and (when authorised and delivered) Health. These are views over shared Atlas context, not independent apps.
+6. **Activity** — ongoing/recent work, completed tasks, notifications and action history.
+7. **Settings** — sources and permissions, models and local runtime, privacy/memory controls, devices, appearance and diagnostics.
 
 Navigation must not expose unavailable or not-yet-implemented domains as if they work. Use progressive disclosure: show a domain only when its product surface is available or explicitly show a clear “not available yet” state where discovery is necessary.
 
@@ -230,6 +231,44 @@ A single, short onboarding flow that explains:
 4. The choice to continue without enabling sources.
 
 Use one clear decision point plus the necessary macOS permission prompts. No per-folder consent wizard, repeated prompts or preselected permissions. Empty selection is a valid path and must remain useful.
+
+
+### 4.11 Discover — AI news, markets and sports
+
+**Purpose:** make Atlas a useful intelligence destination for the subjects the owner follows, without turning it into an endless social feed.
+
+Discover is one destination with three clear, switchable views:
+- **AI & Technology:** a concise, personalised briefing on meaningful AI, software, hardware and science developments. Each story shows publisher, time, primary-source link where available, a short explanation of what happened, why it matters and what remains uncertain. Cluster duplicate coverage and separate confirmed announcements from commentary, speculation and rumour.
+- **Markets:** market context and watchlist movements that help explain what changed. This is not a substitute for the owner's personal portfolio; links from market stories into Investments must preserve the distinction between public market information and personal holdings.
+- **Sports:** fixtures, live scores (only where a reliable live source is connected), results, tables, player/team profiles and statistics. Include a natural-language Stats query workspace with filters for competition, season, team and player, designed for deeper historical/statistical questions rather than just score tiles.
+
+Interaction:
+- A compact top-level selector switches among AI & Technology, Markets and Sports; avoid three permanent columns or a wall of cards.
+- Briefing items are ranked by owner-selected topics, materiality, recency and source quality—not engagement bait. The owner can follow, mute or reprioritise topics.
+- Offer “Ask Atlas about this” on every item, carrying the source and context into conversation.
+- Support a short daily briefing and on-demand deep research. Do not send routine notifications for every new item; notify only for owner-configured material events.
+- Show “updated at” time and source coverage. Distinguish live, delayed, final, scheduled, historical and unavailable states.
+- Empty states invite the owner to choose topics or ask a question; never populate with fabricated sample headlines, scores or market movements.
+- No infinite scroll by default. Prefer a finite, prioritised briefing with “show more” and search.
+
+### 4.12 Investments — personal portfolio workspace
+
+Investments is a focused view within the Finance life area, not a separate application. It should help the owner understand what they own and the risks they are taking, not encourage constant trading.
+
+Primary hierarchy:
+1. **Portfolio summary:** total value and day/period change only when supported by current, timestamped holdings and prices; clearly label currency and as-of time.
+2. **Allocation:** asset-class, region, sector and holding weights, with a simple readable visual and an accessible table alternative.
+3. **Risk & overlap:** concentration, top holdings, sector/country exposure, fund overlap, volatility/drawdown context and bond/cash balance where data permits.
+4. **Performance & contributions:** time-weighted or money-weighted method stated explicitly; contributions, income and fees kept distinct from market return.
+5. **Research & scenarios:** compare funds/assets, fees, structure, liquidity, tracking, historical drawdowns and hypothetical allocation changes with assumptions and uncertainty visible.
+
+Rules:
+- Separate verified account/holding records, delayed market prices, derived calculations, forecasts and opinions.
+- Every value has currency, timestamp, source and calculation method available through Show evidence.
+- Never show a projected return as a promised return or treat a short historical period as a reliable forecast.
+- Keep watchlists and research available without mixing them into owned holdings.
+- No trading, payment or transfer without the exact approval required by the PRD.
+- Default to calm periodic understanding, not flashing tickers, red/green alarmism or gamified performance.
 
 ## 5. Shared interaction and component patterns
 
