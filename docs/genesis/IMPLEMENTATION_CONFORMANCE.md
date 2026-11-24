@@ -153,3 +153,5 @@ The subsequent technical-document corrections are recorded in `docs/genesis/HAND
 - `DECISIONS.md` G-O09 now records the bounded Stage 2 acceptance at its exact historical SHA; later commits are not implicitly accepted.
 - `DELIVERY_PROTOCOL.md` labels the original Stage 2 entry gates as historical rather than current blockers.
 - Commits: `18002761b7190a8121639c0bc187ab5001422e87` (roadmap status), `7eb30dbac13d24f2ac8e5354c725c3683f6687f1` (decision register), `441c7b6df228c7378cc7105ef97eb1aa12e2fb00` (delivery protocol).
+
+Additional documentation-only corrections in the final pass: `3706b95afd02b038d26134300c8ed568f91142c2` corrected the API 1.1 contract title/status; `6e463c714f963e3f42c3fabbc6d191d200353088` corrected the handover's API 1.1 status; `83051aea4269c4a178b371ef15fdca741cfc1a94` corrected Stage 3 handover egress/rollback wording and the PR description; `4ade8a8b526826e0d037876b113fa1220f17c818` removed the remaining Stage 3 egress-path wording conflict; `b230633b3b8d027576be42f6a6508c638e6e3a6f` aligned the handover with the criterion matrix. Review snapshot after those changes is recorded in `REVIEW_COVERAGE_RECONCILIATION.md`.
