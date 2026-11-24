@@ -376,7 +376,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/BENCHMARK.md` | documentation | REVIEWED—NO FINDINGS | 21 lines, blob `330fa5c7`; overhead benchmark scope and reported run metadata cross-checked against `bench/overhead.py`, `conftest.World`, and SQLCipher connection; target-Mac/answer-latency claims explicitly provisional |
 | `core/docs/CONNECTOR_PROFILE.md` | documentation | REVIEWED—FINDINGS OPEN | 19 lines, blob `f3e7c70e`; overstates arbitrary plug-in support and omits `100.64/10`/`.ts.net` transport behavior; ATLAS-DOC-111 |
 | `core/docs/CONTRACT_1_1.md` | documentation | REVIEWED—FINDINGS OPEN | 81 lines, blob `13651ecb`; line 17 says three new paths though 1.1 OpenAPI adds 32 vs 1.0; test name repeats stale count; ATLAS-DOC-112 |
-| `core/docs/DESIGN.md` | documentation | NOT STARTED | — |
+| `core/docs/DESIGN.md` | documentation | REVIEWED—NO FINDINGS | 56 lines, blob `d2a9084`; Stage 2 dependency layers, direct import boundaries, policy-data separation, gated retrieval/model path, token-bound context, task store/key provider and historical reuse matrix cross-checked against architecture tests and current modules; API 1.0/first-slice wording is explicitly scoped to this Stage 2 design, with API 1.1 documented separately; no tests run |
 | `core/docs/EGRESS_GATEWAY.md` | documentation | NOT STARTED | — |
 | `core/docs/ENROLMENT.md` | documentation | NOT STARTED | — |
 | `core/docs/G_O19_DESIGNATION.md` | documentation | NOT STARTED | — |
