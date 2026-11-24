@@ -1,6 +1,6 @@
-# API 1.1: contract documentation (WP3.1, specification only)
+# API 1.1: contract documentation (WP3.1 specification; WP3.4 implementation)
 
-**Status:** specified, tested as a contract and **served since WP3.4** (additively, per request): the Core advertises `1.0` and `1.1`, applies 1.1 only to a request that asks for exactly `1.1` and signs it (six-field message), echoes the version, serves coverage and the model descriptor in the answer, and serves `/v1/consent`, `/v1/consent/{grant_id}` (an enrolled OWNER client only; the signed request's nonce is the single-use request id) and `/v1/index/status`. 1.0 behaviour and files are unchanged. `newest_indexed` is always null (not tracked). The text below was written when the contract was specification-only; where it says "not served" it is historical. Approved scope: PR #8 comments 7051135695, 7051242604, 7051300100, 7051339291; proposal `STAGE3_WP3_1_PROPOSAL.md` (v4).
+**Status:** specified and contract-tested in WP3.1; **implemented and served additively since WP3.4** (additively, per request): the Core advertises `1.0` and `1.1`, applies 1.1 only to a request that asks for exactly `1.1` and signs it (six-field message), echoes the version, serves coverage and the model descriptor in the answer, and serves `/v1/consent`, `/v1/consent/{grant_id}` (an enrolled OWNER client only; the signed request's nonce is the single-use request id) and `/v1/index/status`. 1.0 behaviour and files are unchanged. `newest_indexed` is always null (not tracked). The text below was written when the contract was specification-only; where it says "not served" it is historical. Approved scope: PR #8 comments 7051135695, 7051242604, 7051300100, 7051339291; proposal `STAGE3_WP3_1_PROPOSAL.md` (v4).
 
 ## Files
 | File | Role |
