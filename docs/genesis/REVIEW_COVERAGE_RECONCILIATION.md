@@ -1203,3 +1203,16 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - The proposal's original three-path list is a WP3.1 scope baseline; current OpenAPI includes later additive paths. No runtime issue is asserted by this documentation finding.
 - Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Counts: **86 REVIEWED—NO FINDINGS; 72 REVIEWED—FINDINGS OPEN; 45 IN REVIEW; 75 NOT STARTED (278 total)**.
 - Next changed file: `core/docs/STAGES_4_TO_8.md`; check its current ledger row and prior review coverage before starting.
+
+
+## Live snapshot correction — 2026-11-25 (supersedes prior count snapshots)
+
+Queried PR #8 live at head `83eec5378fff9f26f435492104c4efa2b30d18ca`:
+
+- Changed paths: **281** (the earlier 278-path inventory is historical and must not be presented as current).
+- Inline review threads: **127 total; 21 resolved; 106 unresolved**.
+- Of the 106 unresolved threads, **31 are marked outdated** and **75 are current** at the time of the query. Outdated does not mean addressed; current does not automatically mean a valid blocker. Each thread still requires comment-by-comment reconciliation.
+- The PR-associated workflow run was queued at the time checked; no pass is claimed for that run.
+- PR #8 remains open, draft and unmerged.
+
+This is a point-in-time API snapshot. Any subsequent push changes the exact head and may change paths, threads and CI. Refresh before making completion claims. Do not use historical path-review counts from earlier checkpoints as evidence of current-head coverage.
