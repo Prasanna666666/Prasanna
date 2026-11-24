@@ -872,3 +872,10 @@ Evidence at PR #8 head `a4d36a741c494cbd5de8556d19d4bbdcccb5d130`: `core/docs/CO
 **Severity: P2 — OPEN (contract documentation/test naming).**
 
 Evidence at PR #8 head `e2c815ea7d0597e57c5f0025439fa20657b02f1c`: `core/docs/CONTRACT_1_1.md` (blob `13651ecbfa946848abdc0ebcda86b6528a0f0968`), line 17, and `core/tests/test_contracts_v11.py` (blob `b0feb79cf71002907fcad345ce0a7c47ab06defa`), line 566, say there are “three new paths”. The current `openapi-1.1.yaml` has 39 path keys compared with seven in frozen 1.0, and `NEW_PATHS` enumerates 32 additive path keys. If “three” means only a stage-specific WP3.4 subset relative to the earlier WP3.1 draft, the comparison baseline is not stated. State the baseline explicitly and rename the test to match the 32-path assertion. Review comment **6046362327** posted. No runtime issue is asserted.
+
+
+### ATLAS-DOC-113 — egress documentation understates question fingerprinting
+
+**Severity: P2 — OPEN (privacy-control documentation accuracy).**
+
+Evidence at PR #8 head `17fd7027f8f10ca0819d4b7408190d0fa1f8d280`: `core/docs/EGRESS_GATEWAY.md`, line 10, says two-word runs are fingerprinted for passages but not questions, and describes question matching as capitalised names. In `core/src/atlas_core/egress.py`, `TaintSet.add()` fingerprints both four-word and two-word runs for every input, including `question=True`, and stores every word of at least four letters from both questions and passages. `core/tests/test_egress.py` confirms lower-case question content words and two-word phrases are refused. The document therefore understates how restrictive the egress gate is and can mislead readers about the exact declassification boundary. Correct the fingerprint description and the over-refusal summary. Review comment posted on PR #8 (line 10); no tests run.
