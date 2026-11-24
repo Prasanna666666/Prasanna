@@ -251,11 +251,11 @@ A single, short onboarding flow that explains:
 Use one clear decision point plus the necessary macOS permission prompts. No per-folder consent wizard, repeated prompts or preselected permissions. Empty selection is a valid path and must remain useful.
 
 
-### 4.11 Discover — AI news, markets and sports
+### 4.11 Explore — followed subjects and current intelligence
 
 **Purpose:** make Atlas a useful intelligence destination for the subjects the owner follows, without turning it into an endless social feed.
 
-Discover is one destination with three clear, switchable views:
+Explore is one destination with a small, switchable set of subject views. AI & technology, science, markets and sports are grouped here; politics/current affairs and other followed subjects appear as topics or briefing filters, not as extra navigation destinations:
 - **AI & Technology:** a concise, personalised briefing on meaningful AI, software, hardware and science developments. Each story shows publisher, time, primary-source link where available, a short explanation of what happened, why it matters and what remains uncertain. Cluster duplicate coverage and separate confirmed announcements from commentary, speculation and rumour.
 - **Markets:** market context and watchlist movements that help explain what changed. This is not a substitute for the owner's personal portfolio; links from market stories into Investments must preserve the distinction between public market information and personal holdings.
 - **Sports:** fixtures, live scores (only where a reliable live source is connected), results, tables, player/team profiles and statistics. Include a natural-language Stats query workspace with filters for competition, season, team and player, designed for deeper historical/statistical questions rather than just score tiles.
@@ -269,9 +269,9 @@ Interaction:
 - Empty states invite the owner to choose topics or ask a question; never populate with fabricated sample headlines, scores or market movements.
 - No infinite scroll by default. Prefer a finite, prioritised briefing with “show more” and search.
 
-### 4.12 Investments — personal portfolio workspace
+### 4.12 Investments — contextual personal portfolio workspace
 
-Investments is a focused view within the Finance life area, not a separate application. It should help the owner understand what they own and the risks they are taking, not encourage constant trading.
+Investments is a focused workspace opened when the owner asks about their portfolio or follows an investment-related link. It is not a permanent navigation destination, a separate application or a requirement to browse a Finance section first. It should help the owner understand what they own and the risks they are taking, not encourage constant trading.
 
 Primary hierarchy:
 1. **Portfolio summary:** total value and day/period change only when supported by current, timestamped holdings and prices; clearly label currency and as-of time.
@@ -287,6 +287,20 @@ Rules:
 - Keep watchlists and research available without mixing them into owned holdings.
 - No trading, payment or transfer without the exact approval required by the PRD.
 - Default to calm periodic understanding, not flashing tickers, red/green alarmism or gamified performance.
+
+
+### 4.13 Contextual capability workspaces
+
+A capability workspace is a temporary, task-focused presentation—not another permanent section of the app. Use it only when a task benefits from a dedicated layout (for example, a cricket statistics comparison, an investment allocation review, a home-energy analysis or a fitness plan).
+
+- Open the workspace from the originating question, briefing item, search result or relevant evidence. Preserve the user's context and provide a clear route back to the originating conversation or view.
+- Keep the workspace focused on the current goal. Do not combine unrelated domains merely because they share a data source or internal implementation.
+- Show a concise result or summary first. Put detailed filters, historical tables, charts, methodology, source coverage and configuration behind progressive disclosure.
+- Reuse shared patterns for search, filters, date ranges, evidence, empty states, unavailable data and “Ask Atlas about this”. Do not create a bespoke visual language for each capability.
+- A Statsguru-style cricket query, Olympics lookup, investment analysis, nutrition plan or home-automation task must be usable through natural language even if its advanced workspace has not yet been opened.
+- Return to the same task and preserve filters/results when the owner navigates away and back, subject to normal privacy and retention rules.
+- Never create a new top-level navigation item solely because a workspace has its own screen, API, specialist agent or integration.
+
 
 ## 5. Shared interaction and component patterns
 
