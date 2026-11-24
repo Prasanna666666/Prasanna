@@ -31,7 +31,7 @@ shows a plain "not running" page and never blocks the others.
   hand your question to an app's assistant.
 - **One chat** (the Ask button, or `Ctrl/⌘ J`): a single assistant over all of your data. Every part of the app (money, documents and mail, pictures, whatever comes next) publishes the tools it has, and the one assistant can use any of them, in any order, inside one answer: the dates on a ticket, then what was spent on those days, then the pictures taken on them. The model decides what to look up; the tools do the looking, counting and adding; every figure in the answer is checked against what the tools returned before it is shown, and a month that does not tie to the ledger is not given at all. It is a conversation first: **pictures and documents appear only when you ask to see them** ("show me photos from Goa"). A count or a question is answered in words. When the model is not running the answer says so. The parts' own chat panels are hidden inside Atlas.
 - **One Update button** (top right, or `⌘K` then "update"): it asks every app to read everything new (Finance reads new statements and files, Photos indexes new photos), shows each app's progress, and tells you plainly what needs a check or what is not running. One app being down never stops the others.
-- **One AI model status**: a chip shows whether the one shared local model (Ollama) is running and which model it holds. Every app uses that same model; point Atlas at it with `ATLAS_MODEL_URL` (default `http://host.docker.internal:11434`).
+- **One local AI status**: a chip shows the selected local model, runtime health, queue and whether a model switch is in progress. The target architecture has one shared routing gateway that selects among installed local models by task capability and measured performance; only one large LLM is resident at a time. The current implementation still uses one configured Ollama model via `ATLAS_MODEL_URL` (default `http://host.docker.internal:11434`). Cloud inference and cloud fallback are not allowed.
 - **One theme**: dark, light or automatic for everything.
 
 ## Add an app (health, documents, anything)
@@ -91,8 +91,14 @@ Finance (`finance/src/finance/static/app.js`, `web.py`) and Documents (`library/
 
 ## What it will not do
 - Merge the apps' data or databases, or read them. The only things Atlas asks an app for are its health and the results of a search you typed.
-- Reach the internet: it connects only to the addresses in `modules.d`, and refuses any that are not on this computer or its private network.
+- Reach the public internet in v1: it connects only to the addresses in `modules.d`, and refuses any that are not on this computer or its private network. Cloud AI inference and private-data uploads are prohibited. Any future web-research feature requires a separate opt-in gateway and an architecture decision.
 - Rewrite the apps' pages. They are passed through unchanged.
+
+## Local AI routing policy
+
+Atlas is local-first and cloud-independent. The router should use deterministic code and specialised readers before an LLM, then choose the smallest capable local model for the task. Provisional roles are Ministral 3 14B (fast), GPT-OSS 20B (main reasoning) and Nemotron 30B-A3B (specialist only when benchmarks justify it). These are candidates, not fixed dependencies; the target M6 / 32 GB Mac must benchmark quality, tool-call accuracy, time-to-first-token, end-to-end latency and peak memory before any default is selected. Do not keep all candidate models loaded at once. If local inference is unavailable or too slow, Atlas must say so rather than silently falling back to a cloud service.
+
+Public internet research is disabled in v1. A future opt-in research gateway would be separate from model inference and must never upload private files, memory or sensitive prompts.
 
 ## Developing
 `pip install -e ".[dev]"`, then `pytest`, `ruff check .`, `mypy src`. The code is the Python standard library only; the page is plain
