@@ -95,7 +95,7 @@ Work is sequential where dependencies or trust boundaries require it. Independen
 
 ### WP3.2 — Document-only vertical path
 
-**Status: ACCEPTED** for exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496). Scope: UTF-8 text/Markdown only; encrypted index; exact block locators and content-version checks; explicit unsupported/failed coverage; descriptor-relative no-follow traversal; no model call when no usable passages; synthetic tests for policy, citations, hostile content, restart/idempotency and failure handling. Limits: coverage is not yet in the answer envelope, lexical ranking only, no PDF/Office/HTML/Mail, and no target-Mac/OS-level parser isolation evidence. This acceptance is not production or Stage 3 release approval.
+**Status: ACCEPTED** for exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (ChatGPT review 6000818496). Scope: UTF-8 text/Markdown only; encrypted index; exact block locators and content-version checks; explicit unsupported/failed coverage; descriptor-relative no-follow traversal; no model call when no usable passages; synthetic tests for policy, citations, hostile content, restart/idempotency and failure handling. Limits: at the WP3.2 acceptance commit, coverage was not yet in the answer envelope; WP3.4 subsequently added coverage to API 1.1 answers. Other WP3.2 limits at acceptance: lexical ranking only, no PDF/Office/HTML/Mail, and no target-Mac/OS-level parser isolation evidence. This acceptance is not production or Stage 3 release approval.
 
 **Owner:** Claude implementation; ChatGPT independent review.
 
@@ -257,7 +257,7 @@ Stop the affected work and report with evidence if:
 
 - Stage 2 review: **ACCEPTED by ChatGPT** for exact head `58210223398a5715b618d1163397104efd358d49`; 22/22 exact-head CI checks successful. This is not production/release sign-off.
 - Stage 3 plan: **reconciled after technical challenge; owner authorisation granted in full under G-027 on 2026-11-20**.
-- Stage 3 implementation: **authorised; WP3.0 accepted; WP3.1 accepted (specification-only); WP3.2 accepted for exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (review 6000818496). WP3.3 Mail is conditional on G-O19 designation/consent and explicit owner enablement. API 1.1 is not served by Core.**
+- Stage 3 implementation: **authorised; WP3.0 accepted; WP3.1 contract/specification accepted (the API 1.1 runtime was subsequently implemented and served additively by WP3.4; see `core/docs/CONTRACT_1_1.md`); WP3.2 accepted for exact commit `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (review 6000818496). WP3.3 Mail is conditional on G-O19 designation/consent and explicit owner enablement. API 1.1 is served additively by Core since WP3.4; the earlier WP3.1 specification-only wording is historical.**
 - Target-Mac verification: **pending hardware availability**.
 
 ## 12. Superseding owner direction and product-wide planning addendum (2026-11-20)
