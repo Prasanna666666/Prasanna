@@ -97,3 +97,5 @@ The later technical-document cleanup commits were: `f8c3550faef58b34074f0c7d514b
 ## API 1.1 status correction — 2026-11-25
 
 The WP3.1 acceptance was acceptance of the contract/specification scope, not a claim that runtime routes were already served at that commit. Subsequent WP3.4 work implements and serves API 1.1 additively; `core/docs/CONTRACT_1_1.md` is the current contract/runtime status authority. Do not repeat the historical statement that API 1.1 is still specification-only or not served.
+
+Additional documentation-only corrections in the final pass: `3706b95afd02b038d26134300c8ed568f91142c2` corrected the API 1.1 contract title/status; `6e463c714f963e3f42c3fabbc6d191d200353088` corrected the handover's API 1.1 status; `83051aea4269c4a178b371ef15fdca741cfc1a94` corrected Stage 3 handover egress/rollback wording and the PR description; `4ade8a8b526826e0d037876b113fa1220f17c818` removed the remaining Stage 3 egress-path wording conflict; `b230633b3b8d027576be42f6a6508c638e6e3a6f` aligned the handover with the criterion matrix. Review snapshot after those changes is recorded in `REVIEW_COVERAGE_RECONCILIATION.md`.
