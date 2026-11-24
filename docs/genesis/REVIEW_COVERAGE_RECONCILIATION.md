@@ -422,7 +422,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
 | `core/src/atlas_core/devices.py` | source | REVIEWED—NO FINDINGS | All 145 lines at blob 720a50b; one-time offer TTL/guess cap, Core fingerprint proof, member-only enrollment and durable revocation inspected |
-| `core/src/atlas_core/documents.py` | source | IN REVIEW | Targeted: 130–255, 285–395 |
+| `core/src/atlas_core/documents.py` | source | REVIEWED—FINDINGS OPEN | All 610 lines at blob 6c8bdb7; ATLAS-DOC-094 traversal budget ignores empty directories and materializes full directory listings; ATLAS-DOC-095 root parent components are not descriptor-pinned |
 | `core/src/atlas_core/egress.py` | source | REVIEWED—FINDINGS OPEN | All 409 lines at blob 0aa66a9; ATLAS-SEC-014 residual taint gaps; ATLAS-EGRESS-077 unbounded DNS timeout; ATLAS-EGRESS-078 silent 200k text truncation; ATLAS-EGRESS-079 malformed port ValueError |
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/events.py` | source | NOT STARTED | — |
@@ -487,7 +487,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_contracts_v11.py` | test | REVIEWED—NO FINDINGS | All 731 lines at blob b0feb79; deterministic merge, strict schema shapes, coverage/limitation consistency, content-free fields, OpenAPI parity and signing vectors inspected |
 | `core/tests/test_designation.py` | test | IN REVIEW | Targeted designable-domain assertion and grant tests |
 | `core/tests/test_devices.py` | test | IN REVIEW | Full test file |
-| `core/tests/test_documents.py` | test | NOT STARTED | — |
+| `core/tests/test_documents.py` | test | REVIEWED—FINDINGS OPEN | All 584 lines at blob 3d09459; child-directory/file symlink races covered, but no root-parent swap or directory-count/listing-size budget tests; ATLAS-DOC-094/095 |
 | `core/tests/test_domains.py` | test | NOT STARTED | — |
 | `core/tests/test_egress.py` | test | REVIEWED—FINDINGS OPEN | All 336 lines at blob 64881f5; taint/redirect coverage present; no stalled DNS, 200k–512k truncation-flag or malformed-port tests; ATLAS-EGRESS-077/078/079 |
 | `core/tests/test_enrolment.py` | test | REVIEWED—NO FINDINGS | All 243 lines at blob 7607fb4; bootstrap one-time/guess lockout, racing first owners, durable registry, owner/member authority and restart behavior covered |
@@ -1030,3 +1030,12 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-DOC-109 (P2, OPEN)**: Keychain list omits the edits, Finance/Health and native-domain keys; backup inventory omits Finance/Health record DBs and `actions-audit.jsonl`; ADR claims LaunchAgent startup even though the module only serializes a plist and the current app launches a child Core. Inline review comments **6046267112** and **6046268750** posted.
 - The row is now `REVIEWED—FINDINGS OPEN`. Counts: **53 IN REVIEW; 90 NOT STARTED; 84 REVIEWED—NO FINDINGS; 51 REVIEWED—FINDINGS OPEN (278 total)**. No tests were run.
 - Next changed path: `core/docs/BENCHMARK.md`.
+
+### Document scanner full source/test review — 2026-11-24
+
+- `core/src/atlas_core/documents.py` (610 lines, blob `6c8bdb788464024da2cea39e6f74218ca07ce0c0`) and `core/tests/test_documents.py` (584 lines, blob `3d09459464cd260efb517ac2c3f55ed5f08f7228`) were read in full at source head `f3f5e3d559f0a720b075f6da21b27de05527c84e`.
+- Existing tests provide strong child-component symlink race coverage, unreadable subtree reporting, oversized/corrupt file outcomes, source hash revalidation, cancellation and disk-pressure behavior.
+- Added **ATLAS-DOC-094 (P2)**: the 20,000-file limit does not bound directory count or a single directory's listing allocation; empty directory trees can grow the queue without reaching the cap.
+- Added **ATLAS-DOC-095 (P2)**: the scanner opens its resolved root by pathname on each operation; `O_NOFOLLOW` protects only the final root component, not parent components swapped to symlinks after initialization. Existing race tests cover descendants but not root ancestors.
+- Both source and test rows are findings-open. No local tests run.
+- Updated path counts: 49 IN REVIEW; 89 NOT STARTED; 83 REVIEWED—NO FINDINGS; 57 REVIEWED—FINDINGS OPEN (278 total).
