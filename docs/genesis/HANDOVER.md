@@ -110,3 +110,5 @@ Additional documentation-only corrections in the final pass: `3706b95afd02b038d2
 - `TEST_PLAN.md` and `WP3_5_CLIENT.md`: older Linux/reference-client snapshots are no longer presented as the current app/CI state.
 - `OWNER_ACCEPTANCE_CHECKLIST.md`: distinguishes native framework CI coverage from synthetic `.emlx` fixtures and the unverified real Mail store.
 - Commits: `08b973d7d3e6213c2ec63ad14dd0e8780a73733a`, `bd4d0bd05a8b03f9d8454a1e396d8c0405301e07`, `cefb48de9a0177c8f5bd035330ab9fdc2bbfa020`, `30a665987e54c119f01ac5bfe8455125cf2b96de`, `35e16243b6a3ddc43bae2dbdb24984f9c9869d9a`, `7cf97cbf1574b81d0084c2d40c200743fa664a8b`, `58b7e2de4b203977e437338f33928856484fdda4`, `2418e38f958d8be1600bf16711bd6b1800c020b1`, `36a8379f253e321103148d88e8aaa46752fb04e5`, and `408add907fb0b5a33151c52c66a1e8a213ff51f3`.
+
+The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a Stage 2 snapshot and corrected its hosted-macOS Keychain evidence note (`e1815bbc983f21f4d9d0cac448ab15f719bd5dc1`); the latest review snapshot is recorded in `REVIEW_COVERAGE_RECONCILIATION.md` (`fe8a34efc8db686afe1ae7b2efaffb1f471f4115`).
