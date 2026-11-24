@@ -438,7 +438,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/isolated.py` | source | REVIEWED—NO FINDINGS | All 169 lines at blob 94fc687; clean env, confined model root, bounded silence, worker crash, early cancel/drain and process teardown inspected |
 | `core/src/atlas_core/launchagent.py` | source | IN REVIEW | Full source: 1–42 |
 | `core/src/atlas_core/launcher.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/macos.py` | source | REVIEWED—FINDINGS OPEN | All 521 lines at blob 5cef615; ATLAS-MAIL-079 unreadable subtrees/files and failed root pin are silently omitted, allowing false-complete Mail coverage; descriptor/no-follow and MIME byte bounds otherwise inspected |
+| `core/src/atlas_core/macos.py` | source | REVIEWED—FINDINGS OPEN | All 521 lines at blob 5cef615; ATLAS-MAIL-079 false-complete coverage on unreadable paths; ATLAS-MAIL-088 unbounded full-mailbox materialization before index page/work caps |
 | `core/src/atlas_core/macos_sources.py` | source | IN REVIEW | Full: 1–266 |
 | `core/src/atlas_core/mail.py` | source | REVIEWED—FINDINGS OPEN | All 509 lines at blob ac47c34; coverage trusts ListPage completeness and cannot represent adapter-skipped entries; ATLAS-MAIL-079 |
 | `core/src/atlas_core/maintenance.py` | source | IN REVIEW | Targeted: 21–32, 105–132 |
@@ -501,8 +501,8 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_launchagent.py` | test | NOT STARTED | — |
 | `core/tests/test_launcher.py` | test | NOT STARTED | — |
 | `core/tests/test_library.py` | test | NOT STARTED | — |
-| `core/tests/test_macos.py` | test | REVIEWED—FINDINGS OPEN | All 710 lines at blob 3248ae2; strong symlink/race/MIME-byte-boundary coverage, but root symlink and inaccessible subtree are asserted/skipped as empty without checking MailIndex incomplete coverage (ATLAS-MAIL-079) |
-| `core/tests/test_macos_native.py` | test | NOT STARTED | — |
+| `core/tests/test_macos.py` | test | REVIEWED—FINDINGS OPEN | All 710 lines at blob 3248ae2; root/subtree errors are not surfaced as incomplete coverage (ATLAS-MAIL-079); no large-mailbox bounded traversal test (ATLAS-MAIL-088) |
+| `core/tests/test_macos_native.py` | test | REVIEWED—FINDINGS OPEN | All 174 lines at blob 589f78b; fixed production Keychain services `atlas-task-key` and `atlas-designation-anchor` are deleted by tests; ATLAS-TEST-069 (P1) |
 | `core/tests/test_macos_sources.py` | test | IN REVIEW | Targeted: 57–135 |
 | `core/tests/test_mail.py` | test | NOT STARTED | — |
 | `core/tests/test_maintenance.py` | test | NOT STARTED | — |
@@ -534,7 +534,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_transport.py` | test | REVIEWED—NO FINDINGS | All 240 lines at blob cfbd114; peer UID, request framing, duplicate/oversized length, timeout, connection cap and live/stale socket tests inspected |
 | `core/tests/test_updater.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_web.py` | test | REVIEWED—NO FINDINGS | All 136 lines at blob 9135805; owner-only host allow-list, public DNS pin handoff, injection flags, redirect refusal and missing-browser behavior covered |
-| `core/tests/worker_engines.py` | test | NOT STARTED | — |
+| `core/tests/worker_engines.py` | test | REVIEWED—NO FINDINGS | All 120 lines at blob 9eae6a0; echo/probe/slow/silent/crash/read fixtures inspected; no fixture defect established |
 | `core/tools/scan_artefacts.py` | script/tool | NOT STARTED | — |
 | `docs/README.md` | documentation | NOT STARTED | — |
 | `docs/genesis/ADR-G-O17-PLATFORM-RUNTIME.md` | documentation | NOT STARTED | — |
@@ -969,3 +969,12 @@ At PR #8 head `65575952ae9f0dba25d0482a492141a563bf8eeb`, read `devices.py` (145
 ### Action Gateway, operations, record store and offline sync review — 2026-11-24
 
 At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py` (314 lines, blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`), `operations.py` (147, `402ca45944a0268666c8bfa4cfd584c2e4e137b6`), `record_actions.py` (56, `16dbc4f3503b1d6aac1ce59ce5319b8fae504e40`), `recordstore.py` (213, `1f07bb7e198a6d9e58f8923fbc552ac9d7962d56`) and `sync.py` (118, `63d4ff0579fee9403085a554bb96f0c88bda22ad`). Confirmed existing **ATLAS-ACT-019** with precise evidence: same-key idempotency is not restored across restart, and the action handler runs before the audit append/fsync. Added **ATLAS-ACT-089 (P2, OPEN)**: `undo()` does not check whether its connector has since been revoked. RecordStore itself guards undo to the latest un-undone version and uses transactional SQLCipher writes. `test_actions.py` (229 lines) lacks same-key-after-restart, audit-write-failure and revoked-connector undo tests; `test_recordstore.py` (101) and `test_sync.py` (121) cover optimistic conflicts, restart-safe non-overwrite, and latest-only undo. No tests run locally.
+
+### Worker sandbox and macOS Mail adapter historical revalidation — 2026-11-24
+
+- `worker.py` (120 lines, blob `56140ca98ced240635936a8dd7c9efffdcc9351a`) no longer has the historical `--skip-self-sandbox` bypass. It unconditionally calls `sandbox.install_network_deny()` before `_engine()` is constructed; custom engine loading remains behind the explicit test-only `--allow-custom-engine`. The old bypass finding appears fixed at this source snapshot; historical PR thread remains untouched pending owner/reviewer disposition.
+- `sandbox.py` (165 lines, blob `80210f0e33205ac6d624182b5d6c535ca39f43bd`) retains `(allow default)` and is explicitly not a least-privilege profile, but current profile denies network and file writes, denies reads under `/Users`, `/Volumes`, temp/private folders, constrains process execution to Python runtime paths and limits Mach lookups to the measured allow-list. The `worker_engines.py` probes and macOS CI checks cover network, writes, private-root reads and execution. Residual system-file/IOKit/signal access and target-owner-Mac verification remain open; do not describe this as full least privilege.
+- `macos.py` current EMLX path uses pinned directory descriptors, `O_NOFOLLOW` at each level, a bounded count line/header/body reader and stops before non-text attachment payloads; the old whole-file/attachment-byte-read and unbounded count-line findings appear fixed in current code/tests. Remaining open items are **ATLAS-MAIL-079** (unreadable subtrees/files can appear as complete coverage) and **ATLAS-MAIL-088** (adapter materializes every message before MailIndex's bounded page/work logic).
+- `test_macos_native.py` (174 lines, blob `589f78ba21f45a3e892f7b39e1857c73356119c0`) has an additional destructive case under existing **ATLAS-TEST-069**: it unconditionally deletes fixed production Keychain services `atlas-task-key` and `atlas-designation-anchor`; the native tests are findings-open. `worker_engines.py` (120 lines, blob `9eae6a0abd1bd1a2033c676187433f91bc655820`) was read in full and has no fixture defect.
+- No local tests, macOS sandbox run, real Mail-store test or real TCC acceptance was run by this review.
+- Updated path counts: 60 IN REVIEW; 91 NOT STARTED; 79 REVIEWED—NO FINDINGS; 48 REVIEWED—FINDINGS OPEN (278 total).
