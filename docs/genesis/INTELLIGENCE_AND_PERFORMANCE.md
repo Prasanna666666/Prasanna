@@ -42,6 +42,37 @@ These are proposed product targets, not claims about current hardware or models.
 - For high-impact outputs, use independent validation or a second verification path where practical; do not assume a second model automatically makes an answer correct.
 - Treat retrieved documents and connector data as untrusted input, never as policy or authority.
 
+### 4.1 Canonical answer contract and consistency harness
+
+All model routes, agent roles and interaction surfaces must produce one versioned Atlas answer contract before content is rendered. Model-specific prompts may vary, but the output semantics and policy checks must not.
+
+**Canonical answer semantics**
+- Separate: (a) source-backed facts, (b) deterministic calculations/tool results, (c) inferences, (d) recommendations, and (e) unknowns or limitations.
+- Attach provenance to every material personal-data claim and every externally researched current claim. A citation must resolve to the exact source/version/locator; no model may fabricate or repair a missing citation.
+- Represent completion explicitly as completed, partial, blocked, failed, cancelled or unavailable. A tool being called is not proof that the requested work succeeded.
+- Carry freshness/as-of time for changing facts, and distinguish historical data from live/current data.
+- Preserve units, currencies, dates, entity identity and uncertainty. Calculations and conversions come from deterministic tools.
+- Model identity is metadata (model ID and routing role), never a substitute for evidence and never a reason to alter policy.
+- The renderer must not promote unsupported prose, missing fields or confidence language into verified facts.
+
+**Consistency invariants**
+1. The same authorised evidence and same question semantics must yield materially consistent facts, figures, citations, action status and uncertainty across model routes. Wording may differ; truth conditions may not.
+2. Changing a model, quantisation, prompt adapter, agent role or runtime must not change source permissions, privacy scope, approval rules or action authority.
+3. Follow-up answers must inherit relevant conversation/task context and prior constraints, but must re-check source freshness, grants and current state before making new factual or action claims.
+4. Conflicting or stale evidence must remain visible; a model switch must never silently resolve a conflict by choosing a different source.
+5. If a route cannot satisfy the contract, Atlas validates/repairs only through deterministic schema and evidence checks, retries within a bounded budget where safe, or abstains with a plain explanation. It must not fill missing fields by guessing.
+
+**Harness engineering requirements**
+- Keep a versioned, synthetic/sanitised golden corpus with canonical expected facts, citations, calculations, uncertainty and action outcomes. Include paraphrases, ambiguous requests, multi-turn follow-ups, corrections, contradictory/stale sources, multilingual cases, prompt injection, missing evidence, tool failures and partial completion.
+- Run the same cases across every eligible model route and compare semantic invariants, not exact prose. Measure factual agreement, citation precision/recall, numeric/date exactness, abstention correctness, task-state correctness, policy violations and leakage.
+- Add metamorphic tests: paraphrasing the question, reordering irrelevant evidence, switching an eligible model, restarting a task, or repeating an idempotent request must not change the underlying verified result or duplicate side effects.
+- Add contract tests for every model adapter and agent output. Reject malformed schemas, unsupported claims, missing provenance and invalid action payloads before rendering or execution.
+- Every change to model, prompt, quantisation, retrieval, memory assembly, routing, tools or response rendering runs the relevant golden and security suites against the exact commit. Store versioned test definitions and aggregate metrics, not private prompts or user content.
+- Require zero critical policy bypasses, private-data leakage, fabricated citations or unauthorised actions. Report other quality regressions by task class and language; do not hide regressions in aggregate averages.
+- Keep a small human-reviewed benchmark set for semantic correctness and UI comprehension; automated metrics alone cannot establish that answers are consistently understandable.
+
+This harness improves repeatability and catches regressions; it cannot mathematically guarantee identical wording or eliminate every model error. Atlas must preserve the invariants above and state uncertainty rather than promise perfect consistency.
+
 ## 5. Model strategy
 
 **Final selection (G-O01, 2026-11-22):** one resident local primary, Apple MLX, no cloud inference and no remote fallback. The selected target hardware and model roles are recorded in `DECISIONS.md` §8. This is a fixed architecture selection with explicit disqualifiers; it is not a claim that the model has been installed, that MLX compatibility is proven, or that target performance has been measured.
