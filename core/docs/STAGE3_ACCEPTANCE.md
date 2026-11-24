@@ -1,5 +1,7 @@
 # Stage 3 acceptance: the 15 release-blocking criteria (STAGE-3-EXECUTION-PLAN.md §5) mapped to evidence
 
+**Current status snapshot:** 2026-11-25. This matrix is the criterion-level authority. Criteria 2, 7 and 8 remain PARTIAL with open findings ATLAS-CORE-092 (P1), ATLAS-EXACT-106 (P1), ATLAS-CORE-083 (P1) and ATLAS-CORE-084 (P2); criterion 11's hosted/testable evidence does not mean real-Internet or owner-Mac verification passed. Final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking. Stage 3 is NOT ACCEPTED.
+
 Evidence classes, used exactly: **L** = automated test on Linux CI with synthetic data and deterministic stubs (developer-reported until the exact-head CI run is read; CI result is posted separately on PR #8). **M** = needs the target Mac or a real model; **pending** unless stated. **Nothing here is a target-Mac, real-model, performance-on-Mac, TCC, Keychain, FileVault or power-loss claim.** Status is one of MET-L (met on Linux; any M part listed), PARTIAL (a stated part is not built or not verified), PENDING-M.
 
 | # | Criterion | Implementation | Tests (exist; checked by `tests/test_stage3_acceptance.py`) | Evidence | Status and known limitation |
