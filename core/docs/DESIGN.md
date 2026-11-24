@@ -1,4 +1,6 @@
-# Design: architecture, dependency map, API versioning, reuse matrix — historical Stage 2 design record
+# Design: architecture, dependency map, API versioning, reuse matrix — historical Stage 2 design record — historical Stage 2 design record
+
+**Evidence update (2026-11-25):** The original Stage 2 note below says the real `security` tool was not verified. Since then, `core/docs/MACOS_PROVIDERS.md` records hosted-macOS CI evidence for the real `security` tool/Keychain. Owner-Mac prompts, item access controls, FileVault and power-loss behaviour remain unverified. Use the provider document and current Stage 3 acceptance matrix for current evidence.
 
 **Evidence update (2026-11-25):** The original Stage 2 note below says the real `security` tool was not verified. Since then, `core/docs/MACOS_PROVIDERS.md` records hosted-macOS CI evidence for the real `security` tool/Keychain. Owner-Mac prompts, item access controls, FileVault and power-loss behaviour remain unverified. Use the provider document and current Stage 3 acceptance matrix for current evidence.
 
