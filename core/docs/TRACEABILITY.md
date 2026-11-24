@@ -1,6 +1,6 @@
-# Traceability: requirements to contract, implementation, tests and limits
+# Stage 2 foundation traceability — historical accepted-scope record
 
-Implementation notes of the Stage 2 foundation (`core/`). The canonical requirements are in `docs/genesis/` on `genesis-architecture`; this file is an index, not a competing specification.
+**Snapshot:** Stage 2 foundation scope, accepted at exact commit `58210223398a5715b618d1163397104efd358d49`. This is a historical traceability record for that bounded Core baseline, not a current inventory of later Stage 3–8 capabilities. Subsequent G-O19 designation, API 1.1, Mail, UI and domain work is recorded in the current Stage 3/Stage 4–8 documents. The canonical product requirements are in `docs/genesis/`; this file is an index, not a competing specification.
 Test references are checked by `tests/test_architecture.py` (a reference to a test that does not exist fails the build).
 
 ## Acceptance criteria (STAGE-2-WORK-PACKAGE §5)
