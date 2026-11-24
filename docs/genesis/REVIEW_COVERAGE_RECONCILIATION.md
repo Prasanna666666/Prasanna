@@ -326,11 +326,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/Library.swift` | source | REVIEWED—NO FINDINGS | All 67 lines at blob e433872; result allow-list mapping, coverage, partial/no-result/denied states and stable title sorting inspected |
 | `app/Sources/AtlasKit/Lifecycle.swift` | source | REVIEWED—NO FINDINGS | All 89 lines at blob 4d1b6c9; explicit Core-state allow-list, terminal/cancel rules and monotonic phase tracking inspected |
 | `app/Sources/AtlasKit/Navigation.swift` | source | REVIEWED—NO FINDINGS | All 97 lines at blob 9e4edd8; destination restoration, availability filtering, responsive breakpoints and shortcut bounds inspected |
-| `app/Sources/AtlasKit/Notifications.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full) |
-| `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full) |
-| `app/Sources/AtlasKit/PhoneEngine.swift` | source | IN REVIEW | Full source; 1–124 |
-| `app/Sources/AtlasKit/Records.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Notifications.swift` | source | REVIEWED—NO FINDINGS | All 27 lines at blob 10f1902; opt-in gate, attention filtering, dedupe and per-round cap/content-free payload inspected |
+| `app/Sources/AtlasKit/OfflineSync.swift` | source | REVIEWED—NO FINDINGS | All 143 lines at blob d489f50; operation allow-list, queue cap, persistence, idempotent result removal, conflict/revocation and cache TTL inspected |
+| `app/Sources/AtlasKit/Pairing.swift` | source | REVIEWED—FINDINGS OPEN | All 133 lines at blob ffcac44; ATLAS-PAIR-065 duplicate query names trap Dictionary(uniqueKeysWithValues:); fingerprint/nonce proof and vault write order inspected |
+| `app/Sources/AtlasKit/PhoneEngine.swift` | source | REVIEWED—FINDINGS OPEN | All 137 lines at blob f1beb87; ATLAS-PHONE-064 paired-but-no-transport path leaves link falsely online; queue/cache/revocation paths inspected |
+| `app/Sources/AtlasKit/Records.swift` | source | REVIEWED—NO FINDINGS | All 132 lines at blob 2a0c22a; own-domain allow-list, date validation, payload generation and record identity inspected |
 | `app/Sources/AtlasKit/RelayBind.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full) |
 | `app/Sources/AtlasKit/ScreenState.swift` | source | IN REVIEW | Full source inspected |
@@ -817,3 +817,8 @@ The current branch contains additional exact-file reviews recorded by a parallel
 ### Transport, health, library, lifecycle and navigation review — 2026-11-24
 
 At PR #8 head `77e584b3a4a13dbe9266fa13cf298e5fabdc5df5`, all five files were read in full: `HTTPTransport.swift` (45 lines, blob `42e491ccda9d4f516332564e30926d19a95d3f89`), `Health.swift` (57 lines, blob `4d2274eda747907ec27ff9f13820c8a5d1100499`), `Library.swift` (67 lines, blob `e433872979892bef3382fb04589f134ed4a54443`), `Lifecycle.swift` (89 lines, blob `4d1b6c99974019b41d0d8d36dcf92378f5f97271`) and `Navigation.swift` (97 lines, blob `9e4edd8b04eb25a6a61c77a4029fe7a9b9f26d93`). Reviewed remote URL/TLS/redirect/response bounds, health provenance and units, library state and coverage mapping, task phase transitions, and availability-based navigation/restoration. No independent defects established in these files. No tests run locally.
+
+
+### Notifications, offline sync, pairing, phone engine and records review — 2026-11-24
+
+At PR #8 head `b7e60221178607ceca873fe83c30fb858cee7a45`, all five files read in full: `Notifications.swift` (27 lines, blob `10f190200f659d696f5e71ba92288c91c5b58dd9`), `OfflineSync.swift` (143, `d489f50d22fbd235407a0bd88279f2262c036208`), `Pairing.swift` (133, `ffcac447acf9c701962d5ca237d2ba9f72bfbad0`), `PhoneEngine.swift` (137, `f1beb87d001f0daafd8e3bc3b841dc476ba12215`) and `Records.swift` (132, `2a0c22aca0ad8f25574a251886ab3983abab80ac`). Findings: **ATLAS-PAIR-065 (P2, OPEN)** duplicate invite query keys can trap; **ATLAS-PHONE-064 (P2, OPEN)** a missing transport leaves the paired device link falsely online. Notification opt-in/deduplication, offline queue restrictions and conflict handling, pairing proof-before-save, and record payload validation were inspected. No other defects established. No tests run locally.
