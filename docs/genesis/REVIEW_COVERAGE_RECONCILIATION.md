@@ -342,24 +342,24 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/Voice.swift` | source | REVIEWED—FINDINGS OPEN | All 111 lines at blob 7ce1093; ATLAS-VOICE-067 asking state does not prevent multiple asynchronous permission callbacks starting multiple sessions |
 | `app/Sources/AtlasKit/Web.swift` | source | REVIEWED—NO FINDINGS | All 53 lines at blob 1c4f8d8; HTTPS and allow-listed host validation, injection/truncation warnings and Core error mapping inspected |
 | `app/Sources/AtlasKit/ux_catalogue.json` | source | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/AloudTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/ConnectionsTests.swift` | test | IN REVIEW | Targeted: 1–160 |
-| `app/Tests/AtlasKitTests/DesignSystemTests.swift` | test | IN REVIEW | Targeted contrast/accessibility assertions |
+| `app/Tests/AtlasKitTests/AloudTests.swift` | test | REVIEWED—NO FINDINGS | All 41 lines at blob f7a8ad7; text composition, empty answer and speak/stop/finish transitions covered |
+| `app/Tests/AtlasKitTests/ConnectionsTests.swift` | test | REVIEWED—NO FINDINGS | All 73 lines read; state, approval vocabulary, safe host validation, and malformed top-level response tests inspected |
+| `app/Tests/AtlasKitTests/DesignSystemTests.swift` | test | REVIEWED—NO FINDINGS | Full file read; WCAG contrast, text hierarchy, spacing/type/radius, reduced motion and navigation layout assertions inspected |
 | `app/Tests/AtlasKitTests/EndToEndTests.swift` | test | REVIEWED—FINDINGS OPEN | All 197 lines at blob c928573; ATLAS-TEST-069 deletes production-named Atlas Keychain items on local E2E runs |
-| `app/Tests/AtlasKitTests/FinanceTests.swift` | test | IN REVIEW | Targeted outcome cases |
-| `app/Tests/AtlasKitTests/GetStartedTests.swift` | test | IN REVIEW | Full test file |
-| `app/Tests/AtlasKitTests/HealthTests.swift` | test | IN REVIEW | Targeted outcome cases |
-| `app/Tests/AtlasKitTests/LibraryTests.swift` | test | IN REVIEW | Targeted malformed-row/coverage cases |
-| `app/Tests/AtlasKitTests/NotificationTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/FinanceTests.swift` | test | REVIEWED—FINDINGS OPEN | Full file read; delta direction cases omit zero/negative-zero, leaving ATLAS-FIN-063 uncovered |
+| `app/Tests/AtlasKitTests/GetStartedTests.swift` | test | REVIEWED—NO FINDINGS | All 35 lines at blob 8355b30; default-deny, no-grant and completion cases covered |
+| `app/Tests/AtlasKitTests/HealthTests.swift` | test | REVIEWED—NO FINDINGS | All 48 lines at blob 1eb3314; measured/estimated/unlabelled provenance and invalid/empty states covered |
+| `app/Tests/AtlasKitTests/LibraryTests.swift` | test | REVIEWED—NO FINDINGS | All 50 lines at blob abba8b8; result rows, coverage, partial/denied/unknown states and stable sorting covered |
+| `app/Tests/AtlasKitTests/NotificationTests.swift` | test | REVIEWED—NO FINDINGS | All 35 lines at blob d7bc7f0; opt-in, generic privacy-safe body, dedupe and per-round cap covered |
 | `app/Tests/AtlasKitTests/PhoneTests.swift` | test | REVIEWED—FINDINGS OPEN | Full file read; ATLAS-TEST-069 repeats production-named Keychain deletion; ATLAS-PHONE-064 no-transport state path lacks regression coverage |
-| `app/Tests/AtlasKitTests/ReapIdentityTests.swift` | test | IN REVIEW | Full test file |
-| `app/Tests/AtlasKitTests/RecordsTests.swift` | test | IN REVIEW | Targeted record outcome/draft cases |
-| `app/Tests/AtlasKitTests/ReviewTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/SigningTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/SubmissionGateTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/UpdateTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/ReapIdentityTests.swift` | test | REVIEWED—NO FINDINGS | All 94 lines at blob 4aba14f; process identity, stale/reused PID, mismatched folder/socket and re-check before SIGKILL covered |
+| `app/Tests/AtlasKitTests/RecordsTests.swift` | test | REVIEWED—NO FINDINGS | All 88 lines at blob a7bd41f; record mapping, draft validation, calendar/travel dates and ID grammar covered |
+| `app/Tests/AtlasKitTests/ReviewTests.swift` | test | REVIEWED—NO FINDINGS | All 38 lines at blob 13c27d8; review section mapping, highlights, incomplete and unreadable states covered |
+| `app/Tests/AtlasKitTests/SigningTests.swift` | test | REVIEWED—NO FINDINGS | All 44 lines at blob 9452b0b; 1.0/1.1 known-answer vectors, signature verification and catalogue rendering covered |
+| `app/Tests/AtlasKitTests/SubmissionGateTests.swift` | test | REVIEWED—FINDINGS OPEN | All 29 lines at blob f718553; tests isolated gate only, not AppModel stale currentTaskID on new submission (ATLAS-APP-052) |
+| `app/Tests/AtlasKitTests/UpdateTests.swift` | test | REVIEWED—NO FINDINGS | All 35 lines at blob a090ff2; managed/unmanaged status, refusal wording and install/restart result covered |
 | `app/Tests/AtlasKitTests/VoiceTests.swift` | test | REVIEWED—FINDINGS OPEN | All lines read; fake permission callback is synchronous, no repeated/delayed .asking-state test for ATLAS-VOICE-067 |
-| `app/Tests/AtlasKitTests/WebTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/WebTests.swift` | test | REVIEWED—NO FINDINGS | All 27 lines at blob 647d85c; source/untrusted warning, injection flag, host allow-list and HTTPS-only validation covered |
 | `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift` | test | REVIEWED—FINDINGS OPEN | Full 92 lines at blob 0059680; ATLAS-TEST-054 contrast exemption can false-pass using unrelated frame extrema; ATLAS-TEST-055 fixed sleep/non-empty text does not assert stable first screen |
 | `app/xcode/project.yml` | build/config | NOT STARTED | — |
 | `core/README.md` | documentation | NOT STARTED | — |
@@ -837,3 +837,8 @@ At PR #8 head `33c0301905addc059aef0b63098c7987738e1327`, all five files read in
 ### E2E, phone and voice regression-test review — 2026-11-24
 
 At PR #8 head `6d975573b63456c7702c573fdb58fb8fe95a11b7`, inspected the full `EndToEndTests.swift` (197 lines, blob `c9285731aa996a43e0148aa774049a7c69931f03`), `PhoneTests.swift` (full file) and `VoiceTests.swift` (full file). **ATLAS-TEST-069 (P1, OPEN)**: both E2E suites delete production-named Keychain service items rather than using an isolated test keychain; local execution can destroy real Atlas keys. Voice tests use synchronous permission callbacks and do not cover repeated taps/delayed permission resolution, leaving **ATLAS-VOICE-067** unguarded. Phone tests cover normal offline cache, sync and revocation, but not the no-transport branch in **ATLAS-PHONE-064**. No tests were run locally.
+
+
+### AtlasKit unit-test inventory continuation — 2026-11-24
+
+At PR #8 head `45324737c0f177314edf8363f1c51fad671f0ff7`, fully inspected Aloud, Connections, DesignSystem, Finance, GetStarted, Health, Library, Notification, ReapIdentity, Records, Review, Signing, SubmissionGate, Update and Web test files. The Finance test suite has no zero-delta case (**ATLAS-FIN-063**); SubmissionGateTests verify only the standalone gate and do not cover the AppModel current-task identifier race (**ATLAS-APP-052**). These two test files are findings-open. Other listed test files were marked reviewed with no independent issue. No tests were run locally; this is static test-source review only.
