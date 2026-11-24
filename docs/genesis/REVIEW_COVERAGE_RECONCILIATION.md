@@ -502,7 +502,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_launcher.py` | test | NOT STARTED | — |
 | `core/tests/test_library.py` | test | NOT STARTED | — |
 | `core/tests/test_macos.py` | test | REVIEWED—FINDINGS OPEN | All 710 lines at blob 3248ae2; root/subtree errors are not surfaced as incomplete coverage (ATLAS-MAIL-079); no large-mailbox bounded traversal test (ATLAS-MAIL-088) |
-| `core/tests/test_macos_native.py` | test | REVIEWED—FINDINGS OPEN | All 174 lines at blob 589f78b; fixed production Keychain services `atlas-task-key` and `atlas-designation-anchor` are deleted by tests; ATLAS-TEST-069 (P1) |
+| `core/tests/test_macos_native.py` | test | REVIEWED—FINDINGS OPEN | All 174 lines, blob `589f78b`; ATLAS-TEST-069 P1: tests delete fixed production Keychain services and production-host test omits Finance/Health/native index keys from preflight/cleanup; comment 6046505559 |
 | `core/tests/test_macos_sources.py` | test | IN REVIEW | Targeted: 57–135 |
 | `core/tests/test_mail.py` | test | NOT STARTED | — |
 | `core/tests/test_maintenance.py` | test | NOT STARTED | — |
