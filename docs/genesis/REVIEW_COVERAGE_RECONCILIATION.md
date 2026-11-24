@@ -766,3 +766,8 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - No app source or test file changed; no local test execution. The file remains `REVIEWED—FINDINGS OPEN` pending implementation and re-review.
 - Updated exact-head ledger totals: **278 total; 141 IN REVIEW; 129 NOT STARTED; 5 REVIEWED—NO FINDINGS; 4 REVIEWED—FINDINGS OPEN**.
 - Next source path to complete from existing partial inspection: `app/Sources/AtlasApp/Shell.swift` (historical ledger says full source inspected; first compare its current blob SHA before deciding whether a delta review is needed).
+
+
+### Activity screen source review completed — 2026-11-24
+
+- `app/Sources/AtlasApp/Screens.swift`: all 772 lines re-read in contiguous ranges at blob `9b5ad87b6b762201a33b4af4737b2ff655145deb`. Home/Ask/Composer/Library/Records/Finance/Web/Connections/Health/Activity/Get Started/Settings and QR rendering inspected. The reproducible omission is logged as **ATLAS-APP-056 (P2, OPEN)**: Activity uses only `model.activity`, whereas Home explicitly merges `model.activity + model.attention`; attention-only calendar-conflict items therefore disappear from Activity. No local test run. The file is findings-open, not clean.
