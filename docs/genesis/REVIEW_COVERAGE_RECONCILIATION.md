@@ -427,7 +427,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/events.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/evidence.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/exact.py` | source | IN REVIEW | Full source: 1–260; precision defect ATLAS-EXACT-106 |
+| `core/src/atlas_core/exact.py` | source | REVIEWED—FINDINGS OPEN | All 260 lines at blob e86abc9; ATLAS-EXACT-106 (P1): terminating rational decimals with >28 significant digits are rounded by default Decimal context but returned as exact |
 | `core/src/atlas_core/finance_calc.py` | source | IN REVIEW | Full: 1–187 |
 | `core/src/atlas_core/gate.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/health.py` | source | IN REVIEW | Full source |
@@ -493,7 +493,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_enrolment.py` | test | REVIEWED—NO FINDINGS | All 243 lines at blob 7607fb4; bootstrap one-time/guess lockout, racing first owners, durable registry, owner/member authority and restart behavior covered |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
 | `core/tests/test_evidence_answer.py` | test | REVIEWED—NO FINDINGS | All 185 lines at blob 532fb7e; exact span/locator, stale/wrong quote, figure/date, language, truncation, partial and failure states covered |
-| `core/tests/test_exact.py` | test | IN REVIEW | Full test file; no >28-digit exact-decimal test |
+| `core/tests/test_exact.py` | test | REVIEWED—FINDINGS OPEN | All 137 lines at blob 79475d2; no >28-significant-digit terminating-decimal regression case; ATLAS-EXACT-106 |
 | `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_health.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_intelligence.py` | test | NOT STARTED | — |
@@ -1008,3 +1008,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-CONTRACT-107 (P2, OPEN)**: five bare object maps (`ActionRequest.payload`, `ActionOutcome.result`/`exact_payload`, `SyncRequest.ops[].payload`, `RecordList.records[].fields`) accept arbitrary nested keys and strings. The free-text scanner at `test_contracts_v11.py:466–496` only detects explicit string schemas, so its “only two free-text fields” assertion misses these maps. PR review comment **6046187508** posted at `test_contracts_v11.py:485`. This is a contract/test assurance gap; no evidence was found that these values are currently logged or sent externally.
 - The delta is now **REVIEWED—FINDINGS OPEN**. Counts: **55 IN REVIEW; 91 NOT STARTED; 83 REVIEWED—NO FINDINGS; 49 REVIEWED—FINDINGS OPEN (278 total)**. No tests executed in this review.
 - **Next file:** `core/contracts/atlas-contracts.1.1.schema.json` (generated merged schema), then `core/contracts/openapi-1.1.yaml`. Do not mark the generated schema accepted until it is compared against the delta/base and contract test's deterministic merge claim.
+
+### Exact arithmetic current-head revalidation — 2026-11-24
+
+- Re-read `core/src/atlas_core/exact.py` (260 lines, blob `e86abc97a98127c1042c0e7c951fe0b4e3df94ad`) and `core/tests/test_exact.py` (137 lines, blob `79475d2a774a55f9a70f0eb4d5ff36845b0a9170`) at PR source head `ee874de3bfc3a3780cb0d52136d1ffd0b8541c42`.
+- **ATLAS-EXACT-106 (P1, OPEN) remains present:** the rational parser is exact, but `Number.exact_decimal` converts a terminating fraction using default-context `Decimal` division (28 significant digits). For a terminating value requiring more than 28 significant digits, it returns a rounded decimal while `exact_decimal` says the value is exact. The tests cover 0.1+0.2, 10/4 and 1/3 but no high-precision terminating fraction.
+- Both source and test rows are now findings-open. No local tests run.
+- Updated path counts: 52 IN REVIEW; 91 NOT STARTED; 82 REVIEWED—NO FINDINGS; 53 REVIEWED—FINDINGS OPEN (278 total).
