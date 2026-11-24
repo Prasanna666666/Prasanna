@@ -238,16 +238,48 @@ Compared all 12 live branches against PR #8 head:
 **Boundary:** no application source, tests, build files or configuration were changed. This continuation updates only the review-coverage documentation; no PR approval, merge, branch operation or review-thread resolution was performed.
 
 
-## Exact-head path inventory — 2026-11-24
+## Additional exact-head findings — continued source audit
 
-**Inventory source:** paginated GitHub changed-filename endpoint for PR #8 head `3a197cb2e68ac138a324191e91b422acd44140f5` (the current PR head at the time of this inventory). The next head movement, if any, requires regenerating this inventory. The source audit code tree is still `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba`; the intervening `3a197cb2e68ac138a324191e91b422acd44140f5` commit changed only this coverage document.
+The following findings were added after the previous ledger commit. Each has a detailed PR comment with reproduction/source evidence/remediation; all remain OPEN.
+
+| ID | Severity | Finding |
+|---|---|---|
+| ATLAS-IOS-050 | P2 | Duplicate pairing query keys can crash the phone parser |
+| ATLAS-IOS-051 | P1 | Offline queue write/read/decode failures silently lose pending edits; backup exclusion errors are suppressed |
+| ATLAS-IOS-052 | P1 | Any unauthenticated response is treated as revocation and erases queue/cache |
+| ATLAS-IOS-053 | P1 | Detached tasks concurrently mutate non-thread-safe PhoneEngine/OfflineQueue |
+| ATLAS-IOS-054 | P2 | Unpair during an in-flight Ask can index a cleared turn array |
+| ATLAS-IOS-055 | P2 | A stored pairing is presented as online before a successful Core request |
+| ATLAS-IOS-056 | P2 | Phone Ask polling has no deadline/cancellation bound |
+| ATLAS-IOS-057 | P2 | Phone Archive has no reachable Undo receipt/path |
+| ATLAS-IOS-060 | P1 | Phone response limit is checked after URLSession buffers the full response |
+| ATLAS-IOS-061 | P1 | Unbatched offline queue can exceed the 64 KiB Core/relay request limit |
+| ATLAS-RELAY-063 | P1 | Relay has no response-byte cap |
+| ATLAS-SEC-067 | P1 | Memory-only nonce cache permits signed-request replay after Core restart within timestamp window |
+| ATLAS-SEC-068 | P1 | Client revocation registry rename lacks file and directory fsync durability |
+| ATLAS-UI-069 | P2 | Always-present Home “Your review” card conflicts with approved Home density/content order |
+| ATLAS-IOS-070 | P1 | Paired Core fingerprint is never checked on subsequent phone responses |
+| ATLAS-BACKUP-071 | P1 | Backup restores active client keys but omits device metadata needed to list/revoke them |
+| ATLAS-ANS-075 | P2 | Non-numeric factual claim can be marked verified by an unrelated valid citation |
+| ATLAS-ANS-076 | P1 | Generic one-decimal rounding tolerance can mark a one-cent monetary discrepancy verified |
+| ATLAS-ANS-077 | P1 | Numeric verification discards negative signs, equating positive and negative values |
+| ATLAS-SEC-083 | P1 | Enrolled device can submit TaskRequest scoped to Finance/Health; task creation lacks caller-role enforcement |
+| ATLAS-SEC-084 | P2 | Task read/answer/events/receipt/cancel routes are not bound to the authenticated client |
+
+**ATLAS-SEC-083 scope clarification:** API 1.1 requires non-empty `source_scope`; the concrete bypass is an explicit `["finance"]` or `["health"]` scope. `SourceType` is pattern-based, and policy rules define both types. The earlier comment's omitted-scope wording is superseded by the clarification comment.
+
+
+
+## Exact-head path inventory — refreshed 2026-11-24
+
+**Inventory source:** paginated GitHub changed-filename endpoint for PR #8 head `14c42d9cb4d546484077090af939b85a5ce6440e`. This is a documentation-only source head; application source remains identical to the reviewed source snapshot `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba`.
 
 - Exact changed paths: **278**
-- Paths with targeted inspection recorded in this pass: **78**
-- Paths not yet started in this pass: **200**
+- Paths with targeted inspection recorded: **94**
+- Paths not yet started: **184**
 - Paths established as fully line-by-line reviewed: **0**
 - Categories: build/config 6; documentation 62; source 108; test 88; benchmark 2; contract/schema 5; evaluation 3; script/tool 4.
-- `IN REVIEW` means only the units/ranges shown were inspected; it does **not** mean the entire file is reviewed or accepted. No row is marked `REVIEWED—NO FINDINGS` or `REVIEWED—FINDINGS OPEN` until a complete file-level pass and its tests/requirements are finished.
+- `IN REVIEW` means only the units/ranges shown were inspected. It does not mean the entire file was reviewed or accepted. All tests were inspected selectively; **no test suite or CI was run** in this pass.
 
 | Path | Type | Status | Units inspected |
 |---|---|---|---|
@@ -263,28 +295,28 @@ Compared all 12 live branches against PR #8 head:
 | `app/Sources/AtlasApp/Shell.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasApp/Speaker.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasApp/Speech.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full file inspected) |
+| `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full file) |
 | `app/Sources/AtlasKit/Aloud.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/AnswerView.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Approval.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Catalogue.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Connections.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full file inspected) |
-| `app/Sources/AtlasKit/CoreLauncher.swift` | source | IN REVIEW | Full source inspected; process identity/lifecycle sections |
+| `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full file) |
+| `app/Sources/AtlasKit/CoreLauncher.swift` | source | IN REVIEW | Full source; process identity/lifecycle sections |
 | `app/Sources/AtlasKit/Finance.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/GetStarted.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full file inspected) |
+| `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full file) |
 | `app/Sources/AtlasKit/Health.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Library.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Lifecycle.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Navigation.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Notifications.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full file inspected) |
-| `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full file inspected) |
-| `app/Sources/AtlasKit/PhoneEngine.swift` | source | IN REVIEW | Full source inspected; 1–124 |
+| `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full file) |
+| `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full file) |
+| `app/Sources/AtlasKit/PhoneEngine.swift` | source | IN REVIEW | Full source; 1–124 |
 | `app/Sources/AtlasKit/Records.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/RelayBind.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full file inspected) |
+| `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full file) |
 | `app/Sources/AtlasKit/ScreenState.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Signing.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/SubmissionGate.swift` | source | NOT STARTED | — |
@@ -299,12 +331,12 @@ Compared all 12 live branches against PR #8 head:
 | `app/Tests/AtlasKitTests/DesignSystemTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/EndToEndTests.swift` | test | IN REVIEW | Targeted: 61–200 |
 | `app/Tests/AtlasKitTests/FinanceTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/GetStartedTests.swift` | test | IN REVIEW | Full test file inspected |
+| `app/Tests/AtlasKitTests/GetStartedTests.swift` | test | IN REVIEW | Full test file |
 | `app/Tests/AtlasKitTests/HealthTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/LibraryTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/NotificationTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/PhoneTests.swift` | test | IN REVIEW | Targeted phone revocation/queue tests |
-| `app/Tests/AtlasKitTests/ReapIdentityTests.swift` | test | IN REVIEW | Full test file inspected |
+| `app/Tests/AtlasKitTests/PhoneTests.swift` | test | IN REVIEW | Targeted phone revocation/queue cases |
+| `app/Tests/AtlasKitTests/ReapIdentityTests.swift` | test | IN REVIEW | Full test file |
 | `app/Tests/AtlasKitTests/RecordsTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/ReviewTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/SigningTests.swift` | test | NOT STARTED | — |
@@ -320,7 +352,7 @@ Compared all 12 live branches against PR #8 head:
 | `core/client/atlas_client.py` | source | NOT STARTED | — |
 | `core/client/ux_catalogue.json` | source | NOT STARTED | — |
 | `core/contracts/atlas-contracts.1.1.delta.schema.json` | contract/schema | NOT STARTED | — |
-| `core/contracts/atlas-contracts.1.1.schema.json` | contract/schema | NOT STARTED | — |
+| `core/contracts/atlas-contracts.1.1.schema.json` | contract/schema | IN REVIEW | TaskRequest and SourceType definitions inspected |
 | `core/contracts/atlas-contracts.schema.json` | contract/schema | NOT STARTED | — |
 | `core/contracts/openapi-1.1.yaml` | contract/schema | NOT STARTED | — |
 | `core/contracts/openapi.yaml` | contract/schema | NOT STARTED | — |
@@ -334,7 +366,7 @@ Compared all 12 live branches against PR #8 head:
 | `core/docs/G_O19_DESIGNATION.md` | documentation | NOT STARTED | — |
 | `core/docs/MACOS_PROVIDERS.md` | documentation | NOT STARTED | — |
 | `core/docs/MODEL_RUNTIME.md` | documentation | NOT STARTED | — |
-| `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` | documentation | IN REVIEW | Targeted owner gate and evidence statements |
+| `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` | documentation | IN REVIEW | Targeted owner gate/evidence statements |
 | `core/docs/PLUG_IN_GUIDE.md` | documentation | NOT STARTED | — |
 | `core/docs/PROGRAMME_AUDIT.md` | documentation | IN REVIEW | Targeted: 15–45 |
 | `core/docs/ROLLBACK.md` | documentation | NOT STARTED | — |
@@ -356,10 +388,10 @@ Compared all 12 live branches against PR #8 head:
 | `core/evals/thresholds_proposed.json` | evaluation | NOT STARTED | — |
 | `core/pyproject.toml` | build/config | NOT STARTED | — |
 | `core/src/atlas_core/__init__.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/access.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/access.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/actions.py` | source | IN REVIEW | Targeted: 100–275 |
-| `core/src/atlas_core/answer.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/api.py` | source | IN REVIEW | Targeted: 37–60, 151–166, 333–338, 400–414, 436–480, 508+ |
+| `core/src/atlas_core/answer.py` | source | IN REVIEW | Full source inspected: 1–113 |
+| `core/src/atlas_core/api.py` | source | IN REVIEW | Targeted: 131–201, 252–275, 277–306, 318–338, 529–540 |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 221–237, 298–310 |
 | `core/src/atlas_core/backup.py` | source | IN REVIEW | Full source inspected: 1–405 |
 | `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source inspected |
@@ -369,22 +401,22 @@ Compared all 12 live branches against PR #8 head:
 | `core/src/atlas_core/connector_transport.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
 | `core/src/atlas_core/connectors.py` | source | IN REVIEW | Full source inspected: 1–280 |
-| `core/src/atlas_core/consent.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/contracts.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/designation.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
 | `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/documents.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/egress.py` | source | IN REVIEW | Targeted: 1–120, 150–220, 250–409 |
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/events.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/evidence.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/evidence.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/exact.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/finance_calc.py` | source | IN REVIEW | Full source inspected: 1–187 |
-| `core/src/atlas_core/gate.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/gate.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/health.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/health_calc.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/host.py` | source | IN REVIEW | Targeted host options/factory wiring |
+| `core/src/atlas_core/host.py` | source | IN REVIEW | Targeted host options/factory/keychain wiring |
 | `core/src/atlas_core/identity.py` | source | IN REVIEW | Full source inspected: 1–230 |
 | `core/src/atlas_core/intelligence.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/isolated.py` | source | NOT STARTED | — |
@@ -393,14 +425,14 @@ Compared all 12 live branches against PR #8 head:
 | `core/src/atlas_core/macos.py` | source | IN REVIEW | Full source inspected: 1–560 |
 | `core/src/atlas_core/macos_sources.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/mail.py` | source | IN REVIEW | Targeted: 280–490 |
-| `core/src/atlas_core/maintenance.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/maintenance.py` | source | IN REVIEW | Targeted: 21–32, 105–132 |
 | `core/src/atlas_core/migration.py` | source | IN REVIEW | Full source inspected: 1–192 |
-| `core/src/atlas_core/mlx_runtime.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/models.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/mlx_runtime.py` | source | IN REVIEW | Full source inspected: 1–135 |
+| `core/src/atlas_core/models.py` | source | IN REVIEW | Targeted model runtime/validation interfaces |
 | `core/src/atlas_core/operations.py` | source | IN REVIEW | Targeted action/sync wiring |
 | `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full source inspected: 1–242 |
 | `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 69–93 |
-| `core/src/atlas_core/policy.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/policy.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/record_actions.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/records.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/recordstore.py` | source | IN REVIEW | Targeted: 1–90 |
@@ -409,11 +441,11 @@ Compared all 12 live branches against PR #8 head:
 | `core/src/atlas_core/rules.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/sandbox.py` | source | IN REVIEW | Targeted: 65–165 |
 | `core/src/atlas_core/serve.py` | source | IN REVIEW | Targeted CLI flags/options |
-| `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–200, 554–621 |
+| `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 554–621 |
 | `core/src/atlas_core/storage.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/sync.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/tasks.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/transport.py` | source | IN REVIEW | Targeted: 155–210 |
+| `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/transport.py` | source | IN REVIEW | Full source inspected: 1–202 |
 | `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/values.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/watchers.py` | source | NOT STARTED | — |
@@ -427,7 +459,7 @@ Compared all 12 live branches against PR #8 head:
 | `core/tests/test_app.py` | test | NOT STARTED | — |
 | `core/tests/test_architecture.py` | test | NOT STARTED | — |
 | `core/tests/test_artefact_scan.py` | test | NOT STARTED | — |
-| `core/tests/test_backup.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_backup.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_bench.py` | test | NOT STARTED | — |
 | `core/tests/test_browser_engine.py` | test | IN REVIEW | Targeted: 82–90 |
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
@@ -438,16 +470,16 @@ Compared all 12 live branches against PR #8 head:
 | `core/tests/test_contracts_frozen.py` | test | NOT STARTED | — |
 | `core/tests/test_contracts_v11.py` | test | NOT STARTED | — |
 | `core/tests/test_designation.py` | test | NOT STARTED | — |
-| `core/tests/test_devices.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_devices.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_documents.py` | test | NOT STARTED | — |
 | `core/tests/test_domains.py` | test | NOT STARTED | — |
 | `core/tests/test_egress.py` | test | IN REVIEW | Targeted taint/host/redirect tests |
 | `core/tests/test_enrolment.py` | test | NOT STARTED | — |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
-| `core/tests/test_evidence_answer.py` | test | NOT STARTED | — |
+| `core/tests/test_evidence_answer.py` | test | IN REVIEW | Full test file inspected |
 | `core/tests/test_exact.py` | test | NOT STARTED | — |
-| `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file inspected |
-| `core/tests/test_health.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file |
+| `core/tests/test_health.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_intelligence.py` | test | NOT STARTED | — |
 | `core/tests/test_isolated.py` | test | IN REVIEW | Targeted: 311–345 |
 | `core/tests/test_launchagent.py` | test | NOT STARTED | — |
@@ -463,11 +495,11 @@ Compared all 12 live branches against PR #8 head:
 | `core/tests/test_mlx_runtime.py` | test | NOT STARTED | — |
 | `core/tests/test_models.py` | test | NOT STARTED | — |
 | `core/tests/test_operations_api.py` | test | NOT STARTED | — |
-| `core/tests/test_orchestrator.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_orchestrator.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_policy.py` | test | NOT STARTED | — |
 | `core/tests/test_recordstore.py` | test | NOT STARTED | — |
 | `core/tests/test_redaction.py` | test | NOT STARTED | — |
-| `core/tests/test_relay.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_relay.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_reliability.py` | test | NOT STARTED | — |
 | `core/tests/test_research.py` | test | NOT STARTED | — |
 | `core/tests/test_retention.py` | test | NOT STARTED | — |
@@ -480,11 +512,11 @@ Compared all 12 live branches against PR #8 head:
 | `core/tests/test_stages_4_8_docs.py` | test | NOT STARTED | — |
 | `core/tests/test_storage.py` | test | IN REVIEW | Targeted: 64–84 |
 | `core/tests/test_swift_app_sources.py` | test | NOT STARTED | — |
-| `core/tests/test_sync.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_sync.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_tasks.py` | test | NOT STARTED | — |
 | `core/tests/test_thresholds.py` | test | NOT STARTED | — |
 | `core/tests/test_transport.py` | test | NOT STARTED | — |
-| `core/tests/test_updater.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_updater.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_web.py` | test | NOT STARTED | — |
 | `core/tests/worker_engines.py` | test | NOT STARTED | — |
 | `core/tools/scan_artefacts.py` | script/tool | NOT STARTED | — |
@@ -511,7 +543,7 @@ Compared all 12 live branches against PR #8 head:
 | `docs/genesis/PRD.md` | documentation | IN REVIEW | Targeted: §4.4/§4.5, 64–90 |
 | `docs/genesis/PRIOR_CONVERSATION_RECOVERY.md` | documentation | NOT STARTED | — |
 | `docs/genesis/README.md` | documentation | NOT STARTED | — |
-| `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md` | documentation | IN REVIEW | Full current ledger read; this path inventory appended below |
+| `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md` | documentation | IN REVIEW | Full current ledger read and updated |
 | `docs/genesis/STAGE-2-WORK-PACKAGE.md` | documentation | NOT STARTED | — |
 | `docs/genesis/STAGE-3-BASELINE-AUDIT.md` | documentation | NOT STARTED | — |
 | `docs/genesis/STAGE-3-CONTRACT-DELTA.md` | documentation | NOT STARTED | — |
@@ -520,9 +552,9 @@ Compared all 12 live branches against PR #8 head:
 | `docs/genesis/UI_UX_SPECIFICATION.md` | documentation | IN REVIEW | Targeted: 23–60, 79–135, 183–330 |
 | `docs/genesis/USE_CASE_REGISTER.md` | documentation | NOT STARTED | — |
 | `ios/AtlasPhone/AtlasPhoneApp.swift` | source | NOT STARTED | — |
-| `ios/AtlasPhone/PhoneModel.swift` | source | NOT STARTED | — |
-| `ios/AtlasPhone/Storage.swift` | source | NOT STARTED | — |
-| `ios/AtlasPhone/Views.swift` | source | NOT STARTED | — |
+| `ios/AtlasPhone/PhoneModel.swift` | source | IN REVIEW | 1–100 (full file) |
+| `ios/AtlasPhone/Storage.swift` | source | IN REVIEW | 1–54 (full file) |
+| `ios/AtlasPhone/Views.swift` | source | IN REVIEW | 1–224 (full file) |
 | `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift` | test | NOT STARTED | — |
 | `ios/README.md` | documentation | NOT STARTED | — |
 | `ios/project.yml` | build/config | NOT STARTED | — |
