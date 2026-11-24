@@ -793,3 +793,14 @@ Evidence: `core/src/atlas_core/connector_transport.py`, `request()` (same blob, 
 **Severity: P2 — OPEN (authority-state mismatch).**
 
 Evidence: `core/src/atlas_core/connectors.py`, `ConnectorHub.link()` (blob `48ffecf9c8b46a23c892137f444fcdedf4c75399`, inspected at PR head `65575952ae9f0dba25d0482a492141a563bf8eeb`). The `unauthorised` branch sets health to `unauthorised` and returns a `not_connected` response, but does not call `_apply()`/`ActionGateway.revoke_connector()`. If a connector was already enabled, a failed re-link leaves its action authority active while the API tells the owner it is not connected. Route every non-`ok` verdict through the same revocation path, and add a test that first connects successfully, then re-links with a rejected credential and proves all actions are refused without network traffic.
+
+### ATLAS-CORE-083 — Core.close closes stores after a timed join even if the worker is still active
+**Severity: P1 — OPEN.**
+
+Evidence: `core/src/atlas_core/app.py`, `Core.close()` and `_work()` (blob `6d653f5cedde2697b7184c83e0cec4922b8a17d9`). `close()` sets the stop event and joins each worker thread for only five seconds, but it does not check `thread.is_alive()` before closing indexes, task store, edits store and designation DB. A worker can be inside `service.run()` (local model inference) or an index scan longer than five seconds; close then closes its SQLite stores underneath it. The worker can subsequently access closed connections or lose task state. Shutdown must drain/cancel work safely and must not close dependencies while any worker/request still uses them; add a deterministic blocked-worker shutdown test.
+
+### ATLAS-CORE-084 — Core construction failure releases the folder lock but does not close partially opened stores
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/app.py`, `Core.__init__()` and `_build()` (blob `6d653f5cedde2697b7184c83e0cec4922b8a17d9`). If `_build()` raises after opening `DesignationStore`, indexes or `TaskStore`, `__init__` only calls `_release_lock()` and rethrows. It does not close already-created SQLite connections or injected closers. The registered purge callbacks capture `self`, so a partially built object can retain cycles/resources after construction fails; a retry can encounter locked databases or leaked resources. Track construction stages and close every successfully opened resource in reverse order on failure; test an injected failure after each open stage and immediate successful rebuild.
+
