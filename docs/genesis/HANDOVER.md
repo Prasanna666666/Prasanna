@@ -112,3 +112,13 @@ The canonical target is defined in [TARGET_ARCHITECTURE.md §20](TARGET_ARCHITEC
 - The existing network policy permits public Internet research through Core-mediated, data-minimised egress while prohibiting cloud inference and private-content uploads without exact approval. Do not describe Atlas as globally offline-only; public research and AI inference are separate paths.
 - Canonical updates are on `genesis-stage2-foundation` (PR #8): use-case commit `c3cdcf11ccdd2c52589601629fb94289faa4a294`; intelligence/consistency commit `ecae83cb2a0356fa16ef001f8f116da7e407844f`. No implementation, stage acceptance or release status changed.
 - A prior assistant edit was mistakenly made on historical `orbit` files (`docs/architecture.md`, `atlas/README.md`). Those are not the authoritative Genesis documents and must not override `docs/genesis/*`, especially the accepted G-O01 model stack and `INTERNET_AND_NETWORK_POLICY.md`. Treat those historical edits as non-authoritative until reconciled or reverted.
+
+
+## Product experience expansion — 2026-11-25
+
+- Owner delegated product design direction to ChatGPT: design Atlas as the integrated product rather than asking the owner to specify each screen or workflow.
+- Added UC-053 AI/technology/science news desk, UC-054 personal investment cockpit, and UC-055 Sports centre/Stats query to USE_CASE_REGISTER.md.
+- Expanded UI_UX_SPECIFICATION.md: one curated Discover destination (AI & Technology, Markets, Sports), natural-language Stats query with competition/season/team/player filters, and a dedicated Investments workspace within Finance. Updated primary navigation accordingly.
+- Design intent: these are focused capabilities inside the single Atlas application, not separate apps. Discover is finite and prioritised, not an infinite feed; Investments emphasises portfolio understanding, risk and evidence rather than trading stimulation; Sports combines current coverage with historical statistical depth.
+- These are documented target experiences. Their data integrations, screens and runtime behaviours are not claimed to be implemented or accepted.
+- Latest documentation commits: use-case expansion 78d8297ce78be19612d367c98f5e485c85e292ed; UI/UX expansion c7e2a04debe7a5ac48b5d5bc1c81ce8c5d380ee0.
