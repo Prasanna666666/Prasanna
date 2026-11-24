@@ -336,11 +336,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/ScreenState.swift` | source | REVIEWED—NO FINDINGS | All 115 lines at blob 9abb531; load/launch/conversation/evidence state mapping and plain fallback messages inspected |
 | `app/Sources/AtlasKit/Signing.swift` | source | REVIEWED—NO FINDINGS | All 27 lines at blob 43401de; canonical message fields, SHA-256 body digest, nonce and Curve25519 signature construction inspected |
 | `app/Sources/AtlasKit/SubmissionGate.swift` | source | REVIEWED—NO FINDINGS | All 18 lines at blob a9d2ce6; single-flight begin/end gate inspected; stale task-ID race separately recorded in AtlasApp |
-| `app/Sources/AtlasKit/Tokens.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Transport.swift` | source | IN REVIEW | Full source inspected: 1–52 |
-| `app/Sources/AtlasKit/Updates.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Voice.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Web.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/Tokens.swift` | source | REVIEWED—NO FINDINGS | All 91 lines at blob e94c1bf; WCAG luminance/contrast math, light/dark semantic palettes, spacing/type/radius/size and reduced-motion tokens inspected |
+| `app/Sources/AtlasKit/Transport.swift` | source | REVIEWED—FINDINGS OPEN | All 58 lines at blob 9cace98; UnixHTTP reads until EOF with no response cap; paired with RemoteHTTP post-buffer cap defect ATLAS-HTTP-066 |
+| `app/Sources/AtlasKit/Updates.swift` | source | REVIEWED—NO FINDINGS | All 42 lines at blob 20bcab7; signed-update refusal mapping, install/rollback result and restart messaging inspected |
+| `app/Sources/AtlasKit/Voice.swift` | source | REVIEWED—FINDINGS OPEN | All 111 lines at blob 7ce1093; ATLAS-VOICE-067 asking state does not prevent multiple asynchronous permission callbacks starting multiple sessions |
+| `app/Sources/AtlasKit/Web.swift` | source | REVIEWED—NO FINDINGS | All 53 lines at blob 1c4f8d8; HTTPS and allow-listed host validation, injection/truncation warnings and Core error mapping inspected |
 | `app/Sources/AtlasKit/ux_catalogue.json` | source | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/AloudTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/ConnectionsTests.swift` | test | IN REVIEW | Targeted: 1–160 |
@@ -827,3 +827,8 @@ At PR #8 head `b7e60221178607ceca873fe83c30fb858cee7a45`, all five files read in
 ### Relay, review, screen state, signing and submission gate review — 2026-11-24
 
 At PR #8 head `8537e5b54bb961bcd852dae782f43852f5643156`, all five files read in full: `RelayBind.swift` (19 lines, blob `e24ef7e990440262f5e73f7fc3212798afc75ae6`), `Review.swift` (38, `e4dbe60256a239eb9afa4cede90cf535c93c5a0a`), `ScreenState.swift` (115, `9abb5317eaab4ce87d7dab46409f74f0b1f3a7d4`), `Signing.swift` (27, `43401debacd5ccd4f545dccc1f3c04a8dbbe66fc`) and `SubmissionGate.swift` (18, `a9d2ce60a661916051c7d930ee9af8ac3e7c485f`). Reviewed network bind allow-list, review section mapping, UI state fallbacks, canonical signature construction and single-flight submission gate. No independent defects established; task-ID race remains logged against AtlasApp. No tests run locally.
+
+
+### Design tokens, transports, updater, voice state and web view review — 2026-11-24
+
+At PR #8 head `33c0301905addc059aef0b63098c7987738e1327`, all five files read in full: `Tokens.swift` (91 lines, blob `e94c1bf0265425a9ad63a46abc0933cd0440dbf6`), `Transport.swift` (58, `9cace9872487c2bc3a1cd439e60c3fdcf4eb27ef`), `Updates.swift` (42, `20bcab714271a40b752cb5dec223a556029fde9c`), `Voice.swift` (111, `7ce1093ebee791911cec3444f4409644d88c24fc`) and `Web.swift` (53, `1c4f8d8fcbfcc8374269de1e84efa3575b195214`). Findings: **ATLAS-HTTP-066 (P2, OPEN)** response size caps are not enforced during streaming; **ATLAS-VOICE-067 (P2, OPEN)** repeated permission requests can create overlapping voice sessions. The Unix transport is also uncapped. Design tokens, update-result mapping and web allow-list/error presentation inspected without other defects. No tests run locally.
