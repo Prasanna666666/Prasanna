@@ -33,6 +33,25 @@ The experience must be:
 - **Native-feeling:** use macOS conventions, system typography, standard controls and platform behaviours where they improve usability.
 - **Accessible and resilient:** legible, keyboard-operable, VoiceOver-aware, responsive to window size and system appearance.
 
+### 2.1a Product mental model — a personal smart intranet
+
+The owner's clearest product metaphor is **a personal smart intranet**. Atlas should feel like a private, intelligent home base for the owner's digital life: one place to arrive, see what is happening, discover relevant information, reach personal services and tools, find trusted knowledge, enter focused spaces and get work done.
+
+This is an experience metaphor, not a multi-user corporate intranet or a literal recreation of enterprise intranet software.
+
+The mental model has five complementary qualities:
+- **Portal:** a meaningful front door that gives an at-a-glance sense of the owner's world and provides clear routes to important things.
+- **Spaces:** coherent contexts for ongoing areas of life and work—such as Home, Investments, Sport, Health/Fitness, Travel or Projects. Spaces are contextual destinations and saved work contexts, not automatically permanent sidebar items.
+- **Knowledge:** a connected, searchable library of authorised documents, conversations, records, media and accumulated understanding, with provenance and permissions intact.
+- **Discover:** personalised updates, followed subjects, useful opportunities and important changes, presented like a high-quality private publication rather than an endless feed.
+- **Services:** capabilities that let the owner ask, analyse, compare, plan, monitor and act. AI makes these services feel connected and understandable instead of exposing a catalogue of tools.
+
+Atlas should connect these qualities. A story can lead to a question; a question can open a focused Space; a Space can use Library evidence; an insight can become a task or an approved action. The owner should not need to understand which internal module performs each step.
+
+The four persistent destinations remain the simple outer frame. The intranet-like richness lives inside them through contextual Spaces, pinned shortcuts, search, recent activity and relevant content. Do not create a crowded directory of every capability. Provide a global search/command entry and an easily discoverable way to reach or pin frequently used Spaces without forcing setup.
+
+The experience should feel personal and lived-in, not like a blank portal template: meaningful continuity, recently used contexts, relevant updates and useful shortcuts should appear when real owner data supports them. Never fabricate personal activity to make the environment look populated.
+
 ### 2.2 Explicit anti-goals
 
 Do not ship:
