@@ -378,7 +378,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/CONTRACT_1_1.md` | documentation | REVIEWED—FINDINGS OPEN | 81 lines, blob `13651ecb`; line 17 says three new paths though 1.1 OpenAPI adds 32 vs 1.0; test name repeats stale count; ATLAS-DOC-112 |
 | `core/docs/DESIGN.md` | documentation | REVIEWED—NO FINDINGS | 56 lines, blob `d2a9084`; Stage 2 dependency layers, direct import boundaries, policy-data separation, gated retrieval/model path, token-bound context, task store/key provider and historical reuse matrix cross-checked against architecture tests and current modules; API 1.0/first-slice wording is explicitly scoped to this Stage 2 design, with API 1.1 documented separately; no tests run |
 | `core/docs/EGRESS_GATEWAY.md` | documentation | REVIEWED—FINDINGS OPEN | 29 lines, blob `b74e6de`; ATLAS-DOC-113: stale six-module network allow-list, taint details/stale passage coverage, DNS wording and 200k truncation-flag mismatch; comments 6046411754/6046414937 |
-| `core/docs/ENROLMENT.md` | documentation | NOT STARTED | — |
+| `core/docs/ENROLMENT.md` | documentation | REVIEWED—NO FINDINGS | 21 lines, blob `c3882f0`; first-owner one-time code, constant-time hash check/lockout, owner/member roles, durable public-key registry, owner-only socket and consent boundaries cross-checked against identity.py, api.py, launcher.py, Swift CoreLauncher and enrolment/launcher/consent tests; Swift end-to-end CI configured but current run 45476082610 is queued, so no successful run claimed |
 | `core/docs/G_O19_DESIGNATION.md` | documentation | NOT STARTED | — |
 | `core/docs/MACOS_PROVIDERS.md` | documentation | NOT STARTED | — |
 | `core/docs/MODEL_RUNTIME.md` | documentation | NOT STARTED | — |
@@ -1071,3 +1071,11 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-DOC-113 (P2, OPEN)**: guide's network allow-list omits `connector_transport`, `relay` and `browser_engine`; taint details are stale and `service.research()` can skip stale saved passages (ATLAS-EGRESS-091); truncation flag misses the 200k text slice (ATLAS-EGRESS-078); DNS wording omits the transport's second checked resolution. Review comments **6046411754** and **6046414937** posted; defect register consolidated.
 - Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Next changed file: `core/docs/ENROLMENT.md` (confirm current changed-file order before continuing).
 - Coverage counts rechecked from all 278 path rows after reconciling the existing egress entry: **49 IN REVIEW; 83 NOT STARTED; 86 REVIEWED—NO FINDINGS; 60 REVIEWED—FINDINGS OPEN**.
+
+
+### Owner enrolment and client-role documentation review — 2026-11-24
+
+- `core/docs/ENROLMENT.md` (21 lines, blob `c3882f0f96a9dc1f0478c125df8f32f594f3f54d`) was read in full and cross-checked against `identity.py`, `api.py`, Python `launcher.py`, `test_enrolment.py` (14 test functions, including parameterised cases), `test_launcher.py`, `test_consent_api.py`, Swift `CoreLauncher.swift` and `EndToEndTests.swift`.
+- The one-time first-owner code, constant-time digest comparison, five-failure lockout, one-owner registry lock, persisted public-key-only client registry, member-only follow-on enrolment, owner-only consent and index-status access boundary match the implementation and tests. The documented absence of platform-attested app identity and the owner-reset limitation remain explicit constraints.
+- The Swift end-to-end test is present and configured in the macOS CI workflow, but the current head's workflow run **45476082610 is queued**. Therefore no successful Swift build/test execution is claimed; the document's unverified status is retained.
+- Marked `REVIEWED—NO FINDINGS`. No tests run in this review. Next changed file: `core/docs/G_O19_DESIGNATION.md`.
