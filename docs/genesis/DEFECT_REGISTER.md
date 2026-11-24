@@ -718,3 +718,14 @@ Evidence: `core/README.md` (blob `2c533cfaae18f64d60d318f9597ed98beb2ff97a`, ins
 **Severity: P2 — OPEN.**
 
 Evidence: `app/Sources/AtlasKit/Records.swift`, `RecordsOutcome.from(_:) ` (blob `2a0c22aca0ad8f25574a251886ab3983abab80ac`). The parser uses `compactMap` to discard any record missing a required `id`, `title`, `date` or `version`, then returns `.empty` when no valid rows remain. A malformed non-empty Core response can therefore be presented as “No records yet”; a mixed response silently hides the malformed records without a partial-state warning. Validate the complete response and return a visible unavailable/partial state when any row is malformed; add all-invalid and mixed-validity response tests.
+
+
+### ATLAS-CLIENT-076 — reference client accepts invalid task IDs and leaks transport exceptions
+**Severity: P2 — OPEN.**
+
+Evidence: `core/client/atlas_client.py` (blob `2abc2310aef2d9d4c489b1f26d83697c4a9945ec`, all 348 lines inspected at PR head `91a33a8d36f8403daa2cee42b1e6d719659c7548`). `ask()` returns `str(record["task_id"])` without checking that the value is a non-empty string; a JSON null becomes the literal task ID `"None"`, and malformed responses are accepted as successful submissions. In addition, `_json()` catches network failures only while sending/getting response headers; exceptions raised while reading the response body are not translated into the documented user-safe `ClientError`, so raw OSError/http.client exceptions can escape the reference client. Validate the task ID and normalize read-time transport failures; add malformed-task and mid-body disconnect tests. This is the same malformed-task-response class as ATLAS-CORE-062 in the Swift client.
+
+### ATLAS-DOC-075 — contract module comment says API 1.1 is not served although runtime advertises it
+**Severity: P3 — OPEN.**
+
+Evidence: `core/src/atlas_core/contracts.py` (blob `a872b9eb7ad117a48d27a9ff44fd0dd7ba3b35cc`, inspected at PR head `91a33a8d36f8403daa2cee42b1e6d719659c7548`). The `VERSIONS` comment says 1.1 “is not among” the served versions, but `core/tests/test_contracts_frozen.py` asserts `SUPPORTED_VERSIONS == ("1.0", "1.1")` and `API_VERSION == "1.0"`. Correct the comment to distinguish supported versions from the default version.
