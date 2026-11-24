@@ -307,7 +307,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | REVIEWED—FINDINGS OPEN | Full 696 lines at blob 40f5346; ATLAS-APP-052 stale task ID can be cancelled during next ask; ATLAS-APP-053 failed undo is swallowed and retry handle cleared; activity history remains covered by ATLAS-UX-023 |
 | `app/Sources/AtlasApp/Components.swift` | source | REVIEWED—NO FINDINGS | Full 179 lines at blob 0e52e88; reusable headers, notices, status, citation/evidence, activity and approval components inspected; no component-level defect established |
 | `app/Sources/AtlasApp/DesignSystem.swift` | source | REVIEWED—NO FINDINGS | Full 67 lines at blob b59e7b3; semantic colour/token mapping, scalable text styles, reduce-motion and reading-width helpers inspected; no defect established |
-| `app/Sources/AtlasApp/Screens.swift` | source | IN REVIEW | Targeted: 1–75, 131–191, 179, 579–595, 600–772 |
+| `app/Sources/AtlasApp/Screens.swift` | source | REVIEWED—FINDINGS OPEN | Full 772 lines at blob 9b5ad87; ATLAS-APP-056 Activity screen omits model.attention although Home includes it; existing ATLAS-UX-023 activity persistence remains open |
 | `app/Sources/AtlasApp/Shell.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasApp/Speaker.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasApp/Speech.swift` | source | IN REVIEW | Full source inspected |
@@ -756,3 +756,13 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - Both findings are appended to `DEFECT_REGISTER.md`; review-only changes. No UI test was run locally. The CI workflow's current run must still be checked for its outcome; this code inspection is not a CI pass.
 - Updated exact-head path counts: **278 total; 141 IN REVIEW; 129 NOT STARTED; 5 REVIEWED—NO FINDINGS; 3 REVIEWED—FINDINGS OPEN**.
 - Next PR path in the UI test sequence is `app/xcode/project.yml` only if not already fully inspected; otherwise continue with the next unreviewed path in the 278-path inventory. The file itself is a test and remains findings-open until Claude corrects both issues and independent re-review confirms them.
+
+
+### Screens.swift full-file review — 2026-11-24
+
+**Reviewed at source snapshot:** PR #8 head `ea2ba5acd92237e3b2f2cc583f04ad47f45c06e9`; blob `9b5ad87b6b762201a33b4af4737b2ff655145deb`; all **772 lines** inspected, including Home, Ask/Composer/Turn, Library, Records/AddRecord, Finance, Web, Connections, Health, Activity, Get Started, Settings and QR generation.
+- **ATLAS-APP-056 (P2, OPEN):** ActivityView renders only `model.activity`; Core attention events are loaded into `model.attention` and included on Home but omitted from the Activity list, despite the Activity subtitle promising decision items. Finding added to `DEFECT_REGISTER.md`.
+- Existing **ATLAS-UX-023** remains open: the Activity feed and task outcomes are process-memory-only and lost on restart. This is distinct from the newly found missing-attention-feed defect.
+- No app source or test file changed; no local test execution. The file remains `REVIEWED—FINDINGS OPEN` pending implementation and re-review.
+- Updated exact-head ledger totals: **278 total; 141 IN REVIEW; 129 NOT STARTED; 5 REVIEWED—NO FINDINGS; 4 REVIEWED—FINDINGS OPEN**.
+- Next source path to complete from existing partial inspection: `app/Sources/AtlasApp/Shell.swift` (historical ledger says full source inspected; first compare its current blob SHA before deciding whether a delta review is needed).
