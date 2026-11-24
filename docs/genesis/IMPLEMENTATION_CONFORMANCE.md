@@ -1,12 +1,13 @@
 # Atlas — implementation-to-documentation conformance audit
 
 **Created:** 2026-11-25  
-**Audit baseline:** PR #8, branch `genesis-stage2-foundation`, observed head `83eec5378fff9f26f435492104c4efa2b30d18ca`  
+**Code/evidence baseline:** PR #8, branch `genesis-stage2-foundation`, `83eec5378fff9f26f435492104c4efa2b30d18ca`  
+**Latest documentation-only head:** `23fee7b5f7d04898e193926fbb05a62856fd7bf9`  
 **Purpose:** Establish one evidence-led method for deciding whether the completed implementation matches the canonical product and technical documentation.
 
 ## 1. Scope and non-claims
 
-This is the audit control document, not a declaration that conformance has passed. The repository at the baseline contains 281 PR-changed paths, including macOS app sources, Atlas Core, iOS client sources, tests, contracts, scripts and documentation. File presence alone does not establish end-to-end behaviour.
+This is the audit control document, not a declaration that conformance has passed. The code/evidence baseline contained 281 PR-changed paths, including macOS app sources, Atlas Core, iOS client sources, tests, contracts, scripts and documentation. File presence alone does not establish end-to-end behaviour.
 
 The PR description records bounded acceptances for Stage 2, WP3.1 and WP3.2, but those acceptances apply only to their named scopes and exact commits. Stage 3 is not accepted. Stage 4–8 work is present on the branch but is not architect-reviewed or accepted. The CI run associated with the observed head was queued when checked. No result is inferred from a queued run.
 
@@ -118,7 +119,13 @@ A requirement with no traceability row is **not audited**.
 - Stage 3 is not accepted; F-4, F-11, F-12 and F-13 are identified as unmet, unwaived and release-blocking in the PR description and `core/docs/STAGE3_ACCEPTANCE.md`.
 - Stage 4–8 work is present but not architect-reviewed or accepted; see `core/docs/STAGES_4_TO_8.md`.
 
-## 8. Completion criteria for this audit
+## 8. Documentation cleanup completed before code conformance
+
+The 2026-11-25 documentation-only pass established a single root index and canonical Genesis index, rewrote the handover as a concise current operational summary, corrected the PRD review-status metadata, corrected the UI/UX implementation-status/handoff text against `core/docs/UI_IMPLEMENTATION_MAP.md`, and added this conformance framework. The review ledger was refreshed. These edits reconcile navigation and status framing; they do not prove all detailed technical documents are free of contradictions.
+
+The documentation-only cleanup commits are listed in `docs/genesis/HANDOVER.md`. The code/evidence baseline remains `83eec5378fff9f26f435492104c4efa2b30d18ca`; the latest branch head after documentation-only commits is `23fee7b5f7d04898e193926fbb05a62856fd7bf9`.
+
+## 9. Completion criteria for this audit
 
 The audit may be called complete only when:
 - Every current canonical PRD requirement and every registered use case has a traceability row.
@@ -131,4 +138,9 @@ The audit may be called complete only when:
 - Exact-head CI is complete and results are recorded; manual/owner gates remain explicitly separate.
 - A final summary states what is aligned, what drift was corrected, what is not implemented, what remains unverified, and why.
 
-**Current audit status: NOT STARTED AS A COMPLETE REQUIREMENT-BY-REQUIREMENT CONFORMANCE PASS.** This document and the 2026-11-25 handover reconcile the documentation entry points and evidence rules only. They do not claim that all implementation paths have been inspected or that the product is release-ready.
+**Current audit status: DOCUMENTATION ENTRY-POINT CLEANUP COMPLETE; REQUIREMENT-BY-REQUIREMENT CONFORMANCE NOT COMPLETE.** The first documentation cleanup is committed. Detailed document-to-document consistency and code-to-document tracing remain. They do not claim that all implementation paths have been inspected or that the product is release-ready.
+
+
+## 10. Latest live PR snapshot after documentation-only cleanup
+
+At head `23fee7b5f7d04898e193926fbb05a62856fd7bf9`, PR #8 remained open, draft and unmerged; 282 changed paths were reported; 127 review threads remained (21 resolved, 106 unresolved: 31 outdated and 75 current). These counts are point-in-time values. The workflow associated with the previous code/evidence snapshot was queued; a fresh CI result for this latest docs-only head must be checked before claiming green CI.
