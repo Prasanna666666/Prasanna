@@ -317,11 +317,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/Approval.swift` | source | REVIEWED—NO FINDINGS | All 88 lines at blob c3240bf; closed action/consequence allow-list, exact payload fingerprint, expiry and approval state transitions inspected |
 | `app/Sources/AtlasKit/Catalogue.swift` | source | REVIEWED—NO FINDINGS | All 49 lines at blob 85d6f55; shared catalogue decoding, required fields and controlled error fallback inspected |
 | `app/Sources/AtlasKit/Connections.swift` | source | REVIEWED—NO FINDINGS | All 101 lines at blob 42f22a9; connection state, approval description, HTTP/TLS and home/VPN host validation inspected; cross-checked Core enum/effect contract and tests |
-| `app/Sources/AtlasKit/CoreClient.swift` | source | REVIEWED—FINDINGS OPEN | All 119 lines at blob c5d6748; ATLAS-CORE-062 successful ask response without non-empty task_id is accepted as empty string |
+| `app/Sources/AtlasKit/CoreClient.swift` | source | REVIEWED—FINDINGS OPEN | All 119 lines at blob c5d6748; ATLAS-CORE-062 required response fields silently default (task_id/state/passage/attention/devices) instead of protocol errors |
 | `app/Sources/AtlasKit/CoreLauncher.swift` | source | REVIEWED—FINDINGS OPEN | All 166 lines at blob 9487c31; stale comment says packaging not built, contradicted by CI packaging job (ATLAS-DOC-052); lifecycle/reaping/identity logic inspected |
 | `app/Sources/AtlasKit/Finance.swift` | source | REVIEWED—FINDINGS OPEN | All 87 lines at blob 5da7d8d; ATLAS-FIN-063 zero delta is labelled “more” |
 | `app/Sources/AtlasKit/GetStarted.swift` | source | REVIEWED—NO FINDINGS | All 23 lines at blob bf9fa0c; default-deny first-run choices, no-grant empty choice and completion gating inspected |
-| `app/Sources/AtlasKit/HTTPTransport.swift` | source | REVIEWED—NO FINDINGS | All 45 lines at blob 42e491c; HTTPS/private HTTP gate, no-redirect policy, cookie isolation, bounded response and response header normalization inspected |
+| `app/Sources/AtlasKit/HTTPTransport.swift` | source | REVIEWED—FINDINGS OPEN | All 45 lines at blob 42e491c; maxReply is checked after URLSession fully buffers body; ATLAS-HTTP-066 |
 | `app/Sources/AtlasKit/Health.swift` | source | REVIEWED—NO FINDINGS | All 57 lines at blob 4d2274e; health basis labels, measured/estimated/unlabelled counts, unit preservation and unknown-state handling inspected |
 | `app/Sources/AtlasKit/Library.swift` | source | REVIEWED—NO FINDINGS | All 67 lines at blob e433872; result allow-list mapping, coverage, partial/no-result/denied states and stable title sorting inspected |
 | `app/Sources/AtlasKit/Lifecycle.swift` | source | REVIEWED—NO FINDINGS | All 89 lines at blob 4d1b6c9; explicit Core-state allow-list, terminal/cancel rules and monotonic phase tracking inspected |
@@ -842,3 +842,10 @@ At PR #8 head `6d975573b63456c7702c573fdb58fb8fe95a11b7`, inspected the full `En
 ### AtlasKit unit-test inventory continuation — 2026-11-24
 
 At PR #8 head `45324737c0f177314edf8363f1c51fad671f0ff7`, fully inspected Aloud, Connections, DesignSystem, Finance, GetStarted, Health, Library, Notification, ReapIdentity, Records, Review, Signing, SubmissionGate, Update and Web test files. The Finance test suite has no zero-delta case (**ATLAS-FIN-063**); SubmissionGateTests verify only the standalone gate and do not cover the AppModel current-task identifier race (**ATLAS-APP-052**). These two test files are findings-open. Other listed test files were marked reviewed with no independent issue. No tests were run locally; this is static test-source review only.
+
+### Swift transport and protocol finding reconciliation — 2026-11-24
+
+- Consolidated the malformed-response observations into **ATLAS-CORE-062** (no duplicate ATLAS-API-060): CoreClient's missing `task_id`, `state`, passage text and collection fields must be treated as protocol errors, not empty/success-shaped values.
+- Consolidated response-memory findings into **ATLAS-HTTP-066** (no duplicate ATLAS-TRANSPORT-061): RemoteHTTP's 4 MB check occurs after full URLSession buffering; UnixHTTP also has no incremental cap or read deadline. Both transport rows are findings-open.
+- Consolidated the destructive Keychain test finding under **ATLAS-TEST-069** (no duplicate ATLAS-TEST-062). The more complete finding also covers `PhoneTests.swift`, not only `EndToEndTests.swift`; exact production Keychain service names and the unscoped delete command are the risk.
+- Current exact-head path inventory after reconciliation: **278 total; 99 IN REVIEW; 119 NOT STARTED; 40 REVIEWED—NO FINDINGS; 20 REVIEWED—FINDINGS OPEN**.
