@@ -712,3 +712,9 @@ Evidence: `core/bench/ingest.py`, `measure()` (blob `dee08e35145e8b166897f960800
 **Severity: P2 — OPEN.**
 
 Evidence: `core/README.md` (blob `2c533cfaae18f64d60d318f9597ed98beb2ff97a`, inspected at PR head `3412885e218f65665dd8023325800c226e612201`). It says the Core has no ingestion, search or Mail reading, no real model, no Swift/SwiftUI, no remote/iOS access and no actions. The current PR/repository contains document and Mail ingestion/search, model/worker code, the Swift app, remote phone transport/iOS client and action/connector infrastructure. This is a material mismatch for the Core's entry-point documentation; rewrite it to describe the current repository and clearly distinguish implemented, test-covered, and not-yet-accepted capabilities.
+
+
+### ATLAS-RECORD-072 — malformed record rows are silently dropped and can appear as an empty result
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/Records.swift`, `RecordsOutcome.from(_:) ` (blob `2a0c22aca0ad8f25574a251886ab3983abab80ac`). The parser uses `compactMap` to discard any record missing a required `id`, `title`, `date` or `version`, then returns `.empty` when no valid rows remain. A malformed non-empty Core response can therefore be presented as “No records yet”; a mixed response silently hides the malformed records without a partial-state warning. Validate the complete response and return a visible unavailable/partial state when any row is malformed; add all-invalid and mixed-validity response tests.
