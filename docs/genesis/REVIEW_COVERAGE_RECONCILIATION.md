@@ -389,7 +389,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/STAGE3_ACCEPTANCE.md` | documentation | REVIEWED—FINDINGS OPEN | 61 lines, blob `ecf872c`; reviewed evidence taxonomy, criteria 5/11, API/consent and current owner-grant/source paths; ATLAS-DOC-019: undefined R evidence class and separate research API mislabeled as answer-flow integration; ATLAS-DOC-123: Finance/Health grant and ingestion status overstated; 11 prior outdated threads remain open; comment 6046711813 |
 | `core/docs/STAGE3_HANDOVER.md` | documentation | REVIEWED—FINDINGS OPEN | 47 lines, blob `cb808c6`; checked rollback scope, Finance/Health grant and ingestion status, criterion completion and egress API semantics; ATLAS-DOC-124: PR-wide rollback scope false, criterion 2/7/8 completion overclaimed, egress API misdescribed; cross-links DOC019/123/122; comment 6046748574 |
 | `core/docs/STAGE3_TRACEABILITY.md` | documentation | REVIEWED—FINDINGS OPEN | 28 lines, blob `daebaaa`; reviewed threat/test/evidence mapping against CI workflow, artefact scanner, macOS native Keychain tests and research API; ATLAS-DOC-019: undefined R class and separate research endpoint mislabeled as answer path; ATLAS-DOC-125: artefact scan/hosted-Keychain/closure status stale; comment 6046785198 |
-| `core/docs/STAGE3_WP3_1_PROPOSAL.md` | documentation | NOT STARTED | — |
+| `core/docs/STAGE3_WP3_1_PROPOSAL.md` | documentation | REVIEWED—FINDINGS OPEN | 107 lines, blob `f1b1441`; reviewed v4 spec against current contracts.py, identity.py, api.py, consent.py, OpenAPI and frozen/1.1 tests; ATLAS-DOC-126: still says unimplemented/1.0-only/specification-only after later packages were implemented; comment 6046835690 |
 | `core/docs/STAGES_4_TO_8.md` | documentation | IN REVIEW | Targeted: 65–102 |
 | `core/docs/TEST_PLAN.md` | documentation | NOT STARTED | — |
 | `core/docs/THREAT_REVIEW.md` | documentation | NOT STARTED | — |
@@ -1194,3 +1194,12 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-DOC-019 (P2, OPEN)** also applies: evidence class R is used but undefined; T8 describes a separate owner-only research endpoint (untrusted result; saved answer unchanged) as answer-path integration.
 - Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Counts: **86 REVIEWED—NO FINDINGS; 71 REVIEWED—FINDINGS OPEN; 45 IN REVIEW; 76 NOT STARTED (278 total)**.
 - Next changed file: `core/docs/STAGE3_WP3_1_PROPOSAL.md` (check current row and prior review history before continuing).
+
+
+### WP3.1 proposal v4 historical-status review — 2026-11-24
+
+- `core/docs/STAGE3_WP3_1_PROPOSAL.md` (107 lines, blob `f1b14416a94d509e25921514f4d17be6744f57db`) was read in full and cross-checked against `contracts.py`, `identity.py`, `api.py`, `consent.py`, `host.py`, `openapi-1.1.yaml`, the 1.1 delta, and `test_contracts_v11.py` / `test_contracts_frozen.py`.
+- **ATLAS-DOC-126 (P2, OPEN)**: the v4 proposal is still labelled unimplemented and says no code is written until ChatGPT reviews it, but the current branch implements 1.1 version negotiation/signing, consent/index routes, contract/OpenAPI files and later packages. Its “runtime supports only 1.0”, “specification-only” consent paths, “unchanged code” list and “later packages” section are historical WP3.1 claims, not current status. Preserve the proposal as historical at base `975f3fc` and link current implementation. Comment **6046835690** posted.
+- The proposal's original three-path list is a WP3.1 scope baseline; current OpenAPI includes later additive paths. No runtime issue is asserted by this documentation finding.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Counts: **86 REVIEWED—NO FINDINGS; 72 REVIEWED—FINDINGS OPEN; 45 IN REVIEW; 75 NOT STARTED (278 total)**.
+- Next changed file: `core/docs/STAGES_4_TO_8.md`; check its current ledger row and prior review coverage before starting.
