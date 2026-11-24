@@ -4,7 +4,7 @@
 
 ## 1. Product summary
 
-Atlas is a private, local-first personal AI operating system: a digital extension and intelligent chief of staff that helps its owner understand, organise and act across the domains of personal life and work.
+Atlas is a private, local-first personal AI operating system experienced as a **personal smart intranet**: a digital home base and intelligent chief of staff that helps its owner understand, organise, discover and act across the domains of personal life and work. It brings together a personal portal, contextual Spaces, connected knowledge, personalised discovery and useful services in one coherent environment.
 
 Atlas combines a unified conversational experience with persistent, evidence-backed personal context, specialised domain capabilities, proactive monitoring of authorised sources, and controlled action execution.
 
@@ -36,7 +36,14 @@ Atlas is one integrated application—not a suite of separate apps. It is a cohe
 
 ## 4. Product experience
 
-### 4.1 Unified interaction
+### 4.0 Personal smart intranet experience
+- Atlas should feel like a private, intelligent home base for one owner's digital life—not a generic assistant shell or a suite of mini-apps.
+- Its experience combines a portal, contextual Spaces, connected searchable knowledge, personalised discovery and integrated services.
+- Spaces represent meaningful contexts such as Home, Investments, Sport, Fitness, Travel or Projects. They are opened through intent, search, relevant content or owner-pinned shortcuts; they do not automatically become permanent navigation sections.
+- Information and actions should flow naturally between these contexts: discovery to questions, questions to Spaces, Spaces to authorised knowledge, and insights to tasks or approved actions.
+- This is a product mental model, not a multi-user corporate intranet requirement.
+
+4.1 Unified interaction
 - Conversational text interface.
 - Voice interaction.
 - Dashboard for current state, priorities, insights and ongoing work.
