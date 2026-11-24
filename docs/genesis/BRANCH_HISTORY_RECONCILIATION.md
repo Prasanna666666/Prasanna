@@ -94,3 +94,8 @@ These are audit leads, not automatically current defects or accepted facts:
 7. Maintain docs/review-only scope for this audit. No code/test/build/config changes or thread resolution without owner authorisation.
 
 **Important:** Commit pagination is now exhausted for all 12 branches. Reachable commit-entry counts at the capture snapshot: aperture 210; aperture-hardening 189; atlas 660; atlas-low-level-design-review 761; dependabot checkout 204; dependabot setup-node 210; genesis-architecture 761; genesis-stage2-foundation 1,093 (latest branch snapshot after audit commits); genesis-stage3-prep 855; genesis-stage4-6 997; orbit 357; wip/health-freshness 608. Total 6,897 branch-reachable entries, with shared ancestry duplicated. This does **not** mean 6,897 unique commits were read. Full commit-message extraction, unique-SHA reconciliation, and review of commit diffs remain open.
+
+
+## Current branch disposition correction — 2026-11-25
+
+The original branch inventory and divergence analysis above are historical snapshots from 2026-11-23. The later owner instruction placed Stage 4–8 work on the single shared PR #8 branch (`genesis-stage2-foundation`); the PR description and `core/docs/STAGES_4_TO_8.md` now record that this work was rebased onto PR #8. Therefore, the earlier instruction to explain why Stage 4–8 appeared on a separate branch is superseded. Do not treat the old `genesis-stage4-6` branch head or old branch-diff count as the current implementation location. The branch's full unique-commit reconciliation and historical findings audit remain open; the fact that the work is now on PR #8 does not mean it has been architect-reviewed or accepted.
