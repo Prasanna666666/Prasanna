@@ -1,4 +1,6 @@
-# Test plan, commands and expected outputs
+# Test plan, commands and expected outputs — historical Linux test snapshot
+
+**Snapshot note (2026-11-25):** This file records an earlier Linux-only test environment and run. It is not the current repository-wide CI inventory: hosted macOS Swift/Core/Keychain/sandbox/MLX jobs and the app build/launch job were added later. For current platform evidence, use `MACOS_PROVIDERS.md`, `MODEL_RUNTIME.md`, `STAGE3_ACCEPTANCE.md` and live PR workflow results. The tests described here still use synthetic data unless explicitly stated otherwise.
 
 All data is synthetic (invented sentinels in `tests/conftest.py`); no test needs real owner data or network access. Environment of the recorded run: Python 3.13.18 in a Linux container, pytest 9.2.0, ruff 0.17.5, mypy 2.4.1, sqlcipher3-binary 0.6.0, jsonschema 4.26.0, openapi-spec-validator 0.9.0. NOT run: any Swift/Xcode build, anything on a Mac, anything against a real model or real mail/documents.
 
