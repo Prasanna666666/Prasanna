@@ -308,9 +308,9 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasApp/Components.swift` | source | REVIEWED—NO FINDINGS | Full 179 lines at blob 0e52e88; reusable headers, notices, status, citation/evidence, activity and approval components inspected; no component-level defect established |
 | `app/Sources/AtlasApp/DesignSystem.swift` | source | REVIEWED—NO FINDINGS | Full 67 lines at blob b59e7b3; semantic colour/token mapping, scalable text styles, reduce-motion and reading-width helpers inspected; no defect established |
 | `app/Sources/AtlasApp/Screens.swift` | source | REVIEWED—FINDINGS OPEN | Full 772 lines at blob 9b5ad87; ATLAS-APP-056 Activity screen omits model.attention although Home includes it; existing ATLAS-UX-023 activity persistence remains open |
-| `app/Sources/AtlasApp/Shell.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasApp/Speaker.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasApp/Speech.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasApp/Shell.swift` | source | REVIEWED—NO FINDINGS | All 94 lines at blob f2b0335; launch/Get Started/shell navigation, approval sheet identity and compact inspector behavior inspected |
+| `app/Sources/AtlasApp/Speaker.swift` | source | REVIEWED—NO FINDINGS | All 26 lines at blob cc0f579; local AVSpeechSynthesizer lifecycle and finish/cancel callbacks inspected; no defect established in this adapter |
+| `app/Sources/AtlasApp/Speech.swift` | source | REVIEWED—FINDINGS OPEN | All 61 lines at blob 67c6f11; ATLAS-VOICE-057 start failure leaves installed input tap/request uncleared; local speech only, no server fallback |
 | `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full) |
 | `app/Sources/AtlasKit/Aloud.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/AnswerView.swift` | source | NOT STARTED | — |
@@ -771,3 +771,13 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 ### Activity screen source review completed — 2026-11-24
 
 - `app/Sources/AtlasApp/Screens.swift`: all 772 lines re-read in contiguous ranges at blob `9b5ad87b6b762201a33b4af4737b2ff655145deb`. Home/Ask/Composer/Library/Records/Finance/Web/Connections/Health/Activity/Get Started/Settings and QR rendering inspected. The reproducible omission is logged as **ATLAS-APP-056 (P2, OPEN)**: Activity uses only `model.activity`, whereas Home explicitly merges `model.activity + model.attention`; attention-only calendar-conflict items therefore disappear from Activity. No local test run. The file is findings-open, not clean.
+
+
+### Shell, voice adapters and activity model review — 2026-11-24
+
+Reviewed at PR #8 head `9af6e7a25a1c3e29b0fa0f986f9c245933d3dc0e` (all listed files read in full):
+- `Shell.swift` 94 lines, blob `f2b033590dc4dab646078f0c359dd61a92b18399`: launch gating, onboarding, approval identity binding, sidebar/detail selection and compact inspector presentation. No defect established.
+- `Speaker.swift` 26 lines, blob `cc0f5791b3f5111fbf10746c083d2ef6e6c83645`: local AVSpeechSynthesizer adapter, finish/cancel dispatch and stop behavior. No defect established in this adapter.
+- `Speech.swift` 61 lines, blob `67c6f119059be0b3f939710249857f9786683d4a`: on-device recognition requirement and microphone lifecycle inspected. **ATLAS-VOICE-057 (P2, OPEN)**: failed engine start after installing tap leaves request/tap state uncleared.
+- `Activity.swift` 69 lines, blob `14c66e0211453fb5befffa94d1a006ff95a5b5a5`: merge/deduplication, sort, attention projection, recent tasks and allow-listed calendar-conflict mapping. No independent defect established; UI omission remains separately logged against Screens.swift.
+- No app source or tests changed; no tests run locally.
