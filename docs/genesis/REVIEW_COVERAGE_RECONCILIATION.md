@@ -372,7 +372,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/contracts/atlas-contracts.schema.json` | contract/schema | REVIEWED—NO FINDINGS | All 265 lines read at blob 3172b1b; frozen 1.0 schema and strict object shapes inspected; SHA baseline assertion in test_contracts_frozen |
 | `core/contracts/openapi-1.1.yaml` | contract/schema | REVIEWED—FINDINGS OPEN | 1155 lines, blob `b88d2daa`; 39 paths/42 operations, 32 paths additive; ATLAS-OPENAPI-108 stale support/status text and missing unsigned enrol/pair security overrides; comments 6046224427/6046226450 |
 | `core/contracts/openapi.yaml` | contract/schema | REVIEWED—NO FINDINGS | All 103 lines read at blob ccf62f7; frozen 1.0 API paths, signed request scheme and schema references inspected |
-| `core/docs/ADR_STORAGE_KEYS.md` | documentation | NOT STARTED | — |
+| `core/docs/ADR_STORAGE_KEYS.md` | documentation | REVIEWED—FINDINGS OPEN | 31 lines, blob `e058e713`; key inventory/backup scope omit live stores and action audit; claims LaunchAgent startup though only plist helper exists and app uses CoreLauncher; ATLAS-DOC-109 |
 | `core/docs/BENCHMARK.md` | documentation | NOT STARTED | — |
 | `core/docs/CONNECTOR_PROFILE.md` | documentation | NOT STARTED | — |
 | `core/docs/CONTRACT_1_1.md` | documentation | NOT STARTED | — |
@@ -1023,3 +1023,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-OPENAPI-108 (P2, OPEN)**: stale top-level statements claim only 1.0 is served and all `x-atlas-status` operations are unserved. The global `SignedRequest` security requirement also applies to `/v1/enrol` and `/v1/devices/pair`, despite both being intentionally unsigned bootstrap/pair operations and routed before signature verification. Inline review comments **6046224427** and **6046226450** posted; no test execution claimed.
 - Updated coverage counts: **53 IN REVIEW; 91 NOT STARTED; 84 REVIEWED—NO FINDINGS; 50 REVIEWED—FINDINGS OPEN (278 total)**.
 - Next changed paths: `core/contracts/openapi.yaml` is already `REVIEWED—NO FINDINGS`; continue with `core/docs/ADR_STORAGE_KEYS.md`, then the remaining Core documentation entries in PR changed-file order. `core/docs/CONTRACT_1_1.md` remains NOT STARTED and must be checked against the 32 actual additive paths (its current wording says three).
+
+### Storage, backup and launch ADR review — 2026-11-24
+
+- `core/docs/ADR_STORAGE_KEYS.md` (31 lines, blob `e058e71359348f3b2bf88a38dde70382bd131e92`) cross-checked against `host.py` (176 lines, blob `7c0620c7deadadc0065c86283aec40f519dd04d4`), `macos.py` Keychain provider, `backup.py` (405 lines, blob `3b415da1c4572dcb88bfed8ba926c9fd50841fd2`), `launchagent.py` (42 lines, blob `429491e96b7535ab1eb7f7db43d722eeb0632677`), `CoreLauncher.swift` and the Core composition root.
+- **ATLAS-DOC-109 (P2, OPEN)**: Keychain list omits the edits, Finance/Health and native-domain keys; backup inventory omits Finance/Health record DBs and `actions-audit.jsonl`; ADR claims LaunchAgent startup even though the module only serializes a plist and the current app launches a child Core. Inline review comments **6046267112** and **6046268750** posted.
+- The row is now `REVIEWED—FINDINGS OPEN`. Counts: **53 IN REVIEW; 90 NOT STARTED; 84 REVIEWED—NO FINDINGS; 51 REVIEWED—FINDINGS OPEN (278 total)**. No tests were run.
+- Next changed path: `core/docs/BENCHMARK.md`.
