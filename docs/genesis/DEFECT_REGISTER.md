@@ -635,3 +635,9 @@ Evidence: `app/Sources/AtlasApp/Components.swift` `ApprovalSheet` (blob `0e52e88
 **Severity: P2 — OPEN.**
 
 Evidence: `app/Sources/AtlasApp/Speech.swift`, `SystemSpeech.start(partial:finished:)` (blob `67c6f119059be0b3f939710249857f9786683d4a`, inspected at PR head `9af6e7a25a1c3e29b0fa0f986f9c245933d3dc0e`). The method installs an audio input tap and stores the recognition request before calling `engine.start()`. If `engine.start()` throws, it calls `finished(.failure(.interrupted))` but does not remove the installed tap or clear `request`/`task` through `teardown()`. This leaves partially initialized audio-capture state after a failed start and makes retries depend on later cleanup. Call teardown on the catch path and add a test using an injectable audio-engine/start failure seam to assert tap/request cleanup and successful retry.
+
+
+### ATLAS-APP-058 — speech engine startup failure leaves the input tap/request installed
+**Severity: P3 — OPEN.**
+
+Evidence: `app/Sources/AtlasApp/Speech.swift` `SystemSpeech.start(partial:finished:)` (blob `67c6f119059be0b3f939710249857f9786683d4a`). The method stores the recognition request and installs an audio input tap before calling `engine.start()`. If engine startup throws, it calls the completion handler and returns without `teardown()`; the stopped engine retains the request and installed tap until another start happens or the object is released. Call the common teardown path on startup failure and add a platform-seam test or an injectable engine wrapper that proves cleanup.
