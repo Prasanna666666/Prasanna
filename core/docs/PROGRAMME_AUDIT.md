@@ -1,4 +1,6 @@
-# Programme audit: Stages 0 to 3 (answers the owner's mandate, PR #8 comment 7085196621, and review 6014499946)
+# Programme audit: Stages 0 to 3 — historical evidence record
+
+**Snapshot date:** 2026-11-24. This is a historical evidence and discrepancy record, not the live stage register. Its PR-head, review-count, CI and “no Stage 4 work” statements are historical snapshots. For current status, use `docs/genesis/HANDOVER.md` and `core/docs/STAGE3_ACCEPTANCE.md`; for current PR review coverage use `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md`. Later changes do not retroactively alter the exact-scope acceptances recorded below.
 
 How to read this. Evidence labels: **L** = Linux CI, synthetic data; **R** = hosted macOS runner; **owner-only** = needs a person, an account or hardware nobody here has. "Independently reviewed" means a review record exists on the PR; I did not review my own work. Anything not implemented, not tested, not reviewed or awaiting the owner is marked so. I did not rewrite history: where a record is missing or thin, it says so under "Discrepancies for the architect".
 
@@ -50,3 +52,10 @@ Stage 3 acceptance is the architect's and the owner's to give (split recorded in
 - PR review threads at snapshot: **65 total; 21 resolved; 44 unresolved; 43 outdated**. Outdated and unresolved can overlap. No thread was resolved as part of this review.
 - Developer fixes and re-review remain outstanding. P1 examples: destructive production-Keychain cleanup in native/E2E tests (ATLAS-TEST-069), offline queue corruption treated as empty (ATLAS-OFFLINE-071), Core shutdown closing stores under an active worker (ATLAS-CORE-083), API read revocation race (ATLAS-CORE-092), and exact arithmetic mislabelling rounded high-precision values (ATLAS-EXACT-106). The defect register contains the complete list.
 - This is a review checkpoint, not an acceptance or merge recommendation. No local tests were run by this review; the current GitHub Actions run was queued.
+
+
+## Current-status reconciliation — 2026-11-25
+
+This file's Stage 3 source rows, PR head, review-thread counts and statements about later-stage work were captured before the latest PR #8 updates. They must not be quoted as current status. The current operational register is `docs/genesis/HANDOVER.md`; the criterion-by-criterion acceptance matrix and final-stage gates are `core/docs/STAGE3_ACCEPTANCE.md`; the Stage 4–8 developer report is `core/docs/STAGES_4_TO_8.md`.
+
+At the latest documentation reconciliation, PR #8 head is `97a63f64c7d2629a4bdc7d829e65fe52dd1aefb3` (documentation-only changes after code/evidence snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`), open/draft/unmerged. Stage 3 remains NOT ACCEPTED; F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking as recorded in the current PR description and acceptance matrix. Stage 4–8 work is present on the PR branch by owner direction but remains NOT architect-reviewed and NOT accepted. No historical CI result or earlier acceptance is transferred to this newer head.
