@@ -695,3 +695,14 @@ Evidence: `ios/AtlasPhone/PhoneModel.swift` (`unpair()` and detached `load(_:)`,
 **Severity: P2 — OPEN.**
 
 Evidence: `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift`, `measuredContrast(_:_:)` and the `.contrast` exemption (blob `0fc5d4bee166b95ee258a64cf8f6d91d44300c09`, inspected at PR head `13f7904d6c8e04b63c0e91149d8df0876658fc21`). It calculates contrast from the lightest and darkest pixels anywhere in the element frame, not the actual text foreground and adjacent background. An unrelated pixel can make a low-contrast control pass and suppress the system audit finding. Use a defensible text/background measurement or do not suppress the issue; add controlled low-contrast/high-contrast fixtures.
+
+
+### ATLAS-PAIR-070 — duplicate query keys in a pairing invite crash the app
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/Pairing.swift`, `PairingInvite.parse(_:) ` (blob `ffcac447acf9c701962d5ca237d2ba9f72bfbad0`). Query items are converted with `Dictionary(uniqueKeysWithValues:)`. Swift traps if the input contains duplicate names, so a malformed or malicious QR/text invite with repeated `code`, `fp` or `addr` query parameters crashes the process instead of being rejected as a bad invite. Reject duplicates before dictionary construction (or parse the exact required set without a trapping initializer); add tests for each duplicated key and mixed-case/extra parameters.
+
+### ATLAS-OFFLINE-071 — corrupted offline queue data is silently treated as an empty queue
+**Severity: P1 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/OfflineSync.swift`, `OfflineQueue.init(store:)` (blob `d489f50d22fbd235407a0bd88279f2262c036208`). If the persisted queue bytes cannot decode as `[QueuedOperation]`, `try?` converts the error to nil and the initializer substitutes `[]`. The phone then reports zero pending changes; the next enqueue/persist can overwrite the corrupt original bytes. A crash/partial write or storage corruption can therefore silently discard queued offline edits with no recovery notice. Preserve the original bytes and expose a blocking/recovery state on decode failure; never present corruption as an empty queue or overwrite it automatically. Add malformed/truncated queue and subsequent-enqueue tests.
