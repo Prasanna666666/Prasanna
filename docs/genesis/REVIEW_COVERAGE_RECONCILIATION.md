@@ -405,7 +405,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/pyproject.toml` | build/config | NOT STARTED | — |
 | `core/src/atlas_core/__init__.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/access.py` | source | REVIEWED—NO FINDINGS | All 136 lines at blob 09347dd; fresh source-specific OS evidence, stale/future/type mismatch, unknown/failure fail-closed behavior, grant preservation/revocation and purge path cross-checked with test_designation.py |
-| `core/src/atlas_core/actions.py` | source | REVIEWED—FINDINGS OPEN | All 314 lines at blob 0a690d3; ATLAS-ACT-019 in-memory execution/undo/idempotency and unanchored audit reset; ATLAS-ACT-074 multi-category effects collapse to one approval label; ATLAS-ACT-075 unlogged unknown/invalid undo refusals |
+| `core/src/atlas_core/actions.py` | source | REVIEWED—FINDINGS OPEN | All 314 lines at blob 0a690d3; ATLAS-ACT-019 in-memory execution/undo/idempotency, unanchored audit reset and post-effect audit append; ATLAS-ACT-074 multi-category under-reporting; ATLAS-ACT-075 unlogged refusals; ATLAS-ACT-089 undo bypasses connector revocation |
 | `core/src/atlas_core/answer.py` | source | REVIEWED—NO FINDINGS | All 159 lines at blob 43b2209; exact citation resolution, retrieved-only check, figure/date verification, language disclosure and explicit stop/withheld/denied envelopes inspected |
 | `core/src/atlas_core/api.py` | source | REVIEWED—NO FINDINGS | All 563 lines at blob 3b1103a; request dispatch, signed version negotiation, enrol/bootstrap, owner/member route gates, consent, action, sync, web, device, update and SSE behavior inspected with API tests |
 | `core/src/atlas_core/app.py` | source | REVIEWED—FINDINGS OPEN | All 373 lines at blob 6d653f5; ATLAS-CORE-083 closes stores after 5s join even if worker alive; ATLAS-CORE-084 partial _build failure releases lock without closing opened stores |
@@ -445,13 +445,13 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/migration.py` | source | IN REVIEW | Full: 1–192 |
 | `core/src/atlas_core/mlx_runtime.py` | source | IN REVIEW | Full: 1–135 |
 | `core/src/atlas_core/models.py` | source | IN REVIEW | Targeted model runtime/validation interfaces |
-| `core/src/atlas_core/operations.py` | source | IN REVIEW | Targeted action/sync wiring |
+| `core/src/atlas_core/operations.py` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 402ca45; owner action origin, approval/undo routing, versioned records, sync facade and device pairing/revocation API mapping inspected |
 | `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full: 1–242 |
 | `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 9–45, 70–180 |
 | `core/src/atlas_core/policy.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/record_actions.py` | source | IN REVIEW | Full source: 1–56 |
+| `core/src/atlas_core/record_actions.py` | source | REVIEWED—NO FINDINGS | All 56 lines at blob 16dbc4f; only registered record domains, versioned reversible create/edit/archive, approval-gated purge and optional outbox inspected |
 | `core/src/atlas_core/records.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/recordstore.py` | source | IN REVIEW | Targeted: 1–90 |
+| `core/src/atlas_core/recordstore.py` | source | REVIEWED—NO FINDINGS | All 213 lines at blob 1f07bb7; SQLCipher store, transactional history, expected-version writes, soft delete and latest-change-only undo inspected |
 | `core/src/atlas_core/relay.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/review.py` | source | IN REVIEW | Full: 1–141 |
 | `core/src/atlas_core/rules.py` | source | IN REVIEW | Full: 1–34 |
@@ -459,7 +459,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/serve.py` | source | IN REVIEW | Targeted CLI flags/options |
 | `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 326–347, 554–621 |
 | `core/src/atlas_core/storage.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/sync.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/sync.py` | source | REVIEWED—NO FINDINGS | All 118 lines at current blob; closed offline queue vocabulary, revoked-device rejection, optimistic version conflicts and 7-day own-record cache policy inspected |
 | `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/transport.py` | source | REVIEWED—NO FINDINGS | All 202 lines at blob c7f926d; peer UID, strict bounded request framing, timeout, connection cap, owner-only socket and stale/live socket handling inspected |
 | `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source |
@@ -469,7 +469,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/worker.py` | source | REVIEWED—NO FINDINGS | All 120 lines at blob 56140ca; mandatory pre-engine confinement, no skip flag, custom-engine test-only gate and isolated stdin/stdout protocol inspected |
 | `core/tests/conftest.py` | test | NOT STARTED | — |
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
-| `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test verifies audit append only, not approval/receipt/undo/idempotency persistence; no missing/empty audit-file, multi-category, or unknown-action audit tests; ATLAS-ACT-019/074/075 |
+| `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test does not replay same idempotency key; audit failure after handler and connector-undo-after-revocation are untested; ATLAS-ACT-019/074/075/089 |
 | `core/tests/test_api.py` | test | REVIEWED—NO FINDINGS | All 194 lines at blob e51f24f; version negotiation, route/status parity, signed identity, replay/tamper, policy enforcement and user-safe errors covered |
 | `core/tests/test_api_v11.py` | test | REVIEWED—NO FINDINGS | All 188 lines at blob b312803; signed applied version, additive 1.1 coverage/model fields, limitations, SSE, exact compute and unknown-source semantics covered |
 | `core/tests/test_app.py` | test | REVIEWED—FINDINGS OPEN | All 219 lines at blob dbfb9c2; no blocked-worker shutdown or staged-construction-failure cleanup tests; ATLAS-CORE-083/084 |
@@ -513,7 +513,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_operations_api.py` | test | REVIEWED—NO FINDINGS | All 310 lines at blob 2c132f7; owner action/approval/undo, member denial, sync idempotency/conflict, pairing/revocation, records, updates and review covered |
 | `core/tests/test_orchestrator.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_policy.py` | test | IN REVIEW | Targeted: 122–165 |
-| `core/tests/test_recordstore.py` | test | IN REVIEW | Targeted schema/unsupported-version cases |
+| `core/tests/test_recordstore.py` | test | REVIEWED—NO FINDINGS | All 101 lines at blob 1e14330; create/update versions, conflict, exact latest-only undo, soft delete, unsupported domain, encryption and restart persistence covered |
 | `core/tests/test_redaction.py` | test | NOT STARTED | — |
 | `core/tests/test_relay.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_reliability.py` | test | NOT STARTED | — |
@@ -528,7 +528,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_stages_4_8_docs.py` | test | NOT STARTED | — |
 | `core/tests/test_storage.py` | test | IN REVIEW | Targeted: 64–84 |
 | `core/tests/test_swift_app_sources.py` | test | NOT STARTED | — |
-| `core/tests/test_sync.py` | test | IN REVIEW | Full test file |
+| `core/tests/test_sync.py` | test | REVIEWED—NO FINDINGS | All 121 lines at blob 0e6f31d; ordered replay, after-restart conflict safety, stale-version conflict, revoked-device refusal, queue vocabulary/size and cache policy covered |
 | `core/tests/test_tasks.py` | test | IN REVIEW | Targeted task creation/recovery/cancellation tests |
 | `core/tests/test_thresholds.py` | test | NOT STARTED | — |
 | `core/tests/test_transport.py` | test | REVIEWED—NO FINDINGS | All 240 lines at blob cfbd114; peer UID, request framing, duplicate/oversized length, timeout, connection cap and live/stale socket tests inspected |
@@ -964,3 +964,8 @@ At PR #8 head `65575952ae9f0dba25d0482a492141a563bf8eeb`, read `devices.py` (145
 - **ATLAS-CORE-084 (P2, OPEN):** a failed partial `_build()` releases the folder lock but does not close stores already opened; registered purge callbacks can retain a partially built object.
 - `test_app.py` covers source permission/revocation, task recovery, socket lifecycle and single-Core locking, but not these two failure/shutdown races. No local tests run.
 - Updated path counts: 66 IN REVIEW; 93 NOT STARTED; 72 REVIEWED—NO FINDINGS; 47 REVIEWED—FINDINGS OPEN (278 total).
+
+
+### Action Gateway, operations, record store and offline sync review — 2026-11-24
+
+At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py` (314 lines, blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`), `operations.py` (147, `402ca45944a0268666c8bfa4cfd584c2e4e137b6`), `record_actions.py` (56, `16dbc4f3503b1d6aac1ce59ce5319b8fae504e40`), `recordstore.py` (213, `1f07bb7e198a6d9e58f8923fbc552ac9d7962d56`) and `sync.py` (118, `e02...`). Confirmed existing **ATLAS-ACT-019** with precise evidence: same-key idempotency is not restored across restart, and the action handler runs before the audit append/fsync. Added **ATLAS-ACT-089 (P2, OPEN)**: `undo()` does not check whether its connector has since been revoked. RecordStore itself guards undo to the latest un-undone version and uses transactional SQLCipher writes. `test_actions.py` (229 lines) lacks same-key-after-restart, audit-write-failure and revoked-connector undo tests; `test_recordstore.py` (101) and `test_sync.py` (121) cover optimistic conflicts, restart-safe non-overwrite, and latest-only undo. No tests run locally.
