@@ -384,7 +384,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/MODEL_RUNTIME.md` | documentation | REVIEWED—FINDINGS OPEN | 25 lines, blob `f20c955`; worker/sandbox/isolated code and macOS tests cross-checked; successful CI run 45261698495 at `f287f69` passed `macos` and `macos-mlx` with identical source/test/workflow blobs; ATLAS-DOC-117: table still says Swift launcher runtime and whole-Core macOS checks are unverified despite those exact tests passing |
 | `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` | documentation | REVIEWED—FINDINGS OPEN | 43 lines, blob `7e9b5c3`; reviewed owner-only/final-stage gates against current LaunchAgent helper, CoreLauncher lifecycle, macOS/native CI, relay/phone/API scope, browser host wiring and defect register; ATLAS-DOC-118: stale exact-head counts, nonexistent owner LaunchAgent install, least-privilege profile misclassification and phone P1/security blockers; comment 6046550335 |
 | `core/docs/PLUG_IN_GUIDE.md` | documentation | REVIEWED—FINDINGS OPEN | 19 lines, blob `9f5a09f`; checked against connector catalogue/adapter, production browser gate, Voice, RelayBind, Finance/Health stores and maintenance CLI; ATLAS-DOC-119: config-only extension/browser availability claims; ATLAS-DOC-120: Finance-only import command does not import Health records; comments 6046579952, 6046594708 |
-| `core/docs/PROGRAMME_AUDIT.md` | documentation | IN REVIEW | Targeted: 15–45 |
+| `core/docs/PROGRAMME_AUDIT.md` | documentation | REVIEWED—FINDINGS OPEN | 53 lines, blob `935605a`; checked stage criteria, discrepancy statements, exact-head CI/run, live PR path counts and thread inventory; ATLAS-DOC-121: snapshot stale (head 7ead, old counts/thread totals) and egress fix overclaimed while ATLAS-SEC-014 remains partial; comment 6046604381 |
 | `core/docs/ROLLBACK.md` | documentation | NOT STARTED | — |
 | `core/docs/STAGE3_ACCEPTANCE.md` | documentation | IN REVIEW | Targeted: 1–61 |
 | `core/docs/STAGE3_HANDOVER.md` | documentation | NOT STARTED | — |
@@ -1144,3 +1144,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - Existing **ATLAS-DOC-119** remains open for configuration-only connector extension and browser workflow availability claims; its comments remain open.
 - The path remains `REVIEWED—FINDINGS OPEN`. No tests run. Coverage counts unchanged: **48 IN REVIEW; 78 NOT STARTED; 86 REVIEWED—NO FINDINGS; 66 REVIEWED—FINDINGS OPEN (278 total)**.
 - Next changed file: verify current PR changed-file order after `core/docs/PLUG_IN_GUIDE.md` and use the latest ledger checkpoint.
+
+
+### Programme audit review — 2026-11-24
+
+- `core/docs/PROGRAMME_AUDIT.md` (53 lines, blob `935605a9524cb282abd1d8ebaec3df60dd657afd`) was read in full and cross-checked against the live PR #8 state, exact-head workflow status, 278-row coverage ledger, review-thread inventory, `STAGE-3-EXECUTION-PLAN.md`, `HANDOVER.md`, `EGRESS_GATEWAY.md` and the defect register.
+- **ATLAS-DOC-121 (P2, OPEN)**: the section labelled “Current exact-head independent review snapshot” is stale: it names head `7eadbae...`, old coverage counts and old thread totals; live PR head at review was `a99cbba...`, live coverage was 86 no-findings / 66 findings-open / 48 in-review / 78 not-started, live threads were 103 total (21 resolved, 82 unresolved, 43 outdated), and exact-head CI run `45478197996` was queued. Its discrepancy section overstates the egress fingerprinting fix: ATLAS-SEC-014 remains partially addressed, with 1–3-character identifiers and paraphrases outside the guarantee. Comments **6046604381** posted; defect register updated.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Next changed file: `core/docs/ROLLBACK.md`.
