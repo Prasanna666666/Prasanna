@@ -407,7 +407,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/access.py` | source | REVIEWED—NO FINDINGS | All 136 lines at blob 09347dd; fresh source-specific OS evidence, stale/future/type mismatch, unknown/failure fail-closed behavior, grant preservation/revocation and purge path cross-checked with test_designation.py |
 | `core/src/atlas_core/actions.py` | source | REVIEWED—FINDINGS OPEN | All 314 lines at blob 0a690d3; ATLAS-ACT-019 in-memory execution/undo/idempotency and unanchored audit reset; ATLAS-ACT-074 multi-category effects collapse to one approval label; ATLAS-ACT-075 unlogged unknown/invalid undo refusals |
 | `core/src/atlas_core/answer.py` | source | REVIEWED—NO FINDINGS | All 159 lines at blob 43b2209; exact citation resolution, retrieved-only check, figure/date verification, language disclosure and explicit stop/withheld/denied envelopes inspected |
-| `core/src/atlas_core/api.py` | source | IN REVIEW | 563 lines; request dispatch/auth/version/route families inspected; remaining complete line-by-line pass and API test cross-check pending |
+| `core/src/atlas_core/api.py` | source | REVIEWED—NO FINDINGS | All 563 lines at blob 3b1103a; request dispatch, signed version negotiation, enrol/bootstrap, owner/member route gates, consent, action, sync, web, device, update and SSE behavior inspected with API tests |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
 | `core/src/atlas_core/backup.py` | source | IN REVIEW | Full: 1–405 |
 | `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source |
@@ -433,7 +433,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/health.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/health_calc.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/host.py` | source | REVIEWED—NO FINDINGS | All 176 lines at blob 7c0620c; production macOS-only provider selection, Keychain keys, signed manifest, native/Finance/Health stores, restore drill and web disabled by default inspected |
-| `core/src/atlas_core/identity.py` | source | IN REVIEW | Full: 1–230 |
+| `core/src/atlas_core/identity.py` | source | REVIEWED—NO FINDINGS | All 186 lines at blob 9aa0e10; canonical signatures, version binding, nonce replay cache, bootstrap rate limit, durable public-key registry, owner/member and revocation checks inspected |
 | `core/src/atlas_core/intelligence.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/isolated.py` | source | REVIEWED—NO FINDINGS | All 169 lines at blob 94fc687; clean env, confined model root, bounded silence, worker crash, early cancel/drain and process teardown inspected |
 | `core/src/atlas_core/launchagent.py` | source | IN REVIEW | Full source: 1–42 |
@@ -470,7 +470,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/conftest.py` | test | NOT STARTED | — |
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
 | `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test verifies audit append only, not approval/receipt/undo/idempotency persistence; no missing/empty audit-file, multi-category, or unknown-action audit tests; ATLAS-ACT-019/074/075 |
-| `core/tests/test_api.py` | test | NOT STARTED | — |
+| `core/tests/test_api.py` | test | REVIEWED—NO FINDINGS | All 194 lines at blob e51f24f; version negotiation, route/status parity, signed identity, replay/tamper, policy enforcement and user-safe errors covered |
 | `core/tests/test_api_v11.py` | test | IN REVIEW | Targeted authenticated task/route tests |
 | `core/tests/test_app.py` | test | NOT STARTED | — |
 | `core/tests/test_architecture.py` | test | NOT STARTED | — |
@@ -490,18 +490,18 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_documents.py` | test | NOT STARTED | — |
 | `core/tests/test_domains.py` | test | NOT STARTED | — |
 | `core/tests/test_egress.py` | test | REVIEWED—FINDINGS OPEN | All 336 lines at blob 64881f5; taint/redirect coverage present; no stalled DNS, 200k–512k truncation-flag or malformed-port tests; ATLAS-EGRESS-077/078/079 |
-| `core/tests/test_enrolment.py` | test | NOT STARTED | — |
+| `core/tests/test_enrolment.py` | test | REVIEWED—NO FINDINGS | All 243 lines at blob 7607fb4; bootstrap one-time/guess lockout, racing first owners, durable registry, owner/member authority and restart behavior covered |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
 | `core/tests/test_evidence_answer.py` | test | REVIEWED—NO FINDINGS | All 185 lines at blob 532fb7e; exact span/locator, stale/wrong quote, figure/date, language, truncation, partial and failure states covered |
 | `core/tests/test_exact.py` | test | IN REVIEW | Full test file; no >28-digit exact-decimal test |
 | `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_health.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_intelligence.py` | test | NOT STARTED | — |
-| `core/tests/test_isolated.py` | test | IN REVIEW | Targeted: 311–345 |
+| `core/tests/test_isolated.py` | test | REVIEWED—NO FINDINGS | All 350 lines at blob 81a8014; network/read/write/exec confinement, no skip flag, custom engine gate, cancellation, crash, silence and staged model path covered |
 | `core/tests/test_launchagent.py` | test | NOT STARTED | — |
 | `core/tests/test_launcher.py` | test | NOT STARTED | — |
 | `core/tests/test_library.py` | test | NOT STARTED | — |
-| `core/tests/test_macos.py` | test | IN REVIEW | Targeted: 219–225, 430–520, 580–710 |
+| `core/tests/test_macos.py` | test | REVIEWED—FINDINGS OPEN | All 710 lines at blob 3248ae2; strong symlink/race/MIME-byte-boundary coverage, but root symlink and inaccessible subtree are asserted/skipped as empty without checking MailIndex incomplete coverage (ATLAS-MAIL-079) |
 | `core/tests/test_macos_native.py` | test | NOT STARTED | — |
 | `core/tests/test_macos_sources.py` | test | IN REVIEW | Targeted: 57–135 |
 | `core/tests/test_mail.py` | test | NOT STARTED | — |
@@ -531,7 +531,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_sync.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_tasks.py` | test | IN REVIEW | Targeted task creation/recovery/cancellation tests |
 | `core/tests/test_thresholds.py` | test | NOT STARTED | — |
-| `core/tests/test_transport.py` | test | NOT STARTED | — |
+| `core/tests/test_transport.py` | test | REVIEWED—NO FINDINGS | All 240 lines at blob cfbd114; peer UID, request framing, duplicate/oversized length, timeout, connection cap and live/stale socket tests inspected |
 | `core/tests/test_updater.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_web.py` | test | NOT STARTED | — |
 | `core/tests/worker_engines.py` | test | NOT STARTED | — |
@@ -932,3 +932,8 @@ At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, read all 165 lines of 
 - Cross-checked `service.py` construction of AnswerInput, `evidence.py` exact citation resolution, and tests for retrieved-only citations, stale sources, wrong quotes, numeric figures/dates, language confidence, truncation, partial work, denied and withheld answers.
 - No independent defect established in the answer envelope path in this pass; rows moved to `REVIEWED—NO FINDINGS`. This does not establish model-runtime correctness or real-model behaviour; those remain separate acceptance gates.
 - Updated path counts: 83 IN REVIEW; 99 NOT STARTED; 59 REVIEWED—NO FINDINGS; 37 REVIEWED—FINDINGS OPEN (278 total).
+
+
+### Core API, identity, transport and confinement test cross-check — 2026-11-24
+
+At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, completed full line-by-line reads of `api.py` (563 lines, blob `3b1103a3e14eb5e5f7a3a4f640c9e286c5fd690c`) and `identity.py` (186, `9aa0e1012470daee119cf77d93237025ba0b4fb7`). Signed version binding, owner/member authorization, one-time enrolment, route families and content-free error handling cross-checked against `test_api.py` (194, `e51f24f89679f70d8ad2dae80f0c9979f9f85493`) and `test_enrolment.py` (243, `7607fb4f301b126f8e19e47545b77bb01ed374c2`). `test_isolated.py` (350, `81a801473535beb0589d39fee4e1f49e81ef2955`) and `test_transport.py` (240, `cfbd11419f815cb7f66c968fb56c3406f2a7d981`) fully read; no independent findings. `test_macos.py` (710, `3248ae258c805b669d3f0e6d3ec815ebdb0ddbc0`) fully read; its symlink/race/attachment byte-boundary tests are strong, but it does not test that a skipped inaccessible subtree or root symlink makes MailIndex coverage partial, so ATLAS-MAIL-079 remains open. No tests run locally.
