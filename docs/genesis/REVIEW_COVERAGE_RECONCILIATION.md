@@ -300,10 +300,10 @@ All findings below have separate detailed PR comments with source evidence, impa
 | Path | Type | Status | Units inspected |
 |---|---|---|---|
 | `.github/workflows/ci.yml` | build/config | IN REVIEW | Targeted install/SQLCipher/macOS/security job sections |
-| `.gitleaksignore` | build/config | IN REVIEW | Full 10 lines inspected; fingerprint-to-scan evidence still to verify |
+| `.gitleaksignore` | build/config | REVIEWED—NO FINDINGS | Full 10 lines; four fingerprint suppressions matched to historical test/type annotation, comment, public checksum and generated test key contexts; scanner execution not independently run |
 | `CLAUDE.md` | documentation | REVIEWED—NO FINDINGS | Full 22 lines; source-of-truth, role split, evidence and product principles consistent with current delivery protocol |
-| `app/Package.swift` | build/config | NOT STARTED | — |
-| `app/README.md` | documentation | NOT STARTED | — |
+| `app/Package.swift` | build/config | IN REVIEW | Full 15 lines; package products, deployment targets and resource wiring inspected; cross-target compatibility still to reconcile |
+| `app/README.md` | documentation | IN REVIEW | Full 19 lines; evidence contradiction found: app launch/Core lifecycle and Swift real-Core tests exist, but README says app not run / Swift side not tested; PR review 6045284683 |
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | IN REVIEW | Targeted: 1–80, 110–170, 200–245, 320–390, 486–553 |
 | `app/Sources/AtlasApp/Components.swift` | source | IN REVIEW | Targeted component/accessibility review |
 | `app/Sources/AtlasApp/DesignSystem.swift` | source | IN REVIEW | Full source inspected |
@@ -672,3 +672,16 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - **No tests were executed by this review pass.** The reviewer inspected source and configuration only. CI status for this exact head is unknown because no associated workflow runs were returned.
 - Review boundary remains: no application source, tests, build/config changes, approvals, merges or review-thread resolutions by this reviewer.
 
+
+
+### File-review continuation — 2026-11-24
+
+**Source snapshot reviewed:** ce669813f5f1104dede65030156dbadd281bf2ed (the current PR head before this ledger-only update).
+
+- .gitleaksignore — all 10 lines inspected. Four suppressions are narrow commit/path/rule/line fingerprints. Historical contexts were inspected: a type annotation in a test helper, the file's own historical explanatory comment, a public frozen-contract SHA-256 checksum, and a generated Ed25519 test key/default parameter. No broad allow-list or blanket path/rule suppression found. Marked REVIEWED—NO FINDINGS for file content; Gitleaks itself was not run in this pass, so this is not a claim that a current scan passed.
+- app/Package.swift — all 15 lines inspected. It declares AtlasKit and AtlasApp products, macOS 14/iOS 17 platform declarations, and no external package dependencies. Kept IN REVIEW pending cross-check against the separately generated Xcode/macOS/iOS targets and deployment requirements.
+- app/README.md — all 19 lines inspected. Documentation finding: it says the app has not been run and says the Swift launcher/client has not been tested against a real child Core. Those statements conflict with the current CI app job (launches packaged Atlas binary, verifies Core socket/process lifecycle and captures a screenshot) and EndToEndTests.swift (Swift launcher + client against a real Python Core over a Unix socket, including owner enrolment and Keychain). A human UI/accessibility walkthrough, real TCC prompts, real Mail store, signing/notarisation and self-contained installation remain unverified. Review comment 6045284683 was posted on PR #8; no implementation or README edit was made.
+- core/src/atlas_core/exact.py and core/tests/test_exact.py were re-read at source head b0ece9c13670096d5bd4b2b8dddf21369874d2ec; ATLAS-EXACT-106 remains present, with no >28-significant-digit regression test. They are unchanged between that source head and ce669813f5f1104dede65030156dbadd281bf2ed.
+- Updated path counts after these dispositions: 278 total; 147 IN REVIEW; 129 NOT STARTED; 2 REVIEWED—NO FINDINGS. Strict fully completed file reviews: 2/278. IN REVIEW means targeted or incomplete, not completed.
+- Resume: .gitleaksignore and CLAUDE.md are complete. Continue with app/Package.swift (reconcile target compatibility and mark complete only when evidence supports it), then app/README.md (track the posted contradiction until Claude corrects it and the revised text is independently checked), then app/Sources/AtlasApp/AtlasApp.swift.
+- No tests were executed by this reviewer. No source, tests, package/build configuration or app code changed. No review threads were resolved and no approval/merge was made.
