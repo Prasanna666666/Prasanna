@@ -17,7 +17,7 @@ This checklist records owner-only and final-stage acceptance actions; it is **no
 8. Walk each screen in `UI_IMPLEMENTATION_MAP.md`: VoiceOver, keyboard, Dynamic Type, reduced motion, light and dark, screenshots and visual acceptance (UI_UX_SPECIFICATION.md).
 9. Reboot with FileVault on, locked Keychain, LaunchAgent install (files and exit paths are tested).
 10. Power-loss behaviour; update-and-restart on a real install.
-11. Real Apple Mail store run, and your own Calendar, Contacts, Notes and Photos: the adapters are built and run against the real frameworks in CI (status, denied path, no read without permission); only you can grant the permissions and see your own data come through.
+11. Real Apple Mail store run, and your own Calendar, Contacts, Notes and Photos: the Calendar/Contacts/Notes/Photos adapters are exercised against the real macOS frameworks in hosted CI (including denied/no-permission paths); the Mail `.emlx` reader is exercised only on synthetic fixtures. No real Apple Mail store or owner data has been read. Only you can grant the real permissions and verify your own data.
 12. Restore drill with a real backup on the owner's disk.
 
 ## D. Product scope that needs an owner decision or account first (not started by design)
