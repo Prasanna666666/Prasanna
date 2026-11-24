@@ -674,12 +674,6 @@ Evidence: `app/Sources/AtlasKit/Voice.swift`, `VoiceSession.toggle()` (blob `7ce
 
 ## Exact-head Swift client and transport review — 2026-11-24
 
-### ATLAS-TEST-062 — Swift end-to-end tests delete real Atlas Keychain services
-**Severity: P1 — OPEN.**
-
-Evidence: `app/Tests/AtlasKitTests/EndToEndTests.swift` (blob `c9285731aa996a43e0148aa774049a7c69931f03`) defines `deleteKeychainItems()` and invokes it before and after the real-Core tests. Its service list includes `atlas-task-store`, `atlas-designation-store`, `atlas-documents-index`, `atlas-mail-index`, `atlas-edits-store`, `atlas-model-record` and `atlas-designation-anchor`. These are not test-only names: `core/src/atlas_core/macos.py` constructs store services as `atlas-{name}` and defines `KeychainAnchor.SERVICE = "atlas-designation-anchor"`; `core/src/atlas_core/host.py` uses those services for the real Core's encryption keys and anchor. The test invokes `security delete-generic-password -s <service>` without an account restriction, so running the E2E suite locally with `ATLAS_CI_PYTHON` set can delete the developer's real Atlas encryption keys/anchor and make existing encrypted data unrecoverable. Use a disposable test keychain or test-only service namespace and prove the user's default/login keychain is untouched. Do not run this suite against a normal owner keychain until fixed.
-
-
 ### ATLAS-TEST-069 — end-to-end tests delete real Atlas Keychain items on the developer Mac
 **Severity: P1 — OPEN (destructive test isolation failure).**
 
