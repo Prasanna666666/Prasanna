@@ -567,12 +567,12 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `docs/genesis/TARGET_ARCHITECTURE.md` | documentation | NOT STARTED | — |
 | `docs/genesis/UI_UX_SPECIFICATION.md` | documentation | IN REVIEW | Targeted: 23–60, 62–78, 183–330 |
 | `docs/genesis/USE_CASE_REGISTER.md` | documentation | NOT STARTED | — |
-| `ios/AtlasPhone/AtlasPhoneApp.swift` | source | IN REVIEW | Full source: 1–12 |
-| `ios/AtlasPhone/PhoneModel.swift` | source | IN REVIEW | 1–100 (full) |
-| `ios/AtlasPhone/Storage.swift` | source | IN REVIEW | 1–54 (full) |
-| `ios/AtlasPhone/Views.swift` | source | IN REVIEW | 1–224 (full) |
-| `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift` | test | NOT STARTED | — |
-| `ios/README.md` | documentation | NOT STARTED | — |
+| `ios/AtlasPhone/AtlasPhoneApp.swift` | source | REVIEWED—NO FINDINGS | All 12 lines at blob ab6bdca; single PhoneModel lifetime and SwiftUI app root inspected |
+| `ios/AtlasPhone/PhoneModel.swift` | source | REVIEWED—FINDINGS OPEN | All 94 lines at blob 4c03781; ATLAS-PHONE-072 detached load can repopulate cache after unpair; concurrent detached engine access also requires serialization/generation guard |
+| `ios/AtlasPhone/Storage.swift` | source | REVIEWED—NO FINDINGS | All 56 lines at blob 5f9df32; device-only unlocked Keychain item and complete-file-protection/backup exclusion for cache and queue inspected |
+| `ios/AtlasPhone/Views.swift` | source | REVIEWED—NO FINDINGS | All 224 lines at blob e62d599; pairing/scanner, question flow, records CRUD, offline indicators and explicit unpair confirmation inspected |
+| `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift` | test | REVIEWED—FINDINGS OPEN | All 103 lines at blob 0fc5d4b; ATLAS-TEST-071 contrast exemption uses frame-wide extrema and can false-pass; separate Dynamic Type height check inspected |
+| `ios/README.md` | documentation | REVIEWED—NO FINDINGS | All 8 lines at blob c84853f; product scope, private network prerequisite, test evidence and no-human-phone-walkthrough qualification inspected |
 | `ios/project.yml` | build/config | REVIEWED—NO FINDINGS | All 52 lines at blob 4e929d5; iOS 17 target, AtlasKit dependency, camera privacy string and simulator UI-test scheme inspected |
 | `scripts/Atlas.entitlements` | script/tool | NOT STARTED | — |
 | `scripts/package_mac.sh` | script/tool | IN REVIEW | Targeted: 3–19 |
@@ -854,3 +854,8 @@ At PR #8 head `45324737c0f177314edf8363f1c51fad671f0ff7`, fully inspected Aloud,
 ### XcodeGen build/project specifications re-review — 2026-11-24
 
 At PR #8 head `98e333b9904bf6906a9211f81524feb6234f2bf4`, re-read `app/Package.swift` (15 lines, blob `0028b51d4e24ad9c0e36e2e816732edeb2df2de2`), `app/xcode/project.yml` (51 lines, blob `e9a540c146e1dd3b8a2f3614b637407f727bb643`) and `ios/project.yml` (52 lines, blob `4e929d5de1a3ddb12532fda4e01989c8d7d766b1`). Package/platform/product alignment is consistent. **ATLAS-DOC-070 (P3, OPEN)**: the macOS XcodeGen spec comment says it is not checked in although this file is committed. The iOS project specifies iOS 17, AtlasKit linkage, camera-purpose text and a simulator UI-test scheme; no independent issue established there.
+
+
+### iOS application, storage, screens and accessibility test review — 2026-11-24
+
+At PR #8 head `13f7904d6c8e04b63c0e91149d8df0876658fc21`, read all iOS paths in full: `AtlasPhoneApp.swift` (12 lines, blob `ab6bdca5de9c03b5dd178c2046e61f4dd4109d8b`), `PhoneModel.swift` (94, `4c03781d402d8f1ce7cb150d16f0245694f5061a`), `Storage.swift` (56, `5f9df32ac0960f411746c86970a3baacf1f9aa8e`), `Views.swift` (224, `e62d599c8275ee5886ad9a1e220b1e7e0f25ba91`), iOS `AccessibilityAuditTests.swift` (103, `0fc5d4bee166b95ee258a64cf8f6d91d44300c09`) and `ios/README.md` (8, `c84853f9ee56764eaed8955e3b08758212cfbe4d`). **ATLAS-PHONE-072 (P1, OPEN)**: an in-flight detached read can rewrite cached owner records after Unpair clears the cache. **ATLAS-TEST-071 (P2, OPEN)**: iOS contrast exemption can false-pass using frame-wide pixel extrema. Phone keychain/file protection, screens, pair confirmation and documentation otherwise inspected. No tests run locally.
