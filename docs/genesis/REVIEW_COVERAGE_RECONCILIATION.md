@@ -1233,3 +1233,7 @@ At captured PR #8 head `80dbd8584201aafce3697f28e3ec35fb6d5f42af`: **282 changed
 ## Final documentation-only checkpoint snapshot — 2026-11-25
 
 Queried PR #8 after the final roadmap/decision reconciliation at head `f6815aa62dc0354f260293277e1e108fa28a510c`: PR remains open, draft and unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 36 outdated and 70 current). These figures are a point-in-time snapshot; this ledger update itself is documentation-only. Refresh the live API before the next work session.
+
+## Live snapshot after Stage 3/API 1.1 wording corrections — 2026-11-25
+
+At PR #8 head `b230633b3b8d027576be42f6a6508c638e6e3a6f`: 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 40 outdated and 66 current). PR remains open, draft and unmerged. The change in outdated/current classification reflects diff-line movement and does not itself resolve or fix findings. Refresh live review state before further work.
