@@ -119,6 +119,8 @@ Evidence levels must be labelled accurately. From weakest to strongest, use **de
 
 ## 9. Stage status, historical sequence and Stage 2 authorisation
 
+**Historical-section note (2026-11-25):** The Stage 2 entry gates and recorded status below describe the original authorisation sequence. Stage 2 was later authorised and accepted for its reviewed exact scope; do not treat the old “must not begin Stage 2” language as current. The current stage register is `HANDOVER.md`. Stage 3 remains not accepted; Stage 4–8 work was owner-authorised on the shared PR #8 branch but remains unreviewed/unaccepted.
+
 ### Recorded status — 2026-11-19
 
 - **Stage 0 (documentation review and reconciliation): COMPLETE.** Claude's full-document consistency confirmation is recorded in PR #7 comment 7023445432.
