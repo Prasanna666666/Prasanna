@@ -746,3 +746,19 @@ Evidence: `core/src/atlas_core/actions.py`, `ActionGateway.propose()` and `undo(
 **Severity: P2 — OPEN (false-complete coverage).**
 
 Evidence: `core/src/atlas_core/macos.py`, `EmlxMailbox._candidates()` and `_scan()` (blob `5cef615a78be156c1edfff73936b2e6eea11d325`, inspected at PR head `910f7fa02390c7c3a24abc215374343d27d22217`), together with `core/src/atlas_core/mail.py`, `MailIndex._list_bounded()` and `coverage()` (blob `ac47c347a655db553e2a3f7372c137af94bc5a3f`). The adapter catches an `OSError` from `os.scandir` and substitutes an empty directory, and catches an `OSError` opening any candidate file and simply continues. Those entries never reach MailIndex as malformed/failed rows, and the ListPage interface carries no indication that a subtree or candidate was skipped. MailIndex can consequently set `scan_state=done`, `scan_cut_off=0`, and report `complete=true` despite unreadable messages/subfolders. Surface identity-free skipped-entry counts or a partial-scan signal to MailIndex so coverage cannot claim complete when an item was omitted due to an access/read error; keep deliberate symlink/FIFO rejection safe and test unreadable file and nested directory cases.
+
+
+### ATLAS-EGRESS-077 — DNS resolution is outside the egress timeout
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/egress.py`, `_resolve()`, `public_address()` and `EgressGateway._check_url()` (blob `0aa66a988a73b027ac1aa762da00bf60d6d533ae`). The configured request timeout is passed to the transport, but the real resolver calls blocking `socket.getaddrinfo()` without a deadline before the transport is invoked (and resolves again inside `UrllibTransport`). A slow or stalled DNS lookup can therefore hold the task beyond the advertised timeout indefinitely. Use a bounded resolver/deadline and ensure the same total deadline covers DNS, connect, TLS and body reads; add a stalled-resolver test.
+
+### ATLAS-EGRESS-078 — text truncation at 200,000 characters is not reflected in the truncation flag
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/egress.py`, `EgressGateway._get()` (blob `0aa66a988a73b027ac1aa762da00bf60d6d533ae`). `truncated` is set only when the raw response body exceeds `MAX_BYTES` (512 KiB), but the returned `WebDocument.text` is independently sliced to 200,000 characters. A text/html or text/plain response whose body is under 512 KiB but whose extracted text exceeds 200,000 characters is silently truncated while `WebDocument.truncated` remains false. Set the flag when either byte or extracted-text cap truncates, and test a body in the 200k–512k range.
+
+### ATLAS-EGRESS-079 — malformed URL ports escape as raw ValueError instead of a typed refusal
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/egress.py`, `EgressGateway._check_url()` (blob `0aa66a988a73b027ac1aa762da00bf60d6d533ae`). Accessing `urlsplit(url).port` raises `ValueError` for non-numeric or out-of-range ports. That exception is not converted to `Denied`, so a malformed model/owner-supplied URL bypasses the gateway's typed refusal contract and can fail the task through an unhandled exception. Catch URL parsing/port errors and return a content-free `destination_not_allowed` refusal; test non-numeric, negative and >65535 ports and malformed IPv6 brackets.
