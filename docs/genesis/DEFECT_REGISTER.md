@@ -625,10 +625,10 @@ Evidence: the UI test waits a fixed eight seconds after window existence, then a
 Evidence: `app/Sources/AtlasApp/Screens.swift` `ActivityView.body` (blob `9b5ad87b6b762201a33b4af4737b2ff655145deb`, inspected at PR head `ea2ba5acd92237e3b2f2cc583f04ad47f45c06e9`), together with `AppModel.loadAttention()` and `ActivityItem.fromAttention()`. The Core attention feed is loaded into `model.attention`; Home combines `model.activity + model.attention` for “Needs your attention”. ActivityView instead constructs its list from `ActivityFeed.merged(model.activity)` alone, so Core-generated attention items (currently calendar-conflict risks) are absent from the Activity screen despite its subtitle promising “what needs your decision”. Merge both feeds with the existing deduplication rule and test that an attention-only item appears in Activity without duplicating a matching event.
 
 
-### ATLAS-APP-057 — Declined approval has no explicit dismissal path in the sheet
-**Severity: P2 — OPEN.**
+### ATLAS-APP-057 — Approval terminal state has no explicit in-sheet completion action; dismissal needs UI verification
+**Severity: P3 — POTENTIAL / VERIFY.**
 
-Evidence: `app/Sources/AtlasApp/Components.swift` `ApprovalSheet` (blob `0e52e88c6833ca04e3f34d2c241163fc4b44d15b`), `app/Sources/AtlasApp/Shell.swift` `RootView.approvalBinding` (blob `f2b033590dc4dab646078f0c359dd61a92b18399`), and `app/Sources/AtlasKit/Approval.swift` `ApprovalFlow.declined()` (blob `7ce1093ebee791911cec3444f4409644d88c24fc`). Decline changes the flow to `.declined`; the sheet then renders only a static “Declined. Nothing was done.” notice. The sheet exposes no Done/Close callback, and the RootView binding dismisses only when its item is set to nil. The only explicit pending-state cancel shortcut is attached to Decline, whose state transition is no longer available after decline. Add a clear dismissal action for terminal states (declined/completed/failed/expired/invalidated) and test that declining leaves the app usable and the sheet can be closed without approving.
+Evidence: `app/Sources/AtlasApp/Components.swift` `ApprovalSheet` (blob `0e52e88c6833ca04e3f34d2c241163fc4b44d15b`), `app/Sources/AtlasApp/Shell.swift` `RootView.approvalBinding` (blob `f2b033590dc4dab646078f0c359dd61a92b18399`), and `app/Sources/AtlasKit/Approval.swift` `ApprovalFlow.declined()` (blob `7ce1093ebee791911cec3444f4409644d88c24fc`). Decline changes the flow to `.declined`; the sheet then renders only a static “Declined. Nothing was done.” notice. The sheet exposes no explicit Done/Close callback, and the RootView binding dismisses only when its item is set to nil. The only explicit pending-state cancel shortcut is attached to Decline, whose state transition is no longer available after decline. The platform may still provide a standard sheet dismissal affordance; this source inspection alone does not prove the user is trapped. Verify with a macOS UI test that declined/completed/failed/expired/invalidated states can be dismissed and the app remains usable; add an explicit in-sheet Done/Close action if the platform does not provide a reliable route.
 
 
 ### ATLAS-VOICE-057 — speech-engine startup failure leaves the input tap and request uncleared
@@ -637,10 +637,6 @@ Evidence: `app/Sources/AtlasApp/Components.swift` `ApprovalSheet` (blob `0e52e88
 Evidence: `app/Sources/AtlasApp/Speech.swift`, `SystemSpeech.start(partial:finished:)` (blob `67c6f119059be0b3f939710249857f9786683d4a`, inspected at PR head `9af6e7a25a1c3e29b0fa0f986f9c245933d3dc0e`). The method installs an audio input tap and stores the recognition request before calling `engine.start()`. If `engine.start()` throws, it calls `finished(.failure(.interrupted))` but does not remove the installed tap or clear `request`/`task` through `teardown()`. This leaves partially initialized audio-capture state after a failed start and makes retries depend on later cleanup. Call teardown on the catch path and add a test using an injectable audio-engine/start failure seam to assert tap/request cleanup and successful retry.
 
 
-### ATLAS-APP-058 — speech engine startup failure leaves the input tap/request installed
-**Severity: P3 — OPEN.**
-
-Evidence: `app/Sources/AtlasApp/Speech.swift` `SystemSpeech.start(partial:finished:)` (blob `67c6f119059be0b3f939710249857f9786683d4a`). The method stores the recognition request and installs an audio input tap before calling `engine.start()`. If engine startup throws, it calls the completion handler and returns without `teardown()`; the stopped engine retains the request and installed tap until another start happens or the object is released. Call the common teardown path on startup failure and add a platform-seam test or an injectable engine wrapper that proves cleanup.
 
 
 ### ATLAS-CORE-062 — CoreClient accepts a successful task response with no task ID
