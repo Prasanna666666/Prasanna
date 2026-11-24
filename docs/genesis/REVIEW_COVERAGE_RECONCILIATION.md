@@ -1221,3 +1221,7 @@ This is a point-in-time API snapshot. Any subsequent push changes the exact head
 ## Latest live snapshot — after documentation-only cleanup (2026-11-25)
 
 At PR #8 head `23fee7b5f7d04898e193926fbb05a62856fd7bf9`: **282 changed paths**, **127 review threads**, **21 resolved**, **106 unresolved** (31 unresolved outdated; 75 unresolved current). PR remains open, draft and unmerged. The extra changed path since the earlier 281-path snapshot is the newly added conformance-audit document. The thread count did not change. The prior code/evidence snapshot was `83eec5378fff9f26f435492104c4efa2b30d18ca`; documentation-only commits followed. Recheck CI and review state after any further push.
+
+## Final documentation-only head snapshot — 2026-11-25
+
+At head `c3679dc914e31a1f0fda7c709b45ae0119aa9096`: PR #8 remains open, draft and unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 32 outdated and 74 current). Compared with the previous snapshot, one unresolved thread became marked outdated; this is a metadata state change, not evidence that its finding is fixed. No workflow run was returned for this exact documentation-only head. Do not claim CI passed without a separate exact-head check.
