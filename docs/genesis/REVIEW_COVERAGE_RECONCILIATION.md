@@ -331,11 +331,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/Pairing.swift` | source | REVIEWED—FINDINGS OPEN | All 133 lines at blob ffcac44; ATLAS-PAIR-065 duplicate query names trap Dictionary(uniqueKeysWithValues:); fingerprint/nonce proof and vault write order inspected |
 | `app/Sources/AtlasKit/PhoneEngine.swift` | source | REVIEWED—FINDINGS OPEN | All 137 lines at blob f1beb87; ATLAS-PHONE-064 paired-but-no-transport path leaves link falsely online; queue/cache/revocation paths inspected |
 | `app/Sources/AtlasKit/Records.swift` | source | REVIEWED—NO FINDINGS | All 132 lines at blob 2a0c22a; own-domain allow-list, date validation, payload generation and record identity inspected |
-| `app/Sources/AtlasKit/RelayBind.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full) |
-| `app/Sources/AtlasKit/ScreenState.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Signing.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/SubmissionGate.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/RelayBind.swift` | source | REVIEWED—NO FINDINGS | All 19 lines at blob e24ef7e; literal IPv4/private/loopback/link-local/VPN and port allow-list inspected; Core repeats validation |
+| `app/Sources/AtlasKit/Review.swift` | source | REVIEWED—NO FINDINGS | All 38 lines at blob e4dbe60; section allow-list mapping, action gating and partial-status note inspected |
+| `app/Sources/AtlasKit/ScreenState.swift` | source | REVIEWED—NO FINDINGS | All 115 lines at blob 9abb531; load/launch/conversation/evidence state mapping and plain fallback messages inspected |
+| `app/Sources/AtlasKit/Signing.swift` | source | REVIEWED—NO FINDINGS | All 27 lines at blob 43401de; canonical message fields, SHA-256 body digest, nonce and Curve25519 signature construction inspected |
+| `app/Sources/AtlasKit/SubmissionGate.swift` | source | REVIEWED—NO FINDINGS | All 18 lines at blob a9d2ce6; single-flight begin/end gate inspected; stale task-ID race separately recorded in AtlasApp |
 | `app/Sources/AtlasKit/Tokens.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/Transport.swift` | source | IN REVIEW | Full source inspected: 1–52 |
 | `app/Sources/AtlasKit/Updates.swift` | source | IN REVIEW | Full source inspected |
@@ -822,3 +822,8 @@ At PR #8 head `77e584b3a4a13dbe9266fa13cf298e5fabdc5df5`, all five files were re
 ### Notifications, offline sync, pairing, phone engine and records review — 2026-11-24
 
 At PR #8 head `b7e60221178607ceca873fe83c30fb858cee7a45`, all five files read in full: `Notifications.swift` (27 lines, blob `10f190200f659d696f5e71ba92288c91c5b58dd9`), `OfflineSync.swift` (143, `d489f50d22fbd235407a0bd88279f2262c036208`), `Pairing.swift` (133, `ffcac447acf9c701962d5ca237d2ba9f72bfbad0`), `PhoneEngine.swift` (137, `f1beb87d001f0daafd8e3bc3b841dc476ba12215`) and `Records.swift` (132, `2a0c22aca0ad8f25574a251886ab3983abab80ac`). Findings: **ATLAS-PAIR-065 (P2, OPEN)** duplicate invite query keys can trap; **ATLAS-PHONE-064 (P2, OPEN)** a missing transport leaves the paired device link falsely online. Notification opt-in/deduplication, offline queue restrictions and conflict handling, pairing proof-before-save, and record payload validation were inspected. No other defects established. No tests run locally.
+
+
+### Relay, review, screen state, signing and submission gate review — 2026-11-24
+
+At PR #8 head `8537e5b54bb961bcd852dae782f43852f5643156`, all five files read in full: `RelayBind.swift` (19 lines, blob `e24ef7e990440262f5e73f7fc3212798afc75ae6`), `Review.swift` (38, `e4dbe60256a239eb9afa4cede90cf535c93c5a0a`), `ScreenState.swift` (115, `9abb5317eaab4ce87d7dab46409f74f0b1f3a7d4`), `Signing.swift` (27, `43401debacd5ccd4f545dccc1f3c04a8dbbe66fc`) and `SubmissionGate.swift` (18, `a9d2ce60a661916051c7d930ee9af8ac3e7c485f`). Reviewed network bind allow-list, review section mapping, UI state fallbacks, canonical signature construction and single-flight submission gate. No independent defects established; task-ID race remains logged against AtlasApp. No tests run locally.
