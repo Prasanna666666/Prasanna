@@ -670,3 +670,21 @@ Evidence: `app/Sources/AtlasKit/HTTPTransport.swift` and `app/Sources/AtlasKit/T
 **Severity: P2 — OPEN.**
 
 Evidence: `app/Sources/AtlasKit/Voice.swift`, `VoiceSession.toggle()` (blob `7ce1093ebee791911cec3444f4409644d88c24fc`, inspected at PR head `33c0301905addc059aef0b63098c7987738e1327`). The method guards only `state.isListening`; while state is `.asking`, another tap starts another asynchronous permission request. Each granted callback independently sets listening and calls `input.start`, so delayed permission callbacks can launch overlapping recognition sessions. Make asking/listening a single-flight state (and define cancellation/late-callback behavior); add a delayed permission fake test that taps repeatedly and proves only one start occurs.
+
+
+## Exact-head Swift client and transport review — 2026-11-24
+
+### ATLAS-API-060 — malformed success responses are silently converted into valid-looking empty values
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/CoreClient.swift` (blob `c5d6748a0c8ebe148619da72608f8871fc80a28b`). Required protocol fields are replaced with defaults: `ask()` returns an empty task ID if `task_id` is absent; `passage()` returns an empty passage if `text` is absent; `attention()` and `devices()` return empty arrays if their collection fields are absent; `state()` reports `failed` if `state` is absent. This makes malformed/contract-drift responses look like valid empty state (most seriously, a missing passage is represented by AppModel as available empty evidence). Validate required fields and throw a protocol error; add malformed-200-response tests for each required field.
+
+### ATLAS-TRANSPORT-061 — response limits do not bound response buffering and Unix socket reads are unbounded
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/HTTPTransport.swift` (blob `42e491ccda9d4f516332564e30926d19a95d3f89`) and `app/Sources/AtlasKit/Transport.swift` (blob `9cace9872487c2bc3a1cd439e60c3fdcf4eb27ef`). `RemoteHTTP.maxReply` is checked only after URLSession's data task has accumulated the entire response in memory, so it is not a streaming memory bound. `UnixHTTP.send` appends socket reads to `received` without any maximum size or read deadline. A very large response can exhaust memory, and a peer that never closes can hold a detached caller indefinitely. Enforce an incremental byte limit and a deadline/cancellation path for both transports; test oversized and stalled peers.
+
+### ATLAS-TEST-062 — Swift end-to-end tests delete real Atlas Keychain services
+**Severity: P1 — OPEN.**
+
+Evidence: `app/Tests/AtlasKitTests/EndToEndTests.swift` (blob `c9285731aa996a43e0148aa774049a7c69931f03`) defines `deleteKeychainItems()` and invokes it before and after the real-Core tests. Its service list includes `atlas-task-store`, `atlas-designation-store`, `atlas-documents-index`, `atlas-mail-index`, `atlas-edits-store`, `atlas-model-record` and `atlas-designation-anchor`. These are not test-only names: `core/src/atlas_core/macos.py` constructs store services as `atlas-{name}` and defines `KeychainAnchor.SERVICE = "atlas-designation-anchor"`; `core/src/atlas_core/host.py` uses those services for the real Core's encryption keys and anchor. The test invokes `security delete-generic-password -s <service>` without an account restriction, so running the E2E suite locally with `ATLAS_CI_PYTHON` set can delete the developer's real Atlas encryption keys/anchor and make existing encrypted data unrecoverable. Use a disposable test keychain or test-only service namespace and prove the user's default/login keychain is untouched. Do not run this suite against a normal owner keychain until fixed.
