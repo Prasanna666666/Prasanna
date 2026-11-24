@@ -130,3 +130,109 @@ This is a continuation of prior targeted review work, not a reset. The defect re
 
 The source and relevant test files were inspected for these findings. No test suite was executed, and no finding has been marked VERIFIED FIXED. The implementation-side findings were handed to Claude in PR #8 comment **7113684248**. ChatGPT's review-only boundary remains unchanged: no source, test, build or configuration edits.
 
+
+
+## Continuation update — 2026-11-24 (exact-head audit pass)
+
+**Source snapshot audited in this pass:** `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba` (PR #8 head immediately before this documentation-only ledger update).
+
+### Current live PR #8 status
+- PR #8 remains open, draft and unmerged.
+- Changed paths: **278**.
+- Formal review submissions: **53** (48 non-empty, 5 empty; all attributed by GitHub to the repository owner's login, not 53 independent reviewers).
+- Inline review threads: **58** (21 resolved, **37 unresolved**).
+- Inline comments: **63**.
+- Threads marked outdated: **43**; outdated is not fixed or revalidated.
+- Historical top-level conversation comments: **192**.
+- Consolidated exact-head path-by-path coverage ledger: **not yet produced**. **0 of 278 paths are established by this ledger as fully line-by-line reviewed.** This is not a claim that no earlier targeted code review occurred.
+
+### Work performed in this pass
+Targeted source/test/design review covered sections of:
+- Orchestration deadlines, task contracts and tests.
+- Swift AppModel task lifecycle, Stop/Undo and Activity/Home rendering.
+- EMLX mailbox parsing, MIME boundary handling, MailIndex freshness and instrumented tests.
+- Browser workflow primitives, browser worker launch/isolation, egress and connector authority.
+- Action Gateway approval/idempotency/undo durability.
+- Finance record schema/calculation and historical currency precision.
+- Stage 3 acceptance/traceability, PRD/LLD approval-policy consistency and UI specification conformance.
+- Backup/restore, restore-drill marker, migration, storage reporting and RecordStore schema handling.
+- Device pairing, request authentication/replay, offline sync and iOS phone storage/transport/lifecycle.
+- Signed updater extraction/rollback and relay response handling.
+
+This was targeted review, not a claim that every line in each named file or all 278 paths has been reviewed. Tests were inspected but **no test suite or CI run was executed in this pass**.
+
+### Exact-head fix revalidation
+- **ATLAS-ACT-015:** VERIFIED FIXED for the identified direct browser `fill`/`press` bypass at this source head: the workflow refuses both primitives, the real route permits GET/HEAD only, and focused tests assert that a self-submitting form cannot complete its POST. This does not accept general browser automation.
+- **ATLAS-SEC-017:** VERIFIED FIXED for returned `unreachable`/`unauthorised` connector check verdicts: current authority is revoked unless verdict is `ok`, with tests. New exception path ATLAS-CONN-025 remains open.
+- **ATLAS-SEC-016:** OPEN; browser worker still lacks OS-enforced confinement and inherits `HOME`/`PYTHONPATH`.
+- **ATLAS-SEC-014:** PARTIALLY ADDRESSED; short 1–3-character identifiers and paraphrases remain outside the guarantee; public egress remains disabled pending owner decision/evidence.
+- **ATLAS-ACT-019:** OPEN; Action Gateway approvals/completed/undo/idempotency receipts remain in-memory and do not recover across restart.
+- **ATLAS-OPS-018:** not independently dispositioned in this pass; keep pending.
+- **ATLAS-HIST-063 / O-1:** OPEN; current Finance model remains fixed to two decimal places/hundredths.
+- **ATLAS-TEST-020:** confirmed at this head (`... or True`); the following assertion checks the expected monthly totals, so impact is limited but the vacuous assertion must be corrected.
+- **ATLAS-DES-020:** OPEN; LLD approval tiers still conflict with the PRD's closed approval list.
+
+### Additional findings logged on PR #8 during this pass
+
+| ID | Severity | Current disposition |
+|---|---|---|
+| ATLAS-ORCH-021 | P1 | OPEN — per-task/global deadlines and cancellation do not bound an in-flight executor |
+| ATLAS-UI-022 | P2 | OPEN — Stop can target a stale task ID during new submission |
+| ATLAS-UI-023 | P2 | OPEN — failed Undo silently clears the Undo affordance |
+| ATLAS-MAIL-024 | P2 | OPEN — same-size/same-mtime edits can evade re-indexing while content-hash guards suppress retrieval |
+| ATLAS-CONN-025 | P1 | OPEN — adapter exception during explicit re-check can leave previous authority enabled |
+| ATLAS-ACT-026 | P1 | OPEN — ambiguous handler failure is not idempotently recorded; retry can repeat external effects |
+| ATLAS-FIN-029 | P1 | OPEN — mixed currencies are aggregated and summaries default-label EUR |
+| ATLAS-DOC-030 | P2 | OPEN — Stage 3 acceptance/traceability contradicts itself on egress wiring and artifact scanning |
+| ATLAS-UI-031 | P2 | OPEN — Home/Activity history is process-memory-only and disappears after relaunch |
+| ATLAS-MAIL-032 | P1 | OPEN — malformed nested MIME can scan beyond an enclosing multipart closing delimiter |
+| ATLAS-BACKUP-034 | P1 | OPEN — untrusted manifest paths/symlinks can make verification read outside the selected backup folder |
+| ATLAS-BACKUP-035 | P1 | OPEN — restore target symlink can redirect writes outside the intended target |
+| ATLAS-BACKUP-036 | P1 | OPEN — restore verifies backup files, then copies mutable paths without checking copied hashes |
+| ATLAS-BACKUP-037 | P2 | OPEN — naive/future restore-drill timestamps can crash or falsely pass the gate |
+| ATLAS-OPS-038 | P2 | OPEN — storage breakdown misclassifies newer durable stores as “other” |
+| ATLAS-MIG-039 | P2 | OPEN — mid-write Finance migration failure can leave partial records |
+| ATLAS-SYNC-040 | P1 | OPEN — reusing an offline operation ID with a changed payload after restart can apply a second operation |
+| ATLAS-DEV-041 | P1 | OPEN — pairing can fail after the registry has already enrolled/authorised the device |
+| ATLAS-UPD-042 | P1 | OPEN — failed first-install/exceptional health check can leave an unhealthy version selected as current |
+| ATLAS-UPD-043 | P1 | OPEN — update ZIP has no aggregate expanded-byte/compression-ratio limit |
+| ATLAS-HEALTH-045 | P2 | OPEN — paused/incomplete index can be reported healthy |
+| ATLAS-STORE-046 | P2 | OPEN — newer unsupported RecordStore schema is modified by DDL before refusal |
+| ATLAS-HEALTH-047 | P2 | OPEN — system diagnostics and permission reset exist only as isolated functions; no running API/UI integration |
+| ATLAS-IOS-050 | P2 | OPEN — duplicate pairing query keys can trap/crash the phone parser |
+| ATLAS-IOS-051 | P1 | OPEN — offline queue persistence errors/corruption silently lose pending edits |
+| ATLAS-IOS-052 | P1 | OPEN — unauthenticated response is treated as revocation and erases queue/cache |
+| ATLAS-IOS-053 | P1 | OPEN — detached tasks concurrently mutate a non-thread-safe PhoneEngine/OfflineQueue |
+| ATLAS-IOS-054 | P2 | OPEN — unpair during in-flight Ask can index a cleared turn array |
+| ATLAS-IOS-055 | P2 | OPEN — a stored pairing is presented as online before a successful Core request |
+| ATLAS-IOS-056 | P2 | OPEN — phone Ask polling has no deadline/cancellation bound |
+| ATLAS-IOS-057 | P2 | OPEN — phone Archive has no reachable Undo receipt/path |
+| ATLAS-IOS-060 | P1 | OPEN — 4 MB response limit is checked after URLSession buffers the full response |
+| ATLAS-IOS-061 | P1 | OPEN — unbatched offline queue can exceed the 64 KiB Core/relay request limit |
+| ATLAS-RELAY-063 | P1 | OPEN — relay has no response-byte cap |
+| ATLAS-SEC-067 | P1 | OPEN — nonce replay cache is memory-only; captured request can replay after Core restart within timestamp window |
+| ATLAS-SEC-068 | P1 | OPEN — client revocation registry rename is not fsync/directory-fsync durable |
+| ATLAS-UI-069 | P2 | OPEN — always-present Home “Your review” card conflicts with the approved Home content order/density limit |
+| ATLAS-IOS-070 | P1 | OPEN — paired Core fingerprint is never checked on subsequent phone responses |
+| ATLAS-BACKUP-071 | P1 | OPEN — backup restores active client public keys but omits device metadata needed to list/revoke them |
+
+IDs intentionally retain the PR comment/register identifiers; gaps are not evidence that no findings exist. Each finding has a separate PR comment with source location, impact, remediation and requested regression proof.
+
+### Branch reconciliation update
+Compared all 12 live branches against PR #8 head:
+- `genesis-stage4-6`: 8 ahead / 107 behind, diverged; 8 unique commits and 61 paths in compare diff. Exact tree: PR #8 has 724 files, Stage 4–6 has 637; 87 paths exist only in PR #8, 0 only in Stage 4–6, and 46 common paths have different blob SHAs.
+- `genesis-stage3-prep`: 4 ahead / 245 behind, documentation-only divergence.
+- `atlas-low-level-design-review`: 1 ahead / 336 behind, LLD document only.
+- Two Dependabot branches and Orbit each have one unique commit; the other three historical branches are behind with no unique commits.
+- Content comparison samples show PR #8 has later safety/authorization changes than Stage 4–6 (for example, browser fill/press refusal, connector authority gating, newer backup set and updater operations). The Stage 4–6 branch is not a clean merge candidate. Full 61-path/8-commit content mapping remains OPEN; no merge/cherry-pick performed.
+
+### Remaining work — no completion claim
+1. Produce the exact 278-path ledger with file type, reviewed line ranges, requirement/design mapping, tests/evidence, findings, reviewer, status and exact SHA.
+2. Reconcile the earlier 266-path inventory path by path to 278; do not infer the delta.
+3. Revalidate all 37 unresolved threads and all 43 outdated threads, with exact fixing commit/test/CI evidence; preserve thread IDs and do not resolve without owner authorization.
+4. Complete content-level review of all Stage 4–6 divergent commits/61 paths and the Stage 3-prep/LLD-review documentation branches.
+5. Complete requirements and design traceability across PRD, decisions, architecture, LLD, UI spec, API schemas, acceptance, programme audit and work-package docs.
+6. Keep Stage 3 NOT ACCEPTED pending owner-Mac sandbox/egress, real-model/target-hardware performance, human UI/accessibility walkthrough, real TCC/Mail-store, signing/notarisation and self-contained install evidence.
+7. Keep Stage 4–8 NOT ACCEPTED until each stage has its own exact-head implementation, tests, owner evidence and acceptance.
+
+**Boundary:** no application source, tests, build files or configuration were changed. This continuation updates only the review-coverage documentation; no PR approval, merge, branch operation or review-thread resolution was performed.
