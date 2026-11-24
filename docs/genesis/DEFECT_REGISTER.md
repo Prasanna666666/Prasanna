@@ -648,3 +648,14 @@ Evidence: `app/Sources/AtlasKit/CoreClient.swift`, `ask(question:scope:)` (blob 
 **Severity: P3 — OPEN.**
 
 Evidence: `app/Sources/AtlasKit/Finance.swift`, `FinanceOutcome.from(_:) ` (blob `5da7d8dc16fb79e4a1cfd225811f72f23d79f7fd`, inspected at PR head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`). The comparison direction is selected only by `delta.hasPrefix("-")`; a zero delta therefore produces “€0.00 more than the month before”. Handle zero as “the same as” (or omit the direction) and cover zero/negative-zero cases in FinanceTests.
+
+
+### ATLAS-PAIR-065 — duplicate pairing query parameters crash invite parsing
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/Pairing.swift`, `PairingInvite.parse(_:) ` (blob `ffcac447acf9c701962d5ca237d2ba9f72bfbad0`, inspected at PR head `b7e60221178607ceca873fe83c30fb858cee7a45`). Query items are converted with `Dictionary(uniqueKeysWithValues:)`. Swift traps if the invite contains duplicate parameter names (for example, two `code` parameters), so malformed/untrusted QR or pasted invite text can terminate the phone app instead of returning “not an Atlas pairing code”. Reject duplicate names explicitly before building the dictionary; add duplicate-code/fingerprint/address regression cases.
+
+### ATLAS-PHONE-064 — a paired phone can report “online” when no transport exists
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/PhoneEngine.swift` (blob `f1beb87d001f0daafd8e3bc3b841dc476ba12215`, inspected at PR head `b7e60221178607ceca873fe83c30fb858cee7a45`). Initial `link` is set to `.online` solely because a vault entry exists. If `transportFor(device.address)` returns nil, `records()` returns unavailable and `sync()` returns offline without changing `link`; `ask()` likewise returns not-paired/local failure without updating the link. A paired but unreachable phone can therefore continue presenting a stale online state. Set the link to offline when transport construction fails and distinguish “paired” from “currently online”; add a no-transport test for records/sync/ask.
