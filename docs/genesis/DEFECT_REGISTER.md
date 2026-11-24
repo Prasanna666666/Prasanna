@@ -642,7 +642,7 @@ Evidence: `app/Sources/AtlasApp/Speech.swift`, `SystemSpeech.start(partial:finis
 ### ATLAS-CORE-062 — CoreClient accepts a successful task response with no task ID
 **Severity: P2 — OPEN.**
 
-Evidence: `app/Sources/AtlasKit/CoreClient.swift`, `ask(question:scope:)` (blob `c5d6748a0c8ebe148619da72608f8871fc80a28b`, inspected at PR head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`). A successful HTTP response whose JSON object omits `task_id` or supplies a non-string value is converted to the empty string and returned as if submission succeeded. The caller then stores/polls/cancels an invalid task identifier rather than surfacing a malformed Core response. Require a non-empty, contract-valid task ID and throw a controlled `internal_error`/invalid-response error; add malformed-response tests.
+Evidence: `app/Sources/AtlasKit/CoreClient.swift`, `ask(question:scope:)` (blob `c5d6748a0c8ebe148619da72608f8871fc80a28b`, inspected at PR head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`). A successful HTTP response whose JSON object omits `task_id` or supplies a non-string value is converted to the empty string and returned as if submission succeeded. The caller then stores/polls/cancels an invalid task identifier rather than surfacing a malformed Core response. Related required fields also silently default: `state()` maps a missing state to `failed`, `passage()` maps a missing text field to an empty string (which AppModel can display as available evidence), and `attention()`/`devices()` map missing collection fields to empty lists. Require contract-valid task IDs, states, passage text and collection fields; throw a controlled invalid-response error instead of presenting malformed success as valid empty data. Add malformed-200-response tests for each required field.
 
 ### ATLAS-FIN-063 — zero spending delta is described as “more”
 **Severity: P3 — OPEN.**
@@ -673,16 +673,6 @@ Evidence: `app/Sources/AtlasKit/Voice.swift`, `VoiceSession.toggle()` (blob `7ce
 
 
 ## Exact-head Swift client and transport review — 2026-11-24
-
-### ATLAS-API-060 — malformed success responses are silently converted into valid-looking empty values
-**Severity: P2 — OPEN.**
-
-Evidence: `app/Sources/AtlasKit/CoreClient.swift` (blob `c5d6748a0c8ebe148619da72608f8871fc80a28b`). Required protocol fields are replaced with defaults: `ask()` returns an empty task ID if `task_id` is absent; `passage()` returns an empty passage if `text` is absent; `attention()` and `devices()` return empty arrays if their collection fields are absent; `state()` reports `failed` if `state` is absent. This makes malformed/contract-drift responses look like valid empty state (most seriously, a missing passage is represented by AppModel as available empty evidence). Validate required fields and throw a protocol error; add malformed-200-response tests for each required field.
-
-### ATLAS-TRANSPORT-061 — response limits do not bound response buffering and Unix socket reads are unbounded
-**Severity: P2 — OPEN.**
-
-Evidence: `app/Sources/AtlasKit/HTTPTransport.swift` (blob `42e491ccda9d4f516332564e30926d19a95d3f89`) and `app/Sources/AtlasKit/Transport.swift` (blob `9cace9872487c2bc3a1cd439e60c3fdcf4eb27ef`). `RemoteHTTP.maxReply` is checked only after URLSession's data task has accumulated the entire response in memory, so it is not a streaming memory bound. `UnixHTTP.send` appends socket reads to `received` without any maximum size or read deadline. A very large response can exhaust memory, and a peer that never closes can hold a detached caller indefinitely. Enforce an incremental byte limit and a deadline/cancellation path for both transports; test oversized and stalled peers.
 
 ### ATLAS-TEST-062 — Swift end-to-end tests delete real Atlas Keychain services
 **Severity: P1 — OPEN.**
