@@ -606,3 +606,14 @@ In `AppModel.ask()`, a new submission sets `busy = true` and awaits `client.ask(
 **Severity: P2 — OPEN.**
 
 `AppModel.undoLast(domain:)` discards the result of `client.undo(actionID:)` with `try?`, then clears `undoActionID` and `undoLabel` unconditionally. A Core/network/authorization failure therefore removes the only retry affordance and gives the UI no indication that the undo did not happen. Preserve the undo handle and show an error unless the Core confirms success; add a failure-path test.
+
+
+### ATLAS-TEST-054 — macOS accessibility test can suppress a contrast failure using unrelated pixels
+**Severity: P2 — OPEN.**
+
+Evidence: `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift`, `measuredContrast(_:_:)` and the `.contrast` exemption in `testTheFirstScreenAPersonSeesPassesTheAccessibilityAudit()` (blob `0059680d01bb94838b459e98d0a8606c434895c9`, inspected at PR head `58ffc5ba4b31a3435fdbb76e9e6f85619a5a8896`). The helper takes the single darkest and lightest pixels anywhere in the entire element frame and treats their ratio as the text/background contrast. Those extrema need not be the foreground glyph and its actual adjacent background; another icon, border, antialiasing pixel or unrelated region can make the ratio exceed 4.5:1 and cause the audit finding to be suppressed. Use a defensible foreground/background sampling method or do not suppress the system contrast finding; add controlled low-contrast/high-contrast fixtures proving the exemption cannot false-pass.
+
+### ATLAS-TEST-055 — macOS accessibility audit does not wait for or assert the intended first screen
+**Severity: P2 — OPEN.**
+
+Evidence: the UI test waits a fixed eight seconds after window existence, then asserts only that `app.staticTexts` is non-empty before running the audit. The app's startup/“starting” state can satisfy that assertion; a slow Core/onboarding transition can therefore leave the test auditing a transient screen while reporting that the first owner screen passed. Replace the fixed sleep with a bounded wait for a stable, expected screen/state (and assert the required owner/onboarding marker) before capturing the screenshot and running the audit. Preserve a timeout failure with useful diagnostics.
