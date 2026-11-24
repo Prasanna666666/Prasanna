@@ -1,4 +1,6 @@
-# WP3.2: the document-only vertical path
+# WP3.2: the document-only vertical path — accepted-scope implementation record
+
+**Current-status note (2026-11-25):** This document records the exact WP3.2 scope at its accepted commit. Coverage was not yet carried in the answer envelope at that acceptance point; WP3.4 subsequently served API 1.1 additively and added coverage to answers. Do not use the historical “not yet served” sentence below as current API status.
 
 Scope: `STAGE-3-EXECUTION-PLAN.md` WP3.2 and the architect brief on PR #8 (comment 7052484018). Code: `src/atlas_core/documents.py`; tests: `tests/test_documents.py` (synthetic files only). Evidence class: **CI-verified (Linux)**. Nothing here is Mac-verified.
 
@@ -37,7 +39,7 @@ Plain UTF-8 text (`.txt`) and Markdown (`.md`), stdlib only. **PDF, Office, HTML
 
 ## Known limitations and pending evidence
 
-* The coverage record is produced and tested, but is **not yet carried in the answer envelope**: that belongs with the coverage/limitation fields of API 1.1 (specification only, not served). No contract change was made.
+* At the WP3.2 acceptance commit, the coverage record was produced and tested but not yet carried in the answer envelope. WP3.4 later added the coverage/limitation fields to served API 1.1 answers; see `CONTRACT_1_1.md` and `STAGE3_ACCEPTANCE.md`.
 * The retrieval is lexical term overlap (tier 1, model-free). Ranking quality and larger-scale performance are not measured here.
 * Source designation (how the owner chooses the folder) and the consent flow are later packages; the index takes its root and label from its constructor.
 * Mac-pending: FileVault/TCC folder access, real folder volumes, real power loss, Keychain key provider, performance on the target Mac.
