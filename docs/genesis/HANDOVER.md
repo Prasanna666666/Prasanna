@@ -127,3 +127,15 @@ The canonical target is defined in [TARGET_ARCHITECTURE.md §20](TARGET_ARCHITEC
 ## UX simplification correction — 2026-11-25
 
 The owner clarified that Atlas must remain neat, easy and comfortable for an everyday regular user; every capability must not become a visible section. The canonical UI/UX specification was corrected accordingly (commits `2ef0d47d21ac52e73fc1fde13adc5ea54414c739` and `d0b61a964996e8d2562558f13ddb96942b85d3a4`). The persistent everyday navigation is now limited to **Home, Ask Atlas, Explore and Library**. Settings is a restrained utility; task activity is contextual with a secondary full-history route. Investing, home energy, fitness, nutrition, cricket statistics, Olympics, politics/current affairs, travel and other capabilities open contextually from natural language, relevant content or search; they do not each receive a permanent navigation item. Dedicated layouts are allowed only as focused, contextual workspaces. Progressive disclosure is mandatory: simple result first, advanced filters/details on demand. This is a design/documentation correction only; no implementation or visual acceptance is claimed. Read back the canonical UI/UX file before implementation and remove any conflicting feature-first navigation from the app.
+
+
+## Adaptive dashboard design — 2026-11-25
+
+Owner delegated dashboard design to the product/design authority, with the requirement that dashboards remain relevant and engaging for regular daily use while the app stays neat and uncluttered. Canonical UI/UX spec expanded in commit `c676bff5aa42b6decd2e9a2fbf5867ff8b8bcedf`:
+- Home is the sole default dashboard: adaptive daily briefing, one lead item at most, a compact “For you today” synthesis and contextual continuation. No static widget wall.
+- Explore is a curated interest-led discovery/reading surface, not an infinite feed or second Home dashboard.
+- Specialist dashboards are contextual workspaces opened only when a task benefits from them; each leads with the answer, decision-relevant facts, one next action and progressive detail/evidence.
+- Relevance uses explicit priorities, deadlines, active-task relevance, followed topics, novelty, freshness and source quality; it respects mutes/dismissals and avoids repetitive content. No addictive engagement optimisation, clickbait or fabricated filler.
+- Defined first-run, no-source, quiet-day, stale/partial, loading/error and returning-visit states, plus lightweight user controls and source traceability.
+
+This is a design specification update only. It does not claim implementation, usability testing or owner visual acceptance. Claude should implement against the canonical UI/UX spec rather than inventing permanent feature dashboards.
