@@ -317,10 +317,10 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/Approval.swift` | source | REVIEWED—NO FINDINGS | All 88 lines at blob c3240bf; closed action/consequence allow-list, exact payload fingerprint, expiry and approval state transitions inspected |
 | `app/Sources/AtlasKit/Catalogue.swift` | source | REVIEWED—NO FINDINGS | All 49 lines at blob 85d6f55; shared catalogue decoding, required fields and controlled error fallback inspected |
 | `app/Sources/AtlasKit/Connections.swift` | source | REVIEWED—NO FINDINGS | All 101 lines at blob 42f22a9; connection state, approval description, HTTP/TLS and home/VPN host validation inspected; cross-checked Core enum/effect contract and tests |
-| `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full) |
-| `app/Sources/AtlasKit/CoreLauncher.swift` | source | IN REVIEW | Full source; process identity/lifecycle sections |
-| `app/Sources/AtlasKit/Finance.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/GetStarted.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/CoreClient.swift` | source | REVIEWED—FINDINGS OPEN | All 119 lines at blob c5d6748; ATLAS-CORE-062 successful ask response without non-empty task_id is accepted as empty string |
+| `app/Sources/AtlasKit/CoreLauncher.swift` | source | REVIEWED—FINDINGS OPEN | All 166 lines at blob 9487c31; stale comment says packaging not built, contradicted by CI packaging job (ATLAS-DOC-052); lifecycle/reaping/identity logic inspected |
+| `app/Sources/AtlasKit/Finance.swift` | source | REVIEWED—FINDINGS OPEN | All 87 lines at blob 5da7d8d; ATLAS-FIN-063 zero delta is labelled “more” |
+| `app/Sources/AtlasKit/GetStarted.swift` | source | REVIEWED—NO FINDINGS | All 23 lines at blob bf9fa0c; default-deny first-run choices, no-grant empty choice and completion gating inspected |
 | `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full) |
 | `app/Sources/AtlasKit/Health.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/Library.swift` | source | IN REVIEW | Full source inspected |
@@ -792,3 +792,13 @@ At PR #8 head `81ffe3fbc86b7a750f2429a4b5a895dd913ea4de`, read in full:
 - `Catalogue.swift` (49 lines; blob `85d6f554e25915515aae2615d049f4870b625992`): required catalogue keys and controlled error fallback. No defect established.
 - `Connections.swift` (101 lines; blob `42f22a927db330a4f6ed563b6f3f4b0a92c4da68`): response-to-view mapping, approval wording, URL scheme and private/VPN host rules. Cross-checked Core connector states and effect-to-approval mapping in `core/src/atlas_core/connectors.py` and connector catalogue; expected states and approval values are constrained by Core. No defect established.
 - All five rows moved to `REVIEWED—NO FINDINGS`. This is source inspection only; no tests run locally.
+
+
+### Core client, launcher, finance and first-run review — 2026-11-24
+
+At PR #8 head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`, all four files read in full:
+- `CoreClient.swift` 119 lines, blob `c5d6748a0c8ebe148619da72608f8871fc80a28b`: signed API calls, version echo enforcement, task/action/consent/connector/web/records surfaces. **ATLAS-CORE-062 (P2, OPEN)**: successful ask response with absent/non-string task ID is silently converted to empty string.
+- `CoreLauncher.swift` 166 lines, blob `9487c31ba5a9d26e46b7a71cb27c580c6ccbc16b`: random bootstrap secret, process identity, pid record, stale socket handling, readiness and stop/reap. Lifecycle checks inspected; the embedded initializer comment “packaging the Core into the app is not built” is stale against the CI packaging job and is covered by **ATLAS-DOC-052**.
+- `Finance.swift` 87 lines, blob `5da7d8dc16fb79e4a1cfd225811f72f23d79f7fd`: source naming/sensitivity and exact Core-provided spending presentation. **ATLAS-FIN-063 (P3, OPEN)**: zero delta is labelled “more”.
+- `GetStarted.swift` 23 lines, blob `bf9fa0c759f6abfb9173f7fb198adc03db7fd7a7`: default-off choice, no-grant empty selection and first-run completion rule. No defect established.
+- No app source/tests/build files changed; no tests run locally.
