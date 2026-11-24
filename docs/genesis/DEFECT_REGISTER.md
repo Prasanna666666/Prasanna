@@ -777,3 +777,19 @@ Evidence: `core/src/atlas_core/backup.py`, `_load_manifest()`, `verify_backup()`
 **Severity: P2 — OPEN.**
 
 Evidence: `core/src/atlas_core/backup.py`, `restore_backup()`, `_copy_state()` and `_check_copies()` (blob `3b415da1c4572dcb88bfed8ba926c9fd50841fd2`). Restore verifies every source file and the manifest MAC before copying, but after the copy `_check_copies()` reopens and checks only the databases. The plain files `clients.json` and `actions-audit.jsonl` are copied later and never compared with their manifest size/hash at the destination. A backup modified between initial verification and copy can therefore place an unverified client registry/audit file into the restored Core. Rehash every copied file at the destination (or copy from pinned, already-verified descriptors) before provisioning keys; add a deterministic swap-between-verify-and-copy test.
+
+
+### ATLAS-CONN-083 — HTTP connector allow-list trusts a `.ts.net` suffix instead of the resolved private address
+**Severity: P2 — OPEN (bearer-token egress boundary).**
+
+Evidence: `core/src/atlas_core/connector_transport.py`, `_private()`/`permitted()` (blob `4c0a61c...`, inspected at PR head `65575952ae9f0dba25d0482a492141a563bf8eeb`). Plain HTTP is permitted for any hostname ending in `.ts.net` without resolving it and verifying that every returned address is in Tailscale's shared address range. The request is then resolved by urllib at connection time and carries `Authorization: Bearer <token>`. If a `.ts.net` name resolves to a public address (including due to a poisoned or misconfigured resolver), the bearer token is sent over cleartext to that public destination. Resolve and pin the destination; allow HTTP for a Tailscale name only when all resolved addresses are in `100.64.0.0/10`, or require HTTPS.
+
+### ATLAS-CONN-084 — connector HTTP requests inherit ambient proxy settings
+**Severity: P2 — OPEN (credential routing).**
+
+Evidence: `core/src/atlas_core/connector_transport.py`, `request()` (same blob, inspected at PR head `65575952ae9f0dba25d0482a492141a563bf8eeb`). `urllib.request.build_opener(_NoRedirect)` retains urllib's default `ProxyHandler`, so `HTTP_PROXY`/system proxy environment settings can route a connector request through an ambient proxy rather than directly to the owner-entered private endpoint. For explicitly permitted plain-HTTP local/private connectors, the proxy can observe the bearer token and request body. Use an explicit proxy policy (prefer direct/no-proxy for private connector endpoints, or require explicit trusted proxy configuration) and test with hostile proxy environment variables.
+
+### ATLAS-CONN-085 — failed connector re-authentication does not revoke previously enabled actions
+**Severity: P2 — OPEN (authority-state mismatch).**
+
+Evidence: `core/src/atlas_core/connectors.py`, `ConnectorHub.link()` (blob `48ffecf9c8b46a23c892137f444fcdedf4c75399`, inspected at PR head `65575952ae9f0dba25d0482a492141a563bf8eeb`). The `unauthorised` branch sets health to `unauthorised` and returns a `not_connected` response, but does not call `_apply()`/`ActionGateway.revoke_connector()`. If a connector was already enabled, a failed re-link leaves its action authority active while the API tells the owner it is not connected. Route every non-`ok` verdict through the same revocation path, and add a test that first connects successfully, then re-links with a rejected credential and proves all actions are refused without network traffic.
