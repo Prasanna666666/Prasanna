@@ -641,3 +641,14 @@ Evidence: `app/Sources/AtlasApp/Speech.swift`, `SystemSpeech.start(partial:finis
 **Severity: P3 — OPEN.**
 
 Evidence: `app/Sources/AtlasApp/Speech.swift` `SystemSpeech.start(partial:finished:)` (blob `67c6f119059be0b3f939710249857f9786683d4a`). The method stores the recognition request and installs an audio input tap before calling `engine.start()`. If engine startup throws, it calls the completion handler and returns without `teardown()`; the stopped engine retains the request and installed tap until another start happens or the object is released. Call the common teardown path on startup failure and add a platform-seam test or an injectable engine wrapper that proves cleanup.
+
+
+### ATLAS-CORE-062 — CoreClient accepts a successful task response with no task ID
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/CoreClient.swift`, `ask(question:scope:)` (blob `c5d6748a0c8ebe148619da72608f8871fc80a28b`, inspected at PR head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`). A successful HTTP response whose JSON object omits `task_id` or supplies a non-string value is converted to the empty string and returned as if submission succeeded. The caller then stores/polls/cancels an invalid task identifier rather than surfacing a malformed Core response. Require a non-empty, contract-valid task ID and throw a controlled `internal_error`/invalid-response error; add malformed-response tests.
+
+### ATLAS-FIN-063 — zero spending delta is described as “more”
+**Severity: P3 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/Finance.swift`, `FinanceOutcome.from(_:) ` (blob `5da7d8dc16fb79e4a1cfd225811f72f23d79f7fd`, inspected at PR head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`). The comparison direction is selected only by `delta.hasPrefix("-")`; a zero delta therefore produces “€0.00 more than the month before”. Handle zero as “the same as” (or omit the direction) and cover zero/negative-zero cases in FinanceTests.
