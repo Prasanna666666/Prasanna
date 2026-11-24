@@ -367,11 +367,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/bench/overhead.py` | benchmark | REVIEWED—NO FINDINGS | All 88 lines at blob e02e784; stubbed foundation timings, percentile calculation and explicit non-target-Mac limitations inspected |
 | `core/client/atlas_client.py` | source | REVIEWED—FINDINGS OPEN | All 348 lines at blob 2abc231; ATLAS-CLIENT-076 missing/invalid task ID accepted and response-body read errors escape ClientError normalization |
 | `core/client/ux_catalogue.json` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 0c0419c; exact byte-identical mirror of app AtlasKit catalogue, vocabulary and wording inspected |
-| `core/contracts/atlas-contracts.1.1.delta.schema.json` | contract/schema | NOT STARTED | — |
-| `core/contracts/atlas-contracts.1.1.schema.json` | contract/schema | IN REVIEW | TaskRequest and SourceType definitions inspected |
-| `core/contracts/atlas-contracts.schema.json` | contract/schema | NOT STARTED | — |
-| `core/contracts/openapi-1.1.yaml` | contract/schema | NOT STARTED | — |
-| `core/contracts/openapi.yaml` | contract/schema | NOT STARTED | — |
+| `core/contracts/atlas-contracts.1.1.delta.schema.json` | contract/schema | IN REVIEW | 2679 lines; 47 additions/5 overrides parsed and cross-checked against deterministic merge/strict-shape tests; exact line-by-line review pending |
+| `core/contracts/atlas-contracts.1.1.schema.json` | contract/schema | IN REVIEW | 3253 lines; generated merged schema; selected definitions checked for strict fields; test_contracts_v11 asserts exact merge and schema validation; exhaustive path review pending |
+| `core/contracts/atlas-contracts.schema.json` | contract/schema | REVIEWED—NO FINDINGS | All 265 lines read at blob 3172b1b; frozen 1.0 schema and strict object shapes inspected; SHA baseline assertion in test_contracts_frozen |
+| `core/contracts/openapi-1.1.yaml` | contract/schema | IN REVIEW | 1155 lines; 1.1 route/response/schema references and parity checks reviewed via test_contracts_v11; exhaustive path-by-path review pending |
+| `core/contracts/openapi.yaml` | contract/schema | REVIEWED—NO FINDINGS | All 103 lines read at blob ccf62f7; frozen 1.0 API paths, signed request scheme and schema references inspected |
 | `core/docs/ADR_STORAGE_KEYS.md` | documentation | NOT STARTED | — |
 | `core/docs/BENCHMARK.md` | documentation | NOT STARTED | — |
 | `core/docs/CONNECTOR_PROFILE.md` | documentation | NOT STARTED | — |
@@ -890,3 +890,8 @@ At PR #8 head `91a33a8d36f8403daa2cee42b1e6d719659c7548`, read `atlas_client.py`
 ### Reference-client regression-test review — 2026-11-24
 
 `core/tests/test_client.py` (344 lines, blob `efac279c4254f0f175799f7f3afc73e36821f48d`) read in full at PR #8 head `873d7329e01f69d44393761845e39f83ca67e1e8`. The test harness exercises the signed Unix-socket client, catalogue completeness, citations, source revocation, cancellation, version echo, 1.0 compatibility and exact computation. It does not cover a successful task response with a missing/null/empty task ID or a disconnect/timeout while the body is being read; both gaps are tracked under **ATLAS-CLIENT-076 (P2, OPEN)**. No tests run locally.
+
+
+### Contract artefact inventory update — 2026-11-24
+
+Read the full 265-line frozen 1.0 JSON Schema and 103-line 1.0 OpenAPI document. Their frozen baseline hashes are asserted by the contract tests. The 1.1 delta (2679 lines, 47 additions and 5 overrides), merged schema (3253 lines) and 1.1 OpenAPI (1155 lines) were structurally parsed and cross-checked against the complete 731-line contract test suite, including deterministic merge, strict additionalProperties, conditional coverage/limitation mappings, content-free event fields, path/operation parity and signing vectors. They remain **IN REVIEW** pending deeper exhaustive artefact review and test execution; no runtime or CI pass is claimed.
