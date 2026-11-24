@@ -404,7 +404,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/evals/thresholds_proposed.json` | evaluation | NOT STARTED | — |
 | `core/pyproject.toml` | build/config | NOT STARTED | — |
 | `core/src/atlas_core/__init__.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/access.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/access.py` | source | REVIEWED—NO FINDINGS | All 136 lines at blob 09347dd; fresh source-specific OS evidence, stale/future/type mismatch, unknown/failure fail-closed behavior, grant preservation/revocation and purge path cross-checked with test_designation.py |
 | `core/src/atlas_core/actions.py` | source | IN REVIEW | Targeted: 100–275 |
 | `core/src/atlas_core/answer.py` | source | IN REVIEW | Full: 1–113 |
 | `core/src/atlas_core/api.py` | source | IN REVIEW | Targeted: 131–201, 252–275, 277–306, 318–338, 529–540 |
@@ -895,3 +895,9 @@ At PR #8 head `91a33a8d36f8403daa2cee42b1e6d719659c7548`, read `atlas_client.py`
 ### Contract artefact inventory update — 2026-11-24
 
 Read the full 265-line frozen 1.0 JSON Schema and 103-line 1.0 OpenAPI document. Their frozen baseline hashes are asserted by the contract tests. The 1.1 delta (2679 lines, 47 additions and 5 overrides), merged schema (3253 lines) and 1.1 OpenAPI (1155 lines) were structurally parsed and cross-checked against the complete 731-line contract test suite, including deterministic merge, strict additionalProperties, conditional coverage/limitation mappings, content-free event fields, path/operation parity and signing vectors. They remain **IN REVIEW** pending deeper exhaustive artefact review and test execution; no runtime or CI pass is claimed.
+
+### SourceAccess security-gate review — 2026-11-24
+
+- `core/src/atlas_core/access.py` (136 lines, blob `09347ddbfd9fcc2a947824caa2db6760026ddc41`) read in full at PR source head `e3f2386e58f42628c1a7f358177ec9a531d14aa6`.
+- Cross-checked the access decision path against `core/tests/test_designation.py` (default deny, owner consent alone insufficient, current positive OS evidence required, stale/future/wrong-source/provider-failure fail closed, missing-before-first-grant preserves consent, positively observed permission loss revokes and purges, regrant creates a new identity) and `test_consent_api.py`/`test_macos.py` (owner-only consent and provider behavior).
+- No source-level defect established in `SourceAccess`; row moved to `REVIEWED—NO FINDINGS`. This is not evidence of real macOS/TCC behavior: the source module itself states the real TCC discovery adapter is not implemented, and fake-provider tests do not establish owner-Mac acceptance.
