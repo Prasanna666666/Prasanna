@@ -405,7 +405,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/pyproject.toml` | build/config | NOT STARTED | — |
 | `core/src/atlas_core/__init__.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/access.py` | source | REVIEWED—NO FINDINGS | All 136 lines at blob 09347dd; fresh source-specific OS evidence, stale/future/type mismatch, unknown/failure fail-closed behavior, grant preservation/revocation and purge path cross-checked with test_designation.py |
-| `core/src/atlas_core/actions.py` | source | IN REVIEW | Targeted: 100–275 |
+| `core/src/atlas_core/actions.py` | source | REVIEWED—FINDINGS OPEN | All 314 lines at blob 0a690d3; ATLAS-ACT-019 in-memory execution/undo/idempotency and unanchored audit reset; ATLAS-ACT-074 multi-category effects collapse to one approval label; ATLAS-ACT-075 unlogged unknown/invalid undo refusals |
 | `core/src/atlas_core/answer.py` | source | IN REVIEW | Full: 1–113 |
 | `core/src/atlas_core/api.py` | source | IN REVIEW | Targeted: 131–201, 252–275, 277–306, 318–338, 529–540 |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
@@ -469,7 +469,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/worker.py` | source | IN REVIEW | Full: 1–120 |
 | `core/tests/conftest.py` | test | NOT STARTED | — |
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
-| `core/tests/test_actions.py` | test | IN REVIEW | Targeted: 211–229 |
+| `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test verifies audit append only, not approval/receipt/undo/idempotency persistence; no missing/empty audit-file, multi-category, or unknown-action audit tests; ATLAS-ACT-019/074/075 |
 | `core/tests/test_api.py` | test | NOT STARTED | — |
 | `core/tests/test_api_v11.py` | test | IN REVIEW | Targeted authenticated task/route tests |
 | `core/tests/test_app.py` | test | NOT STARTED | — |
@@ -901,3 +901,12 @@ Read the full 265-line frozen 1.0 JSON Schema and 103-line 1.0 OpenAPI document.
 - `core/src/atlas_core/access.py` (136 lines, blob `09347ddbfd9fcc2a947824caa2db6760026ddc41`) read in full at PR source head `e3f2386e58f42628c1a7f358177ec9a531d14aa6`.
 - Cross-checked the access decision path against `core/tests/test_designation.py` (default deny, owner consent alone insufficient, current positive OS evidence required, stale/future/wrong-source/provider-failure fail closed, missing-before-first-grant preserves consent, positively observed permission loss revokes and purges, regrant creates a new identity) and `test_consent_api.py`/`test_macos.py` (owner-only consent and provider behavior).
 - No source-level defect established in `SourceAccess`; row moved to `REVIEWED—NO FINDINGS`. This is not evidence of real macOS/TCC behavior: the source module itself states the real TCC discovery adapter is not implemented, and fake-provider tests do not establish owner-Mac acceptance.
+
+### Action Gateway full source and test review — 2026-11-24
+
+- `core/src/atlas_core/actions.py` (314 lines, blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`) and `core/tests/test_actions.py` (229 lines, blob `56dcb9bd1cd64bb1ada41746684e760982524307`) were read in full.
+- Existing **ATLAS-ACT-019 (P1, OPEN)** remains: approvals, action receipts, undo records and idempotency state are in-memory. I expanded it to note that a missing or zero-length audit file is accepted as an empty valid chain, so whole-file deletion/truncation is not detected.
+- Added **ATLAS-ACT-074 (P2, OPEN)**: `ActionSpec.category` chooses `min(found)` when multiple approval-requiring effects are declared; the owner sees only one category and can miss another consequence (e.g. spend + external send).
+- Added **ATLAS-ACT-075 (P2, OPEN)**: unknown actions and invalid undo attempts return refusals without audit entries, despite the “every outcome” guarantee.
+- Existing tests cover single-category actions, exact-payload approval, replay, handler failure, undo, workflow rollback and a damaged non-empty audit file. They do not cover multi-category disclosure, unknown/invalid undo audit entries, missing/empty audit-file deletion, or restart persistence of approval/receipt/undo/idempotency state.
+- Updated path counts: 93 IN REVIEW; 100 NOT STARTED; 52 REVIEWED—NO FINDINGS; 33 REVIEWED—FINDINGS OPEN (278 total). No tests run locally.
