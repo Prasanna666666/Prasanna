@@ -302,7 +302,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `.github/workflows/ci.yml` | build/config | IN REVIEW | Targeted install/SQLCipher/macOS/security job sections |
 | `.gitleaksignore` | build/config | REVIEWED—NO FINDINGS | Full 10 lines; four fingerprint suppressions matched to historical test/type annotation, comment, public checksum and generated test key contexts; scanner execution not independently run |
 | `CLAUDE.md` | documentation | REVIEWED—NO FINDINGS | Full 22 lines; source-of-truth, role split, evidence and product principles consistent with current delivery protocol |
-| `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | Full 15 lines; AtlasKit-only consumers in macOS/iOS XcodeGen projects align with macOS 14/iOS 17 declarations; no external dependencies |
+| `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | All 15 lines re-read at blob 0028b51; AtlasKit/AtlasApp products, platform targets and dependencies align with generated Xcode projects |
 | `app/README.md` | documentation | REVIEWED—FINDINGS OPEN | Full 19 lines at 1af9af9; CI now runs packaged app/Core lifecycle, Swift real-Core E2E and macOS UI audit, but README still says app has not been run / Swift side untested / packaging not built; ATLAS-DOC-052; prior PR comment 6045284683 |
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | REVIEWED—FINDINGS OPEN | Full 696 lines at blob 40f5346; ATLAS-APP-052 stale task ID can be cancelled during next ask; ATLAS-APP-053 failed undo is swallowed and retry handle cleared; activity history remains covered by ATLAS-UX-023 |
 | `app/Sources/AtlasApp/Components.swift` | source | REVIEWED—FINDINGS OPEN | Full 179 lines at blob 0e52e88; ApprovalSheet exposes no explicit Done/Close action after terminal state; potential UI dismissal issue ATLAS-APP-057 pending macOS UI verification |
@@ -361,7 +361,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Tests/AtlasKitTests/VoiceTests.swift` | test | REVIEWED—FINDINGS OPEN | All lines read; fake permission callback is synchronous, no repeated/delayed .asking-state test for ATLAS-VOICE-067 |
 | `app/Tests/AtlasKitTests/WebTests.swift` | test | REVIEWED—NO FINDINGS | All 27 lines at blob 647d85c; source/untrusted warning, injection flag, host allow-list and HTTPS-only validation covered |
 | `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift` | test | REVIEWED—FINDINGS OPEN | Full 92 lines at blob 0059680; ATLAS-TEST-054 contrast exemption can false-pass using unrelated frame extrema; ATLAS-TEST-055 fixed sleep/non-empty text does not assert stable first screen |
-| `app/xcode/project.yml` | build/config | NOT STARTED | — |
+| `app/xcode/project.yml` | build/config | REVIEWED—FINDINGS OPEN | All 51 lines at blob e9a540c; ATLAS-DOC-070 opening comment incorrectly says this tracked YAML is not checked in; macOS 14 target and AtlasKit dependency inspected |
 | `core/README.md` | documentation | NOT STARTED | — |
 | `core/bench/ingest.py` | benchmark | NOT STARTED | — |
 | `core/bench/overhead.py` | benchmark | NOT STARTED | — |
@@ -573,7 +573,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `ios/AtlasPhone/Views.swift` | source | IN REVIEW | 1–224 (full) |
 | `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift` | test | NOT STARTED | — |
 | `ios/README.md` | documentation | NOT STARTED | — |
-| `ios/project.yml` | build/config | NOT STARTED | — |
+| `ios/project.yml` | build/config | REVIEWED—NO FINDINGS | All 52 lines at blob 4e929d5; iOS 17 target, AtlasKit dependency, camera privacy string and simulator UI-test scheme inspected |
 | `scripts/Atlas.entitlements` | script/tool | NOT STARTED | — |
 | `scripts/package_mac.sh` | script/tool | IN REVIEW | Targeted: 3–19 |
 | `scripts/sign_and_notarize.sh` | script/tool | NOT STARTED | — |
@@ -849,3 +849,8 @@ At PR #8 head `45324737c0f177314edf8363f1c51fad671f0ff7`, fully inspected Aloud,
 - Consolidated response-memory findings into **ATLAS-HTTP-066** (no duplicate ATLAS-TRANSPORT-061): RemoteHTTP's 4 MB check occurs after full URLSession buffering; UnixHTTP also has no incremental cap or read deadline. Both transport rows are findings-open.
 - Consolidated the destructive Keychain test finding under **ATLAS-TEST-069** (no duplicate ATLAS-TEST-062). The more complete finding also covers `PhoneTests.swift`, not only `EndToEndTests.swift`; exact production Keychain service names and the unscoped delete command are the risk.
 - Current exact-head path inventory after reconciliation: **278 total; 99 IN REVIEW; 119 NOT STARTED; 40 REVIEWED—NO FINDINGS; 20 REVIEWED—FINDINGS OPEN**.
+
+
+### XcodeGen build/project specifications re-review — 2026-11-24
+
+At PR #8 head `98e333b9904bf6906a9211f81524feb6234f2bf4`, re-read `app/Package.swift` (15 lines, blob `0028b51d4e24ad9c0e36e2e816732edeb2df2de2`), `app/xcode/project.yml` (51 lines, blob `e9a540c146e1dd3b8a2f3614b637407f727bb643`) and `ios/project.yml` (52 lines, blob `4e929d5de1a3ddb12532fda4e01989c8d7d766b1`). Package/platform/product alignment is consistent. **ATLAS-DOC-070 (P3, OPEN)**: the macOS XcodeGen spec comment says it is not checked in although this file is committed. The iOS project specifies iOS 17, AtlasKit linkage, camera-purpose text and a simulator UI-test scheme; no independent issue established there.
