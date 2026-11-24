@@ -623,3 +623,9 @@ Evidence: the UI test waits a fixed eight seconds after window existence, then a
 **Severity: P2 — OPEN.**
 
 Evidence: `app/Sources/AtlasApp/Screens.swift` `ActivityView.body` (blob `9b5ad87b6b762201a33b4af4737b2ff655145deb`, inspected at PR head `ea2ba5acd92237e3b2f2cc583f04ad47f45c06e9`), together with `AppModel.loadAttention()` and `ActivityItem.fromAttention()`. The Core attention feed is loaded into `model.attention`; Home combines `model.activity + model.attention` for “Needs your attention”. ActivityView instead constructs its list from `ActivityFeed.merged(model.activity)` alone, so Core-generated attention items (currently calendar-conflict risks) are absent from the Activity screen despite its subtitle promising “what needs your decision”. Merge both feeds with the existing deduplication rule and test that an attention-only item appears in Activity without duplicating a matching event.
+
+
+### ATLAS-APP-057 — Declined approval has no explicit dismissal path in the sheet
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasApp/Components.swift` `ApprovalSheet` (blob `0e52e88c6833ca04e3f34d2c241163fc4b44d15b`), `app/Sources/AtlasApp/Shell.swift` `RootView.approvalBinding` (blob `f2b033590dc4dab646078f0c359dd61a92b18399`), and `app/Sources/AtlasKit/Approval.swift` `ApprovalFlow.declined()` (blob `7ce1093ebee791911cec3444f4409644d88c24fc`). Decline changes the flow to `.declined`; the sheet then renders only a static “Declined. Nothing was done.” notice. The sheet exposes no Done/Close callback, and the RootView binding dismisses only when its item is set to nil. The only explicit pending-state cancel shortcut is attached to Decline, whose state transition is no longer available after decline. Add a clear dismissal action for terminal states (declined/completed/failed/expired/invalidated) and test that declining leaves the app usable and the sheet can be closed without approving.
