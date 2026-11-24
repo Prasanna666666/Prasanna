@@ -479,7 +479,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_bench.py` | test | NOT STARTED | — |
 | `core/tests/test_browser_engine.py` | test | IN REVIEW | Targeted: 82–90 |
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
-| `core/tests/test_client.py` | test | NOT STARTED | — |
+| `core/tests/test_client.py` | test | REVIEWED—FINDINGS OPEN | All 344 lines at blob efac279; broad end-to-end coverage, but no malformed task_id or mid-body disconnect tests for ATLAS-CLIENT-076 |
 | `core/tests/test_connectors.py` | test | IN REVIEW | Targeted: 190–247 |
 | `core/tests/test_consent_api.py` | test | IN REVIEW | Targeted consent API cases |
 | `core/tests/test_contracts.py` | test | REVIEWED—NO FINDINGS | All 68 lines at blob d8b19c9; strict 1.0 schema compilation, OpenAPI validation, taxonomy parity and content-free validation assertions inspected |
@@ -885,3 +885,8 @@ At PR #8 head `3412885e218f65665dd8023325800c226e612201`, read `.github/workflow
 ### Reference client and API contract generation/test review — 2026-11-24
 
 At PR #8 head `91a33a8d36f8403daa2cee42b1e6d719659c7548`, read `atlas_client.py` (348 lines, blob `2abc2310aef2d9d4c489b1f26d83697c4a9945ec`), `contracts.py` (133 lines, blob `a872b9eb7ad117a48d27a9ff44fd0dd7ba3b35cc`), `test_contracts.py` (68, `d8b19c9e803c09a88458f90bccab7f5e2ee8aede`), `test_contracts_frozen.py` (52, `e2bf4b3a581101bb7846e082819174459578610b`) and `test_contracts_v11.py` (731, `b0feb79cf71002907fcad345ce0a7c47ab06defa`). Findings: **ATLAS-CLIENT-076 (P2, OPEN)** reference client task-ID validation and response-body exception normalization; **ATLAS-DOC-075 (P3, OPEN)** stale comment about API 1.1 support. The contract tests statically assert strict unknown-field rejection, deterministic delta merge, exact frozen 1.0 baseline, conditional coverage/limitation semantics, content-free telemetry fields, OpenAPI parity and signing vectors. Tests were not executed in this review.
+
+
+### Reference-client regression-test review — 2026-11-24
+
+`core/tests/test_client.py` (344 lines, blob `efac279c4254f0f175799f7f3afc73e36821f48d`) read in full at PR #8 head `873d7329e01f69d44393761845e39f83ca67e1e8`. The test harness exercises the signed Unix-socket client, catalogue completeness, citations, source revocation, cancellation, version echo, 1.0 compatibility and exact computation. It does not cover a successful task response with a missing/null/empty task ID or a disconnect/timeout while the body is being read; both gaps are tracked under **ATLAS-CLIENT-076 (P2, OPEN)**. No tests run locally.
