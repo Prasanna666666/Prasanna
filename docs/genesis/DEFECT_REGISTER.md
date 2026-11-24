@@ -762,3 +762,18 @@ Evidence: `core/src/atlas_core/egress.py`, `EgressGateway._get()` (blob `0aa66a9
 **Severity: P2 — OPEN.**
 
 Evidence: `core/src/atlas_core/egress.py`, `EgressGateway._check_url()` (blob `0aa66a988a73b027ac1aa762da00bf60d6d533ae`). Accessing `urlsplit(url).port` raises `ValueError` for non-numeric or out-of-range ports. That exception is not converted to `Denied`, so a malformed model/owner-supplied URL bypasses the gateway's typed refusal contract and can fail the task through an unhandled exception. Catch URL parsing/port errors and return a content-free `destination_not_allowed` refusal; test non-numeric, negative and >65535 ports and malformed IPv6 brackets.
+
+### ATLAS-BACKUP-080 — restore drill deletes a pre-existing empty scratch directory
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/backup.py`, `run_restore_drill()` (blob `3b415da1c4572dcb88bfed8ba926c9fd50841fd2`). `restore_backup()` deliberately permits an existing empty target and leaves it in place; `run_restore_drill()` then unconditionally calls `shutil.rmtree(report.target)`. If the owner supplied an existing empty scratch directory, the drill deletes that directory even though it did not create it. Track whether the drill created the target and remove only that directory; add a test that an existing empty scratch folder survives a successful drill.
+
+### ATLAS-BACKUP-081 — malformed manifest/key-bundle structures can escape as unhandled exceptions
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/backup.py`, `_load_manifest()`, `verify_backup()` and `recover_keys()` (blob `3b415da1c4572dcb88bfed8ba926c9fd50841fd2`). `_load_manifest` checks only that top-level `files` and `kdf` are dictionaries; it does not validate each file entry or required KDF fields. A syntactically valid JSON manifest with a list/string file entry reaches `entry.get(...)` and raises `AttributeError`; a decrypted JSON key bundle that is a list reaches `bundle.items()` and raises `AttributeError`. These malformed backups should return a content-free `BackupError`/`VerifyResult`, not crash the caller. Validate the complete manifest schema, allow-listed relative filenames, entry types and key-bundle schema; test malformed nested types and non-dict bundles.
+
+### ATLAS-BACKUP-082 — restored plain files are not reverified after copying
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/backup.py`, `restore_backup()`, `_copy_state()` and `_check_copies()` (blob `3b415da1c4572dcb88bfed8ba926c9fd50841fd2`). Restore verifies every source file and the manifest MAC before copying, but after the copy `_check_copies()` reopens and checks only the databases. The plain files `clients.json` and `actions-audit.jsonl` are copied later and never compared with their manifest size/hash at the destination. A backup modified between initial verification and copy can therefore place an unverified client registry/audit file into the restored Core. Rehash every copied file at the destination (or copy from pinned, already-verified descriptors) before provisioning keys; add a deterministic swap-between-verify-and-copy test.
