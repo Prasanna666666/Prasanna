@@ -5,7 +5,7 @@
 **Working branch:** `genesis-stage2-foundation`  
 **Shared review vehicle:** [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8)  
 **Code/evidence snapshot before documentation-only cleanup:** `83eec5378fff9f26f435492104c4efa2b30d18ca`  
-**Latest documentation-only checkpoint captured:** `80dbd8584201aafce3697f28e3ec35fb6d5f42af` (refresh the live branch head before resuming)  
+**Branch head:** refresh from GitHub before resuming; this document deliberately avoids a self-referential HEAD hash  
 **PR state:** open, draft, unmerged. This handover does not accept a stage or authorise release.
 
 ## Start here
@@ -77,7 +77,7 @@ The existence of iOS source files does not prove secure worldwide access, offlin
 
 ## Documentation-only reconciliation commit set — 2026-11-25
 
-The following documentation-only commits were made after the code/evidence snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`: handover reconciliation `80206365b98c850940965ce01ab2b7eaebdd3238`; canonical Genesis index `f449d9a276e811fd54c0b11b43164ab6c8691b35`; root documentation index `ce6291da2ef1538e20bc69afc1480059da91d5b2`; implementation-conformance audit framework `225b6e9d3e5e332682f45d7866b75468cb3fce9f`; PRD metadata correction `6b8e2f2fc9539dda0aa8857908164f017ee92c79`; UI/UX implementation-status and handoff correction `05d4dd535d88b8f4556689a27512f9b8444c7da3`; review-coverage live snapshot `23fee7b5f7d04898e193926fbb05a62856fd7bf9`. Latest PR head at the captured checkpoint: `80dbd8584201aafce3697f28e3ec35fb6d5f42af`; later documentation-only edits may move it. Refresh the live branch head before resuming. No application source or tests were changed by this cleanup.
+The following documentation-only commits were made after the code/evidence snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`: handover reconciliation `80206365b98c850940965ce01ab2b7eaebdd3238`; canonical Genesis index `f449d9a276e811fd54c0b11b43164ab6c8691b35`; root documentation index `ce6291da2ef1538e20bc69afc1480059da91d5b2`; implementation-conformance audit framework `225b6e9d3e5e332682f45d7866b75468cb3fce9f`; PRD metadata correction `6b8e2f2fc9539dda0aa8857908164f017ee92c79`; UI/UX implementation-status and handoff correction `05d4dd535d88b8f4556689a27512f9b8444c7da3`; review-coverage live snapshot `23fee7b5f7d04898e193926fbb05a62856fd7bf9`. The captured checkpoint `80dbd8584201aafce3697f28e3ec35fb6d5f42af` was followed by further documentation-only updates; refresh the live branch head before resuming. No application source or tests were changed by this cleanup.
 
 ## Final documentation-only reconciliation checkpoint — 2026-11-25
 
@@ -86,3 +86,10 @@ Additional corrections after the initial index/UX pass: `PROGRAMME_AUDIT.md` and
 The later technical-document cleanup commits were: `f8c3550faef58b34074f0c7d514b457ca8e43997` (programme audit historical status), `43fc99f6492ea58911ebba49d239ae6ce845447b` (Stage 3 handover), `a3ab530dd8229498901caa825eb844679048190a` (owner checklist), `c3679dc914e31a1f0fda7c709b45ae0119aa9096` (branch-history reconciliation), `1a35610a0f9f1c26c2e2363fd494f03e3e4cc60c` (handover checkpoint), `e9fedf9ec5024f6901e6f66d4fd8117fa9546a0a` (conformance checkpoint), `72db4262079508d09d07253604177c5c1d42ed90` (review ledger), `13bcc8e329c0bda00c8a44aa4c03ecdb9dec14af` (Stage 3 threat traceability), `4b1687cb3a25990dfcc8561405800104f14fa688` (WP3.1 proposal history label), and `80dbd8584201aafce3697f28e3ec35fb6d5f42af` (Stage 3 handover correction).
 
 **Head discipline:** this document records evidence snapshots, not a self-referential current-HEAD hash. Always query the live PR before starting work or quoting counts.
+
+## Additional roadmap/decision consistency corrections — 2026-11-25
+
+- `TARGET_ARCHITECTURE.md` §11 now distinguishes the ordered roadmap from actual authorisation/acceptance and records the owner's 2026-11-23 instruction placing Stage 4–8 work on PR #8.
+- `DECISIONS.md` G-O09 now records the bounded Stage 2 acceptance at its exact historical SHA; later commits are not implicitly accepted.
+- `DELIVERY_PROTOCOL.md` labels the original Stage 2 entry gates as historical rather than current blockers.
+- Commits: `18002761b7190a8121639c0bc187ab5001422e87` (roadmap status), `7eb30dbac13d24f2ac8e5354c725c3683f6687f1` (decision register), `441c7b6df228c7378cc7105ef97eb1aa12e2fb00` (delivery protocol).
