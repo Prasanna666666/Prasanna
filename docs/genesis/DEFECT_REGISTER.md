@@ -528,7 +528,7 @@ Evidence:
 
 Evidence:
 - `core/src/atlas_core/actions.py`: `_approvals`, `_done`, and `_idem` are in-memory dictionaries. `propose()` records completed actions and idempotency results only in `_done`/`_idem`; `undo()` resolves action IDs only through `_done`.
-- `AuditFile` persists the hash-chained audit entries, but the constructor only accepts/reloads audit `history`; it does not reconstruct approvals, action receipts, undo state, or idempotency results from that history.
+- `AuditFile` persists the hash-chained audit entries, but the constructor only accepts/reloads audit `history`; it does not reconstruct approvals, action receipts, undo state, or idempotency results from that history. In addition, `AuditFile.load()` returns `[]` when the file is missing, and an empty file also passes `_chain_ok([])`: deleting or truncating the entire audit file is indistinguishable from a first run because there is no external anchor for the last sequence/digest.
 - `core/tests/test_actions.py`: the restart test creates a new gateway with `history=file.load()` and confirms the audit chain continues. It does not verify retry idempotency, pending approval survival, or undo receipts across restart.
 
 **Impact:** after a Core restart, an already executed external action may no longer have its idempotency receipt available; retrying with the same key can execute again. Previously issued approvals and undo handles also disappear. The audit log alone records that an action happened but is not an executable receipt or a safe replay guard.
@@ -729,3 +729,14 @@ Evidence: `core/client/atlas_client.py` (blob `2abc2310aef2d9d4c489b1f26d83697c4
 **Severity: P3 — OPEN.**
 
 Evidence: `core/src/atlas_core/contracts.py` (blob `a872b9eb7ad117a48d27a9ff44fd0dd7ba3b35cc`, inspected at PR head `91a33a8d36f8403daa2cee42b1e6d719659c7548`). The `VERSIONS` comment says 1.1 “is not among” the served versions, but `core/tests/test_contracts_frozen.py` asserts `SUPPORTED_VERSIONS == ("1.0", "1.1")` and `API_VERSION == "1.0"`. Correct the comment to distinguish supported versions from the default version.
+
+
+### ATLAS-ACT-074 — an action with multiple approval effects is shown as only one category
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/actions.py`, `ActionSpec.category` (blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`). When an action declares more than one approval-requiring effect, `category` returns `min(found)` and the `Outcome` exposes only that one integer category. For example, an action declaring both `external_send` and `spend` is presented as category 1 (external send) and omits the money-spending consequence from the owner approval preview. Reject multi-category specs until the approval contract/UI can show every consequence, or return and render the complete category set. Add a multi-effect action test that proves no consequence is hidden.
+
+### ATLAS-ACT-075 — unknown actions and invalid undo attempts bypass the audit log
+**Severity: P2 — OPEN.**
+
+Evidence: `core/src/atlas_core/actions.py`, `ActionGateway.propose()` and `undo()` (blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`). `propose()` returns `Outcome("refused", "unknown_action")` directly when no spec exists, without calling `_log`. `undo()` also returns directly for unknown IDs, already-undone actions and non-reversible actions. This contradicts the module's “every outcome is appended” audit guarantee and leaves rejected action/undo attempts invisible. Add content-safe audit entries for these refusals (hash or fixed code rather than untrusted free text) and tests proving the chain records them without logging payload content.
