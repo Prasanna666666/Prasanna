@@ -624,3 +624,10 @@ The EMLX parser now reads bounded headers and walks MIME delimiters line-by-line
 
 ### Current disposition
 This is a targeted exact-head continuation, not completion of the 278-path audit. No claim is made that all 278 paths, every function, every requirement/design statement, all 43 outdated threads, all historical findings, or all divergent branches have been exhaustively reviewed. Continue the path ledger and historical-finding revalidation; do not mark the PR or Stage 3 accepted. No application source, tests, build files or configuration were changed.
+
+
+### Coverage-count reconciliation correction — 2026-11-24
+
+The path ledger at the end of this file contains exactly **278 rows**: **136 IN REVIEW** (targeted inspection only; not full-file sign-off) and **142 NOT STARTED**. This count was checked directly from the table. The earlier caution above about not carrying forward the split is superseded by a GitHub commit comparison: `4a09eca2ada1d4fe69c04c3a7aefa877327e1848` → `7d4ac42bf537a10d950818fe91f855817c6c5ade` changes only this coverage document; `7d4ac42` → `6a0f070880ad2c214547ef8a7fb5f0c3482a34ef` changes only `DEFECT_REGISTER.md` and this coverage document. Therefore the 278-path inventory and 136/142 inspection statuses remain applicable to the current source tree. They do **not** mean 136 files are completely reviewed: **0/278 are established as fully line-by-line reviewed**.
+
+The documentation commits have triggered a new CI run **45419108912**, which was queued when checked. Its outcome is pending; the earlier run 45388238509 remains a confirmed failure and is not superseded until a new run completes successfully.
