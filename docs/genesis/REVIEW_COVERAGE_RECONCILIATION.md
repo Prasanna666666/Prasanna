@@ -360,7 +360,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Tests/AtlasKitTests/UpdateTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/VoiceTests.swift` | test | IN REVIEW | Full test file |
 | `app/Tests/AtlasKitTests/WebTests.swift` | test | NOT STARTED | — |
-| `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift` | test | NOT STARTED | — |
+| `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift` | test | REVIEWED—FINDINGS OPEN | Full 92 lines at blob 0059680; ATLAS-TEST-054 contrast exemption can false-pass using unrelated frame extrema; ATLAS-TEST-055 fixed sleep/non-empty text does not assert stable first screen |
 | `app/xcode/project.yml` | build/config | NOT STARTED | — |
 | `core/README.md` | documentation | NOT STARTED | — |
 | `core/bench/ingest.py` | benchmark | NOT STARTED | — |
@@ -746,3 +746,13 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - `app/Sources/AtlasApp/DesignSystem.swift`: all 67 lines inspected (blob `b59e7b355f13cd31e11b21e9869b3470ab44c066`). Token-backed semantic colours, spacing/radius/metrics, scalable system text styles, Reduce Motion and reading-column helpers inspected. No defect established in this file.
 - These two rows are now `REVIEWED—NO FINDINGS`. Updated exact-head inventory: **278 total; 142 IN REVIEW; 129 NOT STARTED; 5 REVIEWED—NO FINDINGS; 2 REVIEWED—FINDINGS OPEN**. This remains a path review ledger, not a claim that 142 IN REVIEW files are complete.
 - Next file in the app source/UI sequence: `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift`; the audit test itself needs independent review of its issue exemptions and contrast-measurement logic.
+
+
+### macOS accessibility audit test review — 2026-11-24
+
+**Reviewed source snapshot:** PR #8 head `58ffc5ba4b31a3435fdbb76e9e6f85619a5a8896`; file blob `0059680d01bb94838b459e98d0a8606c434895c9`; all 92 lines inspected.
+- **ATLAS-TEST-054 (P2, OPEN):** the contrast exemption uses the darkest/lightest pixel anywhere in the element frame as if they were the actual foreground/background pair. Unrelated pixels can inflate the ratio and suppress a real contrast failure. The method needs a valid text/background comparison or must not suppress the audit finding.
+- **ATLAS-TEST-055 (P2, OPEN):** a fixed 8-second sleep followed by “static texts are non-empty” does not establish that the expected owner/onboarding screen is ready; a transient “starting” screen can pass. Wait for and assert a stable expected screen before auditing.
+- Both findings are appended to `DEFECT_REGISTER.md`; review-only changes. No UI test was run locally. The CI workflow's current run must still be checked for its outcome; this code inspection is not a CI pass.
+- Updated exact-head path counts: **278 total; 141 IN REVIEW; 129 NOT STARTED; 5 REVIEWED—NO FINDINGS; 3 REVIEWED—FINDINGS OPEN**.
+- Next PR path in the UI test sequence is `app/xcode/project.yml` only if not already fully inspected; otherwise continue with the next unreviewed path in the 278-path inventory. The file itself is a test and remains findings-open until Claude corrects both issues and independent re-review confirms them.
