@@ -22,7 +22,7 @@ Atlas is one native Apple application with a local, owner-controlled Core runtim
 - **Orchestration:** Atlas-owned deterministic workflow/state-machine engine backed by SQLite jobs, checkpoints, leases and an outbox. Do not add Temporal, LangGraph, CrewAI or a distributed workflow server to a single-user desktop product unless measured requirements later justify them.
 - **Connectors:** capability-scoped adapters; OAuth secrets in Keychain; read-only by default; explicit source designation; durable incremental sync; source provenance retained.
 - **Actions:** a single Action Gateway enforces permissions, approval, idempotency and audit. Models never execute tools directly.
-- **Memory:** governed, provenance-backed knowledge records distinct from raw sources, extracted observations, session context and derived conclusions. Finance and Health are separately labelled/keyed and permission-controlled; owner-authorised content may enter local model context under G-021.
+- **Memory:** governed, provenance-backed knowledge records distinct from raw sources, extracted observations, session context and derived conclusions. Health is separately labelled/keyed and locked by default; owner-authorised Health content may enter local model context only under G-021. Finance raw records are never exposed to any model or general agent; only narrowly scoped deterministic computed outputs may cross the Finance boundary under policy.
 - **Packaging:** signed/notarised native macOS app with a separately permissioned local Core/helper boundary only where process isolation is justified; verified one-click update and rollback.
 - **Mobile:** iOS is a future client of the same versioned Core API. Remote access is a separate security-gated design; no public database/model ports and no hosted inference.
 
@@ -45,7 +45,7 @@ These are navigation areas within one product, not separately installed applicat
 - No cloud inference, hosted “brain”, or automatic cloud failover.
 - No Android target.
 - No unrestricted autonomous outbound actions.
-- No unrestricted or cross-domain Finance/Health access; each domain is separately labelled/keyed and exposed only to an owner-authorised task under G-021.
+- No unrestricted or cross-domain access. Health is separately labelled/keyed and exposed only to an owner-authorised task under G-021. Finance raw records remain inaccessible to models and general agents regardless of task grant; only policy-approved deterministic outputs may cross the boundary.
 - No mandatory Kubernetes, microservices, distributed database or cloud workflow engine.
 - No automatic indexing merely because an account or folder is connected.
 - No claiming a language, model, connector or performance level without test evidence.
@@ -70,7 +70,7 @@ Owner decisions G-001 through G-020 in the Decision Register remain authoritativ
 | NFR-012 | iOS can be added without rewriting domain contracts | API contract and portability tests |
 | NFR-013 | Unsupported, partial, failed and inaccessible content is visible, never silently treated as complete | Ingestion completeness tests |
 | NFR-014 | High-impact actions require policy evaluation and approval as configured | Action policy test matrix |
-| NFR-015 | Finance and Health are visible to the local model only when owner-authorised; separate stores/keys, redaction, provenance and revocation are enforced | Domain-grant, cache-revocation and no-egress tests |
+| NFR-015 | Finance raw records are never visible to any model or general agent; only minimum policy-approved deterministic outputs may cross the Finance boundary. Health remains locked by default and requires explicit owner authorisation | Finance non-exposure tests; Health grant/revocation tests |
 | NFR-016 | English, Dutch and other encountered languages are evaluated separately | Per-language benchmark report |
 
 ## 3. System context and trust boundaries
@@ -111,7 +111,7 @@ Local encrypted data stores + original source references
 - **Z1 Core API:** authenticated client boundary; validates schema, identity, request limits and capability.
 - **Z2 General domain:** ordinary personal/work content under explicit source designation.
 - **Z3 Sensitive partitions:** Health and other sensitive data; locked unless specifically enabled.
-- **Z4 Finance domain:** separately labelled/keyed and owner-authorised. The local model may read Finance content within the approved domain context; exact calculations remain deterministic. No Finance content enters public web requests, cloud inference, unrelated logs or unapproved domains.
+- **Z4 Finance enclave:** separately labelled/keyed and isolated behind deterministic domain code. No model, general agent, shared prompt, embedding pipeline or general-purpose index receives raw Finance records. Only the minimum computed result explicitly permitted for the task may cross the boundary, with provenance and policy checks. Finance grants do not authorise model access to raw records.
 - **Z5 Action execution:** isolated tool execution with narrowly scoped capabilities, approvals and audit receipts.
 - **Z6 Model runtime:** receives only minimal policy-authorised context; no direct filesystem, network or connector credentials.
 - **Z7 External connectors:** remote systems are untrusted inputs; retrieved content is data, never executable instruction.
@@ -328,7 +328,7 @@ No model receives records and then gets told to ignore them. Filtering occurs be
 - Deleted/revoked source content is tombstoned immediately and excluded from retrieval while physical cleanup runs.
 
 ### 9.5 Finance boundary
-Finance ingestion, storage and retrieval use a separately labelled/keyed domain partition with purpose-bound owner grants. Under G-021, raw Finance records may enter only the local model context of the specifically authorised task; they must not enter unrelated agent contexts, shared memory, public web requests, cloud inference or content-bearing logs. Exact arithmetic, balances and reconciliations remain deterministic/code-checked. Revocation invalidates derived caches and active task grants. Enforce with tests that inspect every model input, index and egress boundary.
+Finance ingestion, storage and retrieval use a separately labelled/keyed domain partition with a deterministic-only access API. No raw Finance record, transaction detail, statement content or raw ledger row may enter any model context, general-agent context, shared memory, embedding pipeline or general-purpose index, even when the owner has authorised a Finance task. Exact arithmetic, balances and reconciliations are computed by deterministic/code-checked Finance logic. Only the minimum computed result explicitly permitted for the task may cross the boundary, with provenance and policy checks. Finance permissions govern deterministic access and permitted outputs; they never grant model access to raw Finance data. Enforce with negative tests that inspect every model input, index, cache and egress boundary.
 
 ## 10. Intelligence Gateway and model runtime
 
@@ -415,7 +415,7 @@ Threats include malicious prompt injection in email/documents, compromised conne
 Required controls:
 - Least-privilege connector scopes and per-source designation.
 - Keychain-protected credentials; never expose secrets to models.
-- Separate Finance and Health stores/keys/access APIs; local model access is owner-authorised and revocable. Health is not categorically excluded from local model context.
+- Separate Finance and Health stores/keys/access APIs. Finance is deterministic-only: raw records never enter model/general-agent context; only approved computed outputs may cross the boundary. Health is locked by default and may enter local model context only under explicit, scoped, revocable owner authorisation.
 - Local model process has no connector credentials and no unrestricted filesystem/network.
 - Sandboxed parser and tool execution with explicit allowlists.
 - Policy checks before retrieval, model context and action.
