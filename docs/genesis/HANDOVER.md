@@ -139,3 +139,8 @@ Owner delegated dashboard design to the product/design authority, with the requi
 - Defined first-run, no-source, quiet-day, stale/partial, loading/error and returning-visit states, plus lightweight user controls and source traceability.
 
 This is a design specification update only. It does not claim implementation, usability testing or owner visual acceptance. Claude should implement against the canonical UI/UX spec rather than inventing permanent feature dashboards.
+
+
+## Visual identity elevation — 2026-11-25
+
+Owner feedback: the first dashboard concept felt too basic and boring. The canonical UI/UX spec was elevated in commit `86ceea52f8d7b0b5e65cdb971423dbcd8fdf3d8a`. Do not interpret “uncluttered” as generic minimalism. Atlas must have a distinctive, premium editorial visual identity: deep ink/graphite and warm light surfaces, a disciplined vivid accent, expressive typography, deliberate asymmetric composition, purposeful imagery and data visualisations, subtle meaningful motion, and polished states. Home earns a visually dominant “Today's signal” hero only when there is a genuinely important item; supporting content uses a deliberate composition, not uniform KPI cards. Explore should feel like a premium digital journal, not a generic list/feed. Specialist workspaces should use domain-appropriate visualisations. Avoid cheap gradients/glassmorphism, decorative charts, fake live states and repetitive cards. This is a design direction/specification update only; actual implementation and owner visual acceptance remain pending. Claude should produce real screen implementations/screenshots for review, not treat reference image search as a design deliverable.
