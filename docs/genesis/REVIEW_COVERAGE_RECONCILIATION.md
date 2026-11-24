@@ -305,13 +305,13 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | Full 15 lines; AtlasKit-only consumers in macOS/iOS XcodeGen projects align with macOS 14/iOS 17 declarations; no external dependencies |
 | `app/README.md` | documentation | REVIEWED—FINDINGS OPEN | Full 19 lines at 1af9af9; CI now runs packaged app/Core lifecycle, Swift real-Core E2E and macOS UI audit, but README still says app has not been run / Swift side untested / packaging not built; ATLAS-DOC-052; prior PR comment 6045284683 |
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | REVIEWED—FINDINGS OPEN | Full 696 lines at blob 40f5346; ATLAS-APP-052 stale task ID can be cancelled during next ask; ATLAS-APP-053 failed undo is swallowed and retry handle cleared; activity history remains covered by ATLAS-UX-023 |
-| `app/Sources/AtlasApp/Components.swift` | source | REVIEWED—NO FINDINGS | Full 179 lines at blob 0e52e88; reusable headers, notices, status, citation/evidence, activity and approval components inspected; no component-level defect established |
+| `app/Sources/AtlasApp/Components.swift` | source | REVIEWED—FINDINGS OPEN | Full 179 lines at blob 0e52e88; ApprovalSheet exposes no explicit Done/Close action after terminal state; potential UI dismissal issue ATLAS-APP-057 pending macOS UI verification |
 | `app/Sources/AtlasApp/DesignSystem.swift` | source | REVIEWED—NO FINDINGS | Full 67 lines at blob b59e7b3; semantic colour/token mapping, scalable text styles, reduce-motion and reading-width helpers inspected; no defect established |
 | `app/Sources/AtlasApp/Screens.swift` | source | REVIEWED—FINDINGS OPEN | Full 772 lines at blob 9b5ad87; ATLAS-APP-056 Activity screen omits model.attention although Home includes it; existing ATLAS-UX-023 activity persistence remains open |
-| `app/Sources/AtlasApp/Shell.swift` | source | REVIEWED—NO FINDINGS | All 94 lines at blob f2b0335; launch/Get Started/shell navigation, approval sheet identity and compact inspector behavior inspected |
+| `app/Sources/AtlasApp/Shell.swift` | source | REVIEWED—FINDINGS OPEN | All 94 lines at blob f2b0335; approval sheet binding only dismisses when item becomes nil; potential terminal-state dismissal issue ATLAS-APP-057 pending UI verification |
 | `app/Sources/AtlasApp/Speaker.swift` | source | REVIEWED—NO FINDINGS | All 26 lines at blob cc0f579; local AVSpeechSynthesizer lifecycle and finish/cancel callbacks inspected; no defect established in this adapter |
 | `app/Sources/AtlasApp/Speech.swift` | source | REVIEWED—FINDINGS OPEN | All 61 lines at blob 67c6f11; ATLAS-VOICE-057 start failure leaves installed input tap/request uncleared; local speech only, no server fallback |
-| `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full) |
+| `app/Sources/AtlasKit/Activity.swift` | source | REVIEWED—NO FINDINGS | All 69 lines at blob 14c66e0; chronological dedupe, attention projection, recent-task filtering and allow-listed calendar-conflict mapping inspected |
 | `app/Sources/AtlasKit/Aloud.swift` | source | REVIEWED—NO FINDINGS | All 34 lines at blob 295c813; answer/trust text composition, empty guard and single-session toggle/stop lifecycle inspected |
 | `app/Sources/AtlasKit/AnswerView.swift` | source | REVIEWED—NO FINDINGS | All 39 lines at blob 74e0e35; untrusted response mapping, catalogue-backed status/limitations, coverage, not-searched and citation locator rendering inspected |
 | `app/Sources/AtlasKit/Approval.swift` | source | REVIEWED—NO FINDINGS | All 88 lines at blob c3240bf; closed action/consequence allow-list, exact payload fingerprint, expiry and approval state transitions inspected |
@@ -802,3 +802,13 @@ At PR #8 head `cb472a1e9b9b6572f501e9391473fd3344ec83c0`, all four files read in
 - `Finance.swift` 87 lines, blob `5da7d8dc16fb79e4a1cfd225811f72f23d79f7fd`: source naming/sensitivity and exact Core-provided spending presentation. **ATLAS-FIN-063 (P3, OPEN)**: zero delta is labelled “more”.
 - `GetStarted.swift` 23 lines, blob `bf9fa0c759f6abfb9173f7fb198adc03db7fd7a7`: default-off choice, no-grant empty selection and first-run completion rule. No defect established.
 - No app source/tests/build files changed; no tests run locally.
+
+
+### Review-ledger reconciliation after parallel historical review recovery — 2026-11-24
+
+The current branch contains additional exact-file reviews recorded by a parallel documentation pass. I reconciled those records rather than restarting or overwriting them:
+- `Shell.swift` and `Speaker.swift` were read in full at unchanged blobs; no implementation defect was established in the speech-output adapter. `Shell.swift` participates in **ATLAS-APP-057**, now explicitly classified as a potential P3 pending a macOS UI dismissal test; source inspection alone cannot prove the native sheet has no platform dismissal affordance.
+- `Speech.swift` has one canonical finding **ATLAS-VOICE-057 (P2, OPEN)**. Removed the duplicate `ATLAS-APP-058` entry; do not count the same engine-start cleanup issue twice.
+- `Activity.swift` was read in full (69 lines, blob `14c66e0211453fb5befffa94d1a006ff95a5b5a5`); the model's deduplication and attention projection are sound. The missing Activity-screen feed remains **ATLAS-APP-056** against `Screens.swift`, not a defect in this model file.
+- `Components.swift` and `Shell.swift` are findings-open only for the potential terminal-approval dismissal issue; verify in a macOS UI test before treating it as a confirmed user trap. `Speaker.swift` remains no-findings.
+- Updated inventory: **278 total; 133 IN REVIEW; 127 NOT STARTED; 13 REVIEWED—NO FINDINGS; 5 REVIEWED—FINDINGS OPEN**.
