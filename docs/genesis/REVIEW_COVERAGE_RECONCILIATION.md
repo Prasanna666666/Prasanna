@@ -471,7 +471,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
 | `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test verifies audit append only, not approval/receipt/undo/idempotency persistence; no missing/empty audit-file, multi-category, or unknown-action audit tests; ATLAS-ACT-019/074/075 |
 | `core/tests/test_api.py` | test | REVIEWED—NO FINDINGS | All 194 lines at blob e51f24f; version negotiation, route/status parity, signed identity, replay/tamper, policy enforcement and user-safe errors covered |
-| `core/tests/test_api_v11.py` | test | IN REVIEW | Targeted authenticated task/route tests |
+| `core/tests/test_api_v11.py` | test | REVIEWED—NO FINDINGS | All 188 lines at blob b312803; signed applied version, additive 1.1 coverage/model fields, limitations, SSE, exact compute and unknown-source semantics covered |
 | `core/tests/test_app.py` | test | NOT STARTED | — |
 | `core/tests/test_architecture.py` | test | NOT STARTED | — |
 | `core/tests/test_artefact_scan.py` | test | NOT STARTED | — |
@@ -481,7 +481,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
 | `core/tests/test_client.py` | test | REVIEWED—FINDINGS OPEN | All 344 lines at blob efac279; broad end-to-end coverage, but no malformed task_id or mid-body disconnect tests for ATLAS-CLIENT-076 |
 | `core/tests/test_connectors.py` | test | IN REVIEW | Targeted: 190–247 |
-| `core/tests/test_consent_api.py` | test | IN REVIEW | Targeted consent API cases |
+| `core/tests/test_consent_api.py` | test | REVIEWED—NO FINDINGS | All 190 lines at blob e48338d; owner-only consent, paired member read, replay protection, withdrawal purge, malformed choices and default model mode covered |
 | `core/tests/test_contracts.py` | test | REVIEWED—NO FINDINGS | All 68 lines at blob d8b19c9; strict 1.0 schema compilation, OpenAPI validation, taxonomy parity and content-free validation assertions inspected |
 | `core/tests/test_contracts_frozen.py` | test | REVIEWED—NO FINDINGS | All 52 lines at blob e2bf4b3; frozen 1.0 hashes, default validator and runtime negotiation assertions inspected |
 | `core/tests/test_contracts_v11.py` | test | REVIEWED—NO FINDINGS | All 731 lines at blob b0feb79; deterministic merge, strict schema shapes, coverage/limitation consistency, content-free fields, OpenAPI parity and signing vectors inspected |
@@ -510,7 +510,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_mlx_native.py` | test | NOT STARTED | — |
 | `core/tests/test_mlx_runtime.py` | test | NOT STARTED | — |
 | `core/tests/test_models.py` | test | NOT STARTED | — |
-| `core/tests/test_operations_api.py` | test | NOT STARTED | — |
+| `core/tests/test_operations_api.py` | test | REVIEWED—NO FINDINGS | All 310 lines at blob 2c132f7; owner action/approval/undo, member denial, sync idempotency/conflict, pairing/revocation, records, updates and review covered |
 | `core/tests/test_orchestrator.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_policy.py` | test | IN REVIEW | Targeted: 122–165 |
 | `core/tests/test_recordstore.py` | test | IN REVIEW | Targeted schema/unsupported-version cases |
@@ -937,3 +937,8 @@ At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, read all 165 lines of 
 ### Core API, identity, transport and confinement test cross-check — 2026-11-24
 
 At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, completed full line-by-line reads of `api.py` (563 lines, blob `3b1103a3e14eb5e5f7a3a4f640c9e286c5fd690c`) and `identity.py` (186, `9aa0e1012470daee119cf77d93237025ba0b4fb7`). Signed version binding, owner/member authorization, one-time enrolment, route families and content-free error handling cross-checked against `test_api.py` (194, `e51f24f89679f70d8ad2dae80f0c9979f9f85493`) and `test_enrolment.py` (243, `7607fb4f301b126f8e19e47545b77bb01ed374c2`). `test_isolated.py` (350, `81a801473535beb0589d39fee4e1f49e81ef2955`) and `test_transport.py` (240, `cfbd11419f815cb7f66c968fb56c3406f2a7d981`) fully read; no independent findings. `test_macos.py` (710, `3248ae258c805b669d3f0e6d3ec815ebdb0ddbc0`) fully read; its symlink/race/attachment byte-boundary tests are strong, but it does not test that a skipped inaccessible subtree or root symlink makes MailIndex coverage partial, so ATLAS-MAIL-079 remains open. No tests run locally.
+
+
+### API 1.1, consent and operations route regression review — 2026-11-24
+
+Fully read `test_api_v11.py` (188 lines, blob `b31280375a2de69bc8dbfa991bc11deb62e54a87`), `test_consent_api.py` (190, `e48338dfd790c7b6a715f79202f77347335bfb83`) and `test_operations_api.py` (310, `2c132f7ebdcfc1a2141566a564cb23f1c8218555`). They cover signed version negotiation/no downgrade, additive coverage/model identity, honest limitations, exact compute validation, owner-only consent/mode/actions, replay-safe withdrawal and index purge, member sync idempotency/conflict, device pairing/revocation, own-record access and signed updates. No independent test defect established. No tests run locally.
