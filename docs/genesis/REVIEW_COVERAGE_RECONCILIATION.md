@@ -302,7 +302,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `.github/workflows/ci.yml` | build/config | IN REVIEW | Targeted install/SQLCipher/macOS/security job sections |
 | `.gitleaksignore` | build/config | REVIEWED—NO FINDINGS | Full 10 lines; four fingerprint suppressions matched to historical test/type annotation, comment, public checksum and generated test key contexts; scanner execution not independently run |
 | `CLAUDE.md` | documentation | REVIEWED—NO FINDINGS | Full 22 lines; source-of-truth, role split, evidence and product principles consistent with current delivery protocol |
-| `app/Package.swift` | build/config | IN REVIEW | Full 15 lines; package products, deployment targets and resource wiring inspected; cross-target compatibility still to reconcile |
+| `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | Full 15 lines; AtlasKit-only consumers in macOS/iOS XcodeGen projects align with macOS 14/iOS 17 declarations; no external dependencies |
 | `app/README.md` | documentation | IN REVIEW | Full 19 lines; evidence contradiction found: app launch/Core lifecycle and Swift real-Core tests exist, but README says app not run / Swift side not tested; PR review 6045284683 |
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | IN REVIEW | Targeted: 1–80, 110–170, 200–245, 320–390, 486–553 |
 | `app/Sources/AtlasApp/Components.swift` | source | IN REVIEW | Targeted component/accessibility review |
@@ -685,3 +685,14 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - Updated path counts after these dispositions: 278 total; 147 IN REVIEW; 129 NOT STARTED; 2 REVIEWED—NO FINDINGS. Strict fully completed file reviews: 2/278. IN REVIEW means targeted or incomplete, not completed.
 - Resume: .gitleaksignore and CLAUDE.md are complete. Continue with app/Package.swift (reconcile target compatibility and mark complete only when evidence supports it), then app/README.md (track the posted contradiction until Claude corrects it and the revised text is independently checked), then app/Sources/AtlasApp/AtlasApp.swift.
 - No tests were executed by this reviewer. No source, tests, package/build configuration or app code changed. No review threads were resolved and no approval/merge was made.
+
+
+### Live checkpoint after app README review — 2026-11-24
+
+- PR #8 head at checkpoint: 8905488a0a78c82b48d1176810950eefdb80fd4f; PR remains open, draft and unmerged; 278 changed paths.
+- The documentation review comment 6045284683 added one inline thread. Live GitHub now reports **60 total threads: 21 resolved, 39 unresolved; 43 outdated**. No threads were resolved.
+- Workflow run **45463150038** was queued for this head when checked; no result yet. Do not describe it as passed.
+- app/Package.swift: all 15 lines reviewed and cross-checked against app/xcode/project.yml (macOS 14) and ios/project.yml (iOS 17). Both XcodeGen projects consume only AtlasKit; AtlasApp executable is the macOS app product. No package-level defect found. Marked REVIEWED—NO FINDINGS.
+- Current path-ledger counts: **278 total; 146 IN REVIEW; 129 NOT STARTED; 3 REVIEWED—NO FINDINGS**. Strict completed-file count: **3/278**. IN REVIEW is not completion.
+- Last completed file: app/Package.swift. Current open review file: app/README.md, with the evidence contradiction recorded in PR comment 6045284683. Next file after the README disposition: app/Sources/AtlasApp/AtlasApp.swift.
+- No tests were executed locally by this reviewer. No app code, source, tests, package manifest, or build configuration was changed. Only the coverage ledger was updated; no approval, merge, or thread resolution was performed.
