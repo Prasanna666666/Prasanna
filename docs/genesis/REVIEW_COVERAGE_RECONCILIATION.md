@@ -413,7 +413,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/browser_engine.py` | source | IN REVIEW | Full: 1–260 |
 | `core/src/atlas_core/browser_worker.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/confinement.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/confinement.py` | source | IN REVIEW | Full source: 1–53 |
 | `core/src/atlas_core/connector_transport.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
 | `core/src/atlas_core/connectors.py` | source | IN REVIEW | Targeted: 91–130, 190–250 |
@@ -422,12 +422,12 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
 | `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/documents.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/documents.py` | source | IN REVIEW | Targeted: 130–255, 285–395 |
 | `core/src/atlas_core/egress.py` | source | IN REVIEW | Targeted: 1–120, 150–220, 250–409 |
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/events.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/evidence.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/exact.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/exact.py` | source | IN REVIEW | Full source: 1–260; precision defect ATLAS-EXACT-106 |
 | `core/src/atlas_core/finance_calc.py` | source | IN REVIEW | Full: 1–187 |
 | `core/src/atlas_core/gate.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/health.py` | source | IN REVIEW | Full source |
@@ -436,7 +436,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/identity.py` | source | IN REVIEW | Full: 1–230 |
 | `core/src/atlas_core/intelligence.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/isolated.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/launchagent.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/launchagent.py` | source | IN REVIEW | Full source: 1–42 |
 | `core/src/atlas_core/launcher.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/macos.py` | source | IN REVIEW | Full: 1–560 |
 | `core/src/atlas_core/macos_sources.py` | source | IN REVIEW | Full: 1–266 |
@@ -449,7 +449,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full: 1–242 |
 | `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 9–45, 70–180 |
 | `core/src/atlas_core/policy.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/record_actions.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/record_actions.py` | source | IN REVIEW | Full source: 1–56 |
 | `core/src/atlas_core/records.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/recordstore.py` | source | IN REVIEW | Targeted: 1–90 |
 | `core/src/atlas_core/relay.py` | source | IN REVIEW | Full source |
@@ -463,8 +463,8 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/transport.py` | source | IN REVIEW | Full: 1–202 |
 | `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/values.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/watchers.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/values.py` | source | IN REVIEW | Full source: 1–16 |
+| `core/src/atlas_core/watchers.py` | source | IN REVIEW | Full source: 1–93 |
 | `core/src/atlas_core/web.py` | source | IN REVIEW | Targeted: 30–121 |
 | `core/src/atlas_core/worker.py` | source | IN REVIEW | Full: 1–120 |
 | `core/tests/conftest.py` | test | NOT STARTED | — |
@@ -493,7 +493,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_enrolment.py` | test | NOT STARTED | — |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
 | `core/tests/test_evidence_answer.py` | test | IN REVIEW | Full test file |
-| `core/tests/test_exact.py` | test | NOT STARTED | — |
+| `core/tests/test_exact.py` | test | IN REVIEW | Full test file; no >28-digit exact-decimal test |
 | `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_health.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_intelligence.py` | test | NOT STARTED | — |
@@ -567,7 +567,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `docs/genesis/TARGET_ARCHITECTURE.md` | documentation | NOT STARTED | — |
 | `docs/genesis/UI_UX_SPECIFICATION.md` | documentation | IN REVIEW | Targeted: 23–60, 62–78, 183–330 |
 | `docs/genesis/USE_CASE_REGISTER.md` | documentation | NOT STARTED | — |
-| `ios/AtlasPhone/AtlasPhoneApp.swift` | source | NOT STARTED | — |
+| `ios/AtlasPhone/AtlasPhoneApp.swift` | source | IN REVIEW | Full source: 1–12 |
 | `ios/AtlasPhone/PhoneModel.swift` | source | IN REVIEW | 1–100 (full) |
 | `ios/AtlasPhone/Storage.swift` | source | IN REVIEW | 1–54 (full) |
 | `ios/AtlasPhone/Views.swift` | source | IN REVIEW | 1–224 (full) |
