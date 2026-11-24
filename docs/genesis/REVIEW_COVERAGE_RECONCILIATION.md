@@ -238,9 +238,9 @@ Compared all 12 live branches against PR #8 head:
 **Boundary:** no application source, tests, build files or configuration were changed. This continuation updates only the review-coverage documentation; no PR approval, merge, branch operation or review-thread resolution was performed.
 
 
-## Additional exact-head findings — continued source audit
+## Additional exact-head findings — native-source and phone security pass
 
-The following findings were added after the previous ledger commit. Each has a detailed PR comment with reproduction/source evidence/remediation; all remain OPEN.
+All findings below have separate detailed PR comments with source evidence, impact, remediation and required tests. OPEN unless explicitly corrected.
 
 | ID | Severity | Finding |
 |---|---|---|
@@ -263,23 +263,31 @@ The following findings were added after the previous ledger commit. Each has a d
 | ATLAS-ANS-075 | P2 | Non-numeric factual claim can be marked verified by an unrelated valid citation |
 | ATLAS-ANS-076 | P1 | Generic one-decimal rounding tolerance can mark a one-cent monetary discrepancy verified |
 | ATLAS-ANS-077 | P1 | Numeric verification discards negative signs, equating positive and negative values |
-| ATLAS-SEC-083 | P1 | Enrolled device can submit TaskRequest scoped to Finance/Health; task creation lacks caller-role enforcement |
+| ATLAS-SEC-083 | P2 | Task API drops caller role; latent Finance/Health scope boundary gap (current production policy denies those restricted domains) |
 | ATLAS-SEC-084 | P2 | Task read/answer/events/receipt/cancel routes are not bound to the authenticated client |
+| ATLAS-FIN-085 | P1 | Stage 5 Finance/Health task-context claim is not wired into production Core composition; only deterministic summary endpoints are available |
+| ATLAS-SEC-087 | P1 | Paired phone can bypass its fixed Documents/Mail scope and query owner-enabled Photos through Task API |
+| ATLAS-MAC-088 | P2 | Passive Notes permission status check can trigger Automation prompt before owner opts in |
+| ATLAS-MAC-089 | P2 | Native sources silently truncate at 5,000 records while index can report complete |
+| ATLAS-MAC-090 | P1 | Transient native-source OSError is treated as successful empty snapshot and can delete existing index |
+| ATLAS-MAC-091 | P2 | Photos limited-library permission is collapsed into full GRANTED without a limited-coverage signal |
+| ATLAS-IOS-094 | P1 | Unpair/revocation silently ignores Keychain and file deletion failures |
+| ATLAS-IOS-095 | P2 | Keychain read errors are collapsed into "not paired" with no retry |
 
-**ATLAS-SEC-083 scope clarification:** API 1.1 requires non-empty `source_scope`; the concrete bypass is an explicit `["finance"]` or `["health"]` scope. `SourceType` is pattern-based, and policy rules define both types. The earlier comment's omitted-scope wording is superseded by the clarification comment.
+**ATLAS-SEC-083 clarification:** The API 1.1 contract requires a non-empty scope. Production Host currently holds Finance/Health out of DesignationStore, so the Finance/Health route is a latent role-boundary gap, not a demonstrated current read. ATLAS-SEC-087 is the current active source-scope bypass: Photos is a non-restricted, owner-grantable native source and is not included in the phone's intended scope.
 
 
 
 ## Exact-head path inventory — refreshed 2026-11-24
 
-**Inventory source:** paginated GitHub changed-filename endpoint for PR #8 head `14c42d9cb4d546484077090af939b85a5ce6440e`. This is a documentation-only source head; application source remains identical to the reviewed source snapshot `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba`.
+**Inventory source:** paginated GitHub changed-filename endpoint for PR #8 head `370acd475d29814ff552900524d4ac8bbf6eedf3`. This is a documentation-only head; source code remains identical to the source snapshot `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba`.
 
 - Exact changed paths: **278**
-- Paths with targeted inspection recorded: **94**
-- Paths not yet started: **184**
+- Paths with targeted inspection recorded: **103**
+- Paths not yet started: **175**
 - Paths established as fully line-by-line reviewed: **0**
 - Categories: build/config 6; documentation 62; source 108; test 88; benchmark 2; contract/schema 5; evaluation 3; script/tool 4.
-- `IN REVIEW` means only the units/ranges shown were inspected. It does not mean the entire file was reviewed or accepted. All tests were inspected selectively; **no test suite or CI was run** in this pass.
+- `IN REVIEW` means only the units/ranges shown were inspected; it does not mean the entire file was reviewed or accepted. No test suite or CI was run in this pass.
 
 | Path | Type | Status | Units inspected |
 |---|---|---|---|
@@ -295,28 +303,28 @@ The following findings were added after the previous ledger commit. Each has a d
 | `app/Sources/AtlasApp/Shell.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasApp/Speaker.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasApp/Speech.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full file) |
+| `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full) |
 | `app/Sources/AtlasKit/Aloud.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/AnswerView.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Approval.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Catalogue.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Connections.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full file) |
+| `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full) |
 | `app/Sources/AtlasKit/CoreLauncher.swift` | source | IN REVIEW | Full source; process identity/lifecycle sections |
 | `app/Sources/AtlasKit/Finance.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/GetStarted.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full file) |
+| `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full) |
 | `app/Sources/AtlasKit/Health.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Library.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Lifecycle.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Navigation.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Notifications.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full file) |
-| `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full file) |
+| `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full) |
+| `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full) |
 | `app/Sources/AtlasKit/PhoneEngine.swift` | source | IN REVIEW | Full source; 1–124 |
 | `app/Sources/AtlasKit/Records.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/RelayBind.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full file) |
+| `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full) |
 | `app/Sources/AtlasKit/ScreenState.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/Signing.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/SubmissionGate.swift` | source | NOT STARTED | — |
@@ -390,72 +398,72 @@ The following findings were added after the previous ledger commit. Each has a d
 | `core/src/atlas_core/__init__.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/access.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/actions.py` | source | IN REVIEW | Targeted: 100–275 |
-| `core/src/atlas_core/answer.py` | source | IN REVIEW | Full source inspected: 1–113 |
+| `core/src/atlas_core/answer.py` | source | IN REVIEW | Full: 1–113 |
 | `core/src/atlas_core/api.py` | source | IN REVIEW | Targeted: 131–201, 252–275, 277–306, 318–338, 529–540 |
-| `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 221–237, 298–310 |
-| `core/src/atlas_core/backup.py` | source | IN REVIEW | Full source inspected: 1–405 |
-| `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/browser_engine.py` | source | IN REVIEW | Full source inspected: 1–260 |
-| `core/src/atlas_core/browser_worker.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
+| `core/src/atlas_core/backup.py` | source | IN REVIEW | Full: 1–405 |
+| `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/browser_engine.py` | source | IN REVIEW | Full: 1–260 |
+| `core/src/atlas_core/browser_worker.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/confinement.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/connector_transport.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
-| `core/src/atlas_core/connectors.py` | source | IN REVIEW | Full source inspected: 1–280 |
-| `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/connectors.py` | source | IN REVIEW | Full: 1–280 |
+| `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/contracts.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
-| `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/documents.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/egress.py` | source | IN REVIEW | Targeted: 1–120, 150–220, 250–409 |
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/events.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/evidence.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/evidence.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/exact.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/finance_calc.py` | source | IN REVIEW | Full source inspected: 1–187 |
-| `core/src/atlas_core/gate.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/health.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/health_calc.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/host.py` | source | IN REVIEW | Targeted host options/factory/keychain wiring |
-| `core/src/atlas_core/identity.py` | source | IN REVIEW | Full source inspected: 1–230 |
+| `core/src/atlas_core/finance_calc.py` | source | IN REVIEW | Full: 1–187 |
+| `core/src/atlas_core/gate.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/health.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/health_calc.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/host.py` | source | IN REVIEW | Targeted: 70–175 |
+| `core/src/atlas_core/identity.py` | source | IN REVIEW | Full: 1–230 |
 | `core/src/atlas_core/intelligence.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/isolated.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/launchagent.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/launcher.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/macos.py` | source | IN REVIEW | Full source inspected: 1–560 |
-| `core/src/atlas_core/macos_sources.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/mail.py` | source | IN REVIEW | Targeted: 280–490 |
+| `core/src/atlas_core/macos.py` | source | IN REVIEW | Full: 1–560 |
+| `core/src/atlas_core/macos_sources.py` | source | IN REVIEW | Full: 1–266 |
+| `core/src/atlas_core/mail.py` | source | IN REVIEW | Targeted: 278–345, 400–445, 280–490 |
 | `core/src/atlas_core/maintenance.py` | source | IN REVIEW | Targeted: 21–32, 105–132 |
-| `core/src/atlas_core/migration.py` | source | IN REVIEW | Full source inspected: 1–192 |
-| `core/src/atlas_core/mlx_runtime.py` | source | IN REVIEW | Full source inspected: 1–135 |
+| `core/src/atlas_core/migration.py` | source | IN REVIEW | Full: 1–192 |
+| `core/src/atlas_core/mlx_runtime.py` | source | IN REVIEW | Full: 1–135 |
 | `core/src/atlas_core/models.py` | source | IN REVIEW | Targeted model runtime/validation interfaces |
 | `core/src/atlas_core/operations.py` | source | IN REVIEW | Targeted action/sync wiring |
-| `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full source inspected: 1–242 |
-| `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 69–93 |
-| `core/src/atlas_core/policy.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/orchestrator.py` | source | IN REVIEW | Full: 1–242 |
+| `core/src/atlas_core/policy-rules.json` | source | IN REVIEW | Targeted: 9–45, 70–180 |
+| `core/src/atlas_core/policy.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/record_actions.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/records.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/records.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/recordstore.py` | source | IN REVIEW | Targeted: 1–90 |
-| `core/src/atlas_core/relay.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/review.py` | source | IN REVIEW | Full source inspected: 1–141 |
-| `core/src/atlas_core/rules.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/relay.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/review.py` | source | IN REVIEW | Full: 1–141 |
+| `core/src/atlas_core/rules.py` | source | IN REVIEW | Full: 1–34 |
 | `core/src/atlas_core/sandbox.py` | source | IN REVIEW | Targeted: 65–165 |
 | `core/src/atlas_core/serve.py` | source | IN REVIEW | Targeted CLI flags/options |
-| `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 554–621 |
-| `core/src/atlas_core/storage.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/sync.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source inspected |
-| `core/src/atlas_core/transport.py` | source | IN REVIEW | Full source inspected: 1–202 |
-| `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 326–347, 554–621 |
+| `core/src/atlas_core/storage.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/sync.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/transport.py` | source | IN REVIEW | Full: 1–202 |
+| `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/values.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/watchers.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/web.py` | source | IN REVIEW | Targeted: 30–121 |
-| `core/src/atlas_core/worker.py` | source | IN REVIEW | Full source inspected: 1–120 |
+| `core/src/atlas_core/worker.py` | source | IN REVIEW | Full: 1–120 |
 | `core/tests/conftest.py` | test | NOT STARTED | — |
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
 | `core/tests/test_actions.py` | test | IN REVIEW | Targeted: 211–229 |
 | `core/tests/test_api.py` | test | NOT STARTED | — |
-| `core/tests/test_api_v11.py` | test | NOT STARTED | — |
+| `core/tests/test_api_v11.py` | test | IN REVIEW | Targeted authenticated task/route tests |
 | `core/tests/test_app.py` | test | NOT STARTED | — |
 | `core/tests/test_architecture.py` | test | NOT STARTED | — |
 | `core/tests/test_artefact_scan.py` | test | NOT STARTED | — |
@@ -465,18 +473,18 @@ The following findings were added after the previous ledger commit. Each has a d
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
 | `core/tests/test_client.py` | test | NOT STARTED | — |
 | `core/tests/test_connectors.py` | test | IN REVIEW | Targeted: 190–247 |
-| `core/tests/test_consent_api.py` | test | NOT STARTED | — |
+| `core/tests/test_consent_api.py` | test | IN REVIEW | Targeted consent API cases |
 | `core/tests/test_contracts.py` | test | NOT STARTED | — |
 | `core/tests/test_contracts_frozen.py` | test | NOT STARTED | — |
 | `core/tests/test_contracts_v11.py` | test | NOT STARTED | — |
-| `core/tests/test_designation.py` | test | NOT STARTED | — |
+| `core/tests/test_designation.py` | test | IN REVIEW | Targeted designable-domain assertion and grant tests |
 | `core/tests/test_devices.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_documents.py` | test | NOT STARTED | — |
 | `core/tests/test_domains.py` | test | NOT STARTED | — |
 | `core/tests/test_egress.py` | test | IN REVIEW | Targeted taint/host/redirect tests |
 | `core/tests/test_enrolment.py` | test | NOT STARTED | — |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
-| `core/tests/test_evidence_answer.py` | test | IN REVIEW | Full test file inspected |
+| `core/tests/test_evidence_answer.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_exact.py` | test | NOT STARTED | — |
 | `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_health.py` | test | IN REVIEW | Full test file |
@@ -487,7 +495,7 @@ The following findings were added after the previous ledger commit. Each has a d
 | `core/tests/test_library.py` | test | NOT STARTED | — |
 | `core/tests/test_macos.py` | test | IN REVIEW | Targeted: 219–225, 430–520, 580–710 |
 | `core/tests/test_macos_native.py` | test | NOT STARTED | — |
-| `core/tests/test_macos_sources.py` | test | NOT STARTED | — |
+| `core/tests/test_macos_sources.py` | test | IN REVIEW | Targeted: 57–135 |
 | `core/tests/test_mail.py` | test | NOT STARTED | — |
 | `core/tests/test_maintenance.py` | test | NOT STARTED | — |
 | `core/tests/test_migration.py` | test | NOT STARTED | — |
@@ -496,8 +504,8 @@ The following findings were added after the previous ledger commit. Each has a d
 | `core/tests/test_models.py` | test | NOT STARTED | — |
 | `core/tests/test_operations_api.py` | test | NOT STARTED | — |
 | `core/tests/test_orchestrator.py` | test | IN REVIEW | Full test file |
-| `core/tests/test_policy.py` | test | NOT STARTED | — |
-| `core/tests/test_recordstore.py` | test | NOT STARTED | — |
+| `core/tests/test_policy.py` | test | IN REVIEW | Targeted: 122–165 |
+| `core/tests/test_recordstore.py` | test | IN REVIEW | Targeted schema/unsupported-version cases |
 | `core/tests/test_redaction.py` | test | NOT STARTED | — |
 | `core/tests/test_relay.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_reliability.py` | test | NOT STARTED | — |
@@ -513,7 +521,7 @@ The following findings were added after the previous ledger commit. Each has a d
 | `core/tests/test_storage.py` | test | IN REVIEW | Targeted: 64–84 |
 | `core/tests/test_swift_app_sources.py` | test | NOT STARTED | — |
 | `core/tests/test_sync.py` | test | IN REVIEW | Full test file |
-| `core/tests/test_tasks.py` | test | NOT STARTED | — |
+| `core/tests/test_tasks.py` | test | IN REVIEW | Targeted task creation/recovery/cancellation tests |
 | `core/tests/test_thresholds.py` | test | NOT STARTED | — |
 | `core/tests/test_transport.py` | test | NOT STARTED | — |
 | `core/tests/test_updater.py` | test | IN REVIEW | Full test file |
@@ -552,9 +560,9 @@ The following findings were added after the previous ledger commit. Each has a d
 | `docs/genesis/UI_UX_SPECIFICATION.md` | documentation | IN REVIEW | Targeted: 23–60, 79–135, 183–330 |
 | `docs/genesis/USE_CASE_REGISTER.md` | documentation | NOT STARTED | — |
 | `ios/AtlasPhone/AtlasPhoneApp.swift` | source | NOT STARTED | — |
-| `ios/AtlasPhone/PhoneModel.swift` | source | IN REVIEW | 1–100 (full file) |
-| `ios/AtlasPhone/Storage.swift` | source | IN REVIEW | 1–54 (full file) |
-| `ios/AtlasPhone/Views.swift` | source | IN REVIEW | 1–224 (full file) |
+| `ios/AtlasPhone/PhoneModel.swift` | source | IN REVIEW | 1–100 (full) |
+| `ios/AtlasPhone/Storage.swift` | source | IN REVIEW | 1–54 (full) |
+| `ios/AtlasPhone/Views.swift` | source | IN REVIEW | 1–224 (full) |
 | `ios/AtlasPhoneUITests/AccessibilityAuditTests.swift` | test | NOT STARTED | — |
 | `ios/README.md` | documentation | NOT STARTED | — |
 | `ios/project.yml` | build/config | NOT STARTED | — |
