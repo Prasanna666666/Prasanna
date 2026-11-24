@@ -1,6 +1,6 @@
 # Atlas — Product Requirements Document
 
-**Version:** 0.1 · **Status:** Baseline for owner review · **Initiative:** Project Genesis
+**Version:** 0.2 · **Status:** Owner-directed canonical product baseline; implementation conformance is tracked separately · **Initiative:** Project Genesis
 
 ## 1. Product summary
 
