@@ -1,4 +1,6 @@
-# Design: architecture, dependency map, API versioning, reuse matrix
+# Design: architecture, dependency map, API versioning, reuse matrix — historical Stage 2 design record
+
+**Evidence update (2026-11-25):** The original Stage 2 note below says the real `security` tool was not verified. Since then, `core/docs/MACOS_PROVIDERS.md` records hosted-macOS CI evidence for the real `security` tool/Keychain. Owner-Mac prompts, item access controls, FileVault and power-loss behaviour remain unverified. Use the provider document and current Stage 3 acceptance matrix for current evidence.
 
 ## Components and dependency direction (layers, lowest first; a module imports only from its own layer or below; enforced by `tests/test_architecture.py`)
 
