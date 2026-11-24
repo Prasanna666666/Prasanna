@@ -1,4 +1,6 @@
-# Stage 3 handover and owner acceptance brief
+# Stage 3 handover and owner acceptance brief — historical work-package record
+
+**Historical implementation handover:** retain detailed package/evidence notes below for traceability. The current stage status is governed by `STAGE3_ACCEPTANCE.md` and `docs/genesis/HANDOVER.md`; do not treat earlier package descriptions or architect-decision requests in this file as current acceptance. Latest documented status at 2026-11-25: PR #8 is open/draft/unmerged; Stage 3 is NOT ACCEPTED; F-4, F-11, F-12 and F-13 remain release-blocking. Stage 4–8 work is present but not architect-reviewed or accepted.
 
 Branch `genesis-stage2-foundation`, PR #8 (draft; never merge from here). Written for the architect's exact-commit review and for the owner. Evidence classes are as defined in `STAGE3_ACCEPTANCE.md`; evidence is labelled L (Linux CI, synthetic), R (hosted macOS CI runner: Keychain, `sandbox-exec`, a small public MLX model, the Swift launcher and client) and owner-Mac (none yet); nothing below is an owner-Mac or owner-model claim.
 
