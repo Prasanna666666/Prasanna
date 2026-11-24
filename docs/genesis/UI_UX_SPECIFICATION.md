@@ -59,22 +59,40 @@ Use a restrained neutral foundation with one controlled Atlas accent. The visual
 
 Exact colour values, spacing units, type styles, radii, control heights and motion timings must be centralised as named design tokens in the implementation. Do not scatter literal values across views. Claude may select concrete token values consistent with this direction and record them in the implementation's design-token reference; this is an engineering detail, not a new product decision.
 
+
+### 2.4 Everyday simplicity and progressive disclosure
+
+Atlas is designed for a regular person using it repeatedly, not an administrator operating a control centre. The default experience must be immediately understandable without learning Atlas's internal capability map.
+
+- Keep the persistent navigation to the four destinations in §3.1. Do not add a top-level destination for every feature, domain, agent, data source or integration.
+- The Home first viewport should remain calm and useful in seconds. It is not a miniature dashboard of every Atlas capability.
+- Ask Atlas is the universal entry point. Natural-language intent should route to the right capability and open a focused workspace only when that improves the task.
+- Explore groups followed subjects into a small number of readable views. Individual topics such as cricket, Olympics, AI, politics or markets are filters or contextual destinations within Explore—not a growing tree of navigation sections.
+- Life capabilities are surfaced when relevant and can be pinned as optional shortcuts by the owner, but pinning must never be required to use them.
+- Prefer one clear next action over multiple competing buttons. Put advanced options behind a named disclosure such as “Filters”, “Details” or “More”.
+- Do not show every metric by default. A summary may reveal its evidence, calculation, history and technical detail on demand.
+- Avoid duplicated entry points, redundant cards, permanent empty panels, excessive badges, nested navigation trees and feature-specific dashboards that repeat the same personal context.
+- A new feature must first fit an existing destination and interaction pattern. It may justify new persistent navigation only after demonstrated frequent use and an explicit product-design review; implementation convenience is not justification.
+
+The acceptance test is simple: a first-time everyday user should understand where to start, how to ask Atlas for something and where to find their information without being taught the internal architecture.
+
 ## 3. Information architecture and navigation
 
 ### 3.1 One application, one navigation model
 
 The user always remains inside Atlas. Domain areas are destinations/filters within Atlas, not separate applications.
 
-The primary macOS navigation is a compact sidebar with:
-1. **Home** — current priorities, meaningful changes and resume points.
-2. **Ask Atlas** — unified conversation and task workspace.
-3. **Discover** — one curated destination for AI & technology news, markets and sports. These are focused views within Atlas, not separate apps or noisy infinite feeds.
-4. **Library** — searchable, unified access to owner-authorised Documents, Mail, Pictures and other indexed material, with source-type filters.
-5. **Life areas** — a single grouped section for enabled domains such as Investments/Finance, Home, Travel and (when authorised and delivered) Health. These are views over shared Atlas context, not independent apps.
-6. **Activity** — ongoing/recent work, completed tasks, notifications and action history.
-7. **Settings** — sources and permissions, models and local runtime, privacy/memory controls, devices, appearance and diagnostics.
+The everyday navigation is deliberately limited to four destinations:
+1. **Home** — a calm daily starting point: important items, a short briefing and recent work worth resuming.
+2. **Ask Atlas** — the universal place to ask, plan, research and delegate. It can open a focused workspace when a task needs one.
+3. **Explore** — a single, curated place for things the owner follows, such as AI and technology, science, markets and sports. Topic switches live inside this destination; they are not permanent navigation items.
+4. **Library** — one searchable place for authorised documents, mail, pictures and other personal knowledge.
 
-Navigation must not expose unavailable or not-yet-implemented domains as if they work. Use progressive disclosure: show a domain only when its product surface is available or explicitly show a clear “not available yet” state where discovery is necessary.
+Settings is a restrained utility entry in the app chrome, not a peer destination in the everyday navigation. Task progress and recent outcomes appear in context; a complete activity history is reachable from a secondary “All activity” affordance when needed.
+
+**Life capabilities are not navigation categories.** Investing, home and energy, fitness, nutrition, travel, Olympics, cricket statistics, politics/current affairs and other capabilities open contextually from Ask Atlas, relevant Home/Explore items, Library evidence or global search. A capability may use a focused workspace for a complex task, but it must not automatically earn a permanent sidebar item. Related capabilities should be grouped by the user's goal, not by internal service or data-source boundaries.
+
+Use progressive disclosure throughout: start with the simplest useful view; reveal filters, charts, detailed statistics, technical controls and configuration only when the user asks or the task genuinely requires them. Never expose unavailable capabilities as working features. Do not add empty destinations or placeholder navigation to advertise a roadmap.
 
 The sidebar may collapse. Its selection, keyboard shortcuts and window restoration must behave predictably. On narrow windows, it must adapt to a compact navigation presentation without clipping or hiding essential actions.
 
