@@ -145,3 +145,65 @@ def test_a_migrated_finance_database_is_durable_and_listed_newest_first(tmp_path
         assert sink.read("legacy-tx-1")["body"].count("amount: 412.30") == 1 and sink.read("missing") is None
     finally:
         again.close()
+
+
+def test_a_failure_part_way_through_leaves_no_partial_import_and_touches_nothing_that_was_there(tmp_path):
+    """ATLAS-MIG-039: whatever fails after some records were written, those records are taken back; records that existed before are untouched."""
+    from atlas_core.records import Record
+
+    source = legacy(tmp_path / "finance.db")
+    before = Record("mine-1", "finance", "2026-09-01", "pre-existing", {"amount": "1.00", "currency": "EUR", "kind": "expense"})
+    for failing_write in (2, 3, 4):
+
+        class Flaky(InMemoryRecords):
+            writes = 0
+
+            def put(self, record):
+                if record.record_id.startswith("legacy-"):
+                    Flaky.writes += 1
+                    if Flaky.writes == failing_write:
+                        raise OSError("disk full")
+                super().put(record)
+
+        sink = Flaky("finance", [before])
+        with pytest.raises(MigrationError) as failed:
+            migrate(source, sink)
+        assert failed.value.code == "import_rolled_back" and set(sink.records) == {"mine-1"} and sink.records["mine-1"] == before
+
+    class Interrupted(InMemoryRecords):
+        def put(self, record):
+            if record.record_id == "legacy-tx-3":
+                raise KeyboardInterrupt
+            super().put(record)
+
+    sink = Interrupted("finance", [before])
+    with pytest.raises(KeyboardInterrupt):
+        migrate(source, sink)
+    assert set(sink.records) == {"mine-1"}  # even an interrupt rolls back
+    clean = InMemoryRecords("finance", [before])
+    assert migrate(source, clean).ok and len(clean.records) == 5  # and a retry afterwards succeeds
+
+
+def test_a_durable_store_import_that_fails_is_rolled_back_in_the_store(tmp_path):
+    from conftest import KEY
+
+    from atlas_core.recordstore import RecordStore, StoredRecords
+
+    source = legacy(tmp_path / "finance.db")
+    store = RecordStore(tmp_path / "finance-records.db", KEY + "f", frozenset({"finance"}))
+    sink = StoredRecords(store, "finance")
+    real_put, calls = sink.put, []
+
+    def failing_put(record):
+        calls.append(record.record_id)
+        if len(calls) == 3:
+            raise OSError("disk full")
+        real_put(record)
+
+    sink.put = failing_put
+    with pytest.raises(MigrationError):
+        migrate(source, sink)
+    assert store.in_domain("finance") == []  # nothing visible is left (the history keeps what was written and taken back)
+    sink.put = real_put
+    assert migrate(source, sink).ok and len(store.in_domain("finance")) == 4
+    store.close()

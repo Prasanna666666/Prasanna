@@ -41,6 +41,10 @@
       "requires_adapter": true
     }
   },
+  "device_task_sources": [
+    "documents",
+    "mail"
+  ],
   "restricted_domains": [
     "finance",
     "health"
@@ -83,6 +87,9 @@
       ],
       "money": [
         "amount"
+      ],
+      "currency_codes": [
+        "currency"
       ],
       "kinds": {
         "kind": [

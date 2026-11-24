@@ -198,7 +198,7 @@ class CoreApi:
         wanted = headers.get(H_VERSION)
         if wanted is not None and wanted not in SUPPORTED_VERSIONS:
             raise CoreError("unsupported_version")
-        return self._route(request, match, parse_qs(parts.query), correlation, version)
+        return self._route(request, match, parse_qs(parts.query), correlation, version, client)
 
     def _consent_route(self, request: Request, match: re.Match[str], client: str, nonce: str) -> Response:
         """The consent and index-status routes (1.1). Reading the index status is for any enrolled client; the consent state and every change need an enrolled OWNER client.
@@ -249,16 +249,25 @@ class CoreApi:
             raise CoreError("invalid_request")
         return self._reply(200, {"api_version": API_VERSION, "supported": list(SUPPORTED_VERSIONS)}, "ApiVersion")
 
-    def _route(self, request: Request, match: re.Match[str], query: dict[str, list[str]], correlation: str, version: str) -> Response:
+    def _task_access(self, client: str, task_id: str) -> None:
+        """A task is reachable by the owner client, and by the device that created it; any other client is refused the same way whether the task exists or not, so nothing about it leaks."""
+        if self._registry.is_owner(client):
+            return
+        if self._service.creator(task_id) != client:
+            raise CoreError("not_found")  # the same answer whether the task exists or belongs to someone else; never `forbidden`, which a phone reads as its own revocation
+
+    def _route(self, request: Request, match: re.Match[str], query: dict[str, list[str]], correlation: str, version: str, client: str) -> Response:
         method, task_id, action = request.method, match.group(3), match.group(4)
         if match.group(5) is not None:
+            self._task_access(client, task_id or "")
             return self._passage(method, task_id or "", int(match.group(5)), version)
         if match.group(2):
             if method != "POST":
                 raise CoreError("invalid_request")
-            return self._create(request.body, version)
+            return self._create(request.body, version, client)
         if task_id is None:
             raise CoreError("not_found")
+        self._task_access(client, task_id)
         service = self._service
         answer = service.answer_v11 if version == "1.1" else service.answer
         actions: dict[tuple[str | None, str], tuple[Callable[[str], dict[str, Any]], str]] = {
@@ -526,13 +535,15 @@ class CoreApi:
             raise CoreError("invalid_request")
         return self._reply(200, self._service.passage(task_id, index), "PassageText", version)
 
-    def _create(self, body: bytes, version: str) -> Response:
+    def _create(self, body: bytes, version: str, client: str) -> Response:
         try:
             request = json.loads(body)
         except ValueError:
             raise CoreError("invalid_request") from None
         validate("TaskRequest", request, version)
-        record, created = self._service.submit(request)
+        if not self._registry.is_owner(client) and not self._service.device_may_ask(request["source_scope"]):
+            raise CoreError("source_denied")  # before the policy, the index or any source is touched
+        record, created = self._service.submit(request, client)
         return self._reply(201 if created else 200, record, "TaskRecord", version)
 
     def _reply(self, status: int, value: dict[str, Any], contract: str, version: str = "1.0") -> Response:

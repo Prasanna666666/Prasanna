@@ -168,3 +168,46 @@ def test_many_tasks_run_in_bounded_time_with_bounded_workers():
     assert report.status == "completed" and time.monotonic() - started < 5
     with pytest.raises(PlanRejected):
         run([task(f"t{i}") for i in range(33)], registry(), {"research": lambda ctx: None})
+
+
+def test_a_blocked_executor_cannot_hold_the_run_past_its_deadline_or_the_owners_cancel():
+    """ATLAS-ORCH-021: per-task and total budgets and cancellation are enforced while an executor is running, not only before it starts; a dependent never starts after expiry or cancel."""
+    import time
+
+    release, started = threading.Event(), []
+
+    def blocked(ctx):
+        started.append(ctx.contract.task_id)
+        release.wait(10)
+        return "late"
+
+    try:
+        begun = time.monotonic()
+        expired = run([task("a", seconds=0.1), task("b", depends_on=("a",))], registry(), {"research": blocked})  # the task's own budget is shorter than the run's
+        assert time.monotonic() - begun < 2 and expired.status == "expired" and expired.tasks["a"].state == "expired" and expired.tasks["b"].state == "skipped"
+        assert started == ["a"]  # the dependent never started
+
+        begun = time.monotonic()
+        total = run([task("a", seconds=60)], registry(), {"research": blocked}, RunOptions(total_seconds=0.1))
+        assert time.monotonic() - begun < 2 and total.status == "expired" and total.tasks["a"].code == "deadline"
+
+        stop = threading.Timer(0.05, lambda: None)
+        flag = threading.Event()
+        stop = threading.Timer(0.05, flag.set)
+        stop.start()
+        begun = time.monotonic()
+        cancelled = run([task("a", seconds=60), task("b", depends_on=("a",))], registry(), {"research": blocked}, RunOptions(cancelled=flag.is_set))
+        assert time.monotonic() - begun < 2 and cancelled.status == "cancelled" and cancelled.tasks["a"].state == "cancelled" and cancelled.tasks["b"].state == "skipped"
+    finally:
+        release.set()
+
+
+def test_an_executor_that_returns_after_its_deadline_is_expired_and_its_result_is_not_used():
+    now = [datetime(2026, 11, 23, 3, 0, tzinfo=UTC)]
+
+    def late(ctx):
+        now[0] += timedelta(seconds=45)  # returns, but past its own 30 second budget
+        return "too late"
+
+    report = run([task("a")], registry(), {"research": late}, RunOptions(clock=lambda: now[0], total_seconds=3600))
+    assert report.status == "expired" and report.tasks["a"].state == "expired" and report.tasks["a"].output is None

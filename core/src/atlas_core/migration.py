@@ -180,11 +180,30 @@ def migrate(source: Path, sink: Sink, key: str | None = None) -> Reconciliation:
     plan = dry_run(source, key)
     if plan.skipped:
         raise MigrationError("unmappable_rows")  # nothing is written when any row cannot be carried over exactly: the owner decides what to do with them first
-    for record in plan.records:
-        sink.put(record)
-    if sha256_file(source) != before.sha256:
-        raise MigrationError("original_changed")
-    return reconcile(before, plan, sink)
+    existing = set(sink.records)  # what was there before: a rollback never touches it
+    written: list[str] = []
+    try:
+        for record in plan.records:
+            sink.put(record)
+            written.append(record.record_id)
+        if sha256_file(source) != before.sha256:
+            raise MigrationError("original_changed")
+        outcome = reconcile(before, plan, sink)
+    except BaseException as error:
+        _roll_back(sink, [i for i in written if i not in existing])  # no partial import is left behind, whatever went wrong or whenever it was interrupted
+        if isinstance(error, MigrationError | KeyboardInterrupt | SystemExit):
+            raise
+        raise MigrationError("import_rolled_back") from error
+    if not outcome.ok:
+        _roll_back(sink, [i for i in written if i not in existing])
+    return outcome
+
+
+def _roll_back(sink: Sink, ids: list[str]) -> None:
+    remove = getattr(sink, "remove", None)
+    for record_id in reversed(ids):
+        if remove is not None:
+            remove(record_id)
 
 
 def retire_original(source: Path, *, approval: object = None) -> None:

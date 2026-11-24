@@ -220,7 +220,11 @@ class ConnectorHub:
         credentials = self._credentials(connector_id)
         if credentials is None:
             raise CoreError("conflict")
-        self._apply(connector_id, self._adapters[connector_id].check(credentials))
+        try:
+            verdict = self._adapters[connector_id].check(credentials)
+        except Exception:  # noqa: BLE001  (an adapter that fails is a service that did not answer: its authority is withdrawn, never left as it was)
+            verdict = "unreachable"
+        self._apply(connector_id, verdict)
         return self._describe(entry)
 
     def verify_all(self) -> None:

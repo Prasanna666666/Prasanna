@@ -135,3 +135,48 @@ def test_the_relays_body_cap_is_the_apis_own():
     from atlas_core import api, relay
 
     assert relay.MAX_BODY_BYTES == api.MAX_BODY_BYTES
+
+
+def test_the_relay_never_forwards_more_than_the_response_cap_and_the_cap_is_the_phones(tmp_path):
+    """ATLAS-RELAY-063 / ATLAS-IOS-060: a Core that streams without end is cut off at the cap; the cap equals the phone transport's own limit."""
+    import re
+    import threading
+    from pathlib import Path
+
+    from atlas_core import relay
+
+    swift = (Path(__file__).resolve().parents[2] / "app/Sources/AtlasKit/HTTPTransport.swift").read_text()
+    assert str(relay.MAX_RESPONSE_BYTES) == re.search(r"maxReply = ([0-9_]+)", swift).group(1).replace("_", "")
+    path = tmp_path / "fake-core.sock"
+    core = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    core.bind(str(path))
+    core.listen(1)
+    chunk, pushed = b"x" * 65536, []
+
+    def endless():
+        conn, _ = core.accept()
+        conn.recv(65536)
+        try:
+            while True:
+                conn.sendall(chunk)
+                pushed.append(len(chunk))
+        except OSError:
+            pass
+        finally:
+            conn.close()
+
+    threading.Thread(target=endless, daemon=True).start()
+    server = relay.Relay("127.0.0.1", 0, path)
+    server.start()
+    try:
+        client = socket.create_connection(("127.0.0.1", server.server_address[1]), timeout=10)
+        client.sendall(b"GET /v1/version HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+        received = 0
+        while data := client.recv(1 << 20):
+            received += len(data)
+        client.close()
+        assert received == relay.MAX_RESPONSE_BYTES
+    finally:
+        server.shutdown()
+        server.server_close()
+        core.close()

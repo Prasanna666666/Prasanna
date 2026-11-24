@@ -32,6 +32,9 @@ from .errors import UpdateError
 _VERSION = re.compile(r"(\d{1,4})\.(\d{1,4})\.(\d{1,6})\Z")
 MAX_ARTEFACT_BYTES = 2 * 1024**3
 MAX_FILES = 200_000
+MAX_EXPANDED_BYTES = 8 * 1024**3  # the whole unpacked bundle; a signed update still may not fill the volume
+MAX_MEMBER_BYTES = 4 * 1024**3
+MAX_RATIO = 200  # uncompressed : compressed, for any member over 1 MiB
 FILE_TYPE_MASK, SYMLINK_TYPE = 0o170000, 0o120000  # the Unix file-type bits kept in a zip member's attributes
 
 
@@ -79,7 +82,36 @@ def _safe_extract(artefact: bytes, destination: Path) -> None:
         mode = member.external_attr >> 16
         if not target.is_relative_to(root) or member.filename.startswith("/") or (mode & FILE_TYPE_MASK) == SYMLINK_TYPE:
             raise UpdateError("unsafe_artefact")  # an absolute path, a `..`, or a symbolic link
-    archive.extractall(root)
+    _check_sizes(members)
+    written = 0
+    for member in members:  # member by member, counting the bytes actually written, so deceptive size metadata cannot get past the ceiling
+        if member.is_dir():
+            (root / member.filename).mkdir(parents=True, exist_ok=True)
+            continue
+        out = root / member.filename
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with archive.open(member) as source, out.open("wb") as sink:
+            while block := source.read(1 << 20):
+                written += len(block)
+                if written > MAX_EXPANDED_BYTES:
+                    raise UpdateError("unsafe_artefact")
+                sink.write(block)
+        mode = (member.external_attr >> 16) & 0o777
+        if mode:
+            out.chmod(mode)
+
+
+def _check_sizes(members: list[zipfile.ZipInfo]) -> None:
+    """Refuse before extracting: a negative or oversized declared size, an aggregate over the ceiling, or an extreme compression ratio (a ZIP bomb). A signature proves who published an update, not that it is safe to expand."""
+    total = 0
+    for member in members:
+        if member.file_size < 0 or member.file_size > MAX_MEMBER_BYTES:
+            raise UpdateError("unsafe_artefact")
+        if member.compress_size and member.file_size / member.compress_size > MAX_RATIO and member.file_size > (1 << 20):
+            raise UpdateError("unsafe_artefact")
+        total += member.file_size
+    if total > MAX_EXPANDED_BYTES:
+        raise UpdateError("unsafe_artefact")
 
 
 class Installer:
@@ -126,11 +158,17 @@ class Installer:
         if installed is not None:
             self._point("previous", installed)
         self._point("current", release.version)
-        if healthy(final):
+        try:
+            ok = bool(healthy(final))
+        except Exception:  # a health check that raises is a failed health check, never a reason to stay on the new version
+            ok = False
+        if ok:
             return release.version
         if installed is not None:
             self._point("current", installed)  # the new version failed its health check: back to the one that worked
             raise UpdateError("unhealthy_rolled_back")
+        self._link("current").unlink(missing_ok=True)  # first install: nothing healthy to return to, so nothing is current
+        shutil.rmtree(final, ignore_errors=True)  # and the unhealthy version is not left looking installed
         raise UpdateError("unhealthy_first_install")
 
     def rollback(self) -> str:

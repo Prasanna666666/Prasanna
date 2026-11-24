@@ -98,3 +98,24 @@ def test_the_store_survives_a_restart_is_encrypted_and_never_removes_anything(tm
         assert "DELETE FROM" not in source and "DROP TABLE" not in source  # no statement in the store removes a row
     finally:
         again.close()
+
+
+def test_a_newer_store_is_refused_before_any_change_to_its_schema_or_bytes(tmp_path):
+    """ATLAS-STORE-046: the version is read before any DDL, so an older app cannot alter a newer store while refusing it."""
+    import sqlite3
+
+    path = tmp_path / "newer.db"
+    raw = sqlite3.connect(path)
+    raw.executescript("CREATE TABLE future_only (x); CREATE INDEX future_ix ON future_only(x); INSERT INTO future_only VALUES (1);")
+    raw.execute("PRAGMA user_version = 99")
+    raw.commit()
+    schema = raw.execute("SELECT type, name, sql FROM sqlite_master ORDER BY name").fetchall()
+    raw.close()
+    with pytest.raises(StoreError) as refused:
+        RecordStore(path, None, frozenset({"finance"}))
+    assert str(refused.value) == "newer_store" or getattr(refused.value, "code", "") == "newer_store"
+    check = sqlite3.connect(path)
+    assert check.execute("SELECT type, name, sql FROM sqlite_master ORDER BY name").fetchall() == schema
+    assert check.execute("PRAGMA user_version").fetchone()[0] == 99
+    assert check.execute("SELECT x FROM future_only").fetchall() == [(1,)]  # the data is untouched (the journal-mode header flag is the connection's, not this store's schema)
+    check.close()

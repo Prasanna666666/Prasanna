@@ -21,6 +21,7 @@ from pathlib import Path
 
 MAX_BODY_BYTES = 64 * 1024  # the API's own cap (a test keeps them equal)
 MAX_HEAD_BYTES = 16 * 1024
+MAX_RESPONSE_BYTES = 4_000_000  # what a phone accepts (AtlasKit HTTPTransport.maxReply is the same number); the relay never forwards more
 MAX_CONNECTIONS = 32
 DEADLINE = 60.0
 SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")  # the range VPNs such as Tailscale hand out
@@ -129,11 +130,13 @@ class _Handler(socketserver.BaseRequestHandler):
                 self.request.sendall(_refusal(502, "Bad Gateway"))
                 return
             upstream.sendall(request)
-            while time.monotonic() < deadline:
-                chunk = upstream.recv(65536)
+            sent = 0
+            while time.monotonic() < deadline and sent < MAX_RESPONSE_BYTES:
+                chunk = upstream.recv(min(65536, MAX_RESPONSE_BYTES - sent))
                 if not chunk:
                     return
                 self.request.sendall(chunk)
+                sent += len(chunk)  # past the cap the connection is closed: no further byte is read or forwarded
 
 
 class Relay(socketserver.ThreadingTCPServer):

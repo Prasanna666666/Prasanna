@@ -72,3 +72,25 @@ def test_a_permission_reset_withdraws_every_grant_and_purges_what_was_derived(wo
     assert core.designation.lifecycle("documents") != "enabled" and core.indexes["documents"].coverage()["total"] == 0
     assert "1250.50" not in json.dumps(core.service.answer(task_ids[0]))
     assert reset_permissions(core.designation, lambda t: f"again-{t}-{next(counter):06d}") == []  # nothing left to reset
+
+
+def test_an_index_that_is_paused_or_incomplete_is_degraded_even_with_nothing_pending_or_failed(world):
+    """ATLAS-HEALTH-045: health reads the whole coverage state, not only the pending and failed counts."""
+    core = a_core_that_has_answered(world)
+    index = core.indexes["documents"]
+    real = index.coverage
+
+    def view(**over):
+        return lambda: {**real(), "failed": 0, "pending": 0, **over}
+
+    def status():
+        return [(c.status, c.code) for c in health(core, ROOMY) if c.name == "index_documents"][0]
+
+    index.coverage = view(complete=True, paused=None)
+    assert status() == ("ok", "")
+    index.coverage = view(complete=False, paused="disk_critical")
+    assert status() == ("degraded", "index_paused")
+    index.coverage = view(complete=False, paused=None)
+    assert status() == ("degraded", "incomplete")
+    index.coverage = view(complete=True, paused=None, total=0)  # a finished scan of an empty index is healthy
+    assert status() == ("ok", "")

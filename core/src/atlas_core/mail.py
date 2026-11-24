@@ -460,7 +460,20 @@ class MailIndex(IndexStore):
             parsed = parse(self._mailbox.read(row["message_id"]))
         except (MailError, PermissionRevoked):
             return None
-        return parsed if sha256_text(parsed.text()) == row["content_sha"] and parsed.message_id == row["message_id"] else None
+        if parsed.message_id == row["message_id"] and sha256_text(parsed.text()) != row["content_sha"]:
+            self._requeue(row["message_id"])  # the bytes changed under an unchanged marker (same size, same mtime): never serve the old text, and index the new text again
+            return None
+        return parsed if parsed.message_id == row["message_id"] else None
+
+    def _requeue(self, message_id: str) -> None:
+        def mark() -> None:
+            self._conn.execute("DELETE FROM postings WHERE key=?", (message_id,))
+            self._conn.execute("UPDATE msgs SET status='pending', reason=NULL, version=NULL WHERE message_id=? AND status='indexed'", (message_id,))
+
+        try:
+            self._transaction(mark)
+        except Exception:  # noqa: BLE001  (a store that cannot be written right now stays honest: the text is already refused, the next scan will see it)
+            return
 
     # -- the retriever --------------------------------------------------------------------------------------------------------------------------------------------
     def search(self, source_type: str, query: str) -> Iterable[dict[str, Any]]:

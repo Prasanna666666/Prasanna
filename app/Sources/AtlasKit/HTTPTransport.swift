@@ -19,8 +19,40 @@ public struct RemoteHTTP: HTTPTransport {
         base = url
     }
 
-    private final class NoRedirect: NSObject, URLSessionTaskDelegate {
+    /// Collects the reply as it arrives and ends the transfer the moment it passes the cap, so an oversized or endless reply is never buffered whole. Redirects are never followed.
+    private final class Collector: NSObject, URLSessionDataDelegate {
+        let limit: Int
+        let finished = DispatchSemaphore(value: 0)
+        var body = Data()
+        var response: HTTPURLResponse?
+        var failure: Error?
+        var tooLarge = false
+        init(limit: Int) { self.limit = limit }
+
         func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+            self.response = response as? HTTPURLResponse
+            if response.expectedContentLength > Int64(limit) {
+                tooLarge = true
+                completionHandler(.cancel)
+            } else {
+                completionHandler(.allow)
+            }
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            body.append(data)
+            if body.count > limit {
+                tooLarge = true
+                dataTask.cancel()
+            }
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            failure = error
+            finished.signal()
+        }
     }
 
     public func send(method: String, target: String, headers: [String: String], body: Data) throws -> UnixHTTP.Response {
@@ -30,13 +62,13 @@ public struct RemoteHTTP: HTTPTransport {
         request.httpShouldHandleCookies = false
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
         if !body.isEmpty { request.httpBody = body }
-        let session = URLSession(configuration: .ephemeral, delegate: NoRedirect(), delegateQueue: nil)
+        let collector = Collector(limit: Self.maxReply)
+        let session = URLSession(configuration: .ephemeral, delegate: collector, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
-        let semaphore = DispatchSemaphore(value: 0)
-        var result: (Data?, URLResponse?, Error?) = (nil, nil, nil)
-        session.dataTask(with: request) { result = ($0, $1, $2); semaphore.signal() }.resume()
-        semaphore.wait()
-        guard result.2 == nil, let http = result.1 as? HTTPURLResponse, let data = result.0, data.count <= Self.maxReply else { throw AtlasError.local("unreachable") }
+        session.dataTask(with: request).resume()
+        collector.finished.wait()
+        guard collector.failure == nil, !collector.tooLarge, let http = collector.response else { throw AtlasError.local("unreachable") }
+        let data = collector.body
         var headers: [String: String] = [:]
         for (key, value) in http.allHeaderFields { if let k = key as? String, let v = value as? String { headers[k.lowercased()] = v } }
         return UnixHTTP.Response(status: http.statusCode, headers: headers, body: data)

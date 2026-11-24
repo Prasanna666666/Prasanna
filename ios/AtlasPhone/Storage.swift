@@ -43,12 +43,14 @@ final class FileBlob: BlobStore {
 
     func load() -> Data? { try? Data(contentsOf: url) }
 
-    func save(_ data: Data) {
-        try? data.write(to: url, options: [.atomic, .completeFileProtection])
+    @discardableResult
+    func save(_ data: Data) -> Bool {
+        do { try data.write(to: url, options: [.atomic, .completeFileProtection]) } catch { return false }
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         var excluded = url
         try? excluded.setResourceValues(values)
+        return true
     }
 
     func erase() { try? FileManager.default.removeItem(at: url) }

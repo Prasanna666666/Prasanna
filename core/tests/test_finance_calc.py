@@ -48,7 +48,6 @@ DATA = [
 def test_sums_are_exact_where_floats_are_not():
     assert 0.1 + 0.2 != 0.3  # the reason money is never a float
     assert total(t for t in transactions(DATA) if t.record_id in ("t3", "t4")) == Decimal("0.30")
-    assert by_month(transactions(DATA))["2026-10"] == Decimal("422.60") + Decimal("9.99") - Decimal("0.00") or True
     month = by_month(transactions(DATA))
     assert month == {"2026-08": Decimal("9.99"), "2026-09": Decimal("160.29"), "2026-10": Decimal("422.59")}
     assert sum(by_category(transactions(DATA), "2026-10").values()) == month["2026-10"]  # categories add up to the month, exactly
@@ -122,3 +121,37 @@ def test_a_date_that_is_not_a_calendar_date_is_refused():
     with pytest.raises(CalcError) as e:
         transactions([Record("d", "finance", "not-a-date", "x", {"amount": "1.00", "currency": "EUR", "kind": "expense"})])
     assert e.value.code == "bad_date"
+
+
+def usd(rid, day, amount, category="groceries"):
+    return Record(rid, "finance", day, f"{category} {rid}", {"amount": amount, "currency": "USD", "kind": "expense", "category": category})
+
+
+def test_amounts_in_different_currencies_are_never_added_or_relabelled():
+    """ATLAS-FIN-029: 100.00 EUR plus 100.00 USD is not 200.00 of anything."""
+    from atlas_core.finance_calc import CalcError, currencies, only
+
+    mixed = [tx("e1", "2026-10-02", "100.00"), usd("u1", "2026-10-03", "100.00"), Record("i1", "finance", "2026-10-04", "inr", {"amount": "8300.00", "currency": "INR", "kind": "expense", "category": "groceries"})]
+    txs = transactions(mixed)
+    assert currencies(txs) == ["EUR", "INR", "USD"]
+    for aggregate in (total, by_month, lambda t: by_category(t, "2026-10"), lambda t: cash_flow(t, "2026-10")):
+        with pytest.raises(CalcError) as refused:
+            aggregate(txs)
+        assert refused.value.code == "mixed_currency"
+    assert total(only(txs, "USD")) == Decimal("100.00") and total(only(txs, "EUR")) == Decimal("100.00")
+    summaries = {s.record_id: s for s in summary_records(mixed)}
+    assert set(summaries) == {"sum-2026-10-groceries", "sum-2026-10-groceries-USD", "sum-2026-10-groceries-INR"}
+    assert {k: (s.fields["amount"], s.fields["currency"]) for k, s in summaries.items()} == {
+        "sum-2026-10-groceries": ("100.00", "EUR"),
+        "sum-2026-10-groceries-USD": ("100.00", "USD"),
+        "sum-2026-10-groceries-INR": ("8300.00", "INR"),
+    }
+    assert all(verify_summary(s, mixed) for s in summaries.values())
+    forged = Record(summaries["sum-2026-10-groceries-USD"].record_id, "finance", "2026-10-28", "x", {**summaries["sum-2026-10-groceries-USD"].fields, "currency": "EUR"})
+    assert verify_summary(forged, mixed) is False  # a summary relabelled with another currency does not verify
+
+
+@pytest.mark.parametrize("bad", ["eur", "EURO", "€", "", "E1R"])
+def test_a_currency_that_is_not_an_iso_code_is_refused_at_the_record_boundary(bad):
+    with pytest.raises(RecordError):
+        Record("x", "finance", "2026-10-02", "t", {"amount": "1.00", "currency": bad, "kind": "expense"})

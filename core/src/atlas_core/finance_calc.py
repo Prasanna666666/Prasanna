@@ -40,6 +40,7 @@ class Tx:
     kind: str  # expense | income
     category: str
     merchant: str
+    currency: str = ""  # ISO 4217; amounts of different currencies are never added together
 
     @property
     def month(self) -> str:
@@ -66,6 +67,7 @@ def transactions(records: Iterable[Record]) -> list[Tx]:
                 r.fields["kind"],
                 r.fields.get("category", "uncategorised") or "uncategorised",
                 r.fields.get("merchant", ""),
+                r.fields.get("currency", ""),
             )
         )
     return out
@@ -85,6 +87,8 @@ def _minor_sum(values: Iterable[int]) -> Decimal:
 def total(txs: Iterable[Tx]) -> Decimal:
     """The sum of the amounts, computed by two routes that must agree."""
     items = list(txs)
+    if len({t.currency for t in items}) > 1:
+        raise CalcError("mixed_currency")  # no sum, share or percentage across currencies without an explicit, sourced conversion (there is none)
     by_decimal, by_minor = _decimal_sum(t.amount for t in items), _minor_sum(t.minor for t in items)
     if by_decimal != by_minor:
         raise CalcError("sums_disagree")
@@ -158,21 +162,32 @@ def cash_flow(txs: Iterable[Tx], month: str) -> tuple[Decimal, Decimal, Decimal]
     return income, expense, (income - expense).quantize(CENT)
 
 
-def summary_records(records: Iterable[Record], currency: str = "EUR") -> list[Record]:
-    """Per month and category: one Finance record stating the exact total, with the ids of every input, so a citation of the total leads to the transactions it is made of."""
+def currencies(txs: Iterable[Tx]) -> list[str]:
+    return sorted({t.currency for t in txs})
+
+
+def only(txs: Iterable[Tx], currency: str) -> list[Tx]:
+    """The transactions in one currency: the way to ask any aggregate question of mixed data."""
+    return [t for t in txs if t.currency == currency]
+
+
+def summary_records(records: Iterable[Record]) -> list[Record]:
+    """Per currency, month and category: one Finance record stating the exact total in THAT currency, with the ids of every input, so a citation of the total leads to the transactions it is made of. A
+    currency is never assumed or relabelled. The legacy id (no suffix) is kept for EUR; any other currency adds its code to the id."""
     items = [r for r in records if r.domain == MONEY_DOMAIN and not r.record_id.startswith(SUMMARY_PREFIX)]
     txs = transactions(items)
-    inputs: dict[tuple[str, str], list[str]] = defaultdict(list)
+    inputs: dict[tuple[str, str, str], list[str]] = defaultdict(list)
     for t in txs:
         if t.kind == "expense":
-            inputs[(t.month, t.category)].append(t.record_id)
+            inputs[(t.currency, t.month, t.category)].append(t.record_id)
     out = []
-    for month in sorted({m for m, _ in inputs}):
-        for category, amount in by_category(txs, month).items():
-            ids = sorted(inputs[(month, category)])
+    for currency, month in sorted({(c, m) for c, m, _ in inputs}):
+        for category, amount in by_category(only(txs, currency), month).items():
+            ids = sorted(inputs[(currency, month, category)])
+            suffix = "" if currency == "EUR" else f"-{currency}"
             out.append(
                 Record(
-                    f"{SUMMARY_PREFIX}{month}-{category}".replace(" ", "-"),
+                    f"{SUMMARY_PREFIX}{month}-{category}{suffix}".replace(" ", "-"),
                     MONEY_DOMAIN,
                     f"{month}-28",
                     f"Total {category} {month}",
@@ -199,6 +214,6 @@ def verify_summary(summary: Record, records: Iterable[Record]) -> bool:
         return False
     month, category = summary.date[:7], summary.fields.get("category", "")
     parts = [index[i] for i in named]
-    if any(t.month != month or t.category != category or t.kind != "expense" for t in parts):
+    if any(t.month != month or t.category != category or t.kind != "expense" or t.currency != summary.fields.get("currency", "") for t in parts):
         return False
     return total(parts) == Decimal(summary.fields["amount"])

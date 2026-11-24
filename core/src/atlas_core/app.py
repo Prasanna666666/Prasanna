@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from .access import OSPermissionProvider, SourceAccess
-from .actions import ActionGateway, AuditFile
+from .actions import ActionGateway, AuditFile, IdempotencyFile
 from .api import CoreApi
 from .backup import drill_passed
 from .connectors import Adapter, ConnectorHub, SecretStore
@@ -34,7 +34,7 @@ from .finance_calc import MONEY_DOMAIN
 from .health_calc import HEALTH_DOMAIN
 from .identity import BootstrapGate, ClientRegistry
 from .intelligence import Gateway, ModelRuntime, Router, Signals
-from .mail import Mailbox, MailIndex
+from .mail import Mailbox, MailError, MailIndex
 from .models import Manifest, ModelStore
 from .operations import DeviceOperations, Operations
 from .policy import PolicyEngine
@@ -272,7 +272,7 @@ class Core:
             self.edits.close()
             self.edits = None
             return None
-        gateway = ActionGateway(c.clock, audit, history)
+        gateway = ActionGateway(c.clock, audit, history, IdempotencyFile(c.data_dir / "actions-idempotency.jsonl"))
         self.action_gateway = gateway
         register_record_actions(gateway, self.edits, c.outbox, c.erase)
         edits = self.edits
@@ -283,7 +283,7 @@ class Core:
             except StoreError:
                 return None
 
-        return Operations(gateway, SyncService(gateway, self.clients, version_of), self.edits)
+        return Operations(gateway, SyncService(gateway, self.clients, version_of, c.data_dir / "sync-receipts.jsonl"), self.edits)
 
     def _purger(self, source_type: str, index: Any) -> Callable[[], None]:
         def purge() -> None:
@@ -326,7 +326,10 @@ class Core:
             now = self.clock()
             last = self._scanned.get(source_type)
             if last is None or (now - last).total_seconds() >= RESCAN_SECONDS:
-                index.scan()
+                try:
+                    index.scan()
+                except MailError:  # the source did not answer (or answered nonsense): the index stands as it was, and the next try comes after the usual interval
+                    pass
                 self._scanned[source_type] = now
             index.run(INDEX_SLICE)
 

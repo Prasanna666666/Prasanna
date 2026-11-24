@@ -43,6 +43,11 @@ Handler = Callable[[dict[str, Any]], dict[str, Any]]
 Undo = Callable[[dict[str, Any], dict[str, Any]], None]
 
 
+class ActionNotPerformed(Exception):
+    """Raised by a handler that can PROVE it did nothing (it refused before any effect). Only this makes a failed external action safe to retry under the same idempotency key; any other failure of an
+    action with an external connector is an ambiguous outcome: the provider may have committed it, so it is never run again blindly (TARGET_ARCHITECTURE §20)."""
+
+
 @dataclass(frozen=True)
 class ActionSpec:
     name: str
@@ -151,15 +156,47 @@ class _Done:
     undone: bool = False
 
 
+class IdempotencyFile:
+    """What the gateway has already decided, kept across a restart: one JSON line per (action, idempotency key) with the payload HASH, the outcome status and code and the action id. Never the payload or the
+    result (those can hold personal content), so a replay after a restart answers `done` or `outcome_unknown` without running anything again. Owner-only (0600), appended and fsynced before the outcome returns."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def append(self, name: str, key: str, digest: str, outcome: Outcome) -> None:
+        row = {"name": name, "key": key, "digest": digest, "status": outcome.status, "code": outcome.code, "action_id": outcome.action_id}
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def load(self) -> dict[tuple[str, str], tuple[str, Outcome]]:
+        seen: dict[tuple[str, str], tuple[str, Outcome]] = {}
+        if not self._path.exists():
+            return seen
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+                seen[(row["name"], row["key"])] = (row["digest"], Outcome(row["status"], row.get("code", ""), row.get("action_id")))
+            except (ValueError, KeyError, TypeError):
+                continue  # a torn last line is skipped; every complete line before it still counts
+        return seen
+
+
 class ActionGateway:
     def __init__(
-        self, clock: Callable[[], datetime] = lambda: datetime.now(UTC), audit_file: AuditFile | None = None, history: list[AuditEntry] | None = None
+        self,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        audit_file: AuditFile | None = None,
+        history: list[AuditEntry] | None = None,
+        idempotency: IdempotencyFile | None = None,
     ) -> None:
-        self._clock, self._lock, self._audit_file = clock, threading.RLock(), audit_file
+        self._clock, self._lock, self._audit_file, self._idem_file = clock, threading.RLock(), audit_file, idempotency
         self._specs: dict[str, ActionSpec] = {}
         self._approvals: dict[str, Approval] = {}
         self._done: dict[str, _Done] = {}
-        self._idem: dict[tuple[str, str], tuple[str, Outcome]] = {}
+        self._idem: dict[tuple[str, str], tuple[str, Outcome]] = idempotency.load() if idempotency is not None else {}
         self._revoked: set[str] = set()
         self.audit: list[AuditEntry] = list(history or [])  # a history loaded from disk continues the same chain
         self.prompts = 0  # approvals asked of the owner; reversible local work never moves it
@@ -237,15 +274,32 @@ class ActionGateway:
                 return Outcome("needs_approval", f"category_{category}", approval_id=pending.approval_id, category=category, exact_payload=dict(payload))
             try:
                 result = spec.handler(dict(payload))
+            except ActionNotPerformed:
+                self._log(name, "failed", "handler_failed", digest, approval_id)
+                return Outcome("failed", "handler_failed")  # proven to have done nothing: the same key may be tried again
             except Exception:  # noqa: BLE001  (a handler's failure is a code; its text could carry content)
+                if spec.connector is not None:
+                    return self._ambiguous(name, idempotency_key, digest, approval_id)
                 self._log(name, "failed", "handler_failed", digest, approval_id)
                 return Outcome("failed", "handler_failed")
             action_id = secrets.token_hex(8)
             self._done[action_id] = _Done(spec, dict(payload), dict(result))
             outcome = Outcome("done", action_id=action_id, result=dict(result))
-            self._idem[(name, idempotency_key)] = (digest, outcome)
+            self._remember(name, idempotency_key, digest, outcome)
             self._log(name, "done", "", digest, approval_id if category is not None else None)
             return outcome
+
+    def _remember(self, name: str, key: str, digest: str, outcome: Outcome) -> None:
+        self._idem[(name, key)] = (digest, outcome)
+        if self._idem_file is not None:
+            self._idem_file.append(name, key, digest, outcome)
+
+    def _ambiguous(self, name: str, key: str, digest: str, approval_id: str | None) -> Outcome:
+        """An external action failed without proof that it did nothing. It is recorded under its key, so a retry returns this answer instead of running the handler again; the owner reconciles with the provider."""
+        outcome = Outcome("failed", "outcome_unknown")
+        self._remember(name, key, digest, outcome)
+        self._log(name, "failed", "outcome_unknown", digest, approval_id)
+        return outcome
 
     def _refuse(self, name: str, code: str, digest: str) -> Outcome:
         self._log(name, "refused", code, digest, None)

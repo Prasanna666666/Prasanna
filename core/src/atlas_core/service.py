@@ -174,10 +174,17 @@ class TaskService:
         self._model = GatedModel(deps.model, labels, deps.policy, deps.clock)
 
     # -- submitting, cancelling, recovering ------------------------------------------------------------------------------------------------
-    def submit(self, request: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+    def device_may_ask(self, sources: list[str]) -> bool:
+        """Whether a paired (non-owner) device may put a task over these sources: the policy data names the device ceiling."""
+        return load_rules().device_may_ask(sources)
+
+    def creator(self, task_id: str) -> str | None:
+        return self._d.store.creator(task_id)
+
+    def submit(self, request: dict[str, Any], client: str | None = None) -> tuple[dict[str, Any], bool]:
         d, now = self._d, self._d.clock()
         decision, token = d.policy.decide(request["source_scope"], now)
-        record, created = d.store.create(request, decision, now)
+        record, created = d.store.create(request, decision, now, client)
         task_id = record["task_id"]
         if not created:
             return record, False

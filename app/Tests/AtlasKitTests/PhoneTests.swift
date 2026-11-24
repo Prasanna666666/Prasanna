@@ -23,6 +23,8 @@ final class PairingLogicTests: XCTestCase {
         XCTAssertNil(PairingInvite.parse("atlas://pair?code=code-12345678&fp=nothex&addr=https://mac.example.invalid"))
         XCTAssertNil(PairingInvite.parse("atlas://pair?code=code-12345678&fp=\(fingerprint)&addr=http://api.example.com"), "plain http to the Internet is not an address")
         XCTAssertNotNil(PairingInvite.parse("atlas://pair?code=code-12345678&fp=\(fingerprint)&addr=http://192.168.1.20:8443"))
+        XCTAssertNil(PairingInvite.parse("atlas://pair?code=code-12345678&code=code-87654321&fp=\(fingerprint)&addr=https://mac.example.invalid"), "a repeated parameter must be refused, not trap")
+        XCTAssertNil(PairingInvite.parse("atlas://pair?code=code-12345678&fp=\(fingerprint)&fp=\(fingerprint)&addr=https://mac.example.invalid&addr=https://other.example.invalid"))
         XCTAssertNil(PairingInvite.parse("https://pair?code=code-12345678"))
         XCTAssertNil(PairingInvite.parse("not an invite"))
     }
@@ -182,5 +184,105 @@ final class PhoneEngineEndToEndTests: XCTestCase {
         XCTAssertFalse(phone.isPaired)
         XCTAssertNil(caches[.notes]?.load(), "the cache is erased when the pairing ends")
         XCTAssertEqual(phone.pendingChanges, 0)
+    }
+}
+
+/// A transport that answers from a script: no Core, no socket.
+final class ScriptedTransport: HTTPTransport {
+    var answers: [String: (Int, String)] = [:]
+    func send(method: String, target: String, headers: [String: String], body: Data) throws -> UnixHTTP.Response {
+        let (status, text) = answers[target] ?? (404, #"{"code":"not_found","message":"x","retryable":false}"#)
+        return UnixHTTP.Response(status: status, headers: [:], body: Data(text.utf8))
+    }
+}
+
+/// ATLAS-IOS-052: only a Core that still refuses this phone's own signature on a request that asks for nothing counts as a revocation; any other refusal leaves the queue and the saved records alone.
+final class RevocationConfirmationTests: XCTestCase {
+    private func pairedPhone(_ transport: ScriptedTransport) -> (PhoneEngine, MemoryBlob) {
+        let identity = DeviceIdentity.generate()
+        let vault = MemoryVault()
+        try? vault.save(PairedDevice(id: identity.id, keyBytes: identity.signer.rawRepresentation, fingerprint: String(repeating: "a", count: 64), address: "https://mac.example.invalid"))
+        let queue = MemoryBlob()
+        queue.save(Data("[]".utf8))
+        return (PhoneEngine(vault: vault, queueStore: queue, cacheFor: { _ in MemoryBlob() }, transportFor: { _ in transport }), queue)
+    }
+
+    private let forbidden = #"{"code":"forbidden","message":"x","retryable":false}"#
+    private let unauthenticated = #"{"code":"unauthenticated","message":"x","retryable":false}"#
+
+    func testARefusalOfOneRequestDoesNotEraseThePhoneWhenThePhoneIsStillRecognised() {
+        let transport = ScriptedTransport()
+        transport.answers["/v1/records/notes"] = (403, forbidden)
+        transport.answers["/v1/version"] = (200, #"{"api_version":"1.0","supported":["1.0","1.1"]}"#)
+        let (phone, _) = pairedPhone(transport)
+        _ = phone.records(.notes)
+        XCTAssertTrue(phone.isPaired, "a refusal that is not a revocation must not erase the pairing")
+        XCTAssertNotEqual(phone.link, .revoked)
+    }
+
+    func testAStaleClockIsNotARevocation() {
+        let transport = ScriptedTransport()
+        transport.answers["/v1/records/notes"] = (401, unauthenticated)
+        transport.answers["/v1/version"] = (401, unauthenticated)
+        let (phone, _) = pairedPhone(transport)
+        _ = phone.records(.notes)
+        XCTAssertTrue(phone.isPaired)
+    }
+
+    func testARevokedPhoneIsErasedOnlyWhenTheCoreRefusesItsSignatureOnAnEmptyRequestToo() {
+        let transport = ScriptedTransport()
+        transport.answers["/v1/records/notes"] = (403, forbidden)
+        transport.answers["/v1/version"] = (403, forbidden)
+        let (phone, _) = pairedPhone(transport)
+        _ = phone.records(.notes)
+        XCTAssertFalse(phone.isPaired)
+        XCTAssertEqual(phone.link, .revoked)
+    }
+}
+
+/// ATLAS-IOS-051 / ATLAS-IOS-061: nothing is reported saved unless it was; unreadable stored work is never overwritten; one request always fits the Core's body cap.
+final class OfflineQueueDurabilityTests: XCTestCase {
+    final class FailingBlob: BlobStore {
+        var stored: Data?
+        var failing = false
+        func load() -> Data? { stored }
+        func save(_ data: Data) -> Bool { if failing { return false }; stored = data; return true }
+        func erase() { stored = nil }
+    }
+
+    private func note(_ text: String) -> [String: Any] { ["id": "note-" + UUID().uuidString.prefix(8).lowercased(), "date": "2026-10-18T00:00:00Z", "title": "T", "fields": ["text": text]] }
+
+    func testAnEditThatCouldNotBeStoredIsNotReportedSavedAndIsNotKept() {
+        let blob = FailingBlob()
+        let queue = OfflineQueue(store: blob)
+        XCTAssertNotNil(queue.enqueue("notes.create", payload: note("one")))
+        blob.failing = true
+        XCTAssertNil(queue.enqueue("notes.create", payload: note("two")), "a write that failed is not a saved change")
+        XCTAssertEqual(queue.operations.count, 1)
+    }
+
+    func testAnUnreadableStoredQueueIsKeptAndNewWorkIsRefusedInsteadOfOverwritingIt() {
+        let blob = FailingBlob()
+        blob.stored = Data("not json at all".utf8)
+        let queue = OfflineQueue(store: blob)
+        XCTAssertTrue(queue.damaged)
+        XCTAssertNil(queue.enqueue("notes.create", payload: note("new")))
+        XCTAssertEqual(blob.stored, Data("not json at all".utf8), "the damaged bytes stay where they are")
+    }
+
+    func testAQueueLargerThanOneRequestIsSentInBatchesThatEachFitTheCap() throws {
+        let queue = OfflineQueue(store: MemoryBlob())
+        for _ in 0..<12 { XCTAssertNotNil(queue.enqueue("notes.create", payload: note(String(repeating: "x", count: 9_000)))) }
+        XCTAssertNil(queue.enqueue("notes.create", payload: note(String(repeating: "x", count: 20_000))), "one operation larger than the limit is refused when it is made")
+        var batches = 0
+        while !queue.operations.isEmpty {
+            let batch = queue.nextBatch()
+            XCTAssertFalse(batch.isEmpty)
+            let body = try JSONSerialization.data(withJSONObject: ["ops": OfflineQueue.requestOps(of: batch)])
+            XCTAssertLessThan(body.count, 64 * 1024, "every request fits the Core's body cap")
+            queue.remove(Set(batch.map { $0.opID }))
+            batches += 1
+        }
+        XCTAssertGreaterThan(batches, 1)
     }
 }

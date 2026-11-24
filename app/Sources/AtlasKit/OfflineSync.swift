@@ -12,7 +12,8 @@ public struct QueuedOperation: Codable, Equatable {
 
 public protocol BlobStore: AnyObject {
     func load() -> Data?
-    func save(_ data: Data)
+    /// True only if the bytes are really stored. A store that could not keep them says so; nothing may be reported as saved otherwise.
+    @discardableResult func save(_ data: Data) -> Bool
     func erase()
 }
 
@@ -20,21 +21,31 @@ public final class MemoryBlob: BlobStore {
     private var data: Data?
     public init() {}
     public func load() -> Data? { data }
-    public func save(_ data: Data) { self.data = data }
+    public func save(_ data: Data) -> Bool { self.data = data; return true }
     public func erase() { data = nil }
 }
 
 public final class OfflineQueue {
     public static let maxOperations = 500
+    /// One operation's payload may be no larger than this, and one request carries no more than `maxBatchBytes` of them, so a request is always inside the Core's and the relay's body cap and the queue always makes progress.
+    public static let maxOperationBytes = 16_000
+    public static let maxBatchBytes = 48_000
     public private(set) var operations: [QueuedOperation]
+    /// True when stored queue bytes exist but cannot be read. The queue then refuses new work and never writes over them, so what the owner saved can still be recovered.
+    public private(set) var damaged = false
     private let store: BlobStore
 
     public init(store: BlobStore) {
         self.store = store
-        operations = store.load().flatMap { try? JSONDecoder().decode([QueuedOperation].self, from: $0) } ?? []
+        operations = []
+        guard let data = store.load() else { return }
+        if let decoded = try? JSONDecoder().decode([QueuedOperation].self, from: data) { operations = decoded } else { damaged = true }
     }
 
-    private func persist() { if let data = try? JSONEncoder().encode(operations) { store.save(data) } }
+    private func persist() -> Bool {
+        guard !damaged, let data = try? JSONEncoder().encode(operations) else { return false }
+        return store.save(data)
+    }
 
     /// Only the owner's own-record changes can be queued; anything that needs an approval is not in this vocabulary at all.
     public static func isAllowed(_ name: String) -> Bool {
@@ -44,10 +55,10 @@ public final class OfflineQueue {
 
     @discardableResult
     public func enqueue(_ name: String, payload: [String: Any]) -> QueuedOperation? {
-        guard Self.isAllowed(name), operations.count < Self.maxOperations, let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
+        guard !damaged, Self.isAllowed(name), operations.count < Self.maxOperations, let data = try? JSONSerialization.data(withJSONObject: payload), data.count <= Self.maxOperationBytes else { return nil }
         let op = QueuedOperation(opID: "op-" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased(), name: name, payload: data)
         operations.append(op)
-        persist()
+        guard persist() else { operations.removeLast(); return nil }  // never reported as saved unless it was
         return op
     }
 
@@ -60,14 +71,28 @@ public final class OfflineQueue {
         enqueue(domain.archiveAction, payload: ["id": record.id, "expected_version": record.version])
     }
 
+    /// The oldest operations that fit one request, in order.
+    public func nextBatch() -> [QueuedOperation] {
+        var size = 0, batch: [QueuedOperation] = []
+        for op in operations {
+            size += op.payload.count + op.opID.utf8.count + op.name.utf8.count + 64
+            if size > Self.maxBatchBytes && !batch.isEmpty { break }
+            batch.append(op)
+        }
+        return batch
+    }
+
     /// What the Core can be sent.
-    public var requestOps: [[String: Any]] {
+    public var requestOps: [[String: Any]] { Self.requestOps(of: operations) }
+
+    public static func requestOps(of operations: [QueuedOperation]) -> [[String: Any]] {
         operations.map { ["op_id": $0.opID, "name": $0.name, "payload": (try? JSONSerialization.jsonObject(with: $0.payload)) ?? [:]] }
     }
 
     func remove(_ ids: Set<String>) {
+        let before = operations
         operations.removeAll { ids.contains($0.opID) }
-        persist()
+        if !persist() { operations = before }  // the Core has them; if this phone could not record that, they stay and are answered as duplicates next time, never lost
     }
 
     func clear() { operations = []; store.erase() }

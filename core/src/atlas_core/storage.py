@@ -17,7 +17,17 @@ LOW_FREE_BYTES, CRITICAL_FREE_BYTES = 10 * GIB, 2 * GIB
 
 CATEGORIES = {
     "tasks": ("tasks.db", "tasks.db-wal", "tasks.db-shm"),
-    "designation": ("designation.db", "designation.db-wal", "designation.db-shm", "clients.json", "core.lock"),
+    "designation": ("designation.db", "designation.db-wal", "designation.db-shm", "clients.json", "devices.json", "core.lock"),
+    "owner_edits": ("edits.db", "edits.db-wal", "edits.db-shm"),
+    "sensitive_records": (  # the Finance and Health stores, together: named by file, never by source type
+        "finance-records.db",
+        "finance-records.db-wal",
+        "finance-records.db-shm",
+        "health-records.db",
+        "health-records.db-wal",
+        "health-records.db-shm",
+    ),
+    "action_audit": ("actions-audit.jsonl", "actions-idempotency.jsonl", "sync-receipts.jsonl"),
     "indexes": ("documents.db", "documents.db-wal", "documents.db-shm", "mail.db", "mail.db-wal", "mail.db-shm"),
 }
 # what pressure may do, by level; every entry pauses or warns, none deletes

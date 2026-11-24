@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 from .access import GRANTED, MISSING, UNKNOWN, PermissionEvidence
-from .mail import InMemoryMailbox
+from .mail import InMemoryMailbox, MailError
 from .records import Record, as_message
 
 DOMAINS = ("calendar", "contacts", "notes", "photos")
@@ -70,8 +70,10 @@ class NativeRecords(InMemoryMailbox):
     def _refresh(self) -> None:
         try:
             records = self._platform.fetch(self.domain, self._clock())
-        except (PermissionError, OSError):  # denied, or the system did not answer: an empty source, never a crash or a partial read
+        except PermissionError:  # denied: an empty source (the access layer withdraws the grant and purges what was derived)
             records = []
+        except OSError:  # the system did not answer: NOT an empty source. The scan stops before anything is written, the index keeps what it has, and coverage says the scan did not finish
+            raise MailError("source_unavailable") from None
         self.messages = {}
         for record in records[:MAX_RECORDS]:
             self.messages[record.record_id] = as_message(record)

@@ -226,3 +226,52 @@ def test_the_audit_is_written_to_disk_before_the_outcome_continues_after_a_resta
     for damaged in (lines[1:], [lines[1], lines[0], lines[2]], [*lines[:-1], lines[-1].replace('"done"', '"refused"')], ["{not json}"]):
         (tmp_path / "audit.jsonl").write_text("\n".join(damaged) + "\n")
         assert file.load() is None  # a missing, reordered, edited or unreadable line: the history cannot be vouched for
+
+
+def test_an_ambiguous_external_failure_is_never_run_again_with_the_same_key_even_after_a_restart(tmp_path):
+    """ATLAS-ACT-026 / ATLAS-ACT-019: a connector action that raises after the provider may have committed is recorded as outcome_unknown; a retry (and a retry after restart) does not repeat the side effect."""
+    from atlas_core.actions import ActionNotPerformed, IdempotencyFile
+
+    sent: list[str] = []
+
+    def flaky_send(payload):
+        sent.append(payload["to"])  # the remote service commits...
+        raise TimeoutError("response lost")  # ...but the reply never arrives
+
+    def build():
+        g = ActionGateway(idempotency=IdempotencyFile(tmp_path / "idem.jsonl"))
+        g.register(ActionSpec("mail.send", frozenset({"external_send"}), flaky_send, connector="mail"))
+        g.register(ActionSpec("mail.draft", frozenset({"read"}), lambda p: (_ for _ in ()).throw(ActionNotPerformed()), connector="mail"))
+        return g
+
+    g = build()
+    first = g.propose("mail.send", {"to": "a@example.test"}, origin="owner_request", idempotency_key="k1", approval_id=None)
+    assert first.status == "needs_approval"
+    assert g.grant(first.approval_id, by_owner=True)
+    ambiguous = g.propose("mail.send", {"to": "a@example.test"}, origin="owner_request", idempotency_key="k1", approval_id=first.approval_id)
+    assert (ambiguous.status, ambiguous.code) == ("failed", "outcome_unknown") and sent == ["a@example.test"]
+    again = g.propose("mail.send", {"to": "a@example.test"}, origin="owner_request", idempotency_key="k1")
+    assert again.code == "outcome_unknown" and sent == ["a@example.test"]  # not run again
+    restarted = build()
+    after = restarted.propose("mail.send", {"to": "a@example.test"}, origin="owner_request", idempotency_key="k1")
+    assert after.code == "outcome_unknown" and sent == ["a@example.test"]
+    assert restarted.propose("mail.send", {"to": "b@example.test"}, origin="owner_request", idempotency_key="k1").code == "idempotency_conflict"
+    # a handler that proves it did nothing may be retried under the same key
+    assert restarted.propose("mail.draft", {}, origin="owner_request", idempotency_key="d1").code == "handler_failed"
+    assert restarted.propose("mail.draft", {}, origin="owner_request", idempotency_key="d1").code == "handler_failed"
+    assert "a@example.test" not in (tmp_path / "idem.jsonl").read_text() and oct((tmp_path / "idem.jsonl").stat().st_mode & 0o777) == "0o600"
+
+
+def test_a_completed_action_replayed_after_a_restart_is_answered_done_and_not_run_again(tmp_path):
+    from atlas_core.actions import IdempotencyFile
+
+    runs: list[int] = []
+
+    def build():
+        g = ActionGateway(idempotency=IdempotencyFile(tmp_path / "idem.jsonl"))
+        g.register(ActionSpec("note.write", frozenset({"local_reversible"}), lambda p: runs.append(1) or {"ok": True}, undo=lambda p, r: None))
+        return g
+
+    first = build().propose("note.write", {"t": "x"}, origin="owner_request", idempotency_key="k")
+    again = build().propose("note.write", {"t": "x"}, origin="owner_request", idempotency_key="k")
+    assert (first.status, again.status, again.action_id) == ("done", "done", first.action_id) and runs == [1]

@@ -339,9 +339,12 @@ def _text_body(header: Message, region: _Region, boundaries: list[bytes]) -> str
     found = _scan_to_delimiter(region, stack, collect=False)  # the preamble
     while found is not None:
         _, boundary, closing = found
+        if boundary != stack[-1]:
+            return None  # delimiters nest last-in first-out: one that belongs to an enclosing multipart while an inner one is open is malformed, and not a byte more is read
         if closing:
-            if boundary in stack and len(stack) > 1:
-                stack.remove(boundary)  # an inner multipart ended; keep looking in the outer one
+            if len(stack) == 1:
+                return ""  # the outermost multipart has closed: whatever follows (an epilogue, a sibling) is never read
+            stack.pop()  # an inner multipart ended; keep looking in the outer one
             found = _scan_to_delimiter(region, stack, collect=False)
             continue
         part = _header_block(region)

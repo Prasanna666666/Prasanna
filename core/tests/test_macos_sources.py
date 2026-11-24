@@ -127,8 +127,29 @@ def test_the_real_frameworks_report_a_status_and_refuse_to_read_without_permissi
             assert all(r.domain == domain for r in records)
 
 
-def test_a_system_that_does_not_answer_gives_an_empty_source_not_a_crash():
-    platform = FakePlatform(records={"notes": []})
-    platform.fetch = lambda domain, now: (_ for _ in ()).throw(OSError("notes_timeout"))
+def test_a_system_that_does_not_answer_is_an_unavailable_source_not_an_empty_one(tmp_path):
+    """ATLAS-MAC-090: a transient failure never becomes a successful empty snapshot; only a real denial or a genuinely empty source may empty the index."""
+    from conftest import KEY
+
+    from atlas_core.access import FakeOSPermissions  # noqa: F401
+    from atlas_core.mail import MailError, MailIndex
+    from test_mail import AllowAll
+
+    platform = FakePlatform(records={"notes": [event("n1", "Quote", "2026-10-01T09:00:00+00:00"), event("n2", "Other", "2026-10-02T09:00:00+00:00")]})
     source = NativeRecords(platform, "notes", lambda: NOW)
-    assert source.list_page(None, 10).items == []
+    index = MailIndex(tmp_path / "n.db", KEY, source, "notes", access=AllowAll())
+    index.scan()
+    while index.run(10)["pending"]:
+        pass
+    assert index.coverage()["searched"] == 2
+    real_fetch = platform.fetch
+    platform.fetch = lambda domain, now: (_ for _ in ()).throw(OSError("notes_timeout"))
+    with pytest.raises(MailError):
+        index.scan()  # stops before anything is written
+    assert index.coverage()["searched"] == 2 and index.coverage()["complete"] is False  # nothing lost, and the scan is not reported finished
+    platform.fetch = lambda domain, now: (_ for _ in ()).throw(PermissionError("notes"))
+    index.scan()  # an explicit denial is an empty source: the access layer withdraws the grant and the derived data goes
+    platform.fetch = real_fetch
+    platform.records["notes"] = []  # a genuinely empty source after a successful read
+    index.scan()
+    assert index.coverage()["searched"] == 0 and index.coverage()["complete"] is True

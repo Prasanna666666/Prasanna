@@ -103,3 +103,21 @@ def test_an_error_says_where_in_the_code_it_happened_and_nothing_else():
     except KeyError as exc:
         place = log.where(exc)
     assert place.startswith("inner, test_kit.py:") and "Bank statement" not in place
+
+
+def test_a_figure_is_proven_only_by_the_same_signed_value_exactly():
+    """ATLAS-ANS-076 / ATLAS-ANS-077: one cent off is unproven; a sign reversal is unproven; no rounding or absolute value is applied."""
+    from kit.audit import unproven_figures
+
+    assert unproven_figures("Total EUR 1,250.50", ["balance 1250.49"]) == [1250.5]
+    assert unproven_figures("Total 1250.5", ["balance 1250.49"]) == [1250.5]
+    assert unproven_figures("Total 1,250", ["balance 1250.49"]) == [1250.0]
+    assert unproven_figures("Total 1250.44", ["balance 1250.5"]) == [1250.44]
+    assert unproven_figures("Total 1,250.50", ["balance 1250.50"]) == [] and unproven_figures("Total 1250.5", ["balance 1250.50"]) == []  # the same value, written differently
+    assert unproven_figures("You gained 250.00", ["net: -250.00"]) == [250.0]  # a positive figure is not proved by a negative one
+    assert unproven_figures("You lost -250.00", ["net: 250.00"]) == [-250.0]
+    assert unproven_figures("You lost -250.00", ["net: -250.00"]) == [] and unproven_figures("You lost −250.00", ["net: -250.00"]) == []
+    assert unproven_figures("change of -12.50 and 12.50", ["a -12.50"]) == [12.5]
+    assert unproven_figures("owed 250.00", ["balance (250.00)"]) == [250.0] and unproven_figures("owed -250.00", ["balance (250.00)"]) == []  # accounting brackets mean negative
+    assert unproven_figures("0.00 and 100", ["x 0.00 100"]) == []  # zero has no sign
+    assert unproven_figures("rent 800", ['{"spent": 800.0}']) == []

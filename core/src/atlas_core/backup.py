@@ -27,10 +27,11 @@ import json
 import os
 import secrets
 import shutil
+import stat
 import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -230,9 +231,35 @@ def _load_manifest(folder: Path) -> dict[str, Any] | None:
         data = json.loads((folder / MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return (
-        data if isinstance(data, dict) and data.get("format") == FORMAT and isinstance(data.get("files"), dict) and isinstance(data.get("kdf"), dict) else None
-    )
+    if not (isinstance(data, dict) and data.get("format") == FORMAT and isinstance(data.get("files"), dict) and isinstance(data.get("kdf"), dict)):
+        return None
+    return data if _entries_ok(data["files"]) else None
+
+
+MAX_BACKUP_FILE_BYTES = 64 << 30  # a hard ceiling on one recorded size; a manifest claiming more is refused before anything is hashed
+
+
+def _entries_ok(files: dict[Any, Any]) -> bool:
+    """Every manifest entry names a file of THIS format (the fixed allowlist, never a path) with an integer size and a 64-hex SHA-256. Checked before any file is opened, so a hostile manifest cannot make the
+    verifier read anywhere else."""
+    allowed = {KEYS_FILE, *DB_FILES, *PLAIN_FILES}
+    for name, entry in files.items():
+        if name not in allowed or not isinstance(entry, dict):
+            return False
+        size, digest = entry.get("size"), entry.get("sha256")
+        if not isinstance(size, int) or isinstance(size, bool) or not 0 <= size <= MAX_BACKUP_FILE_BYTES:
+            return False
+        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            return False
+    return True
+
+
+def _regular(path: Path) -> bool:
+    """A regular file that is not a symlink (lstat, so a link is never followed)."""
+    try:
+        return stat.S_ISREG(os.lstat(path).st_mode)
+    except OSError:
+        return False
 
 
 def recover_keys(folder: Path, passphrase: str) -> dict[str, str]:
@@ -264,7 +291,7 @@ def verify_backup(folder: Path, passphrase: str | None = None, *, db_keys: Mappi
     problems: list[str] = []
     for name, entry in manifest["files"].items():
         path = folder / name
-        if not path.is_file():
+        if not _regular(path):
             problems.append("missing_file")
             continue
         if path.stat().st_size != entry.get("size"):
@@ -295,22 +322,58 @@ def verify_backup(folder: Path, passphrase: str | None = None, *, db_keys: Mappi
     return VerifyResult(not problems, tuple(dict.fromkeys(problems)), authenticated)
 
 
+def _copy_verified(source: Path, out: Path, entry: dict[str, Any], mode: int) -> None:
+    """Copy `source` to a new file `out`, hashing the exact bytes copied, and refuse unless they match the recorded size and SHA-256. The source is opened without following a link and must be a regular
+    file; the destination is created exclusively, so nothing existing (or a planted link) is ever written through. A backup file swapped after verification is caught here."""
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    try:
+        src = os.open(source, os.O_RDONLY | nofollow)
+    except OSError:
+        raise BackupError("missing_file") from None
+    digest, size = hashlib.sha256(), 0
+    with os.fdopen(src, "rb") as reader:
+        if not stat.S_ISREG(os.fstat(reader.fileno()).st_mode):
+            raise BackupError("missing_file")
+        with os.fdopen(os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL | nofollow, 0o600), "wb") as writer:
+            while block := reader.read(1 << 20):
+                digest.update(block)
+                size += len(block)
+                if size > entry["size"]:
+                    break
+                writer.write(block)
+    if size != entry["size"] or digest.hexdigest() != entry["sha256"]:
+        raise BackupError("hash_mismatch")
+    os.chmod(out, mode)
+
+
 def _copy_state(folder: Path, target: Path, manifest: dict[str, Any], made: list[Path], report: RestoreReport) -> None:
     for name in (*LIVE_DBS, *PLAIN_FILES):
         if name in manifest["files"]:
             out = target / name
-            shutil.copyfile(folder / name, out)
-            made.append(out)
-            os.chmod(out, 0o600)
+            made.append(out)  # recorded first, so a copy that fails half way is removed too
+            _copy_verified(folder / name, out, manifest["files"][name], 0o600)
             report.files[name] = out.stat().st_size
     if "designation.db" in manifest["files"]:
         history = target / HISTORY_DIR
         history.mkdir(mode=0o700, exist_ok=True)
         made.append(history)
         out = history / HISTORY_NAME
-        shutil.copyfile(folder / "designation.db", out)
-        os.chmod(out, 0o400)  # read-only: it is history, never the live store
+        _copy_verified(folder / "designation.db", out, manifest["files"]["designation.db"], 0o400)  # read-only: it is history, never the live store
         report.files[HISTORY_NAME] = out.stat().st_size
+    _retire_devices(target / "clients.json")
+
+
+def _retire_devices(clients: Path) -> None:
+    """Device policy after a restore: devices pair again (the Core's identity key and the device list are not backed up), so every restored NON-owner client is marked revoked. No active client is ever left
+    that the owner cannot see or revoke."""
+    if not clients.exists():
+        return
+    rows = json.loads(clients.read_text(encoding="utf-8"))
+    for row in rows.values():
+        if not row.get("owner"):
+            row["revoked"] = True
+    clients.write_text(json.dumps(rows), encoding="utf-8")
+    os.chmod(clients, 0o600)
 
 
 def _check_copies(target: Path, manifest: dict[str, Any], bundle: Mapping[str, str], report: RestoreReport) -> None:
@@ -350,13 +413,15 @@ def restore_backup(
     result = verify_backup(folder, passphrase)
     if not result.ok:
         raise BackupError(result.problems[0])
-    if target.exists() and (not target.is_dir() or any(target.iterdir())):
-        raise BackupError("target_not_empty")
+    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir()))):
+        raise BackupError("target_not_empty")  # a link is never a restore target: writes would land wherever it points
     manifest = _load_manifest(folder)
     assert manifest is not None  # verified above
     bundle = recover_keys(folder, passphrase)
     created_target = not target.exists()
     target.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if target.is_symlink():  # replaced between the check and the create
+        raise BackupError("target_not_empty")
     made: list[Path] = []
     report = RestoreReport(target)
     try:
@@ -398,7 +463,11 @@ def drill_passed(data_dir: Path, clock: Callable[[], datetime] = lambda: datetim
     """True if a restore drill succeeded within the last 90 days. A missing, unreadable or old marker is False."""
     try:
         marker = json.loads((data_dir / DRILL_FILE).read_text(encoding="utf-8"))
-        at = datetime.fromisoformat(marker["at"])
-    except (OSError, ValueError, KeyError, TypeError):
+        at, digest, now = datetime.fromisoformat(marker["at"]), marker["manifest_sha256"], clock()
+        if at.utcoffset() is None or now.utcoffset() is None:
+            return False  # a drill time must be timezone-aware
+        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            return False
+        return timedelta(0) <= now - at <= timedelta(days=DRILL_VALID_DAYS)  # never in the future, never older than the window
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return False
-    return (clock() - at).days <= DRILL_VALID_DAYS

@@ -19,11 +19,11 @@ CLIENT = "client-mac-0001"
 
 
 class Harness:
-    def __init__(self, w: World) -> None:
+    def __init__(self, w: World, *, owner: bool = True) -> None:
         self.w = w
         self.key = Ed25519PrivateKey.generate()
         self.registry = ClientRegistry()
-        self.registry.register(CLIENT, self.key.public_key())
+        self.registry.register(CLIENT, self.key.public_key(), owner=owner)  # the policy tests act as the owner; the device tests below as a paired device
         self.api = CoreApi(w.service, self.registry, w.log, w.clock, check_responses=True)
 
     def call(
@@ -191,3 +191,43 @@ def test_an_unexpected_failure_is_a_fixed_message_and_the_exception_text_goes_no
     assert (
         SENTINEL_QUESTION not in everything and SENTINEL_FIN not in everything and "/secret/" not in everything and re.search(r"Traceback", everything) is None
     )
+
+
+@pytest.mark.criterion(13)
+def test_a_device_may_ask_only_over_the_sources_the_policy_names_for_devices_and_the_owner_is_unaffected(tmp_path):
+    """ATLAS-SEC-083 / ATLAS-SEC-087: the ceiling is enforced on the server, before the policy or any source is touched."""
+    world = World(tmp_path, [grant("documents"), grant("mail"), grant("photos"), grant("finance"), grant("health")])
+    h = Harness(world, owner=False)
+    owner_key = Ed25519PrivateKey.generate()
+    h.registry.register("owner-mac-0002", owner_key.public_key(), owner=True)
+    for number, scope in enumerate((["finance"], ["health"], ["photos"], ["documents", "photos"], ["calendar"])):
+        status, body = h.json("POST", "/v1/tasks", request(scope, key=f"idem-key-dev-{number}"))
+        assert status == 403 and body["code"] == "source_denied", scope
+    assert world.retriever.calls == []  # nothing was read
+    for number, scope in enumerate((["documents"], ["mail"], ["documents", "mail"])):
+        assert h.json("POST", "/v1/tasks", request(scope, key=f"idem-key-ok-{number}"))[0] == 201
+    owner = {"signer": owner_key, "headers": None}
+    head = signed(owner_key, "POST", "/v1/tasks", json.dumps(request(["photos"], key="idem-key-owner")).encode(), world.clock(), client="owner-mac-0002")
+    assert h.api.handle(Request("POST", "/v1/tasks", head, json.dumps(request(["photos"], key="idem-key-owner")).encode())).status in (200, 201) and owner
+
+
+@pytest.mark.criterion(13)
+def test_a_task_belongs_to_its_creator_and_the_owner_and_nobody_else_can_read_or_cancel_it(tmp_path):
+    """ATLAS-SEC-084: read, answer, events, receipt, citations and cancel are all bound to the authenticated client."""
+    h = Harness(World(tmp_path, [grant("documents")]), owner=False)
+    other_key = Ed25519PrivateKey.generate()
+    owner_key = Ed25519PrivateKey.generate()
+    h.registry.register("other-device-01", other_key.public_key())
+    h.registry.register("owner-mac-0002", owner_key.public_key(), owner=True)
+    _, created = h.json("POST", "/v1/tasks", request())
+    task = created["task_id"]
+
+    def as_client(key, client, method, target):
+        return h.api.handle(Request(method, target, signed(key, method, target, b"", h.w.clock(), client=client), b"")).status
+
+    for method, suffix in (("GET", ""), ("GET", "/answer"), ("GET", "/events"), ("GET", "/receipt"), ("GET", "/citations/0"), ("POST", "/cancel")):
+        assert as_client(other_key, "other-device-01", method, f"/v1/tasks/{task}{suffix}") == 404, suffix
+    assert h.json("GET", f"/v1/tasks/{task}")[0] == 200  # its creator
+    assert as_client(owner_key, "owner-mac-0002", "GET", f"/v1/tasks/{task}") == 200  # the owner
+    assert h.json("GET", f"/v1/tasks/{task}")[1]["state"] != "cancelled"  # the stranger's cancel changed nothing
+    assert h.json("GET", "/v1/tasks/missing0001")[0] == 404  # and a device gets the same answer whether the task exists or not

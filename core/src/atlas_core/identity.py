@@ -42,6 +42,24 @@ def sign_request(  # noqa: PLR0913
     return out if version == "1.0" else {**out, H_VERSION: version}
 
 
+def write_durably(path: Path, text: str) -> None:
+    """Replace `path` so the new content survives a crash or power loss: write a private temporary file (never through a link), flush and fsync it, rename it over the old file, then fsync the folder so the
+    rename itself is on disk. The caller reports success only after this returns."""
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.unlink(missing_ok=True)
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+    directory = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
 @dataclass
 class _Client:
     key: Ed25519PublicKey
@@ -52,8 +70,44 @@ class _Client:
 class NonceCache:
     """A nonce is accepted once within its time window; the cache is bounded by time."""
 
-    def __init__(self, ttl_seconds: int) -> None:
-        self._ttl, self._seen, self._lock = ttl_seconds, OrderedDict[str, float](), threading.Lock()
+    def __init__(self, ttl_seconds: int, path: Path | None = None) -> None:
+        self._ttl, self._seen, self._lock, self._path, self._appended = ttl_seconds, OrderedDict[str, float](), threading.Lock(), path, 0
+        if path is not None:
+            self._restore(path)
+
+    def _restore(self, path: Path) -> None:
+        """With a ledger file the cache survives a restart: a captured request that was used before the Core stopped is refused after it starts again, for as long as its timestamp would still be accepted."""
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        for line in lines:
+            stamp, _, key = line.partition(" ")
+            try:
+                used_at = float(stamp)
+            except ValueError:
+                continue  # a damaged line is ignored; the rest of the ledger still counts
+            if key:
+                self._seen[key] = used_at  # expired entries are dropped by the next request, using that request's own clock
+
+    def _rewrite(self) -> None:
+        if self._path is None:
+            return
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.writelines(f"{t} {k}\n" for k, t in self._seen.items())
+        self._appended = 0
+
+    def _append(self, key: str, now: float) -> None:
+        if self._path is None:
+            return
+        if self._appended > max(1024, 4 * len(self._seen)):
+            self._rewrite()
+            return
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(f"{now} {key}\n")  # written (and flushed) before the request is accepted, so a crash after acceptance cannot forget it
+        self._appended += 1
 
     def first_use(self, key: str, now: float) -> bool:
         with self._lock:
@@ -62,6 +116,7 @@ class NonceCache:
             if key in self._seen:
                 return False
             self._seen[key] = now
+            self._append(key, now)
             return True
 
 
@@ -99,7 +154,7 @@ class ClientRegistry:
     def __init__(self, rules: Rules | None = None, path: Path | None = None) -> None:
         self._rules = rules or load_rules()
         self._clients: dict[str, _Client] = {}
-        self._nonces = NonceCache(self._rules.limit("nonce_ttl_seconds"))
+        self._nonces = NonceCache(self._rules.limit("nonce_ttl_seconds"), path.with_suffix(".nonces") if path is not None else None)
         self._path, self._lock = path, threading.Lock()
         if path is not None and path.exists():
             for client_id, row in json.loads(path.read_text()).items():
@@ -109,11 +164,7 @@ class ClientRegistry:
         if self._path is None:
             return
         rows = {i: {"key": base64.b64encode(c.key.public_bytes_raw()).decode(), "owner": c.owner, "revoked": c.revoked} for i, c in self._clients.items()}
-        temporary = self._path.with_suffix(".tmp")
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as handle:
-            json.dump(rows, handle)
-        temporary.replace(self._path)
+        write_durably(self._path, json.dumps(rows))
 
     def register(self, client_id: str, public_key: Ed25519PublicKey, *, owner: bool = False) -> None:
         with self._lock:
@@ -129,7 +180,11 @@ class ClientRegistry:
             if self.has_owner() or client_id in self._clients:
                 return False
             self._clients[client_id] = _Client(public_key, owner=True)
-            self._save()
+            try:
+                self._save()
+            except BaseException:
+                del self._clients[client_id]
+                raise
             return True
 
     def enrol(self, client_id: str, public_key: Ed25519PublicKey) -> bool:
@@ -138,8 +193,18 @@ class ClientRegistry:
             if client_id in self._clients:
                 return False
             self._clients[client_id] = _Client(public_key)
-            self._save()
+            try:
+                self._save()
+            except BaseException:
+                del self._clients[client_id]  # a failed durable write leaves no half-enrolled client that works until the next restart
+                raise
             return True
+
+    def remove(self, client_id: str) -> None:
+        """Take an enrolment back (used when pairing fails after the key was stored). A client that was never enrolled is ignored."""
+        with self._lock:
+            if self._clients.pop(client_id, None) is not None:
+                self._save()
 
     def is_owner(self, client_id: str) -> bool:
         client = self._clients.get(client_id)

@@ -28,7 +28,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 
-from .identity import ClientRegistry
+from .identity import ClientRegistry, write_durably
 
 OFFER_TTL = timedelta(minutes=5)
 MAX_WRONG_CODES = 5
@@ -96,11 +96,7 @@ class DeviceDirectory:
         self._devices: dict[str, dict[str, str | None]] = json.loads(path.read_text()) if path.exists() else {}
 
     def _save(self) -> None:
-        temporary = self._path.with_suffix(".tmp")
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as handle:
-            json.dump(self._devices, handle)
-        temporary.replace(self._path)
+        write_durably(self._path, json.dumps(self._devices))
 
     def open_offer(self, by_client: str) -> Offer:
         if not self._registry.is_owner(by_client):
@@ -124,7 +120,12 @@ class DeviceDirectory:
             if not self._registry.enrol(device_id, device_key):
                 raise DeviceError("no_open_offer")
             self._devices[device_id] = {"label": label[:60], "paired_at": self._clock().isoformat(), "revoked_at": None}
-            self._save()
+            try:
+                self._save()
+            except BaseException:
+                self._devices.pop(device_id, None)  # pairing is all or nothing: the device is neither listed nor able to sign
+                self._registry.remove(device_id)
+                raise
         return self._identity.prove(device_key, nonce)
 
     def devices(self) -> list[dict[str, str | None]]:

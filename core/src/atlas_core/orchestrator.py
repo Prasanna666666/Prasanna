@@ -14,6 +14,7 @@ tasks, runs independent ones in parallel, bounds retries and time, honours cance
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Callable, Mapping
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -25,6 +26,7 @@ TERMINAL = frozenset({"completed", "failed", "cancelled", "expired", "skipped"})
 MAX_TASKS = 32
 MAX_RETRIES = 2
 PLAN_CONFIDENCE_FLOOR = 0.6
+POLL_SECONDS = 0.01  # how often a running executor is checked against its deadline and the cancel flag
 
 
 class Transient(Exception):
@@ -165,6 +167,12 @@ class RunOptions:
     workers: int = 4
 
 
+@dataclass
+class _Outcome:
+    kind: str  # ok | transient | failed | expired | cancelled
+    value: Any = None
+
+
 class _Run:
     def __init__(self, plan: list[TaskContract], executors: Mapping[str, Executor], options: RunOptions) -> None:
         self.by_id = {t.task_id: t for t in plan}
@@ -183,21 +191,51 @@ class _Run:
                 result.state, result.code = "expired", "deadline"
                 return
             result.state, result.attempts = "running", result.attempts + 1
-            try:
-                result.output = self.executors[contract.role](TaskContext(contract, inputs))
-            except Transient:
+            outcome = self._call(contract, inputs)
+            if outcome.kind in ("expired", "cancelled"):
+                result.state, result.code = outcome.kind, ("deadline" if outcome.kind == "expired" else "")
+                return  # the executor is abandoned, never waited for; its late result is discarded and it is not run again
+            if outcome.kind == "transient":
                 if result.attempts > MAX_RETRIES:
                     result.state, result.code = "failed", "retries_exhausted"
                     return
                 continue
-            except Exception:  # noqa: BLE001  (a failure is a code; its text could carry content)
+            if outcome.kind == "failed":
                 result.state, result.code = "failed", "executor_failed"
                 return
+            result.output = outcome.value
             if contract.high_impact:
                 verifier = self.options.verifier
                 result.verified = bool(verifier and verifier(contract, result.output))  # no verifier, no verification
             result.state = "completed"
             return
+
+    def _call(self, contract: TaskContract, inputs: Mapping[str, Any]) -> _Outcome:
+        """Run the executor in its own daemon thread and wait only as long as the task's own budget (`seconds`), the run's total budget and the owner's cancel allow. Python cannot safely stop a thread, so a
+        blocked executor is ABANDONED: the run moves on and reports it, and nothing it returns later is used. An executor that returns after its deadline is expired, not completed."""
+        box, done = _Outcome("failed"), threading.Event()
+
+        def work() -> None:
+            try:
+                box.value, box.kind = self.executors[contract.role](TaskContext(contract, inputs)), "ok"
+            except Transient:
+                box.kind = "transient"
+            except Exception:  # noqa: BLE001  (a failure is a code; its text could carry content)
+                box.kind = "failed"
+            finally:
+                done.set()
+
+        started = self.options.clock()
+        task_deadline = min(self.deadline, started + timedelta(seconds=contract.seconds))
+        threading.Thread(target=work, daemon=True, name=f"atlas-task-{contract.task_id}").start()
+        while not done.wait(POLL_SECONDS):
+            if self.options.cancelled():
+                return _Outcome("cancelled")
+            if self.options.clock() > task_deadline:
+                return _Outcome("expired")
+        if self.options.clock() > task_deadline and box.kind == "ok":
+            return _Outcome("expired")
+        return box
 
     def _state(self, task_id: str) -> str:
         return self.report.tasks[task_id].state

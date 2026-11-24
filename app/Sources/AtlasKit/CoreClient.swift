@@ -40,6 +40,8 @@ public final class CoreClient {
         return record["task_id"] as? String ?? ""
     }
 
+    /// A signed request that asks for nothing: it fails with `forbidden` only when this client has been revoked.
+    public func probe() throws { _ = try call("GET", "/v1/version") }
     public func state(_ taskID: String) throws -> String { try object(call("GET", "/v1/tasks/\(taskID)"))["state"] as? String ?? "failed" }
     public func cancel(_ taskID: String) throws { _ = try call("POST", "/v1/tasks/\(taskID)/cancel") }
     public func answer(_ taskID: String) throws -> [String: Any] { try object(call("GET", "/v1/tasks/\(taskID)/answer")) }

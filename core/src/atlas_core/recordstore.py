@@ -73,9 +73,10 @@ class RecordStore:
         self._conn = connect(path, key)
         self._conn.isolation_level = None
         with self._lock:
-            self._conn.executescript(_SCHEMA)
-            if self._conn.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:
+            if self._conn.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:  # refuse BEFORE any DDL: an older app must not alter a newer store
+                self._conn.close()
                 raise StoreError("newer_store")
+            self._conn.executescript(_SCHEMA)
             self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def close(self) -> None:
@@ -195,8 +196,26 @@ class StoredRecords:
         try:
             self._store.create(record, origin="migration")
         except StoreError as error:
-            if error.code != "exists" or self._store.get(record.record_id).record != record:
+            if error.code != "exists":
                 raise
+            self._restore_rolled_back(record.record_id)  # a retry after a rolled-back import brings back what the rollback took away, and nothing else
+            if self._store.get(record.record_id).record != record:
+                raise
+
+    def _restore_rolled_back(self, record_id: str) -> bool:
+        """Undo a deletion that was made by a migration rollback (and only that): the history says who deleted it."""
+        last = self._store.history(record_id)[-1]
+        if last["op"] != "delete" or last["origin"] != "migration_rollback" or last["undone"]:
+            return False
+        self._store.undo(last["seq"], origin="migration")
+        return True
+
+    def remove(self, record_id: str) -> None:
+        """Take back a record this import created (soft: the history keeps it, as for every delete). Used only to roll a failed import back."""
+        try:
+            self._store.delete(record_id, self._store.get(record_id).version, origin="migration_rollback")
+        except StoreError:
+            return
 
     def list_page(self, cursor: str | None, limit: int) -> Any:
         items = sorted(self._store.in_domain(self.domain), key=lambda s: (s.record.date, s.record.record_id), reverse=True)

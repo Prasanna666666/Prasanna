@@ -248,19 +248,18 @@ def test_a_restore_drill_proves_a_backup_and_only_then_may_the_restricted_domain
             "finance" not in core.designation.designable() and "health" not in core.designation.designable() and "notes" in core.designation.designable()
         )  # held back until a drill passes
         assert run_restore_drill(
-            folder, "wrong passphrase entirely", tmp_path / "scratch0", core.config.data_dir
+            folder, "wrong passphrase entirely", tmp_path / "scratch0", core.config.data_dir, core.config.clock
         ).code == "bad_passphrase" and not drill_passed(core.config.data_dir)
         assert (
-            run_restore_drill(folder, PASS, tmp_path / "scratch1", core.config.data_dir).ok and not (tmp_path / "scratch1").exists()
+            run_restore_drill(folder, PASS, tmp_path / "scratch1", core.config.data_dir, core.config.clock).ok and not (tmp_path / "scratch1").exists()
         )  # the drill cleans up what it made
         core.tick()
         assert {"finance", "health"} <= set(core.designation.designable())
         marker = core.config.data_dir / DRILL_FILE
-        assert drill_passed(core.config.data_dir) and not drill_passed(
-            core.config.data_dir, lambda: datetime.now(UTC) + timedelta(days=91)
-        )  # a drill goes stale
+        now = core.config.clock
+        assert drill_passed(core.config.data_dir, now) and not drill_passed(core.config.data_dir, lambda: now() + timedelta(days=91))  # a drill goes stale
         marker.write_text("not json")
-        assert drill_passed(core.config.data_dir) is False
+        assert drill_passed(core.config.data_dir, now) is False
     finally:
         world.close()
 
@@ -297,3 +296,116 @@ def test_the_owners_own_edits_and_the_action_audit_are_backed_up_and_come_back_i
         store.close()
     restored_audit = AuditFile(target / "actions-audit.jsonl").load()
     assert restored_audit is not None and len(restored_audit) == 2  # the chain verifies and continues
+
+
+# --- audit round: ATLAS-BACKUP-034/035/036/037/071 -------------------------------------------------------------------------------------------------
+
+
+def _rewrite_manifest(folder, edit):
+    path = folder / "manifest.json"
+    manifest = json.loads(path.read_text())
+    edit(manifest)
+    path.write_text(json.dumps(manifest))
+
+
+def test_a_hostile_manifest_cannot_make_the_verifier_read_outside_the_backup_folder(world, tmp_path):
+    """ATLAS-BACKUP-034: names are checked against the fixed allowlist before any file is opened; a link inside the backup is never followed; malformed entries are a code, not a crash."""
+    a_core_with_a_finished_task(world)
+    original = make_backup(world, tmp_path)
+    outside = tmp_path / "outside-sentinel.txt"
+    outside.write_text("secret")
+    opened: list[str] = []
+    real = Path.stat
+
+    def spy(self, *a, **k):
+        opened.append(str(self))
+        return real(self, *a, **k)
+
+    for bad in ("../outside-sentinel.txt", str(outside), "sub/tasks.db", 7):
+        copy = tmp_path / f"h-{abs(hash(str(bad)))}"
+        shutil.copytree(original, copy)
+        _rewrite_manifest(copy, lambda m, bad=bad: m["files"].__setitem__(bad, {"size": 6, "sha256": "0" * 64}))
+        Path.stat = spy
+        try:
+            assert verify_backup(copy).problems == ("bad_manifest",)
+        finally:
+            Path.stat = real
+        assert not any("outside-sentinel" in p for p in opened)
+    for entry in ("string", None, {"size": "6", "sha256": "0" * 64}, {"size": 6, "sha256": "zz"}, {"size": -1, "sha256": "0" * 64}, {"size": True, "sha256": "0" * 64}):
+        copy = tmp_path / f"e-{abs(hash(str(entry)))}"
+        shutil.copytree(original, copy)
+        _rewrite_manifest(copy, lambda m, entry=entry: m["files"].__setitem__("tasks.db", entry))
+        assert verify_backup(copy).problems == ("bad_manifest",)
+    linked = tmp_path / "linked"
+    shutil.copytree(original, linked)
+    (linked / "tasks.db").unlink()
+    (linked / "tasks.db").symlink_to(outside)
+    assert verify_backup(linked).problems == ("missing_file",)  # a link is not a backup file
+
+
+def test_a_restore_never_writes_through_a_symlinked_target(world, tmp_path):
+    """ATLAS-BACKUP-035: a target that is a link to an empty directory is refused, and the destination of the link stays untouched."""
+    a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    real_dir, link = tmp_path / "elsewhere", tmp_path / "target-link"
+    real_dir.mkdir()
+    link.symlink_to(real_dir, target_is_directory=True)
+    with pytest.raises(BackupError) as refused:
+        restore_backup(folder, PASS, link, provision_keys=lambda keys: None)
+    assert refused.value.code == "target_not_empty" and list(real_dir.iterdir()) == [] and link.is_symlink()
+
+
+def test_a_backup_file_swapped_after_verification_is_caught_and_nothing_is_left_or_provisioned(world, tmp_path, monkeypatch):
+    """ATLAS-BACKUP-036: the bytes copied are hashed against the authenticated manifest, plain files included; a mismatch removes what the call created and provisions no key."""
+    from atlas_core import backup as backup_module
+
+    a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    target, provisioned = tmp_path / "restore-swap", []
+    real_verify = backup_module.verify_backup
+
+    def swap_after_verify(*args, **kwargs):
+        result = real_verify(*args, **kwargs)
+        for name in ("clients.json", "actions-audit.jsonl"):
+            if (folder / name).exists():
+                (folder / name).write_text('{"swapped": true}')
+        victim = folder / "tasks.db"
+        victim.write_bytes(victim.read_bytes()[:-1] + bytes([victim.read_bytes()[-1] ^ 1]))  # same size, one bit changed
+        return result
+
+    monkeypatch.setattr(backup_module, "verify_backup", swap_after_verify)
+    with pytest.raises(BackupError) as refused:
+        restore_backup(folder, PASS, target, provision_keys=provisioned.append)
+    assert refused.value.code == "hash_mismatch" and provisioned == [] and not target.exists()
+
+
+def test_a_restore_drill_marker_that_is_naive_future_or_malformed_does_not_pass_the_gate(tmp_path):
+    """ATLAS-BACKUP-037: every malformed, future or inconsistent marker is False, never an exception."""
+    from atlas_core.backup import DRILL_FILE, drill_passed
+
+    now = datetime(2026, 11, 23, 3, 0, tzinfo=UTC)
+    good = {"manifest_sha256": "a" * 64, "at": now.isoformat()}
+
+    def check(marker, expected):
+        (tmp_path / DRILL_FILE).write_text(json.dumps(marker))
+        assert drill_passed(tmp_path, lambda: now) is expected
+
+    check(good, True)
+    check({**good, "at": "2026-11-23T03:00:00"}, False)  # naive
+    check({**good, "at": (now.replace(year=2027)).isoformat()}, False)  # future
+    check({**good, "at": "2026-01-01T00:00:00+00:00"}, False)  # stale
+    check({"at": good["at"]}, False)  # no hash
+    check({**good, "manifest_sha256": "nothex"}, False)
+    check({**good, "at": 5}, False)
+    check([], False)
+
+
+def test_a_restore_leaves_no_active_device_the_owner_cannot_see_or_revoke(world, tmp_path):
+    """ATLAS-BACKUP-071: devices pair again after a restore, so restored non-owner clients are revoked; the owner stays."""
+    a_core_with_a_finished_task(world)
+    clients = world.tmp / "core" / "clients.json"
+    clients.write_text(json.dumps({"owner-1": {"key": "AA==", "owner": True, "revoked": False}, "phone-1": {"key": "AA==", "owner": False, "revoked": False}, "phone-2": {"key": "AA==", "owner": False, "revoked": False}}))
+    folder = make_backup(world, tmp_path)
+    report = restore_backup(folder, PASS, tmp_path / "restored", provision_keys=lambda keys: None)
+    rows = json.loads((report.target / "clients.json").read_text())
+    assert rows["owner-1"]["revoked"] is False and rows["phone-1"]["revoked"] is True and rows["phone-2"]["revoked"] is True

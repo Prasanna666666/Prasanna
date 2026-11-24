@@ -34,6 +34,11 @@ class Rules:
         decision = self.raw["deferred"].get(source_type)
         return None if decision is None else str(decision)
 
+    def device_may_ask(self, requested: Sequence[str]) -> bool:
+        """A paired (non-owner) device may put a task over only the sources the policy names for devices; anything else, Finance, Health and Photos included, is refused whatever the device signs."""
+        allowed = set(self.raw["device_task_sources"])
+        return all(s in allowed for s in requested)
+
     def limit(self, name: str) -> int:
         return int(self.raw["limits"][name])
 

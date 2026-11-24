@@ -154,3 +154,60 @@ def test_an_explicit_rollback_returns_to_the_previous_version_and_can_itself_be_
     assert inst.rollback() == "1.0.0" and inst.current_version() == "1.0.0"
     assert inst.rollback() == "1.1.0"  # and forward again
     assert Path(tmp_path / "current").is_symlink()
+
+
+def test_a_failed_or_raising_health_check_never_leaves_an_unhealthy_version_current(tmp_path):
+    """ATLAS-UPD-042: a false and a raising health check are treated alike, on a first install and on an upgrade."""
+
+    def boom(_path):
+        raise RuntimeError("launch failed")
+
+    for check in (lambda p: False, boom):
+        first = Installer(tmp_path / f"first-{id(check)}")
+        r, a = good("1.0.0")
+        with pytest.raises(UpdateError) as e:
+            first.install(r, a, check)
+        assert e.value.code == "unhealthy_first_install" and first.current_version() is None and not (first.root / "versions" / "1.0.0").exists()
+        upgrade = Installer(tmp_path / f"up-{id(check)}")
+        upgrade.install(r, a, lambda p: True)
+        r2, a2 = good("1.1.0", b"new")
+        with pytest.raises(UpdateError) as e2:
+            upgrade.install(r2, a2, check)
+        assert e2.value.code == "unhealthy_rolled_back" and upgrade.current_version() == "1.0.0"
+
+
+def test_a_signed_zip_bomb_or_deceptive_size_metadata_is_refused_and_the_old_version_is_untouched(tmp_path, monkeypatch):
+    """ATLAS-UPD-043: declared sizes, the aggregate, the compression ratio and the bytes actually written are all bounded; staging is cleaned."""
+    from atlas_core import updater
+
+    inst = Installer(tmp_path)
+    r1, a1 = good("1.0.0")
+    inst.install(r1, a1, lambda p: True)
+    monkeypatch.setattr(updater, "MAX_EXPANDED_BYTES", 5 * (1 << 20))
+    monkeypatch.setattr(updater, "MAX_MEMBER_BYTES", 4 * (1 << 20))
+    def deflated(files):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:
+            for name, data in files.items():
+                z.writestr(name, data)
+        return buffer.getvalue()
+
+    bombs = {
+        "ratio": deflated({"a": b"\0" * (3 << 20)}),  # 3 MiB of zeros compresses to ~3 KB
+        "member": deflated({"a": b"x" * ((4 << 20) + 1)}),
+        "aggregate": deflated({f"f{i}": bytes(range(256)) * 4096 for i in range(6)}),
+    }
+    for name, art in bombs.items():
+        r, a = release("1.1.0", art), art
+        with pytest.raises(UpdateError) as e:
+            inst.install(r, a, lambda p: True)
+        assert e.value.code == "unsafe_artefact", name
+        assert inst.current_version() == "1.0.0" and not list((tmp_path / "versions").glob(".staging-*"))
+    # deceptive metadata: the declared size says small, the real stream is bigger
+    art = deflated({"a": b"y" * (3 << 20)})
+    real_check = updater._check_sizes
+    monkeypatch.setattr(updater, "_check_sizes", lambda members: None)  # as if the header lied
+    monkeypatch.setattr(updater, "MAX_EXPANDED_BYTES", 1 << 20)
+    with pytest.raises(UpdateError) as e:
+        inst.install(release("1.2.0", art), art, lambda p: True)
+    assert e.value.code == "unsafe_artefact" and inst.current_version() == "1.0.0" and real_check

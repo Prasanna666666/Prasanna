@@ -707,3 +707,47 @@ def test_bytes_after_the_declared_length_are_not_part_of_the_message(tmp_path):
     box.list_page(None, 10)
     got = box.read("<q1@example.invalid>")
     assert got is not None and "TRAILER-OUTSIDE" not in got["body"]
+
+
+@pytest.mark.parametrize(
+    "premature",
+    [b"--OUT--\n", b"--OUT\n"],
+    ids=["outer-closing-while-inner-open", "outer-opening-while-inner-open"],
+)
+def test_a_delimiter_of_an_enclosing_multipart_while_an_inner_one_is_open_ends_the_read_without_reading_a_byte_more(tmp_path, monkeypatch, premature):
+    """ATLAS-MAIL-032: delimiters nest last-in first-out; a malformed nesting fails closed and the sibling attachment's bytes (and even its headers) are never read."""
+    raw = (
+        b"From: A <a@example.invalid>\nSubject: Bad nesting\nMessage-ID: <bad@example.invalid>\nDate: Sat, 14 Mar 2026 09:30:00 +0000\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=OUT\n\n"
+        b"--OUT\nContent-Type: multipart/alternative; boundary=IN\n\n--IN\nContent-Type: text/html\n\n<p>only html</p>\n"
+        + premature
+        + b"Content-Type: application/pdf\nContent-Disposition: attachment; filename=a.pdf\n\n"
+        + SENT
+        + b"\n--OUT--\n"
+    )
+    emlx(tmp_path / "a/1.emlx", raw, 1_700_000_000)
+    box = EmlxMailbox(tmp_path)
+    box.list_page(None, 10)
+    reads = _Reads(monkeypatch)
+    assert box.read("<bad@example.invalid>") is None  # unreadable, never a guess
+    assert SENT not in reads.everything and b"application/pdf" not in reads.everything
+    assert len(reads.everything) <= _count_prefix(raw) + raw.index(premature, raw.index(b"only html")) + len(premature)  # not one byte after the premature delimiter line
+
+
+def test_a_same_size_edit_that_keeps_the_mtime_is_refused_at_once_and_indexed_again_without_a_new_marker(tmp_path):
+    """ATLAS-MAIL-024: the change marker (size and mtime) cannot see this edit; the guarded read can, so the row goes back to pending and the new text becomes searchable."""
+    path = emlx(tmp_path / "x/1.emlx", PLAIN, 1_700_000_000)
+    index = MailIndex(tmp_path / "mail.db", KEY, EmlxMailbox(tmp_path / "x"), "mail", access=AllowAll())
+    index.scan()
+    while index.run(10)["pending"]:
+        pass
+    assert list(index.search("mail", "total due euro"))
+    stat = os.stat(path)
+    path.write_bytes(path.read_bytes().replace(b"1250.50", b"1250.99"))  # the same length
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))  # and the very same modification time
+    assert not list(index.search("mail", "total due euro"))  # never the old text, never a guess, in the meantime
+    assert index.coverage()["pending"] == 1 and not index.coverage()["complete"]  # and coverage says so
+    index.scan()
+    while index.run(10)["pending"]:
+        pass
+    found = list(index.search("mail", "total due euro"))
+    assert found and "1250.99" in found[0]["text"] and "1250.50" not in found[0]["text"]

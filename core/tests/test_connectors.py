@@ -244,3 +244,22 @@ def test_after_a_restart_no_connector_acts_until_it_has_been_checked_in_this_run
         assert gateway.propose("home.control_device", {"light": "on"}, origin="owner_request", idempotency_key="k0000002").status == "done"
     finally:
         service.close()
+
+
+def test_a_check_that_raises_takes_the_connectors_authority_away_instead_of_leaving_it(rig):
+    """ATLAS-CONN-103: an unexpected exception during a re-check is 'did not answer', exactly like verify_all treats it."""
+    world, service, _ = rig
+    owner = world.client()
+    owner.connect_connector("home", service.address, TOKEN)
+    assert owner.act("home.control_device", {"light": "on"})["status"] == "done"
+    hub = world.cores[-1].connectors
+    adapter = hub._adapters["home"]
+    original = adapter.check
+    adapter.check = lambda credentials: (_ for _ in ()).throw(RuntimeError("adapter bug"))
+    try:
+        assert owner.check_connector("home")["state"] != "connected"
+        before = len(service.calls)
+        assert owner.act("home.control_device", {"light": "off"})["status"] == "refused" and len(service.calls) == before
+    finally:
+        adapter.check = original
+    assert owner.check_connector("home")["state"] == "connected"

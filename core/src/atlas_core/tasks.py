@@ -25,7 +25,7 @@ from .errors import CoreError, user_error
 from .events import new_id
 from .rules import Rules, load_rules
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: tasks.creator (the client that created the task)
 KEY_ENV, KEY_FILE_ENV = "ATLAS_TASK_KEY", "ATLAS_TASK_KEY_FILE"
 KEYCHAIN_ITEM = "atlas-task-key"  # the dedicated Keychain item that supplies the key on the Mac (provisioning script: not part of this stage)
 STEPS = ("none", "policy_checked", "retrieved", "drafted", "verified")
@@ -192,6 +192,8 @@ class TaskStore:
             if version > SCHEMA_VERSION:
                 raise CoreError("internal_error")  # a newer store than this code understands: refuse rather than guess
             self._conn.executescript(DDL)
+            if "creator" not in {r["name"] for r in self._conn.execute("PRAGMA table_info(tasks)")}:
+                self._conn.execute("ALTER TABLE tasks ADD COLUMN creator TEXT")  # additive: tasks made before this have no recorded creator, so only the owner can reach them
             self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def close(self) -> None:
@@ -232,7 +234,13 @@ class TaskStore:
             return [r["task_id"] for r in self._conn.execute(f"SELECT task_id FROM tasks WHERE state IN ({marks}) ORDER BY created_at", states)]
 
     # -- writing -------------------------------------------------------------------------------------------------------------------------
-    def create(self, request: dict[str, Any], decision: dict[str, Any], now: datetime) -> tuple[dict[str, Any], bool]:
+    def creator(self, task_id: str) -> str | None:
+        """The client that created the task, or None (unknown task, or one made before creators were recorded)."""
+        with self._lock:
+            row = self._conn.execute("SELECT creator FROM tasks WHERE task_id=?", (task_id,)).fetchone()
+        return None if row is None or row["creator"] is None else str(row["creator"])
+
+    def create(self, request: dict[str, Any], decision: dict[str, Any], now: datetime, creator: str | None = None) -> tuple[dict[str, Any], bool]:
         """Create a task; the same idempotency key with the same request returns the existing one, with a different request it is a conflict."""
         digest = _hash_request(request)
         with self._lock:
@@ -244,10 +252,10 @@ class TaskStore:
             task_id = new_id()
             deadline = now + timedelta(seconds=request["budget"]["max_seconds"])
             self._conn.execute(
-                "INSERT INTO tasks (task_id,state,created_at,updated_at,deadline,source_scope,budget,idempotency_key,request_hash,objective,policy_decision,audit_ref)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO tasks (task_id,state,created_at,updated_at,deadline,source_scope,budget,idempotency_key,request_hash,objective,policy_decision,audit_ref,creator)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (task_id, "requested", _iso(now), _iso(now), _iso(deadline), json.dumps(request["source_scope"]), json.dumps(request["budget"]),
-                 request["idempotency_key"], digest, request["objective"], json.dumps(decision), new_id()),
+                 request["idempotency_key"], digest, request["objective"], json.dumps(decision), new_id(), creator),
             )  # fmt: skip
             return self.record(task_id), True
 

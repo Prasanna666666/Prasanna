@@ -18,7 +18,8 @@ pytestmark = pytest.mark.criterion(14)
 
 
 class Rig:
-    def __init__(self, tmp):
+    def __init__(self, tmp, receipts=None):
+        self.receipts = receipts
         self.store = RecordStore(tmp / "edits.db", KEY + "e", frozenset({"calendar", "contacts", "notes"}))
         self.registry = ClientRegistry()
         self.registry.register("phone-0001", Ed25519PrivateKey.generate().public_key())
@@ -28,7 +29,7 @@ class Rig:
         """A restart of the Core: a new gateway and a new sync service (their memory of op ids is gone); the store and the registry are durable."""
         self.gateway = ActionGateway()
         register_record_actions(self.gateway, self.store, lambda p: {}, lambda rid: None)
-        self.sync = SyncService(self.gateway, self.registry, self.version)
+        self.sync = SyncService(self.gateway, self.registry, self.version, self.receipts)
 
     def version(self, record_id):
         try:
@@ -118,3 +119,26 @@ def test_a_device_cache_holds_only_own_record_domains_and_expires():
     now = datetime(2026, 11, 23, 12, 0, tzinfo=UTC)
     policy = cache_policy(frozenset({"notes", "finance", "health", "calendar"}), now)
     assert policy.domains == frozenset({"notes", "calendar"}) and policy.expires_at == now + timedelta(days=7) and policy.wipe_on_revocation is True
+
+
+def test_an_operation_id_is_one_operation_even_across_a_restart(tmp_path):
+    """ATLAS-SYNC-040: with durable receipts, the same id with the same payload is a duplicate after a restart and the same id with a changed payload is refused, so one id never has two effects."""
+    r = Rig(tmp_path, tmp_path / "sync-receipts.jsonl")
+    try:
+        first = QueuedOp("op-1", "notes.create", note("n1"))
+        assert r.sync.apply("phone-0001", [first])[0].status == "applied"
+        r.restart()
+        assert r.sync.apply("phone-0001", [first])[0].status == "duplicate"
+        changed = QueuedOp("op-1", "notes.create", note("n2"))
+        outcome = r.sync.apply("phone-0001", [changed])[0]
+        assert (outcome.status, outcome.code) == ("rejected", "operation_id_reused") and r.version("n2") is None
+        # a crash after the intent was written but before the result: the same payload may be applied once more (the store's version check keeps it safe), a different one never
+        (tmp_path / "sync-receipts.jsonl").write_text(
+            (tmp_path / "sync-receipts.jsonl").read_text() + '{"device": "phone-0001", "op": "op-2", "digest": "' + r.sync._digest(QueuedOp("op-2", "notes.create", note("n3"))) + '"}\n{"torn line'
+        )
+        r.restart()
+        assert r.sync.apply("phone-0001", [QueuedOp("op-2", "notes.create", note("n4"))])[0].code == "operation_id_reused"
+        assert r.sync.apply("phone-0001", [QueuedOp("op-2", "notes.create", note("n3"))])[0].status == "applied"
+        assert oct((tmp_path / "sync-receipts.jsonl").stat().st_mode & 0o777) == "0o600"
+    finally:
+        r.store.close()

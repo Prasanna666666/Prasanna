@@ -21,7 +21,9 @@ public struct PairingInvite: Equatable {
     /// `atlas://pair?code=…&fp=…&addr=…`: what the Mac shows (as text or a QR code) and the phone reads. Anything malformed is not an invite.
     public static func parse(_ text: String) -> PairingInvite? {
         guard let components = URLComponents(string: text.trimmingCharacters(in: .whitespacesAndNewlines)), components.scheme == "atlas", components.host == "pair" else { return nil }
-        let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in item.value.map { (item.name, $0) } })
+        let pairs = (components.queryItems ?? []).compactMap { item in item.value.map { (item.name, $0) } }
+        guard Set(pairs.map { $0.0 }).count == pairs.count else { return nil }  // a repeated parameter is not an invite (and must never trap)
+        let items = Dictionary(uniqueKeysWithValues: pairs)
         guard let code = items["code"], let fp = items["fp"], let addr = items["addr"] else { return nil }
         let codeOK = code.range(of: "^[A-Za-z0-9_-]{8,64}$", options: .regularExpression) != nil
         let fpOK = fp.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil

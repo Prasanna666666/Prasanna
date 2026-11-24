@@ -22,6 +22,7 @@ from .rules import load_rules
 
 _MONEY = re.compile(r"-?\d{1,12}\.\d{2}\Z")
 _ID = re.compile(r"[A-Za-z0-9._-]{1,120}\Z")
+_CURRENCY = re.compile(r"[A-Z]{3}\Z")
 
 
 def _schema() -> dict[str, Any]:
@@ -60,6 +61,9 @@ class Record:
         for name in schema.get("money", ()):
             if name in self.fields:
                 _check_money(self.fields[name])
+        for name in schema.get("currency_codes", ()):
+            if name in self.fields and not _CURRENCY.match(self.fields[name]):
+                raise RecordError("bad_currency")  # an ISO 4217 code: three capital letters, never a label or a symbol
         for name in schema.get("numbers", ()):
             if name in self.fields:
                 _check_number(self.fields[name])

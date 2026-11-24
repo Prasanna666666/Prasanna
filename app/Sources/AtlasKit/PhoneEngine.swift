@@ -17,6 +17,8 @@ public final class PhoneEngine {
         link = vault.load() == nil ? .notPaired : .online
     }
 
+    static let damagedQueue = "The changes saved on this phone cannot be read. Nothing was overwritten; new changes are not accepted until this is resolved."
+
     public var pendingChanges: Int { queue.operations.count }
     public var isPaired: Bool { vault.load() != nil }
 
@@ -43,6 +45,12 @@ public final class PhoneEngine {
 
     private func revokedHere() { unpair(); link = .revoked }
 
+    /// A refusal is a revocation only if the Core still refuses this phone's own signature on a request that asks for nothing. A stale clock, an owner-only route or a source this phone may not ask about
+    /// are refusals too, and none of them may erase the queue and the saved records. A Core that cannot be reached is never a revocation.
+    private func isRevoked(_ client: CoreClient) -> Bool {
+        do { try client.probe(); return false } catch AtlasError.core(let code) where code == "forbidden" { return true } catch { return false }
+    }
+
     // MARK: reading
 
     public struct Reading { public let state: LoadState<[OwnRecord]>; public let fromCache: Bool; public let fetchedAt: Date? }
@@ -58,8 +66,8 @@ public final class PhoneEngine {
             if case .loaded(let records) = state { remember(records, domain) } else { cacheFor(domain).erase() }
             return Reading(state: state, fromCache: false, fetchedAt: clock())
         } catch AtlasError.core(let code) where code == "forbidden" || code == "unauthenticated" {
-            revokedHere()
-            return Reading(state: .denied(SyncOutcome.revoked.message), fromCache: false, fetchedAt: nil)
+            if isRevoked(client) { revokedHere(); return Reading(state: .denied(SyncOutcome.revoked.message), fromCache: false, fetchedAt: nil) }
+            return Reading(state: .denied("Atlas did not allow that."), fromCache: false, fetchedAt: nil)
         } catch {
             link = .offline
             if let data = cacheFor(domain).load(), let cached = try? JSONDecoder.iso.decode(CachedRecords.self, from: data), !cached.isExpired(now: clock()) {
@@ -80,33 +88,45 @@ public final class PhoneEngine {
     /// Adds something. It is queued first (so nothing is lost if the Mac is away) and then sent if it can be.
     @discardableResult
     public func add(_ draft: RecordDraft) -> SyncOutcome {
-        guard queue.enqueue(create: draft, now: clock()) != nil else { return .failed(draft.problem() ?? "Atlas could not save that.") }
+        guard queue.enqueue(create: draft, now: clock()) != nil else { return .failed(queue.damaged ? PhoneEngine.damagedQueue : (draft.problem() ?? "Atlas could not save that on this phone.")) }
         return sync()
     }
 
     @discardableResult
     public func archive(_ record: OwnRecord, in domain: OwnDomain) -> SyncOutcome {
-        guard queue.enqueue(archive: record, in: domain) != nil else { return .failed("Atlas could not save that.") }
+        guard queue.enqueue(archive: record, in: domain) != nil else { return .failed(queue.damaged ? PhoneEngine.damagedQueue : "Atlas could not save that on this phone.") }
         return sync()
     }
 
     @discardableResult
     public func sync() -> SyncOutcome {
+        if queue.damaged { return .failed(PhoneEngine.damagedQueue) }
         guard !queue.operations.isEmpty else { return .nothingToSend }
         guard let client = client() else { return .offline }
-        do {
-            let response = try client.sync(ops: queue.requestOps)
-            if SyncResults.isRevoked(response) { revokedHere(); return .revoked }
-            link = .online
-            queue.remove(SyncResults.answered(response))
-            return SyncResults.interpret(response)
-        } catch AtlasError.core(let code) where code == "forbidden" || code == "unauthenticated" {
-            revokedHere()
-            return .revoked
-        } catch {
-            link = .offline
-            return .offline  // the changes stay queued
+        var applied = 0, duplicates = 0, rejected = 0
+        var conflicts: [SyncConflict] = []
+        var rounds = 0
+        while !queue.operations.isEmpty && rounds < 100 {
+            rounds += 1
+            let batch = queue.nextBatch()
+            do {
+                let response = try client.sync(ops: OfflineQueue.requestOps(of: batch))
+                if SyncResults.isRevoked(response) { revokedHere(); return .revoked }
+                link = .online
+                let answered = SyncResults.answered(response)
+                guard case .synced(let a, let d, let c, let r) = SyncResults.interpret(response) else { return SyncResults.interpret(response) }
+                applied += a; duplicates += d; conflicts += c; rejected += r
+                queue.remove(answered)
+                if answered.isEmpty { break }  // the Core answered nothing: stop rather than ask again for ever
+            } catch AtlasError.core(let code) where code == "forbidden" || code == "unauthenticated" {
+                if isRevoked(client) { revokedHere(); return .revoked }
+                return .failed("Atlas did not accept that. Your changes are still saved on this phone.")
+            } catch {
+                link = .offline
+                return .offline  // what has not been answered stays queued
+            }
         }
+        return .synced(applied: applied, duplicates: duplicates, conflicts: conflicts, rejected: rejected)
     }
 
     // MARK: asking
@@ -119,7 +139,7 @@ public final class PhoneEngine {
             link = .online
             return .success(id)
         } catch let error as AtlasError {
-            if case .core(let code) = error, code == "forbidden" || code == "unauthenticated" { revokedHere() } else if case .local = error { link = .offline }
+            if case .core(let code) = error, code == "forbidden" || code == "unauthenticated" { if isRevoked(client) { revokedHere() } } else if case .local = error { link = .offline }
             return .failure(error)
         } catch { return .failure(.local("unreachable")) }
     }

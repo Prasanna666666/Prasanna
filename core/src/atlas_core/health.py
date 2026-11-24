@@ -49,7 +49,14 @@ def health(core: Any, usage: Callable[[Path], tuple[int, int, int]] = shutil.dis
     for name, index in sorted(core.indexes.items()):
         cov = index.coverage()
         failed, pending = int(cov.get("failed", 0)), int(cov.get("pending", 0))
-        status, code = ("ok", "") if not failed and not pending else ("degraded", "partial_coverage" if pending else "unreadable_items")
+        if cov.get("paused"):
+            status, code = "degraded", "index_paused"
+        elif failed or pending:
+            status, code = "degraded", "partial_coverage" if pending else "unreadable_items"
+        elif not cov.get("complete", True):
+            status, code = "degraded", "incomplete"  # nothing pending or failed, yet the scan has not finished
+        else:
+            status, code = "ok", ""
         checks.append(Check(f"index_{name}", status, code))
     pressure = storage_report(core.config.data_dir, usage=usage).pressure
     checks.append(Check("disk", "ok" if pressure == "ok" else "degraded", "" if pressure == "ok" else f"disk_{pressure}"))
@@ -63,7 +70,7 @@ def diagnostics(core: Any, home: Path, versions: dict[str, str] | None = None, u
         "versions": {**(versions or {}), "python": platform.python_version(), "platform": platform.system()},
         "checks": [{"name": c.name, "status": c.status, "code": c.code} for c in health(core, usage)],
         "storage": {"bytes_by_category": disk.bytes_by_category, "pressure": disk.pressure},
-        "indexes": {n: {k: i.coverage().get(k) for k in ("total", "searched", "pending", "failed", "complete")} for n, i in sorted(core.indexes.items())},
+        "indexes": {n: {k: i.coverage().get(k) for k in ("total", "searched", "pending", "failed", "complete", "paused")} for n, i in sorted(core.indexes.items())},
     }
     return redact(json.dumps(body, sort_keys=True, indent=1), home)
 
