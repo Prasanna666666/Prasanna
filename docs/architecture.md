@@ -10,7 +10,7 @@ One product that tracks everything personal (finance, photos, health, travel, wh
 It is one *product*, not one *process*: Atlas (the shared page and platform services) plus one service per module, each in its own container with its own database. A fault, a bug or a leak in one module cannot reach another.
 
 ## 2. Principles
-1. **One shared AI model**, reached only through one gateway (one request at a time on an 8 GB Mac; priority: chat, then intake, then indexing). Specialised models (CLIP, faces, OCR) are tools inside their module, not "the AI".
+1. **One local model-routing gateway, multiple interchangeable local models.** Atlas chooses a model per task using measured capability, latency, memory cost and privacy constraints. Only one large language model is resident at a time on the target 32 GB Mac; models are loaded on demand and unloaded when appropriate. Specialised models (CLIP, faces, OCR) remain tools inside their module, not conversational LLMs. Cloud inference and cloud fallback are prohibited.
 2. **One router, one chat.** Cross-module questions go through the platform; modules never call each other and never read each other's database.
 3. **Separate domain databases and tools.** One database per module, one writer per database, no cross-database joins. The platform owns a small core database (artifacts, entities, events, reminders, chat, audit).
 4. **Tools do the actual work.** SQL, Python and specialised readers compute every figure, filter, date and total. See section 3.
@@ -19,7 +19,7 @@ It is one *product*, not one *process*: Atlas (the shared page and platform serv
 7. **Every fact has a receipt**: source artifact, page or line, which reader, and verified or not. A figure that cannot be proven is reported as such, never guessed.
 8. **Every answer is checked**: each figure and claim shown to you traces to a tool result.
 9. **Retrieved text is data, never instructions.** Writes and deletes need your own words in the chat.
-10. **Offline always.** No network egress except declared local addresses, enforced in code and in the container.
+10. **Local-first and cloud-independent.** No cloud inference, cloud fallback, or upload of private content. The v1 product remains offline: no general internet egress, only declared local addresses, enforced in code and in the container. A future public-web research capability is a separate, opt-in gateway decision; it must not send private files, memory or sensitive prompts off-device, must treat retrieved pages as untrusted data, and must retain source citations. It is not enabled by this architecture change.
 11. **Sensitivity tiers.** Health (and any later tier-3 module) is locked by default, has its own key, and stays out of search and chat until unlocked. Each chat has a scope.
 12. **Idempotent and recoverable.** Imports never double-count; every database upgrade is versioned, backed up first and reversible.
 13. **Degrade, never cascade.** A module or the model being down leaves everything else working.
@@ -56,11 +56,50 @@ How much:
 | "Get me everything about my India trip 2026" | 4 to parse, 1 to join, tools in each module, 4 to summarise |
 | Delete something | only on the user's own words; never from retrieved text |
 
+### 3.1 Local model routing (target architecture)
+
+The router is a capability selector, not a fixed model-name switch. It runs inside Atlas Core / the AI gateway and selects the least expensive local route that can meet the task's quality and response-time requirements.
+
+**Inputs to the routing decision**
+- Intent and task class: conversation, extraction, summarisation, planning, coding, tool selection, vision, or structured output.
+- Complexity and context size: number of reasoning steps, input length, number of sources and cross-module scope.
+- Privacy tier and chat scope: locked or sensitive domains never become eligible for an external route.
+- Required capabilities: tool calling, JSON/schema reliability, multilingual handling, vision, long context, or code.
+- Latency budget, current memory pressure, model load state and queue priority.
+- Measured evaluation results for the exact task class, not parameter count or marketing claims.
+
+**Routing ladder**
+1. Deterministic code / SQL / specialised readers first wherever they can produce the correct result.
+2. Fast local model for routine intent classification, short summaries and low-risk conversational tasks.
+3. Main local reasoning model for multi-step reasoning, planning, coding and tool orchestration.
+4. A specialist local model only when its measured advantage justifies switching/loading cost.
+5. If no local route can meet the required confidence or deadline, say what could not be completed. Never silently send the request to a cloud model.
+
+**Provisional local model roles (not hard dependencies)**
+- Fast role: Ministral 3 14B candidate.
+- Main role: GPT-OSS 20B candidate.
+- Specialist role: Nemotron 30B-A3B candidate, only for task classes where benchmarks show a real benefit.
+- These are candidates, not approved production winners. Model choice must remain provider-independent and replaceable through a common adapter. Do not introduce a dependency on a single model family.
+
+The earlier 4B–8B fast-model idea remains a benchmark option, not a requirement: a smaller model is useful only if its quality is adequate and the end-to-end latency actually improves. Do not load all candidate models simultaneously. Prefer one resident LLM, with controlled unload/swap for specialist work.
+
+**Verification and escalation**
+- Validate structured outputs against schemas in code; reject malformed or incomplete tool arguments.
+- Verify calculations, permissions, database changes and tool results deterministically. A second LLM is not the default verifier.
+- Use a second local model only for high-impact claims when an evaluation demonstrates that independent review reduces errors enough to justify the latency.
+- Track per-route success, correction rate, tool-call accuracy, time-to-first-token, total latency, peak memory and model-load time. Do not log private prompt or response content.
+
+**Acceptance tests**
+- A golden task suite covers simple chat, ambiguous intent, multi-step tool use, coding, long context, multilingual input, structured output, prompt injection and privacy boundaries.
+- Benchmark every candidate on the target M6 / 32 GB Mac with the same prompts, quantisation, context limits and concurrency.
+- Report quality and p50/p95 latency together. No model becomes the default solely because it is larger or faster.
+- Test model unavailable, model crash, memory pressure, timeout and model swap. Fail clearly and locally; never use cloud fallback.
+
 ## 4. Services
 ```
 Browser -> Atlas (page, menu, search, chat button, theme)         http://atlas.localhost:8000
               |-- Assistant      one model loop over every part's tools, figure check
-              |-- AI gateway     the one model: queue, time limits, safety rules
+              |-- AI gateway     local model router + runtime: task selection, queue, time limits, safety rules
               |-- Intake         the one document processor (no network, read-only inputs)
               |-- Core DB        artifacts, entities, events, reminders, chat, audit
               '-- Modules        finance, photos, health, travel ...  (own container, own DB, own key)
@@ -135,6 +174,8 @@ The picture engine (`images/`) lives in one place and Documents is the only prog
 
 ## 13. Open decisions (defaults in bold; change by ADR)
 - Health locked each session: **yes**.
+- Cloud inference and cloud fallback: **no**.
+- Internet access in v1: **disabled**. Any later public-web research must be an isolated, opt-in gateway with explicit user control; private content must remain local.
 - Chat scope: **all unlocked modules, with chips to narrow**.
 - Intake: **documents copied into the vault, photos referenced in place**; arrival route **one inbox folder for PDFs, CSVs and photos**.
 - Trip boundaries: **inferred from tickets, photos and payments, with a one-tap "wrong trip?" choice, no manual editing**.
@@ -142,7 +183,7 @@ The picture engine (`images/`) lives in one place and Documents is the only prog
 ## 14. Order of work
 1. Foundation: one repository layout with a shared `kit`, this document, the enforcing gates (architecture tests, strict types, pinned dependencies), signed service-to-service calls.
 2. Core database and the shared intake taken out of Finance.
-3. AI gateway and one assistant engine (done: one model loop over every part's tools).
+3. AI gateway and one assistant engine (one model loop over every part's tools exists; implement the capability-based local model router, runtime lifecycle and benchmark gates).
 4. Contract v2 (`tools`, `items_in_window`, `entities`, `feed`), the link book and the lenses.
 5. Health and travel modules, tier locks.
 6. The India-trip request as the end-to-end acceptance test.
