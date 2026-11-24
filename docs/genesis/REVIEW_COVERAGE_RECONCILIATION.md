@@ -330,7 +330,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/OfflineSync.swift` | source | REVIEWED—FINDINGS OPEN | All 143 lines at blob d489f50; corrupt persisted queue silently decodes as empty and can be overwritten, risking offline edit loss; ATLAS-OFFLINE-071 (P1) |
 | `app/Sources/AtlasKit/Pairing.swift` | source | REVIEWED—FINDINGS OPEN | All 133 lines at blob ffcac44; ATLAS-PAIR-065 duplicate query names trap Dictionary(uniqueKeysWithValues:); fingerprint/nonce proof and vault write order inspected |
 | `app/Sources/AtlasKit/PhoneEngine.swift` | source | REVIEWED—FINDINGS OPEN | All 137 lines at blob f1beb87; ATLAS-PHONE-064 paired-but-no-transport path leaves link falsely online; queue/cache/revocation paths inspected |
-| `app/Sources/AtlasKit/Records.swift` | source | REVIEWED—NO FINDINGS | All 132 lines at blob 2a0c22a; own-domain allow-list, date validation, payload generation and record identity inspected |
+| `app/Sources/AtlasKit/Records.swift` | source | REVIEWED—FINDINGS OPEN | All 132 lines at blob 2a0c22a; RecordsOutcome silently drops malformed rows and can report empty/partial data as valid; ATLAS-RECORD-072 |
 | `app/Sources/AtlasKit/RelayBind.swift` | source | REVIEWED—NO FINDINGS | All 19 lines at blob e24ef7e; literal IPv4/private/loopback/link-local/VPN and port allow-list inspected; Core repeats validation |
 | `app/Sources/AtlasKit/Review.swift` | source | REVIEWED—NO FINDINGS | All 38 lines at blob e4dbe60; section allow-list mapping, action gating and partial-status note inspected |
 | `app/Sources/AtlasKit/ScreenState.swift` | source | REVIEWED—NO FINDINGS | All 115 lines at blob 9abb531; load/launch/conversation/evidence state mapping and plain fallback messages inspected |
@@ -353,7 +353,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Tests/AtlasKitTests/NotificationTests.swift` | test | REVIEWED—NO FINDINGS | All 35 lines at blob d7bc7f0; opt-in, generic privacy-safe body, dedupe and per-round cap covered |
 | `app/Tests/AtlasKitTests/PhoneTests.swift` | test | REVIEWED—FINDINGS OPEN | Full file read; ATLAS-TEST-069 repeats production-named Keychain deletion; ATLAS-PHONE-064 no-transport state path lacks regression coverage |
 | `app/Tests/AtlasKitTests/ReapIdentityTests.swift` | test | REVIEWED—NO FINDINGS | All 94 lines at blob 4aba14f; process identity, stale/reused PID, mismatched folder/socket and re-check before SIGKILL covered |
-| `app/Tests/AtlasKitTests/RecordsTests.swift` | test | REVIEWED—NO FINDINGS | All 88 lines at blob a7bd41f; record mapping, draft validation, calendar/travel dates and ID grammar covered |
+| `app/Tests/AtlasKitTests/RecordsTests.swift` | test | REVIEWED—FINDINGS OPEN | All 88 lines at blob a7bd41f; malformed all-invalid/mixed-validity records responses are not tested; ATLAS-RECORD-072 |
 | `app/Tests/AtlasKitTests/ReviewTests.swift` | test | REVIEWED—NO FINDINGS | All 38 lines at blob 13c27d8; review section mapping, highlights, incomplete and unreadable states covered |
 | `app/Tests/AtlasKitTests/SigningTests.swift` | test | REVIEWED—NO FINDINGS | All 44 lines at blob 9452b0b; 1.0/1.1 known-answer vectors, signature verification and catalogue rendering covered |
 | `app/Tests/AtlasKitTests/SubmissionGateTests.swift` | test | REVIEWED—FINDINGS OPEN | All 29 lines at blob f718553; tests isolated gate only, not AppModel stale currentTaskID on new submission (ATLAS-APP-052) |
@@ -873,3 +873,10 @@ At PR #8 head `13f7904d6c8e04b63c0e91149d8df0876658fc21`, read all iOS paths in 
 ### CI, shared UX catalogue, Core README and benchmark review — 2026-11-24
 
 At PR #8 head `3412885e218f65665dd8023325800c226e612201`, read `.github/workflows/ci.yml` (293 lines, blob `1faee779b3512942c498268a41545d8869a13038`), both UX catalogue JSON files (147 lines each; identical blob `0c0419cc525d9ed71952363264c98d4a5dbf2bad`), `core/README.md` (13 lines, blob `2c533cfaae18f64d60d318f9597ed98beb2ff97a`), `core/bench/ingest.py` (152, `dee08e35145e8b166897f960800e9d3897fea5c1`) and `core/bench/overhead.py` (88, `e02e7840c0a5cf479c58d780fc12cfde173908bb`). Findings: **ATLAS-DOC-074 (P2, OPEN)** Core README capability inventory is obsolete; **ATLAS-BENCH-073 (P3, OPEN)** ingest benchmark RSS units are wrong on macOS. CI workflow job wiring and artifact/test scopes inspected; no workflow defect established from static review. No CI run outcome inferred from this file review.
+
+### Records response validation review — 2026-11-24
+
+- `Records.swift` (132 lines, blob `2a0c22aca0ad8f25574a251886ab3983abab80ac`) and `RecordsTests.swift` (88 lines, blob `a7bd41f90ef678a9c8bcb8f19799f65d5822428b`) were read in full at source head `91a33a8d36f8403daa2cee42b1e6d719659c7548`.
+- **ATLAS-RECORD-072 (P2, OPEN):** RecordsOutcome.compactMap silently discards malformed rows. If every row is malformed it returns `.empty`; if only some are malformed it returns `.loaded` with the remainder and no partial warning. The tests cover valid/empty/missing payloads but not malformed rows. Both source and test rows are findings-open.
+- `RelayBind.swift` and `Notifications.swift` were also read in full at unchanged blobs; their strict private-address allow-list and content-free, opt-in notification planner showed no new defect in this pass.
+- No source/tests changed and no local tests were run.
