@@ -128,6 +128,69 @@ Rules:
 - Each item opens the relevant evidence, task or conversation.
 - Prioritisation must be based on real events and deterministic policy, not decorative ranking.
 
+### 4.1.1 Home dashboard — adaptive daily briefing
+
+Home is the only default dashboard. It should feel composed for this moment, not like a fixed grid of widgets. Its content is assembled from a small set of reusable modules and changes only when there is a meaningful reason.
+
+**Default composition (top to bottom):**
+1. A quiet greeting and one natural-language Ask Atlas entry point.
+2. At most one lead item: the most useful timely insight, reminder, decision or ongoing task. Omit it when nothing qualifies; never manufacture a headline to fill the space.
+3. A compact “For you today” briefing, normally a short digest of followed subjects or meaningful personal updates. It may combine different domains into one readable group rather than separate cards for each domain.
+4. A small “Pick up where you left off” continuation when there is genuinely unfinished or recently active work.
+
+The initial viewport should contain no more than three content groups in addition to the greeting/composer. The user should be able to scan it in a few seconds. Below the fold, optional recent items may appear in a simple chronological list; do not create a second dashboard of charts.
+
+**Adaptive relevance rules:**
+- Rank candidates using transparent signals: explicit user priorities and pinned items first; deadlines and time sensitivity; direct relevance to active tasks; material changes in followed subjects; recency; source reliability; and whether the item has already been seen or dismissed.
+- Explicit owner instructions always outrank inferred interests. A muted topic, dismissed item or quiet period must be respected.
+- Combine duplicates and related updates. Prefer one useful synthesis with links to evidence over several near-identical alerts.
+- Avoid repeating unchanged information. Show what changed since the last visit, not the same generic briefing every day.
+- Keep the mix balanced over time when several followed interests are active; do not let one high-volume topic crowd out everything else. Balance must never promote low-value content just to meet a quota.
+- Personal deadlines, safety-relevant device alerts and explicitly requested reminders may outrank general-interest stories. Do not infer emergencies from weak signals.
+- Every surfaced item must have a clear reason it is shown and a route to inspect its source, dismiss it, mute the topic or ask Atlas about it.
+- Do not use click-through, time-on-screen, streaks, outrage or engagement maximisation as ranking objectives. “Engaging” means useful, fresh, understandable and worth returning to—not addictive.
+
+**Personalisation and user control:**
+- Learn from explicit follows/mutes, pins, corrections and dismissals. Treat passive clicks as weak evidence only; do not silently redefine the owner's priorities.
+- Provide lightweight controls such as “More like this”, “Less like this”, “Mute topic” and “Why am I seeing this?” in context, not a permanent settings panel.
+- Allow a small number of owner-pinned shortcuts or priorities, but keep the default layout uncluttered and make all capabilities discoverable through Ask Atlas/search.
+- Respect quiet hours and notification preferences. A dashboard update is not automatically a push notification.
+
+**States:**
+- First run: explain the value of the briefing and invite one simple first question; do not display fake cards or demand a long interest-setup form.
+- No connected sources: remain useful through Ask Atlas and clearly explain that personal updates/briefings need authorised sources.
+- Nothing important today: say so calmly and leave the space quiet; do not fill it with generic content.
+- Stale or partial sources: label freshness/coverage and exclude unsupported claims from confident summaries.
+- Loading/error: preserve the rest of Home, show a small inline state and allow retry; never blank the whole dashboard.
+- Returning visit: prioritise genuinely new or changed items and preserve dismissed/pinned choices.
+
+### 4.1.2 Explore dashboard — curated, interest-led discovery
+
+Explore is not a second Home dashboard or an infinite feed. It is a deliberate reading and discovery space for followed subjects. Its first view is a compact briefing; subject filters and search refine it without adding navigation complexity.
+
+- Start with a small editorial-style “What matters” list: a few high-signal developments, grouped duplicates and a concise “why it matters”. Do not enforce a fixed number when evidence is sparse.
+- Offer simple subject chips/filters (for example AI & technology, science, markets, sport and current affairs) that the owner can change. Do not render a permanent multi-column wall of categories.
+- Let the user switch between a concise briefing and a deeper chronological/topic view. Search and “Ask Atlas about this” should be obvious; advanced filters stay collapsed until requested.
+- Sports content can lead into fixtures, results, Olympics coverage, player/team profiles or historical Statsguru-style queries. Those are focused workspaces launched from Explore or Ask Atlas, not extra dashboard panels permanently shown together.
+- Markets content is explanatory and clearly separates public market context from the owner's personal holdings. Portfolio-specific analysis opens the Investments workspace contextually.
+- Every story carries publisher/source, publication time, original-source link where available, and clear distinction between confirmed reporting, analysis, opinion and unverified claims.
+- The owner can follow/mute topics and adjust emphasis. The ranking must favour relevance, reliability, novelty and materiality—not outrage, popularity alone or endless engagement.
+- Empty, stale, unavailable and disconnected-source states must be honest and useful. Never fabricate stories, scores, prices or trend signals.
+
+### 4.1.3 Focused workspace dashboards — only when the task needs them
+
+Some tasks genuinely benefit from a purpose-built workspace. These are opened contextually and designed around one user goal, not exposed as permanent dashboards. Examples include a portfolio review, a home energy diagnosis, a cricket statistics comparison, an Olympics schedule, a nutrition review or a training plan.
+
+Each workspace follows the same hierarchy:
+1. **Answer the immediate question first** — a plain-language conclusion or current status, with date/time and key caveat where needed.
+2. **Show only the few decision-relevant facts** — the small set of figures, records or options needed for the current task.
+3. **Offer one clear next action** — compare, refine, save, ask a follow-up or take an authorised action.
+4. **Progressive detail** — expandable filters, tables, charts, methodology, history and source coverage.
+5. **Evidence on demand** — every material claim or figure can be traced to its source or deterministic calculation.
+
+Do not force the same dashboard template onto every domain. A cricket comparison needs a well-designed statistical table; home energy needs understandable consumption trends; a fitness plan needs a practical schedule. Reuse typography, spacing, controls, evidence and state patterns, while tailoring the information layout to the task. Never put unrelated domains side by side just to demonstrate Atlas breadth.
+
+
 ### 4.2 Ask Atlas / Conversation
 
 **Purpose:** the universal interface for questions, instructions and cross-domain work.
