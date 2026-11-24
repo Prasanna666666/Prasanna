@@ -39,7 +39,7 @@ Nothing below has been done by me. These are the things only you or a Mac can co
 What I need from you only if something looks wrong: say what you saw. You do not need to relay anything to anyone.
 
 ## Added after the full-stage review of `7792ab5`
-Streaming EMLX reader (attachments after the text are never read; byte count validated), worker without any skip flag (it asks the OS), per-data-folder Core lock and live-socket protection, app submission gate and bounded launcher cleanup, CI artefact scan, and the egress gateway (`EGRESS_GATEWAY.md`; wired through the Core answer path behind two off-by-default gates in the close-out round). See the PR response for the finding-by-finding mapping.
+Streaming EMLX reader (attachments after the text are never read; byte count validated), worker without any skip flag (it asks the OS), per-data-folder Core lock and live-socket protection, app submission gate and bounded launcher cleanup, CI artefact scan, and the egress gateway (`EGRESS_GATEWAY.md`; exposed through a separate API 1.1 research operation behind two off-by-default gates; not integrated into ordinary answer generation). See the PR response for the finding-by-finding mapping.
 
 
 ## Current status (supersedes earlier closure wording)
