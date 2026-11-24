@@ -407,7 +407,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/access.py` | source | REVIEWED—NO FINDINGS | All 136 lines at blob 09347dd; fresh source-specific OS evidence, stale/future/type mismatch, unknown/failure fail-closed behavior, grant preservation/revocation and purge path cross-checked with test_designation.py |
 | `core/src/atlas_core/actions.py` | source | REVIEWED—FINDINGS OPEN | All 314 lines at blob 0a690d3; ATLAS-ACT-019 in-memory execution/undo/idempotency and unanchored audit reset; ATLAS-ACT-074 multi-category effects collapse to one approval label; ATLAS-ACT-075 unlogged unknown/invalid undo refusals |
 | `core/src/atlas_core/answer.py` | source | IN REVIEW | Full: 1–113 |
-| `core/src/atlas_core/api.py` | source | IN REVIEW | Targeted: 131–201, 252–275, 277–306, 318–338, 529–540 |
+| `core/src/atlas_core/api.py` | source | IN REVIEW | 563 lines; request dispatch/auth/version/route families inspected; remaining complete line-by-line pass and API test cross-check pending |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
 | `core/src/atlas_core/backup.py` | source | IN REVIEW | Full: 1–405 |
 | `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source |
@@ -432,15 +432,15 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/gate.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/health.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/health_calc.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/host.py` | source | IN REVIEW | Targeted: 70–175 |
+| `core/src/atlas_core/host.py` | source | REVIEWED—NO FINDINGS | All 176 lines at blob 7c0620c; production macOS-only provider selection, Keychain keys, signed manifest, native/Finance/Health stores, restore drill and web disabled by default inspected |
 | `core/src/atlas_core/identity.py` | source | IN REVIEW | Full: 1–230 |
 | `core/src/atlas_core/intelligence.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/isolated.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/isolated.py` | source | REVIEWED—NO FINDINGS | All 169 lines at blob 94fc687; clean env, confined model root, bounded silence, worker crash, early cancel/drain and process teardown inspected |
 | `core/src/atlas_core/launchagent.py` | source | IN REVIEW | Full source: 1–42 |
 | `core/src/atlas_core/launcher.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/macos.py` | source | IN REVIEW | Full: 1–560 |
+| `core/src/atlas_core/macos.py` | source | REVIEWED—FINDINGS OPEN | All 521 lines at blob 5cef615; ATLAS-MAIL-079 unreadable subtrees/files and failed root pin are silently omitted, allowing false-complete Mail coverage; descriptor/no-follow and MIME byte bounds otherwise inspected |
 | `core/src/atlas_core/macos_sources.py` | source | IN REVIEW | Full: 1–266 |
-| `core/src/atlas_core/mail.py` | source | IN REVIEW | Targeted: 278–345, 400–445, 280–490 |
+| `core/src/atlas_core/mail.py` | source | REVIEWED—FINDINGS OPEN | All 509 lines at blob ac47c34; coverage trusts ListPage completeness and cannot represent adapter-skipped entries; ATLAS-MAIL-079 |
 | `core/src/atlas_core/maintenance.py` | source | IN REVIEW | Targeted: 21–32, 105–132 |
 | `core/src/atlas_core/migration.py` | source | IN REVIEW | Full: 1–192 |
 | `core/src/atlas_core/mlx_runtime.py` | source | IN REVIEW | Full: 1–135 |
@@ -455,18 +455,18 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/relay.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/review.py` | source | IN REVIEW | Full: 1–141 |
 | `core/src/atlas_core/rules.py` | source | IN REVIEW | Full: 1–34 |
-| `core/src/atlas_core/sandbox.py` | source | IN REVIEW | Targeted: 65–165 |
+| `core/src/atlas_core/sandbox.py` | source | REVIEWED—NO FINDINGS | All 165 lines at blob 80210f0; seccomp arch/syscall/domain filter, io_uring block, macOS deny profile, private-read and Mach allow-list checked against tests |
 | `core/src/atlas_core/serve.py` | source | IN REVIEW | Targeted CLI flags/options |
 | `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 326–347, 554–621 |
 | `core/src/atlas_core/storage.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/sync.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/transport.py` | source | IN REVIEW | Full: 1–202 |
+| `core/src/atlas_core/transport.py` | source | REVIEWED—NO FINDINGS | All 202 lines at blob c7f926d; peer UID, strict bounded request framing, timeout, connection cap, owner-only socket and stale/live socket handling inspected |
 | `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/values.py` | source | IN REVIEW | Full source: 1–16 |
 | `core/src/atlas_core/watchers.py` | source | IN REVIEW | Full source: 1–93 |
 | `core/src/atlas_core/web.py` | source | IN REVIEW | Targeted: 30–121 |
-| `core/src/atlas_core/worker.py` | source | IN REVIEW | Full: 1–120 |
+| `core/src/atlas_core/worker.py` | source | REVIEWED—NO FINDINGS | All 120 lines at blob 56140ca; mandatory pre-engine confinement, no skip flag, custom-engine test-only gate and isolated stdin/stdout protocol inspected |
 | `core/tests/conftest.py` | test | NOT STARTED | — |
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
 | `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test verifies audit append only, not approval/receipt/undo/idempotency persistence; no missing/empty audit-file, multi-category, or unknown-action audit tests; ATLAS-ACT-019/074/075 |
@@ -920,3 +920,8 @@ Read the full 265-line frozen 1.0 JSON Schema and 103-line 1.0 OpenAPI document.
 - Added **ATLAS-EGRESS-079 (P2)**: invalid URL ports can raise unhandled `ValueError` instead of a typed `Denied` response.
 - Tests cover taint, identifiers, encoding, redirect checks, content types, and body byte caps, but not these three cases. No local tests or real-Internet requests were run.
 - Updated path counts: 91 IN REVIEW; 100 NOT STARTED; 52 REVIEWED—NO FINDINGS; 35 REVIEWED—FINDINGS OPEN (278 total).
+
+
+### Core sandbox, worker, host, transport and Mail adapter review — 2026-11-24
+
+At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, read all 165 lines of `sandbox.py`, 120 of `worker.py`, 169 of `isolated.py`, 202 of `transport.py`, 176 of `host.py`, 521 of `macos.py`, and 509 of `mail.py`. Revalidated the historical sandbox bypass concern: current worker has no `--skip-self-sandbox` option; `test_the_worker_has_no_flag_that_skips_its_confinement` asserts argparse rejects it. Seccomp blocks non-UNIX socket domains and io_uring; macOS launch profile denies network, private reads and writes, and the worker verifies OS refusal before accepting work. Socket peer identity, request framing/size limits and connection bounds inspected. Production host remains macOS-only; live web engine remains disabled. **ATLAS-MAIL-079 (P2, OPEN)**: EmlxMailbox silently skips inaccessible nested directories/files and turns a failed root pin into an empty list; MailIndex cannot distinguish this from a complete empty mailbox, so coverage may falsely say complete. Descriptor-relative no-follow access and byte-bounded MIME parsing are otherwise carefully guarded. No tests run locally.
