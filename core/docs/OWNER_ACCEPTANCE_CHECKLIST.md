@@ -1,6 +1,6 @@
 # Owner acceptance and final-stage checklist
 
-This checklist records owner-only and final-stage acceptance actions; it is **not** a statement that PR #8 has no outstanding developer work or that independent review is complete. At the 2026-11-24 exact-head checkpoint, PR #8 remains open/draft/unmerged and the independent review ledger reports 82 paths reviewed with no findings, 53 reviewed with findings open, 52 in review and 91 not started. Developer fixes and re-review remain outstanding; see `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md` and `docs/genesis/DEFECT_REGISTER.md`. The items below are owner-only or final-stage actions; each remains release-blocking until done.
+This checklist records owner-only and final-stage acceptance actions; it is **not** a statement that PR #8 has no outstanding developer work or that independent review is complete. The 2026-11-24 path counts below are historical only. For the latest PR head, review-thread counts and current developer-review status, use `docs/genesis/REVIEW_COVERAGE_RECONCILIATION.md`. PR #8 remains open/draft/unmerged; Stage 3 is not accepted. Developer fixes and re-review may still be outstanding; see `docs/genesis/DEFECT_REGISTER.md` and `core/docs/STAGE3_ACCEPTANCE.md`. The items below are owner/final-stage gates, not a substitute for the complete developer and architect acceptance process.
 
 ## A. Needs an Apple Developer ID
 1. Run `scripts/sign_and_notarize.sh` with the real identity (script and dry run are tested, `test_signing_script.py`).
