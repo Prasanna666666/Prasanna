@@ -629,3 +629,9 @@ Evidence: `app/Sources/AtlasApp/Screens.swift` `ActivityView.body` (blob `9b5ad8
 **Severity: P2 — OPEN.**
 
 Evidence: `app/Sources/AtlasApp/Components.swift` `ApprovalSheet` (blob `0e52e88c6833ca04e3f34d2c241163fc4b44d15b`), `app/Sources/AtlasApp/Shell.swift` `RootView.approvalBinding` (blob `f2b033590dc4dab646078f0c359dd61a92b18399`), and `app/Sources/AtlasKit/Approval.swift` `ApprovalFlow.declined()` (blob `7ce1093ebee791911cec3444f4409644d88c24fc`). Decline changes the flow to `.declined`; the sheet then renders only a static “Declined. Nothing was done.” notice. The sheet exposes no Done/Close callback, and the RootView binding dismisses only when its item is set to nil. The only explicit pending-state cancel shortcut is attached to Decline, whose state transition is no longer available after decline. Add a clear dismissal action for terminal states (declined/completed/failed/expired/invalidated) and test that declining leaves the app usable and the sheet can be closed without approving.
+
+
+### ATLAS-VOICE-057 — speech-engine startup failure leaves the input tap and request uncleared
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasApp/Speech.swift`, `SystemSpeech.start(partial:finished:)` (blob `67c6f119059be0b3f939710249857f9786683d4a`, inspected at PR head `9af6e7a25a1c3e29b0fa0f986f9c245933d3dc0e`). The method installs an audio input tap and stores the recognition request before calling `engine.start()`. If `engine.start()` throws, it calls `finished(.failure(.interrupted))` but does not remove the installed tap or clear `request`/`task` through `teardown()`. This leaves partially initialized audio-capture state after a failed start and makes retries depend on later cleanup. Call teardown on the catch path and add a test using an injectable audio-engine/start failure seam to assert tap/request cleanup and successful retry.
