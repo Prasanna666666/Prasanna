@@ -636,3 +636,8 @@ The documentation commits have triggered a new CI run **45419108912**, which was
 ### Further source/test inspection — exact arithmetic
 
 Inspected all 260 lines of `core/src/atlas_core/exact.py` and the full `core/tests/test_exact.py` at source snapshot `4a09eca2ada1d4fe69c04c3a7aefa877327e1848` (source unchanged through the later documentation-only commits). Found **ATLAS-EXACT-106 (P1)**: `Number.exact_decimal` divides Decimals under the default 28-digit context even though the rational parser accepts values up to roughly 420 digits. This can mislabel a rounded value as exact. Logged as PR review **6041587567** and added to the defect register. The file's existing test suite has no >28-significant-digit precision case. This is a source finding, not a claim that the entire 278-path audit is complete.
+
+
+### Review-thread count after this continuation
+
+The exact-arithmetic inline review created one additional thread. Live GitHub now reports **59 inline threads: 21 resolved, 38 unresolved; 43 outdated**. The prior 58/21/37 figures above are the pre-ATLAS-EXACT-106 snapshot. No threads were resolved. Current PR head at this documentation update: `b32e1055d948bf0c9e1880dda4d0c2eb79d78bbd`.
