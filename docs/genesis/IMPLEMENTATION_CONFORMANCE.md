@@ -155,3 +155,14 @@ The subsequent technical-document corrections are recorded in `docs/genesis/HAND
 - Commits: `18002761b7190a8121639c0bc187ab5001422e87` (roadmap status), `7eb30dbac13d24f2ac8e5354c725c3683f6687f1` (decision register), `441c7b6df228c7378cc7105ef97eb1aa12e2fb00` (delivery protocol).
 
 Additional documentation-only corrections in the final pass: `3706b95afd02b038d26134300c8ed568f91142c2` corrected the API 1.1 contract title/status; `6e463c714f963e3f42c3fabbc6d191d200353088` corrected the handover's API 1.1 status; `83051aea4269c4a178b371ef15fdca741cfc1a94` corrected Stage 3 handover egress/rollback wording and the PR description; `4ade8a8b526826e0d037876b113fa1220f17c818` removed the remaining Stage 3 egress-path wording conflict; `b230633b3b8d027576be42f6a6508c638e6e3a6f` aligned the handover with the criterion matrix. Review snapshot after those changes is recorded in `REVIEW_COVERAGE_RECONCILIATION.md`.
+
+## Additional package-level documentation corrections — 2026-11-25
+
+- `STAGE-3-EXECUTION-PLAN.md`: WP3.2 coverage limitation is labelled as true at the accepted WP3.2 commit; WP3.4 API 1.1 coverage is recorded as the later change. The plan no longer says API 1.1 is unserved.
+- `STAGE-2-WORK-PACKAGE.md`: historical entry gate text now records the subsequent exact-scope Stage 2 acceptance and separate Stage 3 authorisation.
+- `WP3_2_DOCUMENTS.md` and `WP3_3_MAIL.md`: historical package snapshots distinguish what was true at package acceptance from later API 1.1 coverage and the implemented-but-real-store-unverified EMLX reader. Mail attachments remain unread.
+- `core/docs/TRACEABILITY.md`: explicitly historical Stage 2 baseline; later grants and stages are not implied by its old rows.
+- `EGRESS_GATEWAY.md`: public research is documented as a separate API 1.1 operation, not ordinary answer generation.
+- `TEST_PLAN.md` and `WP3_5_CLIENT.md`: older Linux/reference-client snapshots are no longer presented as the current app/CI state.
+- `OWNER_ACCEPTANCE_CHECKLIST.md`: distinguishes native framework CI coverage from synthetic `.emlx` fixtures and the unverified real Mail store.
+- Commits: `08b973d7d3e6213c2ec63ad14dd0e8780a73733a`, `bd4d0bd05a8b03f9d8454a1e396d8c0405301e07`, `cefb48de9a0177c8f5bd035330ab9fdc2bbfa020`, `30a665987e54c119f01ac5bfe8455125cf2b96de`, `35e16243b6a3ddc43bae2dbdb24984f9c9869d9a`, `7cf97cbf1574b81d0084c2d40c200743fa664a8b`, `58b7e2de4b203977e437338f33928856484fdda4`, `2418e38f958d8be1600bf16711bd6b1800c020b1`, `36a8379f253e321103148d88e8aaa46752fb04e5`, and `408add907fb0b5a33151c52c66a1e8a213ff51f3`.
