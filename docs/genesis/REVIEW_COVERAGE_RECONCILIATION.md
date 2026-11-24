@@ -375,7 +375,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/ADR_STORAGE_KEYS.md` | documentation | REVIEWED—FINDINGS OPEN | 31 lines, blob `e058e713`; key inventory/backup scope omit live stores and action audit; claims LaunchAgent startup though only plist helper exists and app uses CoreLauncher; ATLAS-DOC-109 |
 | `core/docs/BENCHMARK.md` | documentation | REVIEWED—NO FINDINGS | 21 lines, blob `330fa5c7`; overhead benchmark scope and reported run metadata cross-checked against `bench/overhead.py`, `conftest.World`, and SQLCipher connection; target-Mac/answer-latency claims explicitly provisional |
 | `core/docs/CONNECTOR_PROFILE.md` | documentation | REVIEWED—FINDINGS OPEN | 19 lines, blob `f3e7c70e`; overstates arbitrary plug-in support and omits `100.64/10`/`.ts.net` transport behavior; ATLAS-DOC-111 |
-| `core/docs/CONTRACT_1_1.md` | documentation | NOT STARTED | — |
+| `core/docs/CONTRACT_1_1.md` | documentation | REVIEWED—FINDINGS OPEN | 81 lines, blob `13651ecb`; line 17 says three new paths though 1.1 OpenAPI adds 32 vs 1.0; test name repeats stale count; ATLAS-DOC-112 |
 | `core/docs/DESIGN.md` | documentation | NOT STARTED | — |
 | `core/docs/EGRESS_GATEWAY.md` | documentation | NOT STARTED | — |
 | `core/docs/ENROLMENT.md` | documentation | NOT STARTED | — |
@@ -1055,3 +1055,10 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - `connectors.json` was fully read and its six catalogue entries/effect values checked; no new defect established. Marked `REVIEWED—NO FINDINGS`.
 - Counts recomputed from all 278 path-ledger rows: **49 IN REVIEW; 86 NOT STARTED; 85 REVIEWED—NO FINDINGS; 58 REVIEWED—FINDINGS OPEN (278 total)**. This replaces the inconsistent incremental count in this entry; the path table is the source of truth. No tests run.
 - Next changed file: `core/docs/CONTRACT_1_1.md`.
+
+### API 1.1 contract documentation review — 2026-11-24
+
+- `core/docs/CONTRACT_1_1.md` (81 lines, blob `13651ecbfa946848abdc0ebcda86b6528a0f0968`) was read in full and cross-checked against the 1.0/1.1 OpenAPI files, `test_contracts_v11.py`, `api.py` and `identity.py`. Version negotiation, version echo, the generated schema description, and signing vectors are consistent with the current code. The signing heading explicitly scopes its non-enforcement statement to WP3.1; current identity code applies the version in canonical signing.
+- **ATLAS-DOC-112 (P2, OPEN)**: line 17 and the test function name say “three new paths”, but 1.1 has 39 paths vs 7 in 1.0, and the `NEW_PATHS` assertion contains 32. If three refers to only the WP3.4 subset, the comparison baseline needs to be stated. Comment **6046362327** posted.
+- Row moved to `REVIEWED—FINDINGS OPEN`. Recomputed from the 278 path rows: **49 IN REVIEW; 85 NOT STARTED; 85 REVIEWED—NO FINDINGS; 59 REVIEWED—FINDINGS OPEN (278 total)**. No tests run.
+- Next changed file: `core/docs/DESIGN.md`.
