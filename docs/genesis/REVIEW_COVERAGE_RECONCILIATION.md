@@ -1237,3 +1237,7 @@ Queried PR #8 after the final roadmap/decision reconciliation at head `f6815aa62
 ## Live snapshot after Stage 3/API 1.1 wording corrections — 2026-11-25
 
 At PR #8 head `b230633b3b8d027576be42f6a6508c638e6e3a6f`: 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 40 outdated and 66 current). PR remains open, draft and unmerged. The change in outdated/current classification reflects diff-line movement and does not itself resolve or fix findings. Refresh live review state before further work.
+
+## Latest documentation-only snapshot — 2026-11-25
+
+At PR #8 head `e1815bbc983f21f4d9d0cac448ab15f719bd5dc1`: 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 40 outdated and 66 current). PR remains open, draft and unmerged. The status changes of threads between snapshots reflect diff-anchor metadata and are not fixes or resolutions. The latest commit is documentation-only; fetch the live head and CI status before resuming.
