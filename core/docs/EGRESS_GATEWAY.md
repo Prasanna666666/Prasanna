@@ -1,7 +1,7 @@
 # Egress gateway for public research (Stage 3, `egress.py`)
 
 Requirement: STAGE-3-EXECUTION-PLAN.md ("Public Internet research through the Core egress gateway when useful, using synthetic fixtures in CI and never sending private owner data to public search") and
-INTERNET_AND_NETWORK_POLICY.md sections 1-3, 7, 8. Status: **implemented and tested with synthetic fixtures; wired through the Core answer path behind two explicit gates, both OFF by default; never run against the real Internet; public search stays disabled until the final-stage gates (F-11) pass.**
+INTERNET_AND_NETWORK_POLICY.md sections 1-3, 7, 8. Status: **implemented and tested with synthetic fixtures; exposed through the separate API 1.1 research operation behind two explicit gates, both OFF by default; not integrated into ordinary answer generation; never run against the real Internet; public search stays disabled until the final-stage gates (F-11) pass.**
 
 ## What it enforces
 - **One door.** Only `egress`, `transport` (the local Unix socket server) and `confinement` (tries a connection only to be refused) may import anything that opens a socket or speaks HTTP
