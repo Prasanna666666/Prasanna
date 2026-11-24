@@ -1,165 +1,74 @@
-# Atlas — Handover
+# Atlas — current handover
 
-**Status:** Stage 2 review accepted for reviewed scope; Stage 3 authorised (G-027); WP3.0 accepted; WP3.1 specification accepted (review 6000401465); WP3.2 document-only vertical path accepted at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (review 6000818496); WP3.3 Mail remains gated by G-O19  
+**Last reconciled:** 2026-11-25  
 **Repository:** `Prasanna666666/Prasanna`  
-**Documentation branch:** `genesis-stage2-foundation` (documentation now consolidated into PR #8)  
-**Implementation baseline:** `atlas`
+**Working branch:** `genesis-stage2-foundation`  
+**Shared review vehicle:** [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8)  
+**Observed PR head at this reconciliation:** `83eec5378fff9f26f435492104c4efa2b30d18ca`  
+**PR state:** open, draft, unmerged. This handover does not accept a stage or authorise release.
 
-## Authoritative entry point
+## Start here
 
-Start with [README.md](README.md), then read the canonical documents it indexes. The [Delivery Protocol](DELIVERY_PROTOCOL.md) is the sole authority for role ownership, collaboration, handshakes, issue resolution, change control and acceptance. Do not duplicate those rules here.
+1. [Genesis documentation index](README.md) — canonical reading order and source-of-truth rules.
+2. [PRD](PRD.md) — product promise and owner-approved behaviour.
+3. [UI/UX specification](UI_UX_SPECIFICATION.md) — canonical everyday experience and interaction design.
+4. [Target architecture](TARGET_ARCHITECTURE.md) — system boundaries and sole delivery roadmap (§11).
+5. [Use-case register](USE_CASE_REGISTER.md) — scenarios and integration capability expectations.
+6. [Implementation conformance audit](IMPLEMENTATION_CONFORMANCE.md) — current evidence boundary and the code-to-document review still required.
+7. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md) — PR review-thread and path coverage ledger.
+8. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, change control and acceptance rules.
 
-## Owner-confirmed product boundary
+## Product baseline
 
-There is exactly **one Atlas application**. Standalone Finance, Documents, Images and other legacy application shells are obsolete. Their useful features and data must be integrated into Atlas as internal capabilities. Hidden helper processes are allowed only when technically justified; they do not constitute separate apps. macOS is first, followed by an iOS client usable worldwide wherever secure connectivity is available. Android is out of scope. Atlas Core and AI inference remain under owner control; worldwide access must not introduce cloud inference.
+Atlas is one local-first personal AI operating system: a personal smart intranet and intelligent chief of staff, not a collection of separate mini-apps. The everyday experience must remain calm, uncluttered and useful to a regular user. The persistent primary navigation is **Home, Ask Atlas, Explore and Library**; specialist capabilities open contextually rather than each becoming a permanent top-level section. Settings is a restrained utility surface.
 
-## Basic facts — current owner-approved baseline
+The target is macOS first, with a secure iOS client later. Android is out of scope. Personal-data processing and inference remain owner-controlled and local; public Internet research is a separate, explicitly governed egress path and must not be confused with cloud inference. No silent cloud inference or fallback.
 
-| Area | Current fact | Status / boundary |
-|---|---|---|
-| Product | One Atlas application; personal operating system / intelligent chief of staff | Owner decision |
-| Platforms | macOS first, iOS later; worldwide iOS access through secure connectivity; Android out of scope | Owner decision; remote-access ADR and threat model still required |
-| Hardware profile | 32 GB Apple-silicon Mac mini | Planning profile, not proof of a purchased/tested machine or verified minimum |
-| Inference locality | Local-only; no cloud inference or silent remote fallback | Owner decision |
-| Inference runtime | Apple MLX | Owner-selected direction; target-Mac integration still unverified |
-| Main model | Approximately 27B-parameter class, exact model selected by benchmark | Owner direction; exact family, quantisation, context and fallback remain open |
-| Model routing | Automatic task-based model switching; show which model answered | Owner decision; routing policy and measurements remain to be implemented |
-| Core boundary | Versioned, language-neutral API behind the shared Swift/SwiftUI macOS+iOS app | G-O17 accepted; Core implementation language is separate G-O20 decision |
-| Core language | Not yet decided for long-term production | Stage 2 Python reference implementation does not decide this; compare Python and Swift with MLX, packaging, security, reuse and migration evidence |
-| Mac distribution | Direct download; Developer ID signed and notarised | Owner-approved direction; packaging/update/rollback implementation remains G-O12 |
-| First workflow | Read-only, evidence-grounded questions over owner-authorised local sources, progressive indexing and exact citations | One Get Started flow plus OS permissions; Core grants/revocation; attachment content awaits technical package acceptance |
-| Sensitive domains | Local model may read owner-authorised Finance and Health data | G-021; separate stores/labels, provenance, redaction, revocation; deterministic exact calculations |
+Atlas should unify conversation, voice, dashboard, notifications, connected knowledge, contextual Spaces, personal memory, domain capabilities, app/service integrations, automation and action history. It may research, monitor authorised sources, prepare work and execute permitted reversible actions. Approval remains limited to the exhaustive categories in PRD §4.4. Do not add generic approval prompts for routine reading, analysis, drafting or reversible local work.
 
-ChatGPT owns this table and must update it whenever the owner establishes a durable product or technical fact. Distinguish owner decisions, recommendations, implementation status and verified evidence; never promote a target into a claim that it is already built or tested.
+Home management is a first-class capability: device state, energy and usage tracking, heating schedules, environmental readings and permitted automation. Clearly distinguish measured data from estimates and show source coverage. Personal finance/investment, health, travel, sport/statistics, news/discovery, work/projects and other domains are integrated capabilities, not separate applications.
 
-## Repository handling
+## Evidence and stage status
 
-- `atlas` is the implementation baseline for gap analysis.
-- `genesis-architecture` contains this target documentation and handover.
-- `aperture` is the repository default/legacy Photos branch, not the Atlas product target.
-- `orbit` is historical reference material, not the active implementation baseline.
+The following status distinctions are mandatory:
 
-Do not delete branches, historical evidence, user data, databases or indexes as part of documentation cleanup. Retire obsolete app shells only through an approved, tested migration with data preservation and rollback.
+- **Code present** means files exist in the repository. It does not prove the feature works end-to-end.
+- **Tested** means named tests ran and passed at an identified commit/environment.
+- **Reviewed/accepted** means the stated scope was independently reviewed and explicitly accepted at an exact commit.
+- **Owner-verified** means exercised on the owner's target machine/accounts/data with owner confirmation.
+- **Release-ready** requires all applicable platform, security, installation, operational and owner gates.
 
-## Historical PR #7 audit trail and current PR #8 gate
+### Verified repository / PR facts at this reconciliation
 
-**Stage 0 — documentation review and reconciliation: COMPLETE.** Claude's full-document consistency confirmation is recorded in PR #7 comment 7023445432.
+- PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
+- Its observed head is `83eec5378fff9f26f435492104c4efa2b30d18ca`. The PR reports 605 commits and 281 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
+- Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
+- WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; API 1.1 is specification-only and is not served by Core.
+- WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
+- The PR description states that the Stage 3-testable portions are implemented and tested. Stage 3 itself is **not accepted**. The named final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking; see `core/docs/STAGE3_ACCEPTANCE.md` and `core/docs/PROGRAMME_AUDIT.md`.
+- Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
+- The workflow run associated with the observed head was queued when checked. No passing result for that run is claimed here.
+- General-purpose browser/app automation is documented as a Stage 6 target architecture, not a Stage 3 completion claim. Playwright is a recommendation, not an adopted runtime dependency; OpenClaw is not adopted.
 
-**Stage 1 — implementation audit / gap analysis: ACCEPTED AND CLOSED.** Claude's audit reports are recorded in PR #7 comments 7022436618, 7022456916 and 7022810935, with the superseding final note in 7022967306. ChatGPT's formal acceptance is recorded in comment 7022990234. The audit was documentation/evidence work only; its stated limitations and unverified Mac-dependent behaviour remain in force.
+### Explicitly unaccepted / unverified
 
-The completed sequence is retained in the PR discussion as the audit trail. It does not grant implementation authority.
+At minimum, the PR's own current delivery statement identifies these outstanding items: selected production model injection and evaluation; target-Mac performance/resource measurements; real owner-machine sandbox and real-Internet egress exercise plus owner decision to enable public search; human UI/accessibility walkthrough; real TCC prompts and Mail store; Developer ID signing/notarisation; self-contained install; and target-Mac Keychain/LOCAL_PEERCRED and lifecycle/recovery verification. Do not convert these into completed claims without new exact evidence.
 
-**Architecture decision and Stage 2 authority — COMPLETE.** Claude's technical challenge is recorded in PR #7 comment 7035425400 and its focused document verification in 7037231906. The owner accepted G-O17 and explicitly authorised Stage 2 on 2026-11-20; the owner waived the ChatGPT package-acceptance gate so implementation could proceed (decision recorded in PR #7 comment 7037299974 and subsequent owner instructions). These decisions are final; do not ask the owner to repeat them.
+The existence of iOS source files does not prove secure worldwide access, offline sync or release readiness. The existence of automation modules does not prove broad real-world app coverage or safe end-to-end execution.
 
-**Stage 2 — ACCEPTED for reviewed scope.** The only open PR is [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8), branch `genesis-stage2-foundation`. ChatGPT independently reviewed exact head `58210223398a5715b618d1163397104efd358d49`; the three earlier code blockers, documentation findings and subsequent transport framing/concurrency finding are closed for the inspected scope. Exact-head CI completed **22/22 successful**, including both supported Python core jobs and all repository suites. Core reports 162 tests on Python 3.11 and 3.13, with ruff/mypy clean. ChatGPT recorded formal Stage 2 review acceptance in PR #8 comment 7047659436. PR #8 remains open, draft and unmerged. This acceptance is not production/release sign-off.
+## Current next work
 
-**Still unverified:** real macOS Keychain and `LOCAL_PEERCRED`, Swift/Xcode integration, target-Mac MLX model quality/latency/memory under combined workload, signing/notarisation, and real process-kill/power-loss recovery. The local same-UID 64-slot exhaustion/no-rate-limit residual is documented. Do not claim production readiness.
+1. Finish the documentation-only reconciliation recorded in [IMPLEMENTATION_CONFORMANCE.md](IMPLEMENTATION_CONFORMANCE.md): remove contradictory status language, keep one source of truth for product/UX/roadmap/approval policy, and preserve historical evidence by reference.
+2. Then perform the code-to-document conformance audit at a frozen exact commit. Trace every material PRD requirement and use case to implementation, tests and runtime evidence. Mark each **aligned**, **partially aligned**, **documentation drift**, **not implemented**, or **unverified**.
+3. Reconcile every current PR review thread and changed path; do not report the audit complete while material unresolved review comments or uninspected changed paths remain.
+4. Re-run CI on the final audit head and record the exact result. Do not merge, close the PR, waive release gates or claim owner acceptance without explicit authority.
 
-**Stage 3 — owner-authorised split acceptance (2026-11-22).** The execution plan is [STAGE-3-EXECUTION-PLAN.md](STAGE-3-EXECUTION-PLAN.md) §12.10. Stage 3 acceptance covers the complete objectively testable implementation scope, with exact-commit CI, full-stage architect review and explicit owner acceptance. Evidence requiring the unavailable owner Mac, selected production model, real owner data stores/accounts or human owner walkthrough is explicitly deferred to final integration/release; it is not waived, passed, or a reason to hold the bounded Stage 3 engineering acceptance open. WP3.0/WP3.1 are accepted; WP3.2 is accepted at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c` (review 6000818496). WP3.3 and later packages still require exact-SHA review. The testable portion of criterion 11 is NOT deferrable: the known P1 taint bypass must be fixed and regression-tested, least-privilege sandbox work must be CI-verified, and the egress gateway must be wired behind a disabled-by-default gate and tested with synthetic fixtures. Live public search remains disabled pending final-stage real-Internet/owner verification. Criterion 4 synthetic adversarial evaluation and criterion 12 harness/developer baseline/threshold work remain Stage 3 requirements; selected-model and target-Mac evidence is deferred. Criterion 13 automated app/launcher/Core lifecycle evidence remains Stage 3; owner walkthrough, real TCC/Mail store, signing/notarisation and self-contained installation are deferred. G-O18 attachment processing remains a separate technical acceptance gate. This split is not release approval and does not waive G-O12, G-O02/G-O05, migration controls or later platform gates.
+## Change-control rules
 
-The Stage 1 audit included the iOS target in its assessment. Mobile implementation and worldwide secure access remain separately gated by the remote-access threat model, device identity, offline/sync and mobile release decisions.
-
-## Evidence status
-
-This handover is a target/documentation instruction, not proof that legacy apps have already been retired or that the implementation has been consolidated. Current behaviour must be established from code, tests and CI. Target-Mac and local-model checks must be explicitly reported as owner-verified or pending.
-
-## Current owner direction update — 2026-11-20
-
-The canonical product scope extends beyond the original read-only Documents/Mail plan. See PRD.md, DECISIONS.md, USE_CASE_REGISTER.md, INTERNET_AND_NETWORK_POLICY.md, TARGET_ARCHITECTURE.md and STAGE-3-EXECUTION-PLAN.md.
-
-Key directions: single-user Atlas; one first-run Get Started flow; no routine approval prompts; local model access to owner-authorised Finance and Health; exact calculations code-checked; approval only for consequential external effects or materially irreversible changes; public Internet research under strict data-minimised egress; all supported Mail attachments in scope subject to technical acceptance; progressive newest-first indexing with visible coverage.
-
-The use-case and network-policy documents have been added to this branch. The Stage 3 preparation documents `STAGE-3-BASELINE-AUDIT.md` (the inspected repository gaps and reuse map) and `STAGE-3-CONTRACT-DELTA.md` (the architect's earlier contract proposal) were transplanted from the closed PR #10 branch `genesis-stage3-prep`. `STAGE-3-CONTRACT-DELTA.md` is now explicitly marked superseded and retained as historical context; `core/docs/CONTRACT_1_1.md` and the corresponding schema/OpenAPI files are authoritative for WP3.1. WP3.1 is specification-only: API 1.1 is not served by the running Core. This is documentation progress, not a working app build. Stage 3 is authorised (G-027); target-Mac integration, performance, Keychain, signing/notarisation and other hardware-dependent checks remain unverified.
-
-## Always-on host and availability decision
-
-**Recommendation: keep FileVault enabled.** This protects data at rest if the Mac is lost or stolen. The availability trade-off is material: after a reboot (including a macOS update that restarts the machine), Atlas Core cannot start as the owner LaunchAgent until the owner signs in locally and unlocks the login Keychain. Until then, iPhone access is unavailable; while travelling, an unattended reboot can leave Atlas unreachable for the remainder of the trip. Do not enable automatic login or weaken FileVault to make background services available before login. Before release, test on the target Mac whether authenticated software-update restarts preserve Core/Keychain availability; assume they do not until verified. A system-keychain alternative is a separate security design with its own threat model and owner decision, not an automatic workaround.
-
-## Owner-client authority
-
-Only an enrolled, authenticated owner client may change settings or source grants. Core validates client identity, signed request freshness/nonce, replay protection and audit. iOS enrolment is a later Stage 8 gate.
-
-
-## Stage 3 status correction — current acceptance register (2026-11-22)
-
-The owner has authorised the bounded acceptance split in [STAGE-3-EXECUTION-PLAN.md](STAGE-3-EXECUTION-PLAN.md) §12.10. Stage 3 is **NOT YET ACCEPTED**: all Stage 3-testable requirements must be complete on one exact commit, including the criterion 11 P1 taint fix, least-privilege sandbox and disabled-by-default egress integration; criterion 4 synthetic adversarial evaluation; criterion 12 harness, developer baseline and thresholds; criterion 13 automated app/Core lifecycle evidence; all remaining criterion testable portions; full-stage architect review; and explicit owner acceptance. Selected-real-model evaluation, target-Mac measurements, real TCC/Mail-store verification, human UI/accessibility walkthrough, live-Internet enablement, signing/notarisation and self-contained installation are mandatory final-stage release gates, not Stage 3 blockers. They remain pending and must never be represented as passed.
-
-## Current stage register — authoritative (2026-11-22)
-
-This register supersedes historical or contradictory stage-status wording elsewhere in this handover. Status means full stage acceptance, not work-package progress or project sequencing.
-
-| Stage | Current status | Evidence / boundary |
-|---|---|---|
-| Stage 0 — documentation review and reconciliation | **COMPLETE / ACCEPTED** | Claude consistency confirmation in PR #7 comment 7023445432. Historical documentation scope only. |
-| Stage 1 — implementation audit / gap analysis | **COMPLETE / ACCEPTED** | Claude audit reports in PR #7 comments 7022436618, 7022456916, 7022810935 and superseding note 7022967306; ChatGPT acceptance in 7022990234. Audit only; it did not implement the target product. |
-| Stage 2 — Core foundation | **ACCEPTED FOR REVIEWED SCOPE** | ChatGPT formal acceptance in PR #8 comment 7047659436 at exact reviewed code head 58210223398a5715b618d1163397104efd358d49; exact-head CI 22/22. This is bounded scope acceptance, not production/release sign-off. PR #8 remains draft/unmerged. Any later code changes are not automatically covered by that acceptance. |
-| Stage 3 — testable Mac/Core engineering slice | **NOT YET ACCEPTED; split authorised** | Acceptance requires every testable portion of all 15 criteria, P1/high findings fixed, exact-head CI, one full-stage architect PR review and explicit owner acceptance. Criteria 4/11/12/13 have explicit Stage 3 vs final-stage subdivisions in §12.10 of the execution plan. Selected-model, target-Mac, real-store/TCC, human UX, live-Internet enablement, signing/notarisation and self-contained installation remain mandatory final-stage release gates. This is not owner-tryable/release acceptance. PR #8 remains draft/unmerged until the bounded Stage 3 gates pass. |
-| Stage 4 and later | **NOT STARTED / NOT ACCEPTED** | No stage acceptance may be inferred from Stage 3 sequencing, roadmap placement or work in progress. Each requires its own approved scope and closure gate. |
-
-**Current rule:** only a stage with every mandatory criterion ACCEPTED, exact-commit evidence, full-stage independent PR review and explicit owner acceptance may be marked COMPLETE. Any missing, partial, blocked, waived-without-owner-approval or unverified mandatory item keeps the stage NOT ACCEPTED.
-
-
-## App and browser automation architecture decision (2026-11-22)
-
-The canonical target is defined in [TARGET_ARCHITECTURE.md §20](TARGET_ARCHITECTURE.md) and the product requirement in [PRD.md §4.8](PRD.md). Atlas Core owns planning, typed capability contracts, permissions, durable task state, Action Runtime execution, verification and audit. Browser automation is local and Playwright-based by recommendation; macOS app automation uses a capability ladder (official APIs, Shortcuts/App Intents, AppleScript/JXA, Accessibility APIs, then visual control as a last resort). Workers are isolated and least-privileged; secrets stay in OS credential storage; web/app content is untrusted; the existing closed approval policy is unchanged. General-purpose browser/app workflows are Stage 6 target scope, not Stage 3 implementation or acceptance. OpenClaw is not an adopted dependency; any future use requires a separate ADR and explicit owner approval. G-R11/G-R12 record these recommendations in DECISIONS.md.
-
-
-## Documentation update log — 2026-11-25
-
-- Added an explicit canonical answer contract and cross-model response-consistency harness to `INTELLIGENCE_AND_PERFORMANCE.md` §4.1. It defines semantic invariants, provenance/state requirements, route-switch and follow-up tests, metamorphic tests, model-adapter contract tests and exact-commit regression gates. This is a target requirement; implementation and CI enforcement are not yet verified.
-- Extended `USE_CASE_REGISTER.md` with UC-050 Sports and statistics query, UC-051 Personal operating context, and UC-052 Home energy and usage tracking. These are target scenarios with staged acceptance evidence, not claims of implemented features.
-- The existing UI specification already documents the calm, uncluttered Atlas direction and explicitly rejects crowded card/metric dashboards. The existing home capability already covers device state, energy, heating, environment and reversible automation; UC-052 makes usage tracking and measured-versus-estimated data explicit.
-- The existing network policy permits public Internet research through Core-mediated, data-minimised egress while prohibiting cloud inference and private-content uploads without exact approval. Do not describe Atlas as globally offline-only; public research and AI inference are separate paths.
-- Canonical updates are on `genesis-stage2-foundation` (PR #8): use-case commit `c3cdcf11ccdd2c52589601629fb94289faa4a294`; intelligence/consistency commit `ecae83cb2a0356fa16ef001f8f116da7e407844f`. No implementation, stage acceptance or release status changed.
-- A prior assistant edit was mistakenly made on historical `orbit` files (`docs/architecture.md`, `atlas/README.md`). Those are not the authoritative Genesis documents and must not override `docs/genesis/*`, especially the accepted G-O01 model stack and `INTERNET_AND_NETWORK_POLICY.md`. Treat those historical edits as non-authoritative until reconciled or reverted.
-
-
-## Product experience expansion — 2026-11-25
-
-- Owner delegated product design direction to ChatGPT: design Atlas as the integrated product rather than asking the owner to specify each screen or workflow.
-- Added UC-053 AI/technology/science news desk, UC-054 personal investment cockpit, and UC-055 Sports centre/Stats query to USE_CASE_REGISTER.md.
-- Expanded UI_UX_SPECIFICATION.md: one curated Discover destination (AI & Technology, Markets, Sports), natural-language Stats query with competition/season/team/player filters, and a dedicated Investments workspace within Finance. Updated primary navigation accordingly.
-- Design intent: these are focused capabilities inside the single Atlas application, not separate apps. Discover is finite and prioritised, not an infinite feed; Investments emphasises portfolio understanding, risk and evidence rather than trading stimulation; Sports combines current coverage with historical statistical depth.
-- These are documented target experiences. Their data integrations, screens and runtime behaviours are not claimed to be implemented or accepted.
-- Latest documentation commits: use-case expansion 78d8297ce78be19612d367c98f5e485c85e292ed; UI/UX expansion c7e2a04debe7a5ac48b5d5bc1c81ce8c5d380ee0.
-
-
-## UX simplification correction — 2026-11-25
-
-The owner clarified that Atlas must remain neat, easy and comfortable for an everyday regular user; every capability must not become a visible section. The canonical UI/UX specification was corrected accordingly (commits `2ef0d47d21ac52e73fc1fde13adc5ea54414c739` and `d0b61a964996e8d2562558f13ddb96942b85d3a4`). The persistent everyday navigation is now limited to **Home, Ask Atlas, Explore and Library**. Settings is a restrained utility; task activity is contextual with a secondary full-history route. Investing, home energy, fitness, nutrition, cricket statistics, Olympics, politics/current affairs, travel and other capabilities open contextually from natural language, relevant content or search; they do not each receive a permanent navigation item. Dedicated layouts are allowed only as focused, contextual workspaces. Progressive disclosure is mandatory: simple result first, advanced filters/details on demand. This is a design/documentation correction only; no implementation or visual acceptance is claimed. Read back the canonical UI/UX file before implementation and remove any conflicting feature-first navigation from the app.
-
-
-## Adaptive dashboard design — 2026-11-25
-
-Owner delegated dashboard design to the product/design authority, with the requirement that dashboards remain relevant and engaging for regular daily use while the app stays neat and uncluttered. Canonical UI/UX spec expanded in commit `c676bff5aa42b6decd2e9a2fbf5867ff8b8bcedf`:
-- Home is the sole default dashboard: adaptive daily briefing, one lead item at most, a compact “For you today” synthesis and contextual continuation. No static widget wall.
-- Explore is a curated interest-led discovery/reading surface, not an infinite feed or second Home dashboard.
-- Specialist dashboards are contextual workspaces opened only when a task benefits from them; each leads with the answer, decision-relevant facts, one next action and progressive detail/evidence.
-- Relevance uses explicit priorities, deadlines, active-task relevance, followed topics, novelty, freshness and source quality; it respects mutes/dismissals and avoids repetitive content. No addictive engagement optimisation, clickbait or fabricated filler.
-- Defined first-run, no-source, quiet-day, stale/partial, loading/error and returning-visit states, plus lightweight user controls and source traceability.
-
-This is a design specification update only. It does not claim implementation, usability testing or owner visual acceptance. Claude should implement against the canonical UI/UX spec rather than inventing permanent feature dashboards.
-
-
-## Visual identity elevation — 2026-11-25
-
-Owner feedback: the first dashboard concept felt too basic and boring. The canonical UI/UX spec was elevated in commit `86ceea52f8d7b0b5e65cdb971423dbcd8fdf3d8a`. Do not interpret “uncluttered” as generic minimalism. Atlas must have a distinctive, premium editorial visual identity: deep ink/graphite and warm light surfaces, a disciplined vivid accent, expressive typography, deliberate asymmetric composition, purposeful imagery and data visualisations, subtle meaningful motion, and polished states. Home earns a visually dominant “Today's signal” hero only when there is a genuinely important item; supporting content uses a deliberate composition, not uniform KPI cards. Explore should feel like a premium digital journal, not a generic list/feed. Specialist workspaces should use domain-appropriate visualisations. Avoid cheap gradients/glassmorphism, decorative charts, fake live states and repetitive cards. This is a design direction/specification update only; actual implementation and owner visual acceptance remain pending. Claude should produce real screen implementations/screenshots for review, not treat reference image search as a design deliverable.
-
-
-## Product mental model clarified — personal smart intranet — 2026-11-25
-
-Owner clarified that Atlas is best understood as their **personal smart intranet**. This is now reflected in `docs/genesis/PRD.md` and `docs/genesis/UI_UX_SPECIFICATION.md`. It is a private, intelligent home base for one person's digital life, combining a portal, contextual Spaces (e.g. Home, Investments, Sport, Fitness, Travel, Projects), connected searchable knowledge, personalised discovery and integrated services. It is an experience metaphor, not a multi-user corporate intranet. Keep the four-destination outer navigation simple; let Spaces be reached contextually through intent, search, relevant content and optional pinned shortcuts. Connect discovery → questions → Spaces → authorised knowledge → tasks/actions. Do not turn every capability into a permanent section or reproduce a corporate intranet directory. The UI should feel like a lived-in personal environment, not a blank template; never fabricate activity. Documentation only; implementation and owner visual acceptance remain pending.
-
-
-## Personal smart intranet — connected apps, actions and automation reaffirmed — 2026-11-25
-
-Owner explicitly reaffirmed that Atlas must connect apps/services and perform work both on demand and automatically. This is already a core product requirement, not a newly proposed feature. Canonical references:
-- `PRD.md` §§4.3–4.8: authorised-source monitoring, controlled actions, personal-work automation/agent workforce, automation levels (Observe / Prepare / Execute reversible work / Consequential execution / Proactive delegation), and browser/macOS app automation.
-- `TARGET_ARCHITECTURE.md` §§12 and 20: Core-supervised task orchestration, typed capability contracts, policy-controlled Action Runtime, local browser and native macOS automation adapters, least-privilege worker isolation, exact-action approvals, audit, verification, cancellation and recovery.
-- `INTERNET_AND_NETWORK_POLICY.md`: OAuth/platform-native authorisation where available, narrow scopes, grant revalidation before reads/writes, immediate disconnect/revocation, data minimisation, no cloud inference or silent private-data egress.
-- `USE_CASE_REGISTER.md` §§3 and 5–7: daily briefing, cross-app workflows, communication, calendar/tasks, home, travel, shopping, external-source watchers, and staged integration catalogue with read/write scopes. Connector catalogue explicitly distinguishes planned integrations from implemented connectors.
-- `DECISIONS.md` G-022/G-023/G-025/G-026: single-owner permission model, closed consequential-action approval list, public research boundaries, one-time Get Started source onboarding and canonical integration/use-case inventory.
-
-**Owner-facing experience:** connect an app/service once through an understandable, least-privilege authorisation flow; ask Atlas to read, analyse, draft, update or coordinate across connected services; create scheduled or event-triggered automations with owner-defined source/scope/cadence/stop conditions; inspect, pause, cancel, disconnect and review outcomes. Do not make every connector or automation a permanent navigation section. Present a coherent Connections/Automations management surface contextually within Settings or a focused management view, while ordinary use remains natural-language-first. Routine reads, research, drafting and reversible local actions are prompt-free within grants. Approval remains limited to the exhaustive PRD §4.4 categories; do not add blanket confirmation prompts.
-
-**Delivery truth:** this is documented target behaviour, not a claim that vendor connectors or general-purpose automation are already production-ready. The roadmap places the first read-only Mail/Calendar workflow in Stage 3 (Calendar initially read-only) and broader connected actions, browser/app workflows, watchers and specialist automation in Stage 6. Existing connector/approval/orchestration foundations require real provider adapters, end-to-end wiring, least-privilege execution, revocation and failure/recovery verification. Never present a connector as available until implemented and tested. Keep the app catalogue, connector scopes, stage mapping and owner-facing UX aligned. No change to the existing local-first, no-cloud-inference and closed approval policies.
+- `TARGET_ARCHITECTURE.md` §11 is the sole delivery roadmap.
+- `PRD.md` is the product/behaviour authority; `UI_UX_SPECIFICATION.md` is the visual and interaction authority; `DECISIONS.md` records owner decisions; `DELIVERY_PROTOCOL.md` governs collaboration and acceptance.
+- `USE_CASE_REGISTER.md` owns scenario and integration coverage. Other documents link to it rather than maintaining competing inventories.
+- `core/docs/*` records implementation contracts, technical design, tests and stage evidence. It must not silently redefine product intent.
+- When code and a target document differ, record the exact difference and classify it. Do not silently weaken the product requirement to fit existing code.
+- Preserve historical review evidence, decisions, commit references and user data. Correct current summaries without rewriting history.
+- Every material claim includes a path, exact commit, test/evidence and limitations. If evidence is absent, say **unverified**.
