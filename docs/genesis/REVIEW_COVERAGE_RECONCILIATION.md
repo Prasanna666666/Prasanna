@@ -299,7 +299,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 
 | Path | Type | Status | Units inspected |
 |---|---|---|---|
-| `.github/workflows/ci.yml` | build/config | IN REVIEW | Targeted install/SQLCipher/macOS/security job sections |
+| `.github/workflows/ci.yml` | build/config | REVIEWED—NO FINDINGS | All 293 lines at blob 1faee77; Linux/macOS/iOS/MLX/package/UI/security jobs, env wiring, artifacts and test execution scopes inspected |
 | `.gitleaksignore` | build/config | REVIEWED—NO FINDINGS | Full 10 lines; four fingerprint suppressions matched to historical test/type annotation, comment, public checksum and generated test key contexts; scanner execution not independently run |
 | `CLAUDE.md` | documentation | REVIEWED—NO FINDINGS | Full 22 lines; source-of-truth, role split, evidence and product principles consistent with current delivery protocol |
 | `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | All 15 lines re-read at blob 0028b51; AtlasKit/AtlasApp products, platform targets and dependencies align with generated Xcode projects |
@@ -341,7 +341,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasKit/Updates.swift` | source | REVIEWED—NO FINDINGS | All 42 lines at blob 20bcab7; signed-update refusal mapping, install/rollback result and restart messaging inspected |
 | `app/Sources/AtlasKit/Voice.swift` | source | REVIEWED—FINDINGS OPEN | All 111 lines at blob 7ce1093; ATLAS-VOICE-067 asking state does not prevent multiple asynchronous permission callbacks starting multiple sessions |
 | `app/Sources/AtlasKit/Web.swift` | source | REVIEWED—NO FINDINGS | All 53 lines at blob 1c4f8d8; HTTPS and allow-listed host validation, injection/truncation warnings and Core error mapping inspected |
-| `app/Sources/AtlasKit/ux_catalogue.json` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/ux_catalogue.json` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 0c0419c; JSON catalogue keys and user-facing state/error/coverage/citation strings inspected; byte-identical to Core client copy |
 | `app/Tests/AtlasKitTests/AloudTests.swift` | test | REVIEWED—NO FINDINGS | All 41 lines at blob f7a8ad7; text composition, empty answer and speak/stop/finish transitions covered |
 | `app/Tests/AtlasKitTests/ConnectionsTests.swift` | test | REVIEWED—NO FINDINGS | All 73 lines read; state, approval vocabulary, safe host validation, and malformed top-level response tests inspected |
 | `app/Tests/AtlasKitTests/DesignSystemTests.swift` | test | REVIEWED—NO FINDINGS | Full file read; WCAG contrast, text hierarchy, spacing/type/radius, reduced motion and navigation layout assertions inspected |
@@ -362,11 +362,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Tests/AtlasKitTests/WebTests.swift` | test | REVIEWED—NO FINDINGS | All 27 lines at blob 647d85c; source/untrusted warning, injection flag, host allow-list and HTTPS-only validation covered |
 | `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift` | test | REVIEWED—FINDINGS OPEN | Full 92 lines at blob 0059680; ATLAS-TEST-054 contrast exemption can false-pass using unrelated frame extrema; ATLAS-TEST-055 fixed sleep/non-empty text does not assert stable first screen |
 | `app/xcode/project.yml` | build/config | REVIEWED—FINDINGS OPEN | All 51 lines at blob e9a540c; ATLAS-DOC-070 opening comment incorrectly says this tracked YAML is not checked in; macOS 14 target and AtlasKit dependency inspected |
-| `core/README.md` | documentation | NOT STARTED | — |
-| `core/bench/ingest.py` | benchmark | NOT STARTED | — |
-| `core/bench/overhead.py` | benchmark | NOT STARTED | — |
+| `core/README.md` | documentation | REVIEWED—FINDINGS OPEN | All 13 lines at blob 2c533cf; ATLAS-DOC-074 denies capabilities now present in repo (ingestion/search/Mail/model/Swift/remote/iOS/actions) |
+| `core/bench/ingest.py` | benchmark | REVIEWED—FINDINGS OPEN | All 152 lines at blob dee08e3; ATLAS-BENCH-073 divides ru_maxrss by 1024 on macOS despite byte units |
+| `core/bench/overhead.py` | benchmark | REVIEWED—NO FINDINGS | All 88 lines at blob e02e784; stubbed foundation timings, percentile calculation and explicit non-target-Mac limitations inspected |
 | `core/client/atlas_client.py` | source | NOT STARTED | — |
-| `core/client/ux_catalogue.json` | source | NOT STARTED | — |
+| `core/client/ux_catalogue.json` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 0c0419c; exact byte-identical mirror of app AtlasKit catalogue, vocabulary and wording inspected |
 | `core/contracts/atlas-contracts.1.1.delta.schema.json` | contract/schema | NOT STARTED | — |
 | `core/contracts/atlas-contracts.1.1.schema.json` | contract/schema | IN REVIEW | TaskRequest and SourceType definitions inspected |
 | `core/contracts/atlas-contracts.schema.json` | contract/schema | NOT STARTED | — |
@@ -868,3 +868,8 @@ At PR #8 head `13f7904d6c8e04b63c0e91149d8df0876658fc21`, read all iOS paths in 
 - `OfflineSync.swift` (143 lines, blob `d489f50d22fbd235407a0bd88279f2262c036208`) is now findings-open for **ATLAS-OFFLINE-071 (P1)**: malformed/truncated persisted queue bytes are silently treated as an empty queue, and the next enqueue can overwrite the only copy of queued offline changes. Preserve corrupt bytes and surface recovery; do not show zero pending edits.
 - `PhoneTests.swift` (187 lines, blob `7128eb6cb48cf38f3821e4a0ff6b412dba179b3b`) was read in full. Existing ATLAS-TEST-069 destructive Keychain cleanup and ATLAS-PHONE-064 no-transport test gap are already recorded; duplicate-query and corrupt-queue regression tests are absent.
 - No app source/tests changed; no tests run locally. Exact path counts must be recalculated from the current table rather than copied from the earlier checkpoint.
+
+
+### CI, shared UX catalogue, Core README and benchmark review — 2026-11-24
+
+At PR #8 head `3412885e218f65665dd8023325800c226e612201`, read `.github/workflows/ci.yml` (293 lines, blob `1faee779b3512942c498268a41545d8869a13038`), both UX catalogue JSON files (147 lines each; identical blob `0c0419cc525d9ed71952363264c98d4a5dbf2bad`), `core/README.md` (13 lines, blob `2c533cfaae18f64d60d318f9597ed98beb2ff97a`), `core/bench/ingest.py` (152, `dee08e35145e8b166897f960800e9d3897fea5c1`) and `core/bench/overhead.py` (88, `e02e7840c0a5cf479c58d780fc12cfde173908bb`). Findings: **ATLAS-DOC-074 (P2, OPEN)** Core README capability inventory is obsolete; **ATLAS-BENCH-073 (P3, OPEN)** ingest benchmark RSS units are wrong on macOS. CI workflow job wiring and artifact/test scopes inspected; no workflow defect established from static review. No CI run outcome inferred from this file review.
