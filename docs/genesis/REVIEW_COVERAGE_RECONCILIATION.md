@@ -238,7 +238,7 @@ Compared all 12 live branches against PR #8 head:
 **Boundary:** no application source, tests, build files or configuration were changed. This continuation updates only the review-coverage documentation; no PR approval, merge, branch operation or review-thread resolution was performed.
 
 
-## Additional exact-head findings — native-source and phone security pass
+## Additional exact-head findings — UI, voice, transport and connector pass
 
 All findings below have separate detailed PR comments with source evidence, impact, remediation and required tests. OPEN unless explicitly corrected.
 
@@ -273,18 +273,26 @@ All findings below have separate detailed PR comments with source evidence, impa
 | ATLAS-MAC-091 | P2 | Photos limited-library permission is collapsed into full GRANTED without a limited-coverage signal |
 | ATLAS-IOS-094 | P1 | Unpair/revocation silently ignores Keychain and file deletion failures |
 | ATLAS-IOS-095 | P2 | Keychain read errors are collapsed into "not paired" with no retry |
+| ATLAS-TRANSPORT-098 | P1 | UnixHTTP writes without SO_NOSIGPIPE; peer close can terminate the macOS app |
+| ATLAS-TRANSPORT-099 | P2 | Local UnixHTTP has no deadline or response-byte/header cap |
+| ATLAS-VOICE-100 | P1 | Ask microphone session is not stopped on navigation/app lifecycle; permission-pending state can restart capture |
+| ATLAS-VOICE-102 | P2 | Editing or sending during dictation can overwrite text or submit only partial transcript |
+| ATLAS-CONN-103 | P1 | Unexpected exception during connector re-check leaves previous action authority enabled |
+| ATLAS-UI-104 | P2 | Enabled Life Areas are flat sidebar rows instead of one grouped section; dynamic rows also shift Command-1…6 targets |
 
-**ATLAS-SEC-083 clarification:** The API 1.1 contract requires a non-empty scope. Production Host currently holds Finance/Health out of DesignationStore, so the Finance/Health route is a latent role-boundary gap, not a demonstrated current read. ATLAS-SEC-087 is the current active source-scope bypass: Photos is a non-restricted, owner-grantable native source and is not included in the phone's intended scope.
+**ATLAS-SEC-083 clarification:** API 1.1 requires a non-empty scope. Production Host currently holds Finance/Health out of DesignationStore, so the Finance/Health route is a latent role-boundary gap, not a demonstrated current read. ATLAS-SEC-087 is the current active source-scope bypass: Photos is a non-restricted, owner-grantable native source and is not included in the phone's intended scope.
+
+**ATLAS-VOICE-100 correction trail:** an intermediate PR comment incorrectly claimed the mic control was not wired. That statement is superseded: the Ask Composer in `Screens.swift` lines 174–177 calls `model.toggleVoice()` and binds `voiceState`; the P1 lifecycle finding stands.
 
 
 
 ## Exact-head path inventory — refreshed 2026-11-24
 
-**Inventory source:** paginated GitHub changed-filename endpoint for PR #8 head `370acd475d29814ff552900524d4ac8bbf6eedf3`. This is a documentation-only head; source code remains identical to the source snapshot `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba`.
+**Inventory source:** paginated GitHub changed-filename endpoint for PR #8 head `4a09eca2ada1d4fe69c04c3a7aefa877327e1848`. This is a documentation-only head; source code remains identical to the source snapshot `4617e1f60dd9719d0a31bec13cdb2f68ec3c47ba`.
 
 - Exact changed paths: **278**
-- Paths with targeted inspection recorded: **103**
-- Paths not yet started: **175**
+- Paths with targeted inspection recorded: **136**
+- Paths not yet started: **142**
 - Paths established as fully line-by-line reviewed: **0**
 - Categories: build/config 6; documentation 62; source 108; test 88; benchmark 2; contract/schema 5; evaluation 3; script/tool 4.
 - `IN REVIEW` means only the units/ranges shown were inspected; it does not mean the entire file was reviewed or accepted. No test suite or CI was run in this pass.
@@ -296,61 +304,61 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `CLAUDE.md` | documentation | NOT STARTED | — |
 | `app/Package.swift` | build/config | NOT STARTED | — |
 | `app/README.md` | documentation | NOT STARTED | — |
-| `app/Sources/AtlasApp/AtlasApp.swift` | source | IN REVIEW | Targeted: 1–80, 110–170, 200–245, 486–553 |
-| `app/Sources/AtlasApp/Components.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasApp/DesignSystem.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasApp/Screens.swift` | source | IN REVIEW | Targeted: 1–75, 179, 579–595, 600–772 |
-| `app/Sources/AtlasApp/Shell.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasApp/Speaker.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasApp/Speech.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasApp/AtlasApp.swift` | source | IN REVIEW | Targeted: 1–80, 110–170, 200–245, 320–390, 486–553 |
+| `app/Sources/AtlasApp/Components.swift` | source | IN REVIEW | Targeted component/accessibility review |
+| `app/Sources/AtlasApp/DesignSystem.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasApp/Screens.swift` | source | IN REVIEW | Targeted: 1–75, 131–191, 179, 579–595, 600–772 |
+| `app/Sources/AtlasApp/Shell.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasApp/Speaker.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasApp/Speech.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full) |
-| `app/Sources/AtlasKit/Aloud.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/Aloud.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/AnswerView.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Approval.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Catalogue.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Connections.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/Approval.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Catalogue.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Connections.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full) |
 | `app/Sources/AtlasKit/CoreLauncher.swift` | source | IN REVIEW | Full source; process identity/lifecycle sections |
-| `app/Sources/AtlasKit/Finance.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/GetStarted.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/Finance.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/GetStarted.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/HTTPTransport.swift` | source | IN REVIEW | 1–42 (full) |
-| `app/Sources/AtlasKit/Health.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Library.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Lifecycle.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Navigation.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Notifications.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/Health.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Library.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Lifecycle.swift` | source | IN REVIEW | Targeted task/phase state mapping |
+| `app/Sources/AtlasKit/Navigation.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Notifications.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/OfflineSync.swift` | source | IN REVIEW | 1–74 (full) |
 | `app/Sources/AtlasKit/Pairing.swift` | source | IN REVIEW | 1–67 (full) |
 | `app/Sources/AtlasKit/PhoneEngine.swift` | source | IN REVIEW | Full source; 1–124 |
-| `app/Sources/AtlasKit/Records.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/RelayBind.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/Records.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/RelayBind.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/Review.swift` | source | IN REVIEW | 1–38 (full) |
-| `app/Sources/AtlasKit/ScreenState.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Signing.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/SubmissionGate.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Tokens.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Transport.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Updates.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Voice.swift` | source | NOT STARTED | — |
+| `app/Sources/AtlasKit/ScreenState.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Signing.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/SubmissionGate.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Tokens.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Transport.swift` | source | IN REVIEW | Full source inspected: 1–52 |
+| `app/Sources/AtlasKit/Updates.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Voice.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasKit/Web.swift` | source | NOT STARTED | — |
 | `app/Sources/AtlasKit/ux_catalogue.json` | source | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/AloudTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/ConnectionsTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/DesignSystemTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/ConnectionsTests.swift` | test | IN REVIEW | Targeted: 1–160 |
+| `app/Tests/AtlasKitTests/DesignSystemTests.swift` | test | IN REVIEW | Targeted contrast/accessibility assertions |
 | `app/Tests/AtlasKitTests/EndToEndTests.swift` | test | IN REVIEW | Targeted: 61–200 |
-| `app/Tests/AtlasKitTests/FinanceTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/FinanceTests.swift` | test | IN REVIEW | Targeted outcome cases |
 | `app/Tests/AtlasKitTests/GetStartedTests.swift` | test | IN REVIEW | Full test file |
-| `app/Tests/AtlasKitTests/HealthTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/LibraryTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/HealthTests.swift` | test | IN REVIEW | Targeted outcome cases |
+| `app/Tests/AtlasKitTests/LibraryTests.swift` | test | IN REVIEW | Targeted malformed-row/coverage cases |
 | `app/Tests/AtlasKitTests/NotificationTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/PhoneTests.swift` | test | IN REVIEW | Targeted phone revocation/queue cases |
 | `app/Tests/AtlasKitTests/ReapIdentityTests.swift` | test | IN REVIEW | Full test file |
-| `app/Tests/AtlasKitTests/RecordsTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/RecordsTests.swift` | test | IN REVIEW | Targeted record outcome/draft cases |
 | `app/Tests/AtlasKitTests/ReviewTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/SigningTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/SubmissionGateTests.swift` | test | NOT STARTED | — |
 | `app/Tests/AtlasKitTests/UpdateTests.swift` | test | NOT STARTED | — |
-| `app/Tests/AtlasKitTests/VoiceTests.swift` | test | NOT STARTED | — |
+| `app/Tests/AtlasKitTests/VoiceTests.swift` | test | IN REVIEW | Full test file |
 | `app/Tests/AtlasKitTests/WebTests.swift` | test | NOT STARTED | — |
 | `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift` | test | NOT STARTED | — |
 | `app/xcode/project.yml` | build/config | NOT STARTED | — |
@@ -406,9 +414,9 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/browser_engine.py` | source | IN REVIEW | Full: 1–260 |
 | `core/src/atlas_core/browser_worker.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/confinement.py` | source | NOT STARTED | — |
-| `core/src/atlas_core/connector_transport.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/connector_transport.py` | source | IN REVIEW | Full source inspected |
 | `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
-| `core/src/atlas_core/connectors.py` | source | IN REVIEW | Full: 1–280 |
+| `core/src/atlas_core/connectors.py` | source | IN REVIEW | Targeted: 91–130, 190–250 |
 | `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/contracts.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
@@ -557,7 +565,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `docs/genesis/STAGE-3-CONTRACT-DELTA.md` | documentation | NOT STARTED | — |
 | `docs/genesis/STAGE-3-EXECUTION-PLAN.md` | documentation | IN REVIEW | Targeted: 1–65, 330–390 |
 | `docs/genesis/TARGET_ARCHITECTURE.md` | documentation | NOT STARTED | — |
-| `docs/genesis/UI_UX_SPECIFICATION.md` | documentation | IN REVIEW | Targeted: 23–60, 79–135, 183–330 |
+| `docs/genesis/UI_UX_SPECIFICATION.md` | documentation | IN REVIEW | Targeted: 23–60, 62–78, 183–330 |
 | `docs/genesis/USE_CASE_REGISTER.md` | documentation | NOT STARTED | — |
 | `ios/AtlasPhone/AtlasPhoneApp.swift` | source | NOT STARTED | — |
 | `ios/AtlasPhone/PhoneModel.swift` | source | IN REVIEW | 1–100 (full) |
