@@ -312,11 +312,11 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Sources/AtlasApp/Speaker.swift` | source | REVIEWED—NO FINDINGS | All 26 lines at blob cc0f579; local AVSpeechSynthesizer lifecycle and finish/cancel callbacks inspected; no defect established in this adapter |
 | `app/Sources/AtlasApp/Speech.swift` | source | REVIEWED—FINDINGS OPEN | All 61 lines at blob 67c6f11; ATLAS-VOICE-057 start failure leaves installed input tap/request uncleared; local speech only, no server fallback |
 | `app/Sources/AtlasKit/Activity.swift` | source | IN REVIEW | 1–47 (full) |
-| `app/Sources/AtlasKit/Aloud.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/AnswerView.swift` | source | NOT STARTED | — |
-| `app/Sources/AtlasKit/Approval.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Catalogue.swift` | source | IN REVIEW | Full source inspected |
-| `app/Sources/AtlasKit/Connections.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasKit/Aloud.swift` | source | REVIEWED—NO FINDINGS | All 34 lines at blob 295c813; answer/trust text composition, empty guard and single-session toggle/stop lifecycle inspected |
+| `app/Sources/AtlasKit/AnswerView.swift` | source | REVIEWED—NO FINDINGS | All 39 lines at blob 74e0e35; untrusted response mapping, catalogue-backed status/limitations, coverage, not-searched and citation locator rendering inspected |
+| `app/Sources/AtlasKit/Approval.swift` | source | REVIEWED—NO FINDINGS | All 88 lines at blob c3240bf; closed action/consequence allow-list, exact payload fingerprint, expiry and approval state transitions inspected |
+| `app/Sources/AtlasKit/Catalogue.swift` | source | REVIEWED—NO FINDINGS | All 49 lines at blob 85d6f55; shared catalogue decoding, required fields and controlled error fallback inspected |
+| `app/Sources/AtlasKit/Connections.swift` | source | REVIEWED—NO FINDINGS | All 101 lines at blob 42f22a9; connection state, approval description, HTTP/TLS and home/VPN host validation inspected; cross-checked Core enum/effect contract and tests |
 | `app/Sources/AtlasKit/CoreClient.swift` | source | IN REVIEW | 1–119 (full) |
 | `app/Sources/AtlasKit/CoreLauncher.swift` | source | IN REVIEW | Full source; process identity/lifecycle sections |
 | `app/Sources/AtlasKit/Finance.swift` | source | IN REVIEW | Full source inspected |
@@ -781,3 +781,14 @@ Reviewed at PR #8 head `9af6e7a25a1c3e29b0fa0f986f9c245933d3dc0e` (all listed fi
 - `Speech.swift` 61 lines, blob `67c6f119059be0b3f939710249857f9786683d4a`: on-device recognition requirement and microphone lifecycle inspected. **ATLAS-VOICE-057 (P2, OPEN)**: failed engine start after installing tap leaves request/tap state uncleared.
 - `Activity.swift` 69 lines, blob `14c66e0211453fb5befffa94d1a006ff95a5b5a5`: merge/deduplication, sort, attention projection, recent tasks and allow-listed calendar-conflict mapping. No independent defect established; UI omission remains separately logged against Screens.swift.
 - No app source or tests changed; no tests run locally.
+
+
+### AtlasKit answer, approval and connector model review — 2026-11-24
+
+At PR #8 head `81ffe3fbc86b7a750f2429a4b5a895dd913ea4de`, read in full:
+- `Aloud.swift` (34 lines; blob `295c813fc38a68a3f09fc5d685f70591d6d6de7e`): local answer/trust composition, empty-answer guard and single active speak/stop state. No defect established.
+- `AnswerView.swift` (39 lines; blob `74e0e35a052a5a15dd8c1397bf41cb6f099baed2`): API dictionary mapping, controlled catalogue fallbacks, coverage/not-searched formatting and citation locator rendering. No defect established.
+- `Approval.swift` (88 lines; blob `c3240bf8889c86f1c7dcc1b4326874885c332025`): closed action/consequence allow-list, deterministic sorted payload fingerprint, expiry and pending/approved/terminal state transitions. No defect established.
+- `Catalogue.swift` (49 lines; blob `85d6f554e25915515aae2615d049f4870b625992`): required catalogue keys and controlled error fallback. No defect established.
+- `Connections.swift` (101 lines; blob `42f22a927db330a4f6ed563b6f3f4b0a92c4da68`): response-to-view mapping, approval wording, URL scheme and private/VPN host rules. Cross-checked Core connector states and effect-to-approval mapping in `core/src/atlas_core/connectors.py` and connector catalogue; expected states and approval values are constrained by Core. No defect established.
+- All five rows moved to `REVIEWED—NO FINDINGS`. This is source inspection only; no tests run locally.
