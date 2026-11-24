@@ -410,18 +410,18 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/api.py` | source | REVIEWED—NO FINDINGS | All 563 lines at blob 3b1103a; request dispatch, signed version negotiation, enrol/bootstrap, owner/member route gates, consent, action, sync, web, device, update and SSE behavior inspected with API tests |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
 | `core/src/atlas_core/backup.py` | source | REVIEWED—FINDINGS OPEN | All 405 lines at blob 3b415da; ATLAS-BACKUP-080 drill deletes pre-existing empty scratch dir; ATLAS-BACKUP-081 malformed nested manifest/bundle can raise; ATLAS-BACKUP-082 copied plain files not reverified |
-| `core/src/atlas_core/browser.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/browser_engine.py` | source | IN REVIEW | Full: 1–260 |
-| `core/src/atlas_core/browser_worker.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/browser.py` | source | REVIEWED—NO FINDINGS | All 104 lines at blob b9b0705; only `open` exists; `fill`/`press` are refused before touching browser; untrusted content proposals are gateway-refused (ATLAS-ACT-015 fix verified) |
+| `core/src/atlas_core/browser_engine.py` | source | REVIEWED—FINDINGS OPEN | All 240 lines at blob b84230e; ATLAS-SEC-016 worker/Chromium tree has no OS confinement and inherits HOME/PYTHONPATH; WebReader disabled in production host |
+| `core/src/atlas_core/browser_worker.py` | source | REVIEWED—FINDINGS OPEN | All 41 lines at blob dc33ad8; same ATLAS-SEC-016 process-boundary issue; JSON worker protocol has no OS confinement |
 | `core/src/atlas_core/confinement.py` | source | IN REVIEW | Full source: 1–53 |
-| `core/src/atlas_core/connector_transport.py` | source | IN REVIEW | Full source inspected |
+| `core/src/atlas_core/connector_transport.py` | source | REVIEWED—FINDINGS OPEN | All 57 lines at blob 145f57c; ATLAS-CONN-083 .ts.net suffix bypasses resolved private-IP check; ATLAS-CONN-084 ambient urllib proxy can route bearer token |
 | `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
-| `core/src/atlas_core/connectors.py` | source | IN REVIEW | Targeted: 91–130, 190–250 |
+| `core/src/atlas_core/connectors.py` | source | REVIEWED—FINDINGS OPEN | All 274 lines at blob 48ffecf; ATLAS-CONN-085 failed re-link does not revoke previously allowed actions; connector state/action authority reviewed |
 | `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/contracts.py` | source | REVIEWED—FINDINGS OPEN | All 133 lines at blob a872b9e; ATLAS-DOC-075 stale VERSIONS comment incorrectly says 1.1 is not served |
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
-| `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source |
+| `core/src/atlas_core/devices.py` | source | REVIEWED—NO FINDINGS | All 145 lines at blob 720a50b; one-time offer TTL/guess cap, Core fingerprint proof, member-only enrollment and durable revocation inspected |
 | `core/src/atlas_core/documents.py` | source | IN REVIEW | Targeted: 130–255, 285–395 |
 | `core/src/atlas_core/egress.py` | source | REVIEWED—FINDINGS OPEN | All 409 lines at blob 0aa66a9; ATLAS-SEC-014 residual taint gaps; ATLAS-EGRESS-077 unbounded DNS timeout; ATLAS-EGRESS-078 silent 200k text truncation; ATLAS-EGRESS-079 malformed port ValueError |
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
@@ -465,7 +465,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/updater.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/values.py` | source | IN REVIEW | Full source: 1–16 |
 | `core/src/atlas_core/watchers.py` | source | IN REVIEW | Full source: 1–93 |
-| `core/src/atlas_core/web.py` | source | IN REVIEW | Targeted: 30–121 |
+| `core/src/atlas_core/web.py` | source | REVIEWED—NO FINDINGS | All 121 lines at blob 68c9fc0; owner host list, public-address check, DNS pin handoff, HTTPS-only page read, redirect and untrusted text rules inspected; production route disabled |
 | `core/src/atlas_core/worker.py` | source | REVIEWED—NO FINDINGS | All 120 lines at blob 56140ca; mandatory pre-engine confinement, no skip flag, custom-engine test-only gate and isolated stdin/stdout protocol inspected |
 | `core/tests/conftest.py` | test | NOT STARTED | — |
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
@@ -480,7 +480,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_browser_engine.py` | test | IN REVIEW | Targeted: 82–90 |
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
 | `core/tests/test_client.py` | test | REVIEWED—FINDINGS OPEN | All 344 lines at blob efac279; broad end-to-end coverage, but no malformed task_id or mid-body disconnect tests for ATLAS-CLIENT-076 |
-| `core/tests/test_connectors.py` | test | IN REVIEW | Targeted: 190–247 |
+| `core/tests/test_connectors.py` | test | REVIEWED—FINDINGS OPEN | All 247 lines at blob f683cba; no test for `.ts.net` DNS pinning/hostile proxy or failed re-link after previously enabled connector (ATLAS-CONN-083/084/085) |
 | `core/tests/test_consent_api.py` | test | REVIEWED—NO FINDINGS | All 190 lines at blob e48338d; owner-only consent, paired member read, replay protection, withdrawal purge, malformed choices and default model mode covered |
 | `core/tests/test_contracts.py` | test | REVIEWED—NO FINDINGS | All 68 lines at blob d8b19c9; strict 1.0 schema compilation, OpenAPI validation, taxonomy parity and content-free validation assertions inspected |
 | `core/tests/test_contracts_frozen.py` | test | REVIEWED—NO FINDINGS | All 52 lines at blob e2bf4b3; frozen 1.0 hashes, default validator and runtime negotiation assertions inspected |
@@ -533,7 +533,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_thresholds.py` | test | NOT STARTED | — |
 | `core/tests/test_transport.py` | test | REVIEWED—NO FINDINGS | All 240 lines at blob cfbd114; peer UID, request framing, duplicate/oversized length, timeout, connection cap and live/stale socket tests inspected |
 | `core/tests/test_updater.py` | test | IN REVIEW | Full test file |
-| `core/tests/test_web.py` | test | NOT STARTED | — |
+| `core/tests/test_web.py` | test | REVIEWED—NO FINDINGS | All 136 lines at blob 9135805; owner-only host allow-list, public DNS pin handoff, injection flags, redirect refusal and missing-browser behavior covered |
 | `core/tests/worker_engines.py` | test | NOT STARTED | — |
 | `core/tools/scan_artefacts.py` | script/tool | NOT STARTED | — |
 | `docs/README.md` | documentation | NOT STARTED | — |
@@ -951,3 +951,8 @@ Fully read `test_api_v11.py` (188 lines, blob `b31280375a2de69bc8dbfa991bc11deb6
 - Added **ATLAS-BACKUP-082 (P2)**: copied `clients.json` and `actions-audit.jsonl` are not rehashed after copy, leaving a verify-to-copy race; only DB copies are rechecked.
 - Existing tests cover corrupted/truncated/missing files, MAC tampering, wrong passphrase, restore rollback, no-grant restore, restore drill and encrypted edits/audit. They do not cover these three edge cases. No local tests or real restore were run.
 - Updated path counts: 75 IN REVIEW; 95 NOT STARTED; 68 REVIEWED—NO FINDINGS; 40 REVIEWED—FINDINGS OPEN (278 total).
+
+
+### Devices, connectors and web/browser source review — 2026-11-24
+
+At PR #8 head `65575952ae9f0dba25d0482a492141a563bf8eeb`, read `devices.py` (145 lines, blob `720a50bcfaaf49900c653064e0b6f39e7737ab52`), `connectors.py` (274, `48ffecf9c8b46a23c892137f444fcdedf4c75399`), `connector_transport.py` (57, `145f57c3635cacbbc469d27dfc3208400d90aeaf`), `web.py` (121, `68c9fc07d1ef9fdbbb8083e86c3b9b6e11cf64c6`), `browser.py` (104, `b9b0705a33afb9b2b368de152882c0b37114596b`), `browser_engine.py` (240, `b84230e40467a27357df3d3ff2aba1728928b8ce`) and `browser_worker.py` (41, `dc33ad86a21e1ce522b4759b3753a18e66fbb878`). Findings: **ATLAS-CONN-083** `.ts.net` suffix is trusted without verifying/pinning resolved private IPs before plain HTTP; **ATLAS-CONN-084** urllib ambient proxy settings can route bearer-token HTTP through a proxy; **ATLAS-CONN-085** failed connector re-link does not revoke previously enabled action authority; **ATLAS-SEC-016** browser worker remains a same-user process with HOME/PYTHONPATH and no OS confinement. The existing browser workflow has only `open`; `fill`/`press` are refused (ATLAS-ACT-015 fix verified). WebReader is correctly disabled in production host until browser worker confinement is solved. `test_connectors.py` (247 lines, blob `f683cba3c3b4856ce03c5782b2e3e3334e7e3aa3`) and `test_web.py` (136, `913580526141f81b97cb1286fc38f5077da14c16`) read in full; connector tests lack the new boundary regressions, web tests cover host allow-list and untrusted text. No tests run locally.
