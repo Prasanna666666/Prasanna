@@ -659,3 +659,14 @@ Evidence: `app/Sources/AtlasKit/Pairing.swift`, `PairingInvite.parse(_:) ` (blob
 **Severity: P2 — OPEN.**
 
 Evidence: `app/Sources/AtlasKit/PhoneEngine.swift` (blob `f1beb87d001f0daafd8e3bc3b841dc476ba12215`, inspected at PR head `b7e60221178607ceca873fe83c30fb858cee7a45`). Initial `link` is set to `.online` solely because a vault entry exists. If `transportFor(device.address)` returns nil, `records()` returns unavailable and `sync()` returns offline without changing `link`; `ask()` likewise returns not-paired/local failure without updating the link. A paired but unreachable phone can therefore continue presenting a stale online state. Set the link to offline when transport construction fails and distinguish “paired” from “currently online”; add a no-transport test for records/sync/ask.
+
+
+### ATLAS-HTTP-066 — remote response size limit is checked after the body is fully buffered
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/HTTPTransport.swift` and `app/Sources/AtlasKit/Transport.swift` (blobs `42e491ccda9d4f516332564e30926d19a95d3f89` and `9cace9872487c2bc3a1cd439e60c3fdcf4eb27ef`, inspected at PR head `33c0301905addc059aef0b63098c7987738e1327`). `RemoteHTTP.maxReply` is checked only after `URLSession.dataTask` has accumulated the complete response in memory; a remote endpoint can therefore send an arbitrarily large body before the 4 MB check runs. The Unix socket transport also appends response chunks without any cap. Enforce a streaming byte limit while receiving (cancel immediately when exceeded) in both transports, and test a body larger than the limit without buffering it all.
+
+### ATLAS-VOICE-067 — repeated taps while permission is pending can start multiple dictation sessions
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasKit/Voice.swift`, `VoiceSession.toggle()` (blob `7ce1093ebee791911cec3444f4409644d88c24fc`, inspected at PR head `33c0301905addc059aef0b63098c7987738e1327`). The method guards only `state.isListening`; while state is `.asking`, another tap starts another asynchronous permission request. Each granted callback independently sets listening and calls `input.start`, so delayed permission callbacks can launch overlapping recognition sessions. Make asking/listening a single-flight state (and define cancellation/late-callback behavior); add a delayed permission fake test that taps repeatedly and proves only one start occurs.
