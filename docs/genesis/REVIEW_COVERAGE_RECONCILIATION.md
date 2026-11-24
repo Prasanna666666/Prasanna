@@ -696,3 +696,25 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - Current path-ledger counts: **278 total; 146 IN REVIEW; 129 NOT STARTED; 3 REVIEWED—NO FINDINGS**. Strict completed-file count: **3/278**. IN REVIEW is not completion.
 - Last completed file: app/Package.swift. Current open review file: app/README.md, with the evidence contradiction recorded in PR comment 6045284683. Next file after the README disposition: app/Sources/AtlasApp/AtlasApp.swift.
 - No tests were executed locally by this reviewer. No app code, source, tests, package manifest, or build configuration was changed. Only the coverage ledger was updated; no approval, merge, or thread resolution was performed.
+
+
+## Historical review-chart reconciliation — 2026-11-24
+
+**Correction to interpretation of the file counts above:** the 3/278 figure is only the count of files explicitly given the strict terminal status REVIEWED—NO FINDINGS in this newly-created exact-head PR #8 path ledger. It is NOT the total amount of Atlas review work already completed, and it must not be presented as such. The earlier reviews and their charts remain valid historical evidence within their named scope and commit.
+
+### Existing chart: docs/coverage-matrix.md (legacy PR #6 / atlas branch)
+- The existing chart is real and was checked against its own 545 rows. It is tied to legacy PR #6, branch `atlas`, base `5d3ddb54fabbb4d11a17cabff96d2f65cc2d1385`, head `7a3b4479bcbb27fb2bab570759ad14851c78e945`, not PR #8.
+- The chart reports **545 entries**: **105 ROUND**, **15 ROUND + VIEWED**, **397 NOT INSPECTED**, and **28 AUTHORED**. The chart's definition matters: ROUND means files changed during that review round, read/changed and covered by named tests; ROUND + VIEWED are screenshots opened and inspected; NOT INSPECTED are inherited/legacy/deleted paths not line-reviewed; AUTHORED are documents/scripts not independently inspected. This is meaningful completed historical work, not zero.
+- The same document explicitly warns it is not exhaustive. It supersedes older 541/512/508 counts for its own PR #6 snapshot; do not mix these with PR #8's current 278 changed paths.
+- PR #6 is closed and unmerged. Its chart is therefore a separate historical change-set, not a blanket completion certificate for PR #8.
+- I compared all 545 exact paths in that chart with the current PR #8 278-path list. **Only two exact path names overlap**: `.github/workflows/ci.yml` and `docs/README.md`; both were `ROUND` in the legacy chart. Thus 143 legacy ROUND/VIEWED entries cannot be added to PR #8's 278 count as if they were PR #8 files reviewed. Some historical architectural/security reviews apply conceptually to the inherited code, but exact current-head revalidation is still required.
+
+### Other historical review evidence
+- `docs/reviews.md` records Review 1 (ChatGPT engineering re-review), Review 2 (Gemini audit rubric, explicitly not completed), Review 3 (Gemini claims checked), and later rounds. Its tables include confirmed/fixed/partial/open dispositions; they are not a single count of all files completed.
+- `docs/comment-tracker.md` preserves F1–F15, P-series and other historical review findings. Several items are partial/open or owner-gated. Do not infer a completed-file count from the number of tracker rows.
+- `docs/genesis/HISTORICAL_PR8_REVIEW_THREADS.md` records substantial prior independent review of Stage 2/Core on named exact commits, including a 39-file changed-file review and later WP3.2 review. Those reviews must be retained as completed historical review scope; they do not certify every file in today's 278-path PR #8 diff or later commits.
+- `docs/genesis/STAGE-3-BASELINE-AUDIT.md` records WP3.0 repository inspection as complete at its stated 2026-11-20 audited ref. This is a completed baseline architecture/repository inspection, not current-head line-by-line review or runtime acceptance.
+
+### Correct reporting rule going forward
+- Always report three separate measures: (1) historical review work completed in its original scope/commit (e.g. legacy matrix 105 ROUND + 15 ROUND+VIEWED; named Stage 2/WP3.2 reviews), (2) current PR #8 exact-path overlap that can be directly mapped from those charts (2 paths from the legacy matrix), and (3) this ledger's current exact-head full-file terminal dispositions (currently 3/278). Never collapse these into one misleading percentage.
+- Preserve prior accepted work and findings; do not restart it. For each newly inspected PR #8 path, first search historical reviews/charts for exact path and commit coverage, then perform only the missing current-head delta review. Keep inherited historical scope labelled with its original PR and SHA.
