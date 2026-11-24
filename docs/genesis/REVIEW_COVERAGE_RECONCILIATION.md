@@ -300,8 +300,8 @@ All findings below have separate detailed PR comments with source evidence, impa
 | Path | Type | Status | Units inspected |
 |---|---|---|---|
 | `.github/workflows/ci.yml` | build/config | IN REVIEW | Targeted install/SQLCipher/macOS/security job sections |
-| `.gitleaksignore` | build/config | NOT STARTED | — |
-| `CLAUDE.md` | documentation | NOT STARTED | — |
+| `.gitleaksignore` | build/config | IN REVIEW | Full 10 lines inspected; fingerprint-to-scan evidence still to verify |
+| `CLAUDE.md` | documentation | REVIEWED—NO FINDINGS | Full 22 lines; source-of-truth, role split, evidence and product principles consistent with current delivery protocol |
 | `app/Package.swift` | build/config | NOT STARTED | — |
 | `app/README.md` | documentation | NOT STARTED | — |
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | IN REVIEW | Targeted: 1–80, 110–170, 200–245, 320–390, 486–553 |
@@ -641,3 +641,34 @@ Inspected all 260 lines of `core/src/atlas_core/exact.py` and the full `core/tes
 ### Review-thread count after this continuation
 
 The exact-arithmetic inline review created one additional thread. Live GitHub now reports **59 inline threads: 21 resolved, 38 unresolved; 43 outdated**. The prior 58/21/37 figures above are the pre-ATLAS-EXACT-106 snapshot. No threads were resolved. Current PR head at this documentation update: `b32e1055d948bf0c9e1880dda4d0c2eb79d78bbd`.
+
+
+
+## Live continuation — 2026-11-24, exact PR #8 head `b0ece9c13670096d5bd4b2b8dddf21369874d2ec`
+
+### Verified live snapshot
+- PR #8: open, draft, unmerged; branch `genesis-stage2-foundation`, base `atlas`.
+- Exact head: `b0ece9c13670096d5bd4b2b8dddf21369874d2ec`.
+- Changed paths: **278** (GitHub paginated filename endpoint).
+- Inline review threads: **59 total; 21 resolved; 38 unresolved; 43 outdated** (GitHub GraphQL thread fields `is_resolved` and `is_outdated`). This supersedes the earlier 59/21/38 count only if a later live snapshot changes; the old 58/21/37 and 59/21/38 entries above are historical snapshots.
+- The 38 unresolved thread IDs are preserved by GitHub; no thread was resolved in this continuation.
+- The latest exact-head workflow-run lookup returned **no PR-triggered workflow runs** for this SHA. The earlier failed run 45388238509 and queued run 45419108912 are historical and do not establish the result for this head.
+- Commit comparison from `b32e1055d948bf0c9e1880dda4d0c2eb79d78bbd` to this head shows four commits, with changes limited to `core/tests/test_architecture.py`, `docs/genesis/LOW_LEVEL_DESIGN.md`, and this coverage ledger. The previously inspected `core/src/atlas_core/exact.py` and `core/tests/test_exact.py` are unchanged in that range.
+
+### Coverage ledger counts at this checkpoint
+- Path inventory: **278 rows**.
+- `IN REVIEW`: **146** (targeted inspection only; not equivalent to full-file completion).
+- `NOT STARTED`: **131**.
+- `REVIEWED—NO FINDINGS`: **1** (`CLAUDE.md`, all 22 lines inspected).
+- **Fully completed exact-head file reviews: 1/278** under the strict status definition above. Do not count IN REVIEW rows as completed.
+- `CLAUDE.md`: full-file review completed. It correctly assigns canonical docs to ChatGPT, implementation/tests to Claude, and requires evidence labels and exact commit references. No contradiction found.
+- `.gitleaksignore`: all 10 lines inspected. It contains four narrow fingerprint suppressions, not broad rule/path suppressions. Remains IN REVIEW until each fingerprint is checked against the corresponding Gitleaks finding/scan evidence; do not call the suppressions verified merely because the comments say so.
+
+### Resume checkpoint — do not restart
+- **Last fully completed file:** `CLAUDE.md` (22/22 lines; REVIEWED—NO FINDINGS).
+- **Current file to continue:** `.gitleaksignore` (10/10 lines read; verify the four fingerprint suppressions against actual Gitleaks scan output and the referenced source lines before closing).
+- **Then continue in PR changed-file order:** `app/Package.swift`, followed by `app/README.md`. Keep the path ledger sorted as it is; record every file's exact-head SHA, inspected line range, evidence and finding IDs.
+- **Known open exact-head source finding:** ATLAS-EXACT-106 remains present in `core/src/atlas_core/exact.py`: `Number.exact_decimal` uses default-context Decimal division while accepted rationals can exceed 28 significant digits. The 137-line `core/tests/test_exact.py` still has no >28-significant-digit regression case. This source/test pair was re-read at this head; no fix is present.
+- **No tests were executed by this review pass.** The reviewer inspected source and configuration only. CI status for this exact head is unknown because no associated workflow runs were returned.
+- Review boundary remains: no application source, tests, build/config changes, approvals, merges or review-thread resolutions by this reviewer.
+
