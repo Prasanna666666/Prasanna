@@ -423,7 +423,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
 | `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/documents.py` | source | IN REVIEW | Targeted: 130–255, 285–395 |
-| `core/src/atlas_core/egress.py` | source | IN REVIEW | Targeted: 1–120, 150–220, 250–409 |
+| `core/src/atlas_core/egress.py` | source | REVIEWED—FINDINGS OPEN | All 409 lines at blob 0aa66a9; ATLAS-SEC-014 residual taint gaps; ATLAS-EGRESS-077 unbounded DNS timeout; ATLAS-EGRESS-078 silent 200k text truncation; ATLAS-EGRESS-079 malformed port ValueError |
 | `core/src/atlas_core/errors.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/events.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/evidence.py` | source | IN REVIEW | Full source |
@@ -489,7 +489,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_devices.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_documents.py` | test | NOT STARTED | — |
 | `core/tests/test_domains.py` | test | NOT STARTED | — |
-| `core/tests/test_egress.py` | test | IN REVIEW | Targeted taint/host/redirect tests |
+| `core/tests/test_egress.py` | test | REVIEWED—FINDINGS OPEN | All 336 lines at blob 64881f5; taint/redirect coverage present; no stalled DNS, 200k–512k truncation-flag or malformed-port tests; ATLAS-EGRESS-077/078/079 |
 | `core/tests/test_enrolment.py` | test | NOT STARTED | — |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
 | `core/tests/test_evidence_answer.py` | test | IN REVIEW | Full test file |
@@ -910,3 +910,13 @@ Read the full 265-line frozen 1.0 JSON Schema and 103-line 1.0 OpenAPI document.
 - Added **ATLAS-ACT-075 (P2, OPEN)**: unknown actions and invalid undo attempts return refusals without audit entries, despite the “every outcome” guarantee.
 - Existing tests cover single-category actions, exact-payload approval, replay, handler failure, undo, workflow rollback and a damaged non-empty audit file. They do not cover multi-category disclosure, unknown/invalid undo audit entries, missing/empty audit-file deletion, or restart persistence of approval/receipt/undo/idempotency state.
 - Updated path counts: 93 IN REVIEW; 100 NOT STARTED; 52 REVIEWED—NO FINDINGS; 33 REVIEWED—FINDINGS OPEN (278 total). No tests run locally.
+
+### Egress gateway full source/test review — 2026-11-24
+
+- `core/src/atlas_core/egress.py` (409 lines, blob `0aa66a988a73b027ac1aa762da00bf60d6d533ae`) and `core/tests/test_egress.py` (336 lines, blob `64881f56dc2de803cda7d88068db1646b288467b`) were read in full at PR source head `443851b110642d1fde8478d73544392d2c51ba77`.
+- Existing **ATLAS-SEC-014 (P1, PARTIALLY ADDRESSED / OPEN)** remains for the explicitly unsupported short (1–3 character) identifiers and paraphrases; do not claim complete egress privacy coverage.
+- Added **ATLAS-EGRESS-077 (P2)**: blocking DNS resolution is outside the configured request timeout.
+- Added **ATLAS-EGRESS-078 (P2)**: text is capped at 200,000 characters without setting `truncated` when the raw body is below 512 KiB.
+- Added **ATLAS-EGRESS-079 (P2)**: invalid URL ports can raise unhandled `ValueError` instead of a typed `Denied` response.
+- Tests cover taint, identifiers, encoding, redirect checks, content types, and body byte caps, but not these three cases. No local tests or real-Internet requests were run.
+- Updated path counts: 91 IN REVIEW; 100 NOT STARTED; 52 REVIEWED—NO FINDINGS; 35 REVIEWED—FINDINGS OPEN (278 total).
