@@ -406,7 +406,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/__init__.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/access.py` | source | REVIEWED—NO FINDINGS | All 136 lines at blob 09347dd; fresh source-specific OS evidence, stale/future/type mismatch, unknown/failure fail-closed behavior, grant preservation/revocation and purge path cross-checked with test_designation.py |
 | `core/src/atlas_core/actions.py` | source | REVIEWED—FINDINGS OPEN | All 314 lines at blob 0a690d3; ATLAS-ACT-019 in-memory execution/undo/idempotency and unanchored audit reset; ATLAS-ACT-074 multi-category effects collapse to one approval label; ATLAS-ACT-075 unlogged unknown/invalid undo refusals |
-| `core/src/atlas_core/answer.py` | source | IN REVIEW | Full: 1–113 |
+| `core/src/atlas_core/answer.py` | source | REVIEWED—NO FINDINGS | All 159 lines at blob 43b2209; exact citation resolution, retrieved-only check, figure/date verification, language disclosure and explicit stop/withheld/denied envelopes inspected |
 | `core/src/atlas_core/api.py` | source | IN REVIEW | 563 lines; request dispatch/auth/version/route families inspected; remaining complete line-by-line pass and API test cross-check pending |
 | `core/src/atlas_core/app.py` | source | IN REVIEW | Targeted: 166–208, 230–245, 318–341 |
 | `core/src/atlas_core/backup.py` | source | IN REVIEW | Full: 1–405 |
@@ -492,7 +492,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_egress.py` | test | REVIEWED—FINDINGS OPEN | All 336 lines at blob 64881f5; taint/redirect coverage present; no stalled DNS, 200k–512k truncation-flag or malformed-port tests; ATLAS-EGRESS-077/078/079 |
 | `core/tests/test_enrolment.py` | test | NOT STARTED | — |
 | `core/tests/test_evals.py` | test | NOT STARTED | — |
-| `core/tests/test_evidence_answer.py` | test | IN REVIEW | Full test file |
+| `core/tests/test_evidence_answer.py` | test | REVIEWED—NO FINDINGS | All 185 lines at blob 532fb7e; exact span/locator, stale/wrong quote, figure/date, language, truncation, partial and failure states covered |
 | `core/tests/test_exact.py` | test | IN REVIEW | Full test file; no >28-digit exact-decimal test |
 | `core/tests/test_finance_calc.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_health.py` | test | IN REVIEW | Full test file |
@@ -925,3 +925,10 @@ Read the full 265-line frozen 1.0 JSON Schema and 103-line 1.0 OpenAPI document.
 ### Core sandbox, worker, host, transport and Mail adapter review — 2026-11-24
 
 At PR #8 head `910f7fa02390c7c3a24abc215374343d27d22217`, read all 165 lines of `sandbox.py`, 120 of `worker.py`, 169 of `isolated.py`, 202 of `transport.py`, 176 of `host.py`, 521 of `macos.py`, and 509 of `mail.py`. Revalidated the historical sandbox bypass concern: current worker has no `--skip-self-sandbox` option; `test_the_worker_has_no_flag_that_skips_its_confinement` asserts argparse rejects it. Seccomp blocks non-UNIX socket domains and io_uring; macOS launch profile denies network, private reads and writes, and the worker verifies OS refusal before accepting work. Socket peer identity, request framing/size limits and connection bounds inspected. Production host remains macOS-only; live web engine remains disabled. **ATLAS-MAIL-079 (P2, OPEN)**: EmlxMailbox silently skips inaccessible nested directories/files and turns a failed root pin into an empty list; MailIndex cannot distinguish this from a complete empty mailbox, so coverage may falsely say complete. Descriptor-relative no-follow access and byte-bounded MIME parsing are otherwise carefully guarded. No tests run locally.
+
+### Answer envelope and citation verification review — 2026-11-24
+
+- `core/src/atlas_core/answer.py` (159 lines, blob `43b220994e8d5f81bb872b8e9b3d855afc4df090`) and `core/tests/test_evidence_answer.py` (185 lines, blob `532fb7e80892dac66877f572fd1d4e395a60713e`) were read in full at source head `10d713b7c475364cca2eaebf8eba878312ff1219`.
+- Cross-checked `service.py` construction of AnswerInput, `evidence.py` exact citation resolution, and tests for retrieved-only citations, stale sources, wrong quotes, numeric figures/dates, language confidence, truncation, partial work, denied and withheld answers.
+- No independent defect established in the answer envelope path in this pass; rows moved to `REVIEWED—NO FINDINGS`. This does not establish model-runtime correctness or real-model behaviour; those remain separate acceptance gates.
+- Updated path counts: 83 IN REVIEW; 99 NOT STARTED; 59 REVIEWED—NO FINDINGS; 37 REVIEWED—FINDINGS OPEN (278 total).
