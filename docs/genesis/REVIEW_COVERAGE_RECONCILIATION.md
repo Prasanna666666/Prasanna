@@ -379,7 +379,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/DESIGN.md` | documentation | REVIEWED—NO FINDINGS | 56 lines, blob `d2a9084`; Stage 2 dependency layers, direct import boundaries, policy-data separation, gated retrieval/model path, token-bound context, task store/key provider and historical reuse matrix cross-checked against architecture tests and current modules; API 1.0/first-slice wording is explicitly scoped to this Stage 2 design, with API 1.1 documented separately; no tests run |
 | `core/docs/EGRESS_GATEWAY.md` | documentation | REVIEWED—FINDINGS OPEN | 29 lines, blob `b74e6de`; ATLAS-DOC-113: stale six-module network allow-list, taint details/stale passage coverage, DNS wording and 200k truncation-flag mismatch; comments 6046411754/6046414937 |
 | `core/docs/ENROLMENT.md` | documentation | REVIEWED—NO FINDINGS | 21 lines, blob `c3882f0`; first-owner one-time code, constant-time hash check/lockout, owner/member roles, durable public-key registry, owner-only socket and consent boundaries cross-checked against identity.py, api.py, launcher.py, Swift CoreLauncher and enrolment/launcher/consent tests; Swift end-to-end CI configured but current run 45476082610 is queued, so no successful run claimed |
-| `core/docs/G_O19_DESIGNATION.md` | documentation | NOT STARTED | — |
+| `core/docs/G_O19_DESIGNATION.md` | documentation | REVIEWED—FINDINGS OPEN | 42 lines, blob `64ab193`; cross-checked designation/access/policy with current API, host, macOS providers, Mail adapter and CI tests; ATLAS-DOC-114: WP3.3 status statements (no Mail adapter/API 1.1/Keychain anchor) and rollback steps are superseded by later work; comments 6046454937 |
 | `core/docs/MACOS_PROVIDERS.md` | documentation | NOT STARTED | — |
 | `core/docs/MODEL_RUNTIME.md` | documentation | NOT STARTED | — |
 | `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` | documentation | IN REVIEW | Targeted owner gate/evidence statements |
@@ -1079,3 +1079,11 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - The one-time first-owner code, constant-time digest comparison, five-failure lockout, one-owner registry lock, persisted public-key-only client registry, member-only follow-on enrolment, owner-only consent and index-status access boundary match the implementation and tests. The documented absence of platform-attested app identity and the owner-reset limitation remain explicit constraints.
 - The Swift end-to-end test is present and configured in the macOS CI workflow, but the current head's workflow run **45476082610 is queued**. Therefore no successful Swift build/test execution is claimed; the document's unverified status is retained.
 - Marked `REVIEWED—NO FINDINGS`. No tests run in this review. Next changed file: `core/docs/G_O19_DESIGNATION.md`.
+
+
+### G-O19 designation historical-status review — 2026-11-24
+
+- `core/docs/G_O19_DESIGNATION.md` (42 lines, blob `64ab193c918bafdab3b03de28610f0fcd9a8e181`) was read in full and cross-checked against `designation.py`, `access.py`, `policy.py`, `api.py`, `app.py`, `host.py`, `macos.py`, `mail.py`, `test_designation.py`, `test_macos_native.py`, `test_consent_api.py`, `WP3_3_MAIL.md` and `CONTRACT_1_1.md`.
+- **ATLAS-DOC-114 (P2, OPEN)**: the page still presents several WP3.3-era limitations as current: no Mail adapter, no API 1.1 consent routes, consent state not served, and no Keychain anchor/key provider. These were superseded by later work. Its rollback instructions to delete designation/access modules are also no longer valid because later packages depend on them. Preserve it as a historical WP3.3 snapshot and explicitly supersede the rollback steps. Comments **6046454937** posted; defect register updated.
+- Boundaries retained: no real Apple Mail store or real TCC behaviour is verified. The macOS workflow run at this checkpoint was queued, so no successful current-head CI result is claimed.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Next changed file: `core/docs/MACOS_PROVIDERS.md`.
