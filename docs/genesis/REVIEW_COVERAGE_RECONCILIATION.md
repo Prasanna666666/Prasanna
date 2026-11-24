@@ -365,7 +365,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/README.md` | documentation | REVIEWED—FINDINGS OPEN | All 13 lines at blob 2c533cf; ATLAS-DOC-074 denies capabilities now present in repo (ingestion/search/Mail/model/Swift/remote/iOS/actions) |
 | `core/bench/ingest.py` | benchmark | REVIEWED—FINDINGS OPEN | All 152 lines at blob dee08e3; ATLAS-BENCH-073 divides ru_maxrss by 1024 on macOS despite byte units |
 | `core/bench/overhead.py` | benchmark | REVIEWED—NO FINDINGS | All 88 lines at blob e02e784; stubbed foundation timings, percentile calculation and explicit non-target-Mac limitations inspected |
-| `core/client/atlas_client.py` | source | NOT STARTED | — |
+| `core/client/atlas_client.py` | source | REVIEWED—FINDINGS OPEN | All 348 lines at blob 2abc231; ATLAS-CLIENT-076 missing/invalid task ID accepted and response-body read errors escape ClientError normalization |
 | `core/client/ux_catalogue.json` | source | REVIEWED—NO FINDINGS | All 147 lines at blob 0c0419c; exact byte-identical mirror of app AtlasKit catalogue, vocabulary and wording inspected |
 | `core/contracts/atlas-contracts.1.1.delta.schema.json` | contract/schema | NOT STARTED | — |
 | `core/contracts/atlas-contracts.1.1.schema.json` | contract/schema | IN REVIEW | TaskRequest and SourceType definitions inspected |
@@ -418,7 +418,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
 | `core/src/atlas_core/connectors.py` | source | IN REVIEW | Targeted: 91–130, 190–250 |
 | `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source |
-| `core/src/atlas_core/contracts.py` | source | NOT STARTED | — |
+| `core/src/atlas_core/contracts.py` | source | REVIEWED—FINDINGS OPEN | All 133 lines at blob a872b9e; ATLAS-DOC-075 stale VERSIONS comment incorrectly says 1.1 is not served |
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
 | `core/src/atlas_core/designation.py` | source | IN REVIEW | Targeted: 1–180, 201–370, 471–575 |
 | `core/src/atlas_core/devices.py` | source | IN REVIEW | Full source |
@@ -482,9 +482,9 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_client.py` | test | NOT STARTED | — |
 | `core/tests/test_connectors.py` | test | IN REVIEW | Targeted: 190–247 |
 | `core/tests/test_consent_api.py` | test | IN REVIEW | Targeted consent API cases |
-| `core/tests/test_contracts.py` | test | NOT STARTED | — |
-| `core/tests/test_contracts_frozen.py` | test | NOT STARTED | — |
-| `core/tests/test_contracts_v11.py` | test | NOT STARTED | — |
+| `core/tests/test_contracts.py` | test | REVIEWED—NO FINDINGS | All 68 lines at blob d8b19c9; strict 1.0 schema compilation, OpenAPI validation, taxonomy parity and content-free validation assertions inspected |
+| `core/tests/test_contracts_frozen.py` | test | REVIEWED—NO FINDINGS | All 52 lines at blob e2bf4b3; frozen 1.0 hashes, default validator and runtime negotiation assertions inspected |
+| `core/tests/test_contracts_v11.py` | test | REVIEWED—NO FINDINGS | All 731 lines at blob b0feb79; deterministic merge, strict schema shapes, coverage/limitation consistency, content-free fields, OpenAPI parity and signing vectors inspected |
 | `core/tests/test_designation.py` | test | IN REVIEW | Targeted designable-domain assertion and grant tests |
 | `core/tests/test_devices.py` | test | IN REVIEW | Full test file |
 | `core/tests/test_documents.py` | test | NOT STARTED | — |
@@ -880,3 +880,8 @@ At PR #8 head `3412885e218f65665dd8023325800c226e612201`, read `.github/workflow
 - **ATLAS-RECORD-072 (P2, OPEN):** RecordsOutcome.compactMap silently discards malformed rows. If every row is malformed it returns `.empty`; if only some are malformed it returns `.loaded` with the remainder and no partial warning. The tests cover valid/empty/missing payloads but not malformed rows. Both source and test rows are findings-open.
 - `RelayBind.swift` and `Notifications.swift` were also read in full at unchanged blobs; their strict private-address allow-list and content-free, opt-in notification planner showed no new defect in this pass.
 - No source/tests changed and no local tests were run.
+
+
+### Reference client and API contract generation/test review — 2026-11-24
+
+At PR #8 head `91a33a8d36f8403daa2cee42b1e6d719659c7548`, read `atlas_client.py` (348 lines, blob `2abc2310aef2d9d4c489b1f26d83697c4a9945ec`), `contracts.py` (133 lines, blob `a872b9eb7ad117a48d27a9ff44fd0dd7ba3b35cc`), `test_contracts.py` (68, `d8b19c9e803c09a88458f90bccab7f5e2ee8aede`), `test_contracts_frozen.py` (52, `e2bf4b3a581101bb7846e082819174459578610b`) and `test_contracts_v11.py` (731, `b0feb79cf71002907fcad345ce0a7c47ab06defa`). Findings: **ATLAS-CLIENT-076 (P2, OPEN)** reference client task-ID validation and response-body exception normalization; **ATLAS-DOC-075 (P3, OPEN)** stale comment about API 1.1 support. The contract tests statically assert strict unknown-field rejection, deterministic delta merge, exact frozen 1.0 baseline, conditional coverage/limitation semantics, content-free telemetry fields, OpenAPI parity and signing vectors. Tests were not executed in this review.
