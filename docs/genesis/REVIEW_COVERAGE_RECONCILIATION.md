@@ -388,7 +388,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/ROLLBACK.md` | documentation | REVIEWED—FINDINGS OPEN | 11 lines, blob `84051fc`; cross-checked current backup.py inventory, host key provisioning, updater rollback and app/iOS/Core scope; ATLAS-DOC-122: Stage 2 task-store-only rollback is not a safe current PR8 data/rollback plan; comment 6046622739 |
 | `core/docs/STAGE3_ACCEPTANCE.md` | documentation | REVIEWED—FINDINGS OPEN | 61 lines, blob `ecf872c`; reviewed evidence taxonomy, criteria 5/11, API/consent and current owner-grant/source paths; ATLAS-DOC-019: undefined R evidence class and separate research API mislabeled as answer-flow integration; ATLAS-DOC-123: Finance/Health grant and ingestion status overstated; 11 prior outdated threads remain open; comment 6046711813 |
 | `core/docs/STAGE3_HANDOVER.md` | documentation | REVIEWED—FINDINGS OPEN | 47 lines, blob `cb808c6`; checked rollback scope, Finance/Health grant and ingestion status, criterion completion and egress API semantics; ATLAS-DOC-124: PR-wide rollback scope false, criterion 2/7/8 completion overclaimed, egress API misdescribed; cross-links DOC019/123/122; comment 6046748574 |
-| `core/docs/STAGE3_TRACEABILITY.md` | documentation | IN REVIEW | Targeted: 1–28 |
+| `core/docs/STAGE3_TRACEABILITY.md` | documentation | REVIEWED—FINDINGS OPEN | 28 lines, blob `daebaaa`; reviewed threat/test/evidence mapping against CI workflow, artefact scanner, macOS native Keychain tests and research API; ATLAS-DOC-019: undefined R class and separate research endpoint mislabeled as answer path; ATLAS-DOC-125: artefact scan/hosted-Keychain/closure status stale; comment 6046785198 |
 | `core/docs/STAGE3_WP3_1_PROPOSAL.md` | documentation | NOT STARTED | — |
 | `core/docs/STAGES_4_TO_8.md` | documentation | IN REVIEW | Targeted: 65–102 |
 | `core/docs/TEST_PLAN.md` | documentation | NOT STARTED | — |
@@ -1185,3 +1185,12 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - The handover's Finance/Health grant-flow statement is cross-linked to **ATLAS-DOC-123**; the research-path wording to **ATLAS-DOC-019**; rollback completeness to **ATLAS-DOC-122**. The one earlier thread on this file remains outdated/unresolved; no review thread was resolved.
 - Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Counts: **86 REVIEWED—NO FINDINGS; 70 REVIEWED—FINDINGS OPEN; 46 IN REVIEW; 76 NOT STARTED (278 total)**.
 - Next changed file: `core/docs/STAGE3_TRACEABILITY.md` (already marked IN REVIEW; continue from its recorded prior scope).
+
+
+### Stage 3 threat traceability review — 2026-11-24
+
+- `core/docs/STAGE3_TRACEABILITY.md` (28 lines, blob `daebaaa72f0613b1007d7b07b72f0017f322524a`) was read in full and cross-checked against `test_artefact_scan.py`, `tools/scan_artefacts.py`, `.github/workflows/ci.yml`, `test_macos_native.py`, the successful hosted macOS run 45261698495, `service.py`, `test_research.py` and `STAGE3_ACCEPTANCE.md`.
+- **ATLAS-DOC-125 (P2, OPEN)**: T9 says the CI artefact scan is not built although the Core CI job saves/scans/uploads its test log and JUnit report. T11 marks real Keychain wholly pending although hosted macOS CI has exercised it; owner-Mac validation remains pending. The 2026-11-22 owner disposition overstates completion of criteria 2/7/8, now PARTIAL in the acceptance matrix. Comment **6046785198** posted.
+- **ATLAS-DOC-019 (P2, OPEN)** also applies: evidence class R is used but undefined; T8 describes a separate owner-only research endpoint (untrusted result; saved answer unchanged) as answer-path integration.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Counts: **86 REVIEWED—NO FINDINGS; 71 REVIEWED—FINDINGS OPEN; 45 IN REVIEW; 76 NOT STARTED (278 total)**.
+- Next changed file: `core/docs/STAGE3_WP3_1_PROPOSAL.md` (check current row and prior review history before continuing).
