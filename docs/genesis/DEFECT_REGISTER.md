@@ -928,3 +928,10 @@ Evidence at PR #8 head `f9c6d3bb19f45617cd7ef5f025c63d93bfc0bc34`: `core/docs/PL
 **Severity: P2 — OPEN (capability documentation accuracy).**
 
 Evidence at PR #8 head `a99cbba63f43051e666526ae1e5d311a3f94d578`: `core/docs/PLUG_IN_GUIDE.md`, line 9, groups Finance and Health under `maintenance import-finance` and says to import once. `core/src/atlas_core/maintenance.py` accepts only `backup`, `verify`, `drill`, `restore` and `import-finance`; that importer migrates only a legacy Finance database into the Finance record store. `host.py` creates an empty Health `RecordStore`, but there is no Health importer or HealthKit/native Health source: `macos_sources.DOMAINs` is only calendar/contacts/notes/photos, and `record_actions.py` registers only calendar/contacts/notes/travel. The guide must distinguish the available Finance migration from the not-yet-implemented Health ingestion path, rather than imply the Finance command imports Health. Review comment **6046594708** posted on line 9. No tests run.
+
+
+### ATLAS-DOC-121 — programme audit's current-head snapshot and egress status are stale
+
+**Severity: P2 — OPEN (programme status/acceptance evidence).**
+
+Evidence at PR #8 head `a99cbba63f43051e666526ae1e5d311a3f94d578`: `core/docs/PROGRAMME_AUDIT.md` lines 42 and 48–50. Its “current exact-head” snapshot names older head `7eadbae...`, reports 82 no-findings / 53 findings-open / 52 in-review / 91 not-started and 65 threads (21 resolved, 44 unresolved, 43 outdated). The live 278-path ledger at this checkpoint is 86 / 66 / 48 / 78; live threads are 103 total, 21 resolved, 82 unresolved and 43 outdated. The current-head workflow run `45478197996` is queued. The discrepancy section also says the egress private-name/short-phrase bypass is fixed, but ATLAS-SEC-014 remains partially addressed: 4+ letter words and two-word runs are fingerprinted; 1–3-character identifiers and paraphrases remain outside the guarantee. Refresh the exact-head snapshot and qualify the egress residual risk. Review comments **6046604381** posted on lines 42 and 48. No tests run.
