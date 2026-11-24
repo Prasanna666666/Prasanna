@@ -457,7 +457,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/rules.py` | source | REVIEWED—NO FINDINGS | All 60 lines at blob 436fbe1; JSON loading, sensitivity lookup/ranking, deferred/restricted rules, limits and disclosure helpers cross-checked with policy tests |
 | `core/src/atlas_core/sandbox.py` | source | REVIEWED—NO FINDINGS | All 165 lines at blob 80210f0; seccomp arch/syscall/domain filter, io_uring block, macOS deny profile, private-read and Mach allow-list checked against tests |
 | `core/src/atlas_core/serve.py` | source | IN REVIEW | Targeted CLI flags/options |
-| `core/src/atlas_core/service.py` | source | IN REVIEW | Targeted: 126–300, 326–347, 554–621 |
+| `core/src/atlas_core/service.py` | source | REVIEWED—FINDINGS OPEN | All 712 lines at blob cad7623; ATLAS-EGRESS-091 stale saved text omitted from research taint; ATLAS-CORE-092 no post-read permission revalidation for Finance/Health/Library/passage responses |
 | `core/src/atlas_core/storage.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/sync.py` | source | REVIEWED—NO FINDINGS | All 118 lines at current blob; closed offline queue vocabulary, revoked-device rejection, optimistic version conflicts and 7-day own-record cache policy inspected |
 | `core/src/atlas_core/tasks.py` | source | IN REVIEW | Full source |
@@ -471,7 +471,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/core_factory.py` | test | NOT STARTED | — |
 | `core/tests/test_actions.py` | test | REVIEWED—FINDINGS OPEN | All 229 lines at blob 56dcb9b; restart test does not replay same idempotency key; audit failure after handler and connector-undo-after-revocation are untested; ATLAS-ACT-019/074/075/089 |
 | `core/tests/test_api.py` | test | REVIEWED—NO FINDINGS | All 194 lines at blob e51f24f; version negotiation, route/status parity, signed identity, replay/tamper, policy enforcement and user-safe errors covered |
-| `core/tests/test_api_v11.py` | test | REVIEWED—NO FINDINGS | All 188 lines at blob b312803; signed applied version, additive 1.1 coverage/model fields, limitations, SSE, exact compute and unknown-source semantics covered |
+| `core/tests/test_api_v11.py` | test | REVIEWED—FINDINGS OPEN | All 188 lines at blob b312803; no deterministic grant-revocation-during-summary/library/passage read test; ATLAS-CORE-092 |
 | `core/tests/test_app.py` | test | REVIEWED—FINDINGS OPEN | All 219 lines at blob dbfb9c2; no blocked-worker shutdown or staged-construction-failure cleanup tests; ATLAS-CORE-083/084 |
 | `core/tests/test_architecture.py` | test | NOT STARTED | — |
 | `core/tests/test_artefact_scan.py` | test | NOT STARTED | — |
@@ -992,3 +992,12 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - Cross-checked the JSON's source sensitivity map, Finance/Health restricted status, Mail-attachment deferral, token/context/event limits, attachment disclosures, and per-domain record field/required/kind rules against `PolicyEngine` and `test_policy.py`. No configuration mismatch or source-level defect established in this pass.
 - Both rows moved to `REVIEWED—NO FINDINGS`; no standalone rules test file exists, so behavior is covered through the policy integration tests. No local tests run.
 - Updated path counts: 56 IN REVIEW; 91 NOT STARTED; 83 REVIEWED—NO FINDINGS; 48 REVIEWED—FINDINGS OPEN (278 total).
+
+### TaskService API read-boundary review — 2026-11-24
+
+- `core/src/atlas_core/service.py` (712 lines, blob `cad7623e0be574dda9e683c95c7ca461a2c1c588`) read in full at source head `495b6034a89273b902af08373c5ad7aa6618ca9d`; targeted sections re-fetched in smaller ranges to verify the full task pipeline and API read surfaces.
+- Existing **ATLAS-EGRESS-091** confirmed: `research()` fingerprints the current resolved source, but skips a saved passage if its source changed; it must fingerprint the exact checkpointed text the model saw.
+- Added **ATLAS-CORE-092 (P1)**: Finance/Health summaries check a grant once before reading, Library Search revalidates before each source but not before response, and citation passage reads revalidate in `answer()` then resolve text without a final check. A concurrent revoke/token expiry can race with the response. Revalidate the same grant identity/ceiling and token expiry immediately before returning content.
+- `test_api_v11.py` (188 lines, blob `b312803`) was already fully inspected; it has no deterministic revoke-during-summary/library/passage-read tests and is now findings-open under CORE-092.
+- No local tests run. The task pipeline itself retains its pre-retrieval and model-door revalidation; this finding is specifically about the separate API read endpoints.
+- Updated path counts: 55 IN REVIEW; 91 NOT STARTED; 82 REVIEWED—NO FINDINGS; 50 REVIEWED—FINDINGS OPEN (278 total).
