@@ -564,3 +564,22 @@ See the expanded source/provenance in `docs/genesis/PRIOR_CONVERSATION_RECOVERY.
 At this capture, PR #8 has **200 top-level issue comments**, **53 submitted reviews**, and **58 inline threads containing 63 inline comments** (21 resolved, 37 unresolved). All 200 top-level comment IDs were matched to `docs/genesis/HISTORICAL_PR8_CONVERSATION.md`. The PR changed-file endpoint still returns 278 paths. The branch history inventory is now 6,905 branch-reachable entries across 12 branch heads (shared ancestry duplicated), including 1,093 reachable entries on `genesis-stage2-foundation`; commit messages/diffs have not all been exported or independently reviewed.
 
 The PR #8 branch/head moves whenever documentation is committed. Any final audit must cite the exact head it actually reviewed, re-fetch the PR changed-file list and review state at that head, and not rely on the historical counts above as timeless values.
+
+
+## Exact-head continuation — 2026-11-24 (PR #8 head 7d4ac42)
+
+The original snapshot above is not the current PR head. The following dispositions are revalidated against `7d4ac42bf537a10d950818fe91f855817c6c5ade` only for the source/test units named; other historical findings remain OPEN — REVALIDATE.
+
+| ID | Severity | Exact-head disposition | Evidence / residual |
+|---|---|---|---|
+| ATLAS-ACT-015 | P1 | **VERIFIED FIXED — narrow bypass only** | `browser.py` rejects `fill`/`press`; real workflow path is read-only GET/HEAD. General browser automation remains unavailable. |
+| ATLAS-SEC-017 | P1 | **VERIFIED FIXED — returned verdicts only** | `ConnectorHub._apply` grants only on `ok`, revokes on other returned verdicts. Exception path remains ATLAS-CONN-025. |
+| ATLAS-SEC-014 | P1 | **PARTIALLY ADDRESSED** | 4+ letter word fingerprints, two-word passage runs, lowercase names, encoded URL/redirect tests present. Paraphrases and 1–3-character terms remain explicitly outside the guarantee; live egress stays disabled. |
+| ATLAS-SEC-016 | P1 | **OPEN** | Browser worker passes `HOME` and `PYTHONPATH` in `SAFE_ENV`; no OS-enforced confinement of worker/Chromium process tree. |
+| ATLAS-OPS-018 | P2 | **PENDING INDEPENDENT TEST VERIFICATION** | Swift launcher now records PID/start/socket/data-dir identity, rechecks before SIGKILL, and preserves a live socket. Do not close until exact-head lifecycle/identity tests and CI are mapped. |
+| ATLAS-ACT-019 | P1 | **OPEN** | Approval, done/undo receipts, idempotency and revoked IDs remain in-memory; audit-history restoration does not restore execution state. |
+| ATLAS-CONN-025 | P1 | **OPEN** | Explicit `ConnectorHub.check()` does not catch adapter exceptions and therefore can leave prior authority enabled. Revoke on exception; test that the action handler is not invoked. |
+| ATLAS-CI-105 | P1 | **OPEN — current workflow failure** | Run 45388238509 fails macOS Core suite: two architecture tests reject unlabelled historical text / duplicate roadmap in archive docs; 1,401 passed, 3 skipped. See PR comment 7135079286. |
+
+### Exact-head evidence limitation
+The above is a targeted review, not a full-file or 278-path sign-off. The current CI run is failing; no test suite was executed locally by this reviewer. The model-worker macOS sandbox has hosted-runner evidence, but owner-Mac and real-Internet evidence are still absent. The browser worker is a separate boundary and remains open.
