@@ -1229,3 +1229,7 @@ At head `c3679dc914e31a1f0fda7c709b45ae0119aa9096`: PR #8 remains open, draft an
 ## Latest live review snapshot — after technical-document cleanup (2026-11-25)
 
 At captured PR #8 head `80dbd8584201aafce3697f28e3ec35fb6d5f42af`: **282 changed paths**, **127 review threads**, **21 resolved**, **106 unresolved** (**36 outdated**, **70 current**). PR remains open, draft and unmerged. No workflow run or combined status was returned for this exact documentation-only head. This count supersedes earlier 2026-11-25 snapshots in this ledger; historical counts remain for audit history. Refresh the live API before continuing because thread outdated/current classification can change as diff lines move.
+
+## Final documentation-only checkpoint snapshot — 2026-11-25
+
+Queried PR #8 after the final roadmap/decision reconciliation at head `f6815aa62dc0354f260293277e1e108fa28a510c`: PR remains open, draft and unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 36 outdated and 70 current). These figures are a point-in-time snapshot; this ledger update itself is documentation-only. Refresh the live API before the next work session.
