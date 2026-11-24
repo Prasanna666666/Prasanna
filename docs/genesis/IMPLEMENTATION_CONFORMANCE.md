@@ -2,7 +2,7 @@
 
 **Created:** 2026-11-25  
 **Code/evidence baseline:** PR #8, branch `genesis-stage2-foundation`, `83eec5378fff9f26f435492104c4efa2b30d18ca`  
-**Latest documentation-only head at final reconciliation:** `c3679dc914e31a1f0fda7c709b45ae0119aa9096`  
+**Latest documentation-only checkpoint captured:** `80dbd8584201aafce3697f28e3ec35fb6d5f42af` (refresh live branch head before resuming)  
 **Purpose:** Establish one evidence-led method for deciding whether the completed implementation matches the canonical product and technical documentation.
 
 ## 1. Scope and non-claims
@@ -123,7 +123,7 @@ A requirement with no traceability row is **not audited**.
 
 The 2026-11-25 documentation-only pass established a single root index and canonical Genesis index, rewrote the handover as a concise current operational summary, corrected the PRD review-status metadata, corrected the UI/UX implementation-status/handoff text against `core/docs/UI_IMPLEMENTATION_MAP.md`, and added this conformance framework. The review ledger was refreshed. These edits reconcile navigation and status framing; they do not prove all detailed technical documents are free of contradictions.
 
-The documentation-only cleanup commits are listed in `docs/genesis/HANDOVER.md`. The code/evidence baseline remains `83eec5378fff9f26f435492104c4efa2b30d18ca`; the latest branch head after documentation-only commits is `c3679dc914e31a1f0fda7c709b45ae0119aa9096`.
+The documentation-only cleanup commits are listed in `docs/genesis/HANDOVER.md`. The code/evidence baseline remains `83eec5378fff9f26f435492104c4efa2b30d18ca`; the latest captured documentation-only checkpoint is `80dbd8584201aafce3697f28e3ec35fb6d5f42af`; later docs-only commits may move the branch.
 
 ## 9. Completion criteria for this audit
 
@@ -143,4 +143,6 @@ The audit may be called complete only when:
 
 ## 10. Latest live PR snapshot after documentation-only cleanup
 
-At head `c3679dc914e31a1f0fda7c709b45ae0119aa9096`, PR #8 remained open, draft and unmerged; 282 changed paths were reported; 127 review threads remained (21 resolved, 106 unresolved: 32 outdated and 74 current). These counts are point-in-time values. No workflow run was returned for this exact documentation-only head; CI status must be checked separately before claiming green CI.
+At captured head `80dbd8584201aafce3697f28e3ec35fb6d5f42af`, PR #8 remained open, draft and unmerged; 282 changed paths were reported; 127 review threads remained (21 resolved, 106 unresolved: 36 outdated and 70 current). These counts are point-in-time values. No workflow run or combined status was returned for this exact documentation-only head; CI status must be checked separately before claiming green CI.
+
+The subsequent technical-document corrections are recorded in `docs/genesis/HANDOVER.md`. The latest exact branch head must be refreshed live; the code/evidence baseline for this documentation pass remains `83eec5378fff9f26f435492104c4efa2b30d18ca`.
