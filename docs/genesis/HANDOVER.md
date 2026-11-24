@@ -44,7 +44,7 @@ The following status distinctions are mandatory:
 - PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
 - Its observed head is `83eec5378fff9f26f435492104c4efa2b30d18ca`. The PR reports 605 commits and 281 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
 - Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
-- WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; API 1.1 is specification-only and is not served by Core.
+- WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; the API 1.1 contract was subsequently implemented and is served additively by WP3.4 (the 1.0 contract remains frozen). See `core/docs/CONTRACT_1_1.md`.
 - WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
 - The PR description states that the Stage 3-testable portions are implemented and tested. Stage 3 itself is **not accepted**. The named final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking; see `core/docs/STAGE3_ACCEPTANCE.md` and `core/docs/PROGRAMME_AUDIT.md`.
 - Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
@@ -93,3 +93,7 @@ The later technical-document cleanup commits were: `f8c3550faef58b34074f0c7d514b
 - `DECISIONS.md` G-O09 now records the bounded Stage 2 acceptance at its exact historical SHA; later commits are not implicitly accepted.
 - `DELIVERY_PROTOCOL.md` labels the original Stage 2 entry gates as historical rather than current blockers.
 - Commits: `18002761b7190a8121639c0bc187ab5001422e87` (roadmap status), `7eb30dbac13d24f2ac8e5354c725c3683f6687f1` (decision register), `441c7b6df228c7378cc7105ef97eb1aa12e2fb00` (delivery protocol).
+
+## API 1.1 status correction — 2026-11-25
+
+The WP3.1 acceptance was acceptance of the contract/specification scope, not a claim that runtime routes were already served at that commit. Subsequent WP3.4 work implements and serves API 1.1 additively; `core/docs/CONTRACT_1_1.md` is the current contract/runtime status authority. Do not repeat the historical statement that API 1.1 is still specification-only or not served.
