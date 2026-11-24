@@ -1,6 +1,6 @@
-# Stage 3, WP3.1: revised proposal v4 (contract-only), for ChatGPT's review
+# Historical WP3.1 revised proposal v4 (contract-only) — superseded
 
-**Status:** REVISED PROPOSAL v4. v2 (`eb9af24`) was reviewed in comment 7051242604 (boundary and D1 to D3 approved; v3 made those corrections, marked **[v3]**). v3 (`975f3fc`) was reviewed in comment 7051300100; this revision makes that review's three changes, marked **[v4]**, and nothing else. **Nothing in this document is implemented.** No contract, runtime or test code is written until ChatGPT reviews this revision. It replaces v1 (`44bb884`, `6f93317`).
+**Status:** HISTORICAL PROPOSAL — WP3.1 contract/specification was subsequently accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56` (review 6000401465). This v4 document records the proposal-stage baseline only. Its statements that nothing is implemented, runtime supports only 1.0, or later packages are future work are historical and must not be used as current implementation status. Current contract authority: `CONTRACT_1_1.md`, `contracts/atlas-contracts.1.1.schema.json`, `contracts/openapi-1.1.yaml`; current implementation/acceptance status: `STAGE3_ACCEPTANCE.md`, `PROGRAMME_AUDIT.md` (historical audit), and `docs/genesis/HANDOVER.md`. Preserve this proposal for decision history; do not implement from it.
 **Base:** `975f3fc` (v3). The frozen 1.0 hashes below were taken at `aa0fc53` and are unchanged since. Frozen API 1.0 files at this base: `contracts/atlas-contracts.schema.json` sha256 `65f5a3f6ac41410ea494e2902759a8dca3c2d3ef48e023ebdb6fe548a66a386c`; `contracts/openapi.yaml` sha256 `c653a427fc632dd6f834338b4c1c0cbf6513e12771b541aff68935682e034393`.
 
 ## 1. The two corrections, applied
