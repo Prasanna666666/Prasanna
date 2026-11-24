@@ -374,7 +374,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/contracts/openapi.yaml` | contract/schema | REVIEWED—NO FINDINGS | All 103 lines read at blob ccf62f7; frozen 1.0 API paths, signed request scheme and schema references inspected |
 | `core/docs/ADR_STORAGE_KEYS.md` | documentation | REVIEWED—FINDINGS OPEN | 31 lines, blob `e058e713`; key inventory/backup scope omit live stores and action audit; claims LaunchAgent startup though only plist helper exists and app uses CoreLauncher; ATLAS-DOC-109 |
 | `core/docs/BENCHMARK.md` | documentation | REVIEWED—NO FINDINGS | 21 lines, blob `330fa5c7`; overhead benchmark scope and reported run metadata cross-checked against `bench/overhead.py`, `conftest.World`, and SQLCipher connection; target-Mac/answer-latency claims explicitly provisional |
-| `core/docs/CONNECTOR_PROFILE.md` | documentation | NOT STARTED | — |
+| `core/docs/CONNECTOR_PROFILE.md` | documentation | REVIEWED—FINDINGS OPEN | 19 lines, blob `f3e7c70e`; overstates arbitrary plug-in support and omits `100.64/10`/`.ts.net` transport behavior; ATLAS-DOC-111 |
 | `core/docs/CONTRACT_1_1.md` | documentation | NOT STARTED | — |
 | `core/docs/DESIGN.md` | documentation | NOT STARTED | — |
 | `core/docs/EGRESS_GATEWAY.md` | documentation | NOT STARTED | — |
@@ -415,8 +415,8 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/src/atlas_core/browser_worker.py` | source | REVIEWED—FINDINGS OPEN | All 41 lines at blob dc33ad8; same ATLAS-SEC-016 process-boundary issue; JSON worker protocol has no OS confinement |
 | `core/src/atlas_core/confinement.py` | source | IN REVIEW | Full source: 1–53 |
 | `core/src/atlas_core/connector_transport.py` | source | REVIEWED—FINDINGS OPEN | All 57 lines at blob 145f57c; ATLAS-CONN-083 .ts.net suffix bypasses resolved private-IP check; ATLAS-CONN-084 ambient urllib proxy can route bearer token |
-| `core/src/atlas_core/connectors.json` | source | NOT STARTED | — |
-| `core/src/atlas_core/connectors.py` | source | REVIEWED—FINDINGS OPEN | All 274 lines at blob 48ffecf; ATLAS-CONN-085 failed re-link does not revoke previously allowed actions; connector state/action authority reviewed |
+| `core/src/atlas_core/connectors.json` | source | REVIEWED—NO FINDINGS | 69 lines, blob `ee37ee22`; six catalogue entries checked against closed effect map and connector profile; test validates catalogue completeness |
+| `core/src/atlas_core/connectors.py` | source | REVIEWED—FINDINGS OPEN | All 274 lines, blob `48ffecf`; ATLAS-CONN-085 failed re-link authority; ATLAS-CONN-110 reversible undo can silently no-op and report success |
 | `core/src/atlas_core/consent.py` | source | IN REVIEW | Full source |
 | `core/src/atlas_core/contracts.py` | source | REVIEWED—FINDINGS OPEN | All 133 lines at blob a872b9e; ATLAS-DOC-075 stale VERSIONS comment incorrectly says 1.1 is not served |
 | `core/src/atlas_core/coverage.py` | source | NOT STARTED | — |
@@ -480,7 +480,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/tests/test_browser_engine.py` | test | IN REVIEW | Targeted: 82–90 |
 | `core/tests/test_browser_watchers.py` | test | IN REVIEW | Targeted: 64–73 |
 | `core/tests/test_client.py` | test | REVIEWED—FINDINGS OPEN | All 344 lines at blob efac279; broad end-to-end coverage, but no malformed task_id or mid-body disconnect tests for ATLAS-CLIENT-076 |
-| `core/tests/test_connectors.py` | test | REVIEWED—FINDINGS OPEN | All 247 lines at blob f683cba; no test for `.ts.net` DNS pinning/hostile proxy or failed re-link after previously enabled connector (ATLAS-CONN-083/084/085) |
+| `core/tests/test_connectors.py` | test | REVIEWED—FINDINGS OPEN | All 247 lines, blob `f683cba`; lacks `.ts.net` DNS pinning, hostile proxy, failed re-link and missing-previous/disconnect-before-undo regressions (ATLAS-CONN-083/084/085/110) |
 | `core/tests/test_consent_api.py` | test | REVIEWED—NO FINDINGS | All 190 lines at blob e48338d; owner-only consent, paired member read, replay protection, withdrawal purge, malformed choices and default model mode covered |
 | `core/tests/test_contracts.py` | test | REVIEWED—NO FINDINGS | All 68 lines at blob d8b19c9; strict 1.0 schema compilation, OpenAPI validation, taxonomy parity and content-free validation assertions inspected |
 | `core/tests/test_contracts_frozen.py` | test | REVIEWED—NO FINDINGS | All 52 lines at blob e2bf4b3; frozen 1.0 hashes, default validator and runtime negotiation assertions inspected |
@@ -1046,3 +1046,12 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - The report correctly scopes the baseline to foundation overhead with stubs, labels the Linux developer-container run as neither CI nor target-Mac evidence, identifies the one-sample create-task measurement, and leaves real answer latency/target-Mac measurements provisional. The reported script parameters and operation names match the current benchmark harness. No new documentation defect established; no benchmark was run in this review.
 - Marked `REVIEWED—NO FINDINGS`. Counts: **52 IN REVIEW; 90 NOT STARTED; 85 REVIEWED—NO FINDINGS; 51 REVIEWED—FINDINGS OPEN (278 total)**.
 - Next file: `core/docs/CONNECTOR_PROFILE.md`.
+
+### Connector profile, catalogue and undo revalidation — 2026-11-24
+
+- `core/docs/CONNECTOR_PROFILE.md` (19 lines, blob `f3e7c70ec60738cf27830eac95b6a16d7a38872a`) cross-checked against `connectors.py` (274 lines, blob `48ffecf9c8b46a23c892137f444fcdedf4c75399`), `connectors.json` (69 lines, blob `ee37ee223f161e4357df2bd8a7f1249457cc0b76`), `connector_transport.py` (57 lines, blob `145f57c3635cacbbc469d27dfc3208400d90aeaf`) and `test_connectors.py` (247 lines, blob `f683cba3c3b4856ce03c5782b2e3e3334e7e3aa3`).
+- **ATLAS-DOC-111 (P2, OPEN)**: profile claims arbitrary service onboarding without an Atlas change although only six fixed catalogue entries exist; its HTTP allow-list prose omits the extra `100.64.0.0/10` and `.ts.net` behavior, the latter already tracked as unsafe ATLAS-CONN-083. Comments **6046321515** and **6046323774** posted.
+- **ATLAS-CONN-110 (P2, OPEN)**: reversible connector undo can silently no-op if `previous` is missing/non-object or credentials are absent, while `ActionGateway.undo()` reports success and marks it undone. Comment **6046323774** posted; tests do not cover these cases.
+- `connectors.json` was fully read and its six catalogue entries/effect values checked; no new defect established. Marked `REVIEWED—NO FINDINGS`.
+- Counts: **52 IN REVIEW; 87 NOT STARTED; 86 REVIEWED—NO FINDINGS; 53 REVIEWED—FINDINGS OPEN (278 total)**. No tests run.
+- Next changed file: `core/docs/CONTRACT_1_1.md`.
