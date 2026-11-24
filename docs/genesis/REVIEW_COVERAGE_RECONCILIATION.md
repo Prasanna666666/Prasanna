@@ -377,7 +377,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/CONNECTOR_PROFILE.md` | documentation | REVIEWED—FINDINGS OPEN | 19 lines, blob `f3e7c70e`; overstates arbitrary plug-in support and omits `100.64/10`/`.ts.net` transport behavior; ATLAS-DOC-111 |
 | `core/docs/CONTRACT_1_1.md` | documentation | REVIEWED—FINDINGS OPEN | 81 lines, blob `13651ecb`; line 17 says three new paths though 1.1 OpenAPI adds 32 vs 1.0; test name repeats stale count; ATLAS-DOC-112 |
 | `core/docs/DESIGN.md` | documentation | REVIEWED—NO FINDINGS | 56 lines, blob `d2a9084`; Stage 2 dependency layers, direct import boundaries, policy-data separation, gated retrieval/model path, token-bound context, task store/key provider and historical reuse matrix cross-checked against architecture tests and current modules; API 1.0/first-slice wording is explicitly scoped to this Stage 2 design, with API 1.1 documented separately; no tests run |
-| `core/docs/EGRESS_GATEWAY.md` | documentation | NOT STARTED | — |
+| `core/docs/EGRESS_GATEWAY.md` | documentation | REVIEWED—FINDINGS OPEN | 29 lines, blob `b74e6de`; cross-checked TaintSet description against `egress.py` (409 lines, blob `0aa66a9`) and `test_egress.py` (336 lines, blob `64881f5`); ATLAS-DOC-113: docs say question lacks 2-word-run fingerprints and imply only capitalised question names, but code fingerprints 2-word runs and every 4+ letter word from questions too; comment 6046411754 |
 | `core/docs/ENROLMENT.md` | documentation | NOT STARTED | — |
 | `core/docs/G_O19_DESIGNATION.md` | documentation | NOT STARTED | — |
 | `core/docs/MACOS_PROVIDERS.md` | documentation | NOT STARTED | — |
@@ -1062,3 +1062,11 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - **ATLAS-DOC-112 (P2, OPEN)**: line 17 and the test function name say “three new paths”, but 1.1 has 39 paths vs 7 in 1.0, and the `NEW_PATHS` assertion contains 32. If three refers to only the WP3.4 subset, the comparison baseline needs to be stated. Comment **6046362327** posted.
 - Row moved to `REVIEWED—FINDINGS OPEN`. Recomputed from the 278 path rows: **49 IN REVIEW; 85 NOT STARTED; 85 REVIEWED—NO FINDINGS; 59 REVIEWED—FINDINGS OPEN (278 total)**. No tests run.
 - Next changed file: `core/docs/DESIGN.md`.
+
+
+### Egress gateway documentation review — 2026-11-24
+
+- `core/docs/EGRESS_GATEWAY.md` (29 lines, blob `b74e6de4f904f4b96011bb3b81e6dc3b24998252`) was read in full and cross-checked against `egress.py` (409 lines, blob `0aa66a988a73b027ac1aa762da00bf60d6d533ae`), `test_egress.py` (336 lines, blob `64881f56dc2de803cda7d88068db1646b288467b`), `test_research.py`, the current API and the Internet/network policy.
+- The documented disabled-by-default gates, owner-only research route, synthetic-only transport evidence, destination/redirect checks, untrusted response handling, and known paraphrase/short-token limitations were cross-checked. Existing source findings ATLAS-EGRESS-077/078/079 and ATLAS-EGRESS-091 remain separate; this pass does not claim they are fixed.
+- **ATLAS-DOC-113 (P2, OPEN)**: the document says two-word runs are fingerprinted for passages but not questions, and describes question matching as capitalised names. The implementation fingerprints two-word runs and every 4+ letter word from both the question and passages. Inline review comment **6046411754** posted; defect register updated.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Next changed file: `core/docs/ENROLMENT.md` (confirm current changed-file order before continuing).
