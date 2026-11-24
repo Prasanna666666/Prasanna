@@ -804,3 +804,9 @@ Evidence: `core/src/atlas_core/app.py`, `Core.close()` and `_work()` (blob `6d65
 **Severity: P2 — OPEN.**
 
 Evidence: `core/src/atlas_core/app.py`, `Core.__init__()` and `_build()` (blob `6d653f5cedde2697b7184c83e0cec4922b8a17d9`). If `_build()` raises after opening `DesignationStore`, indexes or `TaskStore`, `__init__` only calls `_release_lock()` and rethrows. It does not close already-created SQLite connections or injected closers. The registered purge callbacks capture `self`, so a partially built object can retain cycles/resources after construction fails; a retry can encounter locked databases or leaked resources. Track construction stages and close every successfully opened resource in reverse order on failure; test an injected failure after each open stage and immediate successful rebuild.
+
+
+### ATLAS-ACT-089 — connector revocation blocks new proposals but not undo handlers
+**Severity: P2 — OPEN (revocation bypass).**
+
+Evidence: `core/src/atlas_core/actions.py`, `ActionGateway.revoke_connector()`, `propose()` and `undo()` (blob `0a690d3300ea62a8b4ac1e41605786e654bc665b`, inspected at PR head `e970ec315257fe33722cb86c123bb61f639a6bfc`). `propose()` refuses actions whose `spec.connector` is in `_revoked`, but `undo()` retrieves the completed `_Done` and invokes `done.spec.undo()` without checking connector revocation. A connector can therefore be revoked after an action, yet the owner's later Undo can still call the connector's external undo handler. Refuse/defer connector-backed undo while revoked (or require a fresh successful connector check) and add a test that completes a connector action, revokes it, then proves the undo handler is not called.
