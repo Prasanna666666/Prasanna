@@ -935,3 +935,10 @@ Evidence at PR #8 head `a99cbba63f43051e666526ae1e5d311a3f94d578`: `core/docs/PL
 **Severity: P2 — OPEN (programme status/acceptance evidence).**
 
 Evidence at PR #8 head `a99cbba63f43051e666526ae1e5d311a3f94d578`: `core/docs/PROGRAMME_AUDIT.md` lines 42 and 48–50. Its “current exact-head” snapshot names older head `7eadbae...`, reports 82 no-findings / 53 findings-open / 52 in-review / 91 not-started and 65 threads (21 resolved, 44 unresolved, 43 outdated). The live 278-path ledger at this checkpoint is 86 / 66 / 48 / 78; live threads are 103 total, 21 resolved, 82 unresolved and 43 outdated. The current-head workflow run `45478197996` is queued. The discrepancy section also says the egress private-name/short-phrase bypass is fixed, but ATLAS-SEC-014 remains partially addressed: 4+ letter words and two-word runs are fingerprinted; 1–3-character identifiers and paraphrases remain outside the guarantee. Refresh the exact-head snapshot and qualify the egress residual risk. Review comments **6046604381** posted on lines 42 and 48. No tests run.
+
+
+### ATLAS-DOC-122 — Stage 2 rollback note is presented as the current PR #8 rollback plan
+
+**Severity: P2 — OPEN (data retention and recovery documentation).**
+
+Evidence at PR #8 head `9468010f50b5910d11b16541fc283242c332327e`: `core/docs/ROLLBACK.md` lines 3–11 describes only the initial Core/task-store package: one `core/` directory, one CI job, one task store/key, no existing user data access, and rollback by deleting that store/key or reverting `core/`. Current PR #8 includes app/iOS, Mail and native-source ingestion/indexes, Finance/Health record stores, client registry, action audit, multiple Keychain keys, encrypted backup/restore and signed updater rollback. `backup.py` enumerates multiple DBs and plain files; `host.py` provisions multiple keys; `updater.py` has an independent install/rollback path. The note is a historical Stage 2 package plan, not a complete safe rollback/data-retention procedure for the current branch. Label it historical and link a current inventory plus backup/restore procedure. Review comments **6046622739** posted on lines 3 and 8. No tests run.
