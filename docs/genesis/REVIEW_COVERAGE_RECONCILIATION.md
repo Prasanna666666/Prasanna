@@ -305,8 +305,8 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `app/Package.swift` | build/config | REVIEWED—NO FINDINGS | Full 15 lines; AtlasKit-only consumers in macOS/iOS XcodeGen projects align with macOS 14/iOS 17 declarations; no external dependencies |
 | `app/README.md` | documentation | REVIEWED—FINDINGS OPEN | Full 19 lines at 1af9af9; CI now runs packaged app/Core lifecycle, Swift real-Core E2E and macOS UI audit, but README still says app has not been run / Swift side untested / packaging not built; ATLAS-DOC-052; prior PR comment 6045284683 |
 | `app/Sources/AtlasApp/AtlasApp.swift` | source | REVIEWED—FINDINGS OPEN | Full 696 lines at blob 40f5346; ATLAS-APP-052 stale task ID can be cancelled during next ask; ATLAS-APP-053 failed undo is swallowed and retry handle cleared; activity history remains covered by ATLAS-UX-023 |
-| `app/Sources/AtlasApp/Components.swift` | source | IN REVIEW | Targeted component/accessibility review |
-| `app/Sources/AtlasApp/DesignSystem.swift` | source | IN REVIEW | Full source inspected |
+| `app/Sources/AtlasApp/Components.swift` | source | REVIEWED—NO FINDINGS | Full 179 lines at blob 0e52e88; reusable headers, notices, status, citation/evidence, activity and approval components inspected; no component-level defect established |
+| `app/Sources/AtlasApp/DesignSystem.swift` | source | REVIEWED—NO FINDINGS | Full 67 lines at blob b59e7b3; semantic colour/token mapping, scalable text styles, reduce-motion and reading-width helpers inspected; no defect established |
 | `app/Sources/AtlasApp/Screens.swift` | source | IN REVIEW | Targeted: 1–75, 131–191, 179, 579–595, 600–772 |
 | `app/Sources/AtlasApp/Shell.swift` | source | IN REVIEW | Full source inspected |
 | `app/Sources/AtlasApp/Speaker.swift` | source | IN REVIEW | Full source inspected |
@@ -737,3 +737,12 @@ The exact-arithmetic inline review created one additional thread. Live GitHub no
 - Last fully completed no-finding file remains `app/Package.swift`; the latest fully read files with open findings are `app/README.md` and `app/Sources/AtlasApp/AtlasApp.swift`.
 - Continue with the next PR changed-path entry after `app/Sources/AtlasApp/AtlasApp.swift`: `app/Sources/AtlasApp/Components.swift`. Before opening it, reconcile the historical review record and current blob SHA; do not re-read files already covered unless their blob changes.
 - Review boundary unchanged: docs/defect ledger and review comments only; no app source/tests/build/config edits, no approval/merge, and no thread resolutions.
+
+
+### Component/design-system file review continuation — 2026-11-24
+
+**Reviewed at PR head:** `b03af0133c98075487cc1ad52f688993040839eb`.
+- `app/Sources/AtlasApp/Components.swift`: all 179 lines inspected (blob `0e52e88c6833ca04e3f34d2c241163fc4b44d15b`). Reviewed PageHeader, StateNotice, PhaseLabel, CitationChip, EvidenceInspector, ActivityRow and ApprovalSheet. No component-level defect established in this file. This is source inspection, not a human accessibility acceptance claim; hosted accessibility evidence is separately tracked.
+- `app/Sources/AtlasApp/DesignSystem.swift`: all 67 lines inspected (blob `b59e7b355f13cd31e11b21e9869b3470ab44c066`). Token-backed semantic colours, spacing/radius/metrics, scalable system text styles, Reduce Motion and reading-column helpers inspected. No defect established in this file.
+- These two rows are now `REVIEWED—NO FINDINGS`. Updated exact-head inventory: **278 total; 142 IN REVIEW; 129 NOT STARTED; 5 REVIEWED—NO FINDINGS; 2 REVIEWED—FINDINGS OPEN**. This remains a path review ledger, not a claim that 142 IN REVIEW files are complete.
+- Next file in the app source/UI sequence: `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift`; the audit test itself needs independent review of its issue exemptions and contrast-measurement logic.
