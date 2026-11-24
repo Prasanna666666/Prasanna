@@ -380,7 +380,7 @@ All findings below have separate detailed PR comments with source evidence, impa
 | `core/docs/EGRESS_GATEWAY.md` | documentation | REVIEWED—FINDINGS OPEN | 29 lines, blob `b74e6de`; ATLAS-DOC-113: stale six-module network allow-list, taint details/stale passage coverage, DNS wording and 200k truncation-flag mismatch; comments 6046411754/6046414937 |
 | `core/docs/ENROLMENT.md` | documentation | REVIEWED—FINDINGS OPEN | 21 lines, blob `c3882f0`; bootstrap/roles/socket logic accurate; Swift CoreLauncher/CoreClient are exercised by EndToEndTests and macOS CI, contrary to “unbuilt/never run”; app UI/KeyStore path remains unverified; ATLAS-DOC-115 |
 | `core/docs/G_O19_DESIGNATION.md` | documentation | REVIEWED—FINDINGS OPEN | 42 lines, blob `64ab193`; cross-checked designation/access/policy with current API, host, macOS providers, Mail adapter and CI tests; ATLAS-DOC-114: WP3.3 status statements (no Mail adapter/API 1.1/Keychain anchor) and rollback steps are superseded by later work; comments 6046454937 |
-| `core/docs/MACOS_PROVIDERS.md` | documentation | NOT STARTED | — |
+| `core/docs/MACOS_PROVIDERS.md` | documentation | REVIEWED—FINDINGS OPEN | 17 lines, blob `90c5aee`; cross-checked macos.py, host.py, macos_sources.py, macOS native/provider tests and exact-head CI; ATLAS-DOC-116: opening claims exact-head CI success while table contradicts Swift/Core Mac verification; current run 45476623978 queued; comments 6046473151 |
 | `core/docs/MODEL_RUNTIME.md` | documentation | NOT STARTED | — |
 | `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` | documentation | IN REVIEW | Targeted owner gate/evidence statements |
 | `core/docs/PLUG_IN_GUIDE.md` | documentation | NOT STARTED | — |
@@ -1095,3 +1095,11 @@ At PR #8 head `e970ec315257fe33722cb86c123bb61f639a6bfc`, fully read `actions.py
 - Row moved from `REVIEWED—NO FINDINGS` to `REVIEWED—FINDINGS OPEN`. No tests run in this review.
 - Next changed file: `core/docs/G_O19_DESIGNATION.md`.
 - Coverage totals from the path table: **49 IN REVIEW; 81 NOT STARTED; 86 REVIEWED—NO FINDINGS; 62 REVIEWED—FINDINGS OPEN (278 total)**.
+
+
+### macOS provider evidence review — 2026-11-24
+
+- `core/docs/MACOS_PROVIDERS.md` (17 lines, blob `90c5aee53ea0168ba1593cb6a1a72d51aa6cb62f`) was read in full and cross-checked against `macos.py`, `host.py`, `macos_sources.py`, `app.py`, `test_macos_native.py`, `test_macos_sources.py`, `test_mail.py`, `test_documents.py`, `EndToEndTests.swift` and the CI workflow.
+- The implementation/evidence distinction remains: Keychain anchor and store keys, Mail reader over synthetic `.emlx`, folder permission probe and MLX worker have source/test seams; real TCC prompts, real Apple Mail store, human SwiftUI/Get Started/accessibility walkthrough, packaging/signing and owner-Mac behaviour remain unverified.
+- **ATLAS-DOC-116 (P2, OPEN)**: the opening paragraph claims exact-head macOS CI success for the whole Core, Keychain, sandbox, MLX and Swift end-to-end, while the table says Swift runtime and whole-Core macOS verification are not done. It also says every Mac-specific component is tested with fakes despite claiming real runner tests. Current exact-head run **45476623978 is queued**, not passed. Reconcile the table with exact test names and completed run evidence. Comments **6046473151** posted; defect register updated.
+- Row moved to `REVIEWED—FINDINGS OPEN`. No tests run. Next changed file: `core/docs/MODEL_RUNTIME.md`.
