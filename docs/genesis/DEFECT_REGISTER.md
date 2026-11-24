@@ -617,3 +617,9 @@ Evidence: `app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift`, `measuredCo
 **Severity: P2 — OPEN.**
 
 Evidence: the UI test waits a fixed eight seconds after window existence, then asserts only that `app.staticTexts` is non-empty before running the audit. The app's startup/“starting” state can satisfy that assertion; a slow Core/onboarding transition can therefore leave the test auditing a transient screen while reporting that the first owner screen passed. Replace the fixed sleep with a bounded wait for a stable, expected screen/state (and assert the required owner/onboarding marker) before capturing the screenshot and running the audit. Preserve a timeout failure with useful diagnostics.
+
+
+### ATLAS-APP-056 — Activity screen omits the Core attention feed
+**Severity: P2 — OPEN.**
+
+Evidence: `app/Sources/AtlasApp/Screens.swift` `ActivityView.body` (blob `9b5ad87b6b762201a33b4af4737b2ff655145deb`, inspected at PR head `ea2ba5acd92237e3b2f2cc583f04ad47f45c06e9`), together with `AppModel.loadAttention()` and `ActivityItem.fromAttention()`. The Core attention feed is loaded into `model.attention`; Home combines `model.activity + model.attention` for “Needs your attention”. ActivityView instead constructs its list from `ActivityFeed.merged(model.activity)` alone, so Core-generated attention items (currently calendar-conflict risks) are absent from the Activity screen despite its subtitle promising “what needs your decision”. Merge both feeds with the existing deduplication rule and test that an attention-only item appears in Activity without duplicating a matching event.
