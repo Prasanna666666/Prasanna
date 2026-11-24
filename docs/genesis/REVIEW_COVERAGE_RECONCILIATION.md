@@ -1225,3 +1225,7 @@ At PR #8 head `23fee7b5f7d04898e193926fbb05a62856fd7bf9`: **282 changed paths**,
 ## Final documentation-only head snapshot — 2026-11-25
 
 At head `c3679dc914e31a1f0fda7c709b45ae0119aa9096`: PR #8 remains open, draft and unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 32 outdated and 74 current). Compared with the previous snapshot, one unresolved thread became marked outdated; this is a metadata state change, not evidence that its finding is fixed. No workflow run was returned for this exact documentation-only head. Do not claim CI passed without a separate exact-head check.
+
+## Latest live review snapshot — after technical-document cleanup (2026-11-25)
+
+At captured PR #8 head `80dbd8584201aafce3697f28e3ec35fb6d5f42af`: **282 changed paths**, **127 review threads**, **21 resolved**, **106 unresolved** (**36 outdated**, **70 current**). PR remains open, draft and unmerged. No workflow run or combined status was returned for this exact documentation-only head. This count supersedes earlier 2026-11-25 snapshots in this ledger; historical counts remain for audit history. Refresh the live API before continuing because thread outdated/current classification can change as diff lines move.
