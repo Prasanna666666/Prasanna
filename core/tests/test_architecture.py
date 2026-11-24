@@ -230,7 +230,15 @@ APPROVAL_CATEGORIES = {
 
 
 def genesis_files() -> list[Path]:
-    return [*sorted(GENESIS.glob("*.md")), ROOT.parent / "CLAUDE.md"]
+    # Historical evidence is intentionally immutable and may quote decisions that
+    # were superseded later. These policy/roadmap assertions apply to canonical
+    # current documents, not archived conversations or branch-history reports.
+    historical_archives = {p for p in GENESIS.glob("HISTORICAL_*.md")}
+    historical_reports = {GENESIS / "BRANCH_HISTORY_RECONCILIATION.md"}
+    return [
+        *[p for p in sorted(GENESIS.glob("*.md")) if p not in historical_archives | historical_reports],
+        ROOT.parent / "CLAUDE.md",
+    ]
 
 
 def stale_phrases() -> list[tuple[str, str, str]]:
