@@ -1,37 +1,26 @@
 # Documentation index
 
-| Document | What it is |
-|---|---|
-| [requirements.md](requirements.md) | What Atlas must do and be, with IDs and how each is verified |
-| [design.md](design.md) | Layers, data flows, the safety design of the assistant, encryption, migrations |
-| [decisions.md](decisions.md) | The decision log (including the review round at its end) |
-| [architecture.md](architecture.md) | The layer map |
-| [comment-tracker.md](comment-tracker.md) | Every review comment from ChatGPT, Gemini and the author, and its status, kept up to date |
-| [reconciliation.md](reconciliation.md) | Every defect and open item: status, file and line, what its test proves, and whether the test was shown to fail without the fix |
-| [security-deployment-review.md](security-deployment-review.md) | What was inspected in Docker, Compose and scripts, what was run, and what was not |
-| [coverage-matrix.md](coverage-matrix.md) | Every changed entry of the pull request and whether it was inspected |
-| [data-locations.md](data-locations.md) | Where personal data lives on disk, which of it is encrypted, and what was not inspected |
-| [defects.md](defects.md) | Every defect found in this round, fixed and open, with evidence |
-| [reviews.md](reviews.md) | The outside reviews, what was confirmed or challenged, and where friends' comments are tracked |
-| [testing.md](testing.md) | What was run, the results, the test inventory, and the gaps |
-| [ui-review.md](ui-review.md) | Screenshots of the apps with invented data, for UI comments |
-| [REVIEW_PROMPT.md](REVIEW_PROMPT.md) | The prompt used to ask other AIs for the first review |
-| [RE_REVIEW_PROMPT.md](RE_REVIEW_PROMPT.md) | The prompt to send reviewers (people and AIs) for the re-review of this pull request |
+## Atlas / Project Genesis — canonical current documentation
 
-## Project Genesis — evolved Atlas target
-
-The following documents define the evolved product direction. They are target-state specifications and must be read alongside the current implementation records above; they do not claim that target capabilities are already implemented.
-
-- [Genesis documentation index](genesis/README.md)
-- [Product requirements (PRD)](genesis/PRD.md)
-- [Target architecture](genesis/TARGET_ARCHITECTURE.md)
-- [Intelligence, response quality and performance](genesis/INTELLIGENCE_AND_PERFORMANCE.md)
-- [Memory, knowledge and privacy](genesis/MEMORY_PRIVACY_KNOWLEDGE.md)
-- [Ingestion and durable processing](genesis/INGESTION_PIPELINE.md)
-- [Delivery and collaboration protocol](genesis/DELIVERY_PROTOCOL.md)
+The evolved Atlas product and target are specified in [Project Genesis](genesis/README.md). Start there. Its authorities are:
+- [Product requirements](genesis/PRD.md)
+- [UI/UX specification](genesis/UI_UX_SPECIFICATION.md)
+- [Target architecture and sole roadmap](genesis/TARGET_ARCHITECTURE.md)
+- [Use-case and integration register](genesis/USE_CASE_REGISTER.md)
 - [Decision register](genesis/DECISIONS.md)
-- [Project handover](genesis/HANDOVER.md)
+- [Low-level design](genesis/LOW_LEVEL_DESIGN.md)
+- [Memory, knowledge and privacy](genesis/MEMORY_PRIVACY_KNOWLEDGE.md)
+- [Ingestion pipeline](genesis/INGESTION_PIPELINE.md)
+- [Intelligence and performance](genesis/INTELLIGENCE_AND_PERFORMANCE.md)
+- [Internet and network policy](genesis/INTERNET_AND_NETWORK_POLICY.md)
+- [Implementation conformance audit](genesis/IMPLEMENTATION_CONFORMANCE.md)
+- [Delivery protocol](genesis/DELIVERY_PROTOCOL.md)
+- [Current handover](genesis/HANDOVER.md)
+- [Review coverage reconciliation](genesis/REVIEW_COVERAGE_RECONCILIATION.md)
+- [Branch-history reconciliation](genesis/BRANCH_HISTORY_RECONCILIATION.md)
 
-**Important:** Existing documents describe the current implementation and review evidence. Genesis documents describe the evolved target. Reconcile differences explicitly; do not silently replace historical decisions or test evidence.
+## Historical implementation and review evidence
 
-Read in this order if you have ten minutes: `defects.md` (what was wrong), `design.md` (how the assistant is kept safe), `ui-review.md` (what it looks like).
+Other files in this directory (including legacy requirements/design, review trackers, screenshots, test reports and deployment reviews) are historical evidence from earlier implementation/review phases. They are not competing current product specifications unless a canonical Genesis document explicitly incorporates them.
+
+Do not delete historical evidence merely to simplify navigation. Where a legacy record remains relevant, link it from the appropriate canonical document and state whether it is current, historical or superseded. Code and executable tests establish current implementation behaviour; Genesis documents establish intended product behaviour.
