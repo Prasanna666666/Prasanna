@@ -129,3 +129,9 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - Added current residual-risk disclosure for ATLAS-SEC-014, ATLAS-EGRESS-077/078/079/091, connector undo/transport, and relay/iOS/unpair-cache issues. No runtime source or tests were changed; the OpenAPI 1.1 contract file was updated.
 - Latest observed head: `d877a4ec3ce02244a070eb1dbbdaf021e6988de0`. PR #8 remains open/draft/unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved; 73 unresolved outdated and 33 unresolved current; 85 outdated and 42 current overall). Exact-head workflow query returned no run and combined status had no entries. No CI pass is claimed.
 - `IMPLEMENTATION_CONFORMANCE.md` records the initial evidence-based comparison and remaining work. The full row-by-row PRD/use-case/screen/path/thread audit is not complete.
+## Code-review reconciliation checkpoint — 2026-11-25
+
+- Verified and resolved specific review findings for app Core lifecycle, live-socket preservation, EMLX regular-file replacement identity, and exact private-name/short-phrase egress fingerprints. Regression tests are present for each; owner UI/Mail/real-Internet validation remains separate.
+- Five current unresolved review threads remain, all in source/test files: exact arithmetic precision (P1), API free-text object-map schema coverage, connector undo falsely reporting success, OpenAPI path-count test naming, and native Keychain test fixture cleanup. Do not treat these as documentation-only issues.
+- Stage 3 P1/P2 findings ATLAS-CORE-092, ATLAS-EXACT-106 and ATLAS-CORE-083/084 remain open; egress residuals and Stage 4–8 security/device blockers are recorded in the conformance report.
+- Latest PR snapshot: head `533a2460f3f013690a862d029488dc42d9611fb4`; 282 changed paths; 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current). CI run 45565642702 is queued and combined status has no entries.
