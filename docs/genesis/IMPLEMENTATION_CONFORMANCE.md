@@ -1,7 +1,7 @@
 # Atlas — implementation-to-documentation conformance audit
 
 **Created:** 2026-11-25  
-**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `67c7ee475db4188b0460a48807a8f0210c78a7d9` (latest source/test/contract/UI-test patch snapshot; exact-head CI run 45576209883 queued)  
+**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `293e0ba40f0c56c8ea56d4d1941d1812c26db442` (latest source/test/contract/UI-test patch snapshot; exact-head CI run 45576209883 queued)  
 **Branch head:** refresh from GitHub before resuming; this document deliberately avoids a self-referential HEAD hash  
 **Purpose:** Establish one evidence-led method for deciding whether the completed implementation matches the canonical product and technical documentation.
 
@@ -300,4 +300,12 @@ These review threads were replied to and resolved after checking the current sou
 - `AppModel.ask()` now clears the previous task ID at submission start and uses `SubmissionCancellation` to retain Stop intent if the Core has not yet returned the new task ID. When the ID arrives, the queued Stop is applied to that task. `SubmissionCancellationTests` cover pre-ID cancellation, post-ID cancellation and reset between submissions. A full AppModel-level integration test is still desirable.
 - `AppModel.undoLast()` now clears its undo handle only after Core explicitly returns `status=done`. Failed/transport outcomes preserve the handle and show a plain-language error in RecordsView. `UndoConfirmation` helper tests cover done/failed/missing status.
 - The macOS accessibility UI test no longer uses darkest/lightest screenshot pixel extrema to exempt contrast findings. It waits for the expected first-run Welcome or Home prompt instead of sleeping a fixed eight seconds. Only narrowly identified system-owned title-bar/Touch Bar structural exceptions remain.
-- These source/test changes are present at `67c7ee475db4188b0460a48807a8f0210c78a7d9`. Exact-head CI run `45576209883` is queued; no test pass is claimed. AppModel integration and owner visual/VoiceOver walkthrough remain open.
+- These source/test changes are present at `67c7ee475db4188b0460a48807a8f0210c78a7d9`. Exact-head CI run `45576933577` is queued; no test pass is claimed. AppModel integration and owner visual/VoiceOver walkthrough remain open.
+
+
+## 18. Current PRD/use-case trace and backup documentation — 2026-11-25
+
+- Added PRD_CONFORMANCE.md and USE_CASE_CONFORMANCE.md. They map the PRD principles/product areas and every registered UC-001–055 / UC-L01–L30 scenario to current source/document evidence, status and residuals. They intentionally do not equate a file or partial foundation with a working end-to-end capability.
+- Rewrote core/README.md as a current implementation index (the prior Stage 2-only README had materially stale “not here” statements); corrected app/README.md and ios/README.md; corrected the backup.py module docstring to match the actual DB_FILES/LIVE_DBS/PLAIN_FILES/key inventory and omissions.
+- Added the owner-directed app cancellation/undo helper fixes and accessibility UI-test hardening described in §17. The backup module docstring update is code-only documentation; no backup algorithm changed.
+- Latest source/contract/UI-test/backup-doc snapshot: `293e0ba40f0c56c8ea56d4d1941d1812c26db442`; exact-head CI run `45576933577` is queued (16 jobs). Review threads: 127 total, 120 resolved, 7 unresolved (3 sandbox residuals; 4 code/test fixes awaiting CI). Refresh live head before continuing; the current row-by-row 283-path audit remains incomplete.
