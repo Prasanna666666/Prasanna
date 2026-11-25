@@ -1,6 +1,6 @@
 """Backup, restore and key recovery of the Core's NON-derivable state (Stage 4; UC-L15, UC-040).
 
-What is backed up: the task, edits, Finance and Health stores (`tasks.db`, `edits.db`, `finance-records.db`, `health-records.db`), the designation store as read-only history (`designation.db`), the public client registry (`clients.json`) and the content-free action audit chain (`actions-audit.jsonl`). The wrapped store keys are in `keys.enc`. What is NOT backed up: document/Mail/native indexes (derived and rebuilt from the owner's own sources), the model folder (re-imported from the signed manifest), the Core identity key, paired-device list, connector credentials and originals (the owner's files and mail are never copied here).
+What is backed up: the task, edits, Finance and Health stores (`tasks.db`, `edits.db`, `finance-records.db`, `health-records.db`), the designation store as read-only history (`designation.db`), the public client registry (`clients.json`) and the content-free action audit chain (`actions-audit.jsonl`). The wrapped store keys are in `keys.enc`. What is NOT backed up: document/Mail/native indexes (derived and rebuilt from the owner's own sources), the model folder (re-imported from the signed manifest), the Core identity key, model-record Keychain item, designation rollback anchor, paired-device list, connector credentials and originals (the owner's files and mail are never copied here).
 
 Rules this module enforces:
 
