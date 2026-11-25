@@ -42,13 +42,13 @@ The following status distinctions are mandatory:
 ### Verified repository / PR facts at this reconciliation
 
 - PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
-- Its observed head is `83eec5378fff9f26f435492104c4efa2b30d18ca`. The PR reports 605 commits and 281 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
+- Its observed head at the latest check is `1713785c432e6a967cd163964c3d69aa1c639788`. The PR reports 605 commits and 282 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
 - Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
 - WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; the API 1.1 contract was subsequently implemented and is served additively by WP3.4 (the 1.0 contract remains frozen). See `core/docs/CONTRACT_1_1.md`.
 - WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
 - The current criterion-level matrix in `core/docs/STAGE3_ACCEPTANCE.md` records criteria 2, 7 and 8 as PARTIAL with open findings. Stage 3 itself is **not accepted**. The separate final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking. Use the acceptance matrix, not broad summary wording in older handover snapshots, for criterion status.
 - Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
-- The workflow run associated with the observed head was queued when checked. No passing result for that run is claimed here.
+- Exact-head CI run `45564148620` (`CI`, run 1881) was queued when checked at `1713785c432e6a967cd163964c3d69aa1c639788`; combined status returned no status entries. No passing result for that run is claimed here.
 - General-purpose browser/app automation is documented as a Stage 6 target architecture, not a Stage 3 completion claim. Playwright is a recommendation, not an adopted runtime dependency; OpenClaw is not adopted.
 
 ### Explicitly unaccepted / unverified
@@ -59,9 +59,9 @@ The existence of iOS source files does not prove secure worldwide access, offlin
 
 ## Current next work
 
-1. Continue the remaining document-by-document contradiction audit, using [IMPLEMENTATION_CONFORMANCE.md](IMPLEMENTATION_CONFORMANCE.md) as the checklist. The entry-point, authority, status-vocabulary and UX-handoff cleanup has been committed; detailed technical records still need reconciliation.
-2. Then perform the code-to-document conformance audit at a frozen exact commit. Trace every material PRD requirement and use case to implementation, tests and runtime evidence. Mark each **aligned**, **partially aligned**, **documentation drift**, **not implemented**, or **unverified**.
-3. Reconcile every current PR review thread and changed path; do not report the audit complete while material unresolved review comments or uninspected changed paths remain.
+1. Finish the remaining document-by-document contradiction audit and record every material correction in `IMPLEMENTATION_CONFORMANCE.md`.
+2. Complete the code-to-document conformance audit at the frozen code snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`; docs-only commits since that snapshot do not change code evidence. Trace every material PRD requirement, registered use case, integration and screen to implementation, tests and runtime evidence.
+3. Reconcile all 282 changed paths and all 127 review threads; do not report the audit complete while material unresolved review comments or uninspected paths remain.
 4. Re-run CI on the final audit head and record the exact result. Do not merge, close the PR, waive release gates or claim owner acceptance without explicit authority.
 
 ## Change-control rules
@@ -112,3 +112,12 @@ Additional documentation-only corrections in the final pass: `3706b95afd02b038d2
 - Commits: `08b973d7d3e6213c2ec63ad14dd0e8780a73733a`, `bd4d0bd05a8b03f9d8454a1e396d8c0405301e07`, `cefb48de9a0177c8f5bd035330ab9fdc2bbfa020`, `30a665987e54c119f01ac5bfe8455125cf2b96de`, `35e16243b6a3ddc43bae2dbdb24984f9c9869d9a`, `7cf97cbf1574b81d0084c2d40c200743fa664a8b`, `58b7e2de4b203977e437338f33928856484fdda4`, `2418e38f958d8be1600bf16711bd6b1800c020b1`, `36a8379f253e321103148d88e8aaa46752fb04e5`, and `408add907fb0b5a33151c52c66a1e8a213ff51f3`.
 
 The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a Stage 2 snapshot and corrected its hosted-macOS Keychain evidence note (`e1815bbc983f21f4d9d0cac448ab15f719bd5dc1`); the latest review snapshot is recorded in `REVIEW_COVERAGE_RECONCILIATION.md` (`fe8a34efc8db686afe1ae7b2efaffb1f471f4115`).
+
+## Final granular documentation pass — 2026-11-25
+
+- Reconciled the G-021 Finance/Health policy across `LOW_LEVEL_DESIGN.md`, `MEMORY_PRIVACY_KNOWLEDGE.md` and the implementation evidence: owner-authorised, purpose-bound, revocable local-model access is permitted for both domains; Finance arithmetic/balances remain deterministic and code-checked; private content is excluded from public web, cloud inference, logs and unrelated tasks. The owner decision in `DECISIONS.md` remains authoritative.
+- Corrected stale UI map statements: Ask includes microphone dictation and answer read-aloud, though not full live voice conversation; phone pairing is present; in-app backup/restore remains absent.
+- Updated the LLD's old pre-implementation rule to a historical process note and aligned its Finance trust-zone description with G-021.
+- These edits are documentation-only. They do not change the implementation, acceptance state or review-thread resolution.
+- Commits: `2268d0fdd01720727fca07bc8b4328ee85f7834b` (LLD/G-021), `5ef65f7f186b4e5aa783d19f39de170f8a108059` (memory/privacy), `aa9ba19d1f3c6d71da733a664df3169e42b305f6` (UI map), `1713785c432e6a967cd163964c3d69aa1c639788` (LLD process/trust-zone correction).
+- Live PR snapshot at `1713785c432e6a967cd163964c3d69aa1c639788`: open/draft/unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved; 40 unresolved outdated, 66 unresolved current; 52 threads outdated overall, 75 current overall). CI run 45564148620 was queued; combined status had no entries. No CI pass is claimed.
