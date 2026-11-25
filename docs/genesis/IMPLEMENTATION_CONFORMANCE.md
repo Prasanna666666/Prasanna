@@ -256,3 +256,10 @@ These review threads were replied to and resolved after checking the current sou
 - `UI_UX_SPECIFICATION.md` remains the target UX contract; `UI_IMPLEMENTATION_MAP.md` is the current implementation/evidence register. The specification itself correctly keeps architect and owner visual/accessibility acceptance open.
 - Latest live snapshot at `d66cb24907d77746a96814f0865dead0448b363e`: PR #8 open/draft/unmerged; 282 changed paths; 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current). Exact-head CI run 45566805549 is queued; combined status has no entries.
 - The active canonical docs have been substantially reconciled. Historical conversation/branch archives are retained as records, not re-authored. This remains short of a certified exhaustive audit of every historical artifact, all 282 changed paths, all requirements and all review threads.
+
+
+## 15. PR-description correction and final CI checkpoint — 2026-11-25
+
+- The PR #8 description was corrected to remove the broad claim that private-name/short-phrase egress is fully fixed or that private-data egress is guaranteed. It now distinguishes the specific regression-tested bypass from the remaining 1–3-character, paraphrase, stale-passage, DNS, truncation and malformed-URL findings.
+- Immediately before this note, the live head was `0c8f63118a1c286aa55da270afc30aebc4b20838`; CI run 45567148195 was queued; combined status had no entries. PR #8 remained open/draft/unmerged with 282 changed paths and 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current).
+- The note itself is documentation-only. Refresh the branch head and workflow state before further work. No CI pass is claimed.
