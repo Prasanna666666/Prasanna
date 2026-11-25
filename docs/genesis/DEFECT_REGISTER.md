@@ -1039,3 +1039,10 @@ ATLAS-CORE-092 (read/revocation race), ATLAS-CORE-083/084 (shutdown and partial-
 - Source/test snapshot `35d41c800046ca3042991134f66bece7611191cc`; exact CI run `45577911258` queued, 16 jobs, all queued at last inspection. Latest PR head `2d40ecf5bed5efee16761c7b973ad058e70d1dec` is a documentation/instruction-only follow-on. No pass claimed.
 - 285 changed paths; 127 review threads; 120 resolved, 7 unresolved (3 sandbox residuals, 4 code/test patches awaiting CI).
 - Current matrices: PRD_CONFORMANCE.md, USE_CASE_CONFORMANCE.md and IMPLEMENTATION_CONFORMANCE.md. They do not certify every source/test path. Remaining findings listed in the register remain open unless a dated row explicitly says otherwise.
+
+
+## Latest branch-head / CI boundary — 2026-11-25
+
+- Latest observed PR head `3a366d80ef9d58bafd92e0fe12238a0f07424ba7`; behavior-bearing source/test snapshot `35d41c800046ca3042991134f66bece7611191cc`.
+- CI run 45577911258 is queued (16 jobs, none started at last inspection). Later sandbox.py/backup.py commits change comments only; later commits are documentation/PR-body only. No runtime behaviour or tests changed after the queued snapshot. No pass is claimed.
+- PR #8 remains open/draft/unmerged; 285 changed paths; 127 review threads (120 resolved, 7 unresolved). Keep the four code/test review findings open until CI completes and the exact source/tests are re-reviewed.
