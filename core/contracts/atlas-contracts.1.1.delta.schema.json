@@ -1420,7 +1420,7 @@
         "payload": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
+          "description": "Owner-supplied action content. This field is accepted only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
         },
         "idempotency_key": {
           "type": "string",
@@ -1470,7 +1470,7 @@
             {
               "type": "object",
               "additionalProperties": true,
-              "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
+              "description": "Provider-returned action result content. This field is returned only to the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
             },
             {
               "type": "null"
@@ -1505,7 +1505,7 @@
             {
               "type": "object",
               "additionalProperties": true,
-              "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
+              "description": "The exact owner-supplied payload shown for approval. This field is returned only to the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
             },
             {
               "type": "null"
@@ -1585,7 +1585,7 @@
               "payload": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
+                "description": "Authenticated client-supplied sync operation content. It is accepted only for the enrolled client whose signed identity is bound to the request; the Core applies the operation allowlist and domain policy, and never writes the content to logs or audit records."
               }
             }
           }
@@ -2000,7 +2000,7 @@
               "fields": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
+                "description": "The owner's structured record content. This field is returned only to the owner or an enrolled paired member client for the fixed readable domains; it is treated as untrusted data and never written to logs or audit records."
               }
             }
           }
