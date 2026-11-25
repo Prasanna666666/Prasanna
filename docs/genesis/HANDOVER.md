@@ -15,9 +15,11 @@
 3. [UI/UX specification](UI_UX_SPECIFICATION.md) — canonical everyday experience and interaction design.
 4. [Target architecture](TARGET_ARCHITECTURE.md) — system boundaries and sole delivery roadmap (§11).
 5. [Use-case register](USE_CASE_REGISTER.md) — scenarios and integration capability expectations.
-6. [Implementation conformance audit](IMPLEMENTATION_CONFORMANCE.md) — current evidence boundary and the code-to-document review still required.
-7. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md) — PR review-thread and path coverage ledger.
-8. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, change control and acceptance rules.
+6. [PRD conformance](PRD_CONFORMANCE.md) — requirement-by-requirement implementation status.
+7. [Use-case conformance](USE_CASE_CONFORMANCE.md) — UC-001–055 and UC-L01–L30 evidence/gap matrix.
+8. [Implementation conformance audit](IMPLEMENTATION_CONFORMANCE.md) — exact evidence boundary and remaining code-to-document trace.
+9. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md) — PR review-thread and path coverage ledger.
+10. [Delivery protocol](DELIVERY_PROTOCOL.md) — roles, change control and acceptance rules.
 
 ## Product baseline
 
@@ -42,13 +44,13 @@ The following status distinctions are mandatory:
 ### Verified repository / PR facts at this reconciliation
 
 - PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
-- Its observed head at the latest check is `67c7ee475db4188b0460a48807a8f0210c78a7d9`. The PR reports 285 changed paths. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
+- Its observed head at the latest check before this handover update is `293e0ba40f0c56c8ea56d4d1941d1812c26db442`. The PR reports 285 changed paths. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
 - Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
 - WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; the API 1.1 contract was subsequently implemented and is served additively by WP3.4 (the 1.0 contract remains frozen). See `core/docs/CONTRACT_1_1.md`.
 - WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
 - The current criterion-level matrix in `core/docs/STAGE3_ACCEPTANCE.md` records criteria 2, 7 and 8 as PARTIAL with open findings. Stage 3 itself is **not accepted**. The separate final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking. Use the acceptance matrix, not broad summary wording in older handover snapshots, for criterion status.
 - Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
-- Exact-head CI run `45576209883` is queued for `67c7ee475db4188b0460a48807a8f0210c78a7d9` (16 jobs); combined status is empty. No pass is claimed until the run completes.
+- Exact-head CI run `45576933577` is queued for `293e0ba40f0c56c8ea56d4d1941d1812c26db442` (16 jobs); combined status is empty. No pass is claimed until the run completes. This handover update itself is documentation-only; refresh the live head before resuming.
 - General-purpose browser/app automation is documented as a Stage 6 target architecture, not a Stage 3 completion claim. Playwright is a recommendation, not an adopted runtime dependency; OpenClaw is not adopted.
 
 ### Explicitly unaccepted / unverified
@@ -172,3 +174,12 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - Fixed app cancellation's stale task-ID race using `SubmissionCancellation`; Stop requests received before Core returns an ID are applied to that newly created task. Failed Undo now preserves the retry affordance and shows an error unless Core confirms success. Added helper tests.
 - Hardened the macOS accessibility UI test: removed the unsafe pixel-extrema contrast exemption and replaced fixed sleep with a bounded wait for the expected first-run or Home screen.
 - Latest observed PR head `67c7ee475db4188b0460a48807a8f0210c78a7d9`; 285 changed paths; 127 review threads (120 resolved, 7 unresolved: 3 sandbox residuals and 4 code/test patches awaiting CI). Exact-head CI run 45576209883 queued, 16 jobs. Refresh the live head and CI before resuming.
+
+
+## Latest audit continuation — 2026-11-25
+
+- Added `PRD_CONFORMANCE.md` (PRD principles/sections to implementation) and `USE_CASE_CONFORMANCE.md` (UC-001–055 plus UC-L01–L30). Together with `IMPLEMENTATION_CONFORMANCE.md`, these are the restartable requirement-to-code audit set. The matrices identify major absent capabilities including governed memory, home energy, sports/Statsguru, personalised news, investment cockpit, general agentic workflows, full Health ingestion, app automation, persistent conversation history, bulk operations, location triggers, OCR/attachments and production-ready iOS remote access.
+- Updated the Core README to describe current Core/API/runtime and acceptance boundaries; corrected app and iOS READMEs; corrected the backup.py module inventory; documented branch-wide recovery limits; and recorded the owner-authorised bounded implementation exception in DELIVERY_PROTOCOL.md.
+- Additional app fixes: Stop requested before Core returns the new task ID is queued against that new task; failed Undo preserves the action handle and shows an error unless Core confirms done. Added helper tests. Accessibility UI test now waits for Welcome/Home and no longer suppresses contrast failures using pixel extrema. Exact-head CI pending.
+- Latest source/contract/UI-test/backup documentation snapshot observed: `293e0ba40f0c56c8ea56d4d1941d1812c26db442`; PR #8 open/draft/unmerged; 285 changed paths; 127 review threads (120 resolved, 7 unresolved: 3 sandbox least-privilege residuals, 4 code/test findings awaiting CI). CI run 45576933577 is queued with 16 jobs; no pass claimed.
+- Remaining work is not cosmetic: exact-head CI and failure triage; a defensible least-privilege macOS sandbox; ATLAS-CORE-092, ATLAS-CORE-083/084, ATLAS-SEC-016, ATLAS-ACT-019, ATLAS-CONN-025, egress residuals, currency semantics, and remote-phone defects; AppModel integration/owner UX verification; and final row-by-row audit of every changed path. Stage 3 remains NOT ACCEPTED; Stage 4–8 not architect-reviewed/accepted.
