@@ -1,6 +1,6 @@
-# WP3.6 — Reliability, security and performance
+# WP3.6 — Reliability, security and performance (historical Linux package snapshot)
 
-Everything here runs on Linux CI with deterministic stubs and synthetic data. **No claim about a Mac, a real model, FileVault, power loss or target-machine performance follows from it.**
+**Snapshot notice (2026-11-25):** The tests and benchmark described in this WP3.6 report were originally run on Linux CI with deterministic stubs and synthetic data. This file is not the current platform-evidence inventory. Later hosted-macOS Keychain, sandbox, MLX and Swift/Core integration evidence is in `MACOS_PROVIDERS.md` and `MODEL_RUNTIME.md`; current target-Mac, real Mail, FileVault, power-loss and model performance remain unverified. No claim about owner hardware follows from the historical Linux results.
 
 ## Fault, hostile-input and load matrix
 | Area | Boundary / input | Test | Result |
