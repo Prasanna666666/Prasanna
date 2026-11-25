@@ -4,7 +4,7 @@
 **Repository:** `Prasanna666666/Prasanna`  
 **Working branch:** `genesis-stage2-foundation`  
 **Shared review vehicle:** [PR #8](https://github.com/Prasanna666666/Prasanna/pull/8)  
-**Code/evidence snapshot before documentation-only cleanup:** `83eec5378fff9f26f435492104c4efa2b30d18ca`  
+**Code/test conformance snapshot:** latest implementation patches are present on this branch; exact-head validation is pending CI  
 **Branch head:** refresh from GitHub before resuming; this document deliberately avoids a self-referential HEAD hash  
 **PR state:** open, draft, unmerged. This handover does not accept a stage or authorise release.
 
@@ -42,13 +42,13 @@ The following status distinctions are mandatory:
 ### Verified repository / PR facts at this reconciliation
 
 - PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
-- Its observed head at the latest check is `d66cb24907d77746a96814f0865dead0448b363e`. The PR reports 605 commits and 282 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
+- Its observed head at the latest check is `ebe870b5862cbf11b5c80ef23e4869fd5228fe97`. The PR reports 283 changed paths. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
 - Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
 - WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; the API 1.1 contract was subsequently implemented and is served additively by WP3.4 (the 1.0 contract remains frozen). See `core/docs/CONTRACT_1_1.md`.
 - WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
 - The current criterion-level matrix in `core/docs/STAGE3_ACCEPTANCE.md` records criteria 2, 7 and 8 as PARTIAL with open findings. Stage 3 itself is **not accepted**. The separate final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking. Use the acceptance matrix, not broad summary wording in older handover snapshots, for criterion status.
 - Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
-- Exact-head CI run `45566805549` (`CI`, run 1957) was queued when checked at `d66cb24907d77746a96814f0865dead0448b363e`; combined status returned no status entries. No passing result for that run is claimed here.
+- CI run `45574340059` was queued for prior code/test snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3`; the latest head `ebe870b5862cbf11b5c80ef23e4869fd5228fe97` has no reported workflow run or combined status yet. Do not treat the earlier run as exact-head validation.
 - General-purpose browser/app automation is documented as a Stage 6 target architecture, not a Stage 3 completion claim. Playwright is a recommendation, not an adopted runtime dependency; OpenClaw is not adopted.
 
 ### Explicitly unaccepted / unverified
@@ -59,10 +59,11 @@ The existence of iOS source files does not prove secure worldwide access, offlin
 
 ## Current next work
 
-1. Finish the remaining document-by-document contradiction audit and record every material correction in `IMPLEMENTATION_CONFORMANCE.md`.
-2. Complete the code-to-document conformance audit at the frozen code snapshot `83eec5378fff9f26f435492104c4efa2b30d18ca`; docs-only commits since that snapshot do not change code evidence. Trace every material PRD requirement, registered use case, integration and screen to implementation, tests and runtime evidence.
-3. Reconcile all 282 changed paths and all 127 review threads; do not report the audit complete while material unresolved review comments or uninspected paths remain.
-4. Re-run CI on the final audit head and record the exact result. Do not merge, close the PR, waive release gates or claim owner acceptance without explicit authority.
+1. **CI validation:** check run `45574340059` for code/test snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3`; then require a new completed run for the latest PR head. Fix any failures and keep the exact run/commit in this handover.
+2. **Remaining review threads:** 7 of 127 remain unresolved: three sandbox least-privilege/security residuals (release-blocking) and four code/test patches awaiting CI (exact arithmetic, API 1.1 open-map boundary, connector reversible-action compensation, full Keychain test inventory). Current review snapshot: 120 resolved, 7 unresolved; 6 unresolved anchors are outdated and 1 is current.
+3. **Full conformance trace:** the canonical docs and known cross-document contradictions are substantially reconciled, but a certified row-by-row trace of every PRD requirement, all use cases, integrations, screens and all 283 changed paths is not complete. Continue from `IMPLEMENTATION_CONFORMANCE.md`; do not infer coverage from file presence or old path counts.
+4. **Outstanding implementation findings:** ATLAS-CORE-092, ATLAS-CORE-083/084, browser worker isolation, Action Gateway durability, egress residuals, currency precision, app cancel/undo UX, accessibility audit reliability and mobile/relay findings still need exact-head dispositions. See `DEFECT_REGISTER.md`.
+5. Keep Stage 3 NOT ACCEPTED and Stages 4–8 not architect-reviewed/accepted. Do not merge, close the PR, waive release gates or claim owner acceptance without explicit authority.
 
 ## Change-control rules
 
@@ -155,3 +156,11 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 
 - Added `core/docs/BRANCH_ROLLBACK_AND_RECOVERY.md` and linked it from the Core README, Stage 3 handover and owner acceptance checklist. It explicitly distinguishes source rollback, installed app rollback, Core database restore, Keychain, derived indexes/models, paired-device state and external side effects.
 - This is an inventory/warning document, not an approved disaster-recovery runbook. No complete owner-Mac restore drill, backup policy/destination decision or acceptance has been completed. The historical `core/docs/ROLLBACK.md` must not be used as a current branch-wide rollback procedure.
+
+
+## Current work log — 2026-11-25 (continuation)
+
+- Reconciled the remaining active status contradictions in Stage 3 acceptance, macOS provider evidence, egress, connector profile, plug-in guide, enrolment, API 1.1 contract/OpenAPI, owner checklist, historical proposal/traceability records and rollback documentation. Added `core/docs/BRANCH_ROLLBACK_AND_RECOVERY.md` and linked it from the Core README, Stage 3 handover and owner checklist.
+- Implemented code/test patches for exact terminating-decimal construction, reversible connector action prior-state validation/undo failure, API 1.1 open-object-map allowlist/authority descriptions, the OpenAPI path-count test name and full production Keychain test inventory. Regenerated `atlas-contracts.1.1.schema.json` from the updated delta. These patches are not yet CI-validated.
+- Replied to and resolved 120 of 127 review threads after checking the current source/tests or correcting the corresponding documentation. Seven remain: three macOS sandbox residual-risk threads, plus the four code/test patches awaiting CI.
+- Last live snapshot recorded above: PR #8 head `ebe870b5862cbf11b5c80ef23e4869fd5228fe97`, 283 changed paths, 127 threads (120 resolved, 7 unresolved; 6 outdated unresolved, 1 current). CI run 45574340059 was queued on prior code/test snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3`; no exact-head CI pass is claimed.
