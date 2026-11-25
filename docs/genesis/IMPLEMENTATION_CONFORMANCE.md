@@ -1,7 +1,7 @@
 # Atlas — implementation-to-documentation conformance audit
 
 **Created:** 2026-11-25  
-**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `5284191f013ff5f9b29a35ff237d19ead7e51ad3` (latest source/test/contract patch snapshot; exact-head CI pending)  
+**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `67c7ee475db4188b0460a48807a8f0210c78a7d9` (latest source/test/contract/UI-test patch snapshot; exact-head CI run 45576209883 queued)  
 **Branch head:** refresh from GitHub before resuming; this document deliberately avoids a self-referential HEAD hash  
 **Purpose:** Establish one evidence-led method for deciding whether the completed implementation matches the canonical product and technical documentation.
 
@@ -293,3 +293,11 @@ These review threads were replied to and resolved after checking the current sou
 ### 16.4 Current overall conformance judgement
 
 **Documentation reconciliation:** substantial and active canonical contradictions corrected; not a certification of every historical archive. **Implementation conformance:** still INCOMPLETE. A full row-by-row trace of every PRD requirement, all registered use cases, every integration/screen and all 283 changed paths has not been completed. Stage 3 remains NOT ACCEPTED; Stage 4–8 remains unreviewed/unaccepted. Outstanding findings include ATLAS-CORE-092, ATLAS-CORE-083/084, ATLAS-SEC-016, ATLAS-ACT-019, ATLAS-CONN-025, egress residuals, currency semantics, app cancellation/undo UI, accessibility test reliability, remote-phone defects and owner-Mac/final-stage gates. See `DEFECT_REGISTER.md` and `STAGE3_ACCEPTANCE.md`.
+
+
+## 17. App cancellation, undo and accessibility audit fixes — 2026-11-25
+
+- `AppModel.ask()` now clears the previous task ID at submission start and uses `SubmissionCancellation` to retain Stop intent if the Core has not yet returned the new task ID. When the ID arrives, the queued Stop is applied to that task. `SubmissionCancellationTests` cover pre-ID cancellation, post-ID cancellation and reset between submissions. A full AppModel-level integration test is still desirable.
+- `AppModel.undoLast()` now clears its undo handle only after Core explicitly returns `status=done`. Failed/transport outcomes preserve the handle and show a plain-language error in RecordsView. `UndoConfirmation` helper tests cover done/failed/missing status.
+- The macOS accessibility UI test no longer uses darkest/lightest screenshot pixel extrema to exempt contrast findings. It waits for the expected first-run Welcome or Home prompt instead of sleeping a fixed eight seconds. Only narrowly identified system-owned title-bar/Touch Bar structural exceptions remain.
+- These source/test changes are present at `67c7ee475db4188b0460a48807a8f0210c78a7d9`. Exact-head CI run `45576209883` is queued; no test pass is claimed. AppModel integration and owner visual/VoiceOver walkthrough remain open.
