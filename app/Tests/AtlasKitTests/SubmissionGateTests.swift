@@ -17,8 +17,8 @@ final class SubmissionGateTests: XCTestCase {
         XCTAssertTrue(gate.begin())
     }
 
-    func testCancellationTargetsTheOnlyRunningTask() {
-        // The model keeps one task id; because a second begin() is refused, the id cannot be overwritten while the first runs.
+    func testSubmissionGateRefusesToReplaceTheRunningSubmission() {
+        // The submission gate refuses a second task while the first is active.
         var gate = SubmissionGate()
         var taskID: String?
         if gate.begin() { taskID = "first" }
