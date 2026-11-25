@@ -477,8 +477,8 @@ def new_string_fields(node, path="", out=None):
     return out
 
 
-# The only two free-text fields of the 1.1 additions, both by design and never logged: the cited span the owner asked to inspect, and public web text returned as untrusted data (it is public, carries no authority and
-# is not evidence).
+# The two explicitly modeled free-text response fields of the 1.1 additions: the cited span the owner asked to inspect, and public web text returned as untrusted data (it is public, carries no authority and
+# is not evidence). The five generic owner-content maps are separately enumerated in ALLOWED_OWNER_OBJECT_MAPS below; they are not treated as model evidence or audit content.
 ALLOWED_FREE_TEXT = {"PassageText/properties/text", "ResearchResult/properties/text"}
 
 
