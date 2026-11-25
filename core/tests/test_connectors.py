@@ -144,13 +144,11 @@ def test_connector_undo_fails_closed_when_previous_state_or_credentials_are_unav
 
     service.undo_mode = "missing"
     missing = owner.act("home.control_device", {"light": "on"})
-    assert missing["status"] == "done"
-    assert owner.undo(missing["action_id"])["status"] == "failed"
+    assert missing["status"] == "failed" and missing["code"] == "outcome_unknown"
 
     service.undo_mode = "malformed"
     malformed = owner.act("home.control_device", {"light": "off"})
-    assert malformed["status"] == "done"
-    assert owner.undo(malformed["action_id"])["status"] == "failed"
+    assert malformed["status"] == "failed" and malformed["code"] == "outcome_unknown"
 
     service.undo_mode = None
     disconnected = owner.act("home.control_device", {"light": "on"})
