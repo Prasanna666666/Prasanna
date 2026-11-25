@@ -1,6 +1,6 @@
 # The Atlas connector profile
 
-A service, bridge or device hub that implements these three calls can be connected from **Connections** in the app with no code change in Atlas. Everything below is plain HTTP with JSON.
+This profile applies to an existing integration ID in Atlas's fixed `connectors.json` catalogue. A compatible service/bridge can be configured for that supported entry from **Connections**; adding a new catalogue entry or a vendor-specific adapter requires a code/package change. The profile uses HTTP with JSON.
 
 | Call | Purpose | Success | Atlas shows |
 |---|---|---|---|
@@ -10,9 +10,9 @@ A service, bridge or device hub that implements these three calls can be connect
 
 Rules:
 - Every request carries `Authorization: Bearer <token>` and `Content-Type: application/json`.
-- A reversible action must return `"previous"`: the state it replaced (for example `{"light": "off"}`). Atlas sends that back as the action's undo.
-- Use `https`. Plain `http` is accepted only for loopback, private-range and `.local` addresses (your home network). Redirects are never followed.
+- A reversible action must return `"previous"`: the state it replaced (for example `{"light": "off"}`). The current connector implementation has an open defect: a missing/invalid `previous` value or unavailable credentials can be treated as a successful undo. Do not rely on connector undo until ATLAS-CONN-084 (and its linked undo finding) is fixed and regression-tested.
+- Prefer `https`. Plain `http` is accepted by the current implementation for loopback, private-range, `.local`, shared VPN address space and `.ts.net` names. The `.ts.net` shortcut is not DNS-resolved/pinned before a bearer token is sent and is tracked by ATLAS-CONN-083; ambient proxy inheritance is tracked by ATLAS-CONN-084. Do not use plain HTTP for `.ts.net` until both risks are closed. Redirects are never followed.
 - Replies are limited to 1 MB; Atlas waits 15 seconds.
 - The token is stored in the Mac's Keychain and is never shown, logged or put in an audit entry again.
 
-What needs your approval is not decided by the service. It comes from the catalogue entry's effect for each action, which is the closed list in PRD 4.4: sending or publishing outside the Mac, spending money, an irreversible delete or overwrite, physical access or safety systems. Everything else is prompt-free and undoable.
+What needs your approval is not decided by the service. It comes from the catalogue entry's effect for each action, which is the closed list in PRD 4.4: sending or publishing outside the Mac, spending money, an irreversible delete or overwrite, physical access or safety systems. Other actions do not prompt unless they fall within the exhaustive PRD §4.4 approval categories. Prompt-free does not itself prove that an action has a working undo; the connector's `previous` state and undo result must be validated.
