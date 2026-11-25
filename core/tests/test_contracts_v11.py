@@ -483,7 +483,7 @@ ALLOWED_FREE_TEXT = {"PassageText/properties/text", "ResearchResult/properties/t
 
 
 def open_object_maps(node, path="", out=None):
-    """Object maps that deliberately permit arbitrary owner-supplied keys/values."""
+    """Object maps that deliberately permit structured content under the route-specific authority rules."""
     out = [] if out is None else out
     if isinstance(node, dict):
         if node.get("type") == "object" and node.get("additionalProperties") is not False:
@@ -505,7 +505,7 @@ ALLOWED_OWNER_OBJECT_MAPS = {
 }
 
 
-def test_open_object_maps_are_explicit_owner_only_unlogged_content_allowlist():
+def test_open_object_maps_are_explicitly_scoped_and_unlogged_allowlist():
     found = []
     for name in DELTA["x-additions"]:
         found.extend(open_object_maps(DELTA["$defs"][name], name))
