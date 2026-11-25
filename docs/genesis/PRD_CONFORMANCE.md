@@ -1,6 +1,6 @@
 # Atlas PRD conformance matrix
 
-**Snapshot:** 2026-11-25. **Implementation patch snapshot:** 293e0ba40f0c56c8ea56d4d1941d1812c26db442; exact-head CI run 45576933577 is queued. This is a source/document-based assessment, not owner acceptance. Detailed scenario mapping is in USE_CASE_CONFORMANCE.md.
+**Snapshot:** 2026-11-25. **Implementation patch snapshot:** 35d41c800046ca3042991134f66bece7611191cc; exact-snapshot CI run 45577911258 is queued. This is a source/document-based assessment, not owner acceptance. Detailed scenario mapping is in USE_CASE_CONFORMANCE.md.
 
 ## 1. Product identity and principles
 
