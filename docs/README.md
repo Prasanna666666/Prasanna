@@ -13,6 +13,8 @@ The evolved Atlas product and target are specified in [Project Genesis](genesis/
 - [Ingestion pipeline](genesis/INGESTION_PIPELINE.md)
 - [Intelligence and performance](genesis/INTELLIGENCE_AND_PERFORMANCE.md)
 - [Internet and network policy](genesis/INTERNET_AND_NETWORK_POLICY.md)
+- [PRD requirement conformance](genesis/PRD_CONFORMANCE.md)
+- [Use-case conformance matrix](genesis/USE_CASE_CONFORMANCE.md)
 - [Implementation conformance audit](genesis/IMPLEMENTATION_CONFORMANCE.md)
 - [Delivery protocol](genesis/DELIVERY_PROTOCOL.md)
 - [Current handover](genesis/HANDOVER.md)
