@@ -249,3 +249,10 @@ These review threads were replied to and resolved after checking the current sou
 ### 13.4 Completion judgement
 
 **Documentation corrections and current-document review-thread reconciliation: substantially complete. Full document inventory certification: not complete. Implementation conformance: NOT COMPLETE.** The current five review threads are all source/test findings; the 78 unresolved outdated threads still require a final stale-thread disposition. The 282 changed paths and all PRD/use-case requirements have not yet been traced row by row. Do not mark the implementation aligned, Stage 3 accepted, or PR ready to merge.
+
+## 14. Final documentation inventory checkpoint — 2026-11-25
+
+- Reconciled the remaining active historical-status contradictions in `core/docs/DESIGN.md`, `core/docs/THREAT_REVIEW.md`, `core/docs/WP3_6_RELIABILITY.md`, `docs/genesis/STAGE-2-WORK-PACKAGE.md`, `docs/genesis/STAGE-3-BASELINE-AUDIT.md` and `docs/genesis/STAGE-3-CONTRACT-DELTA.md`. This removes duplicate evidence notes, scopes Stage 2 hard-deny/Swift verification claims to their original snapshot, and makes the later API 1.1 serving status explicit.
+- `UI_UX_SPECIFICATION.md` remains the target UX contract; `UI_IMPLEMENTATION_MAP.md` is the current implementation/evidence register. The specification itself correctly keeps architect and owner visual/accessibility acceptance open.
+- Latest live snapshot at `d66cb24907d77746a96814f0865dead0448b363e`: PR #8 open/draft/unmerged; 282 changed paths; 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current). Exact-head CI run 45566805549 is queued; combined status has no entries.
+- The active canonical docs have been substantially reconciled. Historical conversation/branch archives are retained as records, not re-authored. This remains short of a certified exhaustive audit of every historical artifact, all 282 changed paths, all requirements and all review threads.
