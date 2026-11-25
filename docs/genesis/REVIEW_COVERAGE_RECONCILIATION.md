@@ -1284,3 +1284,12 @@ Exact-head CI run 45565642702 was queued and combined status returned no entries
 - 127 review threads: 120 resolved, 7 unresolved (6 outdated anchors, 1 current anchor). Three unresolved threads deliberately retain the macOS sandbox least-privilege finding; four code/test findings await CI (exact arithmetic, API open-map boundary, connector reversible-action prior state/undo, full Keychain inventory).
 - Exact-head CI run 45576933577 was queued with 16 jobs. No pass is claimed. Later documentation-only commits require live-head refresh and a completed exact-head run.
 - New conformance artifacts: PRD_CONFORMANCE.md and USE_CASE_CONFORMANCE.md; the first maps product requirements, the second maps all registered UC-001–055 and UC-L01–L30 scenarios. The audit is still not a certified line-by-line trace of every 285 changed path.
+
+
+## Final restart checkpoint — 2026-11-25
+
+- Live PR head at checkpoint: `2d40ecf5bed5efee16761c7b973ad058e70d1dec`; 285 changed paths; 127 review threads (120 resolved, 7 unresolved; 6 outdated unresolved anchors, 1 current).
+- Source/test snapshot: `35d41c800046ca3042991134f66bece7611191cc`; CI run `45577911258` is queued with 16 jobs, all queued at last inspection. No pass/failure is claimed.
+- The 7 unresolved threads are precisely: three macOS sandbox allow-by-default/least-privilege/Mach-proxy residuals (release-blocking); four code/test findings awaiting exact-snapshot CI (exact decimal, API 1.1 open-map allowlist, reversible connector prior-state/undo, complete Keychain test inventory).
+- 285 path-family inventory: 65 documentation/README, 132 Core source/tests, 61 macOS app source/tests/project, 7 iOS source/tests/project, 14 Core contracts/client/bench/eval/tool/config, 2 kit, 3 scripts, 3 root/workflow/config. Inventory is complete; semantic line-by-line review of every source/test path is not.
+- The canonical documentation and registered use-case matrices have been reviewed/reconciled; historical conversation archives remain records. Do not use the 120/127 thread resolution rate as a proxy for product completeness or Stage acceptance.
