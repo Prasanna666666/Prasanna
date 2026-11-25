@@ -142,3 +142,10 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - Historical Stage 2/3 package snapshots, proposal documents, Linux-only test reports and branch/chat archives are explicitly identified as historical or superseded where they could otherwise be mistaken for current capability/status. The baseline audit and old rollback procedures are not current implementation instructions.
 - Latest live PR snapshot: head `d66cb24907d77746a96814f0865dead0448b363e`; 282 changed paths; 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current). Exact-head CI run 45566805549 is queued; no pass is claimed.
 - The active canonical documentation is substantially reconciled, but this is not a certification of every historical chat/archive artifact or all 282 implementation paths. The five current unresolved review threads are source/test findings listed in `IMPLEMENTATION_CONFORMANCE.md`.
+
+
+## Final PR description and CI checkpoint — 2026-11-25
+
+- Corrected the shared PR #8 description so it no longer overstates egress as a complete no-private-data guarantee. It now records the exact addressed private-name/short-phrase bypass, residual 1–3-character/paraphrase and stale-passage/DNS/truncation/URL gaps, and that the separate research API is not ordinary answer generation. The Stage 3 app is described as a target, not as already owner-tryable.
+- Immediately before this handover note, the live PR head was `0c8f63118a1c286aa55da270afc30aebc4b20838`; 282 changed paths; PR #8 open/draft/unmerged; 127 review threads (44 resolved, 83 unresolved; 78 outdated unresolved, 5 current unresolved). CI run 45567148195 was queued and combined status had no entries. No pass is claimed.
+- This note is itself a documentation-only follow-on. Refresh the live head and exact-head CI before resuming; do not rely on the snapshot SHA above as the branch's new HEAD.
