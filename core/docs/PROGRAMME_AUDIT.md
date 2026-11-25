@@ -36,12 +36,12 @@ Stage 3 acceptance is the architect's and the owner's to give (split recorded in
 | S3-14 | Traceability | MET-L | `STAGE3_ACCEPTANCE.md`, `STAGE3_TRACEABILITY.md`; 2 tests check that every named test exists | None | None | Yes |
 | S3-15 | No destructive migration | MET-L | New stores only; 2 tests; `ROLLBACK.md` | None | None | Yes |
 
-**Current Stage 3 criterion count:** 8 MET-L, 6 PARTIAL (2, 4, 7, 8, 11, 12), 1 PENDING-M (13). The earlier 11/3/1 count is historical and was reclassified after exact-head findings ATLAS-CORE-092, ATLAS-EXACT-106, and ATLAS-CORE-083/084. The old architect reviews (6014419385 and 6014499946) remain NOT ACCEPTED for the stage; no owner-only validation is complete; no Stage 4 work started.
+**Current Stage 3 criterion count:** 8 MET-L, 6 PARTIAL (2, 4, 7, 8, 11, 12), 1 PENDING-M (13). The earlier 11/3/1 count is historical and was reclassified after exact-head findings ATLAS-CORE-092, ATLAS-EXACT-106, and ATLAS-CORE-083/084. The old architect reviews (6014419385 and 6014499946) remain NOT ACCEPTED for the stage; no owner-only validation is complete. At this historical 2026-11-24 snapshot, Stage 4–8 work had not yet been recorded on this PR; it was subsequently authorised and rebased onto PR #8 on 2026-11-25, as recorded in `STAGES_4_TO_8.md` and `HANDOVER.md`.
 
 ## Discrepancies for the architect (not resolved by me)
 
 1. **Stage 0:** no separate acceptance record found beyond the register entry and my confirmation (7023445432).
-2. **`docs/genesis/` wording** that I did not edit, because those files are yours: `STAGE-3-EXECUTION-PLAN.md` (criterion 11 carry-forward, line about the "P1 defect remains") and `HANDOVER.md` (register row for Stage 3) still describe the egress private-name and short-phrase bypass as unresolved. It is fixed in code and tests; the bounded guarantee is in `EGRESS_GATEWAY.md`. Please update both to match.
+2. **`docs/genesis/` wording** that I did not edit, because those files are yours: `STAGE-3-EXECUTION-PLAN.md` (criterion 11 carry-forward, line about the "P1 defect remains") and `HANDOVER.md` (register row for Stage 3) still describe the egress private-name and short-phrase bypass as unresolved. The broader bypass was partially addressed in code/tests by fingerprinting 4+ letter words and two-word runs, but ATLAS-SEC-014 remains open for 1–3-character terms and paraphrases; ATLAS-EGRESS-091 also records a stale-passage omission. See the current `DEFECT_REGISTER.md` and `EGRESS_GATEWAY.md`. The historical statement that it was fully fixed is superseded.
 3. **PR description:** the PR body still carries the old egress and WP3.3 claims. I did not edit it.
 4. The Stage 2 criterion 2 wording in `docs/genesis/STAGE-2-WORK-PACKAGE.md` is the historical one; `TRACEABILITY.md` records the G-021 change.
 
