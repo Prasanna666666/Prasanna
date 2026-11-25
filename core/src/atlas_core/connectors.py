@@ -271,7 +271,11 @@ class ConnectorHub:
         def undo(_payload: dict[str, Any], result: dict[str, Any]) -> None:
             credentials = self._credentials(entry.id)
             previous = result.get("previous")
-            if credentials is not None and isinstance(previous, dict):
-                self._adapters[entry.id].act(write["name"], previous, credentials)  # put back what it replaced
+            if credentials is None or not isinstance(previous, dict):
+                # A reversible action must never report a successful compensation it did not perform.
+                raise OSError("undo_unavailable")
+            restored = self._adapters[entry.id].act(write["name"], previous, credentials)
+            if restored.get("done") is not True:
+                raise OSError("undo_not_confirmed")
 
         return ActionSpec(name, frozenset({EFFECT[write["effect"]]}), handler, undo if reversible else None, connector=entry.id)
