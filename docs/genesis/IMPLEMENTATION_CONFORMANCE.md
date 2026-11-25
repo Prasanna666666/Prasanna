@@ -7,7 +7,7 @@
 
 ## 1. Scope and non-claims
 
-This is the audit control document, not a declaration that conformance has passed. The code/evidence baseline contained 281 PR-changed paths, including macOS app sources, Atlas Core, iOS client sources, tests, contracts, scripts and documentation. File presence alone does not establish end-to-end behaviour.
+This is the audit control document, not a declaration that conformance has passed. The code/evidence baseline contained 282 PR-changed paths, including macOS app sources, Atlas Core, iOS client sources, tests, contracts, scripts and documentation. File presence alone does not establish end-to-end behaviour.
 
 The PR description records bounded acceptances for Stage 2, WP3.1 and WP3.2, but those acceptances apply only to their named scopes and exact commits. Stage 3 is not accepted. Stage 4–8 work is present on the branch but is not architect-reviewed or accepted. The CI run associated with the observed head was queued when checked. No result is inferred from a queued run.
 
@@ -166,3 +166,45 @@ Additional documentation-only corrections in the final pass: `3706b95afd02b038d2
 - `TEST_PLAN.md` and `WP3_5_CLIENT.md`: older Linux/reference-client snapshots are no longer presented as the current app/CI state.
 - `OWNER_ACCEPTANCE_CHECKLIST.md`: distinguishes native framework CI coverage from synthetic `.emlx` fixtures and the unverified real Mail store.
 - Commits: `08b973d7d3e6213c2ec63ad14dd0e8780a73733a`, `bd4d0bd05a8b03f9d8454a1e396d8c0405301e07`, `cefb48de9a0177c8f5bd035330ab9fdc2bbfa020`, `30a665987e54c119f01ac5bfe8455125cf2b96de`, `35e16243b6a3ddc43bae2dbdb24984f9c9869d9a`, `7cf97cbf1574b81d0084c2d40c200743fa664a8b`, `58b7e2de4b203977e437338f33928856484fdda4`, `2418e38f958d8be1600bf16711bd6b1800c020b1`, `36a8379f253e321103148d88e8aaa46752fb04e5`, and `408add907fb0b5a33151c52c66a1e8a213ff51f3`.
+## 11. Final granular documentation and initial conformance findings — 2026-11-25
+
+### 11.1 Documentation corrections made in this pass
+
+- Reconciled LOW_LEVEL_DESIGN.md with owner decision G-021. Its prior blanket prohibition on Finance records entering model context contradicted DECISIONS.md, TARGET_ARCHITECTURE.md, MEMORY_PRIVACY_KNOWLEDGE.md and the implemented policy tests. The LLD now records the same rule: Finance and Health may enter local model context only under an exact, current, purpose-bound owner grant; Finance arithmetic/balances remain deterministic and code-checked; private domain content is barred from public web, cloud inference, logs and unrelated tasks.
+- Replaced the LLD's stale pre-implementation rule with a historical process note. The implementation exists, but this does not imply the full LLD or PR #9 was independently accepted.
+- Corrected UI_IMPLEMENTATION_MAP.md: the Ask composer has microphone dictation and answers can be read aloud (not a full live voice conversation); phone pairing exists; in-app backup/restore controls remain absent.
+- The corresponding source-of-truth decision remains G-021 in DECISIONS.md. The Stage 3 baseline audit and Stage 2 traceability documents remain historical snapshots and must not be read as current implementation inventories.
+- No application source or tests were changed in this pass.
+
+### 11.2 Confirmed implementation conformance observations
+
+| Area | Classification | Evidence / exact current limitation |
+|---|---|---|
+| Product identity, local-first boundary and owner-controlled Core | PARTIALLY ALIGNED | The branch contains the native SwiftUI client, Python Core, local model worker, policy gates and a future iOS client. The iOS client and relay are implemented in code/tests, but secure remote use on the owner's phone and owner-selected VPN/channel are not owner-verified. |
+| Stage 3 source-to-answer vertical slice | PARTIALLY ALIGNED | core/docs/STAGE3_ACCEPTANCE.md records 8 MET-L, 6 PARTIAL and 1 PENDING-M; Stage 3 is NOT ACCEPTED. Open findings: ATLAS-CORE-092 (P1), ATLAS-EXACT-106 (P1), ATLAS-CORE-083 (P1), ATLAS-CORE-084 (P2). |
+| Revocation and read-surface freshness | PARTIALLY ALIGNED | Task pipeline revalidation is tested, but Finance/Health summary, Library Search and citation passage API reads lack a final grant-identity/expiry check immediately before response; concurrent revoke race ATLAS-CORE-092 remains open. |
+| Exact arithmetic | PARTIALLY ALIGNED | Exact rational operations are implemented, but terminating values requiring more than 28 significant digits may be rounded by the default Decimal context while labelled exact; ATLAS-EXACT-106 remains open. |
+| Shutdown and construction failure | PARTIALLY ALIGNED | Crash recovery/cancellation tests exist; Core.close() can close SQLite dependencies after a five-second join while a worker is still active, and partial construction can leak opened stores; ATLAS-CORE-083/084 remain open. |
+| Local model isolation | PARTIALLY ALIGNED / UNVERIFIED | Linux seccomp and hosted macOS sandbox-exec tests, including a small real MLX model, are documented. The macOS profile is explicitly not least privilege; owner hardware/model performance, real-model injection resistance and target-Mac verification remain open. |
+| Public Internet research | PARTIALLY ALIGNED / DEFERRED | Separate API 1.1 research operation is implemented behind two off-by-default gates; it is not part of ordinary answer generation and has not been exercised against the real Internet. Final gate F-11 remains unmet. |
+| Finance and Health | PARTIALLY ALIGNED | G-021 policy and synthetic grant tests exist. Stage 5 report says real Finance/Health source adapters and owner-facing grant flow are not built; real Finance/Health data flow is not proven. Legacy Finance migration is limited to the transactions table and has not been run on a real database. |
+| Connectors and home automation | PARTIALLY ALIGNED | Generic connector framework/profile and reversible-action policy are implemented/tested. No real vendor adapter has been selected or exercised; real home hub/device automation is not established by the generic connector tests. |
+| App/browser automation | PARTIALLY ALIGNED / DEFERRED | Policy/orchestration and fake-browser tests exist. Production browser worker remains off until OS-enforced confinement is accepted; general browser interaction and native-app automation are not established as complete. |
+| macOS/iOS UI | PARTIALLY ALIGNED / UNVERIFIED | UI implementation map records built screens and hosted CI evidence, but no owner visual walkthrough, screenshots, VoiceOver/keyboard/Dynamic Type/Reduce Motion acceptance. Approval sheet is not reachable through a live proposed-action flow; backup/restore remains CLI-only; activity is in-memory. |
+| Real source/platform integration | UNVERIFIED | Hosted macOS tests exercise native frameworks and Keychain with throwaway data, but no owner TCC walkthrough, real Apple Mail store, owner data, owner Keychain prompts, FileVault/power-loss, signed/notarised install or owner Mac lifecycle test has been completed. |
+| Stage 4–8 programme | UNVERIFIED / NOT ACCEPTED | Developer report lists substantial code and synthetic tests, but explicitly says these stages are not architect-reviewed or accepted. Do not infer acceptance from implementation presence. |
+
+These findings are bounded to the current documents and evidence records. They are not a completed row-by-row audit of all PRD requirements, all use cases, all 282 changed paths or all 127 review threads.
+
+### 11.3 Latest live repository snapshot
+
+- PR #8 remains open, draft and unmerged.
+- Latest observed documentation head at this update: refresh from GitHub before relying on it; this document avoids a self-referential hash.
+- PR changed paths: 282.
+- Review threads: 127 total; 21 resolved; 106 unresolved. Of the unresolved threads, 40 are outdated and 66 are current (52 threads outdated overall; 75 current overall).
+- Exact-head CI at commit 1713785c432e6a967cd163964c3d69aa1c639788: run 45564148620 was queued; combined status returned no entries. No CI pass is claimed for that head or later documentation commits.
+- The code/evidence snapshot remains 83eec5378fff9f26f435492104c4efa2b30d18ca; intervening commits recorded in the handover are documentation-only.
+
+### 11.4 Audit completion status
+
+**Documentation authority and known contradiction cleanup: substantially complete, not certified exhaustive. Implementation conformance: IN PROGRESS, NOT COMPLETE.** Remaining work is to finish the canonical PRD/use-case/screen traceability matrix, inspect every changed path and review thread, verify all claims against source/tests, and capture exact-head CI. No merge, release, stage acceptance or owner acceptance is implied.
