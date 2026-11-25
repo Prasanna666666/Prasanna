@@ -29,6 +29,8 @@ macOS is first; secure iOS access is a later platform goal. Android is out of sc
 | Collaboration, change control and acceptance | [Delivery protocol](DELIVERY_PROTOCOL.md) | Sole process authority |
 | Current restart point and verified status | [Handover](HANDOVER.md) | Operational summary only |
 | Code-to-document audit | [Implementation conformance](IMPLEMENTATION_CONFORMANCE.md) | Evidence ledger; does not itself accept a release |
+| PRD requirement trace | [PRD conformance](PRD_CONFORMANCE.md) | Maps every PRD section/principle to current implementation and gaps |
+| Scenario trace | [Use-case conformance](USE_CASE_CONFORMANCE.md) | Maps UC-001–055 and UC-L01–L30 to current evidence and residuals |
 | Reviewer history, changed-path coverage and open comments | [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md) | Review ledger, not product specification |
 | Branch/commit provenance | [Branch-history reconciliation](BRANCH_HISTORY_RECONCILIATION.md) | Historical inventory; not a substitute for current-head verification |
 
@@ -44,15 +46,17 @@ macOS is first; secure iOS access is a later platform goal. Android is out of sc
 8. [Ingestion pipeline](INGESTION_PIPELINE.md)
 9. [Intelligence and performance](INTELLIGENCE_AND_PERFORMANCE.md)
 10. [Internet and network policy](INTERNET_AND_NETWORK_POLICY.md)
-11. [Implementation conformance](IMPLEMENTATION_CONFORMANCE.md)
-12. [Delivery protocol](DELIVERY_PROTOCOL.md)
-13. [Handover](HANDOVER.md)
-14. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md)
-15. [Stage 3 execution plan](STAGE-3-EXECUTION-PLAN.md)
-16. [Stage 3 baseline audit](STAGE-3-BASELINE-AUDIT.md)
-17. [Stage 2 work package](STAGE-2-WORK-PACKAGE.md)
-18. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md)
-19. [Stage 3 contract delta](STAGE-3-CONTRACT-DELTA.md) — historical/superseded; WP3.1 authority is `core/docs/CONTRACT_1_1.md`.
+11. [PRD conformance](PRD_CONFORMANCE.md)
+12. [Use-case conformance](USE_CASE_CONFORMANCE.md)
+13. [Implementation conformance](IMPLEMENTATION_CONFORMANCE.md)
+14. [Delivery protocol](DELIVERY_PROTOCOL.md)
+15. [Handover](HANDOVER.md)
+16. [Review coverage reconciliation](REVIEW_COVERAGE_RECONCILIATION.md)
+17. [Stage 3 execution plan](STAGE-3-EXECUTION-PLAN.md)
+18. [Stage 3 baseline audit](STAGE-3-BASELINE-AUDIT.md)
+19. [Stage 2 work package](STAGE-2-WORK-PACKAGE.md)
+20. [G-O17 platform/runtime ADR](ADR-G-O17-PLATFORM-RUNTIME.md)
+21. [Stage 3 contract delta](STAGE-3-CONTRACT-DELTA.md) — historical/superseded; WP3.1 authority is `core/docs/CONTRACT_1_1.md`.
 
 ## Implementation and acceptance boundary
 
