@@ -121,3 +121,11 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - These edits are documentation-only. They do not change the implementation, acceptance state or review-thread resolution.
 - Commits: `2268d0fdd01720727fca07bc8b4328ee85f7834b` (LLD/G-021), `5ef65f7f186b4e5aa783d19f39de170f8a108059` (memory/privacy), `aa9ba19d1f3c6d71da733a664df3169e42b305f6` (UI map), `1713785c432e6a967cd163964c3d69aa1c639788` (LLD process/trust-zone correction).
 - Live PR snapshot at `1713785c432e6a967cd163964c3d69aa1c639788`: open/draft/unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved; 40 unresolved outdated, 66 unresolved current; 52 threads outdated overall, 75 current overall). CI run 45564148620 was queued; combined status had no entries. No CI pass is claimed.
+
+## Final technical-document reconciliation checkpoint — 2026-11-25
+
+- Updated current technical records to match G-021, the served API 1.1 routes, the hosted macOS/Swift evidence, current connector/egress residual risks, actual Finance-versus-Health ingestion, actual backup/key inventory, Core child-process lifecycle, and present UI/remote-phone limitations. Historical package plans and rollback instructions are now explicitly scoped as historical where appropriate.
+- Corrected OpenAPI 1.1 operation-level security exceptions for the unsigned first-owner enrolment and device-pairing offer-code operations (`security: []`); the root default remains signed-request security.
+- Added current residual-risk disclosure for ATLAS-SEC-014, ATLAS-EGRESS-077/078/079/091, connector undo/transport, and relay/iOS/unpair-cache issues. No runtime source or tests were changed; the OpenAPI 1.1 contract file was updated.
+- Latest observed head: `d877a4ec3ce02244a070eb1dbbdaf021e6988de0`. PR #8 remains open/draft/unmerged; 282 changed paths; 127 review threads (21 resolved, 106 unresolved; 73 unresolved outdated and 33 unresolved current; 85 outdated and 42 current overall). Exact-head workflow query returned no run and combined status had no entries. No CI pass is claimed.
+- `IMPLEMENTATION_CONFORMANCE.md` records the initial evidence-based comparison and remaining work. The full row-by-row PRD/use-case/screen/path/thread audit is not complete.
