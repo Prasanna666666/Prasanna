@@ -1253,3 +1253,10 @@ Document remediation in this pass includes the LLD/G-021 policy, app and macOS e
 PR #8 head `533a2460f3f013690a862d029488dc42d9611fb4` remains open/draft/unmerged with 282 changed paths. Review threads: 127 total, 44 resolved, 83 unresolved; 78 of the unresolved are outdated and 5 are current. The five current threads are all source/test findings: exact arithmetic precision, API free-text object-map schema coverage, connector undo success semantics, the OpenAPI path-count test name, and native Keychain test fixture cleanup. Four additional implementation findings (app lifecycle, live socket preservation, EMLX regular-file replacement, exact private-name/short-phrase egress fingerprints) were verified against current source/tests, replied to and resolved; broader related acceptance gaps remain open.
 
 Exact-head CI run 45565642702 was queued and combined status returned no entries. No CI pass is claimed. Outdated unresolved threads remain to be reconciled; they are not treated as fixed merely because their anchors are outdated.
+
+## Latest live snapshot — 2026-11-25 (after documentation inventory pass)
+
+- PR #8 head `d66cb24907d77746a96814f0865dead0448b363e`; open, draft and unmerged; 282 changed paths.
+- 127 review threads: 44 resolved, 83 unresolved; 78 unresolved threads are outdated and 5 are current. The five current threads concern exact arithmetic precision, API free-text object-map schema coverage, connector undo success semantics, the OpenAPI path-count test name and native Keychain test fixture cleanup.
+- CI run 45566805549 is queued; combined status returned no entries. No CI pass is claimed.
+- Documentation/contract edits since the earlier snapshot are documentation-only plus the API 1.1 OpenAPI contract; runtime source and tests were not changed in this pass. Four code findings (app/Core lifecycle, live socket preservation, EMLX regular-file replacement and exact private-name/short-phrase egress fingerprinting) were verified against current code/tests, replied to and resolved. Broader related risks remain open as described in `IMPLEMENTATION_CONFORMANCE.md`.
