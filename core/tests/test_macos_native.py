@@ -14,6 +14,7 @@ import pytest
 from atlas_core.designation import AnchorRecord
 from atlas_core.macos import KeychainAnchor, KeychainError, KeychainItems
 from atlas_core.tasks import KeychainKeyProvider
+from atlas_core.host import KEY_NAMES
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="needs the real macOS Keychain")
 
@@ -120,8 +121,9 @@ def test_the_production_core_starts_enrols_indexes_withdraws_stops_and_restarts_
     data = tmp_path / "core-data"
     signer, owner_id = Ed25519PrivateKey.generate(), "owner-native-0001"
     items = KeychainItems()
-    names = ("task-store", "designation-store", "documents-index", "mail-index", "edits-store", "model-record")
-    created = [f"atlas-{n}" for n in names] + [KeychainAnchor.SERVICE]
+    # Mirror the production host inventory exactly; adding a store to KEY_NAMES
+    # automatically extends this safety preflight and cleanup.
+    created = [f"atlas-{name}" for name in KEY_NAMES] + ["atlas-model-record", KeychainAnchor.SERVICE]
     for service in created:  # a clean runner has none; do not disturb anyone's real items
         assert items.read(service) is None, "refusing to run against a Mac that already holds Atlas Keychain items"
     cores: list[CoreProcess] = []
