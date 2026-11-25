@@ -42,13 +42,13 @@ The following status distinctions are mandatory:
 ### Verified repository / PR facts at this reconciliation
 
 - PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
-- Its observed head at the latest check is `ebe870b5862cbf11b5c80ef23e4869fd5228fe97`. The PR reports 283 changed paths. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
+- Its observed head at the latest check is `67c7ee475db4188b0460a48807a8f0210c78a7d9`. The PR reports 285 changed paths. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
 - Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
 - WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; the API 1.1 contract was subsequently implemented and is served additively by WP3.4 (the 1.0 contract remains frozen). See `core/docs/CONTRACT_1_1.md`.
 - WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
 - The current criterion-level matrix in `core/docs/STAGE3_ACCEPTANCE.md` records criteria 2, 7 and 8 as PARTIAL with open findings. Stage 3 itself is **not accepted**. The separate final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking. Use the acceptance matrix, not broad summary wording in older handover snapshots, for criterion status.
 - Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
-- CI run `45574340059` was queued for prior code/test snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3`; the latest head `ebe870b5862cbf11b5c80ef23e4869fd5228fe97` has no reported workflow run or combined status yet. Do not treat the earlier run as exact-head validation.
+- Exact-head CI run `45576209883` is queued for `67c7ee475db4188b0460a48807a8f0210c78a7d9` (16 jobs); combined status is empty. No pass is claimed until the run completes.
 - General-purpose browser/app automation is documented as a Stage 6 target architecture, not a Stage 3 completion claim. Playwright is a recommendation, not an adopted runtime dependency; OpenClaw is not adopted.
 
 ### Explicitly unaccepted / unverified
@@ -62,7 +62,7 @@ The existence of iOS source files does not prove secure worldwide access, offlin
 1. **CI validation:** check run `45574340059` for code/test snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3`; then require a new completed run for the latest PR head. Fix any failures and keep the exact run/commit in this handover.
 2. **Remaining review threads:** 7 of 127 remain unresolved: three sandbox least-privilege/security residuals (release-blocking) and four code/test patches awaiting CI (exact arithmetic, API 1.1 open-map boundary, connector reversible-action compensation, full Keychain test inventory). Current review snapshot: 120 resolved, 7 unresolved; 6 unresolved anchors are outdated and 1 is current.
 3. **Full conformance trace:** the canonical docs and known cross-document contradictions are substantially reconciled, but a certified row-by-row trace of every PRD requirement, all use cases, integrations, screens and all 283 changed paths is not complete. Continue from `IMPLEMENTATION_CONFORMANCE.md`; do not infer coverage from file presence or old path counts.
-4. **Outstanding implementation findings:** ATLAS-CORE-092, ATLAS-CORE-083/084, browser worker isolation, Action Gateway durability, egress residuals, currency precision, app cancel/undo UX, accessibility audit reliability and mobile/relay findings still need exact-head dispositions. See `DEFECT_REGISTER.md`.
+4. **Outstanding implementation findings:** ATLAS-CORE-092, ATLAS-CORE-083/084, browser worker isolation, Action Gateway durability, egress residuals, currency precision, app cancellation/undo and accessibility patches pending CI, plus mobile/relay findings still need exact-head dispositions. See `DEFECT_REGISTER.md`.
 5. Keep Stage 3 NOT ACCEPTED and Stages 4–8 not architect-reviewed/accepted. Do not merge, close the PR, waive release gates or claim owner acceptance without explicit authority.
 
 ## Change-control rules
@@ -164,3 +164,11 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - Implemented code/test patches for exact terminating-decimal construction, reversible connector action prior-state validation/undo failure, API 1.1 open-object-map allowlist/authority descriptions, the OpenAPI path-count test name and full production Keychain test inventory. Regenerated `atlas-contracts.1.1.schema.json` from the updated delta. These patches are not yet CI-validated.
 - Replied to and resolved 120 of 127 review threads after checking the current source/tests or correcting the corresponding documentation. Seven remain: three macOS sandbox residual-risk threads, plus the four code/test patches awaiting CI.
 - Last live snapshot recorded above: PR #8 head `ebe870b5862cbf11b5c80ef23e4869fd5228fe97`, 283 changed paths, 127 threads (120 resolved, 7 unresolved; 6 outdated unresolved, 1 current). CI run 45574340059 was queued on prior code/test snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3`; no exact-head CI pass is claimed.
+
+
+## Latest implementation continuation — 2026-11-25
+
+- Added complete first-pass conformance matrices: `PRD_CONFORMANCE.md` maps PRD sections/principles to implementation; `USE_CASE_CONFORMANCE.md` maps UC-001–055 and UC-L01–L30 with current gaps. These are evidence-based first passes, not certification of every changed path or owner acceptance.
+- Fixed app cancellation's stale task-ID race using `SubmissionCancellation`; Stop requests received before Core returns an ID are applied to that newly created task. Failed Undo now preserves the retry affordance and shows an error unless Core confirms success. Added helper tests.
+- Hardened the macOS accessibility UI test: removed the unsafe pixel-extrema contrast exemption and replaced fixed sleep with a bounded wait for the expected first-run or Home screen.
+- Latest observed PR head `67c7ee475db4188b0460a48807a8f0210c78a7d9`; 285 changed paths; 127 review threads (120 resolved, 7 unresolved: 3 sandbox residuals and 4 code/test patches awaiting CI). Exact-head CI run 45576209883 queued, 16 jobs. Refresh the live head and CI before resuming.
