@@ -34,7 +34,7 @@ ARCHES = {  # machine -> (AUDIT_ARCH, number of the socket syscall)
 # The macOS profile. Measured on macOS runners: a deny-by-default profile stops the Metal shader compiler (MLX then reports "No Metal device available"), and a read allow-list that starts
 # from "deny everything" aborts Python at start-up, so the profile is allow-by-default with explicit denials: no network, no file writes (except /dev/null), no reading of the places private
 # data lives (every user's home folder with Documents, Mail and browser data, external volumes, the temporary folders and root's home) except the model folder and the Python runtime's own
-# folders, no executing a program that is not part of the Python runtime, and no Mach lookup except a measured list of ten services none of which makes network requests. NOT a least-privilege
+# folders, no executing a program that is not part of the Python runtime, and no Mach lookup except a measured list of ten services; known network-capable services are excluded, but proxy behaviour is not proven. NOT a least-privilege
 # profile: reading system files outside those places, IOKit and signals stay allowed.
 PRIVATE_READ_ROOTS = ("/Users", "/Volumes", "/private/tmp", "/private/var/folders", "/private/var/root", "/home")
 # The Mach services the sandboxed MLX worker may look up: MEASURED on a macOS runner (the CI macos-mlx job records
