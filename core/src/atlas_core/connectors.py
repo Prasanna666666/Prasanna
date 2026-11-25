@@ -266,7 +266,12 @@ class ConnectorHub:
             credentials = self._credentials(entry.id)
             if credentials is None:
                 raise OSError("not_connected")
-            return self._adapters[entry.id].act(write["name"], payload, credentials)
+            result = self._adapters[entry.id].act(write["name"], payload, credentials)
+            if reversible and not isinstance(result.get("previous"), dict):
+                # The remote action may already have happened; report an ambiguous outcome,
+                # never a successful action that Atlas cannot compensate.
+                raise OSError("undo_unavailable")
+            return result
 
         def undo(_payload: dict[str, Any], result: dict[str, Any]) -> None:
             credentials = self._credentials(entry.id)
