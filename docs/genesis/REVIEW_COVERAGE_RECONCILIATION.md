@@ -1241,3 +1241,10 @@ At PR #8 head `b230633b3b8d027576be42f6a6508c638e6e3a6f`: 282 changed paths; 127
 ## Latest documentation-only snapshot — 2026-11-25
 
 At PR #8 head `e1815bbc983f21f4d9d0cac448ab15f719bd5dc1`: 282 changed paths; 127 review threads (21 resolved, 106 unresolved: 40 outdated and 66 current). PR remains open, draft and unmerged. The status changes of threads between snapshots reflect diff-anchor metadata and are not fixes or resolutions. The latest commit is documentation-only; fetch the live head and CI status before resuming.
+## Live snapshot after final technical-document reconciliation — 2026-11-25
+
+At PR #8 head `d877a4ec3ce02244a070eb1dbbdaf021e6988de0`: PR remains open, draft and unmerged; **282 changed paths**; **127 review threads** (21 resolved, 106 unresolved). Of the unresolved threads, **73 are outdated and 33 are current**; overall 85 are outdated and 42 current. These anchor classifications changed materially as documentation lines moved; an outdated thread is not proof that its finding is fixed.
+
+Exact-head CI query returned no workflow runs and combined status returned no status entries for `d877a4ec3ce02244a070eb1dbbdaf021e6988de0`. No CI pass is claimed. The latest code/evidence baseline remains `83eec5378fff9f26f435492104c4efa2b30d18ca`; commits since it in this pass changed documentation and the API 1.1 OpenAPI contract only, not runtime source or tests.
+
+Document remediation in this pass includes the LLD/G-021 policy, app and macOS evidence, enrolment, egress, connector, storage/backup, rollback, Finance/Health scope, Stage 3 plan/acceptance/traceability, UI map/owner checklist, API 1.1 path count and OpenAPI unsigned-operation security. See the current `HANDOVER.md` and `IMPLEMENTATION_CONFORMANCE.md` for scope and remaining audit status.
