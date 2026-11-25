@@ -37,9 +37,12 @@ ARCHES = {  # machine -> (AUDIT_ARCH, number of the socket syscall)
 # folders, no executing a program that is not part of the Python runtime, and no Mach lookup except a measured list of ten services none of which makes network requests. NOT a least-privilege
 # profile: reading system files outside those places, IOKit and signals stay allowed.
 PRIVATE_READ_ROOTS = ("/Users", "/Volumes", "/private/tmp", "/private/var/folders", "/private/var/root", "/home")
-# The Mach services the sandboxed MLX worker may look up: MEASURED on a macOS runner (the CI `macos-mlx` job lets every lookup through with reporting on, records what a load plus a generation uses,
-# then re-runs under a deny-all-lookups profile with only these allowed and requires generation to succeed). Every other lookup is denied, and the known network-capable services in NETWORK_SERVICES are not in this allowlist. This is not proof that no allowed service can proxy network access; the local-only guarantee remains unaccepted until the complete service surface is reviewed. The profile is not a least-privilege allowlist. (DNS, CFNetwork, URL sessions,
-# configd, networkd) can be asked to act for the worker. Other hardware or macOS versions may need more; the worker then fails closed (the model is unavailable) rather than widening this list.
+# The Mach services the sandboxed MLX worker may look up: MEASURED on a macOS runner (the CI macos-mlx job records
+# the lookups used by load plus generation, then requires generation to succeed under a deny-all-lookups profile with
+# only these allowed). The known network-capable services in NETWORK_SERVICES are not in this allowlist. This does not
+# prove that no allowed service can proxy network access; the local-only guarantee remains unaccepted until the complete
+# service surface is reviewed. The profile is not a least-privilege allowlist. Other hardware/macOS versions may need
+# more; the worker then fails closed rather than widening this list.
 MACH_ALLOWED = (
     "com.apple.CoreServices.coreservicesd",
     "com.apple.MTLCompilerService",
