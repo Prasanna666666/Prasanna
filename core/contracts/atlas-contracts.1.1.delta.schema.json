@@ -1418,7 +1418,9 @@
           "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
         },
         "payload": {
-          "type": "object"
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
         },
         "idempotency_key": {
           "type": "string",
@@ -1466,7 +1468,9 @@
         "result": {
           "oneOf": [
             {
-              "type": "object"
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
             },
             {
               "type": "null"
@@ -1499,7 +1503,9 @@
         "exact_payload": {
           "oneOf": [
             {
-              "type": "object"
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
             },
             {
               "type": "null"
@@ -1577,7 +1583,9 @@
                 "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
               },
               "payload": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
               }
             }
           }
@@ -1990,7 +1998,9 @@
                 "minimum": 1
               },
               "fields": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Owner-supplied structured content. This field is available only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; audit records contain hashes only."
               }
             }
           }
