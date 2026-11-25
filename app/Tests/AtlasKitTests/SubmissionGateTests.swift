@@ -26,3 +26,35 @@ final class SubmissionGateTests: XCTestCase {
         XCTAssertEqual(taskID, "first")
     }
 }
+
+final class SubmissionCancellationTests: XCTestCase {
+    func testStopBeforeCoreReturnsTheNewTaskIDIsAppliedToThatTask() {
+        var cancellation = SubmissionCancellation()
+        cancellation.begin()
+        XCTAssertNil(cancellation.request())
+        XCTAssertTrue(cancellation.bind("new-task"))
+        XCTAssertEqual(cancellation.taskID, "new-task")
+        cancellation.end()
+        XCTAssertNil(cancellation.taskID)
+        XCTAssertFalse(cancellation.requested)
+    }
+
+    func testNewSubmissionNeverRetainsThePreviousTaskID() {
+        var cancellation = SubmissionCancellation()
+        cancellation.begin()
+        XCTAssertFalse(cancellation.bind("first-task"))
+        XCTAssertEqual(cancellation.request(), "first-task")
+        cancellation.end()
+        cancellation.begin()
+        XCTAssertNil(cancellation.taskID)
+        XCTAssertNil(cancellation.request())
+        XCTAssertTrue(cancellation.bind("second-task"))
+        XCTAssertEqual(cancellation.taskID, "second-task")
+    }
+
+    func testUndoOnlyClearsWhenCoreExplicitlyConfirmsDone() {
+        XCTAssertTrue(UndoConfirmation.isConfirmed(["status": "done"]))
+        XCTAssertFalse(UndoConfirmation.isConfirmed(["status": "failed"]))
+        XCTAssertFalse(UndoConfirmation.isConfirmed([:]))
+    }
+}
