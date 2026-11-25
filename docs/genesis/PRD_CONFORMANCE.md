@@ -1,6 +1,6 @@
 # Atlas PRD conformance matrix
 
-**Snapshot:** 2026-11-25. **Implementation patch snapshot:** 5284191f013ff5f9b29a35ff237d19ead7e51ad3; exact-head CI is pending. This is a source/document-based assessment, not owner acceptance. Detailed scenario mapping is in USE_CASE_CONFORMANCE.md.
+**Snapshot:** 2026-11-25. **Implementation patch snapshot:** 67c7ee475db4188b0460a48807a8f0210c78a7d9; exact-head CI run 45576209883 is queued. This is a source/document-based assessment, not owner acceptance. Detailed scenario mapping is in USE_CASE_CONFORMANCE.md.
 
 ## 1. Product identity and principles
 
@@ -68,7 +68,7 @@
 | Privacy | PARTIAL / RELEASE BLOCKED | G-021, source grants, redaction and bounded egress; sandbox not least privilege, taint/DNS/truncation residuals and API read race remain. |
 | Reliability | PARTIAL | task recovery, store integrity and tests; Core shutdown/partial construction and Action Gateway durable state defects remain. |
 | Background work does not starve interaction | PARTIAL | bounded scheduler and resource-pressure controls; target workload/hardware unverified. |
-| Accessibility/usability | PARTIAL / OWNER UNVERIFIED | semantic labels and hosted UI tests; accessibility audit reliability concerns and no owner VoiceOver/keyboard/Dynamic Type walkthrough. |
+| Accessibility/usability | PARTIAL / OWNER UNVERIFIED | semantic labels and hosted UI tests; the accessibility audit no longer exempts contrast findings using pixel extrema and waits for a stable expected screen; exact-head macOS UI CI and owner VoiceOver/keyboard/Dynamic Type walkthrough remain pending. |
 | Language support | PARTIAL | multilingual evaluation fixtures; Japanese/unspaced retrieval gap and real-model language quality unmeasured. |
 | Maintainability | PARTIAL | typed contracts, CI, modular boundaries and docs; exact-head CI pending, all 283 changed paths not independently audited. |
 
