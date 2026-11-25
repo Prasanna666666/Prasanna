@@ -23,7 +23,7 @@ class Service:
     """The profile: `/atlas/v1/ping`, `/atlas/v1/read/{scope}`, `/atlas/v1/act/{action}`, bearer token. A light that is on or off; `fail` makes every act fail."""
 
     def __init__(self):
-        self.light, self.calls, self.fail, self.sent, self.accept = "off", [], False, [], True
+        self.light, self.calls, self.fail, self.sent, self.accept, self.undo_mode = "off", [], False, [], True, None
         service = self
 
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -57,6 +57,10 @@ class Service:
                 if self.path == "/atlas/v1/act/control_device":
                     previous = {"light": service.light}
                     service.light = body["light"]
+                    if service.undo_mode == "missing":
+                        return self._reply(200, {"done": True})
+                    if service.undo_mode == "malformed":
+                        return self._reply(200, {"done": True, "previous": ["not", "an", "object"]})
                     return self._reply(200, {"done": True, "previous": previous})
                 if self.path == "/atlas/v1/act/unlock_door":
                     service.sent.append(body)
@@ -132,6 +136,27 @@ def test_a_reversible_change_is_prompt_free_and_undoable_while_unlocking_a_door_
     after = owner.act("home.unlock_door", {"door": "front"}, approval_id=asked["approval_id"])
     assert after["status"] == "done" and service.sent == [{"door": "front"}]
 
+
+def test_connector_undo_fails_closed_when_previous_state_or_credentials_are_unavailable(rig):
+    world, service, _ = rig
+    owner = world.client()
+    owner.connect_connector("home", service.address, TOKEN)
+
+    service.undo_mode = "missing"
+    missing = owner.act("home.control_device", {"light": "on"})
+    assert missing["status"] == "done"
+    assert owner.undo(missing["action_id"])["status"] == "failed"
+
+    service.undo_mode = "malformed"
+    malformed = owner.act("home.control_device", {"light": "off"})
+    assert malformed["status"] == "done"
+    assert owner.undo(malformed["action_id"])["status"] == "failed"
+
+    service.undo_mode = None
+    disconnected = owner.act("home.control_device", {"light": "on"})
+    assert disconnected["status"] == "done"
+    owner.disconnect_connector("home")
+    assert owner.undo(disconnected["action_id"])["status"] == "failed"
 
 def test_disconnecting_refuses_every_action_and_a_command_the_service_did_not_confirm_is_not_reported_done(rig):
     world, service, _ = rig
