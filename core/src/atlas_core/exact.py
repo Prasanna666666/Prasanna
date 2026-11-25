@@ -34,23 +34,20 @@ class Number:
     @property
     def exact_decimal(self) -> str | None:
         """The value as a terminating decimal, or None when it has no finite decimal form (1/3)."""
-        d = self.value.denominator
-        for p in (2, 5):
-            while d % p == 0:
-                d //= p
-        if d != 1:
-            return None
-        if self.value.denominator == 1:
+        denominator = self.value.denominator
+        if denominator == 1:
             return str(self.value.numerator)
+        rest, twos, fives = denominator, 0, 0
+        while rest % 2 == 0:
+            rest //= 2
+            twos += 1
+        while rest % 5 == 0:
+            rest //= 5
+            fives += 1
+        if rest != 1:
+            return None
         # Construct the finite decimal with integer arithmetic. Decimal division would
         # silently round values longer than the ambient Decimal context (normally 28).
-        twos = fives = 0
-        while d % 2 == 0:
-            d //= 2
-            twos += 1
-        while d % 5 == 0:
-            d //= 5
-            fives += 1
         scale = max(twos, fives)
         scaled = abs(self.value.numerator) * (2 ** (scale - twos)) * (5 ** (scale - fives))
         digits = str(scaled).rjust(scale + 1, "0")
