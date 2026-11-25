@@ -1293,3 +1293,10 @@ Exact-head CI run 45565642702 was queued and combined status returned no entries
 - The 7 unresolved threads are precisely: three macOS sandbox allow-by-default/least-privilege/Mach-proxy residuals (release-blocking); four code/test findings awaiting exact-snapshot CI (exact decimal, API 1.1 open-map allowlist, reversible connector prior-state/undo, complete Keychain test inventory).
 - 285 path-family inventory: 65 documentation/README, 132 Core source/tests, 61 macOS app source/tests/project, 7 iOS source/tests/project, 14 Core contracts/client/bench/eval/tool/config, 2 kit, 3 scripts, 3 root/workflow/config. Inventory is complete; semantic line-by-line review of every source/test path is not.
 - The canonical documentation and registered use-case matrices have been reviewed/reconciled; historical conversation archives remain records. Do not use the 120/127 thread resolution rate as a proxy for product completeness or Stage acceptance.
+
+
+## Post-checkpoint head update — 2026-11-25
+
+- Latest observed PR head: `3a366d80ef9d58bafd92e0fe12238a0f07424ba7`; 285 paths; 127 review threads (120 resolved, 7 unresolved).
+- Behavior-bearing source/test snapshot remains `35d41c800046ca3042991134f66bece7611191cc`; CI run `45577911258` is queued with 16 jobs, none started at last inspection. Subsequent source-path commits only corrected sandbox.py and backup.py comments; all remaining changes were documentation/PR-body updates. This is not a completed CI pass and is not an exact hash match to the latest PR head.
+- The seven open threads remain 3 sandbox security residuals and 4 code/test findings awaiting the queued CI and reviewer recheck.
