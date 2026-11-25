@@ -1298,5 +1298,5 @@ Exact-head CI run 45565642702 was queued and combined status returned no entries
 ## Post-checkpoint head update — 2026-11-25
 
 - Latest observed PR head: `3a366d80ef9d58bafd92e0fe12238a0f07424ba7`; 285 paths; 127 review threads (120 resolved, 7 unresolved).
-- Behavior-bearing source/test snapshot remains `35d41c800046ca3042991134f66bece7611191cc`; CI run `45577911258` is queued with 16 jobs, none started at last inspection. Subsequent source-path commits only corrected sandbox.py and backup.py comments; all remaining changes were documentation/PR-body updates. This is not a completed CI pass and is not an exact hash match to the latest PR head.
+- Behavior-bearing source/test snapshot remains `35d41c800046ca3042991134f66bece7611191cc`; CI run `45577911258` is queued with 16 jobs, none started at last inspection. The sandbox.py comment clarification is included in the source/test snapshot; the only later source-path commit corrects the backup.py module docstring (no runtime logic or tests). All remaining changes were documentation/PR-body updates. This is not a completed CI pass and is not an exact hash match to the latest PR head.
 - The seven open threads remain 3 sandbox security residuals and 4 code/test findings awaiting the queued CI and reviewer recheck.
