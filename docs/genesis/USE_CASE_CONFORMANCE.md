@@ -51,7 +51,7 @@
 | UC-031 Conversation history | PARTIAL | in-memory Swift turns and Core durable tasks | No conversation list/search/pin/archive/delete or restart-persistent chat history. |
 | UC-032 Capability discovery | PARTIAL | fixed connector catalogue and app destinations | No comprehensive capability registry that truthfully distinguishes available, connected, gated and future capabilities across all domains. |
 | UC-033 Mac-to-iPhone handoff | PARTIAL / BLOCKED | iOS client, pairing, relay, sync and Core API; PhoneTests.swift | Open relay/iOS/device findings, cache repopulation after Unpair, no real VPN/network exercise and no owner-phone walkthrough. |
-| UC-034 Accessibility | PARTIAL / UNVERIFIED | labels, hints, system fonts, contrast and UI automation tests | No owner VoiceOver/keyboard/Dynamic Type walkthrough; accessibility audit has known false-positive/stability concerns (ATLAS-TEST-054/055). |
+| UC-034 Accessibility | PARTIAL / UNVERIFIED | labels, hints, system fonts, contrast and UI automation tests | No owner VoiceOver/keyboard/Dynamic Type walkthrough; the unsafe screenshot-extrema contrast exemption was removed and the test now waits for a stable expected first-run/Home screen (ATLAS-TEST-054/055 patch present, exact-head CI pending). |
 | UC-035 Bulk operation preview | NOT IMPLEMENTED | Action Gateway supports individual typed actions | No batch rename/organise preview, affected count or bulk undo flow. |
 | UC-036 Ambient context | NOT IMPLEMENTED | No continuous capture path identified | Explicit “summarise what I am looking at” flow and capture/redaction controls absent. |
 | UC-037 Location/arrival trigger | NOT IMPLEMENTED | No location trigger engine identified | No owner-configured location trigger or permission/battery controls. |
