@@ -529,12 +529,17 @@ final class AppModel: ObservableObject {
         turns.append(Turn(question: text, answer: nil, phase: .received, failure: nil, taskID: nil))
         let index = turns.count - 1
         let sources = scope
-        defer { busy = false; gate.end() }
+        submissionCancellation.begin()
+        defer { submissionCancellation.end(); busy = false; gate.end() }
         do {
             let id = try await Task.detached { try client.ask(question: text, scope: sources) }.value
-            currentTaskID = id
+            let cancelImmediately = submissionCancellation.bind(id)
             turns[index].taskID = id
             question = ""
+            if cancelImmediately {
+                do { _ = try await Task.detached { try client.cancel(id) }.value }
+                catch { failure = "Atlas could not stop this task yet." }
+            }
             while true {
                 let state = try await Task.detached { try client.state(id) }.value
                 if let phase = tracker.update(coreState: state) { turns[index].phase = phase }
@@ -558,8 +563,10 @@ final class AppModel: ObservableObject {
     }
 
     func cancel() async {
-        guard let client, let id = currentTaskID else { return }
-        _ = try? await Task.detached { try client.cancel(id) }.value
+        guard let client, busy else { return }
+        guard let id = submissionCancellation.request() else { return }
+        do { _ = try await Task.detached { try client.cancel(id) }.value }
+        catch { failure = "Atlas could not stop this task yet." }
     }
 
     func showEvidence(turn: Turn, citation: CitationView) async {
