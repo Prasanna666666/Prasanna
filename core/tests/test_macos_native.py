@@ -12,9 +12,9 @@ import uuid
 import pytest
 
 from atlas_core.designation import AnchorRecord
+from atlas_core.host import KEY_NAMES
 from atlas_core.macos import KeychainAnchor, KeychainError, KeychainItems
 from atlas_core.tasks import KeychainKeyProvider
-from atlas_core.host import KEY_NAMES
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="needs the real macOS Keychain")
 
