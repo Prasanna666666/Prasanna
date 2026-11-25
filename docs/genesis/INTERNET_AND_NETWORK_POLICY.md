@@ -9,7 +9,7 @@
 2. Public Internet access is not permission to upload personal files, private messages, health/finance records, memory, credentials, prompts containing personal context or local indexes.
 3. All AI inference remains local. No cloud model API, remote agent brain, cloud fallback or third-party hosted Atlas Core.
 4. Internet content is untrusted data. It cannot change Atlas policy, grant permissions, approve an action, invoke tools by instruction or widen a task.
-5. Network access is mediated by Atlas Core through a typed, observable egress gateway. Domain capabilities and agents do not open arbitrary sockets or bypass policy.
+5. Network access is mediated by Atlas Core through a purpose-specific, typed and observable boundary: public research uses the egress gateway; owner-authorised integrations use connector transport; paired devices use the private/VPN relay; and page reading uses the isolated browser engine. These paths have separate allowlists, credentials, trust boundaries and acceptance gates. Domain capabilities and agents do not open arbitrary sockets or bypass policy.
 6. Connected services use owner-authorised accounts and least-privilege scopes. Tokens and refresh credentials are stored in macOS Keychain; never in prompts, logs, source files or ordinary settings.
 7. Atlas must remain useful offline for local data and tasks that do not require current external information.
 
