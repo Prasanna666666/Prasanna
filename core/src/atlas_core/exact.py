@@ -40,7 +40,24 @@ class Number:
                 d //= p
         if d != 1:
             return None
-        return format(Decimal(self.value.numerator) / Decimal(self.value.denominator), "f") if self.value.denominator != 1 else str(self.value.numerator)
+        if self.value.denominator == 1:
+            return str(self.value.numerator)
+        # Construct the finite decimal with integer arithmetic. Decimal division would
+        # silently round values longer than the ambient Decimal context (normally 28).
+        twos = fives = 0
+        while d % 2 == 0:
+            d //= 2
+            twos += 1
+        while d % 5 == 0:
+            d //= 5
+            fives += 1
+        scale = max(twos, fives)
+        scaled = abs(self.value.numerator) * (2 ** (scale - twos)) * (5 ** (scale - fives))
+        digits = str(scaled).rjust(scale + 1, "0")
+        whole, fraction = digits[:-scale], digits[-scale:]
+        fraction = fraction.rstrip("0")
+        sign = "-" if self.value.numerator < 0 else ""
+        return sign + whole + ("." + fraction if fraction else "")
 
     def rounded(self, digits: int = DISPLAY_DIGITS) -> str:
         """A labelled approximation; callers must show it as approximate when `exact_decimal` is None."""
