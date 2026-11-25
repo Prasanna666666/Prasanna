@@ -1044,5 +1044,5 @@ ATLAS-CORE-092 (read/revocation race), ATLAS-CORE-083/084 (shutdown and partial-
 ## Latest branch-head / CI boundary — 2026-11-25
 
 - Latest observed PR head `3a366d80ef9d58bafd92e0fe12238a0f07424ba7`; behavior-bearing source/test snapshot `35d41c800046ca3042991134f66bece7611191cc`.
-- CI run 45577911258 is queued (16 jobs, none started at last inspection). Later sandbox.py/backup.py commits change comments only; later commits are documentation/PR-body only. No runtime behaviour or tests changed after the queued snapshot. No pass is claimed.
+- CI run 45577911258 is queued (16 jobs, none started at last inspection). The sandbox.py comment clarification is included in the source/test snapshot; the only later source-path change is the backup.py module-docstring correction (no runtime logic/tests). Later commits are documentation/PR-body only. No runtime behaviour or tests changed after the queued snapshot. No pass is claimed.
 - PR #8 remains open/draft/unmerged; 285 changed paths; 127 review threads (120 resolved, 7 unresolved). Keep the four code/test review findings open until CI completes and the exact source/tests are re-reviewed.
