@@ -63,3 +63,6 @@ Deliberately deferred to later stages (not Stage 3 requirements as written): att
 
 
 **Implementation continuation note (2026-11-25):** exact-decimal conversion, API 1.1 open-map allowlisting, reversible connector prior-state/undo, full Keychain test inventory, AppModel pending-Stop/failed-Undo handling, and accessibility UI-test hardening are now patched with regression coverage. Exact-head CI remains pending; these changes do not alter the current Stage 3 decision: criteria 2, 7 and 8 remain PARTIAL, Stage 3 is NOT ACCEPTED, and the macOS sandbox is not least privilege.
+
+
+**Exact implementation snapshot note (2026-11-25):** the latest source/test patch snapshot is `35d41c800046ca3042991134f66bece7611191cc`; CI run `45577911258` is queued with 16 jobs, all queued at last inspection. No exact-snapshot pass is claimed. Criteria 2, 7 and 8 remain PARTIAL, F-11 remains release-blocking, and Stage 3 remains NOT ACCEPTED.
