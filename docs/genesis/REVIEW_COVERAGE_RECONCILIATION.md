@@ -1260,3 +1260,9 @@ Exact-head CI run 45565642702 was queued and combined status returned no entries
 - 127 review threads: 44 resolved, 83 unresolved; 78 unresolved threads are outdated and 5 are current. The five current threads concern exact arithmetic precision, API free-text object-map schema coverage, connector undo success semantics, the OpenAPI path-count test name and native Keychain test fixture cleanup.
 - CI run 45566805549 is queued; combined status returned no entries. No CI pass is claimed.
 - Documentation/contract edits since the earlier snapshot are documentation-only plus the API 1.1 OpenAPI contract; runtime source and tests were not changed in this pass. Four code findings (app/Core lifecycle, live socket preservation, EMLX regular-file replacement and exact private-name/short-phrase egress fingerprinting) were verified against current code/tests, replied to and resolved. Broader related risks remain open as described in `IMPLEMENTATION_CONFORMANCE.md`.
+
+
+## PR-description correction checkpoint — 2026-11-25
+
+- Updated PR #8 body to describe the egress implementation accurately: specific private-name/short-phrase regression is addressed; broad no-private-egress guarantee is not claimed; residuals and disabled-by-default separate research operation are listed. Also clarified Stage 3 is a target, not an owner-tryable app today.
+- Live PR snapshot immediately before this note: head `0c8f63118a1c286aa55da270afc30aebc4b20838`, 282 changed paths, 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 current). CI run 45567148195 queued, no combined status entries. No pass claimed.
