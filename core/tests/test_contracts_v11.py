@@ -482,6 +482,40 @@ def new_string_fields(node, path="", out=None):
 ALLOWED_FREE_TEXT = {"PassageText/properties/text", "ResearchResult/properties/text"}
 
 
+def open_object_maps(node, path="", out=None):
+    """Object maps that deliberately permit arbitrary owner-supplied keys/values."""
+    out = [] if out is None else out
+    if isinstance(node, dict):
+        if node.get("type") == "object" and node.get("additionalProperties") is not False:
+            out.append((path, node))
+        for key, value in node.items():
+            open_object_maps(value, f"{path}/{key}", out)
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            open_object_maps(value, f"{path}/{index}", out)
+    return out
+
+
+ALLOWED_OWNER_OBJECT_MAPS = {
+    "ActionRequest/properties/payload",
+    "ActionOutcome/properties/result/oneOf/0",
+    "ActionOutcome/properties/exact_payload/oneOf/0",
+    "SyncRequest/properties/ops/items/properties/payload",
+    "RecordList/properties/records/items/properties/fields",
+}
+
+
+def test_open_object_maps_are_explicit_owner_only_unlogged_content_allowlist():
+    found = []
+    for name in DELTA["x-additions"]:
+        found.extend(open_object_maps(DELTA["$defs"][name], name))
+    assert {path for path, _schema in found} == ALLOWED_OWNER_OBJECT_MAPS
+    for path, schema in found:
+        assert schema.get("additionalProperties") is True, path
+        description = schema.get("description", "").lower()
+        assert "owner-only" in description and "never" in description and "logs" in description, path
+
+
 def test_no_new_field_of_the_1_1_contract_can_carry_free_text():
     for name in DELTA["x-additions"]:
         found = [f for f in new_string_fields(DELTA["$defs"][name], name) if f not in ALLOWED_FREE_TEXT]
