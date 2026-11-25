@@ -1025,3 +1025,10 @@ ATLAS-CORE-092 (read/revocation race), ATLAS-CORE-083/084 (shutdown and partial-
 - **ATLAS-APP-053:** `AppModel.undoLast` now clears the undo handle only when Core explicitly returns `status=done`. Failure/transport errors preserve the retry affordance and show a plain-language message in RecordsView. `UndoConfirmation` has helper tests; exact-head CI pending.
 - **ATLAS-TEST-054:** removed the unsafe darkest/lightest-pixel extrema contrast exemption entirely. Contrast findings now fail the system accessibility audit rather than being suppressed by unrelated pixels. Exact-head macOS UI CI pending.
 - **ATLAS-TEST-055:** removed fixed `sleep(8)` and now waits (bounded) for the expected first-run Welcome or Home prompt before auditing. Exact-head macOS UI CI pending.
+
+
+## Latest source/test patch snapshot — 2026-11-25
+
+- Observed implementation/contract/UI-test/backup-doc head: `293e0ba40f0c56c8ea56d4d1941d1812c26db442`; 285 changed paths; exact-head CI run 45576933577 queued (16 jobs), no result yet.
+- Additional source/test fixes after the earlier checkpoint: app Stop now records pending cancellation until the current task ID is returned; app Undo only clears after explicit Core success and preserves the retry handle/error otherwise; accessibility UI audit removed its unsafe pixel-extrema contrast exemption and waits for a stable Welcome/Home screen. Helper regression tests were added. `backup.py` module docstring now matches the actual five-store, public-client/audit, keys.enc inventory and excluded identity/device/connector state.
+- ATLAS-APP-052/053 and ATLAS-TEST-054/055 remain pending exact-head CI and (for app behaviour) AppModel/owner-level validation. The app cancellation helper is tested but a full AppModel integration test is still desirable. The accessibility audit may now expose real contrast failures instead of masking them; any failures must be triaged, not re-exempted.
