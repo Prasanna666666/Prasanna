@@ -1,6 +1,8 @@
-# Threat and privacy review (design level; for this slice only)
+# Threat and privacy review (design level; for the Stage 2/3 task pipeline slice)
 
-Scope: the new foundation (policy gate, tasks, evidence, events, API). Evidence: tests in `tests/` (synthetic data only). Not a penetration test; nothing ran on the owner's Mac or data.
+**Scope limitation (updated 2026-11-25):** This record covers the task pipeline's policy/retrieval/model/answer surfaces and the original foundation. It is not a complete threat review of every later API read surface, connector, relay, browser, UI or native provider. In particular, ATLAS-CORE-092 remains open because Finance/Health summary, Library Search and citation-passage reads do not all perform a final grant identity/expiry recheck immediately before response; a concurrent revoke/read race is not closed by the task-answer checks described below. Stage 4–8 risks and current acceptance are tracked in `STAGE3_ACCEPTANCE.md`, `STAGES_4_TO_8.md` and `docs/genesis/IMPLEMENTATION_CONFORMANCE.md`.
+
+Evidence: tests in `tests/` (synthetic data unless explicitly stated). Not a penetration test; no owner data or owner Mac was used.
 
 | Threat | Control | Evidence | Residual risk |
 |---|---|---|---|
