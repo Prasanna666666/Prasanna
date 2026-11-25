@@ -1276,3 +1276,11 @@ Exact-head CI run 45565642702 was queued and combined status returned no entries
 - Exact patch snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3` has CI run `45574340059` queued (16 jobs). No pass is claimed. The later handover/ledger commits are documentation-only; still require exact-head workflow confirmation.
 - 120 threads were replied to and resolved only after checking current code/tests or correcting the relevant documentation. The remaining seven are intentionally open; stale anchors do not mean fixed.
 - This ledger is still not an exhaustive 283-path sign-off. It preserves the historical path/thread inventories above; current audit completion must be established by a requirement-to-code trace, not by review-thread percentage.
+
+
+## Latest live snapshot — 2026-11-25 (PRD/use-case and app fixes)
+
+- Observed head `293e0ba40f0c56c8ea56d4d1941d1812c26db442` before the subsequent handover/conformance/ledger commits; 285 changed paths; PR #8 open/draft/unmerged.
+- 127 review threads: 120 resolved, 7 unresolved (6 outdated anchors, 1 current anchor). Three unresolved threads deliberately retain the macOS sandbox least-privilege finding; four code/test findings await CI (exact arithmetic, API open-map boundary, connector reversible-action prior state/undo, full Keychain inventory).
+- Exact-head CI run 45576933577 was queued with 16 jobs. No pass is claimed. Later documentation-only commits require live-head refresh and a completed exact-head run.
+- New conformance artifacts: PRD_CONFORMANCE.md and USE_CASE_CONFORMANCE.md; the first maps product requirements, the second maps all registered UC-001–055 and UC-L01–L30 scenarios. The audit is still not a certified line-by-line trace of every 285 changed path.
