@@ -1017,3 +1017,11 @@ Evidence at PR #8 head `611c25813d705b24cada415dfeb607c4e30cefbb`: `core/docs/ST
 ### Other open implementation/evidence findings remain
 
 ATLAS-CORE-092 (read/revocation race), ATLAS-CORE-083/084 (shutdown and partial-construction cleanup), ATLAS-SEC-014/ATLAS-EGRESS-091/077/078/079 (bounded egress limitations), ATLAS-SEC-016 (browser worker not OS-confined), ATLAS-ACT-019 (Action Gateway execution state not durable across restart), ATLAS-CONN-025 (connector re-check exception path), currency precision/representation, app cancellation/undo UI, accessibility audit reliability, mobile offline/relay/pairing security, and all owner-Mac/final-stage gates remain in the historical defect register and require their own exact-head dispositions. Do not infer closure from the five patches above.
+
+
+## App lifecycle, undo UX and accessibility test follow-up — 2026-11-25
+
+- **ATLAS-APP-052:** `AppModel` now clears the previous task ID at submission start and uses `SubmissionCancellation` to queue Stop requests made before Core returns the new ID; the request is applied to that newly created task. `SubmissionCancellationTests` cover pre-ID Stop, new-submission ID reset and post-ID Stop. An AppModel-level integration test is still desirable; exact-head CI pending.
+- **ATLAS-APP-053:** `AppModel.undoLast` now clears the undo handle only when Core explicitly returns `status=done`. Failure/transport errors preserve the retry affordance and show a plain-language message in RecordsView. `UndoConfirmation` has helper tests; exact-head CI pending.
+- **ATLAS-TEST-054:** removed the unsafe darkest/lightest-pixel extrema contrast exemption entirely. Contrast findings now fail the system accessibility audit rather than being suppressed by unrelated pixels. Exact-head macOS UI CI pending.
+- **ATLAS-TEST-055:** removed fixed `sleep(8)` and now waits (bounded) for the expected first-run Welcome or Home prompt before auditing. Exact-head macOS UI CI pending.
