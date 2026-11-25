@@ -1,7 +1,7 @@
 # Atlas — implementation-to-documentation conformance audit
 
 **Created:** 2026-11-25  
-**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `293e0ba40f0c56c8ea56d4d1941d1812c26db442` (latest source/test/contract/UI-test patch snapshot; exact-head CI run 45576209883 queued)  
+**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `35d41c800046ca3042991134f66bece7611191cc` (latest source/test/contract/UI-test patch snapshot; exact-head CI run 45576209883 queued)  
 **Branch head:** refresh from GitHub before resuming; this document deliberately avoids a self-referential HEAD hash  
 **Purpose:** Establish one evidence-led method for deciding whether the completed implementation matches the canonical product and technical documentation.
 
@@ -300,7 +300,7 @@ These review threads were replied to and resolved after checking the current sou
 - `AppModel.ask()` now clears the previous task ID at submission start and uses `SubmissionCancellation` to retain Stop intent if the Core has not yet returned the new task ID. When the ID arrives, the queued Stop is applied to that task. `SubmissionCancellationTests` cover pre-ID cancellation, post-ID cancellation and reset between submissions. A full AppModel-level integration test is still desirable.
 - `AppModel.undoLast()` now clears its undo handle only after Core explicitly returns `status=done`. Failed/transport outcomes preserve the handle and show a plain-language error in RecordsView. `UndoConfirmation` helper tests cover done/failed/missing status.
 - The macOS accessibility UI test no longer uses darkest/lightest screenshot pixel extrema to exempt contrast findings. It waits for the expected first-run Welcome or Home prompt instead of sleeping a fixed eight seconds. Only narrowly identified system-owned title-bar/Touch Bar structural exceptions remain.
-- These source/test changes are present at `67c7ee475db4188b0460a48807a8f0210c78a7d9`. Exact-head CI run `45576933577` is queued; no test pass is claimed. AppModel integration and owner visual/VoiceOver walkthrough remain open.
+- These source/test changes are present at `67c7ee475db4188b0460a48807a8f0210c78a7d9`. Exact-head CI run `45577911258` is queued; no test pass is claimed. AppModel integration and owner visual/VoiceOver walkthrough remain open.
 
 
 ## 18. Current PRD/use-case trace and backup documentation — 2026-11-25
@@ -309,3 +309,12 @@ These review threads were replied to and resolved after checking the current sou
 - Rewrote core/README.md as a current implementation index (the prior Stage 2-only README had materially stale “not here” statements); corrected app/README.md and ios/README.md; corrected the backup.py module docstring to match the actual DB_FILES/LIVE_DBS/PLAIN_FILES/key inventory and omissions.
 - Added the owner-directed app cancellation/undo helper fixes and accessibility UI-test hardening described in §17. The backup module docstring update is code-only documentation; no backup algorithm changed.
 - Latest source/contract/UI-test/backup-doc snapshot: `293e0ba40f0c56c8ea56d4d1941d1812c26db442`; exact-head CI run `45576933577` is queued (16 jobs). Review threads: 127 total, 120 resolved, 7 unresolved (3 sandbox residuals; 4 code/test fixes awaiting CI). Refresh live head before continuing; the current row-by-row 283-path audit remains incomplete.
+
+
+## 19. Final code/test snapshot and path inventory — 2026-11-25
+
+- Source/test snapshot: `35d41c800046ca3042991134f66bece7611191cc`; exact CI run `45577911258` is queued (16 jobs, all queued at last inspection). Later PR head `2d40ecf5bed5efee16761c7b973ad058e70d1dec` changes only `CLAUDE.md` repository instructions. No pass is claimed.
+- PR #8 remains open/draft/unmerged; 285 changed paths; 127 review threads (120 resolved, 7 unresolved: 3 sandbox security residuals, 4 code/test patches awaiting CI).
+- The full path-family inventory is recorded in `REVIEW_COVERAGE_RECONCILIATION.md`. All active canonical product/architecture/API/provider/acceptance docs have been reconciled; historical archives are retained. The source/test path inventory is complete but semantic line-by-line review of all 132 Core and 68 app/iOS/kit test/source paths is not certified.
+- The PRD and all 85 registered scenario IDs (UC-001–055 plus UC-L01–L30) now have first-pass conformance matrices. These identify major not-implemented capabilities and partial foundations; they are not acceptance certificates.
+- Remaining hard blockers: macOS sandbox least privilege and Mach proxy surface; exact-head CI; API read revocation race; Core shutdown/partial-construction; browser worker confinement; durable Action Gateway receipts; connector DNS/proxy path; egress residuals; currency semantics; AppModel integration/owner UX; accessibility owner validation; mobile/relay security; target-Mac/TCC/Mail/Keychain/FileVault/model/restore/signing acceptance.
