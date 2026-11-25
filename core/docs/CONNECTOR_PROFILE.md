@@ -10,7 +10,7 @@ This profile applies to an existing integration ID in Atlas's fixed `connectors.
 
 Rules:
 - Every request carries `Authorization: Bearer <token>` and `Content-Type: application/json`.
-- A reversible action must return `"previous"`: the state it replaced (for example `{"light": "off"}`). The current connector implementation has an open defect: a missing/invalid `previous` value or unavailable credentials can be treated as a successful undo. Do not rely on connector undo until ATLAS-CONN-084 (and its linked undo finding) is fixed and regression-tested.
+- A reversible action must return `"previous"`: the state it replaced (for example `{"light": "off"}`). The Core now refuses to report successful undo if credentials are unavailable, `previous` is missing/not an object, or the provider does not confirm the compensating action. Regression coverage includes missing/malformed `previous` and disconnect-before-undo. This validates the failure boundary, not every vendor's compensation semantics.
 - Prefer `https`. Plain `http` is accepted by the current implementation for loopback, private-range, `.local`, shared VPN address space and `.ts.net` names. The `.ts.net` shortcut is not DNS-resolved/pinned before a bearer token is sent and is tracked by ATLAS-CONN-083; ambient proxy inheritance is tracked by ATLAS-CONN-084. Do not use plain HTTP for `.ts.net` until both risks are closed. Redirects are never followed.
 - Replies are limited to 1 MB; Atlas waits 15 seconds.
 - The token is stored in the Mac's Keychain and is never shown, logged or put in an audit entry again.
