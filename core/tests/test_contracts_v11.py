@@ -513,7 +513,17 @@ def test_open_object_maps_are_explicit_owner_only_unlogged_content_allowlist():
     for path, schema in found:
         assert schema.get("additionalProperties") is True, path
         description = schema.get("description", "").lower()
-        assert "owner-only" in description and "never" in description and "logs" in description, path
+        assert "never" in description and "logs" in description, path
+        if path in {
+            "ActionRequest/properties/payload",
+            "ActionOutcome/properties/result/oneOf/0",
+            "ActionOutcome/properties/exact_payload/oneOf/0",
+        }:
+            assert "owner client" in description, path
+        elif path == "SyncRequest/properties/ops/items/properties/payload":
+            assert "enrolled client" in description and "signed identity" in description, path
+        else:
+            assert "owner or an enrolled paired member client" in description, path
 
 
 def test_no_new_field_of_the_1_1_contract_can_carry_free_text():
