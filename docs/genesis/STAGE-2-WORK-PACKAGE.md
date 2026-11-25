@@ -21,7 +21,7 @@ The owner has explicitly satisfied the implementation-start authority for this p
 2. **ChatGPT package-acceptance gate:** WAIVED by the owner on 2026-11-20. This waiver allowed Stage 2 implementation to begin; it is not acceptance of the resulting implementation.
 3. **Explicit owner authorisation:** GRANTED on 2026-11-20.
 
-These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequent instructions. Do not ask the owner to repeat them. Stage 2 implementation acceptance remains a separate evidence-based review gate; Stage 3 remains unauthorised.
+These decisions are recorded in PR #7 comment 7037299974 and the owner's subsequent instructions. Do not ask the owner to repeat them. Stage 2 implementation acceptance remained a separate evidence-based review gate. Stage 3 was unauthorised at this Stage 2 entry-gate snapshot; it was subsequently authorised under G-027 on 2026-11-22 and remains NOT ACCEPTED.
 
 ## 3. Scope
 
@@ -190,6 +190,6 @@ The first slice has **no user actions or external side effects**. ExecutionRecei
 - Platform verification: real macOS Keychain behaviour, Keychain prompts/item permissions, macOS `LOCAL_PEERCRED`, target-Mac execution and Swift/Xcode integration remain **NOT VERIFIED**.
 - Stage 3: **AUTHORISED under G-027 on 2026-11-22; its stage-level acceptance remains separate and is currently NOT ACCEPTED / OPEN**.
 - Contract format: **OpenAPI 3.1 + JSON Schema, language-neutral**.
-- Reference implementation: **Python; Swift client verification deferred until Mac/macOS CI is available**.
+- Reference implementation at the Stage 2 acceptance snapshot: **Python; Swift client verification was deferred at that time**. Later hosted macOS CI now builds/tests the Swift client and exercises `CoreLauncher`/`CoreClient`; see `app/README.md`, `core/docs/ENROLMENT.md` and `core/docs/MACOS_PROVIDERS.md`.
 - Task persistence: **separate additive encrypted store with a dedicated Keychain provider; real macOS Keychain path still requires target-Mac verification**.
 - Provenance: **synthetic contract fixtures only; stored extraction/provenance changes deferred**.
