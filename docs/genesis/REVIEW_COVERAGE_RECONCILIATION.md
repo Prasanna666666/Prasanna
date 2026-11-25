@@ -9,7 +9,7 @@ Owner constraints remain binding:
 - Claude owns implementation, tests, debugging and maintenance.
 - The owner is project manager and final decision-maker.
 - Work remains on PR #8 / `genesis-stage2-foundation`.
-- Review-only boundary: do not change application source, tests, build files or configuration; do not merge or approve; do not resolve review threads without owner authorization.
+- Owner's 2026-11-25 instruction is to finish pending review/conformance work and preserve a restartable audit trail. This authorises targeted source/test fixes and review-thread replies/resolutions needed for that task. Do not merge, approve the PR, waive acceptance gates or claim release/owner acceptance.
 
 ## Reviewer history recovered from prior conversations
 
@@ -1266,3 +1266,13 @@ Exact-head CI run 45565642702 was queued and combined status returned no entries
 
 - Updated PR #8 body to describe the egress implementation accurately: specific private-name/short-phrase regression is addressed; broad no-private-egress guarantee is not claimed; residuals and disabled-by-default separate research operation are listed. Also clarified Stage 3 is a target, not an owner-tryable app today.
 - Live PR snapshot immediately before this note: head `0c8f63118a1c286aa55da270afc30aebc4b20838`, 282 changed paths, 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 current). CI run 45567148195 queued, no combined status entries. No pass claimed.
+
+
+## Latest live PR #8 snapshot — 2026-11-25 (after code/test reconciliation)
+
+- PR #8 remains open, draft and unmerged on `genesis-stage2-foundation`.
+- Exact observed head before this ledger update: `7d717f89cc544014c25ad54aa788ae0c7dfcde1b` (refresh after this commit). Changed paths: 283.
+- Inline review threads: 127 total; 120 resolved; 7 unresolved (6 outdated anchors, 1 current anchor). The seven open threads are three macOS sandbox least-privilege/security residuals and four code/test findings awaiting CI: exact terminating-decimal precision (ATLAS-EXACT-106), API 1.1 open-object-map boundary, reversible connector action prior-state/undo, and full production Keychain test inventory.
+- Exact patch snapshot `5284191f013ff5f9b29a35ff237d19ead7e51ad3` has CI run `45574340059` queued (16 jobs). No pass is claimed. The later handover/ledger commits are documentation-only; still require exact-head workflow confirmation.
+- 120 threads were replied to and resolved only after checking current code/tests or correcting the relevant documentation. The remaining seven are intentionally open; stale anchors do not mean fixed.
+- This ledger is still not an exhaustive 283-path sign-off. It preserves the historical path/thread inventories above; current audit completion must be established by a requirement-to-code trace, not by review-thread percentage.
