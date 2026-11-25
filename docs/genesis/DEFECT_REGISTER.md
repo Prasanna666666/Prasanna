@@ -992,3 +992,28 @@ Evidence at PR #8 head `1d90fa14b63792fadbf47f0e96c70385104d5f94`: `core/docs/ST
 **Severity: P2 — OPEN (implementation status and design traceability).**
 
 Evidence at PR #8 head `611c25813d705b24cada415dfeb607c4e30cefbb`: `core/docs/STAGE3_WP3_1_PROPOSAL.md`, lines 3, 12, 41, 59 and 91. The document still says nothing is implemented and no code/tests will be written before this revision is reviewed; it says the Core only advertises 1.0, that consent/index routes are specification-only, that `api.py`/`service.py`/`identity.py` are unchanged, and that the later consent/identity, egress, Mail, model and client packages are future work. Current code/tests contradict those as current-state claims: the runtime supports 1.0 and 1.1; the production host serves owner-only consent/index routes; versioned signing, 1.1 OpenAPI/contracts and tests exist; and later packages are implemented. Preserve the v4 document as a historical WP3.1 proposal at base `975f3fc`, label the exact baseline/date, and link the current implementation/acceptance docs. Keep the original three-path list as WP3.1 scope only; current OpenAPI has later additive paths. Review **6046835690** posted on lines 3, 12, 41, 59 and 91. No tests run.
+
+
+## Current PR #8 revalidation checkpoint — 2026-11-25
+
+**Exact head inspected:** `5284191f013ff5f9b29a35ff237d19ead7e51ad3` on `genesis-stage2-foundation`. PR #8 is open/draft/unmerged with **283 changed paths**. Review API: **127 threads; 120 resolved; 7 unresolved** (6 outdated anchors, 1 current anchor). Exact-head CI run **45574340059** is queued; combined status is empty. No tests are claimed to have passed on this head yet.
+
+### Findings patched in the current branch; exact-head CI/re-review still pending
+
+| Finding | Current code/test change | Validation boundary |
+|---|---|---|
+| ATLAS-EXACT-106 | `Number.exact_decimal` now derives the decimal scale from the reduced denominator's powers of 2 and 5 and constructs the result using integer/string arithmetic; regression tests cover positive, negative and >28-significant-digit terminating fractions. | Patch and tests are in the branch; leave PARTIAL/OPEN until run 45574340059 passes the relevant Core jobs and the reviewer rechecks the exact head. |
+| Connector reversible-action undo | `ConnectorHub._spec` requires object-valued `previous` before reporting a reversible action done; missing/malformed state returns `outcome_unknown`. Undo fails if credentials are gone, prior state is invalid or provider compensation is not confirmed. Tests cover missing/malformed state and disconnect-before-undo. | Patch/tests present; exact-head Core CI pending. This does not validate every vendor's compensation semantics or close `.ts.net`/proxy findings. |
+| API 1.1 open object maps | The five maps are explicit `additionalProperties: true` allowlist entries with route-specific authority/no-log descriptions; a new test checks exact map paths, authority descriptions and unlogged semantics. Generated 1.1 schema was regenerated. | Patch/tests/schema generated; exact-head Core contract tests pending. Keep the review finding open until CI passes. |
+| Native Keychain fixture | `test_macos_native.py` now preflights and cleans all `host.KEY_NAMES` items plus `model-record` and the designation anchor. | Patch is in branch; hosted macOS CI pending. It refuses to run if Atlas-named items already exist. |
+| OpenAPI path-count test | Renamed the assertion to say “declared new paths” (32), not “three new paths”. | Name corrected; exact-head Core contract tests pending. |
+
+### Remaining unresolved review threads
+
+- Three sandbox threads remain deliberately open: the macOS profile is allow-by-default and is **not least privilege**, even though hosted tests verify denial of network, writes, private roots, arbitrary program execution and unapproved Mach services. Stage 3 criterion 11/F-11 remains PARTIAL/release-blocking; do not treat the hosted profile as accepted isolation.
+- Four code/test threads are awaiting exact-head CI: ATLAS-EXACT-106, API 1.1 open-object-map boundary, connector reversible-action prior-state/undo behaviour, and full production Keychain test inventory.
+- All other 120 review threads were replied to and resolved only after reconciling their specific findings against current code/tests or correcting the relevant historical/current documentation. A resolved thread is not a Stage acceptance or a release decision.
+
+### Other open implementation/evidence findings remain
+
+ATLAS-CORE-092 (read/revocation race), ATLAS-CORE-083/084 (shutdown and partial-construction cleanup), ATLAS-SEC-014/ATLAS-EGRESS-091/077/078/079 (bounded egress limitations), ATLAS-SEC-016 (browser worker not OS-confined), ATLAS-ACT-019 (Action Gateway execution state not durable across restart), ATLAS-CONN-025 (connector re-check exception path), currency precision/representation, app cancellation/undo UI, accessibility audit reliability, mobile offline/relay/pairing security, and all owner-Mac/final-stage gates remain in the historical defect register and require their own exact-head dispositions. Do not infer closure from the five patches above.
