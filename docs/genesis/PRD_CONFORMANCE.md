@@ -85,3 +85,32 @@
 **PARTIALLY ALIGNED overall; not release-ready.** The implementation provides a substantial local Core, policy, task/evidence, deterministic calculation, API, macOS client and later-stage foundations. It does not yet deliver the complete personal smart intranet/chief-of-staff promise. Governed memory, personal operating context, home energy, sports/statistics, personalised news, investment cockpit, general agentic workflows, complete source ingestion, browser/macOS automation, durable conversation history and production-ready iOS remote access are major gaps. The owner-tryable UX, target hardware, sandbox, recovery and real integrations remain unverified.
 
 Use USE_CASE_CONFORMANCE.md for scenario-level detail and IMPLEMENTATION_CONFORMANCE.md for the audit process, exact evidence and unresolved review findings.
+
+
+## 5A. Detailed control and autonomy requirements (PRD §§4.4–4.7)
+
+| Requirement | Status | Evidence | Gap / boundary |
+|---|---|---|---|
+| Routine read/search/analysis/drafting/computation is prompt-free | PARTIAL | default-deny source grants, read-only query APIs, typed local record actions | Core policy tests cover the rule; owner-visible UI must still be walked through to ensure no incidental prompts. |
+| Reversible low-risk local action follows owner-configured policy | PARTIAL | Action Gateway, record_actions.py, version checks, exact payload, connector catalogue | App has no live proposed-action flow; generic integrations are not connected; action receipts are not durable across restart. |
+| Exhaustive four approval categories only | PARTIAL | closed ActionCategory enum, policy tests, approval payload binding | Need full app walkthrough proving no other path prompts and each category's consequences/terms are visible. |
+| Approval binds exact action/payload/recipient/destination/attachments/amount/terms; material change invalidates | IMPLEMENTED in Core contract/tests | Action Gateway digest, single-use/expiry and changed-payload tests | App does not yet surface a live proposed action; no owner visual acceptance. |
+| Retrieved documents, Mail, web pages or tool output can never act as owner approval | PARTIAL | untrusted evidence model, browser injection tests, policy/action separation | Browser production worker is disabled; no full native app automation path exists. |
+| Observe authorised sources and explain materiality | PARTIAL FOUNDATION | review.py, calendar overlap attention, watchers.py | General watcher scheduler/route, per-source cadence/budget and owner controls are not wired. |
+| Prepare research/analysis/drafts without external side effects | PARTIAL | fixed review workflow and separate research API | Research is gated/off by default and not connected to ordinary answer/prepare flow; no general plan workspace. |
+| Execute reversible work with audit and undo | PARTIAL | record actions, audit chain, connector compensation patch | Connector patch awaits CI/vendor semantics; app undo failure UX patched pending CI; Action Gateway state is not durable across restart. |
+| Consequential action only after current explicit approval | PARTIAL | exact-payload approval core and closed category checks | No real vendor/payment/send integrations; no live UI proposal flow; remote phone blocked. |
+| Proactive delegation is bounded, cancellable and reports partial/failure | PARTIAL FOUNDATION | task state machine, orchestrator, cancellation, progress events | No production scheduler/agent workforce integrated into everyday Ask; app cancel patch pending CI; no complete source cadence/stop-condition UX. |
+| Agent task carries owner/objective/sources/tools/sensitivity/budget/deadline/output/evidence/termination | PARTIAL | orchestrator task contracts and bounded review workflow | General specialist agents are not wired; per-agent resource/deadline enforcement and output verification are not end-to-end proven. |
+
+## 5B. Additional owner constraints and quality requirements (PRD §6.1)
+
+| Requirement | Status | Evidence | Gap / boundary |
+|---|---|---|---|
+| No arbitrary silent word/source/file/retention caps; justified safety bounds fail visibly | PARTIAL | explicit parser/response limits, bounded indexing, coverage/error states, attachment unreadable state | Several bounds are code constants; owner visibility/configurability and full “needs attention” UX across formats/sources are incomplete. Security bounds are allowed, but no silent-complete status may be used. |
+| Exact numbers, dates, units and logic are deterministic | PARTIAL | exact rational parser, Finance calculations, date/time utilities; exact-decimal integer patch pending CI | Currency representation beyond supported two-decimal amounts and broader unit/date semantics remain incomplete; target model is never sole exact validator. |
+| No autonomous self-edit or self-deploy | ALIGNED as a current boundary | no self-modifying/deployment agent path in Core; signed updater is a separate release mechanism | Keep code-writing/release authority outside the personal assistant's task/action catalogue. |
+| Plain-language outcomes; no raw traces in user-facing UI | PARTIAL | closed UX catalogue and content-free Core errors | Some app screens and failure paths still need owner walkthrough and AppModel-level tests. |
+| Preserve source data; disclose partial processing; never silently mark skipped content complete | PARTIAL | coverage model, parser outcomes, Mail attachments_not_searched, non-destructive backup/import | Real source data and every supported format have not been exercised; some derived/index and restore paths remain owner-unverified. |
+| Representative workload: ~26,000 emails and ~1,400 documents; background work must not starve interaction | PARTIAL | synthetic benchmark at 26,000 Mail items, ingestion/overhead harness and bounded scheduler | Not a full owner corpus; target-Mac/model performance, thermal/memory and concurrent interactive workloads remain unmeasured. |
+| Voice quality/latency measured before it becomes a foundation gate | PARTIAL | local dictation and read-aloud modules/tests | No continuous live voice conversation or owner-hardware speech quality/latency evidence. |
