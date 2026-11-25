@@ -35,6 +35,18 @@ def test_arithmetic_is_exact_not_float(expr, dec):
     assert calculate(expr).exact_decimal == dec
 
 
+@pytest.mark.parametrize(
+    ("expr", "expected"),
+    [
+        ("12345678901234567890123456789 / 10", "1234567890123456789012345678.9"),
+        ("-12345678901234567890123456789 / 10", "-1234567890123456789012345678.9"),
+        ("12345678901234567890123456789 / 10000000000000000000000000000", "1.2345678901234567890123456789"),
+    ],
+)
+def test_terminating_decimal_keeps_all_digits_beyond_decimal_context(expr, expected):
+    assert calculate(expr).exact_decimal == expected
+
+
 def test_a_non_terminating_division_is_flagged_never_silently_rounded():
     n = calculate("1 / 3")
     assert n.value == Fraction(1, 3) and n.exact_decimal is None and n.rounded(4) == "0.3333"
