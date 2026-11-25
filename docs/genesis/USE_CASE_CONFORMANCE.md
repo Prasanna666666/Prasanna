@@ -1,6 +1,6 @@
 # Atlas use-case conformance matrix
 
-**Snapshot:** 2026-11-25. **Code/test evidence snapshot:** 67c7ee475db4188b0460a48807a8f0210c78a7d9 (latest implementation/contract/UI-test patch); exact-head CI run 45576209883 is queued; no test pass is claimed yet.
+**Snapshot:** 2026-11-25. **Code/test evidence snapshot:** 293e0ba40f0c56c8ea56d4d1941d1812c26db442 (latest implementation/contract/UI-test/backup patch); exact-head CI run 45576933577 is queued; no test pass is claimed yet.
 
 **Purpose:** reconcile every scenario in USE_CASE_REGISTER.md against implementation evidence and limitations. This is a first-pass, source/document-based matrix, not owner acceptance or proof that every test passed. “Implemented” means the named testable scope exists; “partial” means material requirements remain; “not implemented” means no adequate current implementation path was found; “deferred” means the canonical register explicitly places it later or outside scope.
 
