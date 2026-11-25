@@ -1,7 +1,7 @@
 # Atlas — implementation-to-documentation conformance audit
 
 **Created:** 2026-11-25  
-**Code/evidence baseline:** PR #8, branch `genesis-stage2-foundation`, `83eec5378fff9f26f435492104c4efa2b30d18ca`  
+**Current code/test patch baseline:** PR #8, branch `genesis-stage2-foundation`, `5284191f013ff5f9b29a35ff237d19ead7e51ad3` (latest source/test/contract patch snapshot; exact-head CI pending)  
 **Branch head:** refresh from GitHub before resuming; this document deliberately avoids a self-referential HEAD hash  
 **Purpose:** Establish one evidence-led method for deciding whether the completed implementation matches the canonical product and technical documentation.
 
@@ -263,3 +263,33 @@ These review threads were replied to and resolved after checking the current sou
 - The PR #8 description was corrected to remove the broad claim that private-name/short-phrase egress is fully fixed or that private-data egress is guaranteed. It now distinguishes the specific regression-tested bypass from the remaining 1–3-character, paraphrase, stale-passage, DNS, truncation and malformed-URL findings.
 - Immediately before this note, the live head was `0c8f63118a1c286aa55da270afc30aebc4b20838`; CI run 45567148195 was queued; combined status had no entries. PR #8 remained open/draft/unmerged with 282 changed paths and 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current).
 - The note itself is documentation-only. Refresh the branch head and workflow state before further work. No CI pass is claimed.
+
+
+## 16. Latest code/test and review reconciliation — 2026-11-25
+
+### 16.1 Exact patch snapshot and CI
+
+- Code/test patch snapshot: `5284191f013ff5f9b29a35ff237d19ead7e51ad3`. The later handover/ledger updates are documentation-only; check the live branch head before relying on this SHA.
+- CI run `45574340059` (run 2027) was queued for that exact patch snapshot, with 16 jobs: macos, macos-mlx, app, mac-ui, ios, security, atlas, kit, core 3.11/3.13, images, library 3.11/3.13, web and check 3.11/3.13. No conclusion is claimed while queued.
+- The branch head after the latest handover update is expected to be newer than the code/test snapshot; a completed run on `5284191...` is not automatically evidence for a later docs-only head. Obtain an exact-head run before closure.
+
+### 16.2 Code/test patches added; validation pending
+
+| Finding | Patch present | Regression coverage | Status |
+|---|---|---|---|
+| ATLAS-EXACT-106 | `Number.exact_decimal` uses integer arithmetic based on denominator factors 2 and 5; no ambient Decimal-context division. | Positive, negative and >28-significant-digit terminating-decimal tests. | OPEN/PARTIAL until exact-head Core CI passes. |
+| Reversible connector action compensation | Reversible actions require object-valued `previous`; otherwise `outcome_unknown`. Undo fails on missing credentials, malformed state or unconfirmed provider restoration. | Missing/malformed prior state and disconnect-before-undo. | Patch/test present; exact-head Core CI pending. Does not prove vendor semantics. |
+| API 1.1 arbitrary object maps | Five open maps explicitly marked and described with route-specific authority/no-log semantics; exact allowlist asserted. Generated merged schema regenerated from delta. | New schema-boundary test checks exact map paths, authority and no-log descriptions; existing route tests cover owner/member policy. | Patch/test/schema present; exact-head contract CI pending. |
+| OpenAPI path-count test | Name now says declared additive paths, not three. | Existing 32-path assertion retained. | Name corrected; exact-head contract CI pending. |
+| Native Keychain fixture | Preflight/cleanup derives from `host.KEY_NAMES` plus model-record and designation anchor. | Existing native production-Core/Keychain test now checks full inventory before running and removes only its test inventory. | Patch present; hosted macOS CI pending. |
+
+### 16.3 Review-thread disposition
+
+- 127 total threads: 120 resolved, 7 unresolved (6 outdated anchors, 1 current anchor).
+- Three unresolved sandbox findings remain release-blocking: the macOS profile is allow-by-default and not least privilege. Hosted tests prove selected network/write/private-root/process/Mach denials but do not establish a least-privilege profile or owner-Mac acceptance. Do not close these as fixed or claim local-only security acceptance.
+- Four unresolved code/test threads correspond to the patches in §16.2. They remain open until exact-head CI and independent source/test re-review.
+- The other 120 threads were replied to and resolved after current source/test inspection or specific documentation correction. Thread resolution does not equal Stage acceptance.
+
+### 16.4 Current overall conformance judgement
+
+**Documentation reconciliation:** substantial and active canonical contradictions corrected; not a certification of every historical archive. **Implementation conformance:** still INCOMPLETE. A full row-by-row trace of every PRD requirement, all registered use cases, every integration/screen and all 283 changed paths has not been completed. Stage 3 remains NOT ACCEPTED; Stage 4–8 remains unreviewed/unaccepted. Outstanding findings include ATLAS-CORE-092, ATLAS-CORE-083/084, ATLAS-SEC-016, ATLAS-ACT-019, ATLAS-CONN-025, egress residuals, currency semantics, app cancellation/undo UI, accessibility test reliability, remote-phone defects and owner-Mac/final-stage gates. See `DEFECT_REGISTER.md` and `STAGE3_ACCEPTANCE.md`.
