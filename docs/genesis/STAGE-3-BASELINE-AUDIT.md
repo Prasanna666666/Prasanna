@@ -1,5 +1,7 @@
 # Atlas Stage 3 — Baseline Audit
 
+**Historical snapshot notice (2026-11-20):** This was the pre-Stage-3 repository baseline. Its statements about absent app, Mail, API 1.1, durable grants and model integration describe only audited ref `ea4e48f5665055e988d7a04ebb6f27faca95173b`; they are not current status. Current implementation and acceptance evidence are in `core/docs/STAGE3_ACCEPTANCE.md`, `core/docs/STAGES_4_TO_8.md`, `core/docs/UI_IMPLEMENTATION_MAP.md` and `docs/genesis/IMPLEMENTATION_CONFORMANCE.md`.
+
 **Audit status:** Architect-inspected repository snapshot; not a code review or runtime test  
 **Audited ref:** `ea4e48f5665055e988d7a04ebb6f27faca95173b`  
 **Audit date:** 2026-11-20  
