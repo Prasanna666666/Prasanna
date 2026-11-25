@@ -214,3 +214,38 @@ These findings are bounded to the current documents and evidence records. They a
 - The OpenAPI 1.1 root security default is `SignedRequest`; `/v1/enrol` and `/v1/devices/pair` now explicitly override it with `security: []`, matching their one-time bootstrap/offer-code runtime semantics. CI/schema validation for this spec edit is pending.
 - Final live snapshot at `d877a4ec3ce02244a070eb1dbbdaf021e6988de0`: 282 changed paths; 127 review threads (21 resolved, 106 unresolved; 73 unresolved outdated, 33 unresolved current). Exact-head workflow query returned no run and combined status had no entries.
 - The current technical-document pass has corrected the known contradictions found in the current review threads. This does not mean all 282 changed paths, 33 current unresolved threads, all use cases, or every requirement have been reviewed/closed. Implementation conformance remains IN PROGRESS and NOT COMPLETE.
+## 13. Code/test review reconciliation — 2026-11-25
+
+### 13.1 Review findings verified as addressed in the current source snapshot
+
+| Finding | Current evidence | Result |
+|---|---|---|
+| App-owned Core lifecycle | `AtlasApp.swift` calls `Launcher.shared.stop()` in `applicationWillTerminate`; `CoreLauncher.stop()` terminates, waits, escalates if needed and reaps. `EndToEndTests.swift` covers stop/reap, idempotent start, crash/relaunch, stale socket/PID and a live unidentified listener. | Addressed in code/tests; human owner quit walkthrough remains unverified. |
+| Live socket preservation | `CoreLauncher.reapLeftovers()` probes the socket and refuses startup without unlinking if an unidentified listener still answers. | Addressed in code/tests; corresponding review thread resolved. |
+| EMLX regular-file replacement | `EmlxMailbox._parse()` derives Message-ID from bytes read through the opened descriptor and refuses a changed identity; `test_a_regular_file_replaced_by_a_different_message_after_listing_is_never_returned_under_the_old_identity` covers the regular-file swap. | Addressed in code/tests; real Apple Mail store remains unverified. |
+| Private-name egress fingerprints | `TaintSet` fingerprints non-stopwords of at least four letters and two-word runs from question and passages; `test_egress.py` covers `Alexandra`/`alexandra`, short phrases, URL host/path/query/fragment and encoding variants. | The exact one-word/short-phrase bypass in the review comments is addressed; broader 1–3-character and semantic-paraphrase limits remain. Research stays disabled by default. |
+
+These review threads were replied to and resolved after checking the current source and regression tests. Resolution applies only to the specific finding in each thread; it does not close related broader defects or acceptance gates.
+
+### 13.2 Remaining current code/test findings
+
+| Finding | Classification | Why it remains open |
+|---|---|---|
+| ATLAS-EXACT-106 (`core/src/atlas_core/exact.py`) | P1 / NOT ALIGNED | `Number.exact_decimal` divides `Decimal` values using the default 28-digit context. The parser permits much larger values; a terminating decimal with more than 28 significant digits can be rounded and still labelled exact. No context-independent exact conversion is implemented. |
+| Connector undo (`core/src/atlas_core/connectors.py`) | NOT ALIGNED | Reversible-action undo returns normally when `previous` is missing/invalid or credentials are unavailable; `ActionGateway.undo()` can then record success although no compensation occurred. `CONNECTOR_PROFILE.md` now discloses this. |
+| API free-text schema boundary (`core/tests/test_contracts_v11.py`) | NOT ALIGNED / TEST GAP | `new_string_fields()` only discovers explicit string schemas. Open object maps such as action payload/result, sync operation payload and record fields have no `additionalProperties: false` or value schema, so arbitrary nested strings can pass while the test claims only approved free-text fields exist. |
+| OpenAPI path-count test name (`core/tests/test_contracts_v11.py`) | DOCUMENTATION/TEST DRIFT | The test name says “three new paths” while `NEW_PATHS` contains 32 additive paths (39 total in 1.1 vs 7 in 1.0). The contract documentation now distinguishes the original three WP3.1 paths from the later 1.1 additions, but the test name itself remains misleading. |
+| Native Keychain CI fixture (`core/tests/test_macos_native.py`) | TEST ISOLATION GAP | The real-Keychain production-Core test preflights/deletes only six fixed services plus the anchor, while `host.build_config()` provisions the complete `host.KEY_NAMES` set, including Finance/Health and native-domain indexes. A local run can reuse or leave production-named Keychain items. `MACOS_PROVIDERS.md` now warns to use an isolated throwaway Keychain until fixed. |
+| Stage 3 source/read freshness (`ATLAS-CORE-092`) | P1 / PARTIALLY ALIGNED | Some read surfaces still lack a final grant identity/expiry recheck immediately before response; concurrent revocation can race a read. |
+| Core shutdown/construction (`ATLAS-CORE-083/084`) | P1/P2 / PARTIALLY ALIGNED | `Core.close()` can close SQLite dependencies after a bounded join while a worker remains active; partial construction can leak opened stores. |
+
+### 13.3 Current PR/review/CI checkpoint
+
+- PR #8 head: `533a2460f3f013690a862d029488dc42d9611fb4`; open, draft and unmerged; 282 changed paths.
+- Review threads: 127 total; 44 resolved; 83 unresolved. Of the unresolved, 78 are outdated and 5 are current. The five current threads concern exact arithmetic, API free-text schema coverage, connector undo semantics, the OpenAPI path-count test name, and native Keychain test cleanup. Outdated unresolved threads are not proof that a finding was fixed; they still need reconciliation against the current code.
+- Exact-head CI run 45565642702 was queued; combined status returned no entries. No pass is claimed.
+- No application/Core source or tests were changed during this documentation/conformance pass. The API 1.1 OpenAPI contract and documentation were updated. The code evidence baseline remains `83eec5378fff9f26f435492104c4efa2b30d18ca`.
+
+### 13.4 Completion judgement
+
+**Documentation corrections and current-document review-thread reconciliation: substantially complete. Full document inventory certification: not complete. Implementation conformance: NOT COMPLETE.** The current five review threads are all source/test findings; the 78 unresolved outdated threads still require a final stale-thread disposition. The 282 changed paths and all PRD/use-case requirements have not yet been traced row by row. Do not mark the implementation aligned, Stage 3 accepted, or PR ready to merge.
