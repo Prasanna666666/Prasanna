@@ -10,7 +10,7 @@ What it is: a Swift package with `AtlasKit` (signing, catalogue, Unix-socket HTT
 3. `swift run AtlasApp`. Walk the owner acceptance brief in `core/docs/STAGE3_HANDOVER.md`.
 
 ## Known gaps
-Enrolment of further devices from the app, macOS permission (TCC) prompts, app packaging/signing/notarisation, settings, localisation, accessibility audit beyond the labels set here, and SSE streaming (the app polls task state every 0.3 s).
+No person has completed the owner UI walkthrough; real TCC prompts and Apple Mail-store access remain unverified; signing/notarisation and a self-contained packaged Python runtime/model install remain incomplete; localisation, global search, source-preview/open-in-source, persistent conversation history, and SSE streaming are not implemented (the app polls task state every 0.3 s). The approval sheet is present but no live proposed-action path reaches it. Stop-before-task-ID and failed-Undo handling have source/helper-test fixes in the current branch, pending exact-head CI.
 
 ## Consent and lifecycle (review 6013382016)
 - **Get Started is opt-in.** Every source starts off; "Continue" is always available (with nothing selected it reads "Continue without enabling anything", makes no request to the Core, creates no grant, and is remembered). The logic is `GetStartedChoice`/`GetStartedFlow` in AtlasKit, covered by `GetStartedTests` (no selection, one source, both, and "not shown again after an empty choice").
