@@ -22,7 +22,7 @@ The current backup implementation records:
 - Plain files: `clients.json` (public client keys only) and `actions-audit.jsonl` (content-free action audit chain).
 - Encrypted recovery material: the backup manifest and `keys.enc` wrapping the store keys under the owner recovery passphrase, as described in `ADR_STORAGE_KEYS.md`.
 
-The designation snapshot is not restored as active grants. Restore starts with a fresh designation store/anchor so the owner must explicitly re-enable sources. Tasks may be restored, but their answers remain withheld until current grants cover their sources. Documents, Mail and native indexes are derived and must be rebuilt; model files are installed separately. Device directory, app private identity and connector secrets are not part of the listed database/plain-file inventory.
+The designation snapshot is not restored as active grants. Restore starts with a fresh designation store/anchor so the owner must explicitly re-enable sources. Tasks may be restored, but their answers remain withheld until current grants cover their sources. Documents, Mail and native indexes are derived and must be rebuilt; model files are installed separately. Device directory, app private identity, the separate model-record Keychain item and connector secrets are not part of the listed database/plain-file/key-bundle inventory. The model folder is re-imported from the signed manifest; the model-record key/metadata may need reinitialisation. The designation rollback anchor is also re-created rather than restored as authority.
 
 **Important:** verify the exact current `backup.DB_FILES`, `LIVE_DBS` and `PLAIN_FILES` constants before any recovery. The table above is a documentation snapshot, not a substitute for checking the implementation at the recovery commit.
 
@@ -33,7 +33,7 @@ The designation snapshot is not restored as active grants. Restore starts with a
 3. Verify the backup and recovery passphrase before relying on it. If verification fails, stop; do not guess, partially restore or delete the source backup.
 4. Do not restore designation grants as authority. Re-enrol/re-authorise and re-enable each source deliberately after recovery.
 5. Rebuild derived indexes from the owner's designated sources only after re-establishing OS permissions and grants.
-6. Reinstall the signed app/model independently. Validate app identity and Keychain access; do not assume restoring Core DB files restores the app's private identity or connector credentials.
+6. Reinstall the signed app/model independently. Validate app identity and Keychain access; do not assume restoring Core DB files restores the app's private identity, model-record Keychain item, designation anchor or connector credentials.
 7. Re-pair devices and inspect their offline queues only after the remote-device defects have been fixed and independently reviewed.
 8. Reconcile external side effects manually with the relevant service. A local rollback is not a compensating action.
 
