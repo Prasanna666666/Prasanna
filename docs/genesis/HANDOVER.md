@@ -149,3 +149,9 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - Corrected the shared PR #8 description so it no longer overstates egress as a complete no-private-data guarantee. It now records the exact addressed private-name/short-phrase bypass, residual 1–3-character/paraphrase and stale-passage/DNS/truncation/URL gaps, and that the separate research API is not ordinary answer generation. The Stage 3 app is described as a target, not as already owner-tryable.
 - Immediately before this handover note, the live PR head was `0c8f63118a1c286aa55da270afc30aebc4b20838`; 282 changed paths; PR #8 open/draft/unmerged; 127 review threads (44 resolved, 83 unresolved; 78 outdated unresolved, 5 current unresolved). CI run 45567148195 was queued and combined status had no entries. No pass is claimed.
 - This note is itself a documentation-only follow-on. Refresh the live head and exact-head CI before resuming; do not rely on the snapshot SHA above as the branch's new HEAD.
+
+
+## Branch-wide rollback and recovery note — 2026-11-25
+
+- Added `core/docs/BRANCH_ROLLBACK_AND_RECOVERY.md` and linked it from the Core README, Stage 3 handover and owner acceptance checklist. It explicitly distinguishes source rollback, installed app rollback, Core database restore, Keychain, derived indexes/models, paired-device state and external side effects.
+- This is an inventory/warning document, not an approved disaster-recovery runbook. No complete owner-Mac restore drill, backup policy/destination decision or acceptance has been completed. The historical `core/docs/ROLLBACK.md` must not be used as a current branch-wide rollback procedure.
