@@ -1032,3 +1032,10 @@ ATLAS-CORE-092 (read/revocation race), ATLAS-CORE-083/084 (shutdown and partial-
 - Observed implementation/contract/UI-test/backup-doc head: `293e0ba40f0c56c8ea56d4d1941d1812c26db442`; 285 changed paths; exact-head CI run 45576933577 queued (16 jobs), no result yet.
 - Additional source/test fixes after the earlier checkpoint: app Stop now records pending cancellation until the current task ID is returned; app Undo only clears after explicit Core success and preserves the retry handle/error otherwise; accessibility UI audit removed its unsafe pixel-extrema contrast exemption and waits for a stable Welcome/Home screen. Helper regression tests were added. `backup.py` module docstring now matches the actual five-store, public-client/audit, keys.enc inventory and excluded identity/device/connector state.
 - ATLAS-APP-052/053 and ATLAS-TEST-054/055 remain pending exact-head CI and (for app behaviour) AppModel/owner-level validation. The app cancellation helper is tested but a full AppModel integration test is still desirable. The accessibility audit may now expose real contrast failures instead of masking them; any failures must be triaged, not re-exempted.
+
+
+## Final current snapshot — 2026-11-25
+
+- Source/test snapshot `35d41c800046ca3042991134f66bece7611191cc`; exact CI run `45577911258` queued, 16 jobs, all queued at last inspection. Latest PR head `2d40ecf5bed5efee16761c7b973ad058e70d1dec` is a documentation/instruction-only follow-on. No pass claimed.
+- 285 changed paths; 127 review threads; 120 resolved, 7 unresolved (3 sandbox residuals, 4 code/test patches awaiting CI).
+- Current matrices: PRD_CONFORMANCE.md, USE_CASE_CONFORMANCE.md and IMPLEMENTATION_CONFORMANCE.md. They do not certify every source/test path. Remaining findings listed in the register remain open unless a dated row explicitly says otherwise.
