@@ -60,7 +60,7 @@ The owner explicitly authorised all of Stage 3 on 2026-11-20 (G-027). Work proce
 7. **Evidence is first-class.** Every material personal-data claim links to immutable source identity/version and exact location where available. Conflicts, stale evidence and missing support are explicit.
 8. **No silent truncation or loss.** Resource limits must be explicit and visible. Incomplete extraction/retrieval is marked incomplete, never silently treated as complete.
 9. **Local-only inference.** Apple MLX is the selected runtime direction. No cloud inference or silent remote fallback. A missing local model produces a clear unavailable state.
-10. **Keep the Stage 2 contract stable.** Additive compatible API evolution only. Model identity/routing metadata is a planned minor-version contract addition; do not retrofit or misrepresent the frozen Stage 2 API 1.0.
+10. **Keep the Stage 2 contract stable.** Additive compatible API evolution only. Model identity/routing metadata is implemented in the served additive API 1.1 contract; frozen API 1.0 remains unchanged. Do not retrofit 1.1 fields into 1.0.
 11. **Keep Python Core for this stage.** G-O20 remains open. Do not rewrite before target-Mac MLX and signed/notarised Python-helper evidence plus a separate ADR and owner decision.
 12. **No unapproved migration.** Preserve original source data, keys and historical behaviour. Any migration requires inventory, integrity verification, backup and rollback plan, and owner approval where material.
 
