@@ -10,3 +10,8 @@ What is here, and only this:
 What is NOT here (by design): no change to any existing package, database, key or UI; no ingestion, search or Mail reading; no real model; no Swift/SwiftUI (not verifiable without a Mac); no remote or iOS access; no actions.
 
 Run: `cd core && pip install -e ../kit[secure] -e .[dev] && ruff check . && ruff format --check . && mypy src && pytest -q`
+
+
+## Recovery and rollback
+
+The current branch-wide rollback and recovery boundaries are documented in `docs/BRANCH_ROLLBACK_AND_RECOVERY.md`. The older `docs/ROLLBACK.md` is a historical Stage 2 package note, not a current recovery procedure.
