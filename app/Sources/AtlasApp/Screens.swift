@@ -276,11 +276,16 @@ struct RecordsView: View {
                     Button { adding = true } label: { Label("Add", systemImage: "plus") }.keyboardShortcut("n", modifiers: .command)
                 }
                 if let label = model.undoLabel {
-                    HStack {
-                        Label(label, systemImage: "checkmark.circle").foregroundStyle(theme.textSecondary)
-                        Spacer()
-                        Button("Undo") { Task { await model.undoLast(domain: domain) } }
-                        Button("Dismiss") { model.dismissUndo() }
+                    VStack(alignment: .leading, spacing: Space.xs) {
+                        HStack {
+                            Label(label, systemImage: "checkmark.circle").foregroundStyle(theme.textSecondary)
+                            Spacer()
+                            Button("Undo") { Task { await model.undoLast(domain: domain) } }
+                            Button("Dismiss") { model.dismissUndo() }
+                        }
+                        if let message = model.undoFailure {
+                            Text(message).font(TextStyle.secondary).foregroundStyle(theme.textSecondary)
+                        }
                     }.padding(Space.md).background(theme.surface, in: RoundedRectangle(cornerRadius: Radius.medium))
                 }
                 switch state {
