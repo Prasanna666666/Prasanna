@@ -465,6 +465,7 @@ final class AppModel: ObservableObject {
             guard (outcome["status"] as? String) == "done" else { failure = "Atlas could not add that."; return false }
             undoActionID = outcome["action_id"] as? String
             undoLabel = "Added “\(draft.title)”."
+            undoFailure = nil
             await loadRecords(draft.domain)
             await loadAttention()
             return true
@@ -479,6 +480,7 @@ final class AppModel: ObservableObject {
             guard (outcome["status"] as? String) == "done" else { failure = "Atlas could not remove that."; return }
             undoActionID = outcome["action_id"] as? String
             undoLabel = "Removed “\(record.title)”."
+            undoFailure = nil
             await loadRecords(domain)
             await loadAttention()
         } catch { failure = (error as? AtlasError)?.message }
