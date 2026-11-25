@@ -4,6 +4,117 @@
   "title": "Atlas Core contracts, version 1.0",
   "description": "Source of truth for the types the Atlas Core and its clients exchange. Language-neutral; every client and the Python reference implementation validate against this file. Free text of the owner (questions, passages, file names, subjects, addresses) appears only in TaskRequest.objective, TaskRecord.objective, StreamEvent.delta, Passage.text and AnswerEnvelope.answer; none of it ever appears in SafeEvent.",
   "$defs": {
+    "ActionOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "done",
+            "needs_approval",
+            "refused",
+            "failed"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z_0-9]{0,40}$"
+        },
+        "action_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Provider-returned action result content. This field is returned only to the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approval_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "category": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exact_payload": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "The exact owner-supplied payload shown for approval. This field is returned only to the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "What happened to a proposed action, with a code and never the text of an error."
+    },
+    "ActionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "payload",
+        "idempotency_key"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Owner-supplied action content. This field is accepted only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "Propose one typed action as the owner. It runs at once if it needs no approval (everything outside PRD 4.4's four categories), otherwise it answers `needs_approval` with the exact payload and an approval id; the owner approves that id and proposes the SAME action and payload again with it. Owner client only."
+    },
     "AnswerEnvelope": {
       "type": "object",
       "additionalProperties": false,
@@ -489,6 +600,84 @@
         }
       }
     },
+    "ApprovalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_id"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "The owner approves one pending approval id. Single-use, bound to the exact payload it was asked for, expires. Owner client only."
+    },
+    "ApprovalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "granted"
+      ],
+      "properties": {
+        "granted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AttentionList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "record_id",
+              "title",
+              "priority",
+              "key"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "calendar_conflict"
+                ]
+              },
+              "record_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,120}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,200}$"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "urgent"
+                ]
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,300}$"
+              }
+            }
+          }
+        }
+      },
+      "description": "What needs the owner's attention, computed by code from the owner's own records (today: overlapping calendar events). Owner client only; a push to another device carries only a kind and an id."
+    },
     "Budget": {
       "type": "object",
       "additionalProperties": false,
@@ -603,6 +792,183 @@
         }
       },
       "description": "The result. `exact` is true when `value` is a finite decimal, an integer, a date or a weekday; false when it is a fraction (numerator/denominator) with no finite decimal form, in which case `approximate` is a labelled rounded decimal. `value` is a decimal, a fraction (numerator/denominator), an ISO date, an integer or a weekday name."
+    },
+    "ConnectRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string",
+              "pattern": "^https?://[^\\u0000-\\u0020]{1,300}$"
+            },
+            "token": {
+              "type": "string",
+              "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+            }
+          },
+          "required": [
+            "address",
+            "token"
+          ]
+        }
+      },
+      "description": "The owner connects an integration with the address of the service and an access token. The token is stored in the secret store and is never returned, logged or audited."
+    },
+    "ConnectorList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectors"
+      ],
+      "properties": {
+        "connectors": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ConnectorState"
+          }
+        }
+      },
+      "description": "Every integration Atlas knows, connected or not. Owner client only."
+    },
+    "ConnectorState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "category",
+        "summary",
+        "state",
+        "problem",
+        "read_scopes",
+        "writes",
+        "offline",
+        "retention",
+        "failure",
+        "fields"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,30}$"
+        },
+        "title": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,80}$"
+        },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,30}$"
+        },
+        "summary": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,400}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "not_connected",
+            "connected",
+            "needs_attention"
+          ]
+        },
+        "problem": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "unauthorised",
+                "unreachable",
+                "unverified"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read_scopes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{3,40}$"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "title",
+              "approval"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z_]{3,40}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,120}$"
+              },
+              "approval": {
+                "type": "string",
+                "enum": [
+                  "never",
+                  "always"
+                ],
+                "description": "`always`: the owner approves each one (the closed list in PRD 4.4). `never`: prompt-free and undoable."
+              }
+            }
+          }
+        },
+        "offline": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "retention": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "failure": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "secret"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z_]{3,30}$"
+              },
+              "secret": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "description": "One connector as the owner sees it: what it can read, what it can change and whether each change asks the owner, how it behaves offline, what is kept and how a failure is reported. Credentials are never part of it."
     },
     "ConsentRequest": {
       "type": "object",
@@ -818,6 +1184,77 @@
         }
       ]
     },
+    "DeviceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "devices"
+      ],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device_id",
+              "label",
+              "paired_at",
+              "revoked_at"
+            ],
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "label": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,60}$"
+              },
+              "paired_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revoked_at": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "DeviceOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "core_fingerprint",
+        "expires_at"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "core_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "A pairing offer: a single-use code that lives five minutes, and the fingerprint of the Core's identity key for the device to pin. Opened by an owner client; the code is shown once (for example as a QR code on the Mac) and never stored."
+    },
     "EnrolRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -979,6 +1416,274 @@
         }
       }
     },
+    "FinanceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "currency",
+        "transaction_count",
+        "months",
+        "latest",
+        "computed_by_code"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "empty",
+            "denied"
+          ]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "transaction_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "month",
+              "total"
+            ],
+            "properties": {
+              "month": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}$"
+              },
+              "total": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+              }
+            }
+          }
+        },
+        "latest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "month",
+                "total",
+                "categories",
+                "previous_total",
+                "delta",
+                "percent"
+              ],
+              "properties": {
+                "month": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}$"
+                },
+                "total": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                },
+                "categories": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "category",
+                      "total"
+                    ],
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+                      },
+                      "total": {
+                        "type": "string",
+                        "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                      }
+                    }
+                  }
+                },
+                "previous_total": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "delta": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "percent": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,7}\\.[0-9]$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The change against the previous month as a percentage rounded half-up to one place. It is rounded, not exact, and absent when there is no previous month or it was zero."
+                }
+              }
+            }
+          ]
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "Spending by month and category, computed by code from the owner's Finance records (never by a model), each total the exact sum of the transactions it names. Served only under a current grant for exactly the Finance domain; otherwise `denied`. Owner client only."
+    },
+    "HealthSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reading_count",
+        "measures",
+        "computed_by_code"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "empty",
+            "denied"
+          ]
+        },
+        "reading_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "measures": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "measure",
+              "unit",
+              "count",
+              "latest",
+              "minimum",
+              "maximum",
+              "average",
+              "average_is_rounded",
+              "bases"
+            ],
+            "properties": {
+              "measure": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+              },
+              "unit": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,30}$"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "latest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date",
+                  "value",
+                  "basis"
+                ],
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                  },
+                  "value": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+                  },
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "estimated",
+                      "unlabelled"
+                    ]
+                  }
+                }
+              },
+              "minimum": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+              },
+              "maximum": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+              },
+              "average": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$",
+                "description": "The mean rounded half-up to two places. It is rounded, not exact."
+              },
+              "average_is_rounded": {
+                "type": "boolean"
+              },
+              "bases": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "measured",
+                  "estimated",
+                  "unlabelled"
+                ],
+                "properties": {
+                  "measured": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "estimated": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "unlabelled": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "Health readings summarised by code from the owner's Health records (never by a model): per measure and unit the exact latest, minimum and maximum, a rounded average, and how many readings were measured, estimated or unlabelled. Served only under a current grant for exactly the Health domain; otherwise `denied`. Owner client only. It gives no medical advice."
+    },
     "IndexStatus": {
       "type": "object",
       "additionalProperties": false,
@@ -1086,6 +1791,119 @@
           "description": "measured: a documented measurement exists for this language. unmeasured: none yet (the default; nothing is claimed). unsupported: a reader, OCR or model path is known not to work, or confidence is inadequate."
         }
       }
+    },
+    "LibraryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "results",
+        "coverage"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "results",
+            "no_results",
+            "denied",
+            "partial",
+            "partial_no_results"
+          ]
+        },
+        "results": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_id",
+              "source_type",
+              "title",
+              "excerpt",
+              "locator_kind"
+            ],
+            "properties": {
+              "source_id": {
+                "$ref": "#/$defs/Opaque"
+              },
+              "source_type": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,32}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,120}$"
+              },
+              "excerpt": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,300}$"
+              },
+              "locator_kind": {
+                "type": "string",
+                "pattern": "^[a-z_]{1,32}$"
+              }
+            }
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_type",
+              "total",
+              "searched",
+              "complete"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,32}$"
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "searched": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "description": "What a Library search found, and how much of each source has been read so far: an incomplete index is never presented as a complete search."
+    },
+    "LibrarySearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "scope"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,200}$"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{2,32}$"
+          }
+        }
+      },
+      "description": "Search what the owner has enabled, through the same policy and retrieval path a question uses. Nothing outside a current grant is searched."
     },
     "Limitation": {
       "type": "string",
@@ -1307,6 +2125,59 @@
       "pattern": "^[A-Za-z0-9_-]{8,64}$",
       "description": "An identifier that carries no content of the owner."
     },
+    "PairRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "device_id",
+        "label",
+        "public_key",
+        "nonce"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "device_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "description": "A device presents the code and its public key (unsigned: it is not enrolled yet). Every refusal is the same code, so a guess learns nothing."
+    },
+    "PairResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "core_public_key",
+        "proof"
+      ],
+      "properties": {
+        "core_public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "proof": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        }
+      },
+      "description": "The Core's public key and its signature over the device's key and nonce, for the device to check against the pinned fingerprint."
+    },
     "PassageRef": {
       "type": "object",
       "additionalProperties": false,
@@ -1415,6 +2286,265 @@
           "items": {
             "$ref": "#/$defs/Opaque"
           }
+        }
+      }
+    },
+    "RecordList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "records"
+      ],
+      "properties": {
+        "records": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "date",
+              "version",
+              "fields"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,120}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,500}$"
+              },
+              "date": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The owner's structured record content. This field is returned only to the owner or an enrolled paired member client for the fixed readable domains; it is treated as untrusted data and never written to logs or audit records."
+              }
+            }
+          }
+        }
+      },
+      "description": "The owner's own records of one domain (Calendar, Contacts or Notes), newest first, with the version each edit must name. Owner client only."
+    },
+    "ResearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "query"
+      ],
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "query": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,256}$"
+        }
+      },
+      "description": "A public web search made on behalf of one task. Served only when the Core's explicit live-network gate is on (off by default); refused when the query repeats anything private from the task's context (its question and retrieved passages) or when the task's context holds Finance or Health data. The query is never logged."
+    },
+    "ResearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "domain",
+        "retrieved_at",
+        "content_hash",
+        "text",
+        "truncated",
+        "injection_flags",
+        "trust",
+        "authority"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://[^\\s\\u0000-\\u001f]{1,2040}$"
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]{1,255}$"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 200000
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "injection_flags": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "enum": [
+              "instruction_like_text"
+            ]
+          }
+        },
+        "trust": {
+          "type": "string",
+          "enum": [
+            "untrusted"
+          ]
+        },
+        "authority": {
+          "type": "string",
+          "enum": [
+            "none"
+          ]
+        }
+      },
+      "description": "Public web content returned as UNTRUSTED DATA with its provenance. It carries no authority: it cannot add a tool, a source, a grant or an action, it is not evidence for a citation, and instruction-like text in it is flagged, never obeyed."
+    },
+    "ReviewResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "tasks",
+        "sections",
+        "computed_by_code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "partially_completed",
+            "failed",
+            "cancelled",
+            "expired"
+          ]
+        },
+        "tasks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "task",
+              "state"
+            ],
+            "properties": {
+              "task": {
+                "type": "string",
+                "enum": [
+                  "calendar",
+                  "finance",
+                  "health",
+                  "highlights",
+                  "compose"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "expired",
+                  "skipped"
+                ]
+              }
+            }
+          }
+        },
+        "sections": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "area",
+              "state",
+              "summary"
+            ],
+            "properties": {
+              "area": {
+                "type": "string",
+                "enum": [
+                  "calendar",
+                  "finance",
+                  "health",
+                  "highlights"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "empty",
+                  "denied",
+                  "unavailable"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,400}$"
+              },
+              "task_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$",
+                "description": "For the highlights section: the task whose verified, cited answer is fetched like any other answer."
+              }
+            }
+          }
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "The owner's review: the orchestrator run over fixed code agents (not models) for the calendar, Finance and Health. Each section answers only under its own grant and says when it is off, empty or not offered; every figure is the one the Core computed by code. Owner client only."
+    },
+    "RevokeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_id"
+      ],
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "description": "The owner revokes a device: immediate, durable and total. The last owner client cannot be revoked."
+    },
+    "RevokeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revoked"
+      ],
+      "properties": {
+        "revoked": {
+          "type": "boolean"
         }
       }
     },
@@ -1692,6 +2822,96 @@
         }
       }
     },
+    "SyncRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ops"
+      ],
+      "properties": {
+        "ops": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "name",
+              "payload"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Authenticated client-supplied sync operation content. It is accepted only for the enrolled client whose signed identity is bound to the request; the Core applies the operation allowlist and domain policy, and never writes the content to logs or audit records."
+              }
+            }
+          }
+        }
+      },
+      "description": "A device's offline queue, in order. Each operation is applied once; a stale version is a conflict that never overwrites; the device is the authenticated client."
+    },
+    "SyncResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "status",
+              "code",
+              "current_version"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "duplicate",
+                  "conflict",
+                  "rejected"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z_0-9]{0,40}$"
+              },
+              "current_version": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "TaskRecord": {
       "type": "object",
       "additionalProperties": false,
@@ -1831,6 +3051,101 @@
       "type": "string",
       "format": "date-time"
     },
+    "UndoRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "Undo one completed reversible action. Owner client only."
+    },
+    "UpdateInstallRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "folder"
+      ],
+      "properties": {
+        "folder": {
+          "type": "string",
+          "pattern": "^/[^\\u0000-\\u001f]{1,1000}$"
+        }
+      },
+      "description": "The folder the owner chose; it must hold manifest.json, manifest.sig and artefact.zip. Nothing else is read."
+    },
+    "UpdateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "restart_needed"
+      ],
+      "properties": {
+        "installed": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restart_needed": {
+          "type": "boolean"
+        },
+        "refused": {
+          "type": "string",
+          "enum": [
+            "bad_version",
+            "bad_signature",
+            "bad_manifest",
+            "bad_artefact",
+            "unsafe_artefact",
+            "artefact_does_not_match_manifest",
+            "not_newer",
+            "version_already_on_disk",
+            "unhealthy_rolled_back",
+            "unhealthy_first_install",
+            "nothing_to_roll_back_to",
+            "bad_release_folder"
+          ]
+        }
+      },
+      "description": "The outcome of installing a signed release or rolling back. A refusal carries its reason and changes nothing; the owner's data is never touched."
+    },
+    "UpdateStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "can_roll_back"
+      ],
+      "properties": {
+        "installed": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "can_roll_back": {
+          "type": "boolean"
+        }
+      },
+      "description": "The installed app version (null when no managed install is current) and whether the previous version is still on disk. Owner client only; present only when the Core manages its own install."
+    },
     "UserSafeError": {
       "type": "object",
       "additionalProperties": false,
@@ -1897,1310 +3212,19 @@
         }
       }
     },
-    "ResearchRequest": {
+    "WebHostRequest": {
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "task_id",
-        "query"
+        "host"
       ],
       "properties": {
-        "task_id": {
-          "$ref": "#/$defs/Opaque"
-        },
-        "query": {
+        "host": {
           "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,256}$"
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
         }
       },
-      "description": "A public web search made on behalf of one task. Served only when the Core's explicit live-network gate is on (off by default); refused when the query repeats anything private from the task's context (its question and retrieved passages) or when the task's context holds Finance or Health data. The query is never logged."
-    },
-    "ResearchResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "url",
-        "domain",
-        "retrieved_at",
-        "content_hash",
-        "text",
-        "truncated",
-        "injection_flags",
-        "trust",
-        "authority"
-      ],
-      "properties": {
-        "url": {
-          "type": "string",
-          "pattern": "^https://[^\\s\\u0000-\\u001f]{1,2040}$"
-        },
-        "domain": {
-          "type": "string",
-          "pattern": "^[a-z0-9.-]{1,255}$"
-        },
-        "retrieved_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "content_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "text": {
-          "type": "string",
-          "maxLength": 200000
-        },
-        "truncated": {
-          "type": "boolean"
-        },
-        "injection_flags": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "type": "string",
-            "enum": [
-              "instruction_like_text"
-            ]
-          }
-        },
-        "trust": {
-          "type": "string",
-          "enum": [
-            "untrusted"
-          ]
-        },
-        "authority": {
-          "type": "string",
-          "enum": [
-            "none"
-          ]
-        }
-      },
-      "description": "Public web content returned as UNTRUSTED DATA with its provenance. It carries no authority: it cannot add a tool, a source, a grant or an action, it is not evidence for a citation, and instruction-like text in it is flagged, never obeyed."
-    },
-    "ActionRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "action",
-        "payload",
-        "idempotency_key"
-      ],
-      "properties": {
-        "action": {
-          "type": "string",
-          "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
-        },
-        "payload": {
-          "type": "object"
-        },
-        "idempotency_key": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{8,64}$"
-        },
-        "approval_id": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{16}$"
-        }
-      },
-      "description": "Propose one typed action as the owner. It runs at once if it needs no approval (everything outside PRD 4.4's four categories), otherwise it answers `needs_approval` with the exact payload and an approval id; the owner approves that id and proposes the SAME action and payload again with it. Owner client only."
-    },
-    "ActionOutcome": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status",
-        "code"
-      ],
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": [
-            "done",
-            "needs_approval",
-            "refused",
-            "failed"
-          ]
-        },
-        "code": {
-          "type": "string",
-          "pattern": "^[a-z_0-9]{0,40}$"
-        },
-        "action_id": {
-          "oneOf": [
-            {
-              "type": "string",
-              "pattern": "^[0-9a-f]{16}$"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "result": {
-          "oneOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "approval_id": {
-          "oneOf": [
-            {
-              "type": "string",
-              "pattern": "^[0-9a-f]{16}$"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "category": {
-          "oneOf": [
-            {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 4
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "exact_payload": {
-          "oneOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "description": "What happened to a proposed action, with a code and never the text of an error."
-    },
-    "ApprovalRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "approval_id"
-      ],
-      "properties": {
-        "approval_id": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{16}$"
-        }
-      },
-      "description": "The owner approves one pending approval id. Single-use, bound to the exact payload it was asked for, expires. Owner client only."
-    },
-    "ApprovalResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "granted"
-      ],
-      "properties": {
-        "granted": {
-          "type": "boolean"
-        }
-      }
-    },
-    "UndoRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "action_id"
-      ],
-      "properties": {
-        "action_id": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{16}$"
-        }
-      },
-      "description": "Undo one completed reversible action. Owner client only."
-    },
-    "SyncRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "ops"
-      ],
-      "properties": {
-        "ops": {
-          "type": "array",
-          "maxItems": 500,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "op_id",
-              "name",
-              "payload"
-            ],
-            "properties": {
-              "op_id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]{8,64}$"
-              },
-              "name": {
-                "type": "string",
-                "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
-              },
-              "payload": {
-                "type": "object"
-              }
-            }
-          }
-        }
-      },
-      "description": "A device's offline queue, in order. Each operation is applied once; a stale version is a conflict that never overwrites; the device is the authenticated client."
-    },
-    "SyncResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "results"
-      ],
-      "properties": {
-        "results": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "op_id",
-              "status",
-              "code",
-              "current_version"
-            ],
-            "properties": {
-              "op_id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]{8,64}$"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "applied",
-                  "duplicate",
-                  "conflict",
-                  "rejected"
-                ]
-              },
-              "code": {
-                "type": "string",
-                "pattern": "^[a-z_0-9]{0,40}$"
-              },
-              "current_version": {
-                "oneOf": [
-                  {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "DeviceOffer": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "code",
-        "core_fingerprint",
-        "expires_at"
-      ],
-      "properties": {
-        "code": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{8,64}$"
-        },
-        "core_fingerprint": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
-        "expires_at": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "description": "A pairing offer: a single-use code that lives five minutes, and the fingerprint of the Core's identity key for the device to pin. Opened by an owner client; the code is shown once (for example as a QR code on the Mac) and never stored."
-    },
-    "PairRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "code",
-        "device_id",
-        "label",
-        "public_key",
-        "nonce"
-      ],
-      "properties": {
-        "code": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{8,64}$"
-        },
-        "device_id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{8,64}$"
-        },
-        "label": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,60}$"
-        },
-        "public_key": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9+/]{43}=$"
-        },
-        "nonce": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{8,64}$"
-        }
-      },
-      "description": "A device presents the code and its public key (unsigned: it is not enrolled yet). Every refusal is the same code, so a guess learns nothing."
-    },
-    "PairResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "core_public_key",
-        "proof"
-      ],
-      "properties": {
-        "core_public_key": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9+/]{43}=$"
-        },
-        "proof": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9+/]{86}==$"
-        }
-      },
-      "description": "The Core's public key and its signature over the device's key and nonce, for the device to check against the pinned fingerprint."
-    },
-    "DeviceList": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "devices"
-      ],
-      "properties": {
-        "devices": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "device_id",
-              "label",
-              "paired_at",
-              "revoked_at"
-            ],
-            "properties": {
-              "device_id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]{8,64}$"
-              },
-              "label": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{0,60}$"
-              },
-              "paired_at": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "revoked_at": {
-                "oneOf": [
-                  {
-                    "type": "string",
-                    "format": "date-time"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "RevokeRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "device_id"
-      ],
-      "properties": {
-        "device_id": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9_-]{8,64}$"
-        }
-      },
-      "description": "The owner revokes a device: immediate, durable and total. The last owner client cannot be revoked."
-    },
-    "RevokeResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "revoked"
-      ],
-      "properties": {
-        "revoked": {
-          "type": "boolean"
-        }
-      }
-    },
-    "LibrarySearchRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "query",
-        "scope"
-      ],
-      "properties": {
-        "query": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,200}$"
-        },
-        "scope": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 12,
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z_]{2,32}$"
-          }
-        }
-      },
-      "description": "Search what the owner has enabled, through the same policy and retrieval path a question uses. Nothing outside a current grant is searched."
-    },
-    "LibraryResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "state",
-        "results",
-        "coverage"
-      ],
-      "properties": {
-        "state": {
-          "type": "string",
-          "enum": [
-            "results",
-            "no_results",
-            "denied",
-            "partial",
-            "partial_no_results"
-          ]
-        },
-        "results": {
-          "type": "array",
-          "maxItems": 20,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "source_id",
-              "source_type",
-              "title",
-              "excerpt",
-              "locator_kind"
-            ],
-            "properties": {
-              "source_id": {
-                "$ref": "#/$defs/Opaque"
-              },
-              "source_type": {
-                "type": "string",
-                "pattern": "^[a-z_]{2,32}$"
-              },
-              "title": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{0,120}$"
-              },
-              "excerpt": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{0,300}$"
-              },
-              "locator_kind": {
-                "type": "string",
-                "pattern": "^[a-z_]{1,32}$"
-              }
-            }
-          }
-        },
-        "coverage": {
-          "type": "array",
-          "maxItems": 12,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "source_type",
-              "total",
-              "searched",
-              "complete"
-            ],
-            "properties": {
-              "source_type": {
-                "type": "string",
-                "pattern": "^[a-z_]{2,32}$"
-              },
-              "total": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "searched": {
-                "type": "integer",
-                "minimum": 0
-              },
-              "complete": {
-                "type": "boolean"
-              }
-            }
-          }
-        }
-      },
-      "description": "What a Library search found, and how much of each source has been read so far: an incomplete index is never presented as a complete search."
-    },
-    "AttentionList": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "items"
-      ],
-      "properties": {
-        "items": {
-          "type": "array",
-          "maxItems": 50,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "kind",
-              "record_id",
-              "title",
-              "priority",
-              "key"
-            ],
-            "properties": {
-              "kind": {
-                "type": "string",
-                "enum": [
-                  "calendar_conflict"
-                ]
-              },
-              "record_id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9._-]{1,120}$"
-              },
-              "title": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{0,200}$"
-              },
-              "priority": {
-                "type": "string",
-                "enum": [
-                  "normal",
-                  "urgent"
-                ]
-              },
-              "key": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9._:-]{1,300}$"
-              }
-            }
-          }
-        }
-      },
-      "description": "What needs the owner's attention, computed by code from the owner's own records (today: overlapping calendar events). Owner client only; a push to another device carries only a kind and an id."
-    },
-    "RecordList": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "records"
-      ],
-      "properties": {
-        "records": {
-          "type": "array",
-          "maxItems": 500,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "id",
-              "title",
-              "date",
-              "version",
-              "fields"
-            ],
-            "properties": {
-              "id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9._-]{1,120}$"
-              },
-              "title": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{0,500}$"
-              },
-              "date": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{1,64}$"
-              },
-              "version": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "fields": {
-                "type": "object"
-              }
-            }
-          }
-        }
-      },
-      "description": "The owner's own records of one domain (Calendar, Contacts or Notes), newest first, with the version each edit must name. Owner client only."
-    },
-    "FinanceSummary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "state",
-        "currency",
-        "transaction_count",
-        "months",
-        "latest",
-        "computed_by_code"
-      ],
-      "properties": {
-        "state": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "empty",
-            "denied"
-          ]
-        },
-        "currency": {
-          "type": "string",
-          "pattern": "^[A-Z]{3}$"
-        },
-        "transaction_count": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "months": {
-          "type": "array",
-          "maxItems": 12,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "month",
-              "total"
-            ],
-            "properties": {
-              "month": {
-                "type": "string",
-                "pattern": "^[0-9]{4}-[0-9]{2}$"
-              },
-              "total": {
-                "type": "string",
-                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
-              }
-            }
-          }
-        },
-        "latest": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "month",
-                "total",
-                "categories",
-                "previous_total",
-                "delta",
-                "percent"
-              ],
-              "properties": {
-                "month": {
-                  "type": "string",
-                  "pattern": "^[0-9]{4}-[0-9]{2}$"
-                },
-                "total": {
-                  "type": "string",
-                  "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
-                },
-                "categories": {
-                  "type": "array",
-                  "maxItems": 50,
-                  "items": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "category",
-                      "total"
-                    ],
-                    "properties": {
-                      "category": {
-                        "type": "string",
-                        "pattern": "^[^\\u0000-\\u001f]{1,60}$"
-                      },
-                      "total": {
-                        "type": "string",
-                        "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
-                      }
-                    }
-                  }
-                },
-                "previous_total": {
-                  "oneOf": [
-                    {
-                      "type": "string",
-                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "delta": {
-                  "oneOf": [
-                    {
-                      "type": "string",
-                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "percent": {
-                  "oneOf": [
-                    {
-                      "type": "string",
-                      "pattern": "^-?[0-9]{1,7}\\.[0-9]$"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "The change against the previous month as a percentage rounded half-up to one place. It is rounded, not exact, and absent when there is no previous month or it was zero."
-                }
-              }
-            }
-          ]
-        },
-        "computed_by_code": {
-          "type": "boolean"
-        }
-      },
-      "description": "Spending by month and category, computed by code from the owner's Finance records (never by a model), each total the exact sum of the transactions it names. Served only under a current grant for exactly the Finance domain; otherwise `denied`. Owner client only."
-    },
-    "HealthSummary": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "state",
-        "reading_count",
-        "measures",
-        "computed_by_code"
-      ],
-      "properties": {
-        "state": {
-          "type": "string",
-          "enum": [
-            "ready",
-            "empty",
-            "denied"
-          ]
-        },
-        "reading_count": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "measures": {
-          "type": "array",
-          "maxItems": 50,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "measure",
-              "unit",
-              "count",
-              "latest",
-              "minimum",
-              "maximum",
-              "average",
-              "average_is_rounded",
-              "bases"
-            ],
-            "properties": {
-              "measure": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{1,60}$"
-              },
-              "unit": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{1,30}$"
-              },
-              "count": {
-                "type": "integer",
-                "minimum": 1
-              },
-              "latest": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "date",
-                  "value",
-                  "basis"
-                ],
-                "properties": {
-                  "date": {
-                    "type": "string",
-                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-                  },
-                  "value": {
-                    "type": "string",
-                    "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
-                  },
-                  "basis": {
-                    "type": "string",
-                    "enum": [
-                      "measured",
-                      "estimated",
-                      "unlabelled"
-                    ]
-                  }
-                }
-              },
-              "minimum": {
-                "type": "string",
-                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
-              },
-              "maximum": {
-                "type": "string",
-                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
-              },
-              "average": {
-                "type": "string",
-                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$",
-                "description": "The mean rounded half-up to two places. It is rounded, not exact."
-              },
-              "average_is_rounded": {
-                "type": "boolean"
-              },
-              "bases": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "measured",
-                  "estimated",
-                  "unlabelled"
-                ],
-                "properties": {
-                  "measured": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "estimated": {
-                    "type": "integer",
-                    "minimum": 0
-                  },
-                  "unlabelled": {
-                    "type": "integer",
-                    "minimum": 0
-                  }
-                }
-              }
-            }
-          }
-        },
-        "computed_by_code": {
-          "type": "boolean"
-        }
-      },
-      "description": "Health readings summarised by code from the owner's Health records (never by a model): per measure and unit the exact latest, minimum and maximum, a rounded average, and how many readings were measured, estimated or unlabelled. Served only under a current grant for exactly the Health domain; otherwise `denied`. Owner client only. It gives no medical advice."
-    },
-    "UpdateStatus": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "installed",
-        "can_roll_back"
-      ],
-      "properties": {
-        "installed": {
-          "oneOf": [
-            {
-              "type": "string",
-              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "can_roll_back": {
-          "type": "boolean"
-        }
-      },
-      "description": "The installed app version (null when no managed install is current) and whether the previous version is still on disk. Owner client only; present only when the Core manages its own install."
-    },
-    "UpdateInstallRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "folder"
-      ],
-      "properties": {
-        "folder": {
-          "type": "string",
-          "pattern": "^/[^\\u0000-\\u001f]{1,1000}$"
-        }
-      },
-      "description": "The folder the owner chose; it must hold manifest.json, manifest.sig and artefact.zip. Nothing else is read."
-    },
-    "UpdateResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "installed",
-        "restart_needed"
-      ],
-      "properties": {
-        "installed": {
-          "oneOf": [
-            {
-              "type": "string",
-              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "restart_needed": {
-          "type": "boolean"
-        },
-        "refused": {
-          "type": "string",
-          "enum": [
-            "bad_version",
-            "bad_signature",
-            "bad_manifest",
-            "bad_artefact",
-            "unsafe_artefact",
-            "artefact_does_not_match_manifest",
-            "not_newer",
-            "version_already_on_disk",
-            "unhealthy_rolled_back",
-            "unhealthy_first_install",
-            "nothing_to_roll_back_to",
-            "bad_release_folder"
-          ]
-        }
-      },
-      "description": "The outcome of installing a signed release or rolling back. A refusal carries its reason and changes nothing; the owner's data is never touched."
-    },
-    "ReviewResult": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "status",
-        "tasks",
-        "sections",
-        "computed_by_code"
-      ],
-      "properties": {
-        "status": {
-          "type": "string",
-          "enum": [
-            "completed",
-            "partially_completed",
-            "failed",
-            "cancelled",
-            "expired"
-          ]
-        },
-        "tasks": {
-          "type": "array",
-          "maxItems": 8,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "task",
-              "state"
-            ],
-            "properties": {
-              "task": {
-                "type": "string",
-                "enum": [
-                  "calendar",
-                  "finance",
-                  "health",
-                  "highlights",
-                  "compose"
-                ]
-              },
-              "state": {
-                "type": "string",
-                "enum": [
-                  "queued",
-                  "running",
-                  "completed",
-                  "failed",
-                  "cancelled",
-                  "expired",
-                  "skipped"
-                ]
-              }
-            }
-          }
-        },
-        "sections": {
-          "type": "array",
-          "maxItems": 4,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "area",
-              "state",
-              "summary"
-            ],
-            "properties": {
-              "area": {
-                "type": "string",
-                "enum": [
-                  "calendar",
-                  "finance",
-                  "health",
-                  "highlights"
-                ]
-              },
-              "state": {
-                "type": "string",
-                "enum": [
-                  "ready",
-                  "empty",
-                  "denied",
-                  "unavailable"
-                ]
-              },
-              "summary": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{1,400}$"
-              },
-              "task_id": {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9_-]{8,64}$",
-                "description": "For the highlights section: the task whose verified, cited answer is fetched like any other answer."
-              }
-            }
-          }
-        },
-        "computed_by_code": {
-          "type": "boolean"
-        }
-      },
-      "description": "The owner's review: the orchestrator run over fixed code agents (not models) for the calendar, Finance and Health. Each section answers only under its own grant and says when it is off, empty or not offered; every figure is the one the Core computed by code. Owner client only."
-    },
-    "ConnectorState": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "id",
-        "title",
-        "category",
-        "summary",
-        "state",
-        "problem",
-        "read_scopes",
-        "writes",
-        "offline",
-        "retention",
-        "failure",
-        "fields"
-      ],
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z_]{3,30}$"
-        },
-        "title": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,80}$"
-        },
-        "category": {
-          "type": "string",
-          "pattern": "^[a-z_]{3,30}$"
-        },
-        "summary": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,400}$"
-        },
-        "state": {
-          "type": "string",
-          "enum": [
-            "not_connected",
-            "connected",
-            "needs_attention"
-          ]
-        },
-        "problem": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": [
-                "unauthorised",
-                "unreachable",
-                "unverified"
-              ]
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "read_scopes": {
-          "type": "array",
-          "maxItems": 20,
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z_]{3,40}$"
-          }
-        },
-        "writes": {
-          "type": "array",
-          "maxItems": 20,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "title",
-              "approval"
-            ],
-            "properties": {
-              "name": {
-                "type": "string",
-                "pattern": "^[a-z_]{3,40}$"
-              },
-              "title": {
-                "type": "string",
-                "pattern": "^[^\\u0000-\\u001f]{1,120}$"
-              },
-              "approval": {
-                "type": "string",
-                "enum": [
-                  "never",
-                  "always"
-                ],
-                "description": "`always`: the owner approves each one (the closed list in PRD 4.4). `never`: prompt-free and undoable."
-              }
-            }
-          }
-        },
-        "offline": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
-        },
-        "retention": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
-        },
-        "failure": {
-          "type": "string",
-          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
-        },
-        "fields": {
-          "type": "array",
-          "maxItems": 10,
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "secret"
-            ],
-            "properties": {
-              "name": {
-                "type": "string",
-                "pattern": "^[a-z_]{3,30}$"
-              },
-              "secret": {
-                "type": "boolean"
-              }
-            }
-          }
-        }
-      },
-      "description": "One connector as the owner sees it: what it can read, what it can change and whether each change asks the owner, how it behaves offline, what is kept and how a failure is reported. Credentials are never part of it."
-    },
-    "ConnectorList": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "connectors"
-      ],
-      "properties": {
-        "connectors": {
-          "type": "array",
-          "maxItems": 50,
-          "items": {
-            "$ref": "#/$defs/ConnectorState"
-          }
-        }
-      },
-      "description": "Every integration Atlas knows, connected or not. Owner client only."
-    },
-    "ConnectRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "fields"
-      ],
-      "properties": {
-        "fields": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "address": {
-              "type": "string",
-              "pattern": "^https?://[^\\u0000-\\u0020]{1,300}$"
-            },
-            "token": {
-              "type": "string",
-              "pattern": "^[^\\u0000-\\u001f]{1,500}$"
-            }
-          },
-          "required": [
-            "address",
-            "token"
-          ]
-        }
-      },
-      "description": "The owner connects an integration with the address of the service and an access token. The token is stored in the secret store and is never returned, logged or audited."
+      "description": "Add or remove one allowed host. A name that does not exist or points inside the owner's network is refused."
     },
     "WebHosts": {
       "type": "object",
@@ -3219,20 +3243,6 @@
         }
       },
       "description": "The hosts the owner allows Atlas to open in its isolated browser. Owner client only."
-    },
-    "WebHostRequest": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "host"
-      ],
-      "properties": {
-        "host": {
-          "type": "string",
-          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
-        }
-      },
-      "description": "Add or remove one allowed host. A name that does not exist or points inside the owner's network is refused."
     },
     "WebReadRequest": {
       "type": "object",
