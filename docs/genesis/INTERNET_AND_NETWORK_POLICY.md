@@ -88,7 +88,7 @@ The approval screen shows the exact destination, recipients, payload/attachments
 Before release, demonstrate:
 - No model inference traffic leaves the owner-controlled device.
 - No private file/email/Finance/Health content reaches public search or unrelated connectors.
-- All network access flows through the policy gateway.
+- Every network connection must use its approved Core-mediated path and its purpose-specific policy, destination, credential and audit controls; no model or agent may open an arbitrary socket.
 - Tokens are stored in Keychain and absent from logs/crash reports.
 - Revocation blocks subsequent reads/writes and invalidates caches.
 - Malicious pages and files cannot cause tool calls, policy changes or external actions.
