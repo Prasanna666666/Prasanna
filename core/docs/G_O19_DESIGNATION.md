@@ -40,4 +40,4 @@ DesignationStore (own encrypted file: grants, state, hash-chained audit)        
 
 ## Rollback
 
-Delete `designation.py`, `access.py`, `tests/test_designation.py`, this file; revert the `access` parameter and gate calls in `documents.py` and the layer/allow-list lines in `test_architecture.py` / `test_tasks.py`. The store is its own file.
+**Historical WP3.3 rollback procedure — superseded and unsafe for the current branch. Do not follow it.** Later WP3.4 and subsequent packages depend on `designation.py`, `access.py`, the consent API, production host, Mail/native adapters and Keychain anchor. Deleting these modules or reverting only the WP3.3 package would break the current Core and is not a safe data/Keychain rollback. See `ROLLBACK.md` for the historical Stage 2 note (also not a current rollback plan), `ADR_STORAGE_KEYS.md` for current stores/backup inventory, and `HANDOVER.md` for current acceptance status.
