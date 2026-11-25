@@ -870,12 +870,16 @@ Evidence at PR #8 head `a4d36a741c494cbd5de8556d19d4bbdcccb5d130`: `core/docs/CO
 
 ### ATLAS-DOC-112 — API 1.1 path-delta count is ambiguous/inaccurate
 
+**Remediation note (2026-11-25):** `core/docs/CONTRACT_1_1.md` now distinguishes the original three WP3.1 paths from the later 1.1 additions and gives the current 39-vs-7 snapshot. The review thread remains open pending reviewer confirmation; the test-name mismatch is not changed here.
+
 **Severity: P2 — OPEN (contract documentation/test naming).**
 
 Evidence at PR #8 head `e2c815ea7d0597e57c5f0025439fa20657b02f1c`: `core/docs/CONTRACT_1_1.md` (blob `13651ecbfa946848abdc0ebcda86b6528a0f0968`), line 17, and `core/tests/test_contracts_v11.py` (blob `b0feb79cf71002907fcad345ce0a7c47ab06defa`), line 566, say there are “three new paths”. The current `openapi-1.1.yaml` has 39 path keys compared with seven in frozen 1.0, and `NEW_PATHS` enumerates 32 additive path keys. If “three” means only a stage-specific WP3.4 subset relative to the earlier WP3.1 draft, the comparison baseline is not stated. State the baseline explicitly and rename the test to match the 32-path assertion. Review comment **6046362327** posted. No runtime issue is asserted.
 
 
 ### ATLAS-DOC-113 — egress guide overstates the network boundary and privacy guarantees
+
+**Remediation note (2026-11-25):** `core/docs/EGRESS_GATEWAY.md` now records the six network-capable module purposes, actual question/passage fingerprinting, residual 1–3-character/paraphrase risk, ATLAS-EGRESS-091 stale-passage gap, DNS deadline and truncation-flag gaps. The code defects remain open; the review thread is not resolved here.
 
 **Severity: P2 — OPEN (security documentation drift).**
 
@@ -884,11 +888,15 @@ Evidence at PR #8 head `0ae2763983b8e67965d1da99fd441b1e844328bb`: `core/docs/EG
 
 ### ATLAS-DOC-114 — G-O19 designation note presents superseded WP3.3 status as current
 
+**Remediation note (2026-11-25):** `core/docs/G_O19_DESIGNATION.md` is now explicitly a historical WP3.3 record and links to current Mail/API/Keychain evidence. The historical rollback text is not a current rollback instruction.
+
 **Severity: P2 — OPEN (security/rollback documentation accuracy).**
 
 Evidence at PR #8 head `7f774e52a803864f72714cd4034bb1852f1578f2`: `core/docs/G_O19_DESIGNATION.md` still says no Mail adapter exists, no API 1.1 route is served, owner-facing consent state is not served, and the Keychain anchor/key provider is not implemented. Current code contradicts these statements: `macos.EmlxMailbox` exists and is wired by `host.py`; `api.py` serves the consent/index routes and `test_consent_api.py` covers them; `macos.KeychainAnchor` is injected by `host.py`, with a real-Keychain round-trip test in `test_macos_native.py`. The real Apple Mail store and real TCC behaviour remain unverified, and the current CI run is queued, so do not overstate those. The document's rollback section instructs deletion of designation/access modules even though later app, host, API, consent and source-adapter code now depends on them. Preserve the WP3.3 record but label it as a historical snapshot and explicitly mark its rollback steps as superseded. Inline comments posted on lines 3, 33, 36 and 41. No tests run.
 
 ### ATLAS-DOC-115 — enrolment guide falsely says Swift launcher/client were never built or run
+
+**Remediation note (2026-11-25):** `core/docs/ENROLMENT.md` now distinguishes hosted macOS end-to-end coverage of `CoreLauncher`/`CoreClient` from the still-unverified owner-facing KeyStore/Get Started/TCC walkthrough. The exact-head CI result remains pending.
 
 **Severity: P2 — OPEN (verification-status documentation).**
 
@@ -911,12 +919,16 @@ Evidence at PR #8 head `6a637f1f7a8cf713508e6223eef330f088c51d35`: `core/docs/MO
 
 ### ATLAS-DOC-118 — owner acceptance checklist has stale counts and misclassifies developer work as owner acceptance
 
+**Remediation note (2026-11-25):** `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` now separates the non-least-privilege sandbox and remote-phone P1 blockers from owner-only actions, and no longer instructs the owner to install a LaunchAgent that is not integrated.
+
 **Severity: P2 — OPEN (release gate accuracy).**
 
 Evidence at PR #8 head `e8ad92dbf7e4a612598cd09aa6d6e9677d297b36`: `core/docs/OWNER_ACCEPTANCE_CHECKLIST.md` line 1 reports 82 no-findings, 53 findings-open, 52 in-review and 91 not-started; the current 278-row exact-head ledger counts 86 REVIEWED—NO FINDINGS, 64 REVIEWED—FINDINGS OPEN, 49 IN REVIEW and 79 NOT STARTED. Line 9 asks the owner to install a LaunchAgent, but `core/src/atlas_core/launchagent.py` explicitly only generates plist bytes/path and does not install/load it; the app currently owns the Core child process through `CoreLauncher`. Line 6 lists least-privilege macOS model isolation as an owner action although `MODEL_RUNTIME.md` and `sandbox.py` explicitly state the current allow-by-default profile is not least privilege. Line 13 presents the remote phone/relay path as built/tested with only owner setup remaining, despite open P1s ATLAS-RELAY-063, ATLAS-IOS-051/053/061, ATLAS-DEV-041 and the phone Photos scope bypass ATLAS-SEC-087. Keep these developer/security blockers distinct from owner-only acceptance. Inline comments posted on lines 1, 6, 9 and 13. No tests run.
 
 
 ### ATLAS-DOC-119 — plug-in guide misstates configuration-only extension and browser availability
+
+**Remediation note (2026-11-25):** `core/docs/PLUG_IN_GUIDE.md` now limits configuration-only setup to existing compatible catalogue entries and marks production web reading unavailable until the OS-confinement gate passes.
 
 **Severity: P2 — OPEN (capability/extension documentation accuracy).**
 
@@ -925,12 +937,16 @@ Evidence at PR #8 head `f9c6d3bb19f45617cd7ef5f025c63d93bfc0bc34`: `core/docs/PL
 
 ### ATLAS-DOC-120 — plug-in guide implies Health records can be imported through the Finance-only command
 
+**Remediation note (2026-11-25):** `core/docs/PLUG_IN_GUIDE.md` now distinguishes Finance's legacy `transactions` importer from the empty Health store, for which no importer/HealthKit source exists.
+
 **Severity: P2 — OPEN (capability documentation accuracy).**
 
 Evidence at PR #8 head `a99cbba63f43051e666526ae1e5d311a3f94d578`: `core/docs/PLUG_IN_GUIDE.md`, line 9, groups Finance and Health under `maintenance import-finance` and says to import once. `core/src/atlas_core/maintenance.py` accepts only `backup`, `verify`, `drill`, `restore` and `import-finance`; that importer migrates only a legacy Finance database into the Finance record store. `host.py` creates an empty Health `RecordStore`, but there is no Health importer or HealthKit/native Health source: `macos_sources.DOMAINs` is only calendar/contacts/notes/photos, and `record_actions.py` registers only calendar/contacts/notes/travel. The guide must distinguish the available Finance migration from the not-yet-implemented Health ingestion path, rather than imply the Finance command imports Health. Review comment **6046594708** posted on line 9. No tests run.
 
 
 ### ATLAS-DOC-121 — programme audit's current-head snapshot and egress status are stale
+
+**Remediation note (2026-11-25):** `core/docs/PROGRAMME_AUDIT.md` is explicitly a 2026-11-24 historical snapshot; its egress residual-risk wording and later Stage 4–8 chronology are now qualified. The live register is `docs/genesis/HANDOVER.md`.
 
 **Severity: P2 — OPEN (programme status/acceptance evidence).**
 
@@ -939,12 +955,16 @@ Evidence at PR #8 head `80ad23a75f02e69f44fdfa32c7a0bf28d844953c`: `core/docs/PR
 
 ### ATLAS-DOC-122 — Stage 2 rollback note is presented as the current PR #8 rollback plan
 
+**Remediation note (2026-11-25):** `core/docs/ROLLBACK.md` is now labelled as the historical Stage 2 package note and explicitly disclaims use as the current PR #8 data/Keychain rollback procedure.
+
 **Severity: P2 — OPEN (data retention and recovery documentation).**
 
 Evidence at PR #8 head `9468010f50b5910d11b16541fc283242c332327e`: `core/docs/ROLLBACK.md` lines 3–11 describes only the initial Core/task-store package: one `core/` directory, one CI job, one task store/key, no existing user data access, and rollback by deleting that store/key or reverting `core/`. Current PR #8 includes app/iOS, Mail and native-source ingestion/indexes, Finance/Health record stores, client registry, action audit, multiple Keychain keys, encrypted backup/restore and signed updater rollback. `backup.py` enumerates multiple DBs and plain files; `host.py` provisions multiple keys; `updater.py` has an independent install/rollback path. The note is a historical Stage 2 package plan, not a complete safe rollback/data-retention procedure for the current branch. Label it historical and link a current inventory plus backup/restore procedure. Review comments **6046622739** posted on lines 3 and 8. No tests run.
 
 
 ### ATLAS-DOC-123 — Stage 3 acceptance overstates Finance/Health source and grant-flow absence
+
+**Remediation note (2026-11-25):** `core/docs/STAGE3_ACCEPTANCE.md` now records Settings/consent grant controls, Finance's limited legacy transaction importer, Health's missing importer/source, and the lack of real owner-data verification.
 
 **Severity: P2 — OPEN (capability and acceptance evidence accuracy).**
 
@@ -966,6 +986,8 @@ Evidence at PR #8 head `1d90fa14b63792fadbf47f0e96c70385104d5f94`: `core/docs/ST
 
 
 ### ATLAS-DOC-126 — WP3.1 v4 proposal is presented as unimplemented after its contract and runtime were implemented
+
+**Remediation note (2026-11-25):** `core/docs/STAGE3_WP3_1_PROPOSAL.md` already carried an explicit historical/superseded notice and current authority links; `core/docs/CONTRACT_1_1.md` now clarifies the original three-path WP3.1 scope versus the later additive 1.1 path set.
 
 **Severity: P2 — OPEN (implementation status and design traceability).**
 
