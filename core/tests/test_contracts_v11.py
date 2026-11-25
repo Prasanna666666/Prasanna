@@ -563,7 +563,7 @@ def test_openapi_1_1_is_valid_and_every_reference_resolves():
     assert names and names <= set(contracts.type_names("1.1"))
 
 
-def test_openapi_1_1_keeps_every_1_0_path_and_operation_id_and_adds_only_the_three_new_paths():
+def test_openapi_1_1_keeps_every_1_0_path_and_operation_id_and_adds_only_the_declared_new_paths():
     ops10, ops11 = operations(OPENAPI_10), operations(OPENAPI_11)
     assert set(ops10) <= set(ops11)
     assert {key[0] for key in ops11} - {key[0] for key in ops10} == NEW_PATHS
