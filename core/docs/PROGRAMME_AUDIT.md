@@ -41,16 +41,16 @@ Stage 3 acceptance is the architect's and the owner's to give (split recorded in
 ## Discrepancies for the architect (not resolved by me)
 
 1. **Stage 0:** no separate acceptance record found beyond the register entry and my confirmation (7023445432).
-2. **`docs/genesis/` wording** that I did not edit, because those files are yours: `STAGE-3-EXECUTION-PLAN.md` (criterion 11 carry-forward, line about the "P1 defect remains") and `HANDOVER.md` (register row for Stage 3) still describe the egress private-name and short-phrase bypass as unresolved. The broader bypass was partially addressed in code/tests by fingerprinting 4+ letter words and two-word runs, but ATLAS-SEC-014 remains open for 1–3-character terms and paraphrases; ATLAS-EGRESS-091 also records a stale-passage omission. See the current `DEFECT_REGISTER.md` and `EGRESS_GATEWAY.md`. The historical statement that it was fully fixed is superseded.
-3. **PR description:** the PR body still carries the old egress and WP3.3 claims. I did not edit it.
+2. **Historical Genesis wording discrepancy:** at the time of the original audit, `STAGE-3-EXECUTION-PLAN.md` and `HANDOVER.md` still carried the older egress wording. The 2026-11-25 documentation pass has reconciled these documents with the current partial implementation and open residuals: ATLAS-SEC-014 (1–3-character terms/paraphrases) and ATLAS-EGRESS-091 (stale saved passage omitted), plus ATLAS-EGRESS-077/078/079. See the current `DEFECT_REGISTER.md`, `EGRESS_GATEWAY.md`, `STAGE-3-EXECUTION-PLAN.md` and `STAGE3_ACCEPTANCE.md`.
+3. **PR description:** the PR body was corrected in the earlier 2026-11-25 reconciliation pass to state Stage 3 NOT ACCEPTED, the current partial criteria/final gates, API 1.1 serving, and the separate research endpoint. Refresh the live PR body before any future status claim.
 4. The Stage 2 criterion 2 wording in `docs/genesis/STAGE-2-WORK-PACKAGE.md` is the historical one; `TRACEABILITY.md` records the G-021 change.
 
-## Current exact-head independent review snapshot (2026-11-24)
+## Historical exact-head independent review snapshot (2026-11-24)
 
-- PR #8 remains **open, draft and unmerged**. Current head at this snapshot: `7eadbae9e323f8d36257461981e34d2c2c5e4587`; exact-head CI run `45474020438` was **queued**, not passed.
+- PR #8 was **open, draft and unmerged** at this snapshot. Head at this historical checkpoint: `7eadbae9e323f8d36257461981e34d2c2c5e4587`; exact-head CI run `45474020438` was **queued**, not passed.
 - PR #8 changed-path inventory: **278**. Coverage ledger: **82 REVIEWED—NO FINDINGS; 53 REVIEWED—FINDINGS OPEN; 52 IN REVIEW; 91 NOT STARTED**. Thus 135/278 paths have a full-file review disposition, 52 are actively in review and 91 have not started. Historical PR #6 chart entries are a separate inventory and are not added to these totals.
 - PR review threads at snapshot: **65 total; 21 resolved; 44 unresolved; 43 outdated**. Outdated and unresolved can overlap. No thread was resolved as part of this review.
-- Developer fixes and re-review remain outstanding. P1 examples: destructive production-Keychain cleanup in native/E2E tests (ATLAS-TEST-069), offline queue corruption treated as empty (ATLAS-OFFLINE-071), Core shutdown closing stores under an active worker (ATLAS-CORE-083), API read revocation race (ATLAS-CORE-092), and exact arithmetic mislabelling rounded high-precision values (ATLAS-EXACT-106). The defect register contains the complete list.
+- Developer fixes and re-review were outstanding at this historical checkpoint. P1 examples then included: destructive production-Keychain cleanup in native/E2E tests (ATLAS-TEST-069), offline queue corruption treated as empty (ATLAS-OFFLINE-071), Core shutdown closing stores under an active worker (ATLAS-CORE-083), API read revocation race (ATLAS-CORE-092), and exact arithmetic mislabelling rounded high-precision values (ATLAS-EXACT-106). The defect register contains the complete list.
 - This is a review checkpoint, not an acceptance or merge recommendation. No local tests were run by this review; the current GitHub Actions run was queued.
 
 
