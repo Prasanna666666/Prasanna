@@ -38,7 +38,7 @@ ARCHES = {  # machine -> (AUDIT_ARCH, number of the socket syscall)
 # profile: reading system files outside those places, IOKit and signals stay allowed.
 PRIVATE_READ_ROOTS = ("/Users", "/Volumes", "/private/tmp", "/private/var/folders", "/private/var/root", "/home")
 # The Mach services the sandboxed MLX worker may look up: MEASURED on a macOS runner (the CI `macos-mlx` job lets every lookup through with reporting on, records what a load plus a generation uses,
-# then re-runs under a deny-all-lookups profile with only these allowed and requires generation to succeed). Every other lookup is denied, so no network-capable service (DNS, CFNetwork, URL sessions,
+# then re-runs under a deny-all-lookups profile with only these allowed and requires generation to succeed). Every other lookup is denied, and the known network-capable services in NETWORK_SERVICES are not in this allowlist. This is not proof that no allowed service can proxy network access; the local-only guarantee remains unaccepted until the complete service surface is reviewed. The profile is not a least-privilege allowlist. (DNS, CFNetwork, URL sessions,
 # configd, networkd) can be asked to act for the worker. Other hardware or macOS versions may need more; the worker then fails closed (the model is unavailable) rather than widening this list.
 MACH_ALLOWED = (
     "com.apple.CoreServices.coreservicesd",
@@ -80,7 +80,7 @@ def mac_profile(read_roots: Sequence[str] = ()) -> str:
         "(deny network*)",
         '(deny file-write*)(allow file-write* (literal "/dev/null"))',
         "(deny file-read-data " + "".join(f"(subpath {quote(p)})" for p in PRIVATE_READ_ROOTS) + ")",
-        "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",  # only the model folder and what Python itself needs
+        "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",  # explicit exceptions for denied private roots; allow-default still permits other reads
         "(deny process-exec*)(allow process-exec* " + "".join(f"(subpath {quote(p)})" for p in python) + ")",  # only programs inside the Python runtime
         "(deny mach-lookup)(allow mach-lookup "
         + "".join(f"(global-name {quote(n)})" for n in MACH_ALLOWED)
@@ -153,7 +153,7 @@ def verify_launcher_sandbox(checks: dict[str, Callable[[], object]] | None = Non
 
 def launch_prefix(read_roots: Sequence[str] = ()) -> list[str]:
     """What must precede the worker's command line so the OS confines it from the start. Empty on Linux (the worker confines itself); `sandbox-exec` on macOS with a profile that lets the
-    worker read none of the private places except `read_roots` (the staged model folder) and its Python runtime (network and write denial CI-verified on a macOS runner)."""
+    worker read none of the private places except `read_roots` (the staged model folder) and its Python runtime (network and write denial CI-verified on a macOS runner; allow-default still permits other system-file reads)."""
     if sys.platform == "darwin":
         exe = "/usr/bin/sandbox-exec"
         if not os.access(exe, os.X_OK):
