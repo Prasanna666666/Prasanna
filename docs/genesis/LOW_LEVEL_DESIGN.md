@@ -5,7 +5,7 @@
 **Scope:** Complete target design for the single Atlas product, macOS-first with future iOS client  
 **Owner:** Product owner  
 **Architect:** ChatGPT  
-**Rule:** No production implementation begins until this design, its ADRs, interface contracts, threat model and acceptance tests are reviewed and approved. This is a consolidated design-review baseline copied from closed, unmerged PR #9 into the sole open PR #8; it is not itself implementation or Stage 3 authorisation.
+**Historical process rule:** This proposal originally required design, ADR, contract, threat-model and acceptance review before production implementation. The owner later authorised implementation on PR #8; the presence of this document does not mean PR #9 or this full design was independently accepted. Current implementation evidence and acceptance state are tracked in `core/docs/STAGE3_ACCEPTANCE.md`, `core/docs/STAGES_4_TO_8.md` and `docs/genesis/IMPLEMENTATION_CONFORMANCE.md`. This remains the target design authority where not superseded by later owner decisions or accepted contracts.
 
 ---
 
@@ -111,7 +111,7 @@ Local encrypted data stores + original source references
 - **Z1 Core API:** authenticated client boundary; validates schema, identity, request limits and capability.
 - **Z2 General domain:** ordinary personal/work content under explicit source designation.
 - **Z3 Sensitive partitions:** Health and other sensitive data; unavailable unless the exact owner-authorised task grant permits access.
-- **Z4 Finance enclave:** separately labelled/keyed and isolated behind deterministic domain code. No model, general agent, shared prompt, embedding pipeline or general-purpose index receives raw Finance records. Only the minimum computed result explicitly permitted for the task may cross the boundary, with provenance and policy checks. Finance grants do not authorise model access to raw records.
+- **Z4 Finance partition:** separately labelled/keyed and isolated behind a grant-checked domain boundary. Under G-021, owner-authorised Finance content may enter only the local model context for the exact purpose-bound task. It must not enter unrelated tasks, public web requests, cloud inference, logs or unscoped shared memory. Exact arithmetic, balances and calculations remain deterministic and code-checked, with provenance, revocation and cache controls.
 - **Z5 Action execution:** isolated tool execution with narrowly scoped capabilities, approvals and audit receipts.
 - **Z6 Model runtime:** receives only minimal policy-authorised context; no direct filesystem, network or connector credentials.
 - **Z7 External connectors:** remote systems are untrusted inputs; retrieved content is data, never executable instruction.
