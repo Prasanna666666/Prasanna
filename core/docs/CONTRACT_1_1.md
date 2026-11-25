@@ -2,6 +2,9 @@
 
 **Status:** specified and contract-tested in WP3.1; **implemented and served additively since WP3.4** (additively, per request): the Core advertises `1.0` and `1.1`, applies 1.1 only to a request that asks for exactly `1.1` and signs it (six-field message), echoes the version, serves coverage and the model descriptor in the answer, and serves `/v1/consent`, `/v1/consent/{grant_id}` (an enrolled OWNER client only; the signed request's nonce is the single-use request id) and `/v1/index/status`. 1.0 behaviour and files are unchanged. `newest_indexed` is always null (not tracked). The text below was written when the contract was specification-only; where it says "not served" it is historical. Approved scope: PR #8 comments 7051135695, 7051242604, 7051300100, 7051339291; proposal `STAGE3_WP3_1_PROPOSAL.md` (v4).
 
+
+
+**Owner-content maps (explicit exception, not evidence text):** API 1.1 deliberately permits structured owner-supplied JSON maps at `ActionRequest.payload`, `ActionOutcome.result`, `ActionOutcome.exact_payload`, `SyncRequest.ops[].payload` and `RecordList.records[].fields`. These are explicitly marked `additionalProperties: true` and allowlisted by `tests/test_contracts_v11.py`. They are served only through the enrolled owner client (device sync remains limited to its authenticated device and operation policy); they are treated as untrusted owner data, are not model evidence, and are never written to logs or audit records. The action audit records hashes only. Do not describe the contract as having only two places where arbitrary strings can appear: the two modeled text fields are `PassageText.text` and `ResearchResult.text`, alongside these five typed-by-container owner payload maps.
 ## Files
 | File | Role |
 |---|---|
