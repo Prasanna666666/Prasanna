@@ -318,3 +318,10 @@ These review threads were replied to and resolved after checking the current sou
 - The full path-family inventory is recorded in `REVIEW_COVERAGE_RECONCILIATION.md`. All active canonical product/architecture/API/provider/acceptance docs have been reconciled; historical archives are retained. The source/test path inventory is complete but semantic line-by-line review of all 132 Core and 68 app/iOS/kit test/source paths is not certified.
 - The PRD and all 85 registered scenario IDs (UC-001–055 plus UC-L01–L30) now have first-pass conformance matrices. These identify major not-implemented capabilities and partial foundations; they are not acceptance certificates.
 - Remaining hard blockers: macOS sandbox least privilege and Mach proxy surface; exact-head CI; API read revocation race; Core shutdown/partial-construction; browser worker confinement; durable Action Gateway receipts; connector DNS/proxy path; egress residuals; currency semantics; AppModel integration/owner UX; accessibility owner validation; mobile/relay security; target-Mac/TCC/Mail/Keychain/FileVault/model/restore/signing acceptance.
+
+
+## 20. Latest branch-head delta — 2026-11-25
+
+- Latest observed PR head: `3a366d80ef9d58bafd92e0fe12238a0f07424ba7`; PR remains open/draft/unmerged with 285 changed paths and 127 review threads (120 resolved, 7 unresolved).
+- Behavior-bearing source/test snapshot remains `35d41c800046ca3042991134f66bece7611191cc`. CI run `45577911258` is queued (16 jobs, none started at last inspection). The later sandbox.py and backup.py commits alter module comments only; later commits are documentation/PR-body updates. No runtime logic or tests changed after the queued source/test snapshot.
+- No test pass is claimed. Treat the queued run as evidence only for the behavior-bearing source/test snapshot if it completes; prefer a new exact-latest-head run if available.
