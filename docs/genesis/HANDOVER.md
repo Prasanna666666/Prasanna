@@ -42,13 +42,13 @@ The following status distinctions are mandatory:
 ### Verified repository / PR facts at this reconciliation
 
 - PR #8 is the only open shared PR found in the current working context; it is draft and unmerged.
-- Its observed head at the latest check is `1713785c432e6a967cd163964c3d69aa1c639788`. The PR reports 605 commits and 282 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
+- Its observed head at the latest check is `d66cb24907d77746a96814f0865dead0448b363e`. The PR reports 605 commits and 282 changed files. The branch includes macOS app sources, Core, iOS client sources, tests, contracts and canonical documentation.
 - Stage 2 Core was accepted for its reviewed scope at the earlier exact head `58210223398a5715b618d1163397104efd358d49`; the PR description records 22/22 CI checks at that head. This does not automatically accept later changes or the current head.
 - WP3.1 API 1.1 contract/specification was accepted for its exact scope at `800d13743f6cf4ce0ab87b4b8e098d441e459a56`; the API 1.1 contract was subsequently implemented and is served additively by WP3.4 (the 1.0 contract remains frozen). See `core/docs/CONTRACT_1_1.md`.
 - WP3.2 document-only vertical path was accepted for its exact scope at `ad6e59bcb6fb5d6124ac56ea419f8330dc913e4c`. Its accepted scope and limitations remain as recorded in `core/docs/WP3_2_DOCUMENTS.md`.
 - The current criterion-level matrix in `core/docs/STAGE3_ACCEPTANCE.md` records criteria 2, 7 and 8 as PARTIAL with open findings. Stage 3 itself is **not accepted**. The separate final-stage gates F-4, F-11, F-12 and F-13 remain unmet, unwaived and release-blocking. Use the acceptance matrix, not broad summary wording in older handover snapshots, for criterion status.
 - Stage 4–8 code/documentation work is present on this same branch by owner direction, but it is not architect-reviewed or accepted. Presence on the branch must not be described as completed, released or owner-verified functionality; see `core/docs/STAGES_4_TO_8.md`.
-- Exact-head CI run `45564148620` (`CI`, run 1881) was queued when checked at `1713785c432e6a967cd163964c3d69aa1c639788`; combined status returned no status entries. No passing result for that run is claimed here.
+- Exact-head CI run `45566805549` (`CI`, run 1957) was queued when checked at `d66cb24907d77746a96814f0865dead0448b363e`; combined status returned no status entries. No passing result for that run is claimed here.
 - General-purpose browser/app automation is documented as a Stage 6 target architecture, not a Stage 3 completion claim. Playwright is a recommendation, not an adopted runtime dependency; OpenClaw is not adopted.
 
 ### Explicitly unaccepted / unverified
@@ -135,3 +135,10 @@ The final historical-evidence cleanup also labelled `core/docs/DESIGN.md` as a S
 - Five current unresolved review threads remain, all in source/test files: exact arithmetic precision (P1), API free-text object-map schema coverage, connector undo falsely reporting success, OpenAPI path-count test naming, and native Keychain test fixture cleanup. Do not treat these as documentation-only issues.
 - Stage 3 P1/P2 findings ATLAS-CORE-092, ATLAS-EXACT-106 and ATLAS-CORE-083/084 remain open; egress residuals and Stage 4–8 security/device blockers are recorded in the conformance report.
 - Latest PR snapshot: head `533a2460f3f013690a862d029488dc42d9611fb4`; 282 changed paths; 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current). CI run 45565642702 is queued and combined status has no entries.
+
+## Final documentation inventory checkpoint — 2026-11-25
+
+- Canonical active documentation was reconciled across the product requirements, architecture/LLD, decisions, privacy/network policy, ingestion/intelligence, UI/UX specification/map, API 1.1 contract/OpenAPI, Stage 2/3 records, Stage 4–8 developer report, provider/runtime/egress/connector/storage/rollback/owner-acceptance records, review ledger and handover.
+- Historical Stage 2/3 package snapshots, proposal documents, Linux-only test reports and branch/chat archives are explicitly identified as historical or superseded where they could otherwise be mistaken for current capability/status. The baseline audit and old rollback procedures are not current implementation instructions.
+- Latest live PR snapshot: head `d66cb24907d77746a96814f0865dead0448b363e`; 282 changed paths; 127 review threads (44 resolved, 83 unresolved; 78 unresolved outdated, 5 unresolved current). Exact-head CI run 45566805549 is queued; no pass is claimed.
+- The active canonical documentation is substantially reconciled, but this is not a certification of every historical chat/archive artifact or all 282 implementation paths. The five current unresolved review threads are source/test findings listed in `IMPLEMENTATION_CONFORMANCE.md`.
