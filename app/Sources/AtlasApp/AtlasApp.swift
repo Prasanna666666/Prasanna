@@ -147,6 +147,7 @@ final class AppModel: ObservableObject {
     @Published var editsAvailable = false
     @Published var ownRecords: [OwnDomain: LoadState<[OwnRecord]>] = [:]
     @Published var undoLabel: String?
+    @Published var undoFailure: String?
     private var undoActionID: String?
     // Library
     @Published var library: LoadState<LibraryPage> = .idle
@@ -178,7 +179,7 @@ final class AppModel: ObservableObject {
 
     private var gate = SubmissionGate()
     private var tracker = PhaseTracker()
-    private var currentTaskID: String?
+    private var submissionCancellation = SubmissionCancellation()
     private var client: CoreClient?
     private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
     private var socket: String { support.appendingPathComponent("run/core.sock").path }
@@ -485,14 +486,23 @@ final class AppModel: ObservableObject {
 
     func undoLast(domain: OwnDomain) async {
         guard let client, let id = undoActionID else { return }
-        _ = try? await Task.detached { try client.undo(actionID: id) }.value
-        undoActionID = nil
-        undoLabel = nil
-        await loadRecords(domain)
-        await loadAttention()
+        do {
+            let outcome = try await Task.detached { try client.undo(actionID: id) }.value
+            guard UndoConfirmation.isConfirmed(outcome) else {
+                undoFailure = "Atlas could not confirm the undo. The original change may still be in place."
+                return
+            }
+            undoActionID = nil
+            undoLabel = nil
+            undoFailure = nil
+            await loadRecords(domain)
+            await loadAttention()
+        } catch {
+            undoFailure = "Atlas could not confirm the undo. The original change may still be in place."
+        }
     }
 
-    func dismissUndo() { undoLabel = nil; undoActionID = nil }
+    func dismissUndo() { undoLabel = nil; undoActionID = nil; undoFailure = nil }
 
     // MARK: library
 
