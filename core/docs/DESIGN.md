@@ -1,6 +1,4 @@
-# Design: architecture, dependency map, API versioning, reuse matrix — historical Stage 2 design record — historical Stage 2 design record
-
-**Evidence update (2026-11-25):** The original Stage 2 note below says the real `security` tool was not verified. Since then, `core/docs/MACOS_PROVIDERS.md` records hosted-macOS CI evidence for the real `security` tool/Keychain. Owner-Mac prompts, item access controls, FileVault and power-loss behaviour remain unverified. Use the provider document and current Stage 3 acceptance matrix for current evidence.
+# Design: architecture, dependency map, API versioning, reuse matrix — historical Stage 2 design record
 
 **Evidence update (2026-11-25):** The original Stage 2 note below says the real `security` tool was not verified. Since then, `core/docs/MACOS_PROVIDERS.md` records hosted-macOS CI evidence for the real `security` tool/Keychain. Owner-Mac prompts, item access controls, FileVault and power-loss behaviour remain unverified. Use the provider document and current Stage 3 acceptance matrix for current evidence.
 
@@ -30,7 +28,7 @@ Rules enforced by tests: no import cycles; the API/transport cannot import stora
 1. **Identity** (`identity.py`): signature over method, path+query, timestamp, nonce, body hash; client known, not revoked, timestamp within the skew limit, nonce unused. No Origin/localhost trust.
 2. **Version** (`api.py`): optional `X-Atlas-Api-Version`; unsupported -> 426 `unsupported_version` before anything runs.
 3. **Contract** (`contracts.py`): bodies validated against the schema; unknown fields refused.
-4. **Policy** (`policy.py`) is decided at submit **and again at run time** (a revoked grant stops a queued task). Restricted domains (Finance, Health) and deferred types (attachments) are denied regardless of grants.
+4. **Policy at the original Stage 2 baseline** (`policy.py`) was decided at submit and again at run time. Finance/Health were then hard-denied and attachments deferred; later owner decision G-021 superseded the Finance/Health rule for subsequent stages. Current grant semantics and status are in `DECISIONS.md` and `STAGE3_ACCEPTANCE.md`.
 5. **Gate** (`gate.py`): a retriever is called only for permitted types and its output is re-checked; the model receives only a context built from permitted passages; the token's expiry is re-checked at the model door.
 6. **Verify** (`answer.py`, `evidence.py`): every citation must resolve to the exact version, locator and span and contain its quote; figures and numeric dates must appear in the cited text; language support is never claimed beyond the measured list (empty today).
 7. **Finish**: `completed` only if `verified`; `partially_completed` otherwise; `failed` with a reason for a failed citation, an unavailable model, denial or needs-attention.
@@ -51,7 +49,7 @@ Rules enforced by tests: no import cycles; the API/transport cannot import stora
 | `kit.audit.unproven_figures` (figures must come from the source) | **Reused** unchanged in `answer.py`; numeric dates added next to it. |
 | Idempotent marks / atomic publish pattern (library reader) | **Adapted** as idempotency keys + one transaction per state change. |
 | Staged change, nonce, undo (`library/changes.py`) | **Not used**: the first slice has no actions; belongs to the Action Runtime stage. |
-| Hash-chained audit (`finance/audit.py`) | **Not used** (Finance stays outside); `ExecutionReceipt` carries an audit reference only. |
+| Hash-chained audit (`finance/audit.py`) | **Not used in the Stage 2 slice** (Finance integration was outside that bounded package); later Finance domain storage/import and policy are documented in Stage 4–8 records. |
 | `kit.sign` (shared platform key) | **Not reused**: per-client Ed25519 identity is required; the shared key proves "a platform process", not "which device". |
 | `kit.consent` (English/Dutch word lists) | **Discarded** (Stage 1 G-4); no consent logic here. |
 | `kit.rag` FTS5 retrieval, `library.store._sources` (no filter) | **Unchanged**: the gap G-13 remains in the legacy path; the new gate is the replacement point when ingestion is wired in a later stage. |
