@@ -3,7 +3,7 @@ openapi: 3.1.0
 info:
   title: Atlas Core API
   version: '1.1'
-  summary: API 1.1 (specification of the additive delta over the frozen 1.0). Version negotiation is explicit; the Core still serves 1.0 only.
+  summary: API 1.1 additive contract; the Core serves both 1.0 and 1.1 when explicitly negotiated.
   description: 'Language-neutral source of truth, with atlas-contracts.schema.json. A client is never trusted: the Core enforces
 
     the source policy before retrieval and before any model context is built. Every request is signed by a per-client key
@@ -16,7 +16,7 @@ info:
     Version 1.1 is validated only against atlas-contracts.1.1.schema.json (the 1.0 document with the 1.1 delta applied by contracts.build_1_1). The 1.0 files are
     frozen and unchanged.
 
-    The operations marked x-atlas-status are specification only: no route serves them yet. Hand-maintained; it was derived once from openapi.yaml.
+    Operations marked x-atlas-status describe their current implementation state. API 1.1 is served additively by the Core; individual routes may be enabled only in the production host when their dependencies and policy gates are configured. Hand-maintained; originally derived from openapi.yaml.
 
     '
 servers:
@@ -480,6 +480,7 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
   /v1/devices/pair:
     post:
+      security: []
       operationId: pairDevice
       summary: A new device pairs with the offer code and its public key (unsigned, like first enrolment).
       x-atlas-status: served by the Core (Stage 8, Core side); API 1.1 additive
@@ -995,6 +996,7 @@ paths:
           $ref: '#/components/responses/ErrorVersioned'
   /v1/enrol:
     post:
+      security: []
       operationId: enrolClient
       summary: Enrol a client by its public key. The first owner client may enrol itself once, unsigned, over the owner-only socket; afterwards only a signed owner client may enrol a member.
       x-atlas-status: served by the Core since WP3.4 (consent routes need an enrolled owner client)
