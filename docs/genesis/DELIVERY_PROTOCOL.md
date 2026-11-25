@@ -8,10 +8,10 @@
 | Role | Accountable for | Must not |
 |---|---|---|
 | **Owner / Manager — user** | Product direction, priorities, trade-offs, owner-reserved decisions, final acceptance and release approval | Be asked to repeat recorded decisions or manage routine technical details |
-| **Architect / Integrator / Documentation Owner / Independent Reviewer — ChatGPT** | Requirements, architecture, canonical documentation, work packages, cross-cutting integration, review, verification where access permits, issue resolution proposals and concise manager reporting | Implement product code as Claude's substitute; claim tests or Mac checks not actually performed; override owner decisions |
+| **Architect / Integrator / Documentation Owner / Independent Reviewer — ChatGPT** | Requirements, architecture, canonical documentation, work packages, cross-cutting integration, review, verification where access permits, issue resolution proposals and concise manager reporting | Take over routine implementation from Claude without explicit owner direction; claim tests or Mac checks not actually performed; override owner decisions |
 | **Developer / Test Engineer / Maintainer — Claude** | Code implementation, developer tests, debugging, maintenance, implementation documentation, CI and evidence-backed completion reports | Change product direction, architecture contracts or scope silently; close disputed issues without evidence; mark unverified work done |
 
-The owner has final authority. ChatGPT owns architectural consistency and the document set. Claude owns implementation quality and maintenance. Each role challenges the others with evidence, not authority claims.
+The owner has final authority. ChatGPT owns architectural consistency and the document set. Claude owns implementation quality and maintenance. Each role challenges the others with evidence, not authority claims. **Task-specific exception (2026-11-25):** the owner directed ChatGPT to finish the outstanding review/conformance work. For this continuation, ChatGPT may make narrowly scoped source/test patches directly tied to reviewed findings, add regression coverage and update implementation documentation; Claude remains the default implementation owner for broader features. Such patches remain unvalidated until exact-head CI and independent re-review pass. This exception does not authorise PR approval/merge, stage acceptance or release.
 
 ## 2. Product boundary that governs all work
 
