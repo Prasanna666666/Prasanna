@@ -387,3 +387,84 @@ def test_an_open_stream_of_a_paired_device_ends_when_the_device_is_revoked(tmp_p
     assert first
     h.registry.revoke(CLIENT)
     assert list(stream) == []  # nothing further is delivered to a revoked device
+
+
+def _report(total: int) -> dict:
+    return {"searched": total, "total": total, "pending": 0, "failed": 0, "scan_complete": True, "paused": None}
+
+
+@pytest.mark.criterion(10)
+def test_coverage_counts_of_a_withdrawn_source_that_cited_nothing_are_not_delivered_in_a_1_1_answer_or_stream(tmp_path):
+    """Mail was searched and counted but contributed no passage; when its grant is withdrawn the 1.1 answer and its stream must not keep Mail's counts, nor read as complete."""
+    world = World(tmp_path, [grant("documents"), grant("mail")])
+    world.service._d.coverage["documents"] = lambda: _report(3)
+    world.service._d.coverage["mail"] = lambda: _report(7)
+    world.retriever.only = {"documents"}  # Mail is searched but yields nothing to cite
+    record = world.run_new(request(["documents", "mail"]))
+    task = record["task_id"]
+    before = world.service.answer_v11(task)["coverage"]
+    assert before["total"] == 10 and before["state"] == "complete"
+    world.grants._grants[:] = [
+        g for g in world.grants._grants if g["source_type"] != "mail"
+    ]  # Mail is withdrawn; Documents (which supplied the evidence) stays
+    answer = world.service.answer_v11(task)
+    assert answer["citations"], "the answer itself is still deliverable from Documents"
+    assert answer["coverage"]["total"] is None and answer["coverage"]["state"] == "partial" and "partial_work" in answer["limitations"]
+    final = next(e for e in world.service.events_after(task, 0, "1.1") if e["type"] == "final")
+    assert final["answer"]["coverage"] == answer["coverage"]
+
+
+def _idle_stream(world: World, h: Harness, client: str):
+    """An open stream of a running task with nothing to deliver yet (an idle one)."""
+    import threading
+
+    service = world.service
+    service.get = lambda task_id: {"state": "running", "source_scope": ["documents"]}  # type: ignore[method-assign]
+    service.events_after = lambda task_id, after, version="1.0": []  # type: ignore[method-assign]
+    done = threading.Event()
+
+    def follow():
+        for _ in h.api._follow("task-x", 0, "1.0", client):
+            pass
+        done.set()
+
+    threading.Thread(target=follow, daemon=True).start()
+    return done
+
+
+@pytest.mark.criterion(13)
+def test_an_idle_stream_of_a_paired_device_ends_when_the_device_is_revoked(tmp_path):
+    """No queued event is needed to notice: the entitlement is checked on each poll."""
+    world = World(tmp_path, [grant("documents")])
+    h = Harness(world, owner=False)
+    done = _idle_stream(world, h, CLIENT)
+    assert not done.wait(0.3), "the stream is open and idle"
+    h.registry.revoke(CLIENT)
+    assert done.wait(2)
+
+
+@pytest.mark.criterion(13)
+def test_an_idle_stream_ends_when_the_device_source_ceiling_no_longer_covers_the_task(tmp_path, monkeypatch):
+    world = World(tmp_path, [grant("documents")])
+    h = Harness(world, owner=False)
+    done = _idle_stream(world, h, CLIENT)
+    assert not done.wait(0.3)
+    monkeypatch.setattr(world.service, "device_may_ask", lambda sources: False)  # the policy data for devices narrowed
+    assert done.wait(2)
+
+
+@pytest.mark.criterion(13)
+def test_a_device_revoked_while_the_final_event_is_being_prepared_receives_nothing(tmp_path):
+    """The recheck follows the material reads of guard_delivery, so a revocation during them stops the event from leaving."""
+    world = World(tmp_path, [grant("documents")])
+    task = _finished_task(world)
+    h = Harness(world, owner=False)
+    real = world.service.guard_delivery
+
+    def revoke_during_preparation(task_id, event):
+        out = real(task_id, event)
+        h.registry.revoke(CLIENT)  # the revocation lands while the event is being prepared
+        return out
+
+    world.service.guard_delivery = revoke_during_preparation  # type: ignore[method-assign]
+    assert list(h.api._follow(task, 0, "1.0", CLIENT)) == []

@@ -401,10 +401,11 @@ class TaskService:
         d.log.emit("answer.verified", "answer", task_id, reason_code=envelope["verification"]["status"])
         d.store.save_answer(task_id, envelope)
         d.faults.hit("mid:verified")
-        coverage = build_coverage(
-            {p["evidence"]["source_type"] for p in passages} | (set(record["source_scope"]) - {x["source_type"] for x in denied}), d.coverage, d.clock()
-        )
-        self._to(task_id, "verified", step="verified", data={"coverage": coverage})
+        covered = {p["evidence"]["source_type"] for p in passages} | (set(record["source_scope"]) - {x["source_type"] for x in denied})
+        coverage = build_coverage(covered, d.coverage, d.clock())
+        self._to(
+            task_id, "verified", step="verified", data={"coverage": coverage, "coverage_types": sorted(covered)}
+        )  # which sources the counts came from, so delivery can tell if one has since been withdrawn
         d.faults.hit("after:verified")
         return envelope
 
@@ -684,11 +685,24 @@ class TaskService:
     def _upgrade(self, task_id: str, envelope: dict[str, Any]) -> dict[str, Any]:
         saved = self._d.store.checkpoint(task_id)[1]
         own = envelope == self._d.store.answer(task_id)  # the saved answer itself, not a withheld/denied replacement
-        coverage = saved["coverage"] if own and "coverage" in saved else build_coverage((), self._d.coverage, self._d.clock())
+        coverage = self._coverage_for_delivery(task_id, saved) if own and "coverage" in saved else build_coverage((), self._d.coverage, self._d.clock())
         out = {**envelope, "coverage": coverage, "limitations": list(dict.fromkeys([*envelope["limitations"], *required_limitations(coverage)]))}
         if own and "model" in saved:
             out["model"] = saved["model"]
         return out
+
+    def _coverage_for_delivery(self, task_id: str, saved: dict[str, Any]) -> dict[str, Any]:
+        """The saved coverage, if every source whose counts it holds is still permitted under the grants it was made under. Otherwise it is rebuilt from the sources that still are, and the omitted ones make
+        it partial with an unknown total: a withdrawn source's counts are never delivered, and the answer never reads as complete over sources it can no longer show."""
+        d = self._d
+        covered = frozenset(saved.get("coverage_types") or d.store.record(task_id)["source_scope"])
+        _, token = d.policy.decide(d.store.record(task_id)["source_scope"], d.clock())
+        permitted = self._valid_types(saved, token, d.clock()) if token is not None else frozenset()
+        if covered <= permitted:
+            return saved["coverage"]
+        return build_coverage(
+            {*(covered & permitted), WITHDRAWN_SOURCE}, d.coverage, d.clock()
+        )  # the placeholder has no provider: its coverage is "not reported"
 
     def _used_types(self, task_id: str, envelope: dict[str, Any]) -> frozenset[str]:
         """Every source type the answer was constructed from: the retrieved passages saved with the task's checkpoint plus whatever the answer cites."""
@@ -727,6 +741,7 @@ class TaskService:
 
 
 LIBRARY_LIMIT = 20
+WITHDRAWN_SOURCE = "withdrawn_source"  # stands for the sources whose counts may no longer be delivered; it never has a coverage provider
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
 
 

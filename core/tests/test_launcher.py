@@ -238,7 +238,9 @@ def test_a_locked_keychain_makes_the_core_exit_with_its_own_code_and_the_launche
         [sys.executable, "-m", "atlas_core.serve", "--data-dir", str(tmp_path / "c"), "--socket", str(tmp_path / "s"), "--config-factory", "core_factory:keychain_locked", "--allow-custom-factory"],
         input=b"a-valid-looking-code-0123456789\n", capture_output=True, timeout=30, env=env, check=False,
     )  # fmt: skip
-    assert direct.returncode == 6 and b"READY" not in direct.stdout and not (tmp_path / "c").exists()  # nothing was created
+    assert (
+        direct.returncode == 6 and b"READY" not in direct.stdout and sorted(p.name for p in (tmp_path / "c").iterdir()) == ["core.lock"]
+    )  # no key, store or socket: only the empty lock file
     process = launcher.CoreProcess(tmp_path / "core", tmp_path / "run" / "core.sock", config_factory="core_factory:keychain_locked", allow_custom_factory=True)
     with pytest.raises(launcher.LaunchFailed) as e:
         process.start(timeout=30)
@@ -272,3 +274,54 @@ def test_a_start_that_cannot_own_the_data_folder_provisions_no_keys_and_opens_no
         assert code == serve.EXIT_BUSY and FACTORY_CALLS == []
     finally:
         os.close(held)
+
+
+def test_concurrent_starts_across_a_keychain_refusal_never_have_two_contenders_in_the_factory(tmp_path):
+    """The lock file is stable across failed starts (never unlinked), so contenders cannot end up holding different files at one path: at no moment are two of them past the lock."""
+    import threading
+    import time
+
+    from atlas_core import serve
+    from atlas_core.app import CoreAlreadyRunning, acquire_data_dir
+
+    data = tmp_path / "core"
+    inside, worst, entered = [0], [0], []
+    guard = threading.Lock()
+    start = threading.Barrier(8)
+
+    def contender():
+        start.wait()
+        for _ in range(25):
+            try:
+                lock = acquire_data_dir(data)
+            except CoreAlreadyRunning:
+                time.sleep(0.001)
+                continue
+            with guard:
+                inside[0] += 1
+                worst[0] = max(worst[0], inside[0])
+                entered.append(1)
+            time.sleep(0.003)  # the factory is running (and would refuse because the Keychain is locked)
+            with guard:
+                inside[0] -= 1
+            serve._give_up(lock)  # the refusal path of main()
+
+    threads = [threading.Thread(target=contender) for _ in range(8)]
+    [t.start() for t in threads]
+    [t.join(30) for t in threads]
+    assert entered and worst[0] == 1, f"{worst[0]} contenders were past the lock at once"
+    assert (data / "core.lock").exists()
+
+
+def test_an_unexpected_factory_failure_releases_the_folder_lock(tmp_path, monkeypatch):
+    import io
+
+    from atlas_core import serve
+    from atlas_core.app import acquire_data_dir
+
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    data = tmp_path / "core"
+    with pytest.raises(AssertionError):  # recording_factory raises one: not a refusal the host knows
+        serve.main(["--data-dir", str(data), "--socket", str(tmp_path / "s"), "--config-factory", "test_launcher:recording_factory", "--allow-custom-factory"])
+    again = acquire_data_dir(data)  # the lock was released: a new start can take the folder
+    os.close(again)

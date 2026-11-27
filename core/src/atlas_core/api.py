@@ -575,10 +575,12 @@ class CoreApi:
         checked once more against the grants as they are now, so a revocation or a withdrawal during an open stream stops delivery at the very next event."""
         deadline = time.monotonic() + FOLLOW_SECONDS
         while not self._closing.is_set():
+            if not self._still_entitled(task_id, client):
+                return  # on every poll, even when there is nothing to send: an idle stream of a revoked device does not linger until its deadline
             for queued in self._service.events_after(task_id, after, version):
+                event = self._service.guard_delivery(task_id, queued)  # re-reads source material
                 if self._closing.is_set() or not self._still_entitled(task_id, client):
-                    return
-                event = self._service.guard_delivery(task_id, queued)
+                    return  # and once more as close to handing the event over as this layer can, after the reads above
                 after = event["seq"]
                 yield f"id: {after}\ndata: {json.dumps(event)}\n\n".encode()
             if self._service.get(task_id)["state"] in TERMINAL and not self._service.events_after(task_id, after, version):
