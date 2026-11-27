@@ -16,10 +16,11 @@ import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Protocol, TextIO
+from typing import TextIO
 
+from . import keyrestore
 from .backup import BackupError, create_backup, restore_backup, run_restore_drill, verify_backup
-from .macos import KeychainError
+from .keyrestore import KeyItems
 from .migration import MigrationError, Sink, migrate
 
 KEY_ITEMS = {
@@ -83,34 +84,11 @@ def _import_finance(paths: list[Path], legacy_key: str, open_sink: SinkOpener) -
     ), f"import-finance: {'ok' if result.ok else 'refused ' + ','.join(result.problems)} {result.migrated} records\n"
 
 
-class KeyItems(Protocol):
-    def read(self, service: str) -> str | None: ...
-    def write(self, service: str, value: str) -> None: ...
-    def delete(self, service: str) -> None: ...
-
-
-def provision_staged(items: KeyItems, bundle: Mapping[str, str]) -> None:
-    """Put recovered keys into the Keychain as one unit. The current value of every item about to change is read first; each new value is
-    written and read back. If any write or read-back fails, every item already changed is put back exactly as it was (or removed if it did
-    not exist), so a restore that fails part-way never leaves a working installation with some of its keys replaced."""
+def provision_staged(items: KeyItems, bundle: Mapping[str, str], data_dir: Path) -> None:
+    """Put recovered keys into the Keychain recoverably (see keyrestore): staged into inactive items first, then committed past a durable
+    journal in `data_dir`, so no failure, failing clean-up or interrupted process leaves the working installation with some keys replaced."""
     names = {**{f"db:{db}": item for db, item in KEY_ITEMS.items()}, **BUNDLE_ITEMS}
-    planned = [(f"atlas-{item}", bundle[key]) for key, item in names.items() if key in bundle]
-    previous = {service: items.read(service) for service, _ in planned}
-    changed: list[str] = []
-    try:
-        for service, value in planned:
-            changed.append(service)
-            items.write(service, value)
-            if items.read(service) != value:
-                raise KeychainError("verify")
-    except BaseException:
-        for service in reversed(changed):
-            prior = previous[service]
-            if prior is None:
-                items.delete(service)
-            else:
-                items.write(service, prior)
-        raise
+    keyrestore.provision(items, {f"atlas-{item}": bundle[key] for key, item in names.items() if key in bundle}, data_dir)
 
 
 def run(argv: list[str], *, stdin: TextIO, out: TextIO, read_key: KeyReader, write_keys: KeyWriter, open_sink: SinkOpener | None = None) -> int:
@@ -142,7 +120,7 @@ def main() -> int:  # pragma: no cover  (the platform wiring: the real Keychain,
     items = KeychainItems()
 
     def write_keys(bundle: Mapping[str, str]) -> None:
-        provision_staged(items, bundle)
+        provision_staged(items, bundle, Path(sys.argv[3]))  # `restore <backup> <target>`: the journal lives in the restored data folder
 
     def open_sink(data_dir: Path) -> tuple[Sink, Callable[[], None]]:
         from .finance_calc import MONEY_DOMAIN

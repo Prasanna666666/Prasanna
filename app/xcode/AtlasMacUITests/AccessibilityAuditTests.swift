@@ -44,8 +44,8 @@ final class AccessibilityAuditTests: XCTestCase {
     private func audit(appearance: String) throws {
         let app = XCUIApplication()
         if let python = ProcessInfo.processInfo.environment["ATLAS_CI_PYTHON"] { app.launchEnvironment["ATLAS_CI_PYTHON"] = python }
-        app.launchArguments += ["-AppleInterfaceStyle", appearance]  // the app's effective appearance for this run, recorded below with every finding
-        print("AUDIT APPEARANCE: \(appearance) (launch arguments: \(app.launchArguments))")
+        app.launchEnvironment["ATLAS_UI_TEST_APPEARANCE"] = appearance  // a test-scoped seam: the app sets NSApp.appearance from it (the launch argument was ignored)
+        print("AUDIT APPEARANCE requested: \(appearance)")
         app.launch()
         app.activate()  // audited as the active, key window, so an inactive-window rendering is not what is measured
         let window = app.windows.firstMatch
@@ -55,6 +55,11 @@ final class AccessibilityAuditTests: XCTestCase {
         let isFirstRun = welcome.waitForExistence(timeout: 60)
         let isHome = isFirstRun ? false : homePrompt.waitForExistence(timeout: 30)
         XCTAssertTrue(isFirstRun || isHome, "the app reaches a stable, expected first-run or Home screen")
+        if isFirstRun {  // the app reports its effective appearance on the first-run screen: the audit runs only in the one requested
+            let effective = app.descendants(matching: .any)["get-started-\(appearance.lowercased())"]
+            XCTAssertTrue(effective.waitForExistence(timeout: 10), "the app renders in the requested \(appearance) appearance")
+            print("AUDIT APPEARANCE effective: \(effective.exists ? appearance : "not \(appearance)")")
+        }
         let labels = app.staticTexts.allElementsBoundByIndex.map { $0.label }
         print("SCREEN TEXTS: \(labels)")
         add(XCTAttachment(string: "Screen texts: \(labels)"))

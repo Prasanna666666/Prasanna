@@ -37,6 +37,7 @@ LAYER = {
     "egress": 1,
     "confinement": 1,
     "backup": 1,
+    "keyrestore": 1,
     "storage": 1,
     "launchagent": 1,
     "records": 4,

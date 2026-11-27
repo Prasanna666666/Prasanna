@@ -19,6 +19,7 @@ from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from . import keyrestore
 from .access import GRANTED, PermissionEvidence
 from .app import CoreConfig
 from .finance_calc import MONEY_DOMAIN
@@ -138,9 +139,10 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         raise HostUnavailable("the real platform providers exist only for macOS")
     items = KeychainItems(env.account, env.runner)
     try:
+        keyrestore.recover(items, data_dir)  # an interrupted restore is finished or undone before any key is read
         keys = {name: items.secret(name) for name in KEY_NAMES}
         record_key = bytes.fromhex(items.secret("model-record"))
-    except KeychainError:
+    except (KeychainError, keyrestore.KeyRestoreError):
         raise KeychainLocked("the Keychain could not provide the store keys") from None
     folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)

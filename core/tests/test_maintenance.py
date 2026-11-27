@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -144,47 +145,93 @@ def test_the_legacy_finance_database_is_imported_through_the_command_and_the_ori
 
 
 class _Items:
-    """A Keychain stand-in: items by service name; can fail the Nth write or return a wrong value on read-back."""
+    """A Keychain stand-in, by service name. `fail_write_at`: the Nth write raises; `fail_delete`: every delete raises; `lie_on`: that
+    service reads back wrong after any write. With `path`, the items live in a JSON file and `crash_at` kills the process (os._exit) at
+    the Nth write, so no exception handler runs: a real interruption."""
 
-    def __init__(self, existing, fail_write_at=None, lie_on=None):
-        self.store, self.writes = dict(existing), 0
-        self.fail_write_at, self.lie_on = fail_write_at, lie_on
+    def __init__(self, existing=None, fail_write_at=None, fail_delete=False, lie_on=None, path=None, crash_at=None):
+        self.path = path
+        self.store = dict(existing or {}) if path is None or not path.exists() else json.loads(path.read_text())
+        self.writes, self.fail_write_at, self.fail_delete, self.lie_on, self.crash_at = 0, fail_write_at, fail_delete, lie_on, crash_at
+        self._save()
+
+    def _save(self):
+        if self.path is not None:
+            self.path.write_text(json.dumps(self.store))
 
     def read(self, service):
-        if service == self.lie_on and self.writes:
-            return "not-what-was-written"
-        return self.store.get(service)
+        return "not-what-was-written" if service == self.lie_on and self.writes else self.store.get(service)
 
     def write(self, service, value):
         self.writes += 1
+        if self.writes == self.crash_at:
+            os._exit(9)
         if self.writes == self.fail_write_at:
             raise OSError("keychain write failed")
         self.store[service] = value
+        self._save()
 
     def delete(self, service):
+        if self.fail_delete:
+            raise OSError("keychain delete failed")
         self.store.pop(service, None)
+        self._save()
 
 
-def _bundle():
-    return {"db:tasks.db": "new-task-key", "db:edits.db": "new-edits-key", "documents_index": "new-docs-key"}
+OLD = {"atlas-task-store": "old-task-key", "atlas-documents-index": "old-docs-key", "atlas-unrelated": "kept"}
+NEW = {"atlas-task-store": "new-task-key", "atlas-edits-store": "new-edits-key", "atlas-documents-index": "new-docs-key"}
+BUNDLE = {"db:tasks.db": "new-task-key", "db:edits.db": "new-edits-key", "documents_index": "new-docs-key"}
 
 
-def test_recovered_keys_are_provisioned_as_one_unit_and_read_back():
+def test_recovered_keys_are_installed_as_one_unit_and_leave_nothing_staged(tmp_path):
+    from atlas_core.keyrestore import JOURNAL
     from atlas_core.maintenance import provision_staged
 
-    items = _Items({"atlas-task-store": "old-task-key"})
-    provision_staged(items, _bundle())
-    assert items.store == {"atlas-task-store": "new-task-key", "atlas-edits-store": "new-edits-key", "atlas-documents-index": "new-docs-key"}
+    items = _Items(OLD)
+    provision_staged(items, BUNDLE, tmp_path)
+    assert items.store == {**OLD, **NEW} and not (tmp_path / JOURNAL).exists()
 
 
-@pytest.mark.parametrize("failure", [{"fail_write_at": 2}, {"fail_write_at": 3}, {"lie_on": "atlas-edits-store"}])
-def test_an_interrupted_key_restore_puts_every_existing_key_back_and_removes_the_ones_it_added(failure):
-    """MAC-17: a restore that fails part-way through the Keychain (a write fails, or a value does not read back) leaves the working
-    installation's keys exactly as they were: replaced items get their old value back, items it created are removed."""
+@pytest.mark.parametrize("failure", [{"fail_write_at": 2}, {"lie_on": "atlas-staged-edits-store"}, {"fail_write_at": 2, "fail_delete": True}])
+def test_a_failure_before_the_commit_point_never_touches_a_live_key_even_when_clean_up_fails(tmp_path, failure):
+    """MAC-17: staging writes only inactive items, so a staging failure (or a failed read-back, or a clean-up whose deletes fail too)
+    leaves every live key exactly as it was; leftover inactive items are removed by the next recovery."""
+    from atlas_core import keyrestore
     from atlas_core.maintenance import provision_staged
 
-    before = {"atlas-task-store": "old-task-key", "atlas-documents-index": "old-docs-key", "atlas-unrelated": "kept"}
-    items = _Items(before, **failure)
-    with pytest.raises((OSError, Exception)):
-        provision_staged(items, _bundle())
-    assert items.store == before
+    items = _Items(OLD, **failure)
+    with pytest.raises(Exception):  # noqa: B017 - an OSError or the read-back error, by case
+        provision_staged(items, BUNDLE, tmp_path)
+    assert {k: v for k, v in items.store.items() if not k.startswith("atlas-staged-")} == OLD
+    items.fail_delete = False
+    keyrestore.recover(items, tmp_path)
+    assert items.store == OLD
+
+
+_CRASHING_RUN = """
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[3])
+from test_maintenance import _Items, BUNDLE
+from atlas_core.maintenance import provision_staged
+items = _Items(path=Path(sys.argv[1]), crash_at=int(sys.argv[2]))
+provision_staged(items, BUNDLE, Path(sys.argv[1]).parent)
+"""
+
+
+@pytest.mark.parametrize(("crash_at", "outcome", "final"), [(2, "discarded", OLD), (4, "completed", {**OLD, **NEW}), (5, "completed", {**OLD, **NEW})])
+def test_a_process_killed_between_key_writes_is_finished_or_undone_by_the_next_recovery(tmp_path, crash_at, outcome, final):
+    """MAC-17: the process is killed (os._exit, no handler runs) during staging (write 2 of 3) or during the commit (writes 4 and 5). The
+    next start's recovery leaves one consistent set: the old keys if the commit point was not reached, the complete new set if it was."""
+    import subprocess
+    import sys
+
+    from atlas_core import keyrestore
+
+    store = tmp_path / "keychain.json"
+    _Items(OLD, path=store)
+    done = subprocess.run([sys.executable, "-c", _CRASHING_RUN, str(store), str(crash_at), str(Path(__file__).parent)], check=False, capture_output=True)
+    assert done.returncode == 9, done.stderr
+    items = _Items(path=store)
+    assert keyrestore.recover(items, tmp_path) == outcome
+    assert items.store == final and not (tmp_path / keyrestore.JOURNAL).exists()

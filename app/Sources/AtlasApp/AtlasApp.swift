@@ -7,6 +7,16 @@ import UserNotifications
 /// The app owns the Core it starts: quitting the app (menu, window close, logout, shutdown) stops it, waits for it and reaps it, so no Core keeps processing sources after the UI is gone.
 /// If the app crashes instead, the Core stops by itself (it watches its parent) and the next launch reaps anything left behind (`CoreLauncher.reapLeftovers`).
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Test-scoped appearance: only the UI tests set ATLAS_UI_TEST_APPEARANCE, so the accessibility audit can run in a known, verified
+    /// Light or Dark appearance. Without it the app follows the system, as always.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        switch ProcessInfo.processInfo.environment["ATLAS_UI_TEST_APPEARANCE"] {
+        case "Dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        case "Light": NSApp.appearance = NSAppearance(named: .aqua)
+        default: break
+        }
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) { Launcher.shared.stop() }
 }

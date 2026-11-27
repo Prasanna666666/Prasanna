@@ -21,24 +21,24 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 12.8%** (28/218) · **Review completion 5.5%** (12/218) · register v0.3 (the file as committed) scoring software revision `2815257` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976))
+**Implementation readiness 14.0%** (30.5/218) · **Review completion 6.9%** (15/218) · register v0.3 (the file as committed) scoring software revision `6574c2c` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976))
 
-Mandatory criteria not yet passing: **209** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
+Mandatory criteria not yet passing: **206** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
 
-Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (12).
+Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (15).
 
 | Part of the register | Criteria | Implementation | Review |
 |---|---:|---:|---:|
-| first-mac | 16 | 8.5 (53%) | 10 (62%) |
+| first-mac | 16 | 11 (69%) | 13 (81%) |
 | prd | 61 | 0 (0%) | 0 (0%) |
 | roadmap | 3 | 2.5 (83%) | 1 (33%) |
 | stage3 | 20 | 6 (30%) | 1 (5%) |
 | stages4to8 | 34 | 11 (32%) | 0 (0%) |
 | use-case | 84 | 0 (0%) | 0 (0%) |
 
-First Mac milestone view (criteria tagged first-mac): implementation 9.5/19 (50.0%), review 10/19 (52.6%).
+First Mac milestone view (criteria tagged first-mac): implementation 12/19 (63.2%), review 13/19 (68.4%).
 
-Supporting inventory (git-tracked): 285 source files, 46,840 lines, 2975 functions; 210 test files, 1916 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 7 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 285 source files, 46,866 lines, 2976 functions; 210 test files, 1918 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 8 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
@@ -50,7 +50,7 @@ Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 `scripts/build_acceptance_register.py` builds the register from the repository's own inventories. v0.2 answered the architect's v0.1 review
 ([7226745827](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7226745827)); v0.3 answers the v0.2 review
 ([6093128990](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990)). 232 entries; 218 are scored. Every entry's
-evidence cites the **scored software revision** `8b23cc6` and its CI run 46061223577; the register itself is the file at the commit that holds it.
+evidence cites the **scored software revision** `6574c2c` and its PR CI run 46078831844; the register itself is the file at the commit that holds it.
 
 | Scope | Count | Scored | Entries |
 |---|---:|---|---|
@@ -82,7 +82,7 @@ evidence cites the **scored software revision** `8b23cc6` and its CI run 4606122
   - an explicit, linked carry-forward
 - A status, commit or score citation alone earns nothing.
 - A full claim against a recorded fail earns 0.5 only from checkpoint-specific evidence.
-- A reopened criterion loses both credits. MAC-13 and MAC-14 are reopened because this batch changed the delivery code their evidence covered.
+- A reopened criterion loses both credits. MAC-13 and MAC-14 were reopened at 8b23cc6 because that batch changed the delivery code their evidence covered; both have since passed review.
 - The calculator publishes **no scores** while any entry has an unknown scope, a duplicate ID or a colliding alias.
 - Pass conditions are normative; recorded status and open gaps are kept as separate fields.
 
@@ -104,3 +104,5 @@ file-level review and is not counted as line or function coverage.
 |---:|---|---:|---:|---|
 | 1 (historical, v0.1) | `95f67f41fd1a028336813ccd90383fb3c9cdde97` | 17.0% (38/224) | 3.6% (8/224) | Register v0.1 baseline under the shared rules, proposed by Claude; awaiting Codex's inventory check and SHA confirmation. First Mac subset 62.5% / 40.0%. Superseded estimates: Claude's weighted 45.9% / 38.4% and the architect's milestone 62.5% / 70% (which gave review half credit). [Rules](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7226542434) · [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795) |
 | 2 | `8b23cc66705a5b3c5eddac657cf774fa35a43594` | 11.7% (25.5/218) | 4.6% (10/218) | Register v0.2 reviewed: arithmetic reproduced, baseline pending; scope split accepted in principle, crosswalk incomplete, calculator corrections requested. Verdicts: MAC-06 fail, MAC-08 fail, S3-C06 pending. Answered by v0.3. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990) |
+| 3 | `2815257f391f5fffa6168ac1ff00bca41a8bc1dc` | 12.8% (28/218) | 5.5% (12/218) | v0.3 agreed as the 218-criterion reporting baseline; arithmetic reproduced. Verdicts: MAC-14 pass, MAC-18 pass, MAC-13 pending (checkpoint verified), MAC-15 fail, MAC-06 fail, MAC-08 fail. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586) |
+| 4 | `6574c2cb8dd23c9d1a3a7084c6aa1e207756900c` | 14.0% (30.5/218) | 6.9% (15/218) | Verdicts: MAC-13 pass, MAC-15 pass, MAC-19 pass; MAC-17 fail (rollback can fail, a killed process skips it), MAC-06 fail (mac-ui), MAC-08 fail (option b: assert the effective appearance, then a layout change, no exemption). Arithmetic reproduced by the calculator. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094252873) |

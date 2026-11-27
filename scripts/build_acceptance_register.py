@@ -22,14 +22,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "2815257f391f5fffa6168ac1ff00bca41a8bc1dc"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46068853988"
+CI_REVISION = "6574c2cb8dd23c9d1a3a7084c6aa1e207756900c"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46078831844"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140740656866", "core-3.13": f"{CI_RUN}/job/140740656757", "kit": f"{CI_RUN}/job/140740657163",
-    "macos": f"{CI_RUN}/job/140740657018", "app": f"{CI_RUN}/job/140740656800", "ios": f"{CI_RUN}/job/140740656742",
+    "core-3.11": f"{CI_RUN}/job/140772796489", "core-3.13": f"{CI_RUN}/job/140772796709", "kit": f"{CI_RUN}/job/140772796465",
+    "macos": f"{CI_RUN}/job/140772796484", "app": f"{CI_RUN}/job/140772796461", "ios": f"{CI_RUN}/job/140772796435",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
+V04_REVIEW = ("6574c2cb8dd23c9d1a3a7084c6aa1e207756900c", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094252873", "6094252873")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -267,6 +268,7 @@ V03_CHANGES = [
     "The owner's public-search decision moved out of S3-F11-DEV into the decision record DEC-PUBLIC-SEARCH; its guardrails stay scored in S3-F11-SW. Pass conditions are normative; recorded status and open gaps are separate fields.",
     "All evidence cited the scored revision 8b23cc6 and its CI run 46061223577; MAC-13 and MAC-14 were reopened because that batch changed the delivery code their evidence covered. Verdicts at 8b23cc6 mirrored: MAC-06 fail, MAC-08 fail, S3-C06 pending.",
     "v0.3 agreed as the reporting baseline (review 6093596586, comment 7228002976). Scored revision moved to 2815257 and its PR CI run 46068853988. Verdicts at 2815257 mirrored: MAC-14 pass, MAC-18 pass, MAC-13 pending (checkpoint verified), MAC-15 fail, MAC-06 fail, MAC-08 fail.",
+    "Scored revision moved to 6574c2c and its PR CI run 46078831844. Verdicts at 6574c2c (review 6094252873) mirrored: MAC-13 pass, MAC-15 pass, MAC-19 pass, MAC-17 fail (add-only checkpoint kept), MAC-06 fail, MAC-08 fail.",
 ]
 
 
@@ -336,6 +338,25 @@ def apply_verdicts_2815257(criteria: list[dict]) -> list[dict]:
     by["MAC-15"]["review"] = _verdict(V03_REVIEW, "fail", note="revalidation happens before the calculations; a withdrawal during them can still deliver figures")
     by["MAC-06"]["review"] = _verdict(V03_REVIEW, "fail", note="one required hosted job (mac-ui) failed")
     by["MAC-08"]["review"] = _verdict(V03_REVIEW, "fail", note="onboarding paragraph contrast fails in Light and Dark")
+    return apply_verdicts_6574c2c(criteria)
+
+
+def apply_verdicts_6574c2c(criteria: list[dict]) -> list[dict]:
+    """The architect's review of 6574c2c (review 6094252873): its explicit criterion verdicts and the evidence they rest on."""
+    by = {c["id"]: c for c in criteria}
+    t, core = test, [ci("core-3.11"), ci("core-3.13")]
+
+    def evidence(cid: str, state: str, items: list[dict]) -> None:
+        by[cid]["implementation"] = {"state": state, "evidence": [{**e, "proves": state} for e in items]}
+
+    evidence("MAC-13", "full", [*[e for e in by["MAC-13"]["implementation"]["evidence"] if e["kind"] == "test"], t("core/tests/test_transport.py", "test_an_already_open_signed_stream_closes_when_the_core_begins_to_shut_down"), *core])
+    evidence("MAC-15", "full", [t("core/tests/test_domains.py", "test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_are_being_read"), t("core/tests/test_domains.py", "test_a_summary_is_withheld_when_its_domain_is_withdrawn_during_the_calculation"), *core])
+    evidence("MAC-19", "full", [t("core/tests/test_app.py", "test_the_first_documents_and_mail_workflow_works_end_to_end_with_exact_evidence"), *core])
+    for cid in ("MAC-13", "MAC-15", "MAC-19"):
+        by[cid]["review"] = _verdict(V04_REVIEW, "pass")
+    by["MAC-17"]["review"] = _verdict(V04_REVIEW, "fail", note="a failing rollback or a killed process can leave keys half-replaced; needs inactive staged keys and a durable commit/recovery boundary")
+    by["MAC-06"]["review"] = _verdict(V04_REVIEW, "fail", note="one required hosted job (mac-ui) failed")
+    by["MAC-08"]["review"] = _verdict(V04_REVIEW, "fail", note="onboarding paragraph contrast still flagged; assert effective Light/Dark, then a layout change; no exemption")
     return criteria
 
 

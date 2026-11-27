@@ -430,8 +430,18 @@ def restore_backup(
         provision_keys(bundle)
         return report
     except BaseException:
-        _remove_made(made, target, created_target)
+        if not _key_commit_started(target):
+            _remove_made(made, target, created_target)
+        # else: the new keys passed their commit point, so the restored files stay and the next start completes the keys (keyrestore)
         raise
+
+
+def _key_commit_started(target: Path) -> bool:
+    journal = target / "restore-keys.journal"  # keyrestore.JOURNAL
+    try:
+        return bool(json.loads(journal.read_text(encoding="utf-8")).get("state") == "committing")
+    except (OSError, ValueError):
+        return False
 
 
 DRILL_FILE = "restore-drill.json"
