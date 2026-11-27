@@ -102,6 +102,33 @@ def _give_up(lock: int) -> None:
     os.close(lock)
 
 
+def _open_core(args: argparse.Namespace, code: str | None, options: HostOptions) -> Core | int:
+    """Take the folder, build the config (keys, stores) and the Core. Returns the Core, or the exit status of a start that was refused before anything ran."""
+    data_dir = Path(args.data_dir)
+    try:
+        lock = acquire_data_dir(data_dir)  # first: a start that will lose to another Core touches no Keychain item and opens no store
+    except CoreAlreadyRunning:
+        return EXIT_BUSY
+    try:
+        config = _factory(args.config_factory, args.allow_custom_factory)(data_dir, Path(args.socket), code, options)
+    except KeychainLocked:
+        _give_up(lock)
+        return EXIT_NEEDS_SIGNIN  # no key provisioned, nothing opened, bound or written (only the empty lock file exists)
+    except HostUnavailable:
+        _give_up(lock)
+        return EXIT_REFUSED
+    except BaseException:
+        _give_up(lock)  # any other failure of the factory: the lock is released, never leaked to a process that goes on running
+        raise
+    config.data_dir_lock = lock
+    try:
+        return Core(config)
+    except ValueError:
+        return EXIT_REFUSED  # no owner enrolled and no usable code: it does not start
+    except CoreAlreadyRunning:
+        return EXIT_BUSY  # a live Core has this folder: this one touches nothing
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
@@ -122,29 +149,10 @@ def main(argv: list[str] | None = None) -> int:
     code = read_code(sys.stdin)
     sys.stdin.close()
     options = _options(args)
-    data_dir = Path(args.data_dir)
-    try:
-        lock = acquire_data_dir(data_dir)  # first: a start that will lose to another Core touches no Keychain item and opens no store
-    except CoreAlreadyRunning:
-        return EXIT_BUSY
-    try:
-        config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code, options)
-    except KeychainLocked:
-        _give_up(lock)
-        return EXIT_NEEDS_SIGNIN  # no key provisioned, nothing opened, bound or written (only the empty lock file exists)
-    except HostUnavailable:
-        _give_up(lock)
-        return EXIT_REFUSED
-    except BaseException:
-        _give_up(lock)  # any other failure of the factory: the lock is released, never leaked to a process that goes on running
-        raise
-    config.data_dir_lock = lock
-    try:
-        core = Core(config)
-    except ValueError:
-        return EXIT_REFUSED  # no owner enrolled and no usable code: it does not start
-    except CoreAlreadyRunning:
-        return EXIT_BUSY  # a live Core has this folder: this one touches nothing
+    opened = _open_core(args, code, options)
+    if isinstance(opened, int):
+        return opened
+    core = opened
     core.start()
     relay = _start_relay(args.relay_bind, Path(args.socket))
     stop = _stop_on_signal_or_orphaning()
