@@ -235,6 +235,7 @@ def _load_manifest(folder: Path) -> dict[str, Any] | None:
     return data if _entries_ok(data["files"]) else None
 
 
+SHA256_HEX_LENGTH = 64
 MAX_BACKUP_FILE_BYTES = 64 << 30  # a hard ceiling on one recorded size; a manifest claiming more is refused before anything is hashed
 
 
@@ -248,7 +249,7 @@ def _entries_ok(files: dict[Any, Any]) -> bool:
         size, digest = entry.get("size"), entry.get("sha256")
         if not isinstance(size, int) or isinstance(size, bool) or not 0 <= size <= MAX_BACKUP_FILE_BYTES:
             return False
-        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        if not isinstance(digest, str) or len(digest) != SHA256_HEX_LENGTH or any(c not in "0123456789abcdef" for c in digest):
             return False
     return True
 
@@ -465,7 +466,7 @@ def drill_passed(data_dir: Path, clock: Callable[[], datetime] = lambda: datetim
         at, digest, now = datetime.fromisoformat(marker["at"]), marker["manifest_sha256"], clock()
         if at.utcoffset() is None or now.utcoffset() is None:
             return False  # a drill time must be timezone-aware
-        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        if not isinstance(digest, str) or len(digest) != SHA256_HEX_LENGTH or any(c not in "0123456789abcdef" for c in digest):
             return False
         return timedelta(0) <= now - at <= timedelta(days=DRILL_VALID_DAYS)  # never in the future, never older than the window
     except (OSError, ValueError, KeyError, TypeError, AttributeError):

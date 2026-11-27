@@ -158,7 +158,7 @@ def test_a_failure_part_way_through_leaves_no_partial_import_and_touches_nothing
         class Flaky(InMemoryRecords):
             writes = 0
 
-            def put(self, record):
+            def put(self, record, failing_write=failing_write):
                 if record.record_id.startswith("legacy-"):
                     Flaky.writes += 1
                     if Flaky.writes == failing_write:

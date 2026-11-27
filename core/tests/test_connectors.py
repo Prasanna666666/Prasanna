@@ -156,6 +156,7 @@ def test_connector_undo_fails_closed_when_previous_state_or_credentials_are_unav
     owner.disconnect_connector("home")
     assert owner.undo(disconnected["action_id"])["status"] == "failed"
 
+
 def test_disconnecting_refuses_every_action_and_a_command_the_service_did_not_confirm_is_not_reported_done(rig):
     world, service, _ = rig
     owner = world.client()

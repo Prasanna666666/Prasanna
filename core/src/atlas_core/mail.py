@@ -461,7 +461,9 @@ class MailIndex(IndexStore):
         except (MailError, PermissionRevoked):
             return None
         if parsed.message_id == row["message_id"] and sha256_text(parsed.text()) != row["content_sha"]:
-            self._requeue(row["message_id"])  # the bytes changed under an unchanged marker (same size, same mtime): never serve the old text, and index the new text again
+            self._requeue(
+                row["message_id"]
+            )  # the bytes changed under an unchanged marker (same size, same mtime): never serve the old text, and index the new text again
             return None
         return parsed if parsed.message_id == row["message_id"] else None
 

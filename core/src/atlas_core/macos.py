@@ -321,7 +321,7 @@ def _is_attachment_like(part: Message) -> bool:
     return part.get_content_disposition() == "attachment" or part.get_content_maintype() != "text"
 
 
-def _text_body(header: Message, region: _Region, boundaries: list[bytes]) -> str | None:
+def _text_body(header: Message, region: _Region, boundaries: list[bytes]) -> str | None:  # noqa: PLR0911 - one early exit per reason the message is unreadable; each stops the walk before reading further
     """The first text/plain part, found by walking the structure in order. Reading stops exactly after the delimiter line that ends it, so nothing of a later part is read. If a payload that is not
     text (an attachment, an image, any binary part) comes before it, the walk stops at that part's headers and the message is unreadable (None): its bytes are never read to look for the text."""
     stack = list(boundaries)

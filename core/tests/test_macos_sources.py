@@ -130,10 +130,10 @@ def test_the_real_frameworks_report_a_status_and_refuse_to_read_without_permissi
 def test_a_system_that_does_not_answer_is_an_unavailable_source_not_an_empty_one(tmp_path):
     """ATLAS-MAC-090: a transient failure never becomes a successful empty snapshot; only a real denial or a genuinely empty source may empty the index."""
     from conftest import KEY
+    from test_mail import AllowAll
 
     from atlas_core.access import FakeOSPermissions  # noqa: F401
     from atlas_core.mail import MailError, MailIndex
-    from test_mail import AllowAll
 
     platform = FakePlatform(records={"notes": [event("n1", "Quote", "2026-10-01T09:00:00+00:00"), event("n2", "Other", "2026-10-02T09:00:00+00:00")]})
     source = NativeRecords(platform, "notes", lambda: NOW)

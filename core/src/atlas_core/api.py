@@ -254,7 +254,9 @@ class CoreApi:
         if self._registry.is_owner(client):
             return
         if self._service.creator(task_id) != client:
-            raise CoreError("not_found")  # the same answer whether the task exists or belongs to someone else; never `forbidden`, which a phone reads as its own revocation
+            raise CoreError(
+                "not_found"
+            )  # the same answer whether the task exists or belongs to someone else; never `forbidden`, which a phone reads as its own revocation
 
     def _route(self, request: Request, match: re.Match[str], query: dict[str, list[str]], correlation: str, version: str, client: str) -> Response:
         method, task_id, action = request.method, match.group(3), match.group(4)

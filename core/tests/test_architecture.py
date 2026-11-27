@@ -233,7 +233,7 @@ def genesis_files() -> list[Path]:
     # Historical evidence is intentionally immutable and may quote decisions that
     # were superseded later. These policy/roadmap assertions apply to canonical
     # current documents, not archived conversations or branch-history reports.
-    historical_archives = {p for p in GENESIS.glob("HISTORICAL_*.md")}
+    historical_archives = set(GENESIS.glob("HISTORICAL_*.md"))
     historical_reports = {GENESIS / "BRANCH_HISTORY_RECONCILIATION.md"}
     return [
         *[p for p in sorted(GENESIS.glob("*.md")) if p not in historical_archives | historical_reports],

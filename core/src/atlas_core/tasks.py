@@ -193,7 +193,9 @@ class TaskStore:
                 raise CoreError("internal_error")  # a newer store than this code understands: refuse rather than guess
             self._conn.executescript(DDL)
             if "creator" not in {r["name"] for r in self._conn.execute("PRAGMA table_info(tasks)")}:
-                self._conn.execute("ALTER TABLE tasks ADD COLUMN creator TEXT")  # additive: tasks made before this have no recorded creator, so only the owner can reach them
+                self._conn.execute(
+                    "ALTER TABLE tasks ADD COLUMN creator TEXT"
+                )  # additive: tasks made before this have no recorded creator, so only the owner can reach them
             self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def close(self) -> None:

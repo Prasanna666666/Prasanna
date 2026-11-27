@@ -331,7 +331,14 @@ def test_a_hostile_manifest_cannot_make_the_verifier_read_outside_the_backup_fol
         finally:
             Path.stat = real
         assert not any("outside-sentinel" in p for p in opened)
-    for entry in ("string", None, {"size": "6", "sha256": "0" * 64}, {"size": 6, "sha256": "zz"}, {"size": -1, "sha256": "0" * 64}, {"size": True, "sha256": "0" * 64}):
+    for entry in (
+        "string",
+        None,
+        {"size": "6", "sha256": "0" * 64},
+        {"size": 6, "sha256": "zz"},
+        {"size": -1, "sha256": "0" * 64},
+        {"size": True, "sha256": "0" * 64},
+    ):
         copy = tmp_path / f"e-{abs(hash(str(entry)))}"
         shutil.copytree(original, copy)
         _rewrite_manifest(copy, lambda m, entry=entry: m["files"].__setitem__("tasks.db", entry))
@@ -404,7 +411,15 @@ def test_a_restore_leaves_no_active_device_the_owner_cannot_see_or_revoke(world,
     """ATLAS-BACKUP-071: devices pair again after a restore, so restored non-owner clients are revoked; the owner stays."""
     a_core_with_a_finished_task(world)
     clients = world.tmp / "core" / "clients.json"
-    clients.write_text(json.dumps({"owner-1": {"key": "AA==", "owner": True, "revoked": False}, "phone-1": {"key": "AA==", "owner": False, "revoked": False}, "phone-2": {"key": "AA==", "owner": False, "revoked": False}}))
+    clients.write_text(
+        json.dumps(
+            {
+                "owner-1": {"key": "AA==", "owner": True, "revoked": False},
+                "phone-1": {"key": "AA==", "owner": False, "revoked": False},
+                "phone-2": {"key": "AA==", "owner": False, "revoked": False},
+            }
+        )
+    )
     folder = make_backup(world, tmp_path)
     report = restore_backup(folder, PASS, tmp_path / "restored", provision_keys=lambda keys: None)
     rows = json.loads((report.target / "clients.json").read_text())

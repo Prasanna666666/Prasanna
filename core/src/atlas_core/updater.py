@@ -160,7 +160,7 @@ class Installer:
         self._point("current", release.version)
         try:
             ok = bool(healthy(final))
-        except Exception:  # a health check that raises is a failed health check, never a reason to stay on the new version
+        except Exception:  # noqa: BLE001 - a health check that raises is a failed health check, never a reason to stay on the new version
             ok = False
         if ok:
             return release.version

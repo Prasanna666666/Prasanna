@@ -185,6 +185,7 @@ def test_a_signed_zip_bomb_or_deceptive_size_metadata_is_refused_and_the_old_ver
     inst.install(r1, a1, lambda p: True)
     monkeypatch.setattr(updater, "MAX_EXPANDED_BYTES", 5 * (1 << 20))
     monkeypatch.setattr(updater, "MAX_MEMBER_BYTES", 4 * (1 << 20))
+
     def deflated(files):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as z:

@@ -46,7 +46,7 @@ class Record:
     title: str
     fields: Mapping[str, str] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: PLR0912 - one flat validation branch per field rule
         schema = _schema().get(self.domain)
         if schema is None:
             raise RecordError("unknown_domain")

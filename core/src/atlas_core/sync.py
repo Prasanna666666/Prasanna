@@ -127,7 +127,9 @@ class SyncService:
         result = self._one(device_id, op)
         if result.status in ("applied", "conflict"):
             self._applied[key] = result  # a conflict is final for this op id: the device resolves it with a NEW op
-            self._receipt({"device": device_id, "op": op.op_id, "digest": digest, "status": result.status, "code": result.code, "version": result.current_version})
+            self._receipt(
+                {"device": device_id, "op": op.op_id, "digest": digest, "status": result.status, "code": result.code, "version": result.current_version}
+            )
         return result
 
     def _is_revoked(self, device_id: str) -> bool:

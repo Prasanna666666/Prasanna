@@ -131,7 +131,11 @@ def test_amounts_in_different_currencies_are_never_added_or_relabelled():
     """ATLAS-FIN-029: 100.00 EUR plus 100.00 USD is not 200.00 of anything."""
     from atlas_core.finance_calc import CalcError, currencies, only
 
-    mixed = [tx("e1", "2026-10-02", "100.00"), usd("u1", "2026-10-03", "100.00"), Record("i1", "finance", "2026-10-04", "inr", {"amount": "8300.00", "currency": "INR", "kind": "expense", "category": "groceries"})]
+    mixed = [
+        tx("e1", "2026-10-02", "100.00"),
+        usd("u1", "2026-10-03", "100.00"),
+        Record("i1", "finance", "2026-10-04", "inr", {"amount": "8300.00", "currency": "INR", "kind": "expense", "category": "groceries"}),
+    ]
     txs = transactions(mixed)
     assert currencies(txs) == ["EUR", "INR", "USD"]
     for aggregate in (total, by_month, lambda t: by_category(t, "2026-10"), lambda t: cash_flow(t, "2026-10")):
@@ -147,7 +151,9 @@ def test_amounts_in_different_currencies_are_never_added_or_relabelled():
         "sum-2026-10-groceries-INR": ("8300.00", "INR"),
     }
     assert all(verify_summary(s, mixed) for s in summaries.values())
-    forged = Record(summaries["sum-2026-10-groceries-USD"].record_id, "finance", "2026-10-28", "x", {**summaries["sum-2026-10-groceries-USD"].fields, "currency": "EUR"})
+    forged = Record(
+        summaries["sum-2026-10-groceries-USD"].record_id, "finance", "2026-10-28", "x", {**summaries["sum-2026-10-groceries-USD"].fields, "currency": "EUR"}
+    )
     assert verify_summary(forged, mixed) is False  # a summary relabelled with another currency does not verify
 
 

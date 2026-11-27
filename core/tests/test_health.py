@@ -84,7 +84,7 @@ def test_an_index_that_is_paused_or_incomplete_is_degraded_even_with_nothing_pen
         return lambda: {**real(), "failed": 0, "pending": 0, **over}
 
     def status():
-        return [(c.status, c.code) for c in health(core, ROOMY) if c.name == "index_documents"][0]
+        return next((c.status, c.code) for c in health(core, ROOMY) if c.name == "index_documents")
 
     index.coverage = view(complete=True, paused=None)
     assert status() == ("ok", "")

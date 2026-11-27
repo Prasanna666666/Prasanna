@@ -134,7 +134,10 @@ def test_an_operation_id_is_one_operation_even_across_a_restart(tmp_path):
         assert (outcome.status, outcome.code) == ("rejected", "operation_id_reused") and r.version("n2") is None
         # a crash after the intent was written but before the result: the same payload may be applied once more (the store's version check keeps it safe), a different one never
         (tmp_path / "sync-receipts.jsonl").write_text(
-            (tmp_path / "sync-receipts.jsonl").read_text() + '{"device": "phone-0001", "op": "op-2", "digest": "' + r.sync._digest(QueuedOp("op-2", "notes.create", note("n3"))) + '"}\n{"torn line'
+            (tmp_path / "sync-receipts.jsonl").read_text()
+            + '{"device": "phone-0001", "op": "op-2", "digest": "'
+            + r.sync._digest(QueuedOp("op-2", "notes.create", note("n3")))
+            + '"}\n{"torn line'
         )
         r.restart()
         assert r.sync.apply("phone-0001", [QueuedOp("op-2", "notes.create", note("n4"))])[0].code == "operation_id_reused"

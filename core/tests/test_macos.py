@@ -730,7 +730,9 @@ def test_a_delimiter_of_an_enclosing_multipart_while_an_inner_one_is_open_ends_t
     reads = _Reads(monkeypatch)
     assert box.read("<bad@example.invalid>") is None  # unreadable, never a guess
     assert SENT not in reads.everything and b"application/pdf" not in reads.everything
-    assert len(reads.everything) <= _count_prefix(raw) + raw.index(premature, raw.index(b"only html")) + len(premature)  # not one byte after the premature delimiter line
+    assert len(reads.everything) <= _count_prefix(raw) + raw.index(premature, raw.index(b"only html")) + len(
+        premature
+    )  # not one byte after the premature delimiter line
 
 
 def test_a_same_size_edit_that_keeps_the_mtime_is_refused_at_once_and_indexed_again_without_a_new_marker(tmp_path):

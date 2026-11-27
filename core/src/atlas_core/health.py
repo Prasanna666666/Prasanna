@@ -70,7 +70,9 @@ def diagnostics(core: Any, home: Path, versions: dict[str, str] | None = None, u
         "versions": {**(versions or {}), "python": platform.python_version(), "platform": platform.system()},
         "checks": [{"name": c.name, "status": c.status, "code": c.code} for c in health(core, usage)],
         "storage": {"bytes_by_category": disk.bytes_by_category, "pressure": disk.pressure},
-        "indexes": {n: {k: i.coverage().get(k) for k in ("total", "searched", "pending", "failed", "complete", "paused")} for n, i in sorted(core.indexes.items())},
+        "indexes": {
+            n: {k: i.coverage().get(k) for k in ("total", "searched", "pending", "failed", "complete", "paused")} for n, i in sorted(core.indexes.items())
+        },
     }
     return redact(json.dumps(body, sort_keys=True, indent=1), home)
 

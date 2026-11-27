@@ -8,6 +8,7 @@ this file is verified on Linux with the deterministic fakes and the Mac pieces p
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import os
 import shutil
@@ -326,10 +327,10 @@ class Core:
             now = self.clock()
             last = self._scanned.get(source_type)
             if last is None or (now - last).total_seconds() >= RESCAN_SECONDS:
-                try:
+                with contextlib.suppress(
+                    MailError
+                ):  # the source did not answer (or answered nonsense): the index stands as it was, and the next try comes after the usual interval
                     index.scan()
-                except MailError:  # the source did not answer (or answered nonsense): the index stands as it was, and the next try comes after the usual interval
-                    pass
                 self._scanned[source_type] = now
             index.run(INDEX_SLICE)
 

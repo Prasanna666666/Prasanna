@@ -83,7 +83,9 @@ def mac_profile(read_roots: Sequence[str] = ()) -> str:
         "(deny network*)",
         '(deny file-write*)(allow file-write* (literal "/dev/null"))',
         "(deny file-read-data " + "".join(f"(subpath {quote(p)})" for p in PRIVATE_READ_ROOTS) + ")",
-        "(allow file-read-data " + "".join(f"(subpath {quote(p)})" for p in readable) + ")",  # explicit exceptions for denied private roots; allow-default still permits other reads
+        "(allow file-read-data "
+        + "".join(f"(subpath {quote(p)})" for p in readable)
+        + ")",  # explicit exceptions for denied private roots; allow-default still permits other reads
         "(deny process-exec*)(allow process-exec* " + "".join(f"(subpath {quote(p)})" for p in python) + ")",  # only programs inside the Python runtime
         "(deny mach-lookup)(allow mach-lookup "
         + "".join(f"(global-name {quote(n)})" for n in MACH_ALLOWED)

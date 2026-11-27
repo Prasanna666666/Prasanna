@@ -152,11 +152,16 @@ def test_the_source_arguments_are_name_equals_folder_and_anything_else_is_ignore
 
 
 def _alive(pid: int) -> bool:
+    """Running, not merely present: a process that has exited but is not yet reaped (a zombie, e.g. when PID 1 in a container does not reap orphans) is gone."""
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    return True
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):  # no /proc (macOS) or it vanished: the signal probe above stands
+        return True
+    return state not in ("Z", "X")
 
 
 def test_a_core_whose_parent_dies_stops_by_itself_instead_of_running_on(tmp_path):

@@ -183,7 +183,9 @@ def test_a_blocked_executor_cannot_hold_the_run_past_its_deadline_or_the_owners_
 
     try:
         begun = time.monotonic()
-        expired = run([task("a", seconds=0.1), task("b", depends_on=("a",))], registry(), {"research": blocked})  # the task's own budget is shorter than the run's
+        expired = run(
+            [task("a", seconds=0.1), task("b", depends_on=("a",))], registry(), {"research": blocked}
+        )  # the task's own budget is shorter than the run's
         assert time.monotonic() - begun < 2 and expired.status == "expired" and expired.tasks["a"].state == "expired" and expired.tasks["b"].state == "skipped"
         assert started == ["a"]  # the dependent never started
 
@@ -197,7 +199,12 @@ def test_a_blocked_executor_cannot_hold_the_run_past_its_deadline_or_the_owners_
         stop.start()
         begun = time.monotonic()
         cancelled = run([task("a", seconds=60), task("b", depends_on=("a",))], registry(), {"research": blocked}, RunOptions(cancelled=flag.is_set))
-        assert time.monotonic() - begun < 2 and cancelled.status == "cancelled" and cancelled.tasks["a"].state == "cancelled" and cancelled.tasks["b"].state == "skipped"
+        assert (
+            time.monotonic() - begun < 2
+            and cancelled.status == "cancelled"
+            and cancelled.tasks["a"].state == "cancelled"
+            and cancelled.tasks["b"].state == "skipped"
+        )
     finally:
         release.set()
 

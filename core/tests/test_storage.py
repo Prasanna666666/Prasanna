@@ -29,7 +29,16 @@ def test_usage_is_reported_by_category_and_originals_are_not_counted(tmp_path):
     (backups / "b").write_bytes(b"b" * 11)
     r = report(data, backups_dir=backups, budget_bytes=1000, usage=fake_disk(100 * GIB, 60 * GIB))
     assert r.bytes_by_category == {
-        "tasks": 100, "designation": 50, "owner_edits": 0, "sensitive_records": 0, "action_audit": 0, "indexes": 500, "models": 1000, "history": 20, "other": 7, "backups": 11,
+        "tasks": 100,
+        "designation": 50,
+        "owner_edits": 0,
+        "sensitive_records": 0,
+        "action_audit": 0,
+        "indexes": 500,
+        "models": 1000,
+        "history": 20,
+        "other": 7,
+        "backups": 11,
     }
     assert r.over_budget is True and r.pressure == "ok" and r.actions == ()
 
@@ -38,7 +47,17 @@ def test_every_durable_store_the_core_creates_has_its_own_category_and_only_stra
     """ATLAS-OPS-038: owner edits, Finance, Health and the action audit (with their WAL/SHM files) are not counted as 'other'."""
     data = tmp_path / "core"
     data.mkdir()
-    sizes = {"edits.db": 3, "edits.db-wal": 4, "finance-records.db": 5, "finance-records.db-shm": 6, "health-records.db": 7, "health-records.db-wal": 8, "actions-audit.jsonl": 9, "devices.json": 2, "stray.log": 1}
+    sizes = {
+        "edits.db": 3,
+        "edits.db-wal": 4,
+        "finance-records.db": 5,
+        "finance-records.db-shm": 6,
+        "health-records.db": 7,
+        "health-records.db-wal": 8,
+        "actions-audit.jsonl": 9,
+        "devices.json": 2,
+        "stray.log": 1,
+    }
     for name, size in sizes.items():
         (data / name).write_bytes(b"x" * size)
     got = report(data, usage=fake_disk(100 * GIB, 60 * GIB)).bytes_by_category

@@ -125,12 +125,16 @@ jobs:
       - name: Install the browser the engine drives (Playwright Chromium)
         run: python -m playwright install --with-deps chromium
       - name: Tests (log and JUnit report saved for the artefact scan)
+        shell: bash
         run: |
+          set -eo pipefail  # a failing pytest must fail the job even though its output is piped to the log
           mkdir -p ../artefacts
           pytest -q --junitxml=../artefacts/junit-${{ matrix.python }}.xml 2>&1 | tee ../artefacts/pytest-${{ matrix.python }}.log
       - name: Scan the test artefacts for personal-content sentinels
+        if: always()  # the log and report are kept and scanned whether or not the tests passed
         run: python tools/scan_artefacts.py ../artefacts
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: core-test-artefacts-${{ matrix.python }}
           path: artefacts

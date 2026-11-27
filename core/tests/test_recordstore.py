@@ -117,5 +117,7 @@ def test_a_newer_store_is_refused_before_any_change_to_its_schema_or_bytes(tmp_p
     check = sqlite3.connect(path)
     assert check.execute("SELECT type, name, sql FROM sqlite_master ORDER BY name").fetchall() == schema
     assert check.execute("PRAGMA user_version").fetchone()[0] == 99
-    assert check.execute("SELECT x FROM future_only").fetchall() == [(1,)]  # the data is untouched (the journal-mode header flag is the connection's, not this store's schema)
+    assert check.execute("SELECT x FROM future_only").fetchall() == [
+        (1,)
+    ]  # the data is untouched (the journal-mode header flag is the connection's, not this store's schema)
     check.close()
