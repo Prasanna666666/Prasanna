@@ -22,13 +22,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "8b23cc66705a5b3c5eddac657cf774fa35a43594"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46061223577"
+CI_REVISION = "2815257f391f5fffa6168ac1ff00bca41a8bc1dc"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46068853988"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140715689609", "core-3.13": f"{CI_RUN}/job/140715689583", "kit": f"{CI_RUN}/job/140715689668",
-    "macos": f"{CI_RUN}/job/140715689726", "app": f"{CI_RUN}/job/140715689754", "ios": f"{CI_RUN}/job/140715689699",
+    "core-3.11": f"{CI_RUN}/job/140740656866", "core-3.13": f"{CI_RUN}/job/140740656757", "kit": f"{CI_RUN}/job/140740657163",
+    "macos": f"{CI_RUN}/job/140740657018", "app": f"{CI_RUN}/job/140740656800", "ios": f"{CI_RUN}/job/140740656742",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
+V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -264,7 +265,8 @@ V03_CHANGES = [
     "UC-011 (revoked or unavailable source) is an alias of the S3-C02 aggregate. Signing: S7-X04 is canonical; S3-F13-SW is an aggregate of S7-X04 and S3-F13-INSTALL (new).",
     "S3-C06-EXACTREAD (new) carries the scoped historical criterion-6 verdict at 14b471bf; the broader S3-C06 review is pending as recorded at 8b23cc6. S2-01's verdict carries forward explicitly, for its original scope only.",
     "The owner's public-search decision moved out of S3-F11-DEV into the decision record DEC-PUBLIC-SEARCH; its guardrails stay scored in S3-F11-SW. Pass conditions are normative; recorded status and open gaps are separate fields.",
-    "All evidence now cites the scored revision 8b23cc6 and its CI run 46061223577; MAC-13 and MAC-14 are reopened because this batch changed the delivery code their evidence covered. Verdicts at 8b23cc6 mirrored: MAC-06 fail, MAC-08 fail, S3-C06 pending.",
+    "All evidence cited the scored revision 8b23cc6 and its CI run 46061223577; MAC-13 and MAC-14 were reopened because that batch changed the delivery code their evidence covered. Verdicts at 8b23cc6 mirrored: MAC-06 fail, MAC-08 fail, S3-C06 pending.",
+    "v0.3 agreed as the reporting baseline (review 6093596586, comment 7228002976). Scored revision moved to 2815257 and its PR CI run 46068853988. Verdicts at 2815257 mirrored: MAC-14 pass, MAC-18 pass, MAC-13 pending (checkpoint verified), MAC-15 fail, MAC-06 fail, MAC-08 fail.",
 ]
 
 
@@ -312,9 +314,28 @@ def apply_v03(criteria: list[dict]) -> list[dict]:
     # Verdicts the architect recorded at 8b23cc6.
     by["MAC-06"]["review"] = _verdict(V02_REVIEW, "fail", note="one required hosted job (mac-ui) failed; security passed")
     by["MAC-08"]["review"] = _verdict(V02_REVIEW, "fail", note="hosted Mac onboarding contrast still fails")
-    # Reopened: this batch changed the delivery code their 8b23cc6 evidence covered; re-evidenced at the next head's CI.
-    for cid in ("MAC-13", "MAC-14"):
-        by[cid]["reopened"] = "service.guard_delivery / coverage delivery changed in the v0.3 batch; the 8b23cc6 evidence no longer covers it"
+    return apply_verdicts_2815257(criteria)
+
+
+def apply_verdicts_2815257(criteria: list[dict]) -> list[dict]:
+    """The architect's review of 2815257 (review 6093596586), which also agreed v0.3 as the 218-criterion reporting baseline: its explicit
+    criterion verdicts, and the evidence those verdicts rest on, at the new scored revision."""
+    by = {c["id"]: c for c in criteria}
+    t, core = test, [ci("core-3.11"), ci("core-3.13")]
+
+    def evidence(cid: str, state: str, items: list[dict]) -> None:
+        by[cid]["implementation"] = {"state": state, "evidence": [{**e, "proves": state} for e in items]}
+
+    evidence("MAC-14", "full", [t("core/tests/test_api.py", "test_a_queued_1_1_final_event_does_not_deliver_counts_of_a_source_withdrawn_after_the_batch_was_read"), t("core/tests/test_api.py", "test_suppressed_coverage_never_reports_indexing_done_after_the_question_as_searched"), t("core/tests/test_api.py", "test_coverage_counts_of_a_withdrawn_source_that_cited_nothing_are_not_delivered_in_a_1_1_answer_or_stream"), *core])
+    evidence("MAC-18", "full", [t("core/tests/test_launcher.py", "test_a_stop_with_a_request_still_running_exits_with_status_7_and_the_next_start_succeeds"), t("core/tests/test_launcher.py", "test_a_data_folder_lock_dies_with_its_holder_so_a_crash_never_blocks_the_next_start"), t("core/tests/test_app.py", "test_close_keeps_the_stores_and_the_lock_while_a_request_could_still_be_using_them"), t("core/tests/test_app.py", "test_work_admitted_but_not_yet_running_is_counted_by_the_drain"), *core])
+    evidence("MAC-13", "checkpoint", [t("core/tests/test_transport.py", "test_an_idle_signed_stream_of_a_paired_device_closes_when_the_device_is_revoked"), t("core/tests/test_transport.py", "test_an_idle_signed_stream_closes_when_the_device_source_ceiling_no_longer_covers_the_task"), t("core/tests/test_transport.py", "test_no_final_payload_reaches_a_device_revoked_while_the_final_event_is_being_prepared"), t("core/tests/test_transport.py", "test_a_still_entitled_device_keeps_receiving_its_stream_to_the_final_answer"), *core])
+    by["MAC-13"]["checkpoint"] = "Signed Unix-socket tests for idle revocation, narrowed device scope, revocation during final preparation and an entitled device pass in hosted Core CI (shutdown of an open stream still proven only at the iterator level)"
+    by["MAC-14"]["review"] = _verdict(V03_REVIEW, "pass")
+    by["MAC-18"]["review"] = _verdict(V03_REVIEW, "pass")
+    by["MAC-13"]["review"] = _verdict(V03_REVIEW, "pending", note="checkpoint verified; needs a signed socket test of an open stream closing on shutdown")
+    by["MAC-15"]["review"] = _verdict(V03_REVIEW, "fail", note="revalidation happens before the calculations; a withdrawal during them can still deliver figures")
+    by["MAC-06"]["review"] = _verdict(V03_REVIEW, "fail", note="one required hosted job (mac-ui) failed")
+    by["MAC-08"]["review"] = _verdict(V03_REVIEW, "fail", note="onboarding paragraph contrast fails in Light and Dark")
     return criteria
 
 
@@ -344,7 +365,7 @@ def main() -> int:
             c["id"] = f"{c['id']}.{seen[c['id']]}"
     register = {
         "version": "0.3",
-        "status": "proposed by Claude; Codex to check the crosswalk and denominator and confirm or correct by SHA",
+        "status": "agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976)",
         "scored_revision": CI_REVISION,
         "rules": "PR #8 comment 7226542434 (scoring) and 7226926847 (schedule protocol)",
         "scoring": {"full": 1.0, "checkpoint": 0.5, "none": 0.0},

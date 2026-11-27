@@ -421,3 +421,31 @@ def test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_ar
         assert out["state"] == "denied" and out.get("latest") is None and out.get("measures", []) == [] and out.get("months", []) == []
     finally:
         world.close()
+
+
+@pytest.mark.parametrize(("domain", "calculation", "empty"), [("finance", "by_month", False), ("finance", "by_month", True), ("health", "summarise", False)])
+def test_a_summary_is_withheld_when_its_domain_is_withdrawn_during_the_calculation(tmp_path, monkeypatch, domain, calculation, empty):
+    """MAC-15: the grant is checked immediately before delivery, after every calculation. A withdrawal while the figures are being computed
+    (or while an empty result that would reveal the transaction count is being formed) gives `denied` with no figures and no count."""
+    from atlas_core import service as service_module
+
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    if domain == "health":
+        world.sources["health"] = InMemoryRecords("health", [_reading("w1", "2026-10-01", "weight", "70.0", "kg", "measured")])
+    try:
+        core = started(world)
+        world.enable(core, domain)
+        summary = world.client().finance_summary if domain == "finance" else world.client().health_summary
+        real = getattr(service_module, calculation)
+
+        def withdraw_while_calculating(*args, **kwargs):
+            out = real(*args, **kwargs)
+            core.designation.withdraw(domain, f"withdraw-{domain}-during-calculation-{empty}")
+            return {} if empty else out
+
+        monkeypatch.setattr(service_module, calculation, withdraw_while_calculating)
+        out = summary()
+        assert out["state"] == "denied" and out.get("transaction_count", 0) == 0 and out.get("latest") is None and out.get("measures", []) == []
+    finally:
+        world.close()

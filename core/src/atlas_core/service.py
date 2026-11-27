@@ -578,7 +578,8 @@ class TaskService:
 
     def finance_summary(self) -> dict[str, Any]:
         """Spending by month and category (API 1.1), computed by code from the owner's Finance records and served only under a current grant for exactly that domain. Every figure is an exact sum of the
-        transactions it names; the one percentage is rounded and labelled so. Without a Finance source the route does not exist; without a grant the answer is `denied` and nothing was read."""
+        transactions it names; the one percentage is rounded and labelled so. Without a Finance source the route does not exist; without a grant the answer is `denied` and nothing was read. The
+        whole result is built first and the grant is checked again immediately before it is returned, so a withdrawal during the read or the calculation withholds every figure."""
         d = self._d
         if d.finance_records is None:
             raise CoreError("not_found")
@@ -586,9 +587,13 @@ class TaskService:
         _decision, token = d.policy.decide([MONEY_DOMAIN], d.clock())
         if token is None:
             return {"state": "denied", **blank}
-        txs = transactions(d.finance_records())
+        result = self._finance_result(transactions(d.finance_records()), blank)
         if MONEY_DOMAIN not in d.policy.revalidate(token, d.clock())[0]:
-            return {"state": "denied", **blank}  # the final check, after the last read: a grant withdrawn while the records were read withholds the summary
+            return {"state": "denied", **blank}  # the final check, after the last read and the last calculation, immediately before delivery
+        return result
+
+    @staticmethod
+    def _finance_result(txs: list[Any], blank: dict[str, Any]) -> dict[str, Any]:
         spending = by_month(txs)
         if not spending:
             return {"state": "empty", **blank, "transaction_count": len(txs)}
@@ -614,19 +619,24 @@ class TaskService:
 
     def health_summary(self) -> dict[str, Any]:
         """Health readings summarised by code (API 1.1): per measure and unit the exact latest, minimum and maximum and a rounded, labelled average, each reading marked measured, estimated or unlabelled. Served only
-        under a current grant for exactly the Health domain; without a Health source the route does not exist; without a grant the answer is `denied` and nothing was read. No advice is given."""
+        under a current grant for exactly the Health domain; without a Health source the route does not exist; without a grant the answer is `denied` and nothing was read. No advice is given. The result
+        is built first and the grant is checked again immediately before it is returned."""
         d = self._d
         if d.health_records is None:
             raise CoreError("not_found")
+        denied = {"state": "denied", "reading_count": 0, "measures": [], "computed_by_code": True}
         _decision, token = d.policy.decide([HEALTH_DOMAIN], d.clock())
         if token is None:
-            return {"state": "denied", "reading_count": 0, "measures": [], "computed_by_code": True}
+            return denied
         records = [r for r in d.health_records() if r.domain == HEALTH_DOMAIN]
+        result = (
+            {"state": "ready", "reading_count": len(records), "measures": summarise(records)[:50], "computed_by_code": True}
+            if records
+            else {"state": "empty", "reading_count": 0, "measures": [], "computed_by_code": True}
+        )
         if HEALTH_DOMAIN not in d.policy.revalidate(token, d.clock())[0]:
-            return {"state": "denied", "reading_count": 0, "measures": [], "computed_by_code": True}  # the final check, after the last read
-        if not records:
-            return {"state": "empty", "reading_count": 0, "measures": [], "computed_by_code": True}
-        return {"state": "ready", "reading_count": len(records), "measures": summarise(records)[:50], "computed_by_code": True}
+            return denied  # the final check, after the last read and the last calculation, immediately before delivery
+        return result
 
     def highlights(self) -> dict[str, Any]:
         """Start (or find, for today) the owner's highlights: an ordinary question over the sources the owner has enabled, so the model sees only what the gate allows, every claim is cited and checked, and the answer is

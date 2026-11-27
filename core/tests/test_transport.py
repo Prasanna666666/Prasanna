@@ -56,6 +56,7 @@ def served(tmp_path):
 
     start.servers = started
     start.registry = registry  # the stream tests revoke the paired device through it
+    start.api = api  # and begin shutdown through it
     yield start, key, world, folder
     for server in started:
         server.shutdown()
@@ -293,6 +294,8 @@ def _first_event(response):
     """Read the events the stream sends before it goes idle: up to and including the queued-state event of the never-run task."""
     while True:
         line = response.fp.readline()
+        if not line:
+            raise AssertionError("the stream closed before its queued-state event")  # an early EOF fails the test instead of spinning
         if line.startswith(b"data: "):
             event = json.loads(line[6:])
             if event.get("type") == "state" and event.get("state") == "queued":
@@ -354,3 +357,16 @@ def test_a_still_entitled_device_keeps_receiving_its_stream_to_the_final_answer(
     events, closed = _events_until_closed(response)
     conn.close()
     assert closed and events and events[-1]["type"] == "final"
+
+
+def test_an_already_open_signed_stream_closes_when_the_core_begins_to_shut_down(served):
+    """MAC-13: the stream is open and idle over the signed socket; the Core begins its shutdown. The stream ends and nothing further is sent."""
+    start, key, world, _ = served
+    path = start()
+    task = _queued_task(path, key, world)
+    conn, response = _open_stream(path, key, world, task)
+    _first_event(response)
+    start.api.begin_shutdown()
+    events, closed = _events_until_closed(response)
+    conn.close()
+    assert closed and events == []

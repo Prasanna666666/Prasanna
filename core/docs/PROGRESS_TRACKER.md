@@ -21,33 +21,31 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 11.9%** (26/218) · **Review completion 4.1%** (9/218) · register v0.3 (the file as committed) scoring software revision `8b23cc6` (proposed by Claude; Codex to check the crosswalk and denominator and confirm or correct by SHA)
+**Implementation readiness 12.8%** (28/218) · **Review completion 5.5%** (12/218) · register v0.3 (the file as committed) scoring software revision `2815257` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976))
 
-Mandatory criteria not yet passing: **211** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
+Mandatory criteria not yet passing: **209** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
 
-Record structure validated by the calculator: 216 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (9).
+Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (12).
 
 | Part of the register | Criteria | Implementation | Review |
 |---|---:|---:|---:|
-| first-mac | 16 | 6.5 (41%) | 7 (44%) |
+| first-mac | 16 | 8.5 (53%) | 10 (62%) |
 | prd | 61 | 0 (0%) | 0 (0%) |
 | roadmap | 3 | 2.5 (83%) | 1 (33%) |
 | stage3 | 20 | 6 (30%) | 1 (5%) |
 | stages4to8 | 34 | 11 (32%) | 0 (0%) |
 | use-case | 84 | 0 (0%) | 0 (0%) |
 
-First Mac milestone view (criteria tagged first-mac): implementation 7.5/19 (39.5%), review 7/19 (36.8%).
+First Mac milestone view (criteria tagged first-mac): implementation 9.5/19 (50.0%), review 10/19 (52.6%).
 
-Supporting inventory (git-tracked): 285 source files, 46,809 lines, 2972 functions; 210 test files, 1914 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 6 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 285 source files, 46,840 lines, 2975 functions; 210 test files, 1916 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 7 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
-
-Flags (2, scored 0 and kept in the denominator):
-- MAC-13: reopened: service.guard_delivery / coverage delivery changed in the v0.3 batch; the 8b23cc6 evidence no longer covers it
-- MAC-14: reopened: service.guard_delivery / coverage delivery changed in the v0.3 batch; the 8b23cc6 evidence no longer covers it
 <!-- measure:end -->
 
 ## Register v0.3: scope, crosswalk and credit
+
+**Agreed reporting baseline** since Codex's review of `2815257` (review 6093596586; baseline decision comment 7228002976). Later changes follow the versioned crosswalk rules.
 
 `scripts/build_acceptance_register.py` builds the register from the repository's own inventories. v0.2 answered the architect's v0.1 review
 ([7226745827](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7226745827)); v0.3 answers the v0.2 review
