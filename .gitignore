@@ -11,3 +11,6 @@ dist/
 .coverage
 sbom.json
 library/docker-compose.folders.yml
+
+# personal Claude Code settings (hooks), never committed
+.claude/settings.local.json

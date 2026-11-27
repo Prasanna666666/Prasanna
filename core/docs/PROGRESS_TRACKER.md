@@ -2,15 +2,19 @@
 
 Two percentages, both measured against the **final product** (PRD, the use-case register, roadmap stages 0-8 and their exit evidence, the
 design decisions, verification on the target Mac, usability and release standards), not against the current stage. They are recomputed by
-`python3 scripts/progress.py` and recorded below **after every review cycle** (each architect review on PR #8 of an implementation handoff).
+`python3 scripts/progress.py --update "<what changed>"` **with every change** (a hook runs it before each commit), and the judged inputs are
+refreshed **after every review cycle** (each architect review on PR #8 of an implementation handoff).
 
 - **Implementation %**: how much of the final product is built and verified.
 - **Review %**: how much of it has been independently reviewed, had its findings closed, and been accepted by the architect and the owner.
 
 Neither number is an acceptance. Only the architect's review of an exact head and the owner's explicit acceptance accept anything.
 
-## Current measure (cycle 1, head `95f67f4`)
+## Current measure
 
+Recomputed with every change (commit). The judged inputs and the head they were reviewed at are refreshed each review cycle.
+
+<!-- measure:start -->
 **Implementation: 46%**  ·  **Review: 38%**  (head `95f67f4`)
 
 | Implementation dimension | Weight | Score |
@@ -31,7 +35,8 @@ Neither number is an acceptance. Only the architect's review of an exact head an
 
 Stages 0-8: S0 95%, S1 100%, S2 100%, S3 50%, S4 45%, S5 50%, S6 48%, S7 38%, S8 38%
 
-Counted: 63 PRD rows, 85 use cases, 34 Stage 4-8 exit rows, 146 defect IDs; 2664 Python and 286 Swift functions, 48,091 source lines; 1765 Python and 120 Swift test functions.
+Counted: 63 PRD rows, 85 use cases, 34 Stage 4-8 exit rows, 146 defect IDs; 2668 Python and 286 Swift functions, 48,151 source lines; 1768 Python and 120 Swift test functions.
+<!-- measure:end -->
 
 ## Method
 
@@ -59,3 +64,12 @@ implemented) holds Functionality at a third.
 | Cycle | Date | Head | Implementation | Review | What moved |
 |---:|---|---|---:|---:|---|
 | 1 | 2026-11-27 | `95f67f4` | 46% | 38% | Baseline of this tracker. Measured after the architect review of `124bf96` and Claude's batch closing its items 1-3. |
+
+## Change log (every change)
+
+Each commit adds one row: the measure right after that change, and the movement from the previous row (implementation / review, in points).
+
+| Date | Change on top of | Implementation | Review | Δ (pts) | Change |
+|---|---|---:|---:|---|---|
+| 2026-11-27 | after `aed8839` | 45.9% | 38.4% | baseline | Tracker records every change: a change-log row per commit and a staleness test |
+<!-- changes:end -->

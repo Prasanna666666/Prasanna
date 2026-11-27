@@ -22,3 +22,11 @@ def test_the_tracker_records_the_cycle_and_head_of_its_inputs():
     inputs = json.loads((ROOT / "core" / "docs" / "progress_inputs.json").read_text(encoding="utf-8"))
     tracker = (ROOT / "core" / "docs" / "PROGRESS_TRACKER.md").read_text(encoding="utf-8")
     assert f"| {inputs['cycle']} |" in tracker and inputs["head"][:7] in tracker
+
+
+def test_the_recorded_measure_matches_the_tree_so_no_change_lands_without_its_update():
+    """Every change must carry its measure: run `python3 scripts/progress.py --update "<what changed>"` (the commit hook does it)."""
+    progress = runpy.run_path(str(ROOT / "scripts" / "progress.py"))
+    tracker = (ROOT / "core" / "docs" / "PROGRESS_TRACKER.md").read_text(encoding="utf-8")
+    recorded = tracker.split("<!-- measure:start -->\n", 1)[1].split("\n<!-- measure:end -->", 1)[0]
+    assert recorded == progress["markdown"](progress["measure"]()), "the tracker is stale: run scripts/progress.py --update"

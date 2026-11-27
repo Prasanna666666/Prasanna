@@ -177,7 +177,63 @@ def markdown(m: dict) -> str:
     return "\n".join(lines)
 
 
+TRACKER = ROOT / "core" / "docs" / "PROGRESS_TRACKER.md"
+MEASURE_START, MEASURE_END, LOG_END = "<!-- measure:start -->", "<!-- measure:end -->", "<!-- changes:end -->"
+
+
+def _last_logged(text: str) -> tuple[float, float] | None:
+    rows = re.findall(r"^\| [^|]+ \| after [^|]+ \| ([\d.]+)% \| ([\d.]+)% \|", text.split(LOG_END, maxsplit=1)[0], re.M)
+    return (float(rows[-1][0]), float(rows[-1][1])) if rows else None
+
+
+def update(note: str, base: str) -> str:
+    """Rewrite the tracker's current measure and add one change-log row for this change. Returns the row."""
+    m = measure()
+    text = TRACKER.read_text(encoding="utf-8")
+    head, rest = text.split(MEASURE_START, 1)
+    _, tail = rest.split(MEASURE_END, 1)
+    text = f"{head}{MEASURE_START}\n{markdown(m)}\n{MEASURE_END}{tail}"
+    implementation, review = round(m["implementation"] * 100, 1), round(m["review"] * 100, 1)
+    before = _last_logged(text)
+    delta = "baseline" if before is None else f"{implementation - before[0]:+.1f} / {review - before[1]:+.1f}"
+    note = re.sub(r"[|\n\r]+", " ", note).strip()[:140] or "change"
+    from datetime import UTC, datetime
+
+    row = f"| {datetime.now(UTC).date().isoformat()} | after `{base[:7]}` | {implementation:.1f}% | {review:.1f}% | {delta} | {note} |"
+    text = text.replace(LOG_END, f"{row}\n{LOG_END}", 1)
+    TRACKER.write_text(text, encoding="utf-8")
+    return row
+
+
+def _git(*args: str) -> str:
+    """git, by name from PATH, with a fixed argument list built here (never from the hook payload)."""
+    import subprocess
+
+    done = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True, check=False)  # noqa: S603, S607
+    return done.stdout.strip()
+
+
+def hook() -> int:
+    """Claude Code PreToolUse hook: before a `git commit` in this repository, refresh the tracker and stage it, so every commit carries its measure."""
+    payload = json.loads(sys.stdin.read() or "{}")
+    command = str(payload.get("tool_input", {}).get("command", ""))
+    if not re.search(r"\bgit\s+commit\b", command) or "--amend" in command:
+        return 0
+    message = re.search(r"""-m\s+(?:"([^"\n]*)|'([^'\n]*))""", command)
+    note = next((g for g in (message.groups() if message else ()) if g), "commit")
+    row = update(note, _git("rev-parse", "HEAD") or "unknown")
+    _git("add", str(TRACKER.relative_to(ROOT)))
+    print(json.dumps({"systemMessage": f"Progress tracker updated: {row}"}))
+    return 0
+
+
 if __name__ == "__main__":
+    if "--hook" in sys.argv:
+        sys.exit(hook())
+    if "--update" in sys.argv:
+        args = sys.argv[sys.argv.index("--update") + 1 :]
+        print(update(" ".join(args), _git("rev-parse", "HEAD")))
+        sys.exit(0)
     result = measure()
     if "--json" in sys.argv:
         print(json.dumps({k: v for k, v in result.items() if k in ("implementation", "review", "counts")}, indent=1))
