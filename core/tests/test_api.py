@@ -231,3 +231,52 @@ def test_a_task_belongs_to_its_creator_and_the_owner_and_nobody_else_can_read_or
     assert as_client(owner_key, "owner-mac-0002", "GET", f"/v1/tasks/{task}") == 200  # the owner
     assert h.json("GET", f"/v1/tasks/{task}")[1]["state"] != "cancelled"  # the stranger's cancel changed nothing
     assert h.json("GET", "/v1/tasks/missing0001")[0] == 404  # and a device gets the same answer whether the task exists or not
+
+
+def _library(h: Harness, scope: list[str], query: str = "invoice"):
+    return h.json("POST", "/v1/library/search", {"query": query, "scope": scope}, version="1.1")
+
+
+@pytest.mark.criterion(13)
+def test_library_applies_the_same_device_source_ceiling_as_a_question_and_the_owner_is_unaffected(tmp_path):
+    """ATLAS-SEC-083 / ATLAS-CORE-092: Library is a data-bearing route; a paired device gets only the sources a question would allow, refused before the policy or any source is touched."""
+    world = World(tmp_path, [grant("documents"), grant("mail"), grant("photos"), grant("finance"), grant("health")])
+    h = Harness(world, owner=False)
+    for scope in (["finance"], ["health"], ["photos"], ["documents", "photos"], ["calendar"]):
+        status, body = _library(h, scope)
+        assert status == 403 and body["code"] == "source_denied", scope
+    assert world.retriever.calls == []  # nothing was read
+    assert _library(h, ["documents"])[0] == 200
+    (tmp_path / "owner").mkdir()
+    owner = Harness(World(tmp_path / "owner", [grant("photos")]), owner=True)
+    assert _library(owner, ["photos"])[0] == 200
+
+
+@pytest.mark.criterion(10)
+def test_a_mixed_scope_search_names_the_requested_source_it_did_not_search_instead_of_an_unqualified_no_match(tmp_path):
+    """Documents granted and complete, Mail requested but not granted: the answer is partial, Mail appears as unsearched with its counts withheld, and nothing about Mail was read."""
+    world = World(tmp_path, [grant("documents")])
+    world.service._d.coverage["documents"] = lambda: {"total": 3, "searched": 3, "complete": True}
+    world.service._d.coverage["mail"] = lambda: {"total": 99, "searched": 99, "complete": True}  # must never surface
+    h = Harness(world)
+    world.retriever.only = {"nothing"}  # the search finds nothing in any source
+    status, body = _library(h, ["documents", "mail"], "zzzunmatchedzzz")
+    assert status == 200 and body["state"] == "partial_no_results"
+    by_source = {c["source_type"]: c for c in body["coverage"]}
+    assert by_source["documents"]["complete"] is True
+    assert by_source["mail"] == {"source_type": "mail", "total": 0, "searched": 0, "complete": False}
+    full = _library(h, ["documents"], "zzzunmatchedzzz")[1]
+    assert full["state"] == "no_results"  # complete coverage of what was asked still says so plainly
+
+
+@pytest.mark.criterion(10)
+def test_a_grant_withdrawn_while_a_library_read_is_under_way_removes_that_source_before_delivery(tmp_path):
+    """Access is rechecked at delivery: the read started under a grant, the grant was withdrawn during it, and no result from that source is returned."""
+    world = World(tmp_path, [grant("documents")])
+    world.service._d.coverage["documents"] = lambda: {"total": 3, "searched": 3, "complete": True}
+    h = Harness(world)
+    assert _library(h, ["documents"])[1]["results"], "fixture must return a result while the grant stands"
+    world.retriever.on_search = lambda _source_type: world.grants._grants.clear()  # the owner withdraws access while the search is running
+    status, body = _library(h, ["documents"])
+    assert status == 200 and body["results"] == [] and body["state"] == "partial_no_results"
+    assert body["coverage"] == [{"source_type": "documents", "total": 0, "searched": 0, "complete": False}]

@@ -530,9 +530,17 @@ class TaskService:
                         "complete": bool(c.get("complete", False)),
                     }
                 )
+            elif token is not None:
+                # requested but not searched (no current grant, or no provider): said plainly as an unsearched source so a no-match is never read as covering it; its counts stay withheld
+                coverage.append({"source_type": source_type, "total": 0, "searched": 0, "complete": False})
         if token is None:
             return {"state": "denied", "results": [], "coverage": []}
         found = self._retrieval.fetch(token, d.retriever, query, d.clock(), d.policy, d.clock).passages
+        still_permitted, _withdrawn = d.policy.revalidate(token, d.clock())  # access is checked again at delivery: a grant withdrawn during the read removes that source's results
+        found = [p for p in found if p["evidence"]["source_type"] in still_permitted]
+        for entry in coverage:
+            if entry["source_type"] not in still_permitted:
+                entry.update(total=0, searched=0, complete=False)
         results: list[dict[str, Any]] = []
         seen: set[str] = set()
         for passage in found:

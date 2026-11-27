@@ -153,7 +153,7 @@ class CoreApi:
             return None
         handlers: dict[str, Callable[[], Response]] = {
             COMPUTE: lambda: self._compute(request),
-            LIBRARY_SEARCH: lambda: self._library(request),
+            LIBRARY_SEARCH: lambda: self._library(request, client),
             ATTENTION: lambda: self._attention(request, client),
             FINANCE_SUMMARY: lambda: self._finance(request, client),
             HEALTH_SUMMARY: lambda: self._health(request, client),
@@ -424,7 +424,7 @@ class CoreApi:
             raise CoreError("forbidden")
         return self._reply(200, self._ops.attention(), "AttentionList", "1.1")
 
-    def _library(self, request: Request) -> Response:
+    def _library(self, request: Request, client: str) -> Response:
         if request.method != "POST":
             raise CoreError("invalid_request")
         try:
@@ -432,6 +432,8 @@ class CoreApi:
         except ValueError:
             raise CoreError("invalid_request") from None
         validate("LibrarySearchRequest", body, "1.1")
+        if not self._registry.is_owner(client) and not self._service.device_may_ask(body["scope"]):
+            raise CoreError("source_denied")  # the same device ceiling a question has, before the policy, the index or any source is touched
         return self._reply(200, self._service.library_search(body["query"], body["scope"]), "LibraryResult", "1.1")
 
     def _pair(self, request: Request) -> Response:
