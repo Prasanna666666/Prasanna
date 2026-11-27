@@ -284,7 +284,7 @@ class CoreApi:
             handler, contract = actions[(action, method)]
             return self._reply(200, handler(task_id), contract, version)
         if action == "events" and method == "GET":
-            return self._events(task_id, query, correlation, version)
+            return self._events(task_id, query, correlation, version, client)
         raise CoreError("invalid_request")
 
     def _enrol(self, request: Request, headers: dict[str, str], version: str) -> Response:
@@ -557,23 +557,28 @@ class CoreApi:
             validate(contract, value, version)
         return _json(status, value)
 
-    def _events(self, task_id: str, query: dict[str, list[str]], correlation: str, version: str) -> Response:
+    def _events(self, task_id: str, query: dict[str, list[str]], correlation: str, version: str, client: str) -> Response:
         try:
             after = int(query.get("after", ["0"])[0])
         except ValueError:
             raise CoreError("invalid_request") from None
         self._service.get(task_id)  # 404 before the stream opens
         self._log.emit("stream.opened", "stream", correlation, count=after)
-        return Response(200, {"content-type": SSE, "cache-control": "no-store"}, stream=self._follow(task_id, after, version))
+        return Response(200, {"content-type": SSE, "cache-control": "no-store"}, stream=self._follow(task_id, after, version, client))
 
     def begin_shutdown(self) -> None:
         """The Core is closing: every open stream ends at its next step (the client resumes with ?after=) so that no handler is reading a store that is about to close."""
         self._closing.set()
 
-    def _follow(self, task_id: str, after: int, version: str) -> Iterator[bytes]:
+    def _follow(self, task_id: str, after: int, version: str, client: str | None = None) -> Iterator[bytes]:
+        """Follow a task's events. Before each event leaves, the stream is still wanted (the Core is not closing; a paired device is still active and still within the device source ceiling) and the event is
+        checked once more against the grants as they are now, so a revocation or a withdrawal during an open stream stops delivery at the very next event."""
         deadline = time.monotonic() + FOLLOW_SECONDS
         while not self._closing.is_set():
-            for event in self._service.events_after(task_id, after, version):
+            for queued in self._service.events_after(task_id, after, version):
+                if self._closing.is_set() or not self._still_entitled(task_id, client):
+                    return
+                event = self._service.guard_delivery(task_id, queued)
                 after = event["seq"]
                 yield f"id: {after}\ndata: {json.dumps(event)}\n\n".encode()
             if self._service.get(task_id)["state"] in TERMINAL and not self._service.events_after(task_id, after, version):
@@ -581,3 +586,9 @@ class CoreApi:
             if time.monotonic() > deadline:
                 return
             time.sleep(FOLLOW_POLL)
+
+    def _still_entitled(self, task_id: str, client: str | None) -> bool:
+        """Whether the client that opened the stream may still receive it: unchanged for an owner; for a paired device, only while it is active and the task's sources are still within the device ceiling."""
+        if client is None or self._registry.is_owner(client):
+            return True
+        return self._registry.is_active(client) and self._service.device_may_ask(self._service.get(task_id)["source_scope"])

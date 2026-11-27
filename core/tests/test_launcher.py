@@ -243,3 +243,32 @@ def test_a_locked_keychain_makes_the_core_exit_with_its_own_code_and_the_launche
     with pytest.raises(launcher.LaunchFailed) as e:
         process.start(timeout=30)
     assert str(e.value) == "needs_owner_signin" and process.bootstrap_code is None
+
+
+FACTORY_CALLS: list[str] = []
+
+
+def recording_factory(data_dir, socket_path, code, options):
+    """Stands for the production factory, which provisions Keychain keys and opens stores: it must never run for a start that cannot own the folder."""
+    FACTORY_CALLS.append(str(data_dir))
+    raise AssertionError("keys would have been provisioned")
+
+
+def test_a_start_that_cannot_own_the_data_folder_provisions_no_keys_and_opens_no_store(tmp_path, monkeypatch):
+    """The folder lock is taken BEFORE the config factory (Keychain provisioning, store opening): the losing start exits busy and touches nothing."""
+    import io
+
+    from atlas_core import serve
+    from atlas_core.app import acquire_data_dir
+
+    data = tmp_path / "core"
+    held = acquire_data_dir(data)  # another Core owns the folder
+    try:
+        monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+        FACTORY_CALLS.clear()
+        code = serve.main(
+            ["--data-dir", str(data), "--socket", str(tmp_path / "s"), "--config-factory", "test_launcher:recording_factory", "--allow-custom-factory"]
+        )
+        assert code == serve.EXIT_BUSY and FACTORY_CALLS == []
+    finally:
+        os.close(held)

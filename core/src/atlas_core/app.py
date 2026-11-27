@@ -13,6 +13,7 @@ import fcntl
 import os
 import shutil
 import threading
+import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -74,6 +75,9 @@ class CoreConfig:
     bootstrap_code: str | None = (
         None  # the single-use first-run code, known only to the process that starts the Core; required while no owner client is enrolled
     )
+    data_dir_lock: int | None = (
+        None  # the data-folder lock already held by the starting process (taken BEFORE any key was provisioned or store opened); None: the Core takes it itself
+    )
     open_bootstrap: bool = False  # DEVELOPMENT ONLY: accept the first owner with no code (what the first version did); never set it in a real run
     clients: ClientRegistry | None = None  # None: a durable registry in the data folder (the normal case); tests inject one
     documents: tuple[str, Path] | None = None  # (source type name from the policy rules, folder)
@@ -113,6 +117,12 @@ def _lock_data_dir(data_dir: Path) -> int:
         os.close(fd)
         raise CoreAlreadyRunning("another Core owns this data folder") from None
     return fd
+
+
+def acquire_data_dir(data_dir: Path) -> int:
+    """Create the data folder if needed and take its single-owner lock. The starting process calls this first, so that no Keychain key is provisioned and no store is opened by a second Core that would lose."""
+    data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    return _lock_data_dir(data_dir)
 
 
 class _Retriever:
@@ -157,7 +167,9 @@ class Core:
     def __init__(self, config: CoreConfig) -> None:
         c = config
         c.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self._lock_fd = _lock_data_dir(c.data_dir)  # one Core per data folder: taken before any store is opened, held until close() or the process ends
+        self._lock_fd = (
+            c.data_dir_lock if c.data_dir_lock is not None else _lock_data_dir(c.data_dir)
+        )  # one Core per data folder: taken before any store is opened, held until close() or the process ends
         try:
             self._build(c)
         except BaseException:
@@ -362,18 +374,19 @@ class Core:
             os.close(fd)
 
     def close(self, drain_seconds: float = CLOSE_DRAIN_SECONDS) -> bool:
-        """Stop and release. Active work is stopped first and waited for, within `drain_seconds`. Returns True when everything has finished and the stores and the data-directory lock were released.
+        """Stop and release. Active work is stopped first and waited for, within `drain_seconds` in total (requests and workers share the one deadline). Returns True when everything has finished and the stores and the data-directory lock were released.
         Returns False, with the stores still open and the lock still held, when a request or worker could still be using them: closing them under live work is worse than staying owned, so the caller
         ends the whole process (which releases both) instead of continuing."""
+        deadline = time.monotonic() + max(drain_seconds, 0.0)  # one total bound for the whole wait, not a fresh allowance for each step
         self._stop.set()
         self.api.begin_shutdown()  # open streams end at their next step
         stalled = False
         if self.server is not None:
             self.server.shutdown()  # no new request is accepted
             self.server.server_close()
-            stalled = not self.server.drain(drain_seconds)
+            stalled = not self.server.drain(max(deadline - time.monotonic(), 0.0))
         for thread in self._threads:
-            thread.join(min(5.0, max(drain_seconds, 0.0)))  # the worker and the connector check finish before any store they use is closed
+            thread.join(max(deadline - time.monotonic(), 0.0))  # the worker and the connector check finish before any store they use is closed
             stalled = stalled or thread.is_alive()
         if stalled:
             self.config.log.emit(

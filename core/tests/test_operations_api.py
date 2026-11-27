@@ -184,6 +184,7 @@ def test_a_device_pairs_over_the_socket_checks_the_core_syncs_and_is_revoked_for
         newcomer.open_pairing_offer()  # a paired device is a member, never an owner
     assert member.value.code == "forbidden"
     assert [(d["device_id"], d["label"], d["revoked_at"]) for d in owner.devices()] == [("new-phone-0001", "Phone", None)]
+    assert newcomer._json("GET", "/v1/index/status") is not None  # an active paired phone gets 200 on the revocation probe
     assert owner.revoke_device("new-phone-0001") is True
     with pytest.raises(atlas_client.ClientError) as revoked:
         newcomer.sync([{"op_id": "op-0000002", "name": "notes.create", "payload": {**NOTE, "id": "n2"}}])

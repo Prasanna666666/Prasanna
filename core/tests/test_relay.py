@@ -6,6 +6,7 @@ import http.client
 import shutil
 import socket
 import tempfile
+from pathlib import Path
 
 import pytest
 from conftest import KEY
@@ -139,23 +140,31 @@ def test_the_relays_body_cap_is_the_apis_own():
     assert relay.MAX_BODY_BYTES == api.MAX_BODY_BYTES
 
 
-def test_the_relay_never_forwards_more_than_the_response_cap_and_the_cap_is_the_phones(tmp_path):
+@pytest.fixture
+def fake_core():
+    """A listening Unix socket in a SHORT folder (a socket path is limited to 103 bytes on macOS, which pytest's temporary folders there exceed), closed and removed whatever happens, including a setup error."""
+    folder = Path(tempfile.mkdtemp(prefix="atl"))
+    core = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        path = folder / "fake-core.sock"
+        core.bind(str(path))
+        core.listen(1)
+        yield path, core
+    finally:
+        core.close()
+        shutil.rmtree(folder, ignore_errors=True)
+
+
+def test_the_relay_never_forwards_more_than_the_response_cap_and_the_cap_is_the_phones(fake_core):
     """ATLAS-RELAY-063 / ATLAS-IOS-060: a Core that streams without end is cut off at the cap; the cap equals the phone transport's own limit."""
     import re
     import threading
-    from pathlib import Path
 
     from atlas_core import relay
 
     swift = (Path(__file__).resolve().parents[2] / "app/Sources/AtlasKit/HTTPTransport.swift").read_text()
     assert str(relay.MAX_RESPONSE_BYTES) == re.search(r"maxReply = ([0-9_]+)", swift).group(1).replace("_", "")
-    short = Path(
-        tempfile.mkdtemp(prefix="atl")
-    )  # a short path: a Unix socket path is limited to 103 bytes on macOS, which pytest's temporary folders there exceed
-    path = short / "fake-core.sock"
-    core = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    core.bind(str(path))
-    core.listen(1)
+    path, core = fake_core
     chunk, pushed = b"x" * 65536, []
 
     def endless():
@@ -184,5 +193,3 @@ def test_the_relay_never_forwards_more_than_the_response_cap_and_the_cap_is_the_
     finally:
         server.shutdown()
         server.server_close()
-        core.close()
-        shutil.rmtree(short, ignore_errors=True)

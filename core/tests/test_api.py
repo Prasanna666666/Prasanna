@@ -333,3 +333,57 @@ def test_a_stream_already_suspended_in_delivery_ends_when_the_core_begins_to_clo
     assert not finished.is_set(), "the stream is open and waiting"
     h.api.begin_shutdown()
     assert finished.wait(2)
+
+
+def _finished_task(world: World):
+    record = world.run_new(request(["documents"]))
+    assert record["state"] == "completed"
+    return record["task_id"]
+
+
+@pytest.mark.criterion(10)
+def test_a_citation_text_is_not_delivered_when_the_grant_is_withdrawn_while_it_is_being_read(tmp_path, monkeypatch):
+    """The final access check follows the last read: the source text was resolved, the grant went, and nothing leaves."""
+    world = World(tmp_path, [grant("documents")])
+    task = _finished_task(world)
+    h = Harness(world)
+    assert h.json("GET", f"/v1/tasks/{task}/citations/0", version="1.1")[0] == 200
+    from atlas_core import service as service_module
+
+    real_resolve = service_module.resolve
+
+    def withdraw_on_read(evidence, sources):
+        text = real_resolve(evidence, sources)  # the source text has just been read
+        world.grants._grants.clear()  # and only now is the grant withdrawn
+        return text
+
+    monkeypatch.setattr(service_module, "resolve", withdraw_on_read)
+    status, body = h.json("GET", f"/v1/tasks/{task}/citations/0", version="1.1")
+    assert status == 403 and body["code"] == "source_denied" and "text" not in body
+
+
+@pytest.mark.criterion(10)
+def test_a_grant_withdrawn_between_events_of_one_batch_replaces_the_final_answer_with_an_error(tmp_path):
+    """A batch of events was judged permitted a moment ago; each event is checked again as it is handed over."""
+    world = World(tmp_path, [grant("documents")])
+    task = _finished_task(world)
+    h = Harness(world)
+    stream = h.api._follow(task, 0, "1.0", "client-mac-0001")
+    seen = [json.loads(next(stream)[0:].decode().split("data: ", 1)[1])]  # the first event leaves under the grant
+    assert seen[0]["type"] != "final"
+    world.grants._grants.clear()  # withdrawn while the rest of the batch is already in hand
+    rest = [json.loads(chunk.decode().split("data: ", 1)[1]) for chunk in stream]
+    assert rest and not any(e["type"] == "final" for e in rest) and rest[-1]["type"] == "error" and rest[-1]["error"]["code"] == "source_denied"
+
+
+@pytest.mark.criterion(13)
+def test_an_open_stream_of_a_paired_device_ends_when_the_device_is_revoked(tmp_path):
+    """A stream that is already open stops at the next event once its device is revoked, not only the next request."""
+    world = World(tmp_path, [grant("documents")])
+    task = _finished_task(world)
+    h = Harness(world, owner=False)
+    stream = h.api._follow(task, 0, "1.0", CLIENT)
+    first = next(stream)
+    assert first
+    h.registry.revoke(CLIENT)
+    assert list(stream) == []  # nothing further is delivered to a revoked device

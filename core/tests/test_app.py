@@ -228,11 +228,18 @@ def test_close_keeps_the_stores_and_the_lock_while_a_request_could_still_be_usin
     sock.connect(str(world.sock))
     sock.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n")  # the handler is now waiting for the rest of the request
     time.sleep(0.2)
+    began = time.monotonic()
     assert core.close(drain_seconds=0.3) is False
+    assert time.monotonic() - began < 2.0, "the wait is bounded by the one total deadline"
     assert core._lock_fd >= 0, "the data-directory lock is still held"
+    from atlas_core.app import CoreAlreadyRunning
+
+    with pytest.raises(CoreAlreadyRunning):
+        world.build()  # a second Core cannot take the folder while the first still owns it
     sock.close()
     assert core.close(drain_seconds=5.0) is True
     assert core._lock_fd < 0
+    world.build().close()  # once released, a new Core takes the same folder and closes cleanly
 
 
 def test_work_admitted_but_not_yet_running_is_counted_by_the_drain(tmp_path):

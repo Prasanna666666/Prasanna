@@ -41,7 +41,8 @@ public final class CoreClient {
     }
 
     /// A signed request that asks for nothing: it fails with `forbidden` only when this client has been revoked. It must be a 1.1 route: the Core never negotiates `/v1/version` (it is handled and verified
-    /// as 1.0), so a 1.1-signed request there is refused as `unauthenticated` before revocation is even looked at. The Core checks identity and revocation before routing, so any enrolled client may call this.
+    /// as 1.0), so a 1.1-signed request there is refused as `unauthenticated` before revocation is even looked at. The Core checks identity and revocation before routing, so any enrolled client may call this. Its answer is an IndexStatus (aggregate index counts and failure categories for permitted sources); the probe ignores the body. If this route ever gains a source or role check, confirmation of a
+    /// revocation must move to a dedicated signed endpoint with a minimal answer first: a route-level refusal of a valid pairing must never erase the device.
     public func probe() throws { _ = try call("GET", "/v1/index/status") }
     public func state(_ taskID: String) throws -> String { try object(call("GET", "/v1/tasks/\(taskID)"))["state"] as? String ?? "failed" }
     public func cancel(_ taskID: String) throws { _ = try call("POST", "/v1/tasks/\(taskID)/cancel") }

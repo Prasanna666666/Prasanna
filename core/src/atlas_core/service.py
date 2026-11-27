@@ -665,6 +665,10 @@ class TaskService:
             text = resolve(evidence, self._d.sources)
         except CitationError:
             raise CoreError("conflict", task_id) from None
+        if (
+            self.answer(task_id) != envelope
+        ):  # the final check, after the last read and before the text leaves: a source withdrawn while it was being read is not delivered
+            raise CoreError("source_denied", task_id)
         return {"citation_index": index, "text": text, "evidence": evidence}
 
     def purge_source_type(self, source_type: str) -> int:
@@ -693,6 +697,18 @@ class TaskService:
 
     def receipt(self, task_id: str) -> dict[str, Any]:
         return self._d.store.receipt(task_id)
+
+    def guard_delivery(self, task_id: str, event: dict[str, Any]) -> dict[str, Any]:
+        """The check made at the moment an event is handed to the client: a final answer whose sources are no longer permitted NOW is replaced by the plain error event (same sequence number), even if the
+        batch it came in was judged a moment earlier."""
+        if event["type"] != "final":
+            return event
+        scope = self._d.store.record(task_id)["source_scope"]
+        _, token = self._d.policy.decide(scope, self._d.clock())
+        permitted = self._valid_types(self._d.store.checkpoint(task_id)[1], token, self._d.clock()) if token is not None else frozenset()
+        if self._used_types(task_id, event["answer"]) <= permitted:
+            return event
+        return {"seq": event["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)}
 
     def events_after(self, task_id: str, after: int, version: str = "1.0") -> list[dict[str, Any]]:
         """Stream events; a final answer built from a source no longer permitted is replaced by a plain error event (same sequence number)."""

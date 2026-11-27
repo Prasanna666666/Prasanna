@@ -213,7 +213,7 @@ final class RevocationConfirmationTests: XCTestCase {
     func testARefusalOfOneRequestDoesNotEraseThePhoneWhenThePhoneIsStillRecognised() {
         let transport = ScriptedTransport()
         transport.answers["/v1/records/notes"] = (403, forbidden)
-        transport.answers["/v1/index/status"] = (200, #"{"api_version":"1.0","supported":["1.0","1.1"]}"#)
+        transport.answers["/v1/index/status"] = (200, #"{"state":"idle","indexed":0,"total":0,"newest_indexed":null,"failed":[]}"#)  // an IndexStatus: what the probe route really answers
         let (phone, _) = pairedPhone(transport)
         _ = phone.records(.notes)
         XCTAssertTrue(phone.isPaired, "a refusal that is not a revocation must not erase the pairing")

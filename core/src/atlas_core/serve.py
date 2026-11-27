@@ -8,6 +8,7 @@ process of the user), never in the environment, never in a file, never in a log.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib
 import os
 import re
@@ -17,7 +18,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from .app import Core, CoreAlreadyRunning, CoreConfig
+from .app import Core, CoreAlreadyRunning, CoreConfig, acquire_data_dir
 from .host import HostOptions, HostUnavailable, KeychainLocked
 from .relay import Relay, RelayRefused
 
@@ -96,6 +97,15 @@ def _start_relay(bind: str | None, socket_path: Path) -> Relay | None:
     return relay
 
 
+def _give_up(lock: int, data_dir: Path, created: bool) -> None:
+    """A start refused before the Core existed: release the folder lock and, if this start created the folder only to hold the lock, take it away again so that nothing is left behind."""
+    if created:
+        with contextlib.suppress(OSError):
+            (data_dir / "core.lock").unlink()
+            data_dir.rmdir()  # only if empty: a folder with anything else in it is never removed
+    os.close(lock)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True)
@@ -116,12 +126,21 @@ def main(argv: list[str] | None = None) -> int:
     code = read_code(sys.stdin)
     sys.stdin.close()
     options = _options(args)
+    data_dir = Path(args.data_dir)
+    created = not data_dir.exists()
+    try:
+        lock = acquire_data_dir(data_dir)  # first: a start that will lose to another Core touches no Keychain item and opens no store
+    except CoreAlreadyRunning:
+        return EXIT_BUSY
     try:
         config = _factory(args.config_factory, args.allow_custom_factory)(Path(args.data_dir), Path(args.socket), code, options)
     except KeychainLocked:
-        return EXIT_NEEDS_SIGNIN  # nothing was opened, bound or written
+        _give_up(lock, data_dir, created)
+        return EXIT_NEEDS_SIGNIN  # nothing was opened, bound or written (a folder this start made only to hold the lock is removed again)
     except HostUnavailable:
+        _give_up(lock, data_dir, created)
         return EXIT_REFUSED
+    config.data_dir_lock = lock
     try:
         core = Core(config)
     except ValueError:
