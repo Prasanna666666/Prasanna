@@ -141,3 +141,50 @@ def test_the_legacy_finance_database_is_imported_through_the_command_and_the_ori
         == 1
     )
     assert out2.getvalue() == "import-finance: refused missing_source\n"
+
+
+class _Items:
+    """A Keychain stand-in: items by service name; can fail the Nth write or return a wrong value on read-back."""
+
+    def __init__(self, existing, fail_write_at=None, lie_on=None):
+        self.store, self.writes = dict(existing), 0
+        self.fail_write_at, self.lie_on = fail_write_at, lie_on
+
+    def read(self, service):
+        if service == self.lie_on and self.writes:
+            return "not-what-was-written"
+        return self.store.get(service)
+
+    def write(self, service, value):
+        self.writes += 1
+        if self.writes == self.fail_write_at:
+            raise OSError("keychain write failed")
+        self.store[service] = value
+
+    def delete(self, service):
+        self.store.pop(service, None)
+
+
+def _bundle():
+    return {"db:tasks.db": "new-task-key", "db:edits.db": "new-edits-key", "documents_index": "new-docs-key"}
+
+
+def test_recovered_keys_are_provisioned_as_one_unit_and_read_back():
+    from atlas_core.maintenance import provision_staged
+
+    items = _Items({"atlas-task-store": "old-task-key"})
+    provision_staged(items, _bundle())
+    assert items.store == {"atlas-task-store": "new-task-key", "atlas-edits-store": "new-edits-key", "atlas-documents-index": "new-docs-key"}
+
+
+@pytest.mark.parametrize("failure", [{"fail_write_at": 2}, {"fail_write_at": 3}, {"lie_on": "atlas-edits-store"}])
+def test_an_interrupted_key_restore_puts_every_existing_key_back_and_removes_the_ones_it_added(failure):
+    """MAC-17: a restore that fails part-way through the Keychain (a write fails, or a value does not read back) leaves the working
+    installation's keys exactly as they were: replaced items get their old value back, items it created are removed."""
+    from atlas_core.maintenance import provision_staged
+
+    before = {"atlas-task-store": "old-task-key", "atlas-documents-index": "old-docs-key", "atlas-unrelated": "kept"}
+    items = _Items(before, **failure)
+    with pytest.raises((OSError, Exception)):
+        provision_staged(items, _bundle())
+    assert items.store == before

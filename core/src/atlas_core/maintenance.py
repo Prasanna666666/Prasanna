@@ -16,9 +16,10 @@ import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TextIO
+from typing import Protocol, TextIO
 
 from .backup import BackupError, create_backup, restore_backup, run_restore_drill, verify_backup
+from .macos import KeychainError
 from .migration import MigrationError, Sink, migrate
 
 KEY_ITEMS = {
@@ -82,6 +83,36 @@ def _import_finance(paths: list[Path], legacy_key: str, open_sink: SinkOpener) -
     ), f"import-finance: {'ok' if result.ok else 'refused ' + ','.join(result.problems)} {result.migrated} records\n"
 
 
+class KeyItems(Protocol):
+    def read(self, service: str) -> str | None: ...
+    def write(self, service: str, value: str) -> None: ...
+    def delete(self, service: str) -> None: ...
+
+
+def provision_staged(items: KeyItems, bundle: Mapping[str, str]) -> None:
+    """Put recovered keys into the Keychain as one unit. The current value of every item about to change is read first; each new value is
+    written and read back. If any write or read-back fails, every item already changed is put back exactly as it was (or removed if it did
+    not exist), so a restore that fails part-way never leaves a working installation with some of its keys replaced."""
+    names = {**{f"db:{db}": item for db, item in KEY_ITEMS.items()}, **BUNDLE_ITEMS}
+    planned = [(f"atlas-{item}", bundle[key]) for key, item in names.items() if key in bundle]
+    previous = {service: items.read(service) for service, _ in planned}
+    changed: list[str] = []
+    try:
+        for service, value in planned:
+            changed.append(service)
+            items.write(service, value)
+            if items.read(service) != value:
+                raise KeychainError("verify")
+    except BaseException:
+        for service in reversed(changed):
+            prior = previous[service]
+            if prior is None:
+                items.delete(service)
+            else:
+                items.write(service, prior)
+        raise
+
+
 def run(argv: list[str], *, stdin: TextIO, out: TextIO, read_key: KeyReader, write_keys: KeyWriter, open_sink: SinkOpener | None = None) -> int:
     """`read_key(item)` returns the Keychain secret for an item name (creating it if the Core never did); `write_keys(bundle)` puts recovered keys back. Both are the platform seam."""
     if len(argv) < MIN_ARGS or argv[0] not in ("backup", "verify", "drill", "restore", "import-finance"):
@@ -111,10 +142,7 @@ def main() -> int:  # pragma: no cover  (the platform wiring: the real Keychain,
     items = KeychainItems()
 
     def write_keys(bundle: Mapping[str, str]) -> None:
-        names = {**{f"db:{db}": item for db, item in KEY_ITEMS.items()}, **BUNDLE_ITEMS}
-        for key, item in names.items():
-            if key in bundle:
-                items.write(f"atlas-{item}", bundle[key])
+        provision_staged(items, bundle)
 
     def open_sink(data_dir: Path) -> tuple[Sink, Callable[[], None]]:
         from .finance_calc import MONEY_DOMAIN

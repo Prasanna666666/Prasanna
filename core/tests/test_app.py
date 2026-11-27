@@ -275,3 +275,40 @@ def test_work_admitted_but_not_yet_running_is_counted_by_the_drain(tmp_path):
         server.server_close()
         a.close()
         b.close()
+
+
+OLDER_MESSAGE = {
+    "message_id": "msg-1001@example.invalid",
+    "sender": "bob@example.invalid",
+    "date": "2025-01-07T08:00:00+00:00",
+    "subject": "Boiler service visit",
+    "body": "The engineer visits on Thursday to service the boiler.",
+}
+
+
+def test_the_first_documents_and_mail_workflow_works_end_to_end_with_exact_evidence(tmp_path):
+    """MAC-19 (software part), through the real Core over its socket with synthetic sources:
+    - an older Mail message is found;
+    - two versions of a quote are compared, and the answer cites both;
+    - every citation resolves to its exact text."""
+    w = World(tmp_path, mail=True)
+    w.mailbox = InMemoryMailbox([MAIL_MESSAGE, OLDER_MESSAGE])
+    try:
+        core = w.build()
+        core.start()
+        w.enable(core, "documents", "mail")
+        w.wait_indexed(core)
+        w.wait_indexed(core, "mail")
+        client = w.client()
+        found = client.library_search("boiler service", ["mail"])
+        assert found["state"] == "results" and any(r["title"] == "Boiler service visit" for r in found["results"])  # the older message
+        question, scope = w.question("contradictory-en")
+        task = client.ask(question, scope)
+        answer = client.result(task)
+        assert "900.00" in answer["text"] and "950.00" in answer["text"]  # both versions, and the answer says they disagree
+        assert len(answer["citations"]) >= 2
+        quoted = [client.passage(task, i) for i in range(len(answer["citations"]))]
+        assert any("900.00" in q for q in quoted) and any("950.00" in q for q in quoted)  # exact source text behind each citation
+        assert all(c["quote"] in q for c, q in zip(answer["citations"], quoted, strict=True))
+    finally:
+        w.close()

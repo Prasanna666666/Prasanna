@@ -424,3 +424,20 @@ def test_a_restore_leaves_no_active_device_the_owner_cannot_see_or_revoke(world,
     report = restore_backup(folder, PASS, tmp_path / "restored", provision_keys=lambda keys: None)
     rows = json.loads((report.target / "clients.json").read_text())
     assert rows["owner-1"]["revoked"] is False and rows["phone-1"]["revoked"] is True and rows["phone-2"]["revoked"] is True
+
+
+def test_a_restore_whose_key_provisioning_fails_part_way_leaves_no_files_and_the_old_keys_in_place(world, tmp_path):
+    """MAC-17 end to end: the backup verifies and its files are copied, then the Keychain step fails on its second write. The target is
+    left as it was found and the existing installation's keys are unchanged, so the installation that was working still works."""
+    from test_maintenance import _Items
+
+    from atlas_core.maintenance import provision_staged
+
+    a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    before = {"atlas-task-store": "the-working-task-key", "atlas-documents-index": "the-working-docs-key"}
+    items = _Items(before, fail_write_at=2)
+    target = tmp_path / "restored"
+    with pytest.raises(OSError):
+        restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle))
+    assert items.store == before and not target.exists()
