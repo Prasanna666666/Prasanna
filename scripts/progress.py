@@ -21,6 +21,7 @@ import json
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,40 +32,93 @@ STATES = {"full": 1.0, "checkpoint": 0.5, "none": 0.0}
 NO_CHECKPOINT = "None defined"
 
 
-def implementation_points(c: dict) -> tuple[float, str | None]:
+SHA = re.compile(r"[0-9a-f]{40}")
+KINDS = {"test", "ci", "commit", "doc", "carry_forward"}
+REVIEWERS = {"Codex", "architect"}
+SCORED = "in"
+
+
+def evidence_problem(item: object) -> str | None:  # noqa: PLR0911 - one early answer per refusal reason
+    """Why one evidence record is not a valid structured, revision-specific proof reference (None when it is)."""
+    if not isinstance(item, dict):
+        return "evidence is not a structured record"
+    if item.get("kind") not in KINDS:
+        return f"unknown evidence kind {item.get('kind')!r}"
+    if not SHA.fullmatch(str(item.get("revision", ""))):
+        return "evidence revision missing or not a full SHA"
+    if not item.get("ref"):
+        return "evidence has no reference"
+    if item["kind"] == "ci" and not item.get("link"):
+        return "CI evidence without its run link"
+    if item["kind"] == "carry_forward" and not (item.get("link") and SHA.fullmatch(str(item.get("from_revision", "")))):
+        return "carry-forward without its link and full source revision"
+    return None
+
+
+def implementation_points(c: dict) -> tuple[float, str | None]:  # noqa: PLR0911 - one early answer per refusal reason
     """Points for one criterion and, when its claim cannot be credited, why."""
     impl = c.get("implementation", {})
     state = impl.get("state")
     if state not in STATES:
         return 0.0, f"unknown implementation state {state!r}"
+    if c.get("reopened"):
+        return 0.0, f"reopened: {c['reopened']}"
     if state == "none":
         return 0.0, None
-    if not impl.get("evidence"):
+    evidence = impl.get("evidence") or []
+    if not evidence:
         return 0.0, f"{state} claimed without evidence"
-    if state == "checkpoint" and (not c.get("checkpoint") or c["checkpoint"].startswith(NO_CHECKPOINT)):
+    bad = next((p for p in map(evidence_problem, evidence) if p), None)
+    if bad:
+        return 0.0, bad
+    proving = {"test", "ci", "carry_forward"} | ({"doc"} if c.get("deliverable") == "document" else set())
+    if not any(e["kind"] in proving for e in evidence):
+        return 0.0, "no evidence that proves the checks (a document, commit or status citation alone earns nothing)"
+    has_checkpoint = bool(c.get("checkpoint")) and not c["checkpoint"].startswith(NO_CHECKPOINT)
+    if state == "checkpoint" and not has_checkpoint:
         return 0.0, "checkpoint claimed but no intermediate checkpoint is defined (score 0 or 1)"
+    if state == "full" and (c.get("review") or {}).get("verdict") == "fail":
+        return (0.5 if has_checkpoint else 0.0), "full credit conflicts with a recorded fail verdict: capped at the checkpoint"
     return STATES[state], None
 
 
 def review_point(c: dict) -> tuple[float, str | None]:
     review = c.get("review") or {}
-    if review.get("reopened"):
-        return 0.0, f"reopened: {review['reopened']}"
+    if c.get("reopened") or review.get("reopened"):
+        return 0.0, f"reopened: {c.get('reopened') or review.get('reopened')}"
     verdict = review.get("verdict")
-    if verdict is None:
+    if verdict in (None, "pending"):
         return 0.0, None
     if verdict not in ("pass", "fail"):
         return 0.0, f"unknown verdict {verdict!r}"
-    if not review.get("revision") or not review.get("link"):
-        return 0.0, "verdict recorded without its revision or link"
+    if not SHA.fullmatch(str(review.get("revision", ""))) or not review.get("link"):
+        return 0.0, "verdict without a full reviewed SHA or its link"
+    if review.get("reviewer") not in REVIEWERS or not review.get("review_id"):
+        return 0.0, "verdict without reviewer provenance (reviewer and review id)"
     return 1.0, None
 
 
-def score(criteria: list[dict]) -> dict:
-    earned = reviewed = 0.0
-    flags: list[str] = []
-    blockers = 0
+def alias_problems(criteria: list[dict]) -> list[str]:
+    """Duplicate IDs, or an alias that names an existing ID or another criterion's alias."""
+    ids = [c["id"] for c in criteria]
+    problems = [f"duplicate criterion id {i}" for i in sorted({i for i in ids if ids.count(i) > 1})]
+    owner: dict[str, str] = {}
     for c in criteria:
+        for a in c.get("aliases", []):
+            if a in ids:
+                problems.append(f"{c['id']}: alias {a} is also a criterion id")
+            elif a in owner:
+                problems.append(f"{c['id']}: alias {a} already belongs to {owner[a]}")
+            owner.setdefault(a, c["id"])
+    return problems
+
+
+def score(criteria: list[dict]) -> dict:
+    scored = [c for c in criteria if c.get("scope", SCORED) == SCORED]
+    earned = reviewed = 0.0
+    flags: list[str] = alias_problems(criteria)
+    blockers = structure_ok = 0
+    for c in scored:
         points, why = implementation_points(c)
         earned += points
         if why:
@@ -73,13 +127,15 @@ def score(criteria: list[dict]) -> dict:
         reviewed += r
         if rwhy:
             flags.append(f"{c['id']}: {rwhy}")
+        structure_ok += not (why or rwhy)
         if c.get("mandatory", True) and points < 1.0:
             blockers += 1
-    total = len(criteria)
+    total = len(scored)
+    excluded = Counter(c.get("scope") for c in criteria if c.get("scope", SCORED) != SCORED)
     return {
-        "total": total, "earned": earned, "reviewed": reviewed, "flags": flags, "blockers": blockers,
-        "implementation": earned / total if total else 0.0, "review": reviewed / total if total else 0.0,
-        "sign_offs": sum(1 for c in criteria if (c.get("sign_off") or {}).get("by") == "Owner"),
+        "total": total, "earned": earned, "reviewed": reviewed, "flags": flags, "blockers": blockers, "excluded": dict(excluded),
+        "structure_ok": structure_ok, "implementation": earned / total if total else 0.0, "review": reviewed / total if total else 0.0,
+        "sign_offs": sum(1 for c in scored if (c.get("sign_off") or {}).get("by") == "Owner"),
     }  # fmt: skip
 
 
@@ -118,7 +174,11 @@ def markdown(m: dict) -> str:
         f"**Implementation readiness {m['implementation']:.1%}** ({m['earned']:g}/{m['total']}) · **Review completion {m['review']:.1%}** "
         f"({m['reviewed']:g}/{m['total']}) · register v{v['version']} at `{v['base_revision'][:7]}` ({v['status']})",
         "",
-        f"Mandatory criteria not yet passing: **{m['blockers']}** of {m['total']}. Owner sign-offs recorded: {m['sign_offs']}.",
+        f"Mandatory criteria not yet passing: **{m['blockers']}** of {m['total']}. Owner sign-offs recorded: {m['sign_offs']}. "
+        f"Excluded from both scores: {', '.join(f'{n} {k}' for k, n in sorted(m['excluded'].items())) or 'none'}.",
+        "",
+        f"Record structure validated by the calculator: {m['structure_ok']} of {m['total']} scored criteria carry no flag. "
+        f"Human verification of the linked evidence is separate: it is Codex's recorded verdicts ({m['reviewed']:g}).",
         "",
         "| Part of the register | Criteria | Implementation | Review |",
         "|---|---:|---:|---:|",
@@ -128,7 +188,7 @@ def markdown(m: dict) -> str:
     f = m["first_mac"]
     lines += [
         "",
-        f"First Mac milestone subset (MAC-01 to MAC-20): implementation {f['earned']:g}/{f['total']} ({f['implementation']:.1%}), review {f['reviewed']:g}/{f['total']} ({f['review']:.1%}).",
+        f"First Mac milestone view (criteria tagged first-mac): implementation {f['earned']:g}/{f['total']} ({f['implementation']:.1%}), review {f['reviewed']:g}/{f['total']} ({f['review']:.1%}).",
         "",
     ]
     inv = m["inventory"]
