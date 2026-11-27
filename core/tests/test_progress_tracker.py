@@ -64,6 +64,7 @@ def test_missing_or_unstructured_evidence_earns_nothing_and_is_flagged_not_dropp
         proof(revision="abc1234"),
         proof(revision="Z" * 40),
         proof(kind="ci"),
+        proof(kind="ci", link="https://github.com/o/r/actions/runs/1/job/2"),
         proof(kind="carry_forward", link="https://x"),
         proof(kind="hearsay"),
         proof(ref=""),
@@ -89,10 +90,38 @@ def test_verdicts_need_a_full_revision_a_link_and_reviewer_provenance(progress):
     assert s["reviewed"] == 0 and len(s["flags"]) == 3  # pending is not a fault, just not yet reviewed
 
 
-def test_full_credit_conflicting_with_a_failed_gate_is_capped_and_flagged(progress):
-    with_checkpoint = progress["score"]([crit("A", "full", verdict="fail")])
-    without = progress["score"]([crit("B", "full", verdict="fail", checkpoint="None defined: scored 0 or 1")])
-    assert with_checkpoint["earned"] == 0.5 and without["earned"] == 0 and "conflicts" in with_checkpoint["flags"][0]
+def test_full_credit_conflicting_with_a_failed_gate_earns_half_only_from_checkpoint_specific_evidence(progress):
+    full_proof_only = progress["score"]([crit("A", "full", verdict="fail", evidence=[proof(proves="full")])])
+    checkpoint_proof = progress["score"]([crit("B", "full", verdict="fail", evidence=[proof(proves="checkpoint")])])
+    no_checkpoint = progress["score"]([crit("C", "full", verdict="fail", evidence=[proof(proves="checkpoint")], checkpoint="None defined: scored 0 or 1")])
+    assert (full_proof_only["earned"], checkpoint_proof["earned"], no_checkpoint["earned"]) == (0, 0.5, 0)
+    assert "conflicts" in full_proof_only["flags"][0]
+
+
+@pytest.mark.parametrize("bad", [{"scope": "maybe"}, {"scope": None}, {"id": "DUP"}, {"aliases": ["Z"]}])
+def test_an_invalid_register_publishes_no_scores(progress, bad):
+    criteria = [crit("DUP", "full", verdict="pass"), crit("Z", "full", verdict="pass"), {**crit("X", "full", verdict="pass"), **bad}]
+    s = progress["score"](criteria)
+    assert s["valid"] is False and s["errors"] and (s["implementation"], s["review"], s["total"]) == (0.0, 0.0, 0)
+    assert progress["markdown"]({**s, "register": {}, "by_source": {}, "first_mac": s, "inventory": {}, "batches": [], "decisions": []}).startswith(
+        "**INVALID REGISTER"
+    )
+
+
+def test_ci_evidence_must_name_its_run_job_and_environment(progress):
+    job = "https://github.com/o/r/actions/runs/1/job/2"
+    ok = progress["score"]([crit("A", "full", evidence=[proof(kind="ci", link=job, environment="GitHub-hosted runner")])])
+    no_env = progress["score"]([crit("B", "full", evidence=[proof(kind="ci", link=job)])])
+    run_only = progress["score"]([crit("C", "full", evidence=[proof(kind="ci", link="https://github.com/o/r/actions/runs/1", environment="x")])])
+    assert (ok["earned"], no_env["earned"], run_only["earned"]) == (1.0, 0, 0)
+
+
+def test_evidence_must_be_for_the_scored_revision_unless_it_is_a_documented_carry_forward(progress):
+    scored = "b" * 40
+    stale = progress["score"]([crit("A", "full")], scored)  # its evidence is for "a" * 40
+    current = progress["score"]([crit("B", "full", evidence=[proof(revision=scored)])], scored)
+    carried = progress["score"]([crit("C", "full", evidence=[proof(kind="carry_forward", revision=scored, from_revision=SHA, link="https://x")])], scored)
+    assert (stale["earned"], current["earned"], carried["earned"]) == (0, 1.0, 1.0) and "not the scored revision" in stale["flags"][0]
 
 
 def test_a_regression_reopens_the_criterion_and_removes_both_credits(progress):
@@ -116,7 +145,7 @@ def test_duplicate_ids_and_colliding_aliases_are_flagged(progress):
 
 def test_the_register_has_stable_unique_ids_complete_criteria_and_resolvable_test_evidence(progress):
     register = json.loads((ROOT / "core" / "docs" / "acceptance_register.json").read_text(encoding="utf-8"))
-    assert register["version"] == "0.2" and progress["alias_problems"](register["criteria"]) == []
+    assert register["version"] == "0.3" and progress["register_errors"](register["criteria"]) == []
     for c in register["criteria"]:
         assert c["pass_condition"] and c["required_evidence"] and c["source_ref"] and c["scope"] in register["scopes"], c["id"]
         assert set(c["owners"]) == {"implementation", "verdict", "sign_off"}, c["id"]

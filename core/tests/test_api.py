@@ -468,3 +468,45 @@ def test_a_device_revoked_while_the_final_event_is_being_prepared_receives_nothi
 
     world.service.guard_delivery = revoke_during_preparation  # type: ignore[method-assign]
     assert list(h.api._follow(task, 0, "1.0", CLIENT)) == []
+
+
+def _two_source_task(tmp_path):
+    world = World(tmp_path, [grant("documents"), grant("mail")])
+    world.service._d.coverage["documents"] = lambda: _report(3)
+    world.service._d.coverage["mail"] = lambda: _report(7)
+    world.retriever.only = {"documents"}  # Mail is searched and counted but yields nothing to cite
+    task = world.run_new(request(["documents", "mail"]))["task_id"]
+    return world, task
+
+
+def _without(world, source_type):
+    world.grants._grants[:] = [g for g in world.grants._grants if g["source_type"] != source_type]
+
+
+@pytest.mark.criterion(10)
+def test_a_queued_1_1_final_event_does_not_deliver_counts_of_a_source_withdrawn_after_the_batch_was_read(tmp_path):
+    """MAC-14: the stream read its batch while Mail was granted; Mail is withdrawn before the final event is emitted. The emitted final
+    event must carry no Mail counts: coverage is authorised again at emission, not only when the batch was read."""
+    world, task = _two_source_task(tmp_path)
+    h = Harness(world)
+    stream = h.api._follow(task, 0, "1.1", "client-mac-0001")
+    first = json.loads(next(stream).decode().split("data: ", 1)[1])
+    assert first["type"] != "final"  # the batch, final event included, is already in hand
+    _without(world, "mail")
+    final = next(e for e in (json.loads(c.decode().split("data: ", 1)[1]) for c in stream) if e["type"] == "final")
+    assert final["answer"]["citations"], "Documents still supports the answer"
+    assert final["answer"]["coverage"]["total"] is None and final["answer"]["coverage"]["searched"] == 0
+    assert "partial_work" in final["answer"]["limitations"]
+
+
+@pytest.mark.criterion(10)
+def test_suppressed_coverage_never_reports_indexing_done_after_the_question_as_searched(tmp_path):
+    """MAC-14: after the answer, the Documents index grows; Mail is then withdrawn. The delivered coverage must not re-read the live index
+    (which would credit the question with 500 items it never searched): it stays conservative, with the answer-time timestamp."""
+    world, task = _two_source_task(tmp_path)
+    answered = world.service.answer_v11(task)["coverage"]
+    world.service._d.coverage["documents"] = lambda: _report(500)  # indexing that happened after the question
+    _without(world, "mail")
+    later = world.service.answer_v11(task)["coverage"]
+    assert later["total"] is None and later["searched"] == 0 and later["as_of"] == answered["as_of"]
+    assert all(p["count"] < 500 for p in later["pending"])

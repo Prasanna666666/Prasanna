@@ -325,3 +325,25 @@ def test_an_unexpected_factory_failure_releases_the_folder_lock(tmp_path, monkey
         serve.main(["--data-dir", str(data), "--socket", str(tmp_path / "s"), "--config-factory", "test_launcher:recording_factory", "--allow-custom-factory"])
     again = acquire_data_dir(data)  # the lock was released: a new start can take the folder
     os.close(again)
+
+
+def test_a_stop_with_a_request_still_running_exits_with_status_7_and_the_next_start_succeeds(launched):
+    """MAC-18, process level: the Core is told to stop while a client holds a request open. It keeps its stores rather than closing them
+    under live work, exits with EXIT_SHUTDOWN_INCOMPLETE (7) once the drain deadline passes, and the OS releases the folder lock so the
+    next start takes the folder and answers."""
+    import signal
+    import socket as socket_module
+
+    from atlas_core import serve
+
+    start, _tmp, sock = launched
+    first = start()
+    held = socket_module.socket(socket_module.AF_UNIX, socket_module.SOCK_STREAM)
+    held.connect(str(sock))
+    held.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n")  # a request the Core is still reading when told to stop
+    first.process.send_signal(signal.SIGTERM)
+    assert first.process.wait(60) == serve.EXIT_SHUTDOWN_INCOMPLETE
+    held.close()
+    second = start()
+    owner = atlas_client.AtlasClient(str(sock), Ed25519PrivateKey.generate(), OWNER_ID)
+    assert owner.enrol_self(bootstrap_code=second.bootstrap_code)["role"] == "owner"

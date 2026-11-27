@@ -587,6 +587,8 @@ class TaskService:
         if token is None:
             return {"state": "denied", **blank}
         txs = transactions(d.finance_records())
+        if MONEY_DOMAIN not in d.policy.revalidate(token, d.clock())[0]:
+            return {"state": "denied", **blank}  # the final check, after the last read: a grant withdrawn while the records were read withholds the summary
         spending = by_month(txs)
         if not spending:
             return {"state": "empty", **blank, "transaction_count": len(txs)}
@@ -620,6 +622,8 @@ class TaskService:
         if token is None:
             return {"state": "denied", "reading_count": 0, "measures": [], "computed_by_code": True}
         records = [r for r in d.health_records() if r.domain == HEALTH_DOMAIN]
+        if HEALTH_DOMAIN not in d.policy.revalidate(token, d.clock())[0]:
+            return {"state": "denied", "reading_count": 0, "measures": [], "computed_by_code": True}  # the final check, after the last read
         if not records:
             return {"state": "empty", "reading_count": 0, "measures": [], "computed_by_code": True}
         return {"state": "ready", "reading_count": len(records), "measures": summarise(records)[:50], "computed_by_code": True}
@@ -692,17 +696,24 @@ class TaskService:
         return out
 
     def _coverage_for_delivery(self, task_id: str, saved: dict[str, Any]) -> dict[str, Any]:
-        """The saved coverage, if every source whose counts it holds is still permitted under the grants it was made under. Otherwise it is rebuilt from the sources that still are, and the omitted ones make
-        it partial with an unknown total: a withdrawn source's counts are never delivered, and the answer never reads as complete over sources it can no longer show."""
+        """The coverage saved when the answer was made, if every source whose counts it holds is still permitted under the grants it was made
+        under. Otherwise a conservative, incomplete coverage: unknown total, nothing claimed as searched, the answer-time timestamp, and no
+        re-read of the live indexes. So a withdrawn source's counts are never delivered, and indexing done after the question is never
+        reported as work the question searched."""
         d = self._d
         covered = frozenset(saved.get("coverage_types") or d.store.record(task_id)["source_scope"])
         _, token = d.policy.decide(d.store.record(task_id)["source_scope"], d.clock())
         permitted = self._valid_types(saved, token, d.clock()) if token is not None else frozenset()
         if covered <= permitted:
             return saved["coverage"]
-        return build_coverage(
-            {*(covered & permitted), WITHDRAWN_SOURCE}, d.coverage, d.clock()
-        )  # the placeholder has no provider: its coverage is "not reported"
+        return {
+            "state": "partial",
+            "searched": 0,
+            "total": None,
+            "pending": [{"category": "not_yet_indexed", "count": 0}],
+            "failed": [],
+            "as_of": saved["coverage"]["as_of"],
+        }
 
     def _used_types(self, task_id: str, envelope: dict[str, Any]) -> frozenset[str]:
         """Every source type the answer was constructed from: the retrieved passages saved with the task's checkpoint plus whatever the answer cites."""
@@ -720,9 +731,11 @@ class TaskService:
         scope = self._d.store.record(task_id)["source_scope"]
         _, token = self._d.policy.decide(scope, self._d.clock())
         permitted = self._valid_types(self._d.store.checkpoint(task_id)[1], token, self._d.clock()) if token is not None else frozenset()
-        if self._used_types(task_id, event["answer"]) <= permitted:
-            return event
-        return {"seq": event["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)}
+        if not self._used_types(task_id, event["answer"]) <= permitted:
+            return {"seq": event["seq"], "task_id": task_id, "type": "error", "error": user_error("source_denied", task_id)}
+        if "coverage" in event["answer"]:  # an API 1.1 final event: its coverage is authorised again now, not when the batch was read
+            event = {**event, "answer": self._upgrade(task_id, self._d.store.answer(task_id))}
+        return event
 
     def events_after(self, task_id: str, after: int, version: str = "1.0") -> list[dict[str, Any]]:
         """Stream events; a final answer built from a source no longer permitted is replaced by a plain error event (same sequence number)."""
@@ -741,7 +754,6 @@ class TaskService:
 
 
 LIBRARY_LIMIT = 20
-WITHDRAWN_SOURCE = "withdrawn_source"  # stands for the sources whose counts may no longer be delivered; it never has a coverage provider
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]+")
 
 

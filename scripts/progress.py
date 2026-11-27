@@ -36,10 +36,13 @@ SHA = re.compile(r"[0-9a-f]{40}")
 KINDS = {"test", "ci", "commit", "doc", "carry_forward"}
 REVIEWERS = {"Codex", "architect"}
 SCORED = "in"
+SCOPES = {"in", "out-device", "aggregate", "boundary"}
+CI_JOB = re.compile(r"/actions/runs/\d+/job/\d+$")
 
 
-def evidence_problem(item: object) -> str | None:  # noqa: PLR0911 - one early answer per refusal reason
-    """Why one evidence record is not a valid structured, revision-specific proof reference (None when it is)."""
+def evidence_problem(item: object, scored: str | None = None) -> str | None:  # noqa: PLR0911 - one early answer per refusal reason
+    """Why one evidence record is not a valid structured, revision-specific proof reference (None when it is). With `scored`, the
+    record must be evidence of that software revision, unless it is an explicit, linked carry-forward from an earlier one."""
     if not isinstance(item, dict):
         return "evidence is not a structured record"
     if item.get("kind") not in KINDS:
@@ -48,14 +51,16 @@ def evidence_problem(item: object) -> str | None:  # noqa: PLR0911 - one early a
         return "evidence revision missing or not a full SHA"
     if not item.get("ref"):
         return "evidence has no reference"
-    if item["kind"] == "ci" and not item.get("link"):
-        return "CI evidence without its run link"
+    if item["kind"] == "ci" and not (CI_JOB.search(str(item.get("link", ""))) and item.get("environment")):
+        return "CI evidence must name its run, job and environment"
     if item["kind"] == "carry_forward" and not (item.get("link") and SHA.fullmatch(str(item.get("from_revision", "")))):
         return "carry-forward without its link and full source revision"
+    if scored and item["revision"] != scored:
+        return f"evidence is for {item['revision'][:7]}, not the scored revision {scored[:7]}"
     return None
 
 
-def implementation_points(c: dict) -> tuple[float, str | None]:  # noqa: PLR0911 - one early answer per refusal reason
+def implementation_points(c: dict, scored: str | None = None) -> tuple[float, str | None]:  # noqa: PLR0911 - one early answer per refusal reason
     """Points for one criterion and, when its claim cannot be credited, why."""
     impl = c.get("implementation", {})
     state = impl.get("state")
@@ -68,7 +73,7 @@ def implementation_points(c: dict) -> tuple[float, str | None]:  # noqa: PLR0911
     evidence = impl.get("evidence") or []
     if not evidence:
         return 0.0, f"{state} claimed without evidence"
-    bad = next((p for p in map(evidence_problem, evidence) if p), None)
+    bad = next((p for p in (evidence_problem(e, scored) for e in evidence) if p), None)
     if bad:
         return 0.0, bad
     proving = {"test", "ci", "carry_forward"} | ({"doc"} if c.get("deliverable") == "document" else set())
@@ -78,7 +83,8 @@ def implementation_points(c: dict) -> tuple[float, str | None]:  # noqa: PLR0911
     if state == "checkpoint" and not has_checkpoint:
         return 0.0, "checkpoint claimed but no intermediate checkpoint is defined (score 0 or 1)"
     if state == "full" and (c.get("review") or {}).get("verdict") == "fail":
-        return (0.5 if has_checkpoint else 0.0), "full credit conflicts with a recorded fail verdict: capped at the checkpoint"
+        proven = has_checkpoint and any(e.get("proves") == "checkpoint" for e in evidence)
+        return (0.5 if proven else 0.0), "full credit conflicts with a recorded fail verdict: only checkpoint-specific evidence earns 0.5"
     return STATES[state], None
 
 
@@ -113,13 +119,36 @@ def alias_problems(criteria: list[dict]) -> list[str]:
     return problems
 
 
-def score(criteria: list[dict]) -> dict:
-    scored = [c for c in criteria if c.get("scope", SCORED) == SCORED]
+def register_errors(criteria: list[dict]) -> list[str]:
+    """Faults that make every score meaningless: the calculator refuses to publish scores while any exists."""
+    return [f"{c.get('id')}: scope {c.get('scope')!r} is not one of {sorted(SCOPES)}" for c in criteria if c.get("scope") not in SCOPES] + alias_problems(
+        criteria
+    )
+
+
+def score(criteria: list[dict], scored_revision: str | None = None) -> dict:
+    errors = register_errors(criteria)
+    if errors:
+        return {
+            "valid": False,
+            "errors": errors,
+            "total": 0,
+            "earned": 0.0,
+            "reviewed": 0.0,
+            "flags": [],
+            "blockers": 0,
+            "excluded": {},
+            "structure_ok": 0,
+            "implementation": 0.0,
+            "review": 0.0,
+            "sign_offs": 0,
+        }
+    scored = [c for c in criteria if c["scope"] == SCORED]
     earned = reviewed = 0.0
-    flags: list[str] = alias_problems(criteria)
+    flags: list[str] = []
     blockers = structure_ok = 0
     for c in scored:
-        points, why = implementation_points(c)
+        points, why = implementation_points(c, scored_revision)
         earned += points
         if why:
             flags.append(f"{c['id']}: {why}")
@@ -130,9 +159,11 @@ def score(criteria: list[dict]) -> dict:
         structure_ok += not (why or rwhy)
         if c.get("mandatory", True) and points < 1.0:
             blockers += 1
+    flags = list(dict.fromkeys(flags))  # a reopened criterion is reported once, not once per credit
     total = len(scored)
-    excluded = Counter(c.get("scope") for c in criteria if c.get("scope", SCORED) != SCORED)
+    excluded = Counter(c["scope"] for c in criteria if c["scope"] != SCORED)
     return {
+        "valid": True, "errors": [],
         "total": total, "earned": earned, "reviewed": reviewed, "flags": flags, "blockers": blockers, "excluded": dict(excluded),
         "structure_ok": structure_ok, "implementation": earned / total if total else 0.0, "review": reviewed / total if total else 0.0,
         "sign_offs": sum(1 for c in scored if (c.get("sign_off") or {}).get("by") == "Owner"),
@@ -158,11 +189,12 @@ def inventory() -> dict[str, int]:
 
 def measure() -> dict:
     register = json.loads(REGISTER.read_text(encoding="utf-8"))
-    criteria = register["criteria"]
-    result = score(criteria)
-    result["by_source"] = {s: score([c for c in criteria if c["source"] == s]) for s in sorted({c["source"] for c in criteria})}
-    result["first_mac"] = score([c for c in criteria if "first-mac" in c.get("milestones", [])])
-    result["register"] = {k: register[k] for k in ("version", "status", "base_revision")}
+    criteria, scored = register["criteria"], register.get("scored_revision")
+    result = score(criteria, scored)
+    result["by_source"] = {s: score([c for c in criteria if c["source"] == s], scored) for s in sorted({c["source"] for c in criteria})}
+    result["first_mac"] = score([c for c in criteria if "first-mac" in c.get("milestones", [])], scored)
+    result["register"] = {k: register.get(k) for k in ("version", "status", "scored_revision")}
+    result["decisions"] = register.get("decisions", [])
     result["inventory"] = inventory()
     result["batches"] = register.get("review_batches", [])
     return result
@@ -170,9 +202,11 @@ def measure() -> dict:
 
 def markdown(m: dict) -> str:
     v = m["register"]
+    if not m["valid"]:
+        return "\n".join(["**INVALID REGISTER: no scores are published until these are fixed.**", "", *[f"- {e}" for e in m["errors"]]])
     lines = [
         f"**Implementation readiness {m['implementation']:.1%}** ({m['earned']:g}/{m['total']}) · **Review completion {m['review']:.1%}** "
-        f"({m['reviewed']:g}/{m['total']}) · register v{v['version']} at `{v['base_revision'][:7]}` ({v['status']})",
+        f"({m['reviewed']:g}/{m['total']}) · register v{v['version']} (the file as committed) scoring software revision `{(v['scored_revision'] or '')[:7]}` ({v['status']})",
         "",
         f"Mandatory criteria not yet passing: **{m['blockers']}** of {m['total']}. Owner sign-offs recorded: {m['sign_offs']}. "
         f"Excluded from both scores: {', '.join(f'{n} {k}' for k, n in sorted(m['excluded'].items())) or 'none'}.",
@@ -197,6 +231,9 @@ def markdown(m: dict) -> str:
         f"{inv['test_files']} test files, {inv['test_functions']} test functions. Whole-product line and function review coverage: **unmeasured** "
         f"(reviewed ranges are recorded per batch from {len(m['batches'])} batch record(s); no defensible whole-product numerator yet)."
     )
+    open_decisions = [d["id"] for d in m["decisions"] if d.get("status") == "open"]
+    if open_decisions:
+        lines += ["", f"Open owner decisions (recorded separately, not criteria): {', '.join(open_decisions)}."]
     if m["flags"]:
         lines += ["", f"Flags ({len(m['flags'])}, scored 0 and kept in the denominator):", *[f"- {x}" for x in m["flags"]]]
     return "\n".join(lines)

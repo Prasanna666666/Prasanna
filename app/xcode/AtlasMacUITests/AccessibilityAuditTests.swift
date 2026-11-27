@@ -12,10 +12,18 @@ final class AccessibilityAuditTests: XCTestCase {
         add(shot)
     }
 
-    func testTheFirstScreenAPersonSeesPassesTheAccessibilityAudit() throws {
+    func testTheFirstScreenAPersonSeesPassesTheAccessibilityAudit() throws { try audit(appearance: "Light") }
+
+    /// The same audit in Dark appearance, so a contrast finding can be attributed to one appearance or both (architect review: check both).
+    func testTheFirstScreenPassesTheAccessibilityAuditInDarkAppearance() throws { try audit(appearance: "Dark") }
+
+    private func audit(appearance: String) throws {
         let app = XCUIApplication()
         if let python = ProcessInfo.processInfo.environment["ATLAS_CI_PYTHON"] { app.launchEnvironment["ATLAS_CI_PYTHON"] = python }
+        app.launchArguments += ["-AppleInterfaceStyle", appearance]  // the app's effective appearance for this run, recorded below with every finding
+        print("AUDIT APPEARANCE: \(appearance) (launch arguments: \(app.launchArguments))")
         app.launch()
+        app.activate()  // audited as the active, key window, so an inactive-window rendering is not what is measured
         let window = app.windows.firstMatch
         XCTAssertTrue(window.waitForExistence(timeout: 30), "the app shows a window")
         let welcome = app.staticTexts["Welcome to Atlas"]
@@ -27,12 +35,17 @@ final class AccessibilityAuditTests: XCTestCase {
         print("SCREEN TEXTS: \(labels)")
         add(XCTAttachment(string: "Screen texts: \(labels)"))
         print("TREE: \(app.debugDescription)")  // the accessibility tree in the CI log, to name any element a finding is about
-        keep(app, "first-screen")
+        keep(app, "first-screen-\(appearance)")
         try app.performAccessibilityAudit { issue in
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
-            let line = "AUDIT ISSUE: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"
+            let line = "AUDIT ISSUE [\(appearance)]: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"
             print(line)  // shows in the CI log, so a finding names the element it is about
             self.add(XCTAttachment(string: line))
+            // A capture taken at the moment of the finding (not before the audit), so the reviewer sees what the audit measured.
+            let atFinding = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
+            atFinding.name = "at-audit-\(appearance)-\(issue.auditType.rawValue)"
+            atFinding.lifetime = .keepAlways
+            self.add(atFinding)
             // Set aside only the window's own structural root: an unlabelled group that fills the whole window and holds the content. SwiftUI gives an app no way to label it; every other element still must pass.
             let window = app.windows.firstMatch.frame
             if let e = issue.element { print("EXEMPTION CHECK: type=\(issue.auditType == .sufficientElementDescription) group=\(e.elementType == .group) emptyLabel=\(e.label.isEmpty) width=\(e.frame.width) window=\(window.width)") }

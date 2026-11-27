@@ -55,6 +55,7 @@ def served(tmp_path):
         return str(folder / "run" / "core.sock")
 
     start.servers = started
+    start.registry = registry  # the stream tests revoke the paired device through it
     yield start, key, world, folder
     for server in started:
         server.shutdown()
@@ -253,3 +254,103 @@ def test_close_waits_for_a_request_in_flight_and_reports_one_that_outlasts_the_d
     assert server.drain(0.2) is False
     sock.close()
     assert server.drain(3.0) is True
+
+
+# ---- MAC-13: open streams over the signed socket ------------------------------------------------------------------------------------------
+def _open_stream(path, key, world, task_id):
+    """A signed GET of the task's event stream over the real socket, as the paired (non-owner) device of the fixture."""
+    target = f"/v1/tasks/{task_id}/events"
+    conn = UnixConnection(path)
+    conn.request("GET", target, headers=signed(key, "GET", target, b"", world.clock()))
+    conn.sock.settimeout(5)  # set before the response takes the socket over
+    response = conn.getresponse()
+    assert response.status == 200
+    return conn, response
+
+
+def _events_until_closed(response, limit=10.0):
+    """Every SSE event the server sends until it closes the stream (or the limit passes, which fails the caller's assertion)."""
+    events, deadline = [], time.monotonic() + limit
+    while time.monotonic() < deadline:
+        try:
+            line = response.fp.readline()
+        except (TimeoutError, OSError):
+            return events, False
+        if not line:
+            return events, True
+        if line.startswith(b"data: "):
+            events.append(json.loads(line[6:]))
+    return events, False
+
+
+def _queued_task(path, key, world):
+    status, body = _call(path, key, world, "POST", "/v1/tasks", request(key="idem-socket-stream-1"))
+    assert status in (200, 201)
+    return json.loads(body)["task_id"]  # nothing runs it: its stream stays open and idle after the first event
+
+
+def _first_event(response):
+    """Read the events the stream sends before it goes idle: up to and including the queued-state event of the never-run task."""
+    while True:
+        line = response.fp.readline()
+        if line.startswith(b"data: "):
+            event = json.loads(line[6:])
+            if event.get("type") == "state" and event.get("state") == "queued":
+                return event
+
+
+def test_an_idle_signed_stream_of_a_paired_device_closes_when_the_device_is_revoked(served):
+    start, key, world, _ = served
+    path = start()
+    task = _queued_task(path, key, world)
+    conn, response = _open_stream(path, key, world, task)
+    assert _first_event(response)["type"] == "state"
+    start.registry.revoke("client-mac-0001")
+    events, closed = _events_until_closed(response)
+    conn.close()
+    assert closed and events == []  # closed on the next poll, nothing further delivered
+
+
+def test_an_idle_signed_stream_closes_when_the_device_source_ceiling_no_longer_covers_the_task(served, monkeypatch):
+    start, key, world, _ = served
+    path = start()
+    task = _queued_task(path, key, world)
+    conn, response = _open_stream(path, key, world, task)
+    _first_event(response)
+    monkeypatch.setattr(world.service, "device_may_ask", lambda sources: False)  # the policy data for devices narrowed
+    events, closed = _events_until_closed(response)
+    conn.close()
+    assert closed and events == []
+
+
+def test_no_final_payload_reaches_a_device_revoked_while_the_final_event_is_being_prepared(served, monkeypatch):
+    start, key, world, _ = served
+    path = start()
+    task = _queued_task(path, key, world)
+    conn, response = _open_stream(path, key, world, task)
+    _first_event(response)
+    real = world.service.guard_delivery
+
+    def revoke_during_preparation(task_id, event):
+        out = real(task_id, event)
+        if event["type"] == "final":
+            start.registry.revoke("client-mac-0001")  # lands after the material reads, before the event leaves
+        return out
+
+    monkeypatch.setattr(world.service, "guard_delivery", revoke_during_preparation)
+    world.service.run(task)
+    events, closed = _events_until_closed(response)
+    conn.close()
+    assert closed and not any(e["type"] == "final" for e in events)
+
+
+def test_a_still_entitled_device_keeps_receiving_its_stream_to_the_final_answer(served):
+    start, key, world, _ = served
+    path = start()
+    task = _queued_task(path, key, world)
+    conn, response = _open_stream(path, key, world, task)
+    _first_event(response)
+    world.service.run(task)
+    events, closed = _events_until_closed(response)
+    conn.close()
+    assert closed and events and events[-1]["type"] == "final"

@@ -12,7 +12,7 @@ v0.2 answers the architect's review of v0.1 (PR #8 comment 7226745827) under the
 It reads the sources in the repository plus the previous register (for `review_batches`) and rewrites the register.
 """
 
-# ruff: noqa: PLR2004, C408  (fixed table shapes; keyword-built records)
+# ruff: noqa: PLR2004, C408, S106  (fixed table shapes; keyword-built records; "pass_condition" is not a password)
 from __future__ import annotations
 
 import json
@@ -22,13 +22,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "6fe23c0def5710342a40eeded7841231c39c2d9e"  # the head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46058009895"
+CI_REVISION = "8b23cc66705a5b3c5eddac657cf774fa35a43594"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46061223577"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140705116895", "core-3.13": f"{CI_RUN}/job/140705116995", "kit": f"{CI_RUN}/job/140705116765",
-    "macos": f"{CI_RUN}/job/140705116884", "app": f"{CI_RUN}/job/140705117010", "ios": f"{CI_RUN}/job/140705116997",
+    "core-3.11": f"{CI_RUN}/job/140715689609", "core-3.13": f"{CI_RUN}/job/140715689583", "kit": f"{CI_RUN}/job/140715689668",
+    "macos": f"{CI_RUN}/job/140715689726", "app": f"{CI_RUN}/job/140715689754", "ios": f"{CI_RUN}/job/140715689699",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
+V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
 
@@ -60,7 +61,7 @@ def crit(cid: str, stage, title: str, source_ref: str, pass_condition: str, evid
         "id": cid, "stage": stage, "title": _plain(title), "source": kw.pop("source"), "source_ref": source_ref, "refs": kw.pop("refs", [source_ref]),
         "owners": OWNERS, "mandatory": kw.pop("mandatory", True), "scope": kw.pop("scope", "in"), "milestones": kw.pop("milestones", []),
         "aliases": kw.pop("aliases", []), "pass_condition": _plain(pass_condition), "required_evidence": _plain(evidence_required), "checkpoint": _plain(checkpoint),
-        "implementation": {"state": kw.pop("state", "none"), "evidence": kw.pop("evidence", [])},
+        "implementation": {"state": (state := kw.pop("state", "none")), "evidence": [{**e, "proves": state} for e in kw.pop("evidence", [])]},
         "review": kw.pop("review", {"verdict": None}),
     }  # fmt: skip
     c.update(kw)
@@ -95,10 +96,10 @@ def stage_3() -> list[dict]:
         tests = _tests_in(cells[3])  # columns: number, criterion, implementation, tests, evidence, status
         state = "checkpoint" if status.startswith("MET-L") and tests else "none"
         c = crit(f"S3-C{n:02d}", 3, cells[1], f"core/docs/STAGE3_ACCEPTANCE.md, criterion {n}; STAGE-3-EXECUTION-PLAN.md §5",
-                 f"Criterion {n} ({_plain(cells[1])}) is met on the candidate build: every test listed for it in STAGE3_ACCEPTANCE.md passes in the candidate's hosted Core jobs, its recorded limitation is closed, and any final-stage portion it names has passed. Recorded status and limitation at the source reference: {status}",
+                 f"Criterion {n} ({_plain(cells[1])}) is met on the candidate build: every test listed for it at the source reference passes in the candidate's hosted Core CI, and the limitation recorded there is closed.",
                  "The listed tests passing in the candidate's hosted Core CI; target or owner evidence for any final-stage portion",
                  "MET-L: met locally with synthetic data; every test listed for the criterion passes in the candidate's hosted Core CI",
-                 source="stage3", state=state, evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [])  # fmt: skip
+                 source="stage3", state=state, evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [], recorded_status=status)  # fmt: skip
         out.append(c)
     by = {c["id"]: c for c in out}
     by["S3-C06"]["review"] = {"verdict": "pass", "revision": "14b471bf589303cf25f5d781f8aaf62b0f5654e0", "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6014101078", "reviewer": "architect", "review_id": "6014101078", "historical": True, "scope_note": "MET-L for the exact-read attachment restriction only; the broader criterion and final Mac evidence stay open"}  # fmt: skip
@@ -109,8 +110,8 @@ def stage_3() -> list[dict]:
     by["S3-C14"]["milestones"] = ["first-mac"]
     gates = [
         ("S3-F4", "Selected-model injection resistance (F-4)", "Injection fixtures pass against the selected production model, run in a supported test environment.", "in"),
-        ("S3-F11-SW", "Least-privilege model and browser sandbox and real-Internet egress (F-11, software part)", "The worker sandbox profile is least-privilege (deny by default) and verified on a hosted macOS runner; the egress gateway is exercised against the real Internet under the off-by-default gates with the open residuals closed.", "in"),
-        ("S3-F11-DEV", "Sandbox verification on the owner's Mac and the owner's public-search decision (F-11, device part)", "Sandbox verified on the owner's Mac; the owner decides on enabling public search.", "out-device"),
+        ("S3-F11-SW", "Least-privilege sandbox, real-Internet egress and public-search guardrails (F-11, software part)", "The worker sandbox profile is least-privilege (deny by default) and verified on a hosted macOS runner; the egress gateway is exercised against the real Internet under the off-by-default gates, with the open residuals closed; public search stays behind its two off-by-default gates. Whether to enable it is the owner decision DEC-PUBLIC-SEARCH, not a criterion.", "in"),
+        ("S3-F11-DEV", "Sandbox verification on the owner's Mac (F-11, device part)", "The worker sandbox is verified on the owner's Mac.", "out-device"),
         ("S3-F12-SW", "Selected-model quality thresholds (F-12, software part)", "Answer and retrieval quality of the selected model meet accepted thresholds, measured independently of hardware.", "in"),
         ("S3-F12-DEV", "Target-hardware performance and memory (F-12, device part)", "Latency, memory and thermal thresholds met on the target Mac.", "out-device"),
         ("S3-F13-SW", "Self-contained install and signed release build (F-13, software part)", "The app bundles its Python and model install, builds, launches and stops its Core in hosted CI, and a signed, notarised build is produced by the release pipeline.", "in"),
@@ -184,8 +185,8 @@ def stages_4_to_8() -> list[dict]:
                 continue
             tests = _tests_in(cells[2] if len(cells) > 2 else "")
             state = "checkpoint" if status.upper().startswith("MET-L") and tests else "none"
-            out.append(crit(cid, int(number), title, ref, f"Exit evidence met on the candidate and accepted: {title}. Recorded status at the source reference: {status}", "The listed tests passing in hosted CI, plus the target evidence the row names",
-                            "MET-L: every test listed for the row passes in the candidate's hosted Core CI (implementer's report, not architect-reviewed)", state=state, evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [], **base))  # fmt: skip
+            out.append(crit(cid, int(number), title, ref, f"The exit evidence at the source reference is met on the candidate build and accepted: {title}.", "The listed tests passing in hosted CI, plus the target evidence the row names",
+                            "MET-L: every test listed for the row passes in the candidate's hosted Core CI (implementer's report, not architect-reviewed)", state=state, evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [], recorded_status=status, **base))  # fmt: skip
     return out
 
 
@@ -208,10 +209,10 @@ def conformance(path: Path, prefix: str, source: str) -> list[dict]:
         tests = _tests_in(cells[2])
         scope = "boundary" if status.startswith("ALIGNED") else "in"
         state = "checkpoint" if status.startswith("IMPLEMENTED") and tests else "none"
-        out.append(crit(cid, None, cells[0], f"{path.relative_to(ROOT)}, §{section} row {k}", f"Met as specified on the candidate build with no open gap. Open gap recorded at the source reference: {_plain(gap)}",
+        out.append(crit(cid, None, cells[0], f"{path.relative_to(ROOT)}, §{section} row {k}", "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
                         "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
                         "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)", source=source, scope=scope, state=state,
-                        evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else []))  # fmt: skip
+                        evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [], recorded_status=status, open_gap=_plain(gap)))  # fmt: skip
     return out
 
 
@@ -258,21 +259,93 @@ CHANGES = [
 ]
 
 
+V03_CHANGES = [
+    "v0.2 -> v0.3 (architect review 6093128990): Stop/Cancelled is one canonical criterion, UC-009; MAC-20 keeps incomplete-search wording and clearing results on withdrawal; S3-C13 is an aggregate of S3-C13-REF (new), UC-009, MAC-09, MAC-19 and MAC-20.",
+    "UC-011 (revoked or unavailable source) is an alias of the S3-C02 aggregate. Signing: S7-X04 is canonical; S3-F13-SW is an aggregate of S7-X04 and S3-F13-INSTALL (new).",
+    "S3-C06-EXACTREAD (new) carries the scoped historical criterion-6 verdict at 14b471bf; the broader S3-C06 review is pending as recorded at 8b23cc6. S2-01's verdict carries forward explicitly, for its original scope only.",
+    "The owner's public-search decision moved out of S3-F11-DEV into the decision record DEC-PUBLIC-SEARCH; its guardrails stay scored in S3-F11-SW. Pass conditions are normative; recorded status and open gaps are separate fields.",
+    "All evidence now cites the scored revision 8b23cc6 and its CI run 46061223577; MAC-13 and MAC-14 are reopened because this batch changed the delivery code their evidence covered. Verdicts at 8b23cc6 mirrored: MAC-06 fail, MAC-08 fail, S3-C06 pending.",
+]
+
+
+def _verdict(review: tuple[str, str, str], verdict: str, **extra) -> dict:
+    rev, link, rid = review
+    return {"verdict": verdict, "revision": rev, "link": link, "reviewer": "architect", "review_id": rid, **extra}
+
+
+def apply_v03(criteria: list[dict]) -> list[dict]:
+    """v0.2 -> v0.3, from the architect's review of v0.2 (review 6093128990): crosswalk, scoped historical verdicts, mirrored verdicts,
+    and criteria reopened where this batch changed the code their evidence covered."""
+    by = {c["id"]: c for c in criteria}
+    # Stop / Cancelled: one canonical criterion (UC-009); MAC-20 keeps the other two behaviours; S3-C13 becomes an aggregate of its parts.
+    by["UC-009"].update(
+        milestones=["first-mac"],
+        pass_condition="Stop shows Cancelled, durably, whether it is pressed before the task ID returns, while the task runs, or after it completes; Cancelled and Expired are never shown as Failed.",
+        required_evidence="Exact Core tests and hosted Swift app-model tests for each Stop timing",
+    )
+    by["MAC-20"].update(
+        title="Result UX: incomplete-search wording and clearing results on withdrawal",
+        pass_condition="Incomplete or unsearched coverage is worded truthfully in the app, and withdrawing access clears every affected displayed result and discards stale continuations; Stop/Cancelled is UC-009.",
+    )
+    by["S3-C13"].update(scope="aggregate", composed_of=["S3-C13-REF", "UC-009", "MAC-09", "MAC-19", "MAC-20"])
+    criteria.append(crit("S3-C13-REF", 3, "One experience through the reference client: question, progress, citations, clear outcomes", "core/docs/STAGE3_ACCEPTANCE.md, criterion 13 (reference-client portion)", "Through the reference client against the real Core: a question shows progress, a final answer with resolvable citations, and a clear outcome for every closed vocabulary state.", "Exact reference-client tests passing in hosted Core CI", "MET-L: reference-client tests pass in hosted Core CI", source="stage3", milestones=["first-mac"],
+                         state="checkpoint", evidence=[test("core/tests/test_client.py", "test_every_value_of_every_closed_vocabulary_has_a_message"), ci("core-3.11"), ci("core-3.13")]))  # fmt: skip
+    # Revoked / unavailable source: UC-011 is the same decision as the S3-C02 aggregate.
+    criteria.remove(by["UC-011"])
+    by["S3-C02"]["aliases"] = ["UC-011"]
+    # Signing: S7-X04 is canonical; S3-F13-SW is an aggregate of it and the install criterion.
+    by["S3-F13-SW"].update(scope="aggregate", composed_of=["S7-X04", "S3-F13-INSTALL"])
+    criteria.append(crit("S3-F13-INSTALL", 3, "Self-contained app install that starts and stops its Core", "core/docs/STAGE3_ACCEPTANCE.md, final gate F-13 (install portion)", "The app bundles its private Python, the Core and the selected model's install, builds, launches, starts its Core and stops it on quit, in hosted CI.", "The hosted app build-and-launch job; a bundled model install", "The app bundles its private Python and the Core, launches, starts its Core and stops it on quit in the hosted app job (a build-and-launch check, not an end-to-end behaviour test; the model install is not yet bundled)", source="stage3",
+                         state="checkpoint", evidence=[ci("app", "build Atlas.app with its private Python, launch, start and stop the Core")]))  # fmt: skip
+    # Exact-read attachment restriction: its own canonical criterion carries the scoped historical verdict; the broader S3-C06 is pending.
+    exact = crit("S3-C06-EXACTREAD", 3, "Mail attachment bytes are never read (exact-read restriction)", "core/docs/STAGE3_ACCEPTANCE.md, criterion 6 (exact-read portion); review 6014101078", "No attachment byte is read: listing reads headers only and reading stops at the text part; a non-text part before the text makes the message unreadable.", "Exact Mail-reader tests passing in hosted Core CI", "MET-L: the exact-read tests pass in hosted Core CI", source="stage3",
+                 state="checkpoint", evidence=[test("core/tests/test_macos.py", "test_not_one_attachment_byte_is_read_even_when_it_lies_within_the_same_4k_window_as_the_text"), ci("core-3.11"), ci("core-3.13")],
+                 review=by["S3-C06"]["review"])  # fmt: skip
+    criteria.append(exact)
+    by["S3-C06"]["review"] = _verdict(V02_REVIEW, "pending", note="the broader criterion needs matching evidence; the exact-read portion is S3-C06-EXACTREAD")
+    # Stage 2's historical verdict is carried forward explicitly, for its original scope only.
+    by["S2-01"]["review"]["carry_forward"] = {
+        "scope": "portable engineering scope only",
+        "candidate_evidence": [JOBS["core-3.11"], JOBS["core-3.13"]],
+        "applies_while": "the Stage 2 tests run unchanged in the candidate's Core jobs",
+    }
+    # Verdicts the architect recorded at 8b23cc6.
+    by["MAC-06"]["review"] = _verdict(V02_REVIEW, "fail", note="one required hosted job (mac-ui) failed; security passed")
+    by["MAC-08"]["review"] = _verdict(V02_REVIEW, "fail", note="hosted Mac onboarding contrast still fails")
+    # Reopened: this batch changed the delivery code their 8b23cc6 evidence covered; re-evidenced at the next head's CI.
+    for cid in ("MAC-13", "MAC-14"):
+        by[cid]["reopened"] = "service.guard_delivery / coverage delivery changed in the v0.3 batch; the 8b23cc6 evidence no longer covers it"
+    return criteria
+
+
+DECISIONS = [
+    {
+        "id": "DEC-PUBLIC-SEARCH",
+        "owner": "Owner",
+        "status": "open",
+        "question": "Enable public web research (the two off-by-default gates)?",
+        "related": ["S3-F11-SW"],
+        "note": "A policy choice with no hardware dependency; the guardrails it relies on are scored in S3-F11-SW.",
+    },
+]
+
+
 def main() -> int:
     previous = json.loads(OUT.read_text(encoding="utf-8")) if OUT.exists() else {}
     criteria = stages_0_to_2() + stage_3() + stages_4_to_8()
     criteria += conformance(ROOT / "docs" / "genesis" / "PRD_CONFORMANCE.md", "PRD", "prd")
     criteria += conformance(ROOT / "docs" / "genesis" / "USE_CASE_CONFORMANCE.md", "UCX", "use-case")
     criteria += first_mac()
+    criteria = apply_v03(criteria)
     seen: dict[str, int] = {}
     for c in criteria:
         seen[c["id"]] = seen.get(c["id"], 0) + 1
         if seen[c["id"]] > 1:
             c["id"] = f"{c['id']}.{seen[c['id']]}"
     register = {
-        "version": "0.2",
+        "version": "0.3",
         "status": "proposed by Claude; Codex to check the crosswalk and denominator and confirm or correct by SHA",
-        "base_revision": CI_REVISION,
+        "scored_revision": CI_REVISION,
         "rules": "PR #8 comment 7226542434 (scoring) and 7226926847 (schedule protocol)",
         "scoring": {"full": 1.0, "checkpoint": 0.5, "none": 0.0},
         "scopes": {
@@ -281,7 +354,8 @@ def main() -> int:
             "aggregate": "composed of other criteria: scored through them only",
             "boundary": "a scope guard that is already true: not a deliverable",
         },
-        "changes_from_previous": CHANGES,
+        "changes_from_previous": CHANGES + V03_CHANGES,
+        "decisions": DECISIONS,
         "criteria": criteria,
         "review_batches": previous.get("review_batches", []),
     }

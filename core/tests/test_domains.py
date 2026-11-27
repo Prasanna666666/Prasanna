@@ -393,3 +393,31 @@ def test_the_highlights_agent_starts_an_ordinary_verified_task_over_the_enabled_
         assert again["task_id"] == section["task_id"]  # the same day is the same task
     finally:
         world.close()
+
+
+@pytest.mark.parametrize("domain", ["finance", "health"])
+def test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_are_being_read(tmp_path, domain):
+    """MAC-15: the final check follows the last read. The grant is withdrawn while the summary's records are read, and the owner receives
+    `denied` with no figures, never a summary computed from data it may no longer see."""
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    if domain == "health":
+        world.sources["health"] = InMemoryRecords("health", [_reading("w1", "2026-10-01", "weight", "70.0", "kg", "measured")])
+    try:
+        core = started(world)
+        world.enable(core, domain)
+        summary = world.client().finance_summary if domain == "finance" else world.client().health_summary
+        assert summary()["state"] == "ready"
+        attr = "finance_records" if domain == "finance" else "health_records"
+        real = getattr(core.service._d, attr)
+
+        def withdraw_while_reading():
+            records = real()
+            core.designation.withdraw(domain, f"withdraw-{domain}-during-read")
+            return records
+
+        setattr(core.service._d, attr, withdraw_while_reading)
+        out = summary()
+        assert out["state"] == "denied" and out.get("latest") is None and out.get("measures", []) == [] and out.get("months", []) == []
+    finally:
+        world.close()
